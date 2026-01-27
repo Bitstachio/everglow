@@ -8,8 +8,6 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 export type Response<T> = {
-  success: true;
-  statusCode: number;
   data: T;
   meta: {
     timestamp: string;
@@ -29,8 +27,6 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
 
     return next.handle().pipe(
       map((data) => ({
-        success: true,
-        statusCode: response.statusCode,
         data: data ?? null,
         meta: {
           timestamp: new Date().toISOString(),

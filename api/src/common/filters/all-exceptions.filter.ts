@@ -1,7 +1,7 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpException,
   HttpStatus,
   Logger,
@@ -9,10 +9,7 @@ import {
 import { HttpAdapterHost } from '@nestjs/core';
 
 export type ErrorResponse = {
-  success: false;
-  statusCode: number;
-  message: string;
-  details?: any;
+  message?: string;
   meta: {
     timestamp: string;
     path: string;
@@ -27,39 +24,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const { httpAdapter } = this.httpAdapterHost;
+
     const ctx = host.switchToHttp();
 
-    let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
-    let details: any = null;
+    let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message: string | undefined;
 
+    // Only expose message for HttpException (user-defined errors)
+    // Unhandled errors are logged server-side but not exposed to clients for security
     if (exception instanceof HttpException) {
-      httpStatus = exception.getStatus();
-      const response = exception.getResponse();
-      message = (response as any).message || exception.message;
-      details = (response as any).error || null;
-    } else if (exception instanceof Error) {
+      statusCode = exception.getStatus();
       message = exception.message;
+    } else if (exception instanceof Error) {
       this.logger.error(
         `Unhandled exception: ${exception.message}`,
         exception.stack,
       );
     }
 
-    const request = ctx.getRequest();
-    const response = ctx.getResponse();
-
     const responseBody: ErrorResponse = {
-      success: false,
-      statusCode: httpStatus,
-      message,
-      ...(details && { details }),
+      ...(message && { message }),
       meta: {
         timestamp: new Date().toISOString(),
-        path: request.url,
+        path: httpAdapter.getRequestUrl(ctx.getRequest()),
       },
     };
 
-    httpAdapter.reply(response, responseBody, httpStatus);
+    httpAdapter.reply(ctx.getResponse(), responseBody, statusCode);
   }
 }
