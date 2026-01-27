@@ -8,6 +8,17 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 
+export type ErrorResponse = {
+  success: false;
+  statusCode: number;
+  message: string;
+  details?: any;
+  meta: {
+    timestamp: string;
+    path: string;
+  };
+};
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -35,14 +46,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     }
 
-    const responseBody = {
+    const request = ctx.getRequest();
+    const response = ctx.getResponse();
+
+    const responseBody: ErrorResponse = {
       success: false,
       statusCode: httpStatus,
       message,
-      timestamp: new Date().toISOString(),
       ...(details && { details }),
+      meta: {
+        timestamp: new Date().toISOString(),
+        path: request.url,
+      },
     };
 
-    httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
+    httpAdapter.reply(response, responseBody, httpStatus);
   }
 }

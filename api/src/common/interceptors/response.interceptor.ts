@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 export type Response<T> = {
-  success: boolean;
+  success: true;
   statusCode: number;
   data: T;
   meta: {
