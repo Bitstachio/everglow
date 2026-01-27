@@ -6,6 +6,7 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Get,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -14,6 +15,15 @@ import { SignupDto, SigninDto, RefreshDto, AuthResponseDto } from './dto';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Get('test')
+  @HttpCode(HttpStatus.OK)
+  async test() {
+    return {
+      info: 123,
+      otherInfo: 987,
+    };
+  }
 
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
