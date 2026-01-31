@@ -1,12 +1,5 @@
-import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
-import { HttpAdapterHost } from '@nestjs/core';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from "@nestjs/common";
+import { HttpAdapterHost } from "@nestjs/core";
 
 export type ErrorResponse = {
   message?: string;
@@ -36,10 +29,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode = exception.getStatus();
       message = exception.message;
     } else if (exception instanceof Error) {
-      this.logger.error(
-        `Unhandled exception: ${exception.message}`,
-        exception.stack,
-      );
+      this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
     }
 
     const responseBody: ErrorResponse = {
