@@ -1,14 +1,15 @@
-import { Entity, Column, OneToOne, JoinColumn, BeforeInsert, BeforeUpdate } from "typeorm";
 import * as bcrypt from "bcrypt";
+import { BeforeInsert, BeforeUpdate, Column, Entity, JoinColumn, OneToOne } from "typeorm";
 import { BaseEntity } from "../../common/entities/base.entity";
 import { User } from "./user.entity";
+import { STRING_LIMITS } from "src/common/constants/schema.constants";
 
 @Entity("user_auth")
 export class UserAuth extends BaseEntity {
   @Column({ name: "user_id", unique: true })
   userId: string;
 
-  @Column({ name: "password_hash", type: "varchar", length: 255 })
+  @Column({ name: "password_hash", type: "varchar", length: STRING_LIMITS.STANDARD })
   passwordHash: string;
 
   @Column({ name: "refresh_token", type: "text", nullable: true })
