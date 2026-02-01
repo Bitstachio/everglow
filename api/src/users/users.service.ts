@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { EntityManager, Repository } from "typeorm";
+import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { User } from "./entities/user.entity";
 import { USER_SERVICE_ERRORS } from "./users.constants";
@@ -11,6 +12,16 @@ export class UsersService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {}
+
+  async createWithManager(manager: EntityManager, data: CreateUserDto): Promise<User> {
+    const duplicate = await manager.findOne(User, {
+      where: { email: data.email },
+    });
+    if (duplicate) throw new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(data.email));
+
+    const user = manager.create(User, data);
+    return await manager.save(User, user);
+  }
 
   async findOne(id: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
