@@ -18,7 +18,7 @@ import { UserAuth } from "../users/entities/user-auth.entity";
         secret: configService.get<string>("jwt.secret"),
         signOptions: {
           expiresIn: configService.get<string>("jwt.accessExpiration") || "15m",
-        } as any,
+        },
       }),
       inject: [ConfigService],
     }),

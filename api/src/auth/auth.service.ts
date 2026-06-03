@@ -41,7 +41,7 @@ export class AuthService {
     await this.userAuthRepository.save(userAuth);
 
     // Generate tokens
-    const tokens = await this.generateTokens(savedUser.id, savedUser.email);
+    const tokens = this.generateTokens(savedUser.id, savedUser.email);
 
     // Store refresh token
     await this.userAuthRepository.update({ userId: savedUser.id }, { refreshToken: tokens.refreshToken });
@@ -76,7 +76,7 @@ export class AuthService {
     }
 
     // Generate tokens
-    const tokens = await this.generateTokens(user.id, user.email);
+    const tokens = this.generateTokens(user.id, user.email);
 
     // Store refresh token
     await this.userAuthRepository.update({ userId: user.id }, { refreshToken: tokens.refreshToken });
@@ -101,7 +101,7 @@ export class AuthService {
 
     try {
       // Verify refresh token
-      const payload = this.jwtService.verify(refreshToken, {
+      const payload = this.jwtService.verify<JwtPayloadDto>(refreshToken, {
         secret: this.configService.get<string>("jwt.refreshSecret"),
       });
 
@@ -118,12 +118,12 @@ export class AuthService {
         { sub: payload.sub, email: payload.email },
         {
           secret: this.configService.get<string>("jwt.secret"),
-          expiresIn: (this.configService.get<string>("jwt.accessExpiration") || "15m") as any,
+          expiresIn: this.configService.get<string>("jwt.accessExpiration") || "15m",
         },
       );
 
       return { accessToken };
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException("Invalid refresh token");
     }
   }
@@ -132,17 +132,17 @@ export class AuthService {
     await this.userAuthRepository.update({ userId }, { refreshToken: null });
   }
 
-  private async generateTokens(userId: string, email: string) {
+  private generateTokens(userId: string, email: string) {
     const payload: JwtPayloadDto = { sub: userId, email };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>("jwt.secret"),
-      expiresIn: (this.configService.get<string>("jwt.accessExpiration") || "15m") as any,
+      expiresIn: this.configService.get<string>("jwt.accessExpiration") || "15m",
     });
 
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>("jwt.refreshSecret"),
-      expiresIn: (this.configService.get<string>("jwt.refreshExpiration") || "7d") as any,
+      expiresIn: this.configService.get<string>("jwt.refreshExpiration") || "7d",
     });
 
     return { accessToken, refreshToken };

@@ -8,9 +8,6 @@ import { ResponseInterceptor } from "./common/interceptors/response.interceptor"
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Global exception filter
-  const { httpAdapter } = app.get(HttpAdapterHost);
-
   app.useGlobalInterceptors(new ResponseInterceptor());
 
   app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
@@ -40,4 +37,4 @@ async function bootstrap() {
   console.log(`Application is running on: http://localhost:${port}`);
   console.log(`Swagger docs available at: http://localhost:${port}/api/docs`);
 }
-bootstrap();
+void bootstrap();
