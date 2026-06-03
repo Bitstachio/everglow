@@ -1,7 +1,10 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Request, UseGuards } from "@nestjs/common";
+import { Request as ExpressRequest } from "express";
 import { AuthService } from "./auth.service";
-import { AuthResponseDto, RefreshDto, SigninDto, SignupDto } from "./dto";
+import { AuthResponseDto, JwtPayloadDto, RefreshDto, SigninDto, SignupDto } from "./dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+
+type AuthenticatedRequest = ExpressRequest & { user: JwtPayloadDto };
 
 @Controller("auth")
 export class AuthController {
@@ -28,7 +31,7 @@ export class AuthController {
   @Post("logout")
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req: any): Promise<{ success: boolean; message: string }> {
+  async logout(@Request() req: AuthenticatedRequest): Promise<{ success: boolean; message: string }> {
     await this.authService.logout(req.user.sub);
     return {
       success: true,
