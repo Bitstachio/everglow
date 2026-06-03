@@ -1,13 +1,12 @@
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
   Modal,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,7 +14,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Event } from "@/features/events/types";
 import {
   getEventById,
@@ -37,7 +35,6 @@ const EventDetailScreen = () => {
   const { id } = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const [event, setEvent] = useState<Event | null>(null);
@@ -58,13 +55,7 @@ const EventDetailScreen = () => {
     }
   };
 
-  useEffect(() => {
-    if (id) {
-      fetchEventDetails();
-    }
-  }, [id]);
-
-  const fetchEventDetails = async () => {
+  const fetchEventDetails = useCallback(async () => {
     try {
       setIsLoading(true);
       const eventData = await getEventById(Number(id));
@@ -84,7 +75,13 @@ const EventDetailScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id, router]);
+
+  useEffect(() => {
+    if (id) {
+      void fetchEventDetails();
+    }
+  }, [id, fetchEventDetails]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);

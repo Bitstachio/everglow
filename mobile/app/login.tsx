@@ -32,7 +32,7 @@ export default function LoginScreen() {
     return () => {
       clearError();
     };
-  }, []);
+  }, [clearError]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -128,7 +128,7 @@ export default function LoginScreen() {
           </View>
           <View style={styles.footer}>
             <Text style={[styles.footerText, isDark ? styles.footerTextDark : styles.footerTextLight]}>
-              Don't have an account?{" "}
+              {"Don't have an account? "}
             </Text>
             <TouchableOpacity onPress={() => router.push("/signup")} disabled={isLoading}>
               <Text style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}>Sign Up</Text>

@@ -40,7 +40,7 @@ export default function SignupScreen() {
     return () => {
       clearError();
     };
-  }, []);
+  }, [clearError]);
 
   useEffect(() => {
     if (isAuthenticated) {
