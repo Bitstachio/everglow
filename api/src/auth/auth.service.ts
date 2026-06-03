@@ -6,6 +6,7 @@ import { Repository } from "typeorm";
 import { UserAuth } from "../users/entities/user-auth.entity";
 import { User } from "../users/entities/user.entity";
 import { AuthResponseDto, JwtPayloadDto, RefreshDto, SigninDto, SignupDto } from "./dto";
+import { getJwtAccessExpiresIn, getJwtRefreshExpiresIn, getJwtRefreshSecret, getJwtSecret } from "./jwt-config.util";
 
 @Injectable()
 export class AuthService {
@@ -102,7 +103,7 @@ export class AuthService {
     try {
       // Verify refresh token
       const payload = this.jwtService.verify<JwtPayloadDto>(refreshToken, {
-        secret: this.configService.get<string>("jwt.refreshSecret"),
+        secret: getJwtRefreshSecret(this.configService),
       });
 
       // Verify token exists in database
@@ -117,8 +118,8 @@ export class AuthService {
       const accessToken = this.jwtService.sign(
         { sub: payload.sub, email: payload.email },
         {
-          secret: this.configService.get<string>("jwt.secret"),
-          expiresIn: this.configService.get<string>("jwt.accessExpiration") || "15m",
+          secret: getJwtSecret(this.configService),
+          expiresIn: getJwtAccessExpiresIn(this.configService),
         },
       );
 
@@ -136,13 +137,13 @@ export class AuthService {
     const payload: JwtPayloadDto = { sub: userId, email };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>("jwt.secret"),
-      expiresIn: this.configService.get<string>("jwt.accessExpiration") || "15m",
+      secret: getJwtSecret(this.configService),
+      expiresIn: getJwtAccessExpiresIn(this.configService),
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>("jwt.refreshSecret"),
-      expiresIn: this.configService.get<string>("jwt.refreshExpiration") || "7d",
+      secret: getJwtRefreshSecret(this.configService),
+      expiresIn: getJwtRefreshExpiresIn(this.configService),
     });
 
     return { accessToken, refreshToken };

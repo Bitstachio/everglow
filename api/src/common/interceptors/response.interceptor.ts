@@ -4,7 +4,7 @@ import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
 export type Response<T> = {
-  data: T;
+  data: T | null;
   meta: {
     timestamp: string;
     path: string;
