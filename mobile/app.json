@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "lueur-mobile",
-    "slug": "lueur-mobile",
+    "name": "everglow-mobile",
+    "slug": "everglow-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "lueurmobile",
+    "scheme": "everglowmobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -15,7 +15,7 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload event photos.",
         "NSPhotoLibraryAddUsageDescription": "This app needs permission to save photos to your photo library."
       },
-      "bundleIdentifier": "com.anonymous.lueur-mobile"
+      "bundleIdentifier": "com.anonymous.everglow-mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -46,7 +46,7 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO"
       ],
-      "package": "com.anonymous.lueurmobile"
+      "package": "com.anonymous.everglowmobile"
     },
     "web": {
       "bundler": "metro",

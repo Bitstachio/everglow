@@ -28,7 +28,7 @@ async function bootstrap() {
   app.enableCors();
   app.setGlobalPrefix("api/v2");
   const config = new DocumentBuilder()
-    .setTitle("Lueur API")
+    .setTitle("Everglow API")
     .setDescription("Photo-sharing platform for events - API Documentation")
     .setVersion("2.0")
     .addBearerAuth()

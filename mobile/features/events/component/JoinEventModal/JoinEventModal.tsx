@@ -57,7 +57,7 @@ const JoinEventModal = ({ visible, onClose, onJoinLink }: JoinEventModalProps) =
             <ThemedText>Or paste the invite link</ThemedText>
             <AppTextInput
               value={inviteLink}
-              placeholder="https://events.lueur.app/invite/example123"
+              placeholder="https://events.everglow.app/invite/example123"
               onChangeText={handleInviteLinkChange}
             />
             {error ? <ThemedText className="text-red-500">{error}</ThemedText> : null}

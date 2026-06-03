@@ -50,7 +50,7 @@ export default function CreateEventScreen() {
 
     setTimeout(() => {
       const slug = slugify(title);
-      const shareLink = `https://events.lueur.app/${slug || "event"}/${Date.now().toString().slice(-5)}`;
+      const shareLink = `https://events.everglow.app/${slug || "event"}/${Date.now().toString().slice(-5)}`;
       setCreatedEvent({
         title: title.trim(),
         description: description.trim(),
