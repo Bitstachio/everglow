@@ -8,6 +8,7 @@ import jwtConfig from "./config/jwt.config";
 import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
 import { AuthModule } from "./auth/auth.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from "./auth/auth.module";
         configService.get<TypeOrmModuleOptions>("database")!,
     }),
     AuthModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

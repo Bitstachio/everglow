@@ -39,6 +39,9 @@ lerna-debug.log*
 .env.local
 .env.production
 
+# OpenAPI generation (sql.js in-memory artifact)
+/everglow-openapi
+
 # Temp
 /tmp
 *.tmp
