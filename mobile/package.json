@@ -10,7 +10,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "openapi:generate": "openapi-typescript ../api/openapi/openapi.json -o lib/api/schema.d.ts",
+    "openapi:check": "npm run openapi:generate && git diff --exit-code lib/api/schema.d.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -55,6 +57,7 @@
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "3.6.2",
     "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^3.4.17",
