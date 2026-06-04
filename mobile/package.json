@@ -11,7 +11,7 @@
     "lint": "expo lint",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "openapi:generate": "openapi-typescript ../api/openapi/openapi.json -o lib/api/schema.d.ts",
+    "openapi:generate": "openapi-typescript ../api/openapi/openapi.json -o lib/api/schema.d.ts && prettier --write lib/api/schema.d.ts",
     "openapi:check": "npm run openapi:generate && git diff --exit-code lib/api/schema.d.ts"
   },
   "dependencies": {
