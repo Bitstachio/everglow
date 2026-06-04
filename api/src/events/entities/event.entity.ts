@@ -13,7 +13,7 @@ export class Event extends BaseEntity {
   @Column({ type: "text", nullable: true })
   description: string | null;
 
-  @Column({ type: "timestamp" })
+  @Column({ type: "datetime" })
   date: Date;
 
   @Column({ name: "creator_id" })

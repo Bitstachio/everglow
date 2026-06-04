@@ -1,9 +1,20 @@
 import { registerAs } from "@nestjs/config";
 import { TypeOrmModuleOptions } from "@nestjs/typeorm";
 
-export default registerAs(
-  "database",
-  (): TypeOrmModuleOptions => ({
+export default registerAs("database", (): TypeOrmModuleOptions => {
+  if (process.env.OPENAPI_GENERATE === "1") {
+    // Only entities required for documented modules (auth + users).
+    return {
+      type: "sqljs",
+      autoSave: false,
+      location: "everglow-openapi",
+      entities: [__dirname + "/../**/*.entity{.ts,.js}"],
+      synchronize: true,
+      logging: false,
+    };
+  }
+
+  return {
     type: "mysql",
     host: process.env.DB_HOST || "localhost",
     port: parseInt(process.env.DB_PORT || "3306", 10),
@@ -16,5 +27,5 @@ export default registerAs(
     extra: {
       connectionLimit: 10,
     },
-  }),
-);
+  };
+});
