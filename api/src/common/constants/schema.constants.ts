@@ -1,6 +1,6 @@
 /**
  * Database column length constraints.
- * These constants ensure consistency across entities and DTOs.
+ * These constants ensure consistency across the Prisma schema and DTOs.
  */
 export const STRING_LIMITS = {
   // Concise metadata, codes, and identifiers

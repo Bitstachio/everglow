@@ -1,7 +1,7 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
-import { User } from "../users/entities/user.entity";
+import type { User } from "../../generated/prisma/client.js";
 import { AuthResponseDto, RefreshDto, SigninDto, SignupDto } from "./dto";
 
 const DB_UNAVAILABLE = "Database unavailable — Prisma migration in progress";

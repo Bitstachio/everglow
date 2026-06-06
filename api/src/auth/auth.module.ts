@@ -9,7 +9,6 @@ import { JwtStrategy } from "./auth.strategy";
 
 @Module({
   imports: [
-    // TypeOrmModule.forFeature([User, UserAuth]) — disabled until Prisma migration.
     PassportModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({

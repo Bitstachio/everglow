@@ -15,7 +15,6 @@ import { UsersModule } from "./users/users.module";
       load: [jwtConfig, awsConfig, encryptionConfig],
       envFilePath: ".env",
     }),
-    // TypeOrmModule.forRootAsync({ ... }) — disabled until Prisma migration.
     AuthModule,
     UsersModule,
   ],
