@@ -15,27 +15,16 @@ enum AccessLevel {
 }
 
 model User {
-  id        String   @id @default(uuid()) @db.Char(36)
-  email     String   @unique @db.VarChar(255)
-  name      String   @db.VarChar(255)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid()) @db.Char(36)
+  providerSub String   @unique @db.VarChar(255) // OIDC "sub" from identity provider
+  email       String   @unique @db.VarChar(255)
+  name        String   @db.VarChar(255)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  auth          UserAuth?
   createdEvents Event[]       @relation("CreatedEvents")
   eventAccesses EventAccess[]
   photos        Photo[]
-}
-
-model UserAuth {
-  id           String   @id @default(uuid()) @db.Char(36)
-  userId       String   @unique @db.Char(36)
-  passwordHash String   @db.VarChar(255)
-  refreshToken String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Event {
@@ -54,12 +43,12 @@ model Event {
 }
 
 model EventAccess {
-  id          String   @id @default(uuid()) @db.Char(36)
-  userId      String   @db.Char(36)
-  eventId     String   @db.Char(36)
+  id          String      @id @default(uuid()) @db.Char(36)
+  userId      String      @db.Char(36)
+  eventId     String      @db.Char(36)
   accessLevel AccessLevel @default(VIEWER)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   user  User  @relation(fields: [userId], references: [id])
   event Event @relation(fields: [eventId], references: [id])
