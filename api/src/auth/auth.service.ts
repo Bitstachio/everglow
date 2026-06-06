@@ -1,7 +1,7 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
-import type { User } from "../../generated/prisma/client.js";
+import { UserResponseDto } from "../users/dto/user-response.dto";
 import { AuthResponseDto, RefreshDto, SigninDto, SignupDto } from "./dto";
 
 const DB_UNAVAILABLE = "Database unavailable — Prisma migration in progress";
@@ -36,7 +36,7 @@ export class AuthService {
   // Token helpers — restore when Prisma auth flow is implemented.
   // private generateTokens(userId: string, email: string) { ... }
 
-  validateUser(userId: string): Promise<User> {
+  validateUser(userId: string): Promise<UserResponseDto> {
     void userId;
     return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
   }
