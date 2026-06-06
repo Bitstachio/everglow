@@ -1,42 +1,31 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { EntityManager, Repository } from "typeorm";
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { User } from "./entities/user.entity";
-import { USER_SERVICE_ERRORS } from "./users.constants";
+import { UserResponseDto } from "./dto/user-response.dto";
+
+const DB_UNAVAILABLE = "Database unavailable — Prisma migration in progress";
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-  ) {}
-
-  async createWithManager(manager: EntityManager, data: CreateUserDto): Promise<User> {
-    const duplicate = await manager.findOne(User, {
-      where: { email: data.email },
-    });
-    if (duplicate) throw new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(data.email));
-
-    const user = manager.create(User, data);
-    return await manager.save(User, user);
+  createWithManager(manager: unknown, data: CreateUserDto): Promise<UserResponseDto> {
+    void manager;
+    void data;
+    return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
   }
 
-  async findOne(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
-    return user;
+  findOne(id: string): Promise<UserResponseDto> {
+    void id;
+    return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    const user = await this.findOne(id);
-    const updatedUser = this.userRepository.merge(user, updateUserDto);
-    return this.userRepository.save(updatedUser);
+  update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
+    void id;
+    void updateUserDto;
+    return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
   }
 
-  async remove(id: string): Promise<void> {
-    const user = await this.findOne(id);
-    await this.userRepository.remove(user);
+  remove(id: string): Promise<void> {
+    void id;
+    return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
   }
 }
