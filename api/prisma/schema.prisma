@@ -1,0 +1,80 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFolder = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum AccessLevel {
+  ORGANIZER
+  PARTICIPANT
+  VIEWER
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Char(36)
+  email     String   @unique @db.VarChar(255)
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auth          UserAuth?
+  createdEvents Event[]       @relation("CreatedEvents")
+  eventAccesses EventAccess[]
+  photos        Photo[]
+}
+
+model UserAuth {
+  id           String   @id @default(uuid()) @db.Char(36)
+  userId       String   @unique @db.Char(36)
+  passwordHash String   @db.VarChar(255)
+  refreshToken String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id            String   @id @default(uuid()) @db.Char(36)
+  title         String   @db.VarChar(200)
+  description   String?  @db.Text
+  date          DateTime @db.DateTime(0)
+  creatorId     String   @db.Char(36)
+  invitationUrl String   @unique @db.VarChar(100)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  creator       User          @relation("CreatedEvents", fields: [creatorId], references: [id])
+  photos        Photo[]
+  eventAccesses EventAccess[]
+}
+
+model EventAccess {
+  id          String   @id @default(uuid()) @db.Char(36)
+  userId      String   @db.Char(36)
+  eventId     String   @db.Char(36)
+  accessLevel AccessLevel @default(VIEWER)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id])
+  event Event @relation(fields: [eventId], references: [id])
+
+  @@unique([userId, eventId])
+}
+
+model Photo {
+  id        String   @id @default(uuid()) @db.Char(36)
+  imageUrl  String   @db.VarChar(500)
+  addedById String   @db.Char(36)
+  eventId   String   @db.Char(36)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  addedBy User  @relation(fields: [addedById], references: [id])
+  event   Event @relation(fields: [eventId], references: [id])
+}

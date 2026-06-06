@@ -3,9 +3,9 @@ import { User } from "../../users/entities/user.entity";
 import { Event } from "./event.entity";
 
 export enum AccessLevel {
-  ADMIN = 0,
-  CONTRIBUTOR = 1,
-  VIEWER = 2,
+  ORGANIZER = "ORGANIZER",
+  PARTICIPANT = "PARTICIPANT",
+  VIEWER = "VIEWER",
 }
 
 // TypeORM decorators removed — plain model until Prisma migration.
