@@ -1,12 +1,6 @@
-import { CreateDateColumn, UpdateDateColumn, PrimaryGeneratedColumn } from "typeorm";
-
+// TypeORM decorators removed — plain model until Prisma migration.
 export abstract class BaseEntity {
-  @PrimaryGeneratedColumn("uuid")
   id: string;
-
-  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
-
-  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 }

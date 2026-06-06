@@ -1,26 +1,15 @@
 import * as bcrypt from "bcrypt";
-import { STRING_LIMITS } from "src/common/constants/schema.constants";
-import { BeforeInsert, BeforeUpdate, Column, Entity, JoinColumn, OneToOne } from "typeorm";
 import { BaseEntity } from "../../common/entities/base.entity";
 import { User } from "./user.entity";
 
-@Entity("user_auth")
+// TypeORM decorators removed — plain model until Prisma migration.
 export class UserAuth extends BaseEntity {
-  @Column({ name: "user_id", unique: true })
   userId: string;
-
-  @Column({ name: "password_hash", length: STRING_LIMITS.STANDARD })
   passwordHash: string;
-
-  @Column({ name: "refresh_token", type: "text", nullable: true })
   refreshToken: string | null;
+  user?: User;
 
-  @OneToOne(() => User, (user) => user.auth, { onDelete: "CASCADE" })
-  @JoinColumn({ name: "user_id" })
-  user: User;
-
-  @BeforeInsert()
-  @BeforeUpdate()
+  // Previously @BeforeInsert / @BeforeUpdate — move to AuthService when using Prisma.
   async hashPassword() {
     if (this.passwordHash && !this.passwordHash.startsWith("$2")) {
       const salt = await bcrypt.genSalt(10);
