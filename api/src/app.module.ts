@@ -7,6 +7,7 @@ import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
 import { AuthModule } from "./auth/auth.module";
 import { UsersModule } from "./users/users.module";
+import { CaslModule } from "./casl/casl.module";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { UsersModule } from "./users/users.module";
     }),
     AuthModule,
     UsersModule,
+    CaslModule,
   ],
   controllers: [AppController],
   providers: [AppService],
