@@ -4,6 +4,7 @@ import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { UsersService } from "src/users/users.service";
 import { JwtPayloadDto } from "./jwt-payload.dto";
+import { AuthenticatedUser } from "./auth.types";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -19,9 +20,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayloadDto) {
+  async validate(payload: JwtPayloadDto): Promise<AuthenticatedUser> {
     const user = await this.usersService.resolveByProviderSub(payload.sub);
     if (!user) throw new UnauthorizedException("No user found for this identity");
-    return { userId: user.id, providerSub: payload.sub, email: user.email };
+    return { id: user.id, sub: payload.sub, email: user.email };
   }
 }
