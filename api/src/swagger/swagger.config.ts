@@ -9,7 +9,6 @@ export function buildSwaggerConfig() {
     .setTitle("Everglow API")
     .setDescription("Photo-sharing platform for events — HTTP API contract (OpenAPI 3)")
     .setVersion("2.0")
-    .addServer(`/${API_GLOBAL_PREFIX}`, "API v2")
     .addBearerAuth(
       {
         type: "http",

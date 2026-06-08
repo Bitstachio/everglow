@@ -163,12 +163,7 @@
     "contact": {}
   },
   "tags": [],
-  "servers": [
-    {
-      "url": "/api/v2",
-      "description": "API v2"
-    }
-  ],
+  "servers": [],
   "components": {
     "securitySchemes": {
       "access-token": {
