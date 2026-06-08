@@ -1,16 +1,12 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
-import { ConfigService } from "@nestjs/config";
 import { JwtPayloadDto } from "./dto";
-import { AuthService } from "./auth.service";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    configService: ConfigService,
-    private authService: AuthService,
-  ) {
+  constructor(configService: ConfigService) {
     const secret = configService.get<string>("jwt.secret");
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -20,8 +16,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayloadDto) {
-    // Optionally validate user still exists in database
-    await this.authService.validateUser(payload.sub);
+    // TODO: Use user service to fetch user and include ID in return object
     return payload;
   }
 }
