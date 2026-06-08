@@ -1,6 +1,6 @@
 process.env.OPENAPI_GENERATE = "1";
-process.env.JWT_SECRET ??= "openapi-generate-secret";
-process.env.JWT_REFRESH_SECRET ??= "openapi-generate-refresh-secret";
+process.env.AUTH0_DOMAIN ??= "openapi-generate.auth0.com";
+process.env.AUTH0_AUDIENCE ??= "https://openapi-generate-api";
 
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";

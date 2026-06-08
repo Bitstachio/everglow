@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
-import jwtConfig from "./config/jwt.config";
+import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
 import { AuthModule } from "./auth/auth.module";
@@ -13,7 +13,7 @@ import { CaslModule } from "./casl/casl.module";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [jwtConfig, awsConfig, encryptionConfig],
+      load: [auth0Config, awsConfig, encryptionConfig],
       envFilePath: ".env",
     }),
     AuthModule,
