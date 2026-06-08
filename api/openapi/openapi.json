@@ -15,180 +15,6 @@
         ]
       }
     },
-    "/api/v2/auth/signup": {
-      "post": {
-        "operationId": "AuthController_signup",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SignupDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Signup successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/AuthResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "summary": "Register a new user",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v2/auth/signin": {
-      "post": {
-        "operationId": "AuthController_signin",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SigninDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Sign-in successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/AuthResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "summary": "Sign in with email and password",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v2/auth/refresh": {
-      "post": {
-        "operationId": "AuthController_refresh",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefreshDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "New access token issued",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/AccessTokenResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "summary": "Refresh access token using a refresh token",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v2/auth/logout": {
-      "post": {
-        "operationId": "AuthController_logout",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Logged out",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/LogoutResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Log out and invalidate refresh token",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
     "/api/v2/users/{id}": {
       "get": {
         "operationId": "UsersController_findOne",
@@ -353,104 +179,6 @@
       }
     },
     "schemas": {
-      "AuthUserDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "email": {
-            "type": "string",
-            "example": "user@example.com"
-          },
-          "name": {
-            "type": "string",
-            "example": "Jane Doe"
-          }
-        },
-        "required": [
-          "id",
-          "email",
-          "name"
-        ]
-      },
-      "AuthResponseDto": {
-        "type": "object",
-        "properties": {
-          "accessToken": {
-            "type": "string"
-          },
-          "refreshToken": {
-            "type": "string"
-          },
-          "user": {
-            "$ref": "#/components/schemas/AuthUserDto"
-          }
-        },
-        "required": [
-          "accessToken",
-          "refreshToken",
-          "user"
-        ]
-      },
-      "ResponseMetaDto": {
-        "type": "object",
-        "properties": {
-          "timestamp": {
-            "type": "string",
-            "example": "2026-06-03T12:00:00.000Z"
-          },
-          "path": {
-            "type": "string",
-            "example": "/api/v2/auth/signin"
-          }
-        },
-        "required": [
-          "timestamp",
-          "path"
-        ]
-      },
-      "SignupDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "SigninDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AccessTokenResponseDto": {
-        "type": "object",
-        "properties": {
-          "accessToken": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "accessToken"
-        ]
-      },
-      "RefreshDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "LogoutResponseDto": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "example": true
-          },
-          "message": {
-            "type": "string",
-            "example": "Logged out successfully"
-          }
-        },
-        "required": [
-          "success",
-          "message"
-        ]
-      },
       "UserResponseDto": {
         "type": "object",
         "properties": {
@@ -481,6 +209,23 @@
           "name",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "ResponseMetaDto": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "example": "2026-06-03T12:00:00.000Z"
+          },
+          "path": {
+            "type": "string",
+            "example": "/api/v2/auth/signin"
+          }
+        },
+        "required": [
+          "timestamp",
+          "path"
         ]
       },
       "UpdateUserDto": {
