@@ -32,9 +32,9 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data: dto });
   }
 
-  remove(id: string): Promise<void> {
-    void id;
-    return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
+  async remove(id: string): Promise<void> {
+    await this.findOne(id);
+    await this.prisma.user.delete({ where: { id } });
   }
 
   async resolveByProviderSub(sub: string): Promise<User | null> {

@@ -36,17 +36,17 @@ export class UsersController {
   }
 
   @Patch("me")
-  @ApiOperation({ summary: "Update user profile" })
+  @ApiOperation({ summary: "Update current user" })
   @ApiWrappedResponse(UserResponseDto, "Updated user profile")
   async updateMe(@CurrentUser() user: AuthenticatedUser, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(user.id, updateUserDto);
   }
 
-  @Delete(":id")
+  @Delete("me")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Delete user" })
+  @ApiOperation({ summary: "Delete current user" })
   @ApiNoContentResponse({ description: "User deleted (empty data envelope at runtime)" })
-  async remove(@Param("id", ParseUUIDPipe) id: string) {
-    return this.usersService.remove(id);
+  async removeMe(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.remove(user.id);
   }
 }
