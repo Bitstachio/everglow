@@ -11,6 +11,8 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import type { AuthenticatedUser } from "src/auth/auth.types";
+import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -25,11 +27,12 @@ import { UsersService } from "./users.service";
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Get(":id")
-  @ApiOperation({ summary: "Get user by id" })
+  @Get("me")
+  @ApiOperation({ summary: "Get current user" })
   @ApiWrappedResponse(UserResponseDto, "User profile")
-  async findOne(@Param("id", ParseUUIDPipe) id: string) {
-    return this.usersService.findOne(id);
+  async findMe(@CurrentUser() user: AuthenticatedUser) {
+    console.log(user);
+    return this.usersService.findOne(user.id);
   }
 
   @Patch(":id")
