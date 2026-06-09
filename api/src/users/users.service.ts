@@ -11,7 +11,7 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createDetails(id: string, dto: CreateUserDetailsDto): Promise<UserResponseDto> {
-    const user = await this.findUserOrThrow(id);
+    const user = await this.findOne(id);
 
     if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
 
@@ -31,16 +31,23 @@ export class UsersService {
     return this.toResponseDto(updated);
   }
 
-  async findOne(id: string): Promise<UserResponseDto> {
-    const user = await this.findOneOrThrow(id);
+  async findOne(id: string): Promise<UserWithDetails> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: userWithDetailsInclude,
+    });
 
-    return this.toResponseDto(user);
+    if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+
+    return user;
   }
 
   async update(id: string, dto: UpdateUserDto): Promise<UserResponseDto> {
-    await this.findOneOrThrow(id);
+    const user = await this.findOne(id);
 
-    const user = await this.prisma.user.update({
+    if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+
+    const updated = await this.prisma.user.update({
       where: { id },
       data: {
         details: {
@@ -50,16 +57,13 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    return this.toResponseDto(user);
+    return this.toResponseDto(updated);
   }
 
   async remove(id: string): Promise<void> {
-    await this.findOneOrThrow(id);
+    await this.findOne(id);
 
-    await this.prisma.$transaction([
-      this.prisma.userDetails.delete({ where: { userId: id } }),
-      this.prisma.user.delete({ where: { id } }),
-    ]);
+    await this.prisma.user.delete({ where: { id } });
   }
 
   async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
@@ -71,27 +75,7 @@ export class UsersService {
     });
   }
 
-  //===== Utilities =====
-
-  private async findUserOrThrow(id: string): Promise<UserWithDetails> {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      include: userWithDetailsInclude,
-    });
-
-    if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
-
-    return user;
-  }
-
-  private async findOneOrThrow(id: string): Promise<UserWithDetails> {
-    const user = await this.findUserOrThrow(id);
-
-    if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
-
-    return user;
-  }
-
+  // TODO: I don't think converting to DTO should be handled here
   private toResponseDto(user: UserWithDetails): UserResponseDto {
     if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(user.id));
 
