@@ -4,7 +4,7 @@ import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
-import { userWithDetailsInclude, UserWithDetails } from "./users.types";
+import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
 @Injectable()
 export class UsersService {
@@ -59,15 +59,12 @@ export class UsersService {
   }
 
   async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
-    const user = await this.prisma.user.findUnique({
+    return this.prisma.user.upsert({
       where: { providerSub: sub },
+      create: { providerSub: sub },
+      update: {}, // no-op on repeat login
       include: userWithDetailsInclude,
     });
-
-    // TODO: Implement JIT provisioning -> Create authenticated user record in the database on first login
-    if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(sub));
-
-    return user;
   }
 
   //===== Utilities =====

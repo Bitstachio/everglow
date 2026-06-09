@@ -31,7 +31,6 @@ export class UsersController {
   @ApiOperation({ summary: "Get current user" })
   @ApiWrappedResponse(UserResponseDto, "User profile")
   async findMe(@CurrentUser() user: AuthenticatedUser) {
-    console.log(user);
     return this.usersService.findOne(user.id);
   }
 
