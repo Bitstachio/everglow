@@ -1,20 +1,10 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  UseGuards,
-} from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
+import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { UsersService } from "./users.service";
@@ -26,6 +16,13 @@ import { UsersService } from "./users.service";
 @ApiUnauthorizedResponse({ description: "Missing or invalid access token" })
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Post("me/onboarding")
+  @ApiOperation({ summary: "Complete user onboarding" })
+  @ApiWrappedResponse(UserResponseDto, "Onboarded user profile", 201)
+  async completeOnboarding(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateUserDetailsDto) {
+    return this.usersService.createDetails(user.id, dto);
+  }
 
   @Get("me")
   @ApiOperation({ summary: "Get current user" })

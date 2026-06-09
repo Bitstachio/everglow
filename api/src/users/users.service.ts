@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
-import { CreateUserDto } from "./dto/create-user.dto";
+import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
@@ -10,10 +10,14 @@ import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(sub: string, dto: CreateUserDto): Promise<UserResponseDto> {
-    const user = await this.prisma.user.create({
+  async createDetails(id: string, dto: CreateUserDetailsDto): Promise<UserResponseDto> {
+    const user = await this.findUserOrThrow(id);
+
+    if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
+
+    const updated = await this.prisma.user.update({
+      where: { id },
       data: {
-        providerSub: sub,
         details: {
           create: {
             email: dto.email,
@@ -24,7 +28,7 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    return this.toResponseDto(user);
+    return this.toResponseDto(updated);
   }
 
   async findOne(id: string): Promise<UserResponseDto> {
@@ -62,20 +66,28 @@ export class UsersService {
     return this.prisma.user.upsert({
       where: { providerSub: sub },
       create: { providerSub: sub },
-      update: {}, // no-op on repeat login
+      update: {},
       include: userWithDetailsInclude,
     });
   }
 
   //===== Utilities =====
 
-  private async findOneOrThrow(id: string): Promise<UserWithDetails> {
+  private async findUserOrThrow(id: string): Promise<UserWithDetails> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: userWithDetailsInclude,
     });
 
-    if (!user?.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+    if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+
+    return user;
+  }
+
+  private async findOneOrThrow(id: string): Promise<UserWithDetails> {
+    const user = await this.findUserOrThrow(id);
+
+    if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
 
     return user;
   }
