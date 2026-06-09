@@ -26,10 +26,10 @@ export class UsersService {
     return user;
   }
 
-  update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
-    void id;
-    void updateUserDto;
-    return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
+  async update(id: string, dto: UpdateUserDto): Promise<UserResponseDto> {
+    await this.findOne(id);
+
+    return this.prisma.user.update({ where: { id }, data: dto });
   }
 
   remove(id: string): Promise<void> {

@@ -35,11 +35,11 @@ export class UsersController {
     return this.usersService.findOne(user.id);
   }
 
-  @Patch(":id")
+  @Patch("me")
   @ApiOperation({ summary: "Update user profile" })
   @ApiWrappedResponse(UserResponseDto, "Updated user profile")
-  async update(@Param("id", ParseUUIDPipe) id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(id, updateUserDto);
+  async updateMe(@CurrentUser() user: AuthenticatedUser, @Body() updateUserDto: UpdateUserDto) {
+    return this.usersService.update(user.id, updateUserDto);
   }
 
   @Delete(":id")
