@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { User } from "generated/prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -12,10 +12,8 @@ const DB_UNAVAILABLE = "Database unavailable — Prisma migration in progress";
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  createWithManager(manager: unknown, data: CreateUserDto): Promise<UserResponseDto> {
-    void manager;
-    void data;
-    return Promise.reject(new ServiceUnavailableException(DB_UNAVAILABLE));
+  create(sub: string, dto: CreateUserDto): Promise<UserResponseDto> {
+    return this.prisma.user.create({ data: { providerSub: sub, ...dto } });
   }
 
   async findOne(id: string): Promise<UserResponseDto> {
