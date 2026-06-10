@@ -71,12 +71,17 @@ export class UsersService {
     await this.prisma.user.delete({ where: { id } });
   }
 
-  resolveByProviderSub(sub: string): Promise<UserWithDetails> {
-    return this.prisma.user.upsert({
-      where: { providerSub: sub },
-      create: { providerSub: sub },
-      update: {},
-      include: userWithDetailsInclude,
-    });
+  async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
+    return (
+      (await this.prisma.user.findUnique({
+        where: { providerSub: sub },
+        include: userWithDetailsInclude,
+      })) ??
+      // JIT provisioning: create user record on first-ever login
+      (await this.prisma.user.create({
+        data: { providerSub: sub },
+        include: userWithDetailsInclude,
+      }))
+    );
   }
 }
