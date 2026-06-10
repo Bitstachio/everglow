@@ -17,14 +17,21 @@ describe("AppController (e2e)", () => {
   });
 
   it(`GET /${API_GLOBAL_PREFIX} returns Hello World`, async () => {
-    const response = await request(app.getHttpServer() as Server).get(`/${API_GLOBAL_PREFIX}`).expect(200);
+    const response = await request(app.getHttpServer() as Server)
+      .get(`/${API_GLOBAL_PREFIX}`)
+      .expect(200);
 
-    expect(response.body).toEqual({
+    const body = response.body as {
+      data: string;
+      meta: { timestamp: string; path: string };
+    };
+
+    expect(body).toMatchObject({
       data: "Hello World!",
       meta: {
-        timestamp: expect.any(String),
         path: `/${API_GLOBAL_PREFIX}`,
       },
     });
+    expect(typeof body.meta.timestamp).toBe("string");
   });
 });

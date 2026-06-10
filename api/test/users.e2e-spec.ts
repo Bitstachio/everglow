@@ -71,11 +71,7 @@ describe("UsersController (e2e)", () => {
       prisma.userDetails.count.mockResolvedValue(0);
       prisma.user.update.mockResolvedValue(onboardedUser);
 
-      const response = await request(httpServer)
-        .post(path)
-        .set(authHeader())
-        .send(payload)
-        .expect(201);
+      const response = await request(httpServer).post(path).set(authHeader()).send(payload).expect(201);
 
       const body = response.body as WrappedResponse<{
         id: string;

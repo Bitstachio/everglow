@@ -8,9 +8,7 @@ export const TEST_DETAILS_ID = "22222222-2222-2222-2222-222222222222";
 export const TEST_ACCESS_TOKEN = "e2e-valid-token";
 export const TEST_NOW = new Date("2026-06-10T12:00:00.000Z");
 
-export const createUserDetailsPayload = (
-  overrides: Partial<CreateUserDetailsDto> = {},
-): CreateUserDetailsDto => ({
+export const createUserDetailsPayload = (overrides: Partial<CreateUserDetailsDto> = {}): CreateUserDetailsDto => ({
   name: "Jane Doe",
   email: "jane@example.com",
   ...overrides,
