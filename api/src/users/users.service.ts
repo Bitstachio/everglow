@@ -14,11 +14,7 @@ export class UsersService {
 
     if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
 
-    const otherDetails = await this.prisma.userDetails.findUnique({
-      where: { email: dto.email },
-    });
-
-    if (otherDetails) throw new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(dto.email));
+    await this.assertEmailIsUnique(dto.email);
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -51,6 +47,7 @@ export class UsersService {
     const user = await this.getById(id);
 
     if (!user.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+    if (dto.email) await this.assertEmailIsUnique(dto.email, id);
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -83,5 +80,13 @@ export class UsersService {
         include: userWithDetailsInclude,
       }))
     );
+  }
+
+  private async assertEmailIsUnique(email: string, excludeUserId?: string): Promise<void> {
+    const taken = await this.prisma.userDetails.count({
+      where: { email, NOT: { userId: excludeUserId } },
+    });
+
+    if (taken > 0) throw new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(email));
   }
 }
