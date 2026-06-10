@@ -8,7 +8,7 @@ export class UserResponseDto {
   @ApiProperty()
   isOnboarded: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ type: () => UserDetailsResponseDto, nullable: true })
   details: UserDetailsResponseDto | null;
 
   @ApiProperty()
