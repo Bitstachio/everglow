@@ -1,11 +1,11 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
 import { passportJwtSecret } from "jwks-rsa";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { UsersService } from "src/users/users.service";
-import { JwtPayloadDto } from "./jwt-payload.dto";
 import { AuthenticatedUser } from "./auth.types";
+import { JwtPayloadDto } from "./jwt-payload.dto";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -34,7 +34,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayloadDto): Promise<AuthenticatedUser> {
     const user = await this.usersService.resolveByProviderSub(payload.sub);
-    if (!user) throw new UnauthorizedException("No user found for this identity");
-    return { id: user.id, sub: payload.sub, email: user.email };
+    return { id: user.id, sub: payload.sub };
   }
 }

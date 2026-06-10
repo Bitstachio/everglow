@@ -15,19 +15,62 @@
         ]
       }
     },
-    "/api/v2/users/{id}": {
-      "get": {
-        "operationId": "UsersController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
+    "/api/v2/users/me/onboarding": {
+      "post": {
+        "operationId": "UsersController_completeOnboarding",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDetailsDto"
+              }
             }
           }
+        },
+        "responses": {
+          "201": {
+            "description": "Onboarded user profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UserResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
         ],
+        "summary": "Complete user onboarding",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v2/users/me": {
+      "get": {
+        "operationId": "UsersController_findMe",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "User profile",
@@ -60,23 +103,14 @@
             "access-token": []
           }
         ],
-        "summary": "Get user by id",
+        "summary": "Get current user",
         "tags": [
           "users"
         ]
       },
       "patch": {
-        "operationId": "UsersController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "UsersController_updateMe",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -119,23 +153,14 @@
             "access-token": []
           }
         ],
-        "summary": "Update user profile",
+        "summary": "Update current user",
         "tags": [
           "users"
         ]
       },
       "delete": {
-        "operationId": "UsersController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "UsersController_removeMe",
+        "parameters": [],
         "responses": {
           "204": {
             "description": "User deleted (empty data envelope at runtime)"
@@ -149,7 +174,7 @@
             "access-token": []
           }
         ],
-        "summary": "Delete user",
+        "summary": "Delete current user",
         "tags": [
           "users"
         ]
@@ -174,13 +199,9 @@
       }
     },
     "schemas": {
-      "UserResponseDto": {
+      "UserDetailsResponseDto": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "email": {
             "type": "string",
             "example": "user@example.com"
@@ -199,9 +220,43 @@
           }
         },
         "required": [
-          "id",
           "email",
           "name",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isOnboarded": {
+            "type": "boolean"
+          },
+          "details": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserDetailsResponseDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "isOnboarded",
+          "details",
           "createdAt",
           "updatedAt"
         ]
@@ -222,6 +277,10 @@
           "timestamp",
           "path"
         ]
+      },
+      "CreateUserDetailsDto": {
+        "type": "object",
+        "properties": {}
       },
       "UpdateUserDto": {
         "type": "object",

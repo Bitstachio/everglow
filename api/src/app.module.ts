@@ -8,6 +8,7 @@ import encryptionConfig from "./config/encryption.config";
 import { AuthModule } from "./auth/auth.module";
 import { UsersModule } from "./users/users.module";
 import { CaslModule } from "./casl/casl.module";
+import { PrismaModule } from "./prisma/prisma.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { CaslModule } from "./casl/casl.module";
     AuthModule,
     UsersModule,
     CaslModule,
+    PrismaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

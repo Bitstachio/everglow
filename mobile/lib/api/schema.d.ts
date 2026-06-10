@@ -20,36 +20,61 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v2/users/{id}": {
+  "/api/v2/users/me/onboarding": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Get user by id */
-    get: operations["UsersController_findOne"];
+    get?: never;
     put?: never;
-    post?: never;
-    /** Delete user */
-    delete: operations["UsersController_remove"];
+    /** Complete user onboarding */
+    post: operations["UsersController_completeOnboarding"];
+    delete?: never;
     options?: never;
     head?: never;
-    /** Update user profile */
-    patch: operations["UsersController_update"];
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/users/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get current user */
+    get: operations["UsersController_findMe"];
+    put?: never;
+    post?: never;
+    /** Delete current user */
+    delete: operations["UsersController_removeMe"];
+    options?: never;
+    head?: never;
+    /** Update current user */
+    patch: operations["UsersController_updateMe"];
     trace?: never;
   };
 }
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
-    UserResponseDto: {
-      /** Format: uuid */
-      id: string;
+    UserDetailsResponseDto: {
       /** @example user@example.com */
       email: string;
       /** @example Jane Doe */
       name: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    UserResponseDto: {
+      /** Format: uuid */
+      id: string;
+      isOnboarded: boolean;
+      details: components["schemas"]["UserDetailsResponseDto"] | null;
       /** Format: date-time */
       createdAt: string;
       /** Format: date-time */
@@ -61,6 +86,7 @@ export interface components {
       /** @example /api/v2/auth/signin */
       path: string;
     };
+    CreateUserDetailsDto: Record<string, never>;
     UpdateUserDto: Record<string, never>;
   };
   responses: never;
@@ -88,13 +114,45 @@ export interface operations {
       };
     };
   };
-  UsersController_findOne: {
+  UsersController_completeOnboarding: {
     parameters: {
       query?: never;
       header?: never;
-      path: {
-        id: string;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateUserDetailsDto"];
       };
+    };
+    responses: {
+      /** @description Onboarded user profile */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["UserResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  UsersController_findMe: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
       cookie?: never;
     };
     requestBody?: never;
@@ -120,13 +178,11 @@ export interface operations {
       };
     };
   };
-  UsersController_remove: {
+  UsersController_removeMe: {
     parameters: {
       query?: never;
       header?: never;
-      path: {
-        id: string;
-      };
+      path?: never;
       cookie?: never;
     };
     requestBody?: never;
@@ -147,13 +203,11 @@ export interface operations {
       };
     };
   };
-  UsersController_update: {
+  UsersController_updateMe: {
     parameters: {
       query?: never;
       header?: never;
-      path: {
-        id: string;
-      };
+      path?: never;
       cookie?: never;
     };
     requestBody: {

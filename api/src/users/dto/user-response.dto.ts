@@ -1,14 +1,15 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { UserDetailsResponseDto } from "./user-details-response.dto";
 
 export class UserResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;
 
-  @ApiProperty({ example: "user@example.com" })
-  email: string;
+  @ApiProperty()
+  isOnboarded: boolean;
 
-  @ApiProperty({ example: "Jane Doe" })
-  name: string;
+  @ApiProperty({ type: () => UserDetailsResponseDto, nullable: true })
+  details: UserDetailsResponseDto | null;
 
   @ApiProperty()
   createdAt: Date;

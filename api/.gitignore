@@ -42,9 +42,10 @@ lerna-debug.log*
 # OpenAPI generation (sql.js in-memory artifact)
 /everglow-openapi
 
+# Prisma generated client
+/generated/prisma
+
 # Temp
 /tmp
 *.tmp
 *.bak
-
-/generated/prisma
