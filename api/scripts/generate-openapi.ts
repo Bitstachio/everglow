@@ -1,6 +1,8 @@
 process.env.OPENAPI_GENERATE = "1";
 process.env.AUTH0_DOMAIN ??= "openapi-generate.auth0.com";
 process.env.AUTH0_AUDIENCE ??= "https://openapi-generate-api";
+// Never connected during generation; only needs to satisfy ConfigService.getOrThrow
+process.env.DATABASE_URL ??= "mysql://openapi:openapi@localhost:3306/openapi-generate";
 
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
