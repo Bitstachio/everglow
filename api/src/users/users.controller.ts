@@ -7,7 +7,6 @@ import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decor
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
-import { OnboardedGuard } from "./guards/onboarded.guard";
 import { UserMapper } from "./mappers/user.mapper";
 import { UsersService } from "./users.service";
 
@@ -37,7 +36,6 @@ export class UsersController {
   }
 
   @Patch("me")
-  @UseGuards(OnboardedGuard)
   @ApiOperation({ summary: "Update current user" })
   @ApiWrappedResponse(UserResponseDto, "Updated user profile")
   async updateMe(

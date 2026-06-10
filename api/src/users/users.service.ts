@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -50,7 +50,7 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
     const user = await this.getById(id);
 
-    if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+    if (!user.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
 
     const updated = await this.prisma.user.update({
       where: { id },

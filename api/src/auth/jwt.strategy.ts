@@ -34,6 +34,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayloadDto): Promise<AuthenticatedUser> {
     const user = await this.usersService.resolveByProviderSub(payload.sub);
-    return { id: user.id, sub: payload.sub, isOnboarded: !!user.details };
+    return { id: user.id, sub: payload.sub };
   }
 }
