@@ -33,7 +33,7 @@ export class UsersController {
   @ApiOperation({ summary: "Get current user" })
   @ApiWrappedResponse(UserResponseDto, "User profile")
   async findMe(@CurrentUser() user: AuthenticatedUser): Promise<UserResponseDto> {
-    return UserMapper.toResponseDto(await this.usersService.findOne(user.id));
+    return UserMapper.toResponseDto(await this.usersService.getById(user.id));
   }
 
   @Patch("me")

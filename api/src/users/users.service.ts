@@ -10,9 +10,15 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createDetails(id: string, dto: CreateUserDetailsDto): Promise<UserWithDetails> {
-    const user = await this.findOne(id);
+    const user = await this.getById(id);
 
     if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
+
+    const otherDetails = await this.prisma.userDetails.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (otherDetails) throw new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(dto.email));
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -30,7 +36,7 @@ export class UsersService {
     return updated;
   }
 
-  async findOne(id: string): Promise<UserWithDetails> {
+  async getById(id: string): Promise<UserWithDetails> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: userWithDetailsInclude,
@@ -42,7 +48,7 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
-    const user = await this.findOne(id);
+    const user = await this.getById(id);
 
     if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
 
@@ -60,7 +66,7 @@ export class UsersService {
   }
 
   async remove(id: string): Promise<void> {
-    await this.findOne(id);
+    await this.getById(id);
 
     await this.prisma.user.delete({ where: { id } });
   }
