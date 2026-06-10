@@ -5,6 +5,7 @@ import { PrismaClient } from "generated/prisma/client";
 import { AppModule } from "src/app.module";
 import { configureApp } from "src/app.setup";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { JwtStrategy } from "src/auth/jwt.strategy";
 import { PrismaService } from "src/prisma/prisma.service";
 import { TestJwtAuthGuard } from "./test-jwt-auth.guard";
 
@@ -23,6 +24,8 @@ export async function createTestApp(
   })
     .overrideGuard(JwtAuthGuard)
     .useClass(TestJwtAuthGuard)
+    .overrideProvider(JwtStrategy)
+    .useValue({ validate: jest.fn() })
     .overrideProvider(PrismaService)
     .useValue(prisma);
 
