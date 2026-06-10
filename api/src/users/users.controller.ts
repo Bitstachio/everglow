@@ -8,6 +8,7 @@ import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { OnboardedGuard } from "./guards/onboarded.guard";
+import { UserMapper } from "./mappers/user.mapper";
 import { UsersService } from "./users.service";
 
 @ApiTags("users")
@@ -21,30 +22,36 @@ export class UsersController {
   @Post("me/onboarding")
   @ApiOperation({ summary: "Complete user onboarding" })
   @ApiWrappedResponse(UserResponseDto, "Onboarded user profile", 201)
-  async completeOnboarding(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateUserDetailsDto) {
-    return this.usersService.createDetails(user.id, dto);
+  async completeOnboarding(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateUserDetailsDto,
+  ): Promise<UserResponseDto> {
+    return UserMapper.toResponseDto(await this.usersService.createDetails(user.id, dto));
   }
 
   @Get("me")
   @ApiOperation({ summary: "Get current user" })
   @ApiWrappedResponse(UserResponseDto, "User profile")
-  async findMe(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findOne(user.id);
+  async findMe(@CurrentUser() user: AuthenticatedUser): Promise<UserResponseDto> {
+    return UserMapper.toResponseDto(await this.usersService.findOne(user.id));
   }
 
   @Patch("me")
   @UseGuards(OnboardedGuard)
   @ApiOperation({ summary: "Update current user" })
   @ApiWrappedResponse(UserResponseDto, "Updated user profile")
-  async updateMe(@CurrentUser() user: AuthenticatedUser, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(user.id, updateUserDto);
+  async updateMe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
+    return UserMapper.toResponseDto(await this.usersService.update(user.id, updateUserDto));
   }
 
   @Delete("me")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete current user" })
   @ApiNoContentResponse({ description: "User deleted (empty data envelope at runtime)" })
-  async removeMe(@CurrentUser() user: AuthenticatedUser) {
+  async removeMe(@CurrentUser() user: AuthenticatedUser): Promise<void> {
     return this.usersService.remove(user.id);
   }
 }

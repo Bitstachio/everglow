@@ -2,7 +2,6 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { UserResponseDto } from "./dto/user-response.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
@@ -10,7 +9,7 @@ import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createDetails(id: string, dto: CreateUserDetailsDto): Promise<UserResponseDto> {
+  async createDetails(id: string, dto: CreateUserDetailsDto): Promise<UserWithDetails> {
     const user = await this.findOne(id);
 
     if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
@@ -28,7 +27,7 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    return this.toResponseDto(updated);
+    return updated;
   }
 
   async findOne(id: string): Promise<UserWithDetails> {
@@ -42,7 +41,7 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<UserResponseDto> {
+  async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
     const user = await this.findOne(id);
 
     if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
@@ -57,7 +56,7 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    return this.toResponseDto(updated);
+    return updated;
   }
 
   async remove(id: string): Promise<void> {
@@ -66,25 +65,12 @@ export class UsersService {
     await this.prisma.user.delete({ where: { id } });
   }
 
-  async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
+  resolveByProviderSub(sub: string): Promise<UserWithDetails> {
     return this.prisma.user.upsert({
       where: { providerSub: sub },
       create: { providerSub: sub },
       update: {},
       include: userWithDetailsInclude,
     });
-  }
-
-  // TODO: I don't think converting to DTO should be handled here
-  private toResponseDto(user: UserWithDetails): UserResponseDto {
-    if (!user.details) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(user.id));
-
-    return {
-      id: user.id,
-      email: user.details.email,
-      name: user.details.name,
-      createdAt: user.createdAt,
-      updatedAt: user.details.updatedAt,
-    };
   }
 }
