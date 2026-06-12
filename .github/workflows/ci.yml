@@ -67,6 +67,21 @@ jobs:
 
       - run: npm run build
 
+      - name: Validate docker-compose config
+        # compose requires .env to exist (env_file); stub it from the example
+        run: cp .env.example .env && docker compose config -q
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Docker image builds
+        uses: docker/build-push-action@v6
+        with:
+          context: api
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   mobile:
     name: Mobile
     needs: changes
