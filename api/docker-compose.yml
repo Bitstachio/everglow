@@ -2,19 +2,18 @@ name: everglow-api
 
 services:
   db:
-    image: mysql:8.0
+    image: postgres:16
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-everglow_root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-everglow_db}
-      MYSQL_USER: ${MYSQL_USER:-everglow_dev}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-everglow_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-everglow_db}
+      POSTGRES_USER: ${POSTGRES_USER:-everglow_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-everglow_pass}
     ports:
-      - "${MYSQL_HOST_PORT:-3307}:3306"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
-      - everglow_mysql_data:/var/lib/mysql
+      - everglow_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-everglow_root}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-everglow_dev} -d ${POSTGRES_DB:-everglow_db}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -27,7 +26,7 @@ services:
       target: build
     command: npx prisma migrate deploy
     environment:
-      DATABASE_URL: mysql://${MYSQL_USER:-everglow_dev}:${MYSQL_PASSWORD:-everglow_pass}@db:3306/${MYSQL_DATABASE:-everglow_db}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-everglow_dev}:${POSTGRES_PASSWORD:-everglow_pass}@db:5432/${POSTGRES_DB:-everglow_db}
     depends_on:
       db:
         condition: service_healthy
@@ -45,7 +44,7 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: mysql://${MYSQL_USER:-everglow_dev}:${MYSQL_PASSWORD:-everglow_pass}@db:3306/${MYSQL_DATABASE:-everglow_db}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-everglow_dev}:${POSTGRES_PASSWORD:-everglow_pass}@db:5432/${POSTGRES_DB:-everglow_db}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -63,4 +62,4 @@ services:
       start_period: 15s
 
 volumes:
-  everglow_mysql_data:
+  everglow_postgres_data:
