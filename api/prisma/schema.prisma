@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
 }
 
 enum AccessLevel {
@@ -16,7 +16,7 @@ enum AccessLevel {
 }
 
 model User {
-  id          String   @id @default(uuid()) @db.Char(36)
+  id          String   @id @default(uuid()) @db.Uuid
   providerSub String   @unique @db.VarChar(255)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -28,8 +28,8 @@ model User {
 }
 
 model UserDetails {
-  id        String   @id @default(uuid()) @db.Char(36)
-  userId    String   @unique @db.Char(36)
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
   email     String   @unique @db.VarChar(255)
   name      String   @db.VarChar(255)
   createdAt DateTime @default(now())
@@ -39,11 +39,11 @@ model UserDetails {
 }
 
 model Event {
-  id            String   @id @default(uuid()) @db.Char(36)
+  id            String   @id @default(uuid()) @db.Uuid
   title         String   @db.VarChar(200)
   description   String?  @db.Text
-  date          DateTime @db.DateTime(0)
-  creatorId     String   @db.Char(36)
+  date          DateTime
+  creatorId     String   @db.Uuid
   invitationUrl String   @unique @db.VarChar(100)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -54,9 +54,9 @@ model Event {
 }
 
 model EventAccess {
-  id          String      @id @default(uuid()) @db.Char(36)
-  userId      String      @db.Char(36)
-  eventId     String      @db.Char(36)
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String      @db.Uuid
+  eventId     String      @db.Uuid
   accessLevel AccessLevel @default(VIEWER)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -68,10 +68,10 @@ model EventAccess {
 }
 
 model Photo {
-  id        String   @id @default(uuid()) @db.Char(36)
+  id        String   @id @default(uuid()) @db.Uuid
   imageUrl  String   @db.VarChar(500)
-  addedById String   @db.Char(36)
-  eventId   String   @db.Char(36)
+  addedById String   @db.Uuid
+  eventId   String   @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
