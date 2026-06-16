@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException, UnprocessableEntityException } fr
 import { Test, TestingModule } from "@nestjs/testing";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PrismaClient } from "generated/prisma/client";
+import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -54,6 +55,16 @@ describe("UsersService", () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: jest.fn(),
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            debug: jest.fn(),
+          },
         },
       ],
     }).compile();

@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -7,7 +8,12 @@ import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(UsersService.name);
+  }
 
   async createDetails(id: string, dto: CreateUserDetailsDto): Promise<UserWithDetails> {
     const user = await this.getById(id);
@@ -28,6 +34,9 @@ export class UsersService {
       },
       include: userWithDetailsInclude,
     });
+
+    // Business state transition: anonymous account -> fully onboarded.
+    this.logger.info({ event: "user.onboarding.completed", userId: id }, "User completed onboarding");
 
     return updated;
   }
@@ -59,6 +68,9 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
+    // Log which fields changed (keys only — values may be PII).
+    this.logger.info({ event: "user.profile.updated", userId: id, fields: Object.keys(dto) }, "User profile updated");
+
     return updated;
   }
 
@@ -66,20 +78,28 @@ export class UsersService {
     await this.getById(id);
 
     await this.prisma.user.delete({ where: { id } });
+
+    // Destructive, high-value operation: emit an audit-oriented record.
+    this.logger.info({ event: "user.account.deleted", userId: id, audit: true }, "User account deleted");
   }
 
   async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
-    return (
-      (await this.prisma.user.findUnique({
-        where: { providerSub: sub },
-        include: userWithDetailsInclude,
-      })) ??
-      // JIT provisioning: create user record on first-ever login
-      (await this.prisma.user.create({
-        data: { providerSub: sub },
-        include: userWithDetailsInclude,
-      }))
-    );
+    const existing = await this.prisma.user.findUnique({
+      where: { providerSub: sub },
+      include: userWithDetailsInclude,
+    });
+
+    if (existing) return existing;
+
+    // JIT provisioning: create user record on first-ever login.
+    const created = await this.prisma.user.create({
+      data: { providerSub: sub },
+      include: userWithDetailsInclude,
+    });
+
+    this.logger.info({ event: "user.provisioned", userId: created.id }, "Provisioned new user on first login");
+
+    return created;
   }
 
   private async assertEmailIsUnique(email: string, excludeUserId?: string): Promise<void> {
