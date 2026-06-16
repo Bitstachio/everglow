@@ -35,7 +35,6 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    // Business state transition: anonymous account -> fully onboarded.
     this.logger.info({ event: "user.onboarding.completed", userId: id }, "User completed onboarding");
 
     return updated;
@@ -68,7 +67,6 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    // Log which fields changed (keys only — values may be PII).
     this.logger.info({ event: "user.profile.updated", userId: id, fields: Object.keys(dto) }, "User profile updated");
 
     return updated;
@@ -79,7 +77,6 @@ export class UsersService {
 
     await this.prisma.user.delete({ where: { id } });
 
-    // Destructive, high-value operation: emit an audit-oriented record.
     this.logger.info({ event: "user.account.deleted", userId: id, audit: true }, "User account deleted");
   }
 
