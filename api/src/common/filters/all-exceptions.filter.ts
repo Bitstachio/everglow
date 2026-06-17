@@ -30,7 +30,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode = exception.getStatus();
       message = exception.message;
     } else if (exception instanceof Error) {
-      this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
+      this.logger.error({ event: "request.unhandled_error", err: exception }, "Unhandled exception");
+    } else {
+      this.logger.error({ event: "request.unhandled_error", thrown: exception }, "Unhandled non-Error exception");
     }
 
     const responseBody: ErrorResponse = {

@@ -1,14 +1,16 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { LoggerModule } from "nestjs-pino";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
+import { AuthModule } from "./auth/auth.module";
+import { CaslModule } from "./casl/casl.module";
+import { buildLoggerConfig } from "./common/logging/logging.config";
 import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
-import { AuthModule } from "./auth/auth.module";
-import { UsersModule } from "./users/users.module";
-import { CaslModule } from "./casl/casl.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
@@ -21,6 +23,10 @@ import { PrismaModule } from "./prisma/prisma.module";
     UsersModule,
     CaslModule,
     PrismaModule,
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: buildLoggerConfig,
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

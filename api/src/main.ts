@@ -1,4 +1,5 @@
 import { NestFactory } from "@nestjs/core";
+import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { configureApp } from "./app.setup";
 import { SWAGGER_PATH, setupSwagger } from "./swagger/swagger.config";
@@ -6,6 +7,7 @@ import { SWAGGER_PATH, setupSwagger } from "./swagger/swagger.config";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.useLogger(app.get(Logger));
   configureApp(app);
   app.enableCors();
   setupSwagger(app);
