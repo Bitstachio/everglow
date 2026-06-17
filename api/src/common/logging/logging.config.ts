@@ -83,6 +83,9 @@ export const buildLoggerConfig = (config: ConfigService): Params => {
       },
       // Severity is driven by outcome, not by where the log was written:
       // 5xx/throw => error, 4xx => warn (expected client errors), else info.
+      // Stated explicitly rather than relying on pino-http's matching default
+      // so this policy is owned here, survives library upgrades, and stays in
+      // lockstep with docs/logging-conventions.md.
       customLogLevel: (_req: IncomingMessage, res: ServerResponse, err?: Error) => {
         if (err || res.statusCode >= 500) return "error";
         if (res.statusCode >= 400) return "warn";
