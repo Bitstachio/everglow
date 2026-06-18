@@ -45,11 +45,32 @@ export class EventsService {
   }
 
   async findAllByCreatorId(userId: string): Promise<Event[]> {
-    throw new NotImplementedException();
+    if (!(await this.isUserOnboarded(userId))) return [];
+
+    return this.prisma.event.findMany({
+      where: { creatorId: userId },
+      orderBy: { date: "asc" },
+    });
   }
 
   async findAllForUser(userId: string): Promise<Event[]> {
-    throw new NotImplementedException();
+    if (!(await this.isUserOnboarded(userId))) return [];
+
+    return this.prisma.event.findMany({
+      where: {
+        OR: [{ creatorId: userId }, { eventAccesses: { some: { userId } } }],
+      },
+      orderBy: { date: "asc" },
+    });
+  }
+
+  private async isUserOnboarded(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: userWithDetailsInclude,
+    });
+
+    return !!user?.details;
   }
 
   async update(id: string, dto: UpdateEventDto): Promise<Event> {
