@@ -53,7 +53,10 @@ const firstHeader = (value: string | string[] | undefined): string | undefined =
 export const buildLoggerConfig = (config: ConfigService): Params => {
   const env = config.get<string>("NODE_ENV") ?? "development";
   const isProduction = env === "production";
-  const level = config.get<string>("LOG_LEVEL") ?? (isProduction ? "info" : "debug");
+  const isTest = env === "test";
+  const explicitLogLevel = config.get<string>("LOG_LEVEL");
+  const level = explicitLogLevel ?? (isTest ? "silent" : isProduction ? "info" : "debug");
+  const enableHttpAccessLogs = !(isTest && !explicitLogLevel);
 
   return {
     pinoHttp: {
@@ -91,12 +94,15 @@ export const buildLoggerConfig = (config: ConfigService): Params => {
         if (res.statusCode >= 400) return "warn";
         return "info";
       },
-      autoLogging: {
-        ignore: (req: IncomingMessage) => SILENCED_ROUTES.has(req.url ?? ""),
-      },
+      autoLogging: enableHttpAccessLogs
+        ? {
+            ignore: (req: IncomingMessage) => SILENCED_ROUTES.has(req.url ?? ""),
+          }
+        : false,
       // Human-friendly, colorized output for local dev; raw JSON in production
-      // so log aggregators can index it.
-      ...(isProduction
+      // so log aggregators can index it. Tests default to silent with no
+      // transport (avoids async pino-pretty flush after Jest's summary).
+      ...(isProduction || (isTest && !explicitLogLevel)
         ? {}
         : {
             transport: {
