@@ -1,6 +1,7 @@
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -66,14 +67,14 @@ export class EventsService {
     return event;
   }
 
-  async findAllByCreatorId(userId: string): Promise<Event[]> {
-    if (!(await this.isUserOnboarded(userId))) return [];
+  async findAllByCreatorId(creatorId: string): Promise<Event[]> {
+    if (!(await this.isUserOnboarded(creatorId))) return [];
 
-    const ability = this.abilityFactory.createForUser({ id: userId, isOnboarded: true });
+    const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: true });
 
     return this.prisma.event.findMany({
       where: {
-        AND: [accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT), { creatorId: userId }],
+        AND: [accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT), { creatorId: creatorId }],
       },
       orderBy: { date: "asc" },
     });
@@ -88,6 +89,39 @@ export class EventsService {
       where: accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT),
       orderBy: { date: "asc" },
     });
+  }
+
+  async joinByInvitationUrl(callerId: string, invitationUrl: string): Promise<Event> {
+    const caller = await this.prisma.user.findUnique({
+      where: { id: callerId },
+      include: userWithDetailsInclude,
+    });
+
+    if (!caller) throw new NotFoundException(EVENT_SERVICE_ERRORS.CALLER_NOT_FOUND(callerId));
+    if (!caller.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+
+    const event = await this.prisma.event.findUnique({ where: { invitationUrl } });
+    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+
+    const existing = await this.prisma.eventAccess.findUnique({
+      where: { userId_eventId: { userId: callerId, eventId: event.id } },
+    });
+    if (existing) throw new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(event.id));
+
+    await this.prisma.eventAccess.create({
+      data: {
+        userId: callerId,
+        eventId: event.id,
+        accessLevel: AccessLevel.PARTICIPANT,
+      },
+    });
+
+    this.logger.info(
+      { event: "event.joined", eventId: event.id, callerId, accessLevel: AccessLevel.PARTICIPANT },
+      "User joined event via invitation URL",
+    );
+
+    return event;
   }
 
   async findOne(eventId: string, callerId: string): Promise<Event> {
@@ -129,10 +163,7 @@ export class EventsService {
       },
     });
 
-    this.logger.info(
-      { event: "event.updated", eventId, callerId, fields: Object.keys(dto) },
-      "Event updated",
-    );
+    this.logger.info({ event: "event.updated", eventId, callerId, fields: Object.keys(dto) }, "Event updated");
 
     return updated;
   }
