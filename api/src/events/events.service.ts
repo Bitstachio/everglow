@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, NotImplementedException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  NotImplementedException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { Event } from "generated/prisma/client";
+import { AccessLevel, Event } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
@@ -36,6 +42,12 @@ export class EventsService {
         creatorId,
         invitationUrl,
         ...(dto.description !== undefined && { description: dto.description }),
+        eventAccesses: {
+          create: {
+            userId: creatorId,
+            accessLevel: AccessLevel.ORGANIZER,
+          },
+        },
       },
     });
 
@@ -64,6 +76,30 @@ export class EventsService {
     });
   }
 
+  async update(id: string, dto: UpdateEventDto): Promise<Event> {
+    throw new NotImplementedException();
+  }
+
+  async delete(eventId: string, callerId: string): Promise<void> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
+
+    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const access = await this.prisma.eventAccess.findUnique({
+      where: { userId_eventId: { userId: callerId, eventId } },
+    });
+
+    if (!access || access.accessLevel !== AccessLevel.ORGANIZER) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId));
+    }
+
+    await this.prisma.event.delete({ where: { id: eventId } });
+
+    this.logger.info({ event: "event.deleted", eventId, callerId, audit: true }, "Event deleted");
+  }
+
   private async isUserOnboarded(userId: string): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -71,13 +107,5 @@ export class EventsService {
     });
 
     return !!user?.details;
-  }
-
-  async update(id: string, dto: UpdateEventDto): Promise<Event> {
-    throw new NotImplementedException();
-  }
-
-  async delete(id: string): Promise<void> {
-    throw new NotImplementedException();
   }
 }

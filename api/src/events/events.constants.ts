@@ -1,7 +1,10 @@
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 
-const entity = "User";
+const userEntity = "User";
+const eventEntity = "Event";
 
 export const EVENT_SERVICE_ERRORS = {
-  CREATOR_NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(entity, "ID", id),
+  CREATOR_NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(userEntity, "ID", id),
+  NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(eventEntity, "ID", id),
+  DELETE_FORBIDDEN: (eventId: string) => `Not authorized to delete event with ID "${eventId}"`,
 };

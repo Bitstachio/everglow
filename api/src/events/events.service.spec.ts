@@ -1,6 +1,6 @@
-import { NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Event, PrismaClient } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -94,6 +94,43 @@ describe("EventsService", () => {
     updatedAt: now,
   };
 
+  const eventId = eventCreatedByUser.id;
+  const callerId = userId;
+
+  const organizerAccess: EventAccess = {
+    id: "88888888-8888-8888-8888-888888888888",
+    userId: callerId,
+    eventId,
+    accessLevel: AccessLevel.ORGANIZER,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const participantAccess: EventAccess = {
+    ...organizerAccess,
+    id: "99999999-9999-9999-9999-999999999999",
+    accessLevel: AccessLevel.PARTICIPANT,
+  };
+
+  const viewerAccess: EventAccess = {
+    ...organizerAccess,
+    id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    accessLevel: AccessLevel.VIEWER,
+  };
+
+  const eventAccessLookup = (lookupEventId: string, lookupUserId: string) => ({
+    where: { userId_eventId: { userId: lookupUserId, eventId: lookupEventId } },
+  });
+
+  const creatorOrganizerAccessGrant = {
+    eventAccesses: {
+      create: {
+        userId: creatorId,
+        accessLevel: AccessLevel.ORGANIZER,
+      },
+    },
+  };
+
   const findAllForUserQuery = {
     where: {
       OR: [{ creatorId: userId }, { eventAccesses: { some: { userId } } }],
@@ -150,6 +187,7 @@ describe("EventsService", () => {
           date: new Date(createEventDto.date),
           creatorId,
           invitationUrl: expect.any(String),
+          ...creatorOrganizerAccessGrant,
         },
       });
       expect(prisma.event.create.mock.calls[0][0].data.invitationUrl).not.toBe("");
@@ -159,6 +197,17 @@ describe("EventsService", () => {
         { event: "event.created", eventId: createdEvent.id, creatorId },
         "Event created",
       );
+    });
+
+    it("grants the creator organizer access when the event is created", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(creatorId, createEventDto);
+
+      expect(prisma.event.create).toHaveBeenCalledWith({
+        data: expect.objectContaining(creatorOrganizerAccessGrant),
+      });
     });
 
     it("creates an event with a description when description is provided", async () => {
@@ -467,6 +516,123 @@ describe("EventsService", () => {
         orderBy: { date: "asc" },
       });
       expect(prisma.event.findMany).toHaveBeenNthCalledWith(2, findAllForUserQuery);
+    });
+  });
+
+  describe("delete", () => {
+    it("deletes the event when the caller has organizer access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
+      prisma.event.delete.mockResolvedValue(eventCreatedByUser);
+
+      await expect(service.delete(eventId, callerId)).resolves.toBeUndefined();
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: eventId } });
+      expect(prisma.eventAccess.findUnique).toHaveBeenCalledWith(eventAccessLookup(eventId, callerId));
+      expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: eventId } });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.deleted", eventId, callerId, audit: true },
+        "Event deleted",
+      );
+    });
+
+    it("deletes the event when a non-creator organizer removes it", async () => {
+      const nonCreatorOrganizerAccess: EventAccess = {
+        ...organizerAccess,
+        userId: callerId,
+        eventId: eventWithAccessOnly.id,
+      };
+      prisma.event.findUnique.mockResolvedValue(eventWithAccessOnly);
+      prisma.eventAccess.findUnique.mockResolvedValue(nonCreatorOrganizerAccess);
+      prisma.event.delete.mockResolvedValue(eventWithAccessOnly);
+
+      await expect(service.delete(eventWithAccessOnly.id, callerId)).resolves.toBeUndefined();
+
+      expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: eventWithAccessOnly.id } });
+    });
+
+    it("deletes the event when the creator has organizer access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
+      prisma.event.delete.mockResolvedValue(eventCreatedByUser);
+
+      await expect(service.delete(eventId, callerId)).resolves.toBeUndefined();
+
+      expect(eventCreatedByUser.creatorId).toBe(callerId);
+      expect(organizerAccess.accessLevel).toBe(AccessLevel.ORGANIZER);
+      expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: eventId } });
+    });
+
+    it("does not attempt delete when the caller lacks organizer access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventAccess.findUnique.mockResolvedValue(participantAccess);
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+      expect(prisma.eventAccess.findUnique).not.toHaveBeenCalled();
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller has no event access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventAccess.findUnique.mockResolvedValue(participantAccess);
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller is a viewer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventAccess.findUnique.mockResolvedValue(viewerAccess);
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+    });
+
+    it("checks that the event exists before checking access", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(NotFoundException);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: eventId } });
+      expect(prisma.eventAccess.findUnique).not.toHaveBeenCalled();
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+    });
+
+    it("re-throws unexpected database errors when deleting an event", async () => {
+      const prismaError = new Error("Database connection lost");
+      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
+      prisma.event.delete.mockRejectedValue(prismaError);
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(prismaError);
+      expect(logger.info).not.toHaveBeenCalled();
     });
   });
 });
