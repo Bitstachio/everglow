@@ -1,6 +1,7 @@
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -18,7 +19,7 @@ import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_SERVICE_ERRORS } from "./events.constants";
-import { eventWithCallerAccessInclude } from "./events.types";
+import { EventParticipant, eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 
 @Injectable()
 export class EventsService {
@@ -195,6 +196,166 @@ export class EventsService {
     return updated;
   }
 
+  async leaveEvent(eventId: string, callerId: string): Promise<void> {
+    const loaded = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+
+    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const callerAccess = loaded.eventAccesses[0];
+    if (!callerAccess) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, callerId));
+    }
+
+    if (callerAccess.accessLevel === AccessLevel.ORGANIZER) {
+      const organizerCount = await this.countOrganizers(eventId);
+      if (organizerCount <= 1) {
+        throw new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId));
+      }
+    }
+
+    await this.prisma.eventAccess.delete({
+      where: { userId_eventId: { userId: callerId, eventId } },
+    });
+
+    this.logger.info({ event: "event.left", eventId, callerId, audit: true }, "User left event");
+  }
+
+  async getEventParticipants(eventId: string, callerId: string): Promise<EventParticipant[]> {
+    const loaded = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+
+    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId));
+    }
+
+    const accesses = await this.prisma.eventAccess.findMany({
+      where: { eventId },
+      include: eventAccessWithUserInclude,
+      orderBy: { createdAt: "asc" },
+    });
+
+    return accesses
+      .filter((access) => access.user.details)
+      .map((access) => ({
+        userId: access.userId,
+        name: access.user.details!.name,
+        accessLevel: access.accessLevel,
+      }));
+  }
+
+  async updateUserAccessLevel(
+    eventId: string,
+    callerId: string,
+    targetUserId: string,
+    accessLevel: AccessLevel,
+  ): Promise<EventParticipant> {
+    this.assertValidAccessLevel(accessLevel);
+
+    const loaded = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+
+    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
+    }
+
+    if (callerId === targetUserId) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_MODIFY_OWN_ACCESS);
+    }
+
+    const targetAccess = await this.prisma.eventAccess.findUnique({
+      where: { userId_eventId: { userId: targetUserId, eventId } },
+      include: eventAccessWithUserInclude,
+    });
+    if (!targetAccess) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId));
+    }
+
+    if (targetAccess.accessLevel === AccessLevel.ORGANIZER && accessLevel !== AccessLevel.ORGANIZER) {
+      const organizerCount = await this.countOrganizers(eventId);
+      if (organizerCount <= 1) {
+        throw new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId));
+      }
+    }
+
+    if (targetAccess.accessLevel === accessLevel) {
+      return this.toEventParticipant(eventId, targetAccess);
+    }
+
+    const updated = await this.prisma.eventAccess.update({
+      where: { userId_eventId: { userId: targetUserId, eventId } },
+      data: { accessLevel },
+      include: eventAccessWithUserInclude,
+    });
+
+    this.logger.info(
+      {
+        event: "event.access_level.updated",
+        eventId,
+        callerId,
+        targetUserId,
+        accessLevel,
+        audit: true,
+      },
+      "Event member access level updated",
+    );
+
+    return this.toEventParticipant(eventId, updated);
+  }
+
+  async removeUserFromEvent(eventId: string, callerId: string, targetUserId: string): Promise<void> {
+    const loaded = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+
+    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
+    }
+
+    if (callerId === targetUserId) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF);
+    }
+
+    const targetAccess = await this.prisma.eventAccess.findUnique({
+      where: { userId_eventId: { userId: targetUserId, eventId } },
+    });
+    if (!targetAccess) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId));
+    }
+
+    if (targetAccess.accessLevel === AccessLevel.ORGANIZER) {
+      const organizerCount = await this.countOrganizers(eventId);
+      if (organizerCount <= 1) {
+        throw new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId));
+      }
+    }
+
+    await this.prisma.eventAccess.delete({
+      where: { userId_eventId: { userId: targetUserId, eventId } },
+    });
+
+    this.logger.info(
+      { event: "event.member.removed", eventId, callerId, targetUserId, audit: true },
+      "Event member removed",
+    );
+  }
+
   async delete(eventId: string, callerId: string): Promise<void> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -211,6 +372,37 @@ export class EventsService {
     await this.prisma.event.delete({ where: { id: eventId } });
 
     this.logger.info({ event: "event.deleted", eventId, callerId, audit: true }, "Event deleted");
+  }
+
+  private async countOrganizers(eventId: string): Promise<number> {
+    return this.prisma.eventAccess.count({
+      where: { eventId, accessLevel: AccessLevel.ORGANIZER },
+    });
+  }
+
+  private assertValidAccessLevel(accessLevel: AccessLevel): void {
+    if (!Object.values(AccessLevel).includes(accessLevel)) {
+      throw new BadRequestException(EVENT_SERVICE_ERRORS.INVALID_ACCESS_LEVEL(String(accessLevel)));
+    }
+  }
+
+  private toEventParticipant(
+    eventId: string,
+    access: {
+      userId: string;
+      accessLevel: AccessLevel;
+      user: { details: { name: string } | null };
+    },
+  ): EventParticipant {
+    if (!access.user.details) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, access.userId));
+    }
+
+    return {
+      userId: access.userId,
+      name: access.user.details.name,
+      accessLevel: access.accessLevel,
+    };
   }
 
   private async isUserOnboarded(userId: string): Promise<boolean> {

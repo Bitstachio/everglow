@@ -13,4 +13,10 @@ export const EVENT_SERVICE_ERRORS = {
   DELETE_FORBIDDEN: (eventId: string) => `Not authorized to delete event with ID "${eventId}"`,
   UPDATE_FORBIDDEN: (eventId: string) => `Not authorized to update event with ID "${eventId}"`,
   READ_FORBIDDEN: (eventId: string) => `Not authorized to read event with ID "${eventId}"`,
+  NOT_A_MEMBER: (eventId: string, userId: string) =>
+    `User with ID "${userId}" is not a member of event with ID "${eventId}"`,
+  LAST_ORGANIZER: (eventId: string) => `Event with ID "${eventId}" must have at least one organizer`,
+  CANNOT_MODIFY_OWN_ACCESS: "Use leaveEvent to remove yourself from an event",
+  CANNOT_REMOVE_SELF: "Use leaveEvent to remove yourself from an event",
+  INVALID_ACCESS_LEVEL: (level: string) => `Invalid access level "${level}"`,
 };

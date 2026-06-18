@@ -1,5 +1,11 @@
 import { accessibleBy } from "@casl/prisma";
-import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AccessLevel, Event, EventAccess, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -13,7 +19,7 @@ import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_SERVICE_ERRORS } from "./events.constants";
 import { EventsService } from "./events.service";
-import { eventWithCallerAccessInclude } from "./events.types";
+import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 
 const buildReadAccessibleWhere = (lookupUserId: string) => {
   const ability = new AbilityFactory().createForUser({ id: lookupUserId, isOnboarded: true });
@@ -123,6 +129,9 @@ describe("EventsService", () => {
     },
   };
 
+  const targetUserId = "44444444-4444-4444-4444-444444444444";
+  const secondOrganizerUserId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+
   const eventId = eventCreatedByUser.id;
   const callerId = userId;
   const invitationUrl = eventCreatedByUser.invitationUrl;
@@ -157,6 +166,56 @@ describe("EventsService", () => {
     id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     accessLevel: AccessLevel.VIEWER,
   };
+
+  const secondOrganizerAccess: EventAccess = {
+    id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+    userId: secondOrganizerUserId,
+    eventId,
+    accessLevel: AccessLevel.ORGANIZER,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const targetUserWithDetails: UserWithDetails = {
+    id: targetUserId,
+    providerSub: "auth0|target",
+    createdAt: now,
+    updatedAt: now,
+    details: {
+      id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      userId: targetUserId,
+      email: "target@example.com",
+      name: "Target User",
+      createdAt: now,
+      updatedAt: now,
+    },
+  };
+
+  const targetParticipantAccess: EventAccess = {
+    id: "10101010-1010-1010-1010-101010101010",
+    userId: targetUserId,
+    eventId,
+    accessLevel: AccessLevel.PARTICIPANT,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const participantWithDetails = {
+    userId: targetUserId,
+    name: "Target User",
+    accessLevel: AccessLevel.PARTICIPANT,
+  };
+
+  const eventAccessWithUser = (access: EventAccess, user: UserWithDetails) => ({
+    ...access,
+    user,
+  });
+
+  const participantsLookup = (lookupEventId: string) => ({
+    where: { eventId: lookupEventId },
+    include: eventAccessWithUserInclude,
+    orderBy: { createdAt: "asc" as const },
+  });
 
   const creatorOrganizerAccessGrant = {
     eventAccesses: {
@@ -1445,6 +1504,605 @@ describe("EventsService", () => {
 
       await expect(service.joinByInvitationUrl(otherUserId, invitationUrl)).rejects.toThrow(
         new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
+      );
+    });
+  });
+
+  describe("leaveEvent", () => {
+    it("removes participant access when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      prisma.eventAccess.delete.mockResolvedValue(participantAccess);
+
+      await expect(service.leaveEvent(eventId, callerId)).resolves.toBeUndefined();
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalledWith({
+        where: { userId_eventId: { userId: callerId, eventId } },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.left", eventId, callerId, audit: true },
+        "User left event",
+      );
+    });
+
+    it("removes viewer access when the caller is a viewer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
+      prisma.eventAccess.delete.mockResolvedValue(viewerAccess);
+
+      await expect(service.leaveEvent(eventId, callerId)).resolves.toBeUndefined();
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalled();
+    });
+
+    it("removes organizer access when another organizer remains", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.count.mockResolvedValue(2);
+      prisma.eventAccess.delete.mockResolvedValue(organizerAccess);
+
+      await expect(service.leaveEvent(eventId, callerId)).resolves.toBeUndefined();
+
+      expect(prisma.eventAccess.count).toHaveBeenCalledWith({
+        where: { eventId, accessLevel: AccessLevel.ORGANIZER },
+      });
+      expect(prisma.eventAccess.delete).toHaveBeenCalled();
+    });
+
+    it("does not mutate the event row when leaving", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      prisma.eventAccess.delete.mockResolvedValue(participantAccess);
+
+      await service.leaveEvent(eventId, callerId);
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+    });
+
+    it("blocks the last organizer from leaving", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.count.mockResolvedValue(1);
+
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(
+        new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId)),
+      );
+
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
+    it("treats the creator without an event access row as not a member", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, callerId)),
+      );
+
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller has no event access row", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
+    it("re-throws unexpected database errors when deleting event access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      const prismaError = new Error("Database connection lost");
+      prisma.eventAccess.delete.mockRejectedValue(prismaError);
+
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(prismaError);
+
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("denies findOne after the caller leaves the event", async () => {
+      prisma.event.findUnique.mockResolvedValueOnce(
+        eventWithCallerAccess(eventCreatedByUser, [targetParticipantAccess]),
+      );
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await service.leaveEvent(eventId, targetUserId);
+
+      prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
+      );
+    });
+  });
+
+  describe("getEventParticipants", () => {
+    const organizerRow = eventAccessWithUser(organizerAccess, userWithDetails);
+    const targetRow = eventAccessWithUser(targetParticipantAccess, targetUserWithDetails);
+
+    it("returns all members when the caller is an organizer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(participantsLookup(eventId));
+      expect(result).toEqual([
+        { userId: callerId, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER },
+        participantWithDetails,
+      ]);
+    });
+
+    it("returns all members when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result).toHaveLength(2);
+    });
+
+    it("returns all members when the caller is a viewer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result).toHaveLength(2);
+    });
+
+    it("returns members when the caller is the creator with read via creatorId", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result).toEqual([{ userId: callerId, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER }]);
+    });
+
+    it("orders participants by createdAt ascending", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
+
+      await service.getEventParticipants(eventId, callerId);
+
+      expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { createdAt: "asc" } }),
+      );
+    });
+
+    it("maps participant names from user details", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([targetRow]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result[0].name).toBe("Target User");
+    });
+
+    it("excludes members without user details from the list", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([
+        eventAccessWithUser(targetParticipantAccess, { ...targetUserWithDetails, details: null }),
+      ]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result).toEqual([]);
+    });
+
+    it("does not expose providerSub in the response shape", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([targetRow]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result[0]).toEqual({
+        userId: targetUserId,
+        name: "Target User",
+        accessLevel: AccessLevel.PARTICIPANT,
+      });
+      expect(result[0]).not.toHaveProperty("providerSub");
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.getEventParticipants(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+
+      expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller is unrelated to the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.getEventParticipants(eventId, otherUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
+      );
+
+      expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
+    });
+
+    it("re-throws unexpected database errors when loading participants", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      const prismaError = new Error("Database connection lost");
+      prisma.eventAccess.findMany.mockRejectedValue(prismaError);
+
+      await expect(service.getEventParticipants(eventId, callerId)).rejects.toThrow(prismaError);
+    });
+  });
+
+  describe("updateUserAccessLevel", () => {
+    const targetAccessWithUser = eventAccessWithUser(targetParticipantAccess, targetUserWithDetails);
+
+    const setupOrganizerUpdate = () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findUnique.mockResolvedValue(targetAccessWithUser);
+    };
+
+    it("promotes a participant to organizer when the caller is an organizer", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.update.mockResolvedValue(
+        eventAccessWithUser({ ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER }, targetUserWithDetails),
+      );
+
+      const result = await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.ORGANIZER);
+
+      expect(prisma.eventAccess.update).toHaveBeenCalledWith({
+        where: { userId_eventId: { userId: targetUserId, eventId } },
+        data: { accessLevel: AccessLevel.ORGANIZER },
+        include: eventAccessWithUserInclude,
+      });
+      expect(result).toEqual({
+        userId: targetUserId,
+        name: "Target User",
+        accessLevel: AccessLevel.ORGANIZER,
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "event.access_level.updated",
+          eventId,
+          callerId,
+          targetUserId,
+          accessLevel: AccessLevel.ORGANIZER,
+          audit: true,
+        }),
+        "Event member access level updated",
+      );
+    });
+
+    it("demotes an organizer to participant when another organizer exists", async () => {
+      const targetOrganizerAccess = { ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER };
+      setupOrganizerUpdate();
+      prisma.eventAccess.findUnique.mockResolvedValue(
+        eventAccessWithUser(targetOrganizerAccess, targetUserWithDetails),
+      );
+      prisma.eventAccess.count.mockResolvedValue(2);
+      prisma.eventAccess.update.mockResolvedValue(
+        eventAccessWithUser({ ...targetOrganizerAccess, accessLevel: AccessLevel.PARTICIPANT }, targetUserWithDetails),
+      );
+
+      await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.PARTICIPANT);
+
+      expect(prisma.eventAccess.count).toHaveBeenCalled();
+      expect(prisma.eventAccess.update).toHaveBeenCalled();
+    });
+
+    it("changes a participant to viewer", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.update.mockResolvedValue(
+        eventAccessWithUser({ ...targetParticipantAccess, accessLevel: AccessLevel.VIEWER }, targetUserWithDetails),
+      );
+
+      const result = await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER);
+
+      expect(result.accessLevel).toBe(AccessLevel.VIEWER);
+    });
+
+    it("changes a viewer to participant", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.findUnique.mockResolvedValue(
+        eventAccessWithUser({ ...targetParticipantAccess, accessLevel: AccessLevel.VIEWER }, targetUserWithDetails),
+      );
+      prisma.eventAccess.update.mockResolvedValue(targetAccessWithUser);
+
+      const result = await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.PARTICIPANT);
+
+      expect(result.accessLevel).toBe(AccessLevel.PARTICIPANT);
+    });
+
+    it("allows a non-creator organizer to change access levels", async () => {
+      const nonCreatorOrganizerAccess: EventAccess = {
+        ...organizerAccess,
+        userId: callerId,
+        eventId: eventWithAccessOnly.id,
+      };
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess(eventWithAccessOnly, [nonCreatorOrganizerAccess]),
+      );
+      prisma.eventAccess.findUnique.mockResolvedValue(
+        eventAccessWithUser({ ...targetParticipantAccess, eventId: eventWithAccessOnly.id }, targetUserWithDetails),
+      );
+      prisma.eventAccess.update.mockResolvedValue(
+        eventAccessWithUser(
+          { ...targetParticipantAccess, eventId: eventWithAccessOnly.id, accessLevel: AccessLevel.VIEWER },
+          targetUserWithDetails,
+        ),
+      );
+
+      await service.updateUserAccessLevel(eventWithAccessOnly.id, callerId, targetUserId, AccessLevel.VIEWER);
+
+      expect(prisma.eventAccess.update).toHaveBeenCalled();
+    });
+
+    it("blocks demoting the last organizer", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.findUnique.mockResolvedValue(
+        eventAccessWithUser({ ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER }, targetUserWithDetails),
+      );
+      prisma.eventAccess.count.mockResolvedValue(1);
+
+      await expect(
+        service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.PARTICIPANT),
+      ).rejects.toThrow(new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId)));
+
+      expect(prisma.eventAccess.update).not.toHaveBeenCalled();
+    });
+
+    it("blocks the caller from modifying their own access level", async () => {
+      setupOrganizerUpdate();
+
+      await expect(service.updateUserAccessLevel(eventId, callerId, callerId, AccessLevel.PARTICIPANT)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_MODIFY_OWN_ACCESS),
+      );
+
+      expect(prisma.eventAccess.update).not.toHaveBeenCalled();
+    });
+
+    it("succeeds without updating when the access level is unchanged", async () => {
+      setupOrganizerUpdate();
+
+      const result = await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.PARTICIPANT);
+
+      expect(prisma.eventAccess.update).not.toHaveBeenCalled();
+      expect(result).toEqual(participantWithDetails);
+    });
+
+    it("does not mutate the event row when updating access level", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.update.mockResolvedValue(targetAccessWithUser);
+
+      await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER);
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("throws when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+    });
+
+    it("throws when the target is not a member of the event", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+
+      await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId)),
+      );
+    });
+
+    it("throws when the access level is invalid", async () => {
+      setupOrganizerUpdate();
+
+      await expect(
+        service.updateUserAccessLevel(eventId, callerId, targetUserId, "INVALID" as AccessLevel),
+      ).rejects.toThrow(new BadRequestException(EVENT_SERVICE_ERRORS.INVALID_ACCESS_LEVEL("INVALID")));
+    });
+
+    it("re-throws unexpected database errors when updating access level", async () => {
+      setupOrganizerUpdate();
+      const prismaError = new Error("Database connection lost");
+      prisma.eventAccess.update.mockRejectedValue(prismaError);
+
+      await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
+        prismaError,
+      );
+
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event: "event.access_level.updated" }),
+        expect.any(String),
+      );
+    });
+
+    it("allows findOne but denies update after demoting the target to viewer", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.update.mockResolvedValue(
+        eventAccessWithUser({ ...targetParticipantAccess, accessLevel: AccessLevel.VIEWER }, targetUserWithDetails),
+      );
+
+      await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER);
+
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess(eventCreatedByUser, [{ ...targetParticipantAccess, accessLevel: AccessLevel.VIEWER }]),
+      );
+
+      await expect(service.findOne(eventId, targetUserId)).resolves.toEqual(eventCreatedByUser);
+
+      await expect(service.update(eventId, targetUserId, updateTitleDto)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe("removeUserFromEvent", () => {
+    const setupOrganizerRemove = (targetAccess: EventAccess = targetParticipantAccess) => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findUnique.mockResolvedValue(targetAccess);
+    };
+
+    it("removes a participant when the caller is an organizer", async () => {
+      setupOrganizerRemove();
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).resolves.toBeUndefined();
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalledWith({
+        where: { userId_eventId: { userId: targetUserId, eventId } },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.member.removed", eventId, callerId, targetUserId, audit: true },
+        "Event member removed",
+      );
+    });
+
+    it("removes a viewer when the caller is an organizer", async () => {
+      setupOrganizerRemove({ ...targetParticipantAccess, accessLevel: AccessLevel.VIEWER });
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).resolves.toBeUndefined();
+    });
+
+    it("removes an organizer when another organizer remains", async () => {
+      setupOrganizerRemove({ ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER });
+      prisma.eventAccess.count.mockResolvedValue(2);
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).resolves.toBeUndefined();
+    });
+
+    it("allows a non-creator organizer to remove members", async () => {
+      const nonCreatorOrganizerAccess: EventAccess = {
+        ...organizerAccess,
+        userId: callerId,
+        eventId: eventWithAccessOnly.id,
+      };
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess(eventWithAccessOnly, [nonCreatorOrganizerAccess]),
+      );
+      prisma.eventAccess.findUnique.mockResolvedValue({
+        ...targetParticipantAccess,
+        eventId: eventWithAccessOnly.id,
+      });
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await service.removeUserFromEvent(eventWithAccessOnly.id, callerId, targetUserId);
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalled();
+    });
+
+    it("blocks removing the last organizer", async () => {
+      setupOrganizerRemove({ ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER });
+      prisma.eventAccess.count.mockResolvedValue(1);
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
+        new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId)),
+      );
+
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
+    it("blocks self-removal via removeUserFromEvent", async () => {
+      setupOrganizerRemove();
+
+      await expect(service.removeUserFromEvent(eventId, callerId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF),
+      );
+
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
+    it("deletes only the target user event access row", async () => {
+      setupOrganizerRemove();
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await service.removeUserFromEvent(eventId, callerId, targetUserId);
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalledTimes(1);
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+    });
+
+    it("throws when the target is not a member of the event", async () => {
+      setupOrganizerRemove();
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId)),
+      );
+    });
+
+    it("re-throws unexpected database errors when deleting event access", async () => {
+      setupOrganizerRemove();
+      const prismaError = new Error("Database connection lost");
+      prisma.eventAccess.delete.mockRejectedValue(prismaError);
+
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(prismaError);
+
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("denies findOne for the removed target user", async () => {
+      setupOrganizerRemove();
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await service.removeUserFromEvent(eventId, callerId, targetUserId);
+
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
+      );
+    });
+
+    it("uses leaveEvent for self-removal instead of removeUserFromEvent", async () => {
+      prisma.event.findUnique.mockResolvedValueOnce(
+        eventWithCallerAccess(eventCreatedByUser, [targetParticipantAccess]),
+      );
+      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
+
+      await service.leaveEvent(eventId, targetUserId);
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalledWith({
+        where: { userId_eventId: { userId: targetUserId, eventId } },
+      });
+
+      const targetOrganizerAccess: EventAccess = {
+        ...targetParticipantAccess,
+        accessLevel: AccessLevel.ORGANIZER,
+      };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [targetOrganizerAccess]));
+
+      await expect(service.removeUserFromEvent(eventId, targetUserId, targetUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF),
       );
     });
   });
