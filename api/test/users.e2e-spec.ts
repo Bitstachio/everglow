@@ -1,14 +1,14 @@
 import { INestApplication } from "@nestjs/common";
-import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
-import request from "supertest";
+import { DeepMockProxy, mockReset } from "jest-mock-extended";
+import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
-import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
+import request from "supertest";
+import { authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
-  TEST_ACCESS_TOKEN,
   TEST_USER_ID,
   buildUserWithDetails,
   buildUserWithoutDetails,
@@ -33,10 +33,6 @@ type ErrorResponse = {
     path: string;
   };
 };
-
-const authHeader = (token = TEST_ACCESS_TOKEN) => ({
-  Authorization: `Bearer ${token}`,
-});
 
 describe("UsersController (e2e)", () => {
   let app: INestApplication;

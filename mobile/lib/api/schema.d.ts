@@ -56,6 +56,145 @@ export interface paths {
     patch: operations["UsersController_updateMe"];
     trace?: never;
   };
+  "/api/v2/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List events for the current user */
+    get: operations["EventsController_findAll"];
+    put?: never;
+    /** Create an event */
+    post: operations["EventsController_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/events/join": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Join an event via invitation URL */
+    post: operations["EventsController_join"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/events/{eventId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get an event by ID */
+    get: operations["EventsController_findOne"];
+    put?: never;
+    post?: never;
+    /** Delete an event */
+    delete: operations["EventsController_remove"];
+    options?: never;
+    head?: never;
+    /** Update an event */
+    patch: operations["EventsController_update"];
+    trace?: never;
+  };
+  "/api/v2/events/{eventId}/leave": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Leave an event */
+    post: operations["EventsController_leave"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/events/{eventId}/participants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List event participants */
+    get: operations["EventsController_getParticipants"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/events/{eventId}/participants/{targetUserId}/access": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update a member access level */
+    put: operations["EventsController_updateParticipantAccess"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/events/{eventId}/participants/{targetUserId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove a member from an event */
+    delete: operations["EventsController_removeParticipant"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/events/{eventId}/regenerate-url": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Regenerate the event invitation URL */
+    post: operations["EventsController_regenerateInvitationUrl"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -88,6 +227,42 @@ export interface components {
     };
     CreateUserDetailsDto: Record<string, never>;
     UpdateUserDto: Record<string, never>;
+    EventResponseDto: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      description: string | null;
+      /** Format: date-time */
+      date: string;
+      /** Format: uuid */
+      creatorId: string;
+      /** @description Shareable invitation link composed from the stored invite token */
+      invitationUrl: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    CreateEventDto: Record<string, never>;
+    JoinEventDto: {
+      /**
+       * @description Full invitation URL or invite token
+       * @example https://events.everglow.app/invite/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+       */
+      invitationUrl: string;
+    };
+    UpdateEventDto: Record<string, never>;
+    /** @enum {string} */
+    AccessLevel: "ORGANIZER" | "PARTICIPANT" | "VIEWER";
+    EventParticipantResponseDto: {
+      /** Format: uuid */
+      userId: string;
+      name: string;
+      accessLevel: components["schemas"]["AccessLevel"];
+    };
+    UpdateParticipantAccessDto: {
+      accessLevel: components["schemas"]["AccessLevel"];
+    };
   };
   responses: never;
   parameters: never;
@@ -224,6 +399,355 @@ export interface operations {
         content: {
           "application/json": {
             data: components["schemas"]["UserResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_findAll: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Events the user can read */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateEventDto"];
+      };
+    };
+    responses: {
+      /** @description Created event */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_join: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["JoinEventDto"];
+      };
+    };
+    responses: {
+      /** @description Joined event */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_findOne: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Event details */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Event deleted (empty data envelope at runtime) */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateEventDto"];
+      };
+    };
+    responses: {
+      /** @description Updated event */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_leave: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Caller left the event (empty data envelope at runtime) */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getParticipants: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Event participants */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventParticipantResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_updateParticipantAccess: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        targetUserId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateParticipantAccessDto"];
+      };
+    };
+    responses: {
+      /** @description Updated member */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventParticipantResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_removeParticipant: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        targetUserId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Member removed (empty data envelope at runtime) */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_regenerateInvitationUrl: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Event with new invitation URL */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["EventResponseDto"];
             meta: components["schemas"]["ResponseMetaDto"];
           };
         };

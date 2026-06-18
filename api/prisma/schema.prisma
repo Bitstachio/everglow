@@ -40,7 +40,7 @@ model UserDetails {
 
 model Event {
   id            String   @id @default(uuid()) @db.Uuid
-  title         String   @db.VarChar(200)
+  title         String   @db.VarChar(100)
   description   String?  @db.Text
   date          DateTime
   creatorId     String   @db.Uuid
@@ -49,8 +49,21 @@ model Event {
   updatedAt     DateTime @updatedAt
 
   creator       User          @relation("CreatedEvents", fields: [creatorId], references: [id])
-  photos        Photo[]
+  galleries     Gallery[]
   eventAccesses EventAccess[]
+
+  @@index([creatorId])
+}
+
+model Gallery {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventId   String   @db.Uuid
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photos Photo[]
 }
 
 model EventAccess {
@@ -62,19 +75,20 @@ model EventAccess {
   updatedAt   DateTime    @updatedAt
 
   user  User  @relation(fields: [userId], references: [id])
-  event Event @relation(fields: [eventId], references: [id])
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventId])
+  @@index([eventId])
 }
 
 model Photo {
   id        String   @id @default(uuid()) @db.Uuid
   imageUrl  String   @db.VarChar(500)
   addedById String   @db.Uuid
-  eventId   String   @db.Uuid
+  galleryId String   @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  addedBy User  @relation(fields: [addedById], references: [id])
-  event   Event @relation(fields: [eventId], references: [id])
+  addedBy User    @relation(fields: [addedById], references: [id])
+  gallery Gallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
 }
