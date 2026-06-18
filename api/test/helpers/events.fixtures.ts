@@ -1,7 +1,8 @@
-import { AccessLevel, Event, EventAccess } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess, Prisma } from "generated/prisma/client";
 import { CreateEventDto } from "src/events/dto/create-event.dto";
 import { UpdateEventDto } from "src/events/dto/update-event.dto";
 import { buildInvitationUrl } from "src/events/events.invitation";
+import { eventAccessWithUserInclude } from "src/events/events.types";
 import { UserWithDetails } from "src/users/users.types";
 import { TEST_NOW, TEST_USER_ID, buildUserWithDetails } from "./users.fixtures";
 import { TEST_OTHER_USER_ID, TEST_TARGET_USER_ID } from "./auth.fixtures";
@@ -83,6 +84,15 @@ export const buildTargetParticipantAccess = (overrides: Partial<EventAccess> = {
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,
+});
+
+export type EventAccessWithUser = Prisma.EventAccessGetPayload<{
+  include: typeof eventAccessWithUserInclude;
+}>;
+
+export const buildEventAccessWithUser = (access: EventAccess, user: UserWithDetails): EventAccessWithUser => ({
+  ...access,
+  user,
 });
 
 export const eventWithCallerAccess = (event: Event, access: EventAccess[]) => ({

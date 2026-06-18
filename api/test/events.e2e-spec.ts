@@ -16,6 +16,7 @@ import {
   TEST_OTHER_EVENT_ID,
   TEST_OTHER_INVITE_TOKEN,
   buildEvent,
+  buildEventAccessWithUser,
   buildOrganizerAccess,
   buildOtherUserEvent,
   buildOtherUserWithDetails,
@@ -423,14 +424,8 @@ describe("EventsController (e2e)", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/participants`;
 
     it("returns 200 and a mapped participant roster", async () => {
-      const organizerRow = {
-        ...buildOrganizerAccess(),
-        user: buildUserWithDetails(),
-      };
-      const targetRow = {
-        ...buildTargetParticipantAccess(),
-        user: buildTargetUserWithDetails(),
-      };
+      const organizerRow = buildEventAccessWithUser(buildOrganizerAccess(), buildUserWithDetails());
+      const targetRow = buildEventAccessWithUser(buildTargetParticipantAccess(), buildTargetUserWithDetails());
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
 
@@ -463,15 +458,14 @@ describe("EventsController (e2e)", () => {
       `${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants/${targetUserId}/access`;
 
     it("returns 200 and the updated participant response", async () => {
-      const targetAccessWithUser = {
-        ...buildTargetParticipantAccess({ accessLevel: AccessLevel.ORGANIZER }),
-        user: buildTargetUserWithDetails(),
-      };
+      const targetAccessWithUser = buildEventAccessWithUser(
+        buildTargetParticipantAccess({ accessLevel: AccessLevel.ORGANIZER }),
+        buildTargetUserWithDetails(),
+      );
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
-      prisma.eventAccess.findUnique.mockResolvedValue({
-        ...buildTargetParticipantAccess(),
-        user: buildTargetUserWithDetails(),
-      });
+      prisma.eventAccess.findUnique.mockResolvedValue(
+        buildEventAccessWithUser(buildTargetParticipantAccess(), buildTargetUserWithDetails()),
+      );
       prisma.eventAccess.update.mockResolvedValue(targetAccessWithUser);
 
       const response = await request(httpServer)
@@ -590,7 +584,9 @@ describe("EventsController (e2e)", () => {
     it("allows a viewer to read an event and list participants but not update it", async () => {
       const event = buildEvent();
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildViewerAccess()]));
-      prisma.eventAccess.findMany.mockResolvedValue([{ ...buildOrganizerAccess(), user: buildUserWithDetails() }]);
+      prisma.eventAccess.findMany.mockResolvedValue([
+        buildEventAccessWithUser(buildOrganizerAccess(), buildUserWithDetails()),
+      ]);
 
       await request(httpServer).get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`).set(authHeader()).expect(200);
       await request(httpServer).get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants`).set(authHeader()).expect(200);
