@@ -1,3 +1,5 @@
+import { subject } from "@casl/ability";
+import { accessibleBy } from "@casl/prisma";
 import {
   ForbiddenException,
   Injectable,
@@ -8,17 +10,21 @@ import {
 import { randomUUID } from "crypto";
 import { AccessLevel, Event } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { AbilityFactory } from "src/casl/ability.factory";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
-import { EVENT_SERVICE_ERRORS } from "./events.constants";
 import { UpdateEventDto } from "./dto/update-event.dto";
+import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
+import { EVENT_SERVICE_ERRORS } from "./events.constants";
+import { eventWithCallerAccessInclude } from "./events.types";
 
 @Injectable()
 export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly abilityFactory: AbilityFactory,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -32,6 +38,11 @@ export class EventsService {
 
     if (!creator) throw new NotFoundException(EVENT_SERVICE_ERRORS.CREATOR_NOT_FOUND(creatorId));
     if (!creator.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+
+    const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT)) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.CREATE_FORBIDDEN);
+    }
 
     const invitationUrl = randomUUID();
 
@@ -59,8 +70,12 @@ export class EventsService {
   async findAllByCreatorId(userId: string): Promise<Event[]> {
     if (!(await this.isUserOnboarded(userId))) return [];
 
+    const ability = this.abilityFactory.createForUser({ id: userId, isOnboarded: true });
+
     return this.prisma.event.findMany({
-      where: { creatorId: userId },
+      where: {
+        AND: [accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT), { creatorId: userId }],
+      },
       orderBy: { date: "asc" },
     });
   }
@@ -68,10 +83,10 @@ export class EventsService {
   async findAllForUser(userId: string): Promise<Event[]> {
     if (!(await this.isUserOnboarded(userId))) return [];
 
+    const ability = this.abilityFactory.createForUser({ id: userId, isOnboarded: true });
+
     return this.prisma.event.findMany({
-      where: {
-        OR: [{ creatorId: userId }, { eventAccesses: { some: { userId } } }],
-      },
+      where: accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT),
       orderBy: { date: "asc" },
     });
   }
@@ -83,15 +98,13 @@ export class EventsService {
   async delete(eventId: string, callerId: string): Promise<void> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
     });
 
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const access = await this.prisma.eventAccess.findUnique({
-      where: { userId_eventId: { userId: callerId, eventId } },
-    });
-
-    if (!access || access.accessLevel !== AccessLevel.ORGANIZER) {
+    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.DELETE, subject(EVENT_SUBJECT, event))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId));
     }
 
