@@ -49,8 +49,19 @@ model Event {
   updatedAt     DateTime @updatedAt
 
   creator       User          @relation("CreatedEvents", fields: [creatorId], references: [id])
-  photos        Photo[]
+  galleries     Gallery[]
   eventAccesses EventAccess[]
+}
+
+model Gallery {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventId   String   @db.Uuid
+  name      String   @db.VarChar(200)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event  Event   @relation(fields: [eventId], references: [id])
+  photos Photo[]
 }
 
 model EventAccess {
@@ -71,10 +82,10 @@ model Photo {
   id        String   @id @default(uuid()) @db.Uuid
   imageUrl  String   @db.VarChar(500)
   addedById String   @db.Uuid
-  eventId   String   @db.Uuid
+  galleryId String   @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  addedBy User  @relation(fields: [addedById], references: [id])
-  event   Event @relation(fields: [eventId], references: [id])
+  addedBy User    @relation(fields: [addedById], references: [id])
+  gallery Gallery @relation(fields: [galleryId], references: [id])
 }
