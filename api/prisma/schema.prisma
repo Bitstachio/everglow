@@ -40,7 +40,7 @@ model UserDetails {
 
 model Event {
   id            String   @id @default(uuid()) @db.Uuid
-  title         String   @db.VarChar(200)
+  title         String   @db.VarChar(100)
   description   String?  @db.Text
   date          DateTime
   creatorId     String   @db.Uuid
@@ -56,7 +56,7 @@ model Event {
 model Gallery {
   id        String   @id @default(uuid()) @db.Uuid
   eventId   String   @db.Uuid
-  name      String   @db.VarChar(200)
+  name      String   @db.VarChar(100)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
