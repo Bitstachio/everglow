@@ -1,10 +1,5 @@
 import { accessibleBy } from "@casl/prisma";
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AccessLevel, Event, EventAccess, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -111,6 +106,21 @@ describe("EventsService", () => {
     invitationUrl: "invite-access",
     createdAt: now,
     updatedAt: now,
+  };
+
+  const otherUserWithDetails: UserWithDetails = {
+    id: otherUserId,
+    providerSub: "auth0|other",
+    createdAt: now,
+    updatedAt: now,
+    details: {
+      id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      userId: otherUserId,
+      email: "other@example.com",
+      name: "Other User",
+      createdAt: now,
+      updatedAt: now,
+    },
   };
 
   const eventId = eventCreatedByUser.id;
@@ -668,9 +678,7 @@ describe("EventsService", () => {
     it("checks onboarding before looking up the invitation URL", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        UnprocessableEntityException,
-      );
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(UnprocessableEntityException);
 
       expect(prisma.user.findUnique).toHaveBeenCalled();
       expect(prisma.event.findUnique).not.toHaveBeenCalled();
@@ -1236,6 +1244,208 @@ describe("EventsService", () => {
 
       await expect(service.delete(eventId, callerId)).rejects.toThrow(prismaError);
       expect(logger.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("regenerateInvitationUrl", () => {
+    const newInvitationUrl = "new-uuid-value";
+
+    const setupOrganizerRegenerate = (updatedInvitationUrl = newInvitationUrl) => {
+      const updatedEvent: Event = { ...eventCreatedByUser, invitationUrl: updatedInvitationUrl };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue(updatedEvent);
+      return updatedEvent;
+    };
+
+    it("regenerates the invitation URL when the caller has organizer access", async () => {
+      const updatedEvent = setupOrganizerRegenerate();
+
+      const result = await service.regenerateInvitationUrl(eventId, callerId);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { invitationUrl: expect.any(String) },
+      });
+      const updatedInvitationUrl = prisma.event.update.mock.calls[0][0].data.invitationUrl as string;
+      expect(updatedInvitationUrl).not.toBe("");
+      expect(updatedInvitationUrl.length).toBeLessThanOrEqual(100);
+      expect(updatedInvitationUrl).not.toBe(invitationUrl);
+      expect(result).toEqual(updatedEvent);
+      expect(result.invitationUrl).toBe(newInvitationUrl);
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.invitation_url.regenerated", eventId, callerId, audit: true },
+        "Event invitation URL regenerated",
+      );
+    });
+
+    it("regenerates the invitation URL when a non-creator organizer rotates the link", async () => {
+      const nonCreatorOrganizerAccess: EventAccess = {
+        ...organizerAccess,
+        userId: callerId,
+        eventId: eventWithAccessOnly.id,
+      };
+      const updatedEvent: Event = { ...eventWithAccessOnly, invitationUrl: newInvitationUrl };
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess(eventWithAccessOnly, [nonCreatorOrganizerAccess]),
+      );
+      prisma.event.update.mockResolvedValue(updatedEvent);
+
+      const result = await service.regenerateInvitationUrl(eventWithAccessOnly.id, callerId);
+
+      expect(prisma.event.update).toHaveBeenCalled();
+      expect(result.invitationUrl).toBe(newInvitationUrl);
+    });
+
+    it("preserves all other event fields when regenerating the invitation URL", async () => {
+      setupOrganizerRegenerate();
+
+      const result = await service.regenerateInvitationUrl(eventId, callerId);
+
+      expect(result.id).toBe(eventCreatedByUser.id);
+      expect(result.title).toBe(eventCreatedByUser.title);
+      expect(result.description).toBe(eventCreatedByUser.description);
+      expect(result.date).toEqual(eventCreatedByUser.date);
+      expect(result.creatorId).toBe(eventCreatedByUser.creatorId);
+      expect(result.createdAt).toEqual(eventCreatedByUser.createdAt);
+      expect(result.updatedAt).toEqual(eventCreatedByUser.updatedAt);
+      expect(result.invitationUrl).not.toBe(eventCreatedByUser.invitationUrl);
+    });
+
+    it("generates a different invitation URL on each regeneration", async () => {
+      setupOrganizerRegenerate();
+      prisma.event.update
+        .mockResolvedValueOnce({ ...eventCreatedByUser, invitationUrl: "first-uuid" })
+        .mockResolvedValueOnce({ ...eventCreatedByUser, invitationUrl: "second-uuid" });
+
+      await service.regenerateInvitationUrl(eventId, callerId);
+      await service.regenerateInvitationUrl(eventId, callerId);
+
+      const firstUrl = prisma.event.update.mock.calls[0][0].data.invitationUrl as string;
+      const secondUrl = prisma.event.update.mock.calls[1][0].data.invitationUrl as string;
+      expect(firstUrl).not.toBe(secondUrl);
+    });
+
+    it("updates only the invitation URL in the database", async () => {
+      setupOrganizerRegenerate();
+
+      await service.regenerateInvitationUrl(eventId, callerId);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { invitationUrl: expect.any(String) },
+      });
+      expect(prisma.event.update.mock.calls[0][0].data).toEqual({
+        invitationUrl: expect.any(String),
+      });
+    });
+
+    it("does not attempt update when the caller lacks organizer access", async () => {
+      prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+
+      prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.event.update).not.toHaveBeenCalled();
+
+      prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, []));
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller has no event access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller is a viewer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("throws when the creator has no organizer event access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+    });
+
+    it("checks that the event exists before checking access", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(NotFoundException);
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("re-throws unexpected database errors when updating the invitation URL", async () => {
+      setupOrganizerRegenerate();
+      const prismaError = new Error("Database connection lost");
+      prisma.event.update.mockRejectedValue(prismaError);
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(prismaError);
+
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event: "event.invitation_url.regenerated" }),
+        expect.any(String),
+      );
+    });
+
+    it("allows findOne but denies regenerate for participants", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.findOne(eventId, callerId)).resolves.toEqual(eventCreatedByUser);
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("invalidates the previous invitation URL for join attempts", async () => {
+      setupOrganizerRegenerate("new-link");
+
+      await service.regenerateInvitationUrl(eventId, callerId);
+
+      prisma.user.findUnique.mockResolvedValue(otherUserWithDetails);
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.joinByInvitationUrl(otherUserId, invitationUrl)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
+      );
     });
   });
 });

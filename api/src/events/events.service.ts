@@ -168,6 +168,33 @@ export class EventsService {
     return updated;
   }
 
+  async regenerateInvitationUrl(eventId: string, callerId: string): Promise<Event> {
+    const loaded = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+
+    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
+    }
+
+    const invitationUrl = randomUUID();
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: { invitationUrl },
+    });
+
+    this.logger.info(
+      { event: "event.invitation_url.regenerated", eventId, callerId, audit: true },
+      "Event invitation URL regenerated",
+    );
+
+    return updated;
+  }
+
   async delete(eventId: string, callerId: string): Promise<void> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
