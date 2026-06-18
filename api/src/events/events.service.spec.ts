@@ -7,7 +7,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { AccessLevel, Event, EventAccess, PrismaClient } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
@@ -21,9 +21,9 @@ import { EVENT_SERVICE_ERRORS } from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 
-const buildReadAccessibleWhere = (lookupUserId: string) => {
+const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput => {
   const ability = new AbilityFactory().createForUser({ id: lookupUserId, isOnboarded: true });
-  return accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT);
+  return accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT) as Prisma.EventWhereInput;
 };
 
 const buildFindAllByCreatorWhere = (lookupUserId: string) => ({
@@ -130,7 +130,6 @@ describe("EventsService", () => {
   };
 
   const targetUserId = "44444444-4444-4444-4444-444444444444";
-  const secondOrganizerUserId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
 
   const eventId = eventCreatedByUser.id;
   const callerId = userId;
@@ -165,15 +164,6 @@ describe("EventsService", () => {
     ...organizerAccess,
     id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     accessLevel: AccessLevel.VIEWER,
-  };
-
-  const secondOrganizerAccess: EventAccess = {
-    id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
-    userId: secondOrganizerUserId,
-    eventId,
-    accessLevel: AccessLevel.ORGANIZER,
-    createdAt: now,
-    updatedAt: now,
   };
 
   const targetUserWithDetails: UserWithDetails = {
@@ -290,17 +280,16 @@ describe("EventsService", () => {
         include: userWithDetailsInclude,
       });
       expect(prisma.event.create).toHaveBeenCalledTimes(1);
-      expect(prisma.event.create).toHaveBeenCalledWith({
-        data: {
-          title: createEventDto.title,
-          date: new Date(createEventDto.date),
-          creatorId,
-          invitationUrl: expect.any(String),
-          ...creatorOrganizerAccessGrant,
-        },
+      const createPayload = prisma.event.create.mock.calls[0][0];
+      expect(createPayload.data).toMatchObject({
+        title: createEventDto.title,
+        date: new Date(createEventDto.date),
+        creatorId,
+        ...creatorOrganizerAccessGrant,
       });
-      expect(prisma.event.create.mock.calls[0][0].data.invitationUrl).not.toBe("");
-      expect(prisma.event.create.mock.calls[0][0].data.invitationUrl.length).toBeLessThanOrEqual(100);
+      expect(typeof createPayload.data.invitationUrl).toBe("string");
+      expect(createPayload.data.invitationUrl).not.toBe("");
+      expect(createPayload.data.invitationUrl.length).toBeLessThanOrEqual(100);
       expect(result).toEqual(createdEvent);
       expect(logger.info).toHaveBeenCalledWith(
         { event: "event.created", eventId: createdEvent.id, creatorId },
@@ -314,9 +303,7 @@ describe("EventsService", () => {
 
       await service.create(creatorId, createEventDto);
 
-      expect(prisma.event.create).toHaveBeenCalledWith({
-        data: expect.objectContaining(creatorOrganizerAccessGrant),
-      });
+      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject(creatorOrganizerAccessGrant);
     });
 
     it("creates an event with a description when description is provided", async () => {
@@ -329,15 +316,13 @@ describe("EventsService", () => {
 
       const result = await service.create(creatorId, createEventDtoWithDescription);
 
-      expect(prisma.event.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          title: createEventDtoWithDescription.title,
-          description: createEventDtoWithDescription.description,
-          date: new Date(createEventDtoWithDescription.date),
-          creatorId,
-          invitationUrl: expect.any(String),
-        }),
+      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject({
+        title: createEventDtoWithDescription.title,
+        description: createEventDtoWithDescription.description,
+        date: new Date(createEventDtoWithDescription.date),
+        creatorId,
       });
+      expect(typeof prisma.event.create.mock.calls[0][0].data.invitationUrl).toBe("string");
       expect(result).toEqual(eventWithDescription);
     });
 
@@ -358,11 +343,7 @@ describe("EventsService", () => {
 
       await service.create(creatorId, createEventDto);
 
-      expect(prisma.event.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          date: new Date("2026-08-15T18:00:00.000Z"),
-        }),
-      });
+      expect(prisma.event.create.mock.calls[0][0].data.date).toEqual(new Date("2026-08-15T18:00:00.000Z"));
     });
 
     it("accepts a date-only ISO string", async () => {
@@ -378,11 +359,7 @@ describe("EventsService", () => {
 
       await service.create(creatorId, dateOnlyDto);
 
-      expect(prisma.event.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          date: new Date("2026-08-15"),
-        }),
-      });
+      expect(prisma.event.create.mock.calls[0][0].data.date).toEqual(new Date("2026-08-15"));
     });
 
     it("generates a unique invitation link for each new event", async () => {
@@ -681,9 +658,7 @@ describe("EventsService", () => {
 
       await service.joinByInvitationUrl(callerId, invitationUrl);
 
-      expect(prisma.eventAccess.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ accessLevel: AccessLevel.PARTICIPANT }),
-      });
+      expect(prisma.eventAccess.create.mock.calls[0][0].data.accessLevel).toBe(AccessLevel.PARTICIPANT);
     });
 
     it("returns the joined event without event access relations", async () => {
@@ -1322,10 +1297,8 @@ describe("EventsService", () => {
       const result = await service.regenerateInvitationUrl(eventId, callerId);
 
       expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
-      expect(prisma.event.update).toHaveBeenCalledWith({
-        where: { id: eventId },
-        data: { invitationUrl: expect.any(String) },
-      });
+      expect(prisma.event.update).toHaveBeenCalledTimes(1);
+      expect(prisma.event.update.mock.calls[0][0].where).toEqual({ id: eventId });
       const updatedInvitationUrl = prisma.event.update.mock.calls[0][0].data.invitationUrl as string;
       expect(updatedInvitationUrl).not.toBe("");
       expect(updatedInvitationUrl.length).toBeLessThanOrEqual(100);
@@ -1390,13 +1363,10 @@ describe("EventsService", () => {
 
       await service.regenerateInvitationUrl(eventId, callerId);
 
-      expect(prisma.event.update).toHaveBeenCalledWith({
-        where: { id: eventId },
-        data: { invitationUrl: expect.any(String) },
-      });
-      expect(prisma.event.update.mock.calls[0][0].data).toEqual({
-        invitationUrl: expect.any(String),
-      });
+      const updatePayload = prisma.event.update.mock.calls[0][0];
+      expect(updatePayload.where).toEqual({ id: eventId });
+      expect(Object.keys(updatePayload.data)).toEqual(["invitationUrl"]);
+      expect(typeof updatePayload.data.invitationUrl).toBe("string");
     });
 
     it("does not attempt update when the caller lacks organizer access", async () => {

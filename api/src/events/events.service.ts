@@ -9,7 +9,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { AccessLevel, Event } from "generated/prisma/client";
+import { AccessLevel, Event, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -75,7 +75,10 @@ export class EventsService {
 
     return this.prisma.event.findMany({
       where: {
-        AND: [accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT), { creatorId: creatorId }],
+        AND: [
+          accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT) as Prisma.EventWhereInput,
+          { creatorId: creatorId },
+        ],
       },
       orderBy: { date: "asc" },
     });
@@ -87,7 +90,7 @@ export class EventsService {
     const ability = this.abilityFactory.createForUser({ id: userId, isOnboarded: true });
 
     return this.prisma.event.findMany({
-      where: accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT),
+      where: accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT) as Prisma.EventWhereInput,
       orderBy: { date: "asc" },
     });
   }
@@ -138,7 +141,8 @@ export class EventsService {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId));
     }
 
-    const { eventAccesses: _, ...event } = loaded;
+    const { eventAccesses, ...event } = loaded;
+    void eventAccesses;
     return event;
   }
 
