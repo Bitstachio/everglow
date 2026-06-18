@@ -51,6 +51,8 @@ model Event {
   creator       User          @relation("CreatedEvents", fields: [creatorId], references: [id])
   galleries     Gallery[]
   eventAccesses EventAccess[]
+
+  @@index([creatorId])
 }
 
 model Gallery {
@@ -60,7 +62,7 @@ model Gallery {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event  Event   @relation(fields: [eventId], references: [id])
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   photos Photo[]
 }
 
@@ -73,9 +75,10 @@ model EventAccess {
   updatedAt   DateTime    @updatedAt
 
   user  User  @relation(fields: [userId], references: [id])
-  event Event @relation(fields: [eventId], references: [id])
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventId])
+  @@index([eventId])
 }
 
 model Photo {
@@ -87,5 +90,5 @@ model Photo {
   updatedAt DateTime @updatedAt
 
   addedBy User    @relation(fields: [addedById], references: [id])
-  gallery Gallery @relation(fields: [galleryId], references: [id])
+  gallery Gallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
 }

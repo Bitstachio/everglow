@@ -1,11 +1,5 @@
 import { accessibleBy } from "@casl/prisma";
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AccessLevel, Event, EventAccess, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -25,10 +19,6 @@ const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput 
   const ability = new AbilityFactory().createForUser({ id: lookupUserId, isOnboarded: true });
   return accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT) as Prisma.EventWhereInput;
 };
-
-const buildFindAllByCreatorWhere = (lookupUserId: string) => ({
-  AND: [buildReadAccessibleWhere(lookupUserId), { creatorId: lookupUserId }],
-});
 
 describe("EventsService", () => {
   let service: EventsService;
@@ -262,6 +252,8 @@ describe("EventsService", () => {
     }).compile();
 
     service = module.get<EventsService>(EventsService);
+
+    prisma.user.findUnique.mockResolvedValue(userWithDetails);
   });
 
   afterEach(() => {
@@ -413,75 +405,6 @@ describe("EventsService", () => {
     });
   });
 
-  describe("findAllByCreatorId", () => {
-    beforeEach(() => {
-      prisma.user.findUnique.mockResolvedValue(userWithDetails);
-    });
-
-    it("returns events created by the user", async () => {
-      prisma.event.findMany.mockResolvedValue([eventCreatedByUser]);
-
-      const result = await service.findAllByCreatorId(userId);
-
-      expect(prisma.event.findMany).toHaveBeenCalledWith({
-        where: buildFindAllByCreatorWhere(userId),
-        orderBy: { date: "asc" },
-      });
-      expect(result).toEqual([eventCreatedByUser]);
-    });
-
-    it("returns an empty array when the user has created no events", async () => {
-      prisma.event.findMany.mockResolvedValue([]);
-
-      const result = await service.findAllByCreatorId(userId);
-
-      expect(result).toEqual([]);
-    });
-
-    it("includes only events the user created and excludes events they joined without creating", async () => {
-      prisma.event.findMany.mockResolvedValue([eventCreatedByUser]);
-
-      await service.findAllByCreatorId(userId);
-
-      expect(prisma.event.findMany).toHaveBeenCalledWith({
-        where: buildFindAllByCreatorWhere(userId),
-        orderBy: { date: "asc" },
-      });
-      expect(buildFindAllByCreatorWhere(userId).AND).toContainEqual({ creatorId: userId });
-    });
-
-    it("orders results by date ascending", async () => {
-      prisma.event.findMany.mockResolvedValue([eventWithAccessOnly, eventCreatedByUser]);
-
-      await service.findAllByCreatorId(userId);
-
-      expect(prisma.event.findMany).toHaveBeenCalledWith({
-        where: buildFindAllByCreatorWhere(userId),
-        orderBy: { date: "asc" },
-      });
-    });
-
-    it("returns an empty array when the user has not completed onboarding", async () => {
-      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
-
-      const result = await service.findAllByCreatorId(userId);
-
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: userId },
-        include: userWithDetailsInclude,
-      });
-      expect(result).toEqual([]);
-      expect(prisma.event.findMany).not.toHaveBeenCalled();
-    });
-
-    it("re-throws unexpected database errors when loading created events", async () => {
-      const prismaError = new Error("Query timeout");
-      prisma.event.findMany.mockRejectedValue(prismaError);
-
-      await expect(service.findAllByCreatorId(userId)).rejects.toThrow(prismaError);
-    });
-  });
-
   describe("findAllForUser", () => {
     beforeEach(() => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
@@ -593,32 +516,6 @@ describe("EventsService", () => {
       prisma.event.findMany.mockRejectedValue(prismaError);
 
       await expect(service.findAllForUser(userId)).rejects.toThrow(prismaError);
-    });
-  });
-
-  describe("listing created events vs all involved events", () => {
-    beforeEach(() => {
-      prisma.user.findUnique.mockResolvedValue(userWithDetails);
-    });
-
-    it("returns only created events when listing by creator and both created and joined events when listing all involvement", async () => {
-      prisma.event.findMany
-        .mockResolvedValueOnce([eventCreatedByUser])
-        .mockResolvedValueOnce([eventWithAccessOnly, eventCreatedByUser]);
-
-      const createdOnly = await service.findAllByCreatorId(userId);
-      const allInvolved = await service.findAllForUser(userId);
-
-      expect(createdOnly).toEqual([eventCreatedByUser]);
-      expect(allInvolved).toEqual([eventWithAccessOnly, eventCreatedByUser]);
-      expect(prisma.event.findMany).toHaveBeenNthCalledWith(1, {
-        where: buildFindAllByCreatorWhere(userId),
-        orderBy: { date: "asc" },
-      });
-      expect(prisma.event.findMany).toHaveBeenNthCalledWith(2, {
-        where: buildReadAccessibleWhere(userId),
-        orderBy: { date: "asc" },
-      });
     });
   });
 
@@ -1877,14 +1774,6 @@ describe("EventsService", () => {
       await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
         new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId)),
       );
-    });
-
-    it("throws when the access level is invalid", async () => {
-      setupOrganizerUpdate();
-
-      await expect(
-        service.updateUserAccessLevel(eventId, callerId, targetUserId, "INVALID" as AccessLevel),
-      ).rejects.toThrow(new BadRequestException(EVENT_SERVICE_ERRORS.INVALID_ACCESS_LEVEL("INVALID")));
     });
 
     it("re-throws unexpected database errors when updating access level", async () => {

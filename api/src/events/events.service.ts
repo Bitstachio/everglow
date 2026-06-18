@@ -1,7 +1,6 @@
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -12,6 +11,7 @@ import { randomUUID } from "crypto";
 import { AccessLevel, Event, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { AppAbility } from "src/casl/ability.types";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
@@ -40,7 +40,7 @@ export class EventsService {
     if (!creator) throw new NotFoundException(EVENT_SERVICE_ERRORS.CREATOR_NOT_FOUND(creatorId));
     if (!creator.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
 
-    const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: true });
+    const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: !!creator.details });
     if (!ability.can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT)) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.CREATE_FORBIDDEN);
     }
@@ -68,26 +68,11 @@ export class EventsService {
     return event;
   }
 
-  async findAllByCreatorId(creatorId: string): Promise<Event[]> {
-    if (!(await this.isUserOnboarded(creatorId))) return [];
-
-    const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: true });
-
-    return this.prisma.event.findMany({
-      where: {
-        AND: [
-          accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT) as Prisma.EventWhereInput,
-          { creatorId: creatorId },
-        ],
-      },
-      orderBy: { date: "asc" },
-    });
-  }
-
   async findAllForUser(userId: string): Promise<Event[]> {
-    if (!(await this.isUserOnboarded(userId))) return [];
+    const isOnboarded = await this.isUserOnboarded(userId);
+    if (!isOnboarded) return [];
 
-    const ability = this.abilityFactory.createForUser({ id: userId, isOnboarded: true });
+    const ability = this.abilityFactory.createForUser({ id: userId, isOnboarded });
 
     return this.prisma.event.findMany({
       where: accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT) as Prisma.EventWhereInput,
@@ -136,7 +121,7 @@ export class EventsService {
 
     if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    const ability = await this.createAbilityForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId));
     }
@@ -154,7 +139,7 @@ export class EventsService {
 
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    const ability = await this.createAbilityForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, event))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
     }
@@ -181,7 +166,7 @@ export class EventsService {
 
     if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    const ability = await this.createAbilityForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
     }
@@ -235,7 +220,7 @@ export class EventsService {
 
     if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    const ability = await this.createAbilityForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId));
     }
@@ -261,8 +246,6 @@ export class EventsService {
     targetUserId: string,
     accessLevel: AccessLevel,
   ): Promise<EventParticipant> {
-    this.assertValidAccessLevel(accessLevel);
-
     const loaded = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: eventWithCallerAccessInclude(callerId),
@@ -270,7 +253,7 @@ export class EventsService {
 
     if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    const ability = await this.createAbilityForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
     }
@@ -327,7 +310,7 @@ export class EventsService {
 
     if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    const ability = await this.createAbilityForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
     }
@@ -368,7 +351,7 @@ export class EventsService {
 
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
-    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    const ability = await this.createAbilityForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.DELETE, subject(EVENT_SUBJECT, event))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId));
     }
@@ -384,10 +367,9 @@ export class EventsService {
     });
   }
 
-  private assertValidAccessLevel(accessLevel: AccessLevel): void {
-    if (!Object.values(AccessLevel).includes(accessLevel)) {
-      throw new BadRequestException(EVENT_SERVICE_ERRORS.INVALID_ACCESS_LEVEL(String(accessLevel)));
-    }
+  private async createAbilityForCaller(callerId: string): Promise<AppAbility> {
+    const isOnboarded = await this.isUserOnboarded(callerId);
+    return this.abilityFactory.createForUser({ id: callerId, isOnboarded });
   }
 
   private toEventParticipant(

@@ -16,7 +16,6 @@ export const EVENT_SERVICE_ERRORS = {
   NOT_A_MEMBER: (eventId: string, userId: string) =>
     `User with ID "${userId}" is not a member of event with ID "${eventId}"`,
   LAST_ORGANIZER: (eventId: string) => `Event with ID "${eventId}" must have at least one organizer`,
-  CANNOT_MODIFY_OWN_ACCESS: "Use leaveEvent to remove yourself from an event",
+  CANNOT_MODIFY_OWN_ACCESS: "Cannot change your own access level; use leaveEvent instead",
   CANNOT_REMOVE_SELF: "Use leaveEvent to remove yourself from an event",
-  INVALID_ACCESS_LEVEL: (level: string) => `Invalid access level "${level}"`,
 };

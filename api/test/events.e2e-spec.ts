@@ -84,6 +84,7 @@ describe("EventsController (e2e)", () => {
 
   beforeEach(() => {
     mockReset(prisma);
+    prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
   });
 
   describe("POST /events", () => {
