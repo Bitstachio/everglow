@@ -90,6 +90,23 @@ export class EventsService {
     });
   }
 
+  async findOne(eventId: string, callerId: string): Promise<Event> {
+    const loaded = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+
+    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId));
+    }
+
+    const { eventAccesses: _, ...event } = loaded;
+    return event;
+  }
+
   async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },

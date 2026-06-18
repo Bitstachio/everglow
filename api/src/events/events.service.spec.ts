@@ -560,6 +560,123 @@ describe("EventsService", () => {
     });
   });
 
+  describe("findOne", () => {
+    it("returns the event when the caller is the creator", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+
+      const result = await service.findOne(eventId, callerId);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
+      expect(result).toEqual(eventCreatedByUser);
+      expect(result).not.toHaveProperty("eventAccesses");
+    });
+
+    it("returns the event when the caller is the creator without loaded event access rows", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      const result = await service.findOne(eventId, callerId);
+
+      expect(result).toEqual(eventCreatedByUser);
+    });
+
+    it("returns the event when the caller is an organizer", async () => {
+      const nonCreatorOrganizerAccess: EventAccess = {
+        ...organizerAccess,
+        userId: callerId,
+        eventId: eventWithAccessOnly.id,
+      };
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess(eventWithAccessOnly, [nonCreatorOrganizerAccess]),
+      );
+
+      const result = await service.findOne(eventWithAccessOnly.id, callerId);
+
+      expect(result).toEqual(eventWithAccessOnly);
+    });
+
+    it("returns the event when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      const result = await service.findOne(eventId, callerId);
+
+      expect(result).toEqual(eventCreatedByUser);
+    });
+
+    it("returns the event when the caller is a viewer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
+
+      const result = await service.findOne(eventId, callerId);
+
+      expect(result).toEqual(eventCreatedByUser);
+    });
+
+    it("does not include eventAccesses in the returned event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+
+      const result = await service.findOne(eventId, callerId);
+
+      expect(result).not.toHaveProperty("eventAccesses");
+      expect(result).toEqual(eventCreatedByUser);
+    });
+
+    it("returns full event metadata needed for the detail screen", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+
+      const result = await service.findOne(eventId, callerId);
+
+      expect(result).toEqual({
+        id: eventCreatedByUser.id,
+        title: eventCreatedByUser.title,
+        description: eventCreatedByUser.description,
+        date: eventCreatedByUser.date,
+        creatorId: eventCreatedByUser.creatorId,
+        invitationUrl: eventCreatedByUser.invitationUrl,
+        createdAt: eventCreatedByUser.createdAt,
+        updatedAt: eventCreatedByUser.updatedAt,
+      });
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+    });
+
+    it("throws when the caller has no relationship to the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.findOne(eventId, otherUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
+      );
+    });
+
+    it("checks that the event exists before evaluating read access", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne(eventId, callerId)).rejects.toThrow(NotFoundException);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
+    });
+
+    it("re-throws unexpected database errors when loading the event", async () => {
+      const prismaError = new Error("Database connection lost");
+      prisma.event.findUnique.mockRejectedValue(prismaError);
+
+      await expect(service.findOne(eventId, callerId)).rejects.toThrow(prismaError);
+    });
+
+    it("allows read but denies update and delete for participants", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.findOne(eventId, callerId)).resolves.toEqual(eventCreatedByUser);
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(ForbiddenException);
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
   describe("update", () => {
     it("updates the event when the caller has organizer access", async () => {
       const updatedEvent: Event = { ...eventCreatedByUser, title: updateTitleDto.title! };

@@ -9,4 +9,5 @@ export const EVENT_SERVICE_ERRORS = {
   CREATE_FORBIDDEN: "Not authorized to create events",
   DELETE_FORBIDDEN: (eventId: string) => `Not authorized to delete event with ID "${eventId}"`,
   UPDATE_FORBIDDEN: (eventId: string) => `Not authorized to update event with ID "${eventId}"`,
+  READ_FORBIDDEN: (eventId: string) => `Not authorized to read event with ID "${eventId}"`,
 };
