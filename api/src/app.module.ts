@@ -9,6 +9,7 @@ import { buildLoggerConfig } from "./common/logging/logging.config";
 import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
+import { EventsModule } from "./events/events.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { UsersModule } from "./users/users.module";
 
@@ -27,6 +28,7 @@ import { UsersModule } from "./users/users.module";
       inject: [ConfigService],
       useFactory: buildLoggerConfig,
     }),
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
