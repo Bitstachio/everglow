@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  NotImplementedException,
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
@@ -91,8 +90,34 @@ export class EventsService {
     });
   }
 
-  async update(id: string, dto: UpdateEventDto): Promise<Event> {
-    throw new NotImplementedException();
+  async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+
+    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    const ability = this.abilityFactory.createForUser({ id: callerId, isOnboarded: true });
+    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, event))) {
+      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.date !== undefined && { date: new Date(dto.date) }),
+        ...(dto.description !== undefined && { description: dto.description }),
+      },
+    });
+
+    this.logger.info(
+      { event: "event.updated", eventId, callerId, fields: Object.keys(dto) },
+      "Event updated",
+    );
+
+    return updated;
   }
 
   async delete(eventId: string, callerId: string): Promise<void> {

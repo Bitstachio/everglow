@@ -19,6 +19,7 @@ describe("defineEventAbilities", () => {
     expect(ability.can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT)).toBe(false);
     expect(ability.can(EVENT_ACTIONS.READ, EVENT_SUBJECT)).toBe(false);
     expect(ability.can(EVENT_ACTIONS.DELETE, EVENT_SUBJECT)).toBe(false);
+    expect(ability.can(EVENT_ACTIONS.UPDATE, EVENT_SUBJECT)).toBe(false);
   });
 
   it("allows onboarded users to create events", () => {
@@ -48,6 +49,44 @@ describe("defineEventAbilities", () => {
         } as never),
       ),
     ).toBe(true);
+  });
+
+  it("allows organizers to update events", () => {
+    const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+
+    expect(
+      ability.can(
+        EVENT_ACTIONS.UPDATE,
+        subject(EVENT_SUBJECT, {
+          id: eventId,
+          eventAccesses: [{ userId, accessLevel: "ORGANIZER" }],
+        } as never),
+      ),
+    ).toBe(true);
+  });
+
+  it("denies update for participants and viewers", () => {
+    const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+
+    expect(
+      ability.can(
+        EVENT_ACTIONS.UPDATE,
+        subject(EVENT_SUBJECT, {
+          id: eventId,
+          eventAccesses: [{ userId, accessLevel: "PARTICIPANT" }],
+        } as never),
+      ),
+    ).toBe(false);
+
+    expect(
+      ability.can(
+        EVENT_ACTIONS.UPDATE,
+        subject(EVENT_SUBJECT, {
+          id: eventId,
+          eventAccesses: [{ userId, accessLevel: "VIEWER" }],
+        } as never),
+      ),
+    ).toBe(false);
   });
 
   it("allows organizers to delete events", () => {

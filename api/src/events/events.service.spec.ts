@@ -9,6 +9,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
+import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_SERVICE_ERRORS } from "./events.constants";
 import { EventsService } from "./events.service";
@@ -144,6 +145,21 @@ describe("EventsService", () => {
     ...event,
     eventAccesses: access,
   });
+
+  const eventLookup = (lookupEventId: string, lookupCallerId: string) => ({
+    where: { id: lookupEventId },
+    include: eventWithCallerAccessInclude(lookupCallerId),
+  });
+
+  const updateTitleDto: UpdateEventDto = { title: "Updated Title" };
+  const updateDateDto: UpdateEventDto = { date: "2026-10-01T18:00:00.000Z" };
+  const updateDescriptionDto: UpdateEventDto = { description: "Updated description" };
+  const updateAllFieldsDto: UpdateEventDto = {
+    title: "Updated Title",
+    date: "2026-10-01T18:00:00.000Z",
+    description: "Updated description",
+  };
+  const emptyUpdateDto: UpdateEventDto = {};
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
@@ -544,12 +560,240 @@ describe("EventsService", () => {
     });
   });
 
-  describe("delete", () => {
-    const eventLookup = (lookupEventId: string, lookupCallerId: string) => ({
-      where: { id: lookupEventId },
-      include: eventWithCallerAccessInclude(lookupCallerId),
+  describe("update", () => {
+    it("updates the event when the caller has organizer access", async () => {
+      const updatedEvent: Event = { ...eventCreatedByUser, title: updateTitleDto.title! };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue(updatedEvent);
+
+      const result = await service.update(eventId, callerId, updateTitleDto);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { title: updateTitleDto.title },
+      });
+      expect(result).toEqual(updatedEvent);
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.updated", eventId, callerId, fields: Object.keys(updateTitleDto) },
+        "Event updated",
+      );
     });
 
+    it("updates the event when a non-creator organizer edits it", async () => {
+      const nonCreatorOrganizerAccess: EventAccess = {
+        ...organizerAccess,
+        userId: callerId,
+        eventId: eventWithAccessOnly.id,
+      };
+      const updatedEvent: Event = { ...eventWithAccessOnly, title: updateTitleDto.title! };
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess(eventWithAccessOnly, [nonCreatorOrganizerAccess]),
+      );
+      prisma.event.update.mockResolvedValue(updatedEvent);
+
+      const result = await service.update(eventWithAccessOnly.id, callerId, updateTitleDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventWithAccessOnly.id },
+        data: { title: updateTitleDto.title },
+      });
+      expect(result).toEqual(updatedEvent);
+    });
+
+    it("updates only the fields provided in the dto", async () => {
+      const updatedEvent: Event = {
+        ...eventCreatedByUser,
+        title: updateAllFieldsDto.title!,
+        date: new Date(updateAllFieldsDto.date!),
+        description: updateAllFieldsDto.description!,
+      };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue(updatedEvent);
+
+      await service.update(eventId, callerId, updateAllFieldsDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: {
+          title: updateAllFieldsDto.title,
+          date: new Date(updateAllFieldsDto.date!),
+          description: updateAllFieldsDto.description,
+        },
+      });
+    });
+
+    it("updates title when only title is provided", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue({ ...eventCreatedByUser, title: updateTitleDto.title! });
+
+      await service.update(eventId, callerId, updateTitleDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { title: updateTitleDto.title },
+      });
+      const updateData = prisma.event.update.mock.calls[0][0].data;
+      expect(updateData).not.toHaveProperty("date");
+      expect(updateData).not.toHaveProperty("description");
+    });
+
+    it("updates date when only date is provided", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue({
+        ...eventCreatedByUser,
+        date: new Date(updateDateDto.date!),
+      });
+
+      await service.update(eventId, callerId, updateDateDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { date: new Date("2026-10-01T18:00:00.000Z") },
+      });
+      const updateData = prisma.event.update.mock.calls[0][0].data;
+      expect(updateData).not.toHaveProperty("title");
+      expect(updateData).not.toHaveProperty("description");
+    });
+
+    it("updates description when only description is provided", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue({
+        ...eventCreatedByUser,
+        description: updateDescriptionDto.description!,
+      });
+
+      await service.update(eventId, callerId, updateDescriptionDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { description: updateDescriptionDto.description },
+      });
+      const updateData = prisma.event.update.mock.calls[0][0].data;
+      expect(updateData).not.toHaveProperty("title");
+      expect(updateData).not.toHaveProperty("date");
+    });
+
+    it("sets description when adding it to an event that had none", async () => {
+      const firstDescriptionDto: UpdateEventDto = { description: "First description" };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue({
+        ...eventCreatedByUser,
+        description: firstDescriptionDto.description!,
+      });
+
+      await service.update(eventId, callerId, firstDescriptionDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { description: firstDescriptionDto.description },
+      });
+    });
+
+    it("accepts a date-only ISO string", async () => {
+      const dateOnlyDto: UpdateEventDto = { date: "2026-10-01" };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue({
+        ...eventCreatedByUser,
+        date: new Date("2026-10-01"),
+      });
+
+      await service.update(eventId, callerId, dateOnlyDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { date: new Date("2026-10-01") },
+      });
+    });
+
+    it("allows an empty patch for an authorized organizer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockResolvedValue(eventCreatedByUser);
+
+      const result = await service.update(eventId, callerId, emptyUpdateDto);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: {},
+      });
+      expect(result).toEqual(eventCreatedByUser);
+    });
+
+    it("does not attempt update when the caller lacks organizer access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("performs the authorization check even when the dto is empty", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.update(eventId, callerId, emptyUpdateDto)).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("throws when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller has no event access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("throws when the caller is a viewer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("checks that the event exists before checking access", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(NotFoundException);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("re-throws unexpected database errors when updating an event", async () => {
+      const prismaError = new Error("Database connection lost");
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.update.mockRejectedValue(prismaError);
+
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(prismaError);
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("delete", () => {
     it("deletes the event when the caller has organizer access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
       prisma.event.delete.mockResolvedValue(eventCreatedByUser);

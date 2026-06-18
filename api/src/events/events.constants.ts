@@ -8,4 +8,5 @@ export const EVENT_SERVICE_ERRORS = {
   NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(eventEntity, "ID", id),
   CREATE_FORBIDDEN: "Not authorized to create events",
   DELETE_FORBIDDEN: (eventId: string) => `Not authorized to delete event with ID "${eventId}"`,
+  UPDATE_FORBIDDEN: (eventId: string) => `Not authorized to update event with ID "${eventId}"`,
 };

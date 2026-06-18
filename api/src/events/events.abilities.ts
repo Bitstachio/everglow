@@ -5,6 +5,7 @@ import { AbilityUserContext, AppAbility } from "src/casl/ability.types";
 export const EVENT_ACTIONS = {
   READ: "read",
   CREATE: "create",
+  UPDATE: "update",
   DELETE: "delete",
 } as const;
 
@@ -19,6 +20,9 @@ export const defineEventAbilities = (can: AbilityBuilder<AppAbility>["can"], use
   can(EVENT_ACTIONS.READ, EVENT_SUBJECT, { creatorId: user.id });
   can(EVENT_ACTIONS.READ, EVENT_SUBJECT, { eventAccesses: { some: { userId: user.id } } });
   can(EVENT_ACTIONS.DELETE, EVENT_SUBJECT, {
+    eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } },
+  });
+  can(EVENT_ACTIONS.UPDATE, EVENT_SUBJECT, {
     eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } },
   });
 };
