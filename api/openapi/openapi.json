@@ -179,6 +179,533 @@
           "users"
         ]
       }
+    },
+    "/api/v2/events": {
+      "post": {
+        "operationId": "EventsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create an event",
+        "tags": [
+          "events"
+        ]
+      },
+      "get": {
+        "operationId": "EventsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Events the user can read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List events for the current user",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/join": {
+      "post": {
+        "operationId": "EventsController_join",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Joined event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Join an event via invitation URL",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}": {
+      "get": {
+        "operationId": "EventsController_findOne",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get an event by ID",
+        "tags": [
+          "events"
+        ]
+      },
+      "patch": {
+        "operationId": "EventsController_update",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update an event",
+        "tags": [
+          "events"
+        ]
+      },
+      "delete": {
+        "operationId": "EventsController_remove",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Event deleted (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete an event",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/leave": {
+      "post": {
+        "operationId": "EventsController_leave",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Caller left the event (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Leave an event",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/participants": {
+      "get": {
+        "operationId": "EventsController_getParticipants",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event participants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventParticipantResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List event participants",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/participants/{targetUserId}/access": {
+      "put": {
+        "operationId": "EventsController_updateParticipantAccess",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetUserId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateParticipantAccessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventParticipantResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update a member access level",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/participants/{targetUserId}": {
+      "delete": {
+        "operationId": "EventsController_removeParticipant",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetUserId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member removed (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a member from an event",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/regenerate-url": {
+      "post": {
+        "operationId": "EventsController_regenerateInvitationUrl",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event with new invitation URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Regenerate the event invitation URL",
+        "tags": [
+          "events"
+        ]
+      }
     }
   },
   "info": {
@@ -285,6 +812,121 @@
       "UpdateUserDto": {
         "type": "object",
         "properties": {}
+      },
+      "EventResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "date": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "creatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitationUrl": {
+            "type": "string",
+            "description": "Shareable invitation link composed from the stored invite token"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "date",
+          "creatorId",
+          "invitationUrl",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateEventDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "JoinEventDto": {
+        "type": "object",
+        "properties": {
+          "invitationUrl": {
+            "type": "string",
+            "description": "Full invitation URL or invite token",
+            "example": "https://events.everglow.app/invite/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          }
+        },
+        "required": [
+          "invitationUrl"
+        ]
+      },
+      "UpdateEventDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AccessLevel": {
+        "type": "string",
+        "enum": [
+          "ORGANIZER",
+          "PARTICIPANT",
+          "VIEWER"
+        ]
+      },
+      "EventParticipantResponseDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "accessLevel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessLevel"
+              }
+            ]
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "accessLevel"
+        ]
+      },
+      "UpdateParticipantAccessDto": {
+        "type": "object",
+        "properties": {
+          "accessLevel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessLevel"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accessLevel"
+        ]
       }
     }
   }
