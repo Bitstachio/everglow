@@ -1,15 +1,27 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { authService, User, SignupData, SigninData } from "@/lib/auth";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { router } from "expo-router";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
+import { authService, OnboardingData, User } from "@/lib/auth";
+import { setUnauthorizedHandler } from "@/lib/api";
+import {
+  clearLocalCredentials,
+  hasValidSession,
+  isAuth0Configured,
+  isUserCancellation,
+  loginWithUniversalLogin,
+  logoutFromAuth0,
+} from "@/lib/auth0";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  signup: (data: SignupData) => Promise<void>;
-  signin: (data: SigninData) => Promise<void>;
+  isOnboarded: boolean;
+  login: () => Promise<void>;
+  signup: () => Promise<void>;
   logout: () => Promise<void>;
+  completeOnboarding: (data: OnboardingData) => Promise<void>;
+  refreshProfile: () => Promise<User | null>;
   updateUser: (user: User) => void;
   error: string | null;
   clearError: () => void;
@@ -17,109 +29,149 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const GALLERY_ROUTE = "/(tabs)/gallery" as const;
+const ONBOARDING_ROUTE = "/onboarding" as const;
+const LOGIN_ROUTE = "/login" as const;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check authentication status on mount
-  useEffect(() => {
-    checkAuthStatus();
+  // Avoid stale closures when the 401 handler is invoked from the interceptor.
+  const handleSessionExpiredRef = useRef<() => void>(() => {});
+
+  const routeForUser = useCallback((profile: User | null) => {
+    if (!profile) {
+      router.replace(LOGIN_ROUTE);
+      return;
+    }
+    router.replace(profile.isOnboarded ? GALLERY_ROUTE : ONBOARDING_ROUTE);
   }, []);
 
-  const checkAuthStatus = async () => {
-    try {
-      setIsLoading(true);
-      const isAuth = await authService.isAuthenticated();
+  const refreshProfile = useCallback(async (): Promise<User | null> => {
+    const profile = await authService.getUserProfile();
+    setUser(profile);
+    return profile;
+  }, []);
 
-      if (isAuth) {
-        // Try to refresh token to get user data
-        const accessToken = await authService.refreshToken();
-        if (accessToken) {
-          const userProfile = await authService.getUserProfile();
-          if (userProfile) {
-            setUser(userProfile);
-          } else {
-            // If we can't get user profile, clear auth state
-            setUser(null);
-          }
+  const handleSessionExpired = useCallback(async () => {
+    await clearLocalCredentials();
+    setUser(null);
+    router.replace(LOGIN_ROUTE);
+  }, []);
+
+  useEffect(() => {
+    handleSessionExpiredRef.current = () => {
+      void handleSessionExpired();
+    };
+  }, [handleSessionExpired]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => handleSessionExpiredRef.current());
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      try {
+        if (isAuth0Configured() && (await hasValidSession())) {
+          await refreshProfile();
         }
+      } catch (err) {
+        console.error("Auth bootstrap error:", err);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+        setIsInitialized(true);
       }
-    } catch (error: any) {
-      console.error("Auth check error:", error);
-      // If there's an error accessing SecureStore, just treat as not authenticated
+    };
+    void bootstrap();
+  }, [refreshProfile]);
+
+  const authenticate = useCallback(
+    async (options?: { signup?: boolean }) => {
+      if (!isAuth0Configured()) {
+        const message =
+          "Auth0 is not configured. Set EXPO_PUBLIC_AUTH0_DOMAIN, EXPO_PUBLIC_AUTH0_CLIENT_ID and EXPO_PUBLIC_AUTH0_AUDIENCE.";
+        setError(message);
+        throw new Error(message);
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+        await loginWithUniversalLogin(options);
+        const profile = await refreshProfile();
+        routeForUser(profile);
+      } catch (err: any) {
+        if (isUserCancellation(err)) {
+          return;
+        }
+        const message = err?.message || "Authentication failed. Please try again.";
+        setError(message);
+        throw new Error(message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [refreshProfile, routeForUser],
+  );
+
+  const login = useCallback(() => authenticate(), [authenticate]);
+  const signup = useCallback(() => authenticate({ signup: true }), [authenticate]);
+
+  const completeOnboarding = useCallback(
+    async (data: OnboardingData) => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const profile = await authService.completeOnboarding(data);
+        setUser(profile);
+        router.replace(GALLERY_ROUTE);
+      } catch (err: any) {
+        const message = err?.message || "Could not complete onboarding.";
+        setError(message);
+        throw new Error(message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await logoutFromAuth0();
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
       setUser(null);
-    } finally {
       setIsLoading(false);
-      setIsInitialized(true);
+      router.replace(LOGIN_ROUTE);
     }
-  };
+  }, []);
 
-  const signup = async (data: SignupData) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const result = await authService.signup(data);
-      setUser(result.user);
-      router.replace("/(tabs)/gallery");
-    } catch (error: any) {
-      setError(error.message);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const signin = async (data: SigninData) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const result = await authService.signin(data);
-      setUser(result.user);
-      router.replace("/(tabs)/gallery");
-    } catch (error: any) {
-      setError(error.message);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      setIsLoading(true);
-      await authService.logout();
-      setUser(null);
-      router.replace("/login");
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateUser = (updatedUser: User) => {
-    setUser(updatedUser);
-  };
-
-  const clearError = () => {
-    setError(null);
-  };
+  const updateUser = useCallback((updatedUser: User) => setUser(updatedUser), []);
+  const clearError = useCallback(() => setError(null), []);
 
   const value: AuthContextType = {
     user,
     isLoading,
     isAuthenticated: !!user,
+    isOnboarded: !!user?.isOnboarded,
+    login,
     signup,
-    signin,
     logout,
+    completeOnboarding,
+    refreshProfile,
     updateUser,
     error,
     clearError,
   };
 
-  // Show loading screen while initializing
   if (!isInitialized) {
     return (
       <View style={styles.loadingContainer}>

@@ -14,25 +14,18 @@ import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { userService, UpdateProfileData, ChangePasswordData } from "@/lib/user";
+import { userService, UpdateProfileData } from "@/lib/user";
 
-// same todo comments as signup.tsx
 export default function ProfileScreen() {
   const { user, logout, isLoading, updateUser } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editForm, setEditForm] = useState({
-    name: user?.name || "",
-    email: user?.email || "",
-  });
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+    name: user?.details?.name || "",
+    email: user?.details?.email || "",
   });
 
   const handleLogout = () => {
@@ -48,8 +41,8 @@ export default function ProfileScreen() {
 
   const handleEditProfile = () => {
     setEditForm({
-      name: user?.name || "",
-      email: user?.email || "",
+      name: user?.details?.name || "",
+      email: user?.details?.email || "",
     });
     setShowEditModal(true);
   };
@@ -59,8 +52,8 @@ export default function ProfileScreen() {
       setIsSubmitting(true);
       const data: UpdateProfileData = {};
 
-      if (editForm.name !== user?.name) data.name = editForm.name;
-      if (editForm.email !== user?.email) data.email = editForm.email;
+      if (editForm.name !== user?.details?.name) data.name = editForm.name;
+      if (editForm.email !== user?.details?.email) data.email = editForm.email;
 
       if (Object.keys(data).length === 0) {
         setShowEditModal(false);
@@ -73,35 +66,6 @@ export default function ProfileScreen() {
       Alert.alert("Success", "Profile updated successfully");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to update profile");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleChangePassword = async () => {
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      Alert.alert("Error", "New passwords do not match");
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      const data: ChangePasswordData = {
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      };
-
-      await userService.changePassword(data);
-      setShowPasswordModal(false);
-      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      Alert.alert("Success", "Password changed successfully");
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to change password");
     } finally {
       setIsSubmitting(false);
     }
@@ -131,11 +95,13 @@ export default function ProfileScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user?.name?.charAt(0).toUpperCase() || "U"}</Text>
+            <Text style={styles.avatarText}>{user?.details?.name?.charAt(0).toUpperCase() || "U"}</Text>
           </View>
-          <Text style={[styles.name, isDark ? styles.textDark : styles.textLight]}>{user?.name || "User"}</Text>
+          <Text style={[styles.name, isDark ? styles.textDark : styles.textLight]}>
+            {user?.details?.name || "User"}
+          </Text>
           <Text style={[styles.email, isDark ? styles.emailDark : styles.emailLight]}>
-            {user?.email || "user@example.com"}
+            {user?.details?.email || "user@example.com"}
           </Text>
         </View>
         <View style={styles.section}>
@@ -145,13 +111,6 @@ export default function ProfileScreen() {
             onPress={handleEditProfile}
           >
             <Text style={[styles.menuItemText, isDark ? styles.textDark : styles.textLight]}>Edit Profile</Text>
-            <Text style={styles.menuItemIcon}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.menuItem, isDark ? styles.menuItemDark : styles.menuItemLight]}
-            onPress={() => setShowPasswordModal(true)}
-          >
-            <Text style={[styles.menuItemText, isDark ? styles.textDark : styles.textLight]}>Change Password</Text>
             <Text style={styles.menuItemIcon}>›</Text>
           </TouchableOpacity>
         </View>
@@ -189,55 +148,6 @@ export default function ProfileScreen() {
               <Button
                 title="Cancel"
                 onPress={() => setShowEditModal(false)}
-                variant="outline"
-                disabled={isSubmitting}
-              />
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-      <Modal visible={showPasswordModal} animationType="slide" transparent>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
-            <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>Change Password</Text>
-            <Input
-              label="Current Password"
-              placeholder="Enter current password"
-              value={passwordForm.currentPassword}
-              onChangeText={(text) => setPasswordForm({ ...passwordForm, currentPassword: text })}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-            <Input
-              label="New Password"
-              placeholder="Enter new password"
-              value={passwordForm.newPassword}
-              onChangeText={(text) => setPasswordForm({ ...passwordForm, newPassword: text })}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-            <Input
-              label="Confirm New Password"
-              placeholder="Confirm new password"
-              value={passwordForm.confirmPassword}
-              onChangeText={(text) => setPasswordForm({ ...passwordForm, confirmPassword: text })}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-            <View style={styles.modalActions}>
-              <Button
-                title="Change Password"
-                onPress={handleChangePassword}
-                isLoading={isSubmitting}
-                disabled={isSubmitting}
-              />
-              <View style={styles.modalButtonSpacing} />
-              <Button
-                title="Cancel"
-                onPress={() => {
-                  setShowPasswordModal(false);
-                  setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-                }}
                 variant="outline"
                 disabled={isSubmitting}
               />

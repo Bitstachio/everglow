@@ -1,9 +1,12 @@
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
+import { getAccessToken } from "./auth0";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
-// To simplify the api calls, I create an axios instance and set up interceptors
+// The NestJS API is served under a global prefix (see swagger.config.ts:
+// API_GLOBAL_PREFIX = "api/v2"). All service calls use paths relative to this.
+const API_BASE_URL = `${RAW_BASE_URL.replace(/\/+$/, "")}/api/v2`;
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -12,59 +15,34 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Request interceptor to add access token to headers
+// Attach the Auth0 access token. The credentials manager renews it from the
+// stored refresh token when it has expired, so no manual refresh flow is needed.
 api.interceptors.request.use(
   async (config) => {
-    const accessToken = await SecureStore.getItemAsync("accessToken");
+    const accessToken = await getAccessToken();
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
-// Response interceptor to handle 401 errors and refresh token
+// Allows the auth layer to react to an unrecoverable 401 (e.g. revoked session)
+// by clearing local state and sending the user back to login, without coupling
+// this module to the navigation/router.
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-
-    // If error is 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        // Send refresh token request to get new access token
-        const refreshToken = await SecureStore.getItemAsync("refreshToken");
-        if (!refreshToken) {
-          throw new Error("No refresh token available");
-        }
-
-        // Call refresh endpoint
-        const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken });
-
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data;
-
-        // Store new tokens
-        await SecureStore.setItemAsync("accessToken", newAccessToken);
-        if (newRefreshToken) {
-          await SecureStore.setItemAsync("refreshToken", newRefreshToken);
-        }
-
-        // Retry original request with new access token
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        return api(originalRequest);
-      } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
-        await SecureStore.deleteItemAsync("accessToken");
-        await SecureStore.deleteItemAsync("refreshToken");
-        return Promise.reject(refreshError);
-      }
+    if (error.response?.status === 401) {
+      onUnauthorized?.();
     }
-
     return Promise.reject(error);
   },
 );

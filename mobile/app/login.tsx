@@ -1,32 +1,14 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { router } from "expo-router";
 import { useAuth } from "@/context/auth-context";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
-// same todo comments as signup.tsx
 export default function LoginScreen() {
-  const { signin, isLoading, error, clearError, isAuthenticated } = useAuth();
+  const { login, isLoading, error, clearError, isAuthenticated, isOnboarded } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [formErrors, setFormErrors] = useState({
-    email: "",
-    password: "",
-  });
 
   useEffect(() => {
     return () => {
@@ -36,41 +18,13 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/(tabs)/gallery");
+      router.replace(isOnboarded ? "/(tabs)/gallery" : "/onboarding");
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isOnboarded]);
 
-  const validateForm = () => {
-    const errors = {
-      email: "",
-      password: "",
-    };
-    let isValid = true;
-
-    if (!email.trim()) {
-      errors.email = "Email is required";
-      isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      errors.email = "Email is invalid";
-      isValid = false;
-    }
-
-    if (!password) {
-      errors.password = "Password is required";
-      isValid = false;
-    }
-
-    setFormErrors(errors);
-    return isValid;
-  };
-
-  const handleSignin = async () => {
-    if (!validateForm()) {
-      return;
-    }
-
+  const handleLogin = async () => {
     try {
-      await signin({ email: email.trim(), password });
+      await login();
     } catch (err: any) {
       Alert.alert("Login Failed", err.message || "Please try again");
     }
@@ -83,7 +37,7 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <Text style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}>Welcome Back</Text>
             <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
-              Sign in to continue
+              Sign in securely to continue
             </Text>
           </View>
           {error && (
@@ -92,39 +46,7 @@ export default function LoginScreen() {
             </View>
           )}
           <View style={styles.form}>
-            <Input
-              label="Email"
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (formErrors.email) {
-                  setFormErrors({ ...formErrors, email: "" });
-                }
-                if (error) clearError();
-              }}
-              error={formErrors.email}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (formErrors.password) {
-                  setFormErrors({ ...formErrors, password: "" });
-                }
-                if (error) clearError();
-              }}
-              error={formErrors.password}
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password"
-            />
-            <Button title="Sign In" onPress={handleSignin} isLoading={isLoading} disabled={isLoading} />
+            <Button title="Log In" onPress={handleLogin} isLoading={isLoading} disabled={isLoading} />
           </View>
           <View style={styles.footer}>
             <Text style={[styles.footerText, isDark ? styles.footerTextDark : styles.footerTextLight]}>
