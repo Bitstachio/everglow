@@ -39,40 +39,40 @@ export type ParticipantResponse = {
 export type AccessLevel = "owner" | "admin" | "member";
 
 export const createEvent = async (data: CreateEventDTO): Promise<EventResponse> => {
-  const response = await api.post("/api/events", data);
+  const response = await api.post("/events", data);
   return response.data.data;
 };
 
 export const getUserEvents = async (): Promise<EventResponse[]> => {
-  const response = await api.get("/api/events");
+  const response = await api.get("/events");
   return response.data.data;
 };
 
 export const getEventById = async (eventId: number): Promise<EventResponse> => {
-  const response = await api.get(`/api/events/${eventId}`);
+  const response = await api.get(`/events/${eventId}`);
   return response.data.data;
 };
 
 export const updateEvent = async (eventId: number, data: UpdateEventDTO): Promise<EventResponse> => {
-  const response = await api.put(`/api/events/${eventId}`, data);
+  const response = await api.patch(`/events/${eventId}`, data);
   return response.data.data;
 };
 
 export const deleteEvent = async (eventId: number): Promise<void> => {
-  await api.delete(`/api/events/${eventId}`);
+  await api.delete(`/events/${eventId}`);
 };
 
 export const joinEventByUrl = async (invitationUrl: string): Promise<EventResponse> => {
-  const response = await api.post("/api/events/join", { invitationUrl });
+  const response = await api.post("/events/join", { invitationUrl });
   return response.data.data;
 };
 
 export const leaveEvent = async (eventId: number): Promise<void> => {
-  await api.post(`/api/events/${eventId}/leave`);
+  await api.post(`/events/${eventId}/leave`);
 };
 
 export const getEventParticipants = async (eventId: number): Promise<ParticipantResponse[]> => {
-  const response = await api.get(`/api/events/${eventId}/participants`);
+  const response = await api.get(`/events/${eventId}/participants`);
   return response.data.data;
 };
 
@@ -81,15 +81,15 @@ export const updateUserAccessLevel = async (
   userId: number,
   accessLevel: AccessLevel,
 ): Promise<ParticipantResponse> => {
-  const response = await api.put(`/api/events/${eventId}/participants/${userId}/access`, { accessLevel });
+  const response = await api.put(`/events/${eventId}/participants/${userId}/access`, { accessLevel });
   return response.data.data;
 };
 
 export const removeUserFromEvent = async (eventId: number, userId: number): Promise<void> => {
-  await api.delete(`/api/events/${eventId}/participants/${userId}`);
+  await api.delete(`/events/${eventId}/participants/${userId}`);
 };
 
 export const regenerateInvitationUrl = async (eventId: number): Promise<string> => {
-  const response = await api.post(`/api/events/${eventId}/regenerate-url`);
+  const response = await api.post(`/events/${eventId}/regenerate-url`);
   return response.data.data.invitation_url;
 };

@@ -6,24 +6,11 @@ export interface UpdateProfileData {
   email?: string;
 }
 
-export interface ChangePasswordData {
-  currentPassword: string;
-  newPassword: string;
-}
-
 class UserService {
   async updateProfile(data: UpdateProfileData): Promise<User> {
     try {
-      const response = await api.put("/api/users/me", data);
+      const response = await api.patch("/users/me", data);
       return response.data.data;
-    } catch (error: any) {
-      throw this.handleError(error);
-    }
-  }
-
-  async changePassword(data: ChangePasswordData): Promise<void> {
-    try {
-      await api.put("/api/users/change-password", data);
     } catch (error: any) {
       throw this.handleError(error);
     }
@@ -31,7 +18,7 @@ class UserService {
 
   async deleteProfile(): Promise<void> {
     try {
-      await api.delete("/api/users/me");
+      await api.delete("/users/me");
     } catch (error: any) {
       throw this.handleError(error);
     }
@@ -40,12 +27,11 @@ class UserService {
   private handleError(error: any): Error {
     if (error.response) {
       const message = error.response.data?.message || error.response.data?.error || "An error occurred";
-      return new Error(message);
+      return new Error(Array.isArray(message) ? message.join(", ") : message);
     } else if (error.request) {
       return new Error("Network error. Please check your connection.");
-    } else {
-      return new Error(error.message || "An unexpected error occurred");
     }
+    return new Error(error?.message || "An unexpected error occurred");
   }
 }
 

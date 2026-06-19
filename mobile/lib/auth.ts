@@ -1,91 +1,32 @@
-import * as SecureStore from "expo-secure-store";
 import api from "./api";
 
-export interface User {
-  id: string;
+export interface UserDetails {
   name: string;
   email: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
-export interface AuthResponse {
-  user: User;
-  accessToken: string;
-  refreshToken: string;
+// Mirrors the backend UserResponseDto (api/src/users/dto/user-response.dto.ts).
+// A freshly provisioned Auth0 user has `isOnboarded: false` and `details: null`
+// until they complete onboarding.
+export interface User {
+  id: string;
+  isOnboarded: boolean;
+  details: UserDetails | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export interface SignupData {
+export interface OnboardingData {
   name: string;
   email: string;
-  password: string;
-}
-
-export interface SigninData {
-  email: string;
-  password: string;
 }
 
 class AuthService {
-  async signup(data: SignupData): Promise<AuthResponse> {
-    try {
-      const response = await api.post("/api/auth/signup", data);
-      const { user, accessToken, refreshToken } = response.data.data;
-
-      await this.storeTokens(accessToken, refreshToken);
-
-      return { user, accessToken, refreshToken };
-    } catch (error: any) {
-      throw this.handleError(error);
-    }
-  }
-
-  async signin(data: SigninData): Promise<AuthResponse> {
-    try {
-      const response = await api.post("/api/auth/signin", data);
-      const { user, accessToken, refreshToken } = response.data.data;
-
-      await this.storeTokens(accessToken, refreshToken);
-
-      return { user, accessToken, refreshToken };
-    } catch (error: any) {
-      throw this.handleError(error);
-    }
-  }
-
-  async logout(): Promise<void> {
-    try {
-      await api.post("/api/auth/logout");
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      await this.clearTokens();
-    }
-  }
-
-  async refreshToken(): Promise<string | null> {
-    try {
-      const refreshToken = await SecureStore.getItemAsync("refreshToken");
-      if (!refreshToken) {
-        return null;
-      }
-
-      const response = await api.post("/api/auth/refresh", { refreshToken });
-      const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-
-      await this.storeTokens(accessToken, newRefreshToken || refreshToken);
-
-      return accessToken;
-    } catch (error) {
-      console.error("Token refresh error:", error);
-      await this.clearTokens();
-      return null;
-    }
-  }
-
   async getUserProfile(): Promise<User | null> {
     try {
-      const response = await api.get("/api/users/me");
+      const response = await api.get("/users/me");
       return response.data.data;
     } catch (error) {
       console.error("Get user profile error:", error);
@@ -93,38 +34,23 @@ class AuthService {
     }
   }
 
-  async isAuthenticated(): Promise<boolean> {
-    const refreshToken = await SecureStore.getItemAsync("refreshToken");
-    return !!refreshToken;
-  }
-
-  async getAccessToken(): Promise<string | null> {
-    return await SecureStore.getItemAsync("accessToken");
-  }
-
-  async getRefreshToken(): Promise<string | null> {
-    return await SecureStore.getItemAsync("refreshToken");
-  }
-
-  private async storeTokens(accessToken: string, refreshToken: string): Promise<void> {
-    await SecureStore.setItemAsync("accessToken", accessToken);
-    await SecureStore.setItemAsync("refreshToken", refreshToken);
-  }
-
-  private async clearTokens(): Promise<void> {
-    await SecureStore.deleteItemAsync("accessToken");
-    await SecureStore.deleteItemAsync("refreshToken");
+  async completeOnboarding(data: OnboardingData): Promise<User> {
+    try {
+      const response = await api.post("/users/me/onboarding", data);
+      return response.data.data;
+    } catch (error: unknown) {
+      throw this.handleError(error);
+    }
   }
 
   private handleError(error: any): Error {
     if (error.response) {
       const message = error.response.data?.message || error.response.data?.error || "An error occurred";
-      return new Error(message);
+      return new Error(Array.isArray(message) ? message.join(", ") : message);
     } else if (error.request) {
       return new Error("Network error. Please check your connection.");
-    } else {
-      return new Error(error.message || "An unexpected error occurred");
     }
+    return new Error(error?.message || "An unexpected error occurred");
   }
 }
 
