@@ -122,24 +122,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(() => authenticate(), [authenticate]);
   const signup = useCallback(() => authenticate({ signup: true }), [authenticate]);
 
-  const completeOnboarding = useCallback(
-    async (data: OnboardingData) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const profile = await authService.completeOnboarding(data);
-        setUser(profile);
-        router.replace(GALLERY_ROUTE);
-      } catch (err: any) {
-        const message = err?.message || "Could not complete onboarding.";
-        setError(message);
-        throw new Error(message);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [],
-  );
+  const completeOnboarding = useCallback(async (data: OnboardingData) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const profile = await authService.completeOnboarding(data);
+      setUser(profile);
+      router.replace(GALLERY_ROUTE);
+    } catch (err: any) {
+      const message = err?.message || "Could not complete onboarding.";
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const logout = useCallback(async () => {
     try {

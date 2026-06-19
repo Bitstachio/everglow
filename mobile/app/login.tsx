@@ -1,5 +1,14 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
 import { router } from "expo-router";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";

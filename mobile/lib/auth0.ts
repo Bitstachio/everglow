@@ -23,11 +23,7 @@ export function isAuth0Configured(): boolean {
 export function isUserCancellation(error: unknown): boolean {
   const err = error as { code?: string; name?: string; message?: string } | undefined;
   if (!err) return false;
-  return (
-    err.code === "USER_CANCELLED" ||
-    err.code === "a0.session.user_cancelled" ||
-    /cancel/i.test(err.message ?? "")
-  );
+  return err.code === "USER_CANCELLED" || err.code === "a0.session.user_cancelled" || /cancel/i.test(err.message ?? "");
 }
 
 /**
