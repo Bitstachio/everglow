@@ -8,17 +8,11 @@ import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { TEST_OTHER_ACCESS_TOKEN, authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
-import {
-  TEST_EVENT_ID,
-  buildEvent,
-  buildOrganizerAccess,
-  eventWithCallerAccess,
-} from "./helpers/events.fixtures";
+import { TEST_EVENT_ID, buildEvent, buildOrganizerAccess, eventWithCallerAccess } from "./helpers/events.fixtures";
 import { TEST_GALLERY_ID, buildGallery, expectedGalleryResponse } from "./helpers/galleries.fixtures";
 import { buildUserWithDetails } from "./helpers/users.fixtures";
 
-const galleriesByEventPath = (eventId = TEST_EVENT_ID) =>
-  `/${API_GLOBAL_PREFIX}/events/${eventId}/galleries`;
+const galleriesByEventPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/galleries`;
 const galleryPath = (galleryId = TEST_GALLERY_ID) => `/${API_GLOBAL_PREFIX}/galleries/${galleryId}`;
 
 type WrappedResponse<T> = {
