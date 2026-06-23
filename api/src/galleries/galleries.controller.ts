@@ -8,7 +8,10 @@ import { GalleryResponseDto } from "./dto/gallery-response.dto";
 import { GalleriesService } from "./galleries.service";
 import { GalleryMapper } from "./mappers/gallery.mapper";
 
-// [DECISION][Barbod]: do we need POST/PATCH/DELETE for galleries in v1?
+// POST/PATCH/DELETE are intentionally omitted for this iteration.
+// Gallery is modeled as its own entity for future flexibility, but for now
+// each event auto-creates a single default gallery; mutation endpoints will
+// land when multi-gallery support is on the roadmap.
 @ApiTags("galleries")
 @ApiBearerAuth("access-token")
 @Controller()
