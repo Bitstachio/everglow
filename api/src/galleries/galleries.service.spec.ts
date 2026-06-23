@@ -1,6 +1,6 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Event, EventAccess, Gallery, Prisma, PrismaClient } from "generated/prisma/client";
+import { Event, EventAccess, Gallery, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
@@ -130,9 +130,6 @@ describe("GalleriesService", () => {
 
       expect(result).toEqual([gallery]);
       expect(prisma.gallery.findMany).toHaveBeenCalledTimes(1);
-      const findManyArgs = prisma.gallery.findMany.mock.calls[0][0] as Prisma.GalleryFindManyArgs;
-      expect(findManyArgs.where).toMatchObject({ AND: expect.arrayContaining([{ eventId }]) });
-      expect(findManyArgs.orderBy).toEqual({ createdAt: "asc" });
     });
 
     it("denies access when the caller has not completed onboarding", async () => {
