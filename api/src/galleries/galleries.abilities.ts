@@ -20,8 +20,12 @@ export const defineGalleryAbilities = (can: AbilityBuilder<AppAbility>["can"], u
     event: { is: { eventAccesses: { some: { userId: user.id } } } },
   });
 
+  // CREATE/UPDATE/DELETE rules are defined for future flexibility — Gallery
+  // is modeled as its own entity to support multi-gallery events later.
+  // For the current iteration, each event auto-creates a single default
+  // gallery and no mutation endpoints are exposed.
   can(GALLERY_ACTIONS.CREATE, GALLERY_SUBJECT, {
-    event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } }, // [DEICISION][Barbod]: only organizers can create galleries? or participants can also create?
+    event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } },
   });
 
   can(GALLERY_ACTIONS.UPDATE, GALLERY_SUBJECT, {
