@@ -1,4 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { STRING_LIMITS } from "src/common/constants/schema.constants";
 
 export class GalleryResponseDto {
   @ApiProperty({ format: "uuid" })
@@ -7,7 +8,7 @@ export class GalleryResponseDto {
   @ApiProperty({ format: "uuid" })
   eventId: string;
 
-  @ApiProperty({ maxLength: 100 })
+  @ApiProperty({ maxLength: STRING_LIMITS.TITLE })
   name: string;
 
   @ApiProperty()
