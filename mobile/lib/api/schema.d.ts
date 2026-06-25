@@ -195,6 +195,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/events/{eventId}/galleries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List galleries for an event */
+    get: operations["GalleriesController_findAllForEvent"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/galleries/{galleryId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a gallery by ID */
+    get: operations["GalleriesController_findOne"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -262,6 +296,17 @@ export interface components {
     };
     UpdateParticipantAccessDto: {
       accessLevel: components["schemas"]["AccessLevel"];
+    };
+    GalleryResponseDto: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      eventId: string;
+      name: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
     };
   };
   responses: never;
@@ -748,6 +793,70 @@ export interface operations {
         content: {
           "application/json": {
             data: components["schemas"]["EventResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GalleriesController_findAllForEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Galleries the user can read in the event */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["GalleryResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GalleriesController_findOne: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        galleryId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Gallery details */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["GalleryResponseDto"];
             meta: components["schemas"]["ResponseMetaDto"];
           };
         };
