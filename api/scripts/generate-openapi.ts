@@ -3,6 +3,10 @@ process.env.AUTH0_DOMAIN ??= "openapi-generate.auth0.com";
 process.env.AUTH0_AUDIENCE ??= "https://openapi-generate-api";
 // Never connected during generation; only needs to satisfy ConfigService.getOrThrow
 process.env.DATABASE_URL ??= "postgresql://openapi:openapi@localhost:5432/openapi-generate";
+process.env.AWS_REGION ??= "us-east-1";
+process.env.AWS_S3_BUCKET ??= "openapi-generate-bucket";
+process.env.AWS_ACCESS_KEY_ID ??= "openapi-generate-access-key";
+process.env.AWS_SECRET_ACCESS_KEY ??= "openapi-generate-secret-key";
 
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";

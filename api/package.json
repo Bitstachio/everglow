@@ -26,6 +26,7 @@
   "dependencies": {
     "@aws-sdk/client-kms": "^3.962.0",
     "@aws-sdk/client-s3": "^3.962.0",
+    "@aws-sdk/s3-request-presigner": "^3.962.0",
     "@casl/ability": "^7.0.0",
     "@casl/prisma": "^2.0.1",
     "@nestjs/common": "^11.0.1",

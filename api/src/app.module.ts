@@ -12,6 +12,7 @@ import encryptionConfig from "./config/encryption.config";
 import { EventsModule } from "./events/events.module";
 import { GalleriesModule } from "./galleries/galleries.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { S3Module } from "./sdk/aws/s3/s3.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -30,6 +31,7 @@ import { UsersModule } from "./users/users.module";
       useFactory: buildLoggerConfig,
     }),
     EventsModule,
+    S3Module,
     GalleriesModule,
   ],
   controllers: [AppController],
