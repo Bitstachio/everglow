@@ -8,6 +8,7 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
+import { DEFAULT_GALLERY_NAME } from "../galleries/galleries.constants";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
@@ -206,6 +207,14 @@ describe("EventsService", () => {
     },
   };
 
+  const defaultGalleryGrant = {
+    galleries: {
+      create: {
+        name: DEFAULT_GALLERY_NAME,
+      },
+    },
+  };
+
   const eventWithCallerAccess = (event: Event, access: EventAccess[]) => ({
     ...event,
     eventAccesses: access,
@@ -296,6 +305,15 @@ describe("EventsService", () => {
       await service.create(creatorId, createEventDto);
 
       expect(prisma.event.create.mock.calls[0][0].data).toMatchObject(creatorOrganizerAccessGrant);
+    });
+
+    it("auto-creates a default gallery when the event is created", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(creatorId, createEventDto);
+
+      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject(defaultGalleryGrant);
     });
 
     it("creates an event with a description when description is provided", async () => {
