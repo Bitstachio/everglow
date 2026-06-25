@@ -16,7 +16,16 @@ This message becomes the PERMANENT commit on the main branch history after the b
 # Generation Rules & Constraints
 
 1. **Formatting:**
-   - Write a concise, imperative-mood summary line (max 50 characters).
+   - Prefix the summary line with a Conventional Commits keyword that
+     reflects the net change: feat, fix, chore, refactor, docs, test,
+     perf, build, ci, style, or revert.
+   - This is a monorepo. Include the affected scope in parentheses
+     immediately after the keyword: (api), (mobile), etc. If multiple
+     scopes are affected, use (_). If no specific scope applies, omit
+     the parentheses entirely. Examples: feat(api): ...,
+     fix(mobile): ..., chore(_): ..., docs: ...
+   - Write a concise, imperative-mood summary line, including the
+     keyword and scope prefix (max 50 characters total).
    - Leave a blank line after the summary line.
    - **Hard-wrap the body at 72 characters.** Insert a real newline
      character before any line would exceed 72 columns. Do NOT rely on
@@ -51,7 +60,11 @@ This message becomes the PERMANENT commit on the main branch history after the b
 
 Before emitting the answer, silently audit your draft:
 
-- Count the characters of the summary line; it must be <= 50.
+- Confirm the summary line starts with the correct Conventional
+  Commits keyword, and that the scope (or absence of scope) matches
+  the directories actually touched in the diff.
+- Count the characters of the summary line (including the keyword and
+  scope prefix); it must be <= 50.
 - Walk every body line and confirm each is <= 72 characters. If any
   line is longer, break it at a word boundary and re-check.
 - Confirm the body describes the final net state of the branch, not the
@@ -70,7 +83,7 @@ The ruler below marks column 72; no body line may cross it.
 Example response shape:
 
 ```
-replace .cursor plans with .context prompts
+chore: replace .cursor plans with .context prompts
 
 Move AI assistant context from editor-specific Cursor plan files into
 a portable .context directory so commit-generation prompts live in the
