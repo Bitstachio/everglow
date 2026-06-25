@@ -30,11 +30,12 @@ You are an expert software engineer and git historian. Your task is to analyze t
 # Self-Verification (do this before responding)
 
 Before emitting the answer, silently audit your draft:
+
 - Count the characters of the summary line; it must be <= 50.
 - Walk every body line and confirm each is <= 72 characters. If any
   line is longer, break it at a word boundary and re-check.
 - Confirm the whole message is wrapped in one fenced code block.
-Only output the final, verified commit message.
+  Only output the final, verified commit message.
 
 # Example of correctly wrapped output
 
@@ -53,10 +54,10 @@ Move AI assistant context from editor-specific Cursor plan files into
 a portable .context directory so commit-generation prompts live in the
 repo and are not tied to local .cursor state.
 
-* Add .context/git-commit-generator.md to produce extended commit
+- Add .context/git-commit-generator.md to produce extended commit
   descriptions from git status, staged/unstaged diffs, and recent log
   style; imperative subject (max 50 chars), 72-char body wrap
-* Remove the stale Auth0 mobile integration plan; that work shipped
+- Remove the stale Auth0 mobile integration plan; that work shipped
   in #21
 
 No runtime, API, or mobile code changes.
