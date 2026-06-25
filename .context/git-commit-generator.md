@@ -4,8 +4,8 @@ You are an expert software engineer and git historian. Your task is to analyze t
 
 # Context & Inputs
 
-- **Current Branch Changes:** [Insert branch diff, `git status`, or file changes here]
-- **Commit History Reference:** [Insert recent `git log` output showing previous commit messages here]
+- **Current Branch Changes**: Use the editor workspace context to analyze the unstaged/staged changes, current file diffs, or git status of the active branch.
+- **Commit History Reference**: Look at the recent commit history (`git log`) of the current repository to analyze style.
 
 # Generation Rules & Constraints
 
