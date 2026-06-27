@@ -103,10 +103,9 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run format:check
-        background: true
       - name: Generated API types are up to date
         run: npm run openapi:check
+      - run: npm run format:check
         background: true
       - run: npm run lint
         background: true
