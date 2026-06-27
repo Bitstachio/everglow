@@ -54,14 +54,16 @@ jobs:
       - run: npm ci
 
       - run: npm run format:check
-
+        background: true
       - name: OpenAPI spec is up to date
         run: npm run openapi:check
-
+        background: true
       # Avoid --fix in CI (npm scripts must not mutate files)
       - run: npx eslint "{src,apps,libs,test}/**/*.ts"
-
+        background: true
       - run: npm test
+        background: true
+      - wait-all:
 
       - run: npm run test:e2e
 
@@ -102,13 +104,15 @@ jobs:
       - run: npm ci
 
       - run: npm run format:check
-
+        background: true
       - name: Generated API types are up to date
         run: npm run openapi:check
-
+        background: true
       - run: npm run lint
-
+        background: true
       - run: npx tsc --noEmit
+        background: true
+      - wait-all:
 
   ci-success:
     name: CI
