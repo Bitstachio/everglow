@@ -3,6 +3,7 @@ import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
+import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
@@ -38,9 +39,20 @@ describe("UsersController (e2e)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;
+  let s3: {
+    putObject: jest.Mock;
+    deleteObject: jest.Mock;
+    getPresignedDownloadUrl: jest.Mock;
+  };
 
   beforeAll(async () => {
-    const context = await createTestApp();
+    s3 = {
+      putObject: jest.fn().mockResolvedValue(undefined),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+      getPresignedDownloadUrl: jest.fn().mockResolvedValue("https://example.com/avatar"),
+    };
+
+    const context = await createTestApp((builder) => builder.overrideProvider(S3Service).useValue(s3));
     app = context.app;
     prisma = context.prisma;
     httpServer = app.getHttpServer() as Server;
@@ -54,6 +66,10 @@ describe("UsersController (e2e)", () => {
     // mockReset (unlike jest.clearAllMocks) also removes mockResolvedValue
     // implementations, preventing stubs from leaking between tests
     mockReset(prisma);
+    s3.putObject.mockClear();
+    s3.deleteObject.mockClear();
+    s3.getPresignedDownloadUrl.mockClear();
+    s3.getPresignedDownloadUrl.mockResolvedValue("https://example.com/avatar");
   });
 
   describe("POST /users/me/onboarding", () => {
@@ -315,6 +331,92 @@ describe("UsersController (e2e)", () => {
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(USER_SERVICE_ERRORS.EMAIL_TAKEN(payload.email!));
       expect(body.meta.path).toBe(path);
+    });
+  });
+
+  describe("POST /users/me/avatar", () => {
+    const path = `${USERS_BASE_PATH}/me/avatar`;
+
+    it("returns 200 and the updated profile with avatarUrl", async () => {
+      const existingUser = buildUserWithDetails();
+      const updatedUser = buildUserWithDetails({
+        details: {
+          ...existingUser.details!,
+          avatarKey: `avatars/${TEST_USER_ID}`,
+        },
+      });
+
+      prisma.user.findUnique.mockResolvedValue(existingUser);
+      prisma.user.update.mockResolvedValue(updatedUser);
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader())
+        .attach("avatar", Buffer.from("fake-image"), {
+          filename: "avatar.jpg",
+          contentType: "image/jpeg",
+        })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<{
+        details: { avatarUrl: string | null };
+      }>;
+
+      expect(body.data.details.avatarUrl).toBe("https://example.com/avatar");
+      expect(s3.putObject).toHaveBeenCalled();
+      expect(body.meta.path).toBe(path);
+    });
+
+    it("returns 422 when onboarding is incomplete", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader())
+        .attach("avatar", Buffer.from("fake-image"), {
+          filename: "avatar.jpg",
+          contentType: "image/jpeg",
+        })
+        .expect(422);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+    });
+  });
+
+  describe("DELETE /users/me/avatar", () => {
+    const path = `${USERS_BASE_PATH}/me/avatar`;
+
+    it("returns 200 and clears avatarUrl", async () => {
+      const existingUser = buildUserWithDetails({
+        details: {
+          ...buildUserWithDetails().details!,
+          avatarKey: `avatars/${TEST_USER_ID}`,
+        },
+      });
+      const updatedUser = buildUserWithDetails();
+
+      prisma.user.findUnique.mockResolvedValue(existingUser);
+      prisma.user.update.mockResolvedValue(updatedUser);
+
+      const response = await request(httpServer).delete(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<{
+        details: { avatarUrl: string | null };
+      }>;
+
+      expect(body.data.details.avatarUrl).toBeNull();
+      expect(s3.deleteObject).toHaveBeenCalledWith(`avatars/${TEST_USER_ID}`);
+      expect(body.meta.path).toBe(path);
+    });
+
+    it("returns 404 when the user has no avatar", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+
+      const response = await request(httpServer).delete(path).set(authHeader()).expect(404);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(USER_SERVICE_ERRORS.AVATAR_NOT_SET);
     });
   });
 

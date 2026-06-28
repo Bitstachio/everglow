@@ -4,6 +4,7 @@ import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PrismaClient } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
+import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
@@ -13,6 +14,7 @@ import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 describe("UsersService", () => {
   let service: UsersService;
   let prisma: DeepMockProxy<PrismaClient>;
+  let s3: DeepMockProxy<S3Service>;
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const providerSub = "auth0|abc123";
@@ -41,6 +43,7 @@ describe("UsersService", () => {
       userId,
       email: "jane@example.com",
       name: "Jane Doe",
+      avatarKey: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -48,6 +51,7 @@ describe("UsersService", () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    s3 = mockDeep<S3Service>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -55,6 +59,10 @@ describe("UsersService", () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: S3Service,
+          useValue: s3,
         },
         {
           provide: PinoLogger,
@@ -295,6 +303,25 @@ describe("UsersService", () => {
         include: userWithDetailsInclude,
       });
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(s3.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it("deletes the avatar from S3 when present", async () => {
+      const userWithAvatar: UserWithDetails = {
+        ...userWithDetails,
+        details: {
+          ...userWithDetails.details!,
+          avatarKey: "avatars/user-id",
+        },
+      };
+      prisma.user.findUnique.mockResolvedValue(userWithAvatar);
+      prisma.user.delete.mockResolvedValue(userWithAvatar);
+      s3.deleteObject.mockResolvedValue(undefined);
+
+      await service.remove(userId);
+
+      expect(s3.deleteObject).toHaveBeenCalledWith("avatars/user-id");
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
     });
 
     it("throws NotFoundException when the user does not exist", async () => {
@@ -360,6 +387,79 @@ describe("UsersService", () => {
       prisma.user.create.mockRejectedValue(prismaError);
 
       await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(prismaError);
+    });
+  });
+
+  describe("uploadAvatar", () => {
+    const file = {
+      buffer: Buffer.from("fake-image"),
+      mimetype: "image/jpeg",
+      size: 1024,
+    } as Express.Multer.File;
+
+    it("uploads avatar and updates user details", async () => {
+      const updatedUser: UserWithDetails = {
+        ...userWithDetails,
+        details: {
+          ...userWithDetails.details!,
+          avatarKey: `avatars/${userId}`,
+        },
+      };
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      s3.putObject.mockResolvedValue(undefined);
+      prisma.user.update.mockResolvedValue(updatedUser);
+
+      const result = await service.uploadAvatar(userId, file);
+
+      expect(s3.putObject).toHaveBeenCalledWith({
+        key: `avatars/${userId}`,
+        body: file.buffer,
+        contentType: file.mimetype,
+      });
+      expect(result.details?.avatarKey).toBe(`avatars/${userId}`);
+    });
+
+    it("throws UnprocessableEntityException when onboarding is incomplete", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+
+      await expect(service.uploadAvatar(userId, file)).rejects.toThrow(
+        new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE),
+      );
+    });
+  });
+
+  describe("deleteAvatar", () => {
+    it("deletes avatar from S3 and clears avatarKey", async () => {
+      const userWithAvatar: UserWithDetails = {
+        ...userWithDetails,
+        details: {
+          ...userWithDetails.details!,
+          avatarKey: `avatars/${userId}`,
+        },
+      };
+      const updatedUser: UserWithDetails = {
+        ...userWithAvatar,
+        details: {
+          ...userWithAvatar.details!,
+          avatarKey: null,
+        },
+      };
+      prisma.user.findUnique.mockResolvedValue(userWithAvatar);
+      s3.deleteObject.mockResolvedValue(undefined);
+      prisma.user.update.mockResolvedValue(updatedUser);
+
+      const result = await service.deleteAvatar(userId);
+
+      expect(s3.deleteObject).toHaveBeenCalledWith(`avatars/${userId}`);
+      expect(result.details?.avatarKey).toBeNull();
+    });
+
+    it("throws NotFoundException when avatar is not set", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+
+      await expect(service.deleteAvatar(userId)).rejects.toThrow(
+        new NotFoundException(USER_SERVICE_ERRORS.AVATAR_NOT_SET),
+      );
     });
   });
 });

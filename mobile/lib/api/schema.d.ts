@@ -56,6 +56,24 @@ export interface paths {
     patch: operations["UsersController_updateMe"];
     trace?: never;
   };
+  "/api/v2/users/me/avatar": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload current user avatar */
+    post: operations["UsersController_uploadAvatar"];
+    /** Delete current user avatar */
+    delete: operations["UsersController_deleteAvatar"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/events": {
     parameters: {
       query?: never;
@@ -238,6 +256,8 @@ export interface components {
       email: string;
       /** @example Jane Doe */
       name: string;
+      /** @example https://example.com/presigned-avatar-url */
+      avatarUrl: Record<string, never> | null;
       /** Format: date-time */
       createdAt: string;
       /** Format: date-time */
@@ -437,6 +457,73 @@ export interface operations {
     };
     responses: {
       /** @description Updated user profile */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["UserResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  UsersController_uploadAvatar: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": {
+          /** Format: binary */
+          avatar: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated user profile with avatar */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["UserResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  UsersController_deleteAvatar: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Updated user profile without avatar */
       200: {
         headers: {
           [name: string]: unknown;

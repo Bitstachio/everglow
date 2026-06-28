@@ -7,6 +7,9 @@ export class UserDetailsResponseDto {
   @ApiProperty({ example: "Jane Doe" })
   name: string;
 
+  @ApiProperty({ nullable: true, example: "https://example.com/presigned-avatar-url" })
+  avatarUrl: string | null;
+
   @ApiProperty()
   createdAt: Date;
 

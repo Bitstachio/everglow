@@ -38,6 +38,7 @@ export const buildUserWithDetails = (overrides: Partial<UserWithDetails> = {}): 
     userId: TEST_USER_ID,
     email: "jane@example.com",
     name: "Jane Doe",
+    avatarKey: null,
     createdAt: TEST_NOW,
     updatedAt: TEST_NOW,
   },

@@ -32,6 +32,7 @@ model UserDetails {
   userId    String   @unique @db.Uuid
   email     String   @unique @db.VarChar(255)
   name      String   @db.VarChar(255)
+  avatarKey String?  @db.VarChar(512)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

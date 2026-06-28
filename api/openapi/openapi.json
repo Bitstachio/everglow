@@ -180,6 +180,107 @@
         ]
       }
     },
+    "/api/v2/users/me/avatar": {
+      "post": {
+        "operationId": "UsersController_uploadAvatar",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "avatar": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "avatar"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user profile with avatar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UserResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Upload current user avatar",
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_deleteAvatar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Updated user profile without avatar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UserResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete current user avatar",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/events": {
       "post": {
         "operationId": "EventsController_create",
@@ -839,6 +940,11 @@
             "type": "string",
             "example": "Jane Doe"
           },
+          "avatarUrl": {
+            "type": "object",
+            "nullable": true,
+            "example": "https://example.com/presigned-avatar-url"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -851,6 +957,7 @@
         "required": [
           "email",
           "name",
+          "avatarUrl",
           "createdAt",
           "updatedAt"
         ]
