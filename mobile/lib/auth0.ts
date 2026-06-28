@@ -1,4 +1,5 @@
 import Auth0 from "react-native-auth0";
+import { Platform } from "react-native";
 
 const AUTH0_DOMAIN = process.env.EXPO_PUBLIC_AUTH0_DOMAIN ?? "";
 const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID ?? "";
@@ -30,6 +31,16 @@ export function isUserCancellation(error: unknown): boolean {
   );
 }
 
+// ASWebAuthenticationSession often fails on the iOS Simulator with
+// "network connection was lost" (-1005). SFSafariViewController is more reliable.
+function getWebAuthOptions() {
+  const options = { customScheme: AUTH0_CUSTOM_SCHEME };
+  if (Platform.OS === "ios") {
+    return { ...options, useSFSafariViewController: true as const };
+  }
+  return options;
+}
+
 /**
  * Launch Auth0 Universal Login. Pass `signup: true` to land users on the
  * sign-up screen. On success the credentials are persisted in the native
@@ -42,7 +53,7 @@ export async function loginWithUniversalLogin(options?: { signup?: boolean }): P
       audience: AUTH0_AUDIENCE,
       ...(options?.signup ? { additionalParameters: { screen_hint: "signup" } } : {}),
     },
-    { customScheme: AUTH0_CUSTOM_SCHEME },
+    getWebAuthOptions(),
   );
 
   await auth0.credentialsManager.saveCredentials(credentials);
@@ -51,7 +62,7 @@ export async function loginWithUniversalLogin(options?: { signup?: boolean }): P
 /** Clear the Auth0 web session and locally stored credentials. */
 export async function logoutFromAuth0(): Promise<void> {
   try {
-    await auth0.webAuth.clearSession(undefined, { customScheme: AUTH0_CUSTOM_SCHEME });
+    await auth0.webAuth.clearSession(undefined, getWebAuthOptions());
   } finally {
     await clearLocalCredentials();
   }
