@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { CONFIRM_PHOTO_STATUSES, ConfirmPhotoStatus } from "../photos.constants";
+import type { ConfirmPhotoStatus } from "../photos.constants";
+import { CONFIRM_PHOTO_STATUSES } from "../photos.constants";
 
 export class ConfirmPhotoResultDto {
   @ApiProperty({ format: "uuid" })
