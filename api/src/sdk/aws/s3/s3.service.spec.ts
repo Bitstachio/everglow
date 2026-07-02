@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, HeadObjectCommand, NotFound, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import * as presigner from "@aws-sdk/s3-request-presigner";
 import { InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -131,6 +131,29 @@ describe("S3Service", () => {
       await service.deleteObject("a/b.jpg");
 
       expect(sendSpy).toHaveBeenCalledWith(expect.any(DeleteObjectCommand));
+    });
+  });
+
+  describe("headObject", () => {
+    it("returns metadata when the object exists", async () => {
+      sendSpy.mockResolvedValueOnce({ ContentType: "image/jpeg", ContentLength: 1234 } as never);
+
+      const result = await service.headObject("a/b.jpg");
+
+      expect(sendSpy).toHaveBeenCalledWith(expect.any(HeadObjectCommand));
+      expect(result).toEqual({ exists: true, contentType: "image/jpeg", sizeBytes: 1234 });
+    });
+
+    it("returns exists false when the object is missing", async () => {
+      sendSpy.mockRejectedValueOnce(new NotFound({ $metadata: {}, message: "NotFound" }));
+
+      await expect(service.headObject("a/missing.jpg")).resolves.toEqual({ exists: false });
+    });
+
+    it("wraps other client errors in InternalServerErrorException", async () => {
+      sendSpy.mockRejectedValueOnce(new Error("boom"));
+
+      await expect(service.headObject("a/b.jpg")).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });
 

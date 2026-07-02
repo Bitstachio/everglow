@@ -808,6 +808,128 @@
           "galleries"
         ]
       }
+    },
+    "/api/v2/galleries/{galleryId}/photos/upload-urls": {
+      "post": {
+        "operationId": "PhotosController_createUploadUrls",
+        "parameters": [
+          {
+            "name": "galleryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadUrlsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload slots with presigned S3 PUT URLs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UploadSlotResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint presigned upload URLs for a batch of photos",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/api/v2/galleries/{galleryId}/photos/confirm": {
+      "post": {
+        "operationId": "PhotosController_confirmUploads",
+        "parameters": [
+          {
+            "name": "galleryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmUploadsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Per-photo verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ConfirmPhotoResultDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm uploaded photos and mark them ready",
+        "tags": [
+          "photos"
+        ]
+      }
     }
   },
   "info": {
@@ -1060,6 +1182,104 @@
           "name",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "UploadSlotResponseDto": {
+        "type": "object",
+        "properties": {
+          "photoId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Presigned S3 PUT URL the client uploads bytes to"
+          }
+        },
+        "required": [
+          "photoId",
+          "uploadUrl"
+        ]
+      },
+      "UploadFileDto": {
+        "type": "object",
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+              "image/heic",
+              "image/heif"
+            ],
+            "example": "image/jpeg"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 26214400,
+            "example": 1048576
+          }
+        },
+        "required": [
+          "contentType",
+          "sizeBytes"
+        ]
+      },
+      "CreateUploadUrlsDto": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadFileDto"
+            }
+          }
+        },
+        "required": [
+          "files"
+        ]
+      },
+      "ConfirmPhotoResultDto": {
+        "type": "object",
+        "properties": {
+          "photoId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "MISSING",
+              "MISMATCHED",
+              "NOT_FOUND"
+            ],
+            "example": "READY"
+          }
+        },
+        "required": [
+          "photoId",
+          "status"
+        ]
+      },
+      "ConfirmUploadsDto": {
+        "type": "object",
+        "properties": {
+          "photoIds": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "photoIds"
         ]
       }
     }
