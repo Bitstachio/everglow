@@ -808,6 +808,67 @@
           "galleries"
         ]
       }
+    },
+    "/api/v2/galleries/{galleryId}/photos/upload-urls": {
+      "post": {
+        "operationId": "PhotosController_createUploadUrls",
+        "parameters": [
+          {
+            "name": "galleryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadUrlsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload slots with presigned S3 PUT URLs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UploadSlotResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint presigned upload URLs for a batch of photos",
+        "tags": [
+          "photos"
+        ]
+      }
     }
   },
   "info": {
@@ -1061,6 +1122,28 @@
           "createdAt",
           "updatedAt"
         ]
+      },
+      "UploadSlotResponseDto": {
+        "type": "object",
+        "properties": {
+          "photoId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Presigned S3 PUT URL the client uploads bytes to"
+          }
+        },
+        "required": [
+          "photoId",
+          "uploadUrl"
+        ]
+      },
+      "CreateUploadUrlsDto": {
+        "type": "object",
+        "properties": {}
       }
     }
   }
