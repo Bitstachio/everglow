@@ -1141,9 +1141,46 @@
           "uploadUrl"
         ]
       },
+      "UploadFileDto": {
+        "type": "object",
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+              "image/heic",
+              "image/heif"
+            ],
+            "example": "image/jpeg"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 26214400,
+            "example": 1048576
+          }
+        },
+        "required": [
+          "contentType",
+          "sizeBytes"
+        ]
+      },
       "CreateUploadUrlsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "files": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadFileDto"
+            }
+          }
+        },
+        "required": [
+          "files"
+        ]
       }
     }
   }
