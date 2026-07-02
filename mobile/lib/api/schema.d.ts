@@ -246,6 +246,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/galleries/{galleryId}/photos/confirm": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm uploaded photos and mark them ready */
+    post: operations["PhotosController_confirmUploads"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -342,6 +359,18 @@ export interface components {
     };
     CreateUploadUrlsDto: {
       files: components["schemas"]["UploadFileDto"][];
+    };
+    ConfirmPhotoResultDto: {
+      /** Format: uuid */
+      photoId: string;
+      /**
+       * @example READY
+       * @enum {string}
+       */
+      status: "READY" | "MISSING" | "MISMATCHED" | "NOT_FOUND";
+    };
+    ConfirmUploadsDto: {
+      photoIds: string[];
     };
   };
   responses: never;
@@ -928,6 +957,42 @@ export interface operations {
         content: {
           "application/json": {
             data: components["schemas"]["UploadSlotResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_confirmUploads: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        galleryId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmUploadsDto"];
+      };
+    };
+    responses: {
+      /** @description Per-photo verification result */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["ConfirmPhotoResultDto"];
             meta: components["schemas"]["ResponseMetaDto"];
           };
         };

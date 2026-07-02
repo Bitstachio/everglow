@@ -4,6 +4,8 @@ import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
 import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.decorator";
+import { ConfirmPhotoResultDto } from "./dto/confirm-photo-result.dto";
+import { ConfirmUploadsDto } from "./dto/confirm-uploads.dto";
 import { CreateUploadUrlsDto } from "./dto/create-upload-urls.dto";
 import { UploadSlotResponseDto } from "./dto/upload-slot-response.dto";
 import { PhotosService } from "./photos.service";
@@ -25,5 +27,16 @@ export class PhotosController {
     @Body() dto: CreateUploadUrlsDto,
   ): Promise<UploadSlotResponseDto[]> {
     return this.photosService.createUploadSlots(galleryId, user.id, dto.files);
+  }
+
+  @Post("galleries/:galleryId/photos/confirm")
+  @ApiOperation({ summary: "Confirm uploaded photos and mark them ready" })
+  @ApiWrappedResponse(ConfirmPhotoResultDto, "Per-photo verification result", 201)
+  async confirmUploads(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("galleryId", ParseUUIDPipe) galleryId: string,
+    @Body() dto: ConfirmUploadsDto,
+  ): Promise<ConfirmPhotoResultDto[]> {
+    return this.photosService.confirmUploads(galleryId, user.id, dto.photoIds);
   }
 }

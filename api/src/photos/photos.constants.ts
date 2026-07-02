@@ -21,9 +21,21 @@ export const DOWNLOAD_URL_TTL_SECONDS = 900; // 15 minutes to download a photo
 
 export const buildPhotoS3Key = (galleryId: string, photoId: string): string => `photos/${galleryId}/${photoId}`;
 
+// Per-photo outcome of a confirm call. Only READY mutates the row; the rest
+// report why verification failed so the client can retry or re-upload.
+export const CONFIRM_PHOTO_STATUSES = {
+  READY: "READY",
+  MISSING: "MISSING",
+  MISMATCHED: "MISMATCHED",
+  NOT_FOUND: "NOT_FOUND",
+} as const;
+
+export type ConfirmPhotoStatus = (typeof CONFIRM_PHOTO_STATUSES)[keyof typeof CONFIRM_PHOTO_STATUSES];
+
 export const PHOTO_SERVICE_ERRORS = {
   NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(photoEntity, "ID", id),
   CREATE_FORBIDDEN: (galleryId: string) => `Not authorized to upload photos to gallery with ID "${galleryId}"`,
+  CONFIRM_FORBIDDEN: (galleryId: string) => `Not authorized to confirm photo uploads in gallery with ID "${galleryId}"`,
   READ_FORBIDDEN: (photoId: string) => `Not authorized to read photo with ID "${photoId}"`,
   DELETE_FORBIDDEN: (photoId: string) => `Not authorized to delete photo with ID "${photoId}"`,
 };
