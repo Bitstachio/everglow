@@ -229,6 +229,75 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/galleries/{galleryId}/photos/upload-urls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mint presigned upload URLs for a batch of photos */
+    post: operations["PhotosController_createUploadUrls"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/galleries/{galleryId}/photos/confirm": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm uploaded photos and mark them ready */
+    post: operations["PhotosController_confirmUploads"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/galleries/{galleryId}/photos": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List ready photos in a gallery (cursor-paginated) */
+    get: operations["PhotosController_listPhotos"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/photos/{photoId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a photo by ID */
+    get: operations["PhotosController_findOne"];
+    put?: never;
+    post?: never;
+    /** Delete a photo */
+    delete: operations["PhotosController_remove"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -307,6 +376,61 @@ export interface components {
       createdAt: string;
       /** Format: date-time */
       updatedAt: string;
+    };
+    UploadSlotResponseDto: {
+      /** Format: uuid */
+      photoId: string;
+      /** @description Presigned S3 PUT URL the client uploads bytes to */
+      uploadUrl: string;
+    };
+    UploadFileDto: {
+      /**
+       * @example image/jpeg
+       * @enum {string}
+       */
+      contentType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+      /** @example 1048576 */
+      sizeBytes: number;
+    };
+    CreateUploadUrlsDto: {
+      files: components["schemas"]["UploadFileDto"][];
+    };
+    ConfirmPhotoResultDto: {
+      /** Format: uuid */
+      photoId: string;
+      /**
+       * @example READY
+       * @enum {string}
+       */
+      status: "READY" | "MISSING" | "MISMATCHED" | "NOT_FOUND";
+    };
+    ConfirmUploadsDto: {
+      photoIds: string[];
+    };
+    PhotoResponseDto: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      galleryId: string;
+      /** Format: uuid */
+      addedById: string;
+      /** @description Presigned S3 GET URL, valid for a short period */
+      url: string;
+      /**
+       * @example image/jpeg
+       * @enum {string}
+       */
+      contentType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+      /** Format: date-time */
+      createdAt: string;
+    };
+    PhotoListResponseDto: {
+      items: components["schemas"]["PhotoResponseDto"][];
+      /**
+       * Format: uuid
+       * @description Pass as ?cursor= to fetch the next page
+       */
+      nextCursor: Record<string, never> | null;
     };
   };
   responses: never;
@@ -860,6 +984,173 @@ export interface operations {
             meta: components["schemas"]["ResponseMetaDto"];
           };
         };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_createUploadUrls: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        galleryId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateUploadUrlsDto"];
+      };
+    };
+    responses: {
+      /** @description Upload slots with presigned S3 PUT URLs */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["UploadSlotResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_confirmUploads: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        galleryId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmUploadsDto"];
+      };
+    };
+    responses: {
+      /** @description Per-photo verification result */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["ConfirmPhotoResultDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_listPhotos: {
+    parameters: {
+      query?: {
+        /** @description ID of the last photo from the previous page */
+        cursor?: string;
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        galleryId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Photos with presigned download URLs, newest first */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["PhotoListResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_findOne: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Photo with presigned download URL */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["PhotoResponseDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Photo deleted (empty data envelope at runtime) */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description Missing or invalid access token */
       401: {

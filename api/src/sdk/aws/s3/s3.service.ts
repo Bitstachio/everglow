@@ -1,4 +1,11 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  NotFound,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Injectable, InternalServerErrorException, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -21,6 +28,8 @@ export interface PresignedDownloadInput {
   key: string;
   expiresInSeconds?: number;
 }
+
+export type HeadObjectResult = { exists: true; contentType?: string; sizeBytes?: number } | { exists: false };
 
 @Injectable()
 export class S3Service implements OnModuleDestroy {
@@ -78,6 +87,17 @@ export class S3Service implements OnModuleDestroy {
     } catch (error) {
       this.logger.error({ err: error as Error, key }, "s3 deleteObject failed");
       throw new InternalServerErrorException(S3_SERVICE_ERRORS.DELETE_FAILED(key));
+    }
+  }
+
+  async headObject(key: string): Promise<HeadObjectResult> {
+    try {
+      const response = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return { exists: true, contentType: response.ContentType, sizeBytes: response.ContentLength };
+    } catch (error) {
+      if (error instanceof NotFound) return { exists: false };
+      this.logger.error({ err: error as Error, key }, "s3 headObject failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.HEAD_FAILED(key));
     }
   }
 

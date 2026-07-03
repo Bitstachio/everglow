@@ -3,6 +3,7 @@ import { createPrismaAbility } from "@casl/prisma";
 import { Injectable } from "@nestjs/common";
 import { defineEventAbilities } from "src/events/events.abilities";
 import { defineGalleryAbilities } from "src/galleries/galleries.abilities";
+import { definePhotoAbilities } from "src/photos/photos.abilities";
 import { PrismaService } from "src/prisma/prisma.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import { AbilityUserContext, AppAbility } from "./ability.types";
@@ -16,6 +17,7 @@ export class AbilityFactory {
 
     defineEventAbilities(can, user);
     defineGalleryAbilities(can, user);
+    definePhotoAbilities(can, user);
 
     return build();
   }

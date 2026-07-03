@@ -15,6 +15,11 @@ enum AccessLevel {
   VIEWER
 }
 
+enum PhotoStatus {
+  PENDING
+  READY
+}
+
 model User {
   id          String   @id @default(uuid()) @db.Uuid
   providerSub String   @unique @db.VarChar(255)
@@ -82,13 +87,19 @@ model EventAccess {
 }
 
 model Photo {
-  id        String   @id @default(uuid()) @db.Uuid
-  imageUrl  String   @db.VarChar(500)
-  addedById String   @db.Uuid
-  galleryId String   @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String      @id @default(uuid()) @db.Uuid
+  s3Key       String      @unique @db.VarChar(255)
+  contentType String      @db.VarChar(100)
+  sizeBytes   Int
+  status      PhotoStatus @default(PENDING)
+  addedById   String      @db.Uuid
+  galleryId   String      @db.Uuid
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   addedBy User    @relation(fields: [addedById], references: [id])
   gallery Gallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId, status, createdAt])
+  @@index([addedById])
 }
