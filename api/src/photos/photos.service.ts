@@ -187,4 +187,50 @@ export class PhotosService {
 
     return { items, nextCursor: hasMore ? page[page.length - 1].id : null };
   }
+
+  async findOne(photoId: string, callerId: string): Promise<PhotoWithUrl> {
+    const photo = await this.prisma.photo.findUnique({
+      where: { id: photoId },
+      include: { gallery: { include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } } } },
+    });
+    // Unverified photos are invisible, same as in the gallery list.
+    if (!photo || photo.status !== PhotoStatus.READY) {
+      throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+    }
+
+    const ability = await this.abilityFactory.createForCaller(callerId);
+    if (!ability.can(PHOTO_ACTIONS.READ, subject(PHOTO_SUBJECT, photo))) {
+      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.READ_FORBIDDEN(photoId));
+    }
+
+    const { gallery, ...rest } = photo;
+    void gallery;
+    const url = await this.s3Service.getPresignedDownloadUrl({
+      key: photo.s3Key,
+      expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS,
+    });
+    return { ...rest, url };
+  }
+
+  async deletePhoto(photoId: string, callerId: string): Promise<void> {
+    const photo = await this.prisma.photo.findUnique({
+      where: { id: photoId },
+      include: { gallery: { include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } } } },
+    });
+    if (!photo) throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+
+    const ability = await this.abilityFactory.createForCaller(callerId);
+    if (!ability.can(PHOTO_ACTIONS.DELETE, subject(PHOTO_SUBJECT, photo))) {
+      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.DELETE_FORBIDDEN(photoId));
+    }
+
+    // S3 first: if it fails the row survives and the delete can be retried.
+    await this.s3Service.deleteObject(photo.s3Key);
+    await this.prisma.photo.delete({ where: { id: photoId } });
+
+    this.logger.info(
+      { event: "photo.deleted", photoId, galleryId: photo.galleryId, callerId, audit: true },
+      "Photo deleted",
+    );
+  }
 }

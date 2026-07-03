@@ -1,5 +1,17 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
@@ -9,6 +21,7 @@ import { ConfirmUploadsDto } from "./dto/confirm-uploads.dto";
 import { CreateUploadUrlsDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoListResponseDto } from "./dto/photo-list-response.dto";
+import { PhotoResponseDto } from "./dto/photo-response.dto";
 import { UploadSlotResponseDto } from "./dto/upload-slot-response.dto";
 import { PhotoMapper } from "./mappers/photo.mapper";
 import { PhotosService } from "./photos.service";
@@ -53,5 +66,26 @@ export class PhotosController {
   ): Promise<PhotoListResponseDto> {
     const page = await this.photosService.listPhotos(galleryId, user.id, query);
     return PhotoMapper.toListResponseDto(page.items, page.nextCursor);
+  }
+
+  @Get("photos/:photoId")
+  @ApiOperation({ summary: "Get a photo by ID" })
+  @ApiWrappedResponse(PhotoResponseDto, "Photo with presigned download URL")
+  async findOne(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("photoId", ParseUUIDPipe) photoId: string,
+  ): Promise<PhotoResponseDto> {
+    return PhotoMapper.toResponseDto(await this.photosService.findOne(photoId, user.id));
+  }
+
+  @Delete("photos/:photoId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete a photo" })
+  @ApiNoContentResponse({ description: "Photo deleted (empty data envelope at runtime)" })
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("photoId", ParseUUIDPipe) photoId: string,
+  ): Promise<void> {
+    return this.photosService.deletePhoto(photoId, user.id);
   }
 }

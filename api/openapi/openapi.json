@@ -1002,6 +1002,87 @@
           "photos"
         ]
       }
+    },
+    "/api/v2/photos/{photoId}": {
+      "get": {
+        "operationId": "PhotosController_findOne",
+        "parameters": [
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Photo with presigned download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PhotoResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get a photo by ID",
+        "tags": [
+          "photos"
+        ]
+      },
+      "delete": {
+        "operationId": "PhotosController_remove",
+        "parameters": [
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Photo deleted (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a photo",
+        "tags": [
+          "photos"
+        ]
+      }
     }
   },
   "info": {
