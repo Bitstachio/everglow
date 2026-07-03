@@ -1,18 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { subject } from "@casl/ability";
+import { accessibleBy } from "@casl/prisma";
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { Photo, PhotoStatus } from "generated/prisma/client";
+import { Photo, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { GALLERY_ACTIONS, GALLERY_SUBJECT } from "src/galleries/galleries.abilities";
 import { GALLERY_SERVICE_ERRORS } from "src/galleries/galleries.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
+import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
+import { PhotoWithUrl } from "./mappers/photo.mapper";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
 import {
   buildPhotoS3Key,
   CONFIRM_PHOTO_STATUSES,
   ConfirmPhotoStatus,
+  DEFAULT_PHOTO_PAGE_SIZE,
+  DOWNLOAD_URL_TTL_SECONDS,
   PHOTO_SERVICE_ERRORS,
   UPLOAD_URL_TTL_SECONDS,
 } from "./photos.constants";
@@ -25,6 +31,11 @@ export interface UploadSlot {
 export interface ConfirmResult {
   photoId: string;
   status: ConfirmPhotoStatus;
+}
+
+export interface PhotoPage {
+  items: PhotoWithUrl[];
+  nextCursor: string | null;
 }
 
 @Injectable()
@@ -131,5 +142,49 @@ export class PhotosService {
     }
 
     return results;
+  }
+
+  async listPhotos(galleryId: string, callerId: string, query: ListPhotosQueryDto): Promise<PhotoPage> {
+    const gallery = await this.prisma.gallery.findUnique({
+      where: { id: galleryId },
+      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
+    });
+    if (!gallery) throw new NotFoundException(GALLERY_SERVICE_ERRORS.NOT_FOUND(galleryId));
+
+    const ability = await this.abilityFactory.createForCaller(callerId);
+    if (!ability.can(GALLERY_ACTIONS.READ, subject(GALLERY_SUBJECT, gallery))) {
+      throw new ForbiddenException(GALLERY_SERVICE_ERRORS.READ_FORBIDDEN(galleryId));
+    }
+
+    const limit = query.limit ?? DEFAULT_PHOTO_PAGE_SIZE;
+    // Fetch one extra row to know whether a next page exists. The cursor is
+    // the last photo id of the previous page; Prisma resolves its sort values
+    // for keyset pagination, so results stay stable while new photos arrive.
+    const photos = await this.prisma.photo.findMany({
+      where: {
+        AND: [
+          { galleryId, status: PhotoStatus.READY },
+          accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
+        ],
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      ...(query.cursor && { cursor: { id: query.cursor }, skip: 1 }),
+    });
+
+    const hasMore = photos.length > limit;
+    const page = hasMore ? photos.slice(0, limit) : photos;
+
+    const items = await Promise.all(
+      page.map(async (photo) => ({
+        ...photo,
+        url: await this.s3Service.getPresignedDownloadUrl({
+          key: photo.s3Key,
+          expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS,
+        }),
+      })),
+    );
+
+    return { items, nextCursor: hasMore ? page[page.length - 1].id : null };
   }
 }

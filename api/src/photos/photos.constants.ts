@@ -19,6 +19,10 @@ export const UPLOAD_URL_TTL_SECONDS = 3600; // 1 hour to upload a photo
 
 export const DOWNLOAD_URL_TTL_SECONDS = 900; // 15 minutes to download a photo
 
+export const DEFAULT_PHOTO_PAGE_SIZE = 50;
+
+export const MAX_PHOTO_PAGE_SIZE = 100;
+
 export const buildPhotoS3Key = (galleryId: string, photoId: string): string => `photos/${galleryId}/${photoId}`;
 
 // Per-photo outcome of a confirm call. Only READY mutates the row; the rest

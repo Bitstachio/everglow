@@ -14,7 +14,7 @@ import { PhotosService } from "./photos.service";
 describe("PhotosService", () => {
   let service: PhotosService;
   let prisma: DeepMockProxy<PrismaClient>;
-  let s3Service: { getPresignedUploadUrl: jest.Mock; headObject: jest.Mock };
+  let s3Service: { getPresignedUploadUrl: jest.Mock; getPresignedDownloadUrl: jest.Mock; headObject: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -96,6 +96,7 @@ describe("PhotosService", () => {
     prisma = mockDeep<PrismaClient>();
     s3Service = {
       getPresignedUploadUrl: jest.fn().mockResolvedValue("https://signed-put"),
+      getPresignedDownloadUrl: jest.fn().mockResolvedValue("https://signed-get"),
       headObject: jest.fn(),
     };
 
@@ -288,6 +289,94 @@ describe("PhotosService", () => {
 
       expect(results).toEqual([{ photoId, status: "READY" }]);
       expect(s3Service.headObject).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("listPhotos", () => {
+    const readyPhotos = (count: number) =>
+      Array.from({ length: count }, (_, index) =>
+        buildPhoto(`dddddddd-dddd-dddd-dddd-${String(index).padStart(12, "0")}`, { status: "READY" }),
+      );
+
+    it("throws NotFoundException when the gallery does not exist", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.gallery.findUnique.mockResolvedValue(null);
+
+      await expect(service.listPhotos(galleryId, callerId, {})).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when the caller is not a member of the parent event", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([]) as never);
+
+      await expect(service.listPhotos(galleryId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns photos with presigned download URLs for a viewer", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      const photos = readyPhotos(2);
+      prisma.photo.findMany.mockResolvedValue(photos);
+
+      const page = await service.listPhotos(galleryId, callerId, {});
+
+      expect(page.items).toEqual(photos.map((photo) => ({ ...photo, url: "https://signed-get" })));
+      expect(page.nextCursor).toBeNull();
+      expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
+        key: photos[0].s3Key,
+        expiresInSeconds: 900,
+      });
+    });
+
+    it("queries only READY photos newest first with the default page size", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+
+      await service.listPhotos(galleryId, callerId, {});
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { AND: [{ galleryId, status: "READY" }, expect.anything()] },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 51,
+        }),
+      );
+    });
+
+    it("returns a nextCursor when more photos exist and trims the page to the limit", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      const photos = readyPhotos(3);
+      prisma.photo.findMany.mockResolvedValue(photos);
+
+      const page = await service.listPhotos(galleryId, callerId, { limit: 2 });
+
+      expect(page.items).toHaveLength(2);
+      expect(page.nextCursor).toBe(photos[1].id);
+      expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it("passes the cursor to Prisma keyset pagination, skipping the cursor row", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+      const cursor = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+
+      await service.listPhotos(galleryId, callerId, { cursor, limit: 10 });
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ cursor: { id: cursor }, skip: 1, take: 11 }),
+      );
+    });
+
+    it("denies access when the caller has not completed onboarding", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithoutDetails);
+      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+
+      await expect(service.listPhotos(galleryId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });

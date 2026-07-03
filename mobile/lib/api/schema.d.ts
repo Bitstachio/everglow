@@ -263,6 +263,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/galleries/{galleryId}/photos": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List ready photos in a gallery (cursor-paginated) */
+    get: operations["PhotosController_listPhotos"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -371,6 +388,31 @@ export interface components {
     };
     ConfirmUploadsDto: {
       photoIds: string[];
+    };
+    PhotoResponseDto: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      galleryId: string;
+      /** Format: uuid */
+      addedById: string;
+      /** @description Presigned S3 GET URL, valid for a short period */
+      url: string;
+      /**
+       * @example image/jpeg
+       * @enum {string}
+       */
+      contentType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+      /** Format: date-time */
+      createdAt: string;
+    };
+    PhotoListResponseDto: {
+      items: components["schemas"]["PhotoResponseDto"][];
+      /**
+       * Format: uuid
+       * @description Pass as ?cursor= to fetch the next page
+       */
+      nextCursor: Record<string, never> | null;
     };
   };
   responses: never;
@@ -993,6 +1035,42 @@ export interface operations {
         content: {
           "application/json": {
             data: components["schemas"]["ConfirmPhotoResultDto"];
+            meta: components["schemas"]["ResponseMetaDto"];
+          };
+        };
+      };
+      /** @description Missing or invalid access token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_listPhotos: {
+    parameters: {
+      query?: {
+        /** @description ID of the last photo from the previous page */
+        cursor?: string;
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        galleryId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Photos with presigned download URLs, newest first */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: components["schemas"]["PhotoListResponseDto"];
             meta: components["schemas"]["ResponseMetaDto"];
           };
         };

@@ -1,4 +1,4 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
@@ -7,7 +7,10 @@ import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.deco
 import { ConfirmPhotoResultDto } from "./dto/confirm-photo-result.dto";
 import { ConfirmUploadsDto } from "./dto/confirm-uploads.dto";
 import { CreateUploadUrlsDto } from "./dto/create-upload-urls.dto";
+import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
+import { PhotoListResponseDto } from "./dto/photo-list-response.dto";
 import { UploadSlotResponseDto } from "./dto/upload-slot-response.dto";
+import { PhotoMapper } from "./mappers/photo.mapper";
 import { PhotosService } from "./photos.service";
 
 @ApiTags("photos")
@@ -38,5 +41,17 @@ export class PhotosController {
     @Body() dto: ConfirmUploadsDto,
   ): Promise<ConfirmPhotoResultDto[]> {
     return this.photosService.confirmUploads(galleryId, user.id, dto.photoIds);
+  }
+
+  @Get("galleries/:galleryId/photos")
+  @ApiOperation({ summary: "List ready photos in a gallery (cursor-paginated)" })
+  @ApiWrappedResponse(PhotoListResponseDto, "Photos with presigned download URLs, newest first")
+  async listPhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("galleryId", ParseUUIDPipe) galleryId: string,
+    @Query() query: ListPhotosQueryDto,
+  ): Promise<PhotoListResponseDto> {
+    const page = await this.photosService.listPhotos(galleryId, user.id, query);
+    return PhotoMapper.toListResponseDto(page.items, page.nextCursor);
   }
 }

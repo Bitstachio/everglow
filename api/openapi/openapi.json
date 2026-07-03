@@ -930,6 +930,78 @@
           "photos"
         ]
       }
+    },
+    "/api/v2/galleries/{galleryId}/photos": {
+      "get": {
+        "operationId": "PhotosController_listPhotos",
+        "parameters": [
+          {
+            "name": "galleryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "ID of the last photo from the previous page",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Photos with presigned download URLs, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PhotoListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List ready photos in a gallery (cursor-paginated)",
+        "tags": [
+          "photos"
+        ]
+      }
     }
   },
   "info": {
@@ -1280,6 +1352,72 @@
         },
         "required": [
           "photoIds"
+        ]
+      },
+      "PhotoResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "galleryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "addedById": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Presigned S3 GET URL, valid for a short period"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+              "image/heic",
+              "image/heif"
+            ],
+            "example": "image/jpeg"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "galleryId",
+          "addedById",
+          "url",
+          "contentType",
+          "createdAt"
+        ]
+      },
+      "PhotoListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhotoResponseDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Pass as ?cursor= to fetch the next page"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ]
       }
     }
