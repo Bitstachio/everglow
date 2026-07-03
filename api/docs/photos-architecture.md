@@ -185,18 +185,19 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 
 In order of implementation:
 
-- [ ] **Prisma schema** — add `Photo` model + `PhotoStatus` enum + composite index. Generate migration.
-- [ ] **CASL** — register `Photo` subject. Permissions inherit from parent `Gallery` (can manage gallery → can manage its photos).
-- [ ] **Photos module skeleton** — `photos.module.ts`, `photos.service.ts`, `photos.controller.ts`, DTOs. Mirror the existing `galleries` module shape.
-- [ ] **`POST /galleries/:galleryId/photos/upload-urls`** — batch mint presigned PUT URLs (1h TTL), create PENDING rows in one transaction. Enforce contentType allowlist + max size + max batch size.
-- [ ] **`POST /galleries/:galleryId/photos/confirm`** — batch HeadObject verify, flip to READY, return per-photoId result.
-- [ ] **`GET /galleries/:galleryId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
-- [ ] **`GET /photos/:photoId`** — single photo with presigned GET URL.
-- [ ] **`DELETE /photos/:photoId`** — S3 delete then row delete.
-- [ ] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
-- [ ] **E2E tests** — controller-level, with auth + CASL.
-- [ ] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract.
-- [ ] **README update** — short note in `api/docs/` linking to this plan.
+- [x] **Prisma schema** — add `Photo` model + `PhotoStatus` enum + composite index. Generate migration. (Reshaped the pre-existing `Photo` model; kept `addedById` for attribution and delete-own-photo rules.)
+- [x] **CASL** — register `Photo` subject. Permissions inherit from parent `Gallery` (can manage gallery → can manage its photos). (Read: any member. Create: organizer + participant. Delete: organizer any, uploader own.)
+- [x] **`S3Service.headObject`** — existence + size/contentType lookup used by confirm. (Prerequisite discovered during implementation.)
+- [x] **Photos module skeleton** — `photos.module.ts`, `photos.service.ts`, `photos.controller.ts`, DTOs. Mirror the existing `galleries` module shape.
+- [x] **`POST /galleries/:galleryId/photos/upload-urls`** — batch mint presigned PUT URLs (1h TTL), create PENDING rows in one transaction. Enforce contentType allowlist + max size + max batch size.
+- [x] **`POST /galleries/:galleryId/photos/confirm`** — batch HeadObject verify, flip to READY, return per-photoId result (`READY` / `MISSING` / `MISMATCHED` / `NOT_FOUND`).
+- [x] **`GET /galleries/:galleryId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
+- [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
+- [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
+- [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
+- [x] **E2E tests** — controller-level, with auth + CASL.
+- [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
+- [x] **README update** — implementation status is tracked in this checklist.
 
 ### Out of scope for v1 (tracked as future work)
 - Cleanup sweeper for PENDING rows
