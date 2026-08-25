@@ -39,6 +39,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # coverage comment
     defaults:
       run:
         working-directory: api
@@ -61,7 +64,7 @@ jobs:
       # Avoid --fix in CI (npm scripts must not mutate files)
       - run: npx eslint "{src,apps,libs,test}/**/*.ts"
         background: true
-      - run: npm test
+      - run: npm run test:cov
         background: true
       - wait-all:
 
@@ -83,6 +86,14 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Last step: only reached when the whole job is green.
+      - name: Post coverage comment on PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bash scripts/post-coverage-comment.sh
 
   mobile:
     name: Mobile
