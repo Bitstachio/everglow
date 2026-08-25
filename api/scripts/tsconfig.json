@@ -2,7 +2,12 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "module": "CommonJS",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    // inherited from the base config but invalid under "node" resolution
+    "resolvePackageJsonExports": false
   },
-  "include": ["./**/*.ts", "../src/**/*.ts"]
+  "include": ["./**/*.ts", "../src/**/*.ts"],
+  // reset the inherited exclude — it removes scripts/ from the root project,
+  // which would otherwise exclude this project's own files
+  "exclude": []
 }

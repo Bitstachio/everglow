@@ -21,5 +21,8 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  // scripts/ is a separate CommonJS project (scripts/tsconfig.json); checking
+  // it under this config's nodenext rules produces false module errors
+  "exclude": ["node_modules", "dist", "scripts"]
 }
