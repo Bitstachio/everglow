@@ -5,8 +5,7 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import { Photo, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
-import { GALLERY_ACTIONS, GALLERY_SUBJECT } from "src/galleries/galleries.abilities";
-import { GALLERY_SERVICE_ERRORS } from "src/galleries/galleries.constants";
+import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
@@ -49,19 +48,25 @@ export class PhotosService {
     this.logger.setContext(this.constructor.name);
   }
 
-  async createUploadSlots(galleryId: string, callerId: string, files: UploadFileDto[]): Promise<UploadSlot[]> {
-    const gallery = await this.prisma.gallery.findUnique({
-      where: { id: galleryId },
-      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
+  /** Loads the event with the caller's access rows, or 404s. */
+  private async findEventForCaller(eventId: string, callerId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: { eventAccesses: { where: { userId: callerId } } },
     });
-    if (!gallery) throw new NotFoundException(GALLERY_SERVICE_ERRORS.NOT_FOUND(galleryId));
+    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    return event;
+  }
 
-    // Check if the caller is authorized to upload photos to the gallery.
+  async createUploadSlots(eventId: string, callerId: string, files: UploadFileDto[]): Promise<UploadSlot[]> {
+    const event = await this.findEventForCaller(eventId, callerId);
+
+    // Check if the caller is authorized to upload photos to the event.
     const ability = await this.abilityFactory.createForCaller(callerId);
     // The photo does not exist yet, so authorize against a prospective row.
-    const prospectivePhoto = subject(PHOTO_SUBJECT, { galleryId, addedById: callerId, gallery } as unknown as Photo);
+    const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
     if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(galleryId));
+      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId));
     }
 
     // Create a new photo row for each file.
@@ -70,9 +75,9 @@ export class PhotosService {
       const photoId = randomUUID();
       return {
         id: photoId,
-        galleryId,
+        eventId,
         addedById: callerId,
-        s3Key: buildPhotoS3Key(galleryId, photoId),
+        s3Key: buildPhotoS3Key(eventId, photoId),
         contentType: file.contentType,
         sizeBytes: file.sizeBytes,
         status: PhotoStatus.PENDING,
@@ -92,22 +97,18 @@ export class PhotosService {
     );
   }
 
-  async confirmUploads(galleryId: string, callerId: string, photoIds: string[]): Promise<ConfirmResult[]> {
-    const gallery = await this.prisma.gallery.findUnique({
-      where: { id: galleryId },
-      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
-    });
-    if (!gallery) throw new NotFoundException(GALLERY_SERVICE_ERRORS.NOT_FOUND(galleryId));
+  async confirmUploads(eventId: string, callerId: string, photoIds: string[]): Promise<ConfirmResult[]> {
+    const event = await this.findEventForCaller(eventId, callerId);
 
     // Confirming is part of the upload flow, so it requires the same permission as minting upload slots.
     const ability = await this.abilityFactory.createForCaller(callerId);
-    const prospectivePhoto = subject(PHOTO_SUBJECT, { galleryId, addedById: callerId, gallery } as unknown as Photo);
+    const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
     if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(galleryId));
+      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(eventId));
     }
 
     const uniqueIds = [...new Set(photoIds)];
-    const photos = await this.prisma.photo.findMany({ where: { id: { in: uniqueIds }, galleryId } });
+    const photos = await this.prisma.photo.findMany({ where: { id: { in: uniqueIds }, eventId } });
     const photosById = new Map(photos.map((photo) => [photo.id, photo]));
 
     const verifiedIds: string[] = [];
@@ -136,7 +137,7 @@ export class PhotosService {
         data: { status: PhotoStatus.READY },
       });
       this.logger.info(
-        { event: "photo.uploads_confirmed", galleryId, callerId, confirmedCount: verifiedIds.length },
+        { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verifiedIds.length },
         "Photo uploads confirmed",
       );
     }
@@ -144,16 +145,14 @@ export class PhotosService {
     return results;
   }
 
-  async listPhotos(galleryId: string, callerId: string, query: ListPhotosQueryDto): Promise<PhotoPage> {
-    const gallery = await this.prisma.gallery.findUnique({
-      where: { id: galleryId },
-      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
-    });
-    if (!gallery) throw new NotFoundException(GALLERY_SERVICE_ERRORS.NOT_FOUND(galleryId));
+  async listPhotos(eventId: string, callerId: string, query: ListPhotosQueryDto): Promise<PhotoPage> {
+    const event = await this.findEventForCaller(eventId, callerId);
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(GALLERY_ACTIONS.READ, subject(GALLERY_SUBJECT, gallery))) {
-      throw new ForbiddenException(GALLERY_SERVICE_ERRORS.READ_FORBIDDEN(galleryId));
+    // Listing is reading photos of the event; authorize against a prospective row.
+    const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, event } as unknown as Photo);
+    if (!ability.can(PHOTO_ACTIONS.READ, prospectivePhoto)) {
+      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.LIST_FORBIDDEN(eventId));
     }
 
     const limit = query.limit ?? DEFAULT_PHOTO_PAGE_SIZE;
@@ -163,7 +162,7 @@ export class PhotosService {
     const photos = await this.prisma.photo.findMany({
       where: {
         AND: [
-          { galleryId, status: PhotoStatus.READY },
+          { eventId, status: PhotoStatus.READY },
           accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
         ],
       },
@@ -191,9 +190,9 @@ export class PhotosService {
   async findOne(photoId: string, callerId: string): Promise<PhotoWithUrl> {
     const photo = await this.prisma.photo.findUnique({
       where: { id: photoId },
-      include: { gallery: { include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } } } },
+      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
     });
-    // Unverified photos are invisible, same as in the gallery list.
+    // Unverified photos are invisible, same as in the event photo list.
     if (!photo || photo.status !== PhotoStatus.READY) {
       throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
     }
@@ -203,8 +202,8 @@ export class PhotosService {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.READ_FORBIDDEN(photoId));
     }
 
-    const { gallery, ...rest } = photo;
-    void gallery;
+    const { event, ...rest } = photo;
+    void event;
     const url = await this.s3Service.getPresignedDownloadUrl({
       key: photo.s3Key,
       expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS,
@@ -215,7 +214,7 @@ export class PhotosService {
   async deletePhoto(photoId: string, callerId: string): Promise<void> {
     const photo = await this.prisma.photo.findUnique({
       where: { id: photoId },
-      include: { gallery: { include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } } } },
+      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
     });
     if (!photo) throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
 
@@ -229,7 +228,7 @@ export class PhotosService {
     await this.prisma.photo.delete({ where: { id: photoId } });
 
     this.logger.info(
-      { event: "photo.deleted", photoId, galleryId: photo.galleryId, callerId, audit: true },
+      { event: "photo.deleted", photoId, eventId: photo.eventId, callerId, audit: true },
       "Photo deleted",
     );
   }

@@ -2,15 +2,20 @@ import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
-import { GALLERY_SERVICE_ERRORS } from "src/galleries/galleries.constants";
+import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
-import { buildEvent, buildOrganizerAccess, buildParticipantAccess, buildViewerAccess } from "./helpers/events.fixtures";
-import { TEST_GALLERY_ID, buildGallery } from "./helpers/galleries.fixtures";
+import {
+  TEST_EVENT_ID,
+  buildEvent,
+  buildOrganizerAccess,
+  buildParticipantAccess,
+  buildViewerAccess,
+} from "./helpers/events.fixtures";
 import {
   TEST_OTHER_PHOTO_ID,
   TEST_PHOTO_ID,
@@ -21,10 +26,9 @@ import {
 } from "./helpers/photos.fixtures";
 import { buildUserWithDetails } from "./helpers/users.fixtures";
 
-const uploadUrlsPath = (galleryId = TEST_GALLERY_ID) =>
-  `/${API_GLOBAL_PREFIX}/galleries/${galleryId}/photos/upload-urls`;
-const confirmPath = (galleryId = TEST_GALLERY_ID) => `/${API_GLOBAL_PREFIX}/galleries/${galleryId}/photos/confirm`;
-const photosListPath = (galleryId = TEST_GALLERY_ID) => `/${API_GLOBAL_PREFIX}/galleries/${galleryId}/photos`;
+const uploadUrlsPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos/upload-urls`;
+const confirmPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos/confirm`;
+const photosListPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos`;
 const photoPath = (photoId = TEST_PHOTO_ID) => `/${API_GLOBAL_PREFIX}/photos/${photoId}`;
 
 type WrappedResponse<T> = {
@@ -41,7 +45,7 @@ type UploadSlotBody = { photoId: string; uploadUrl: string };
 type ConfirmResultBody = { photoId: string; status: string };
 type PhotoBody = {
   id: string;
-  galleryId: string;
+  eventId: string;
   addedById: string;
   url: string;
   contentType: string;
@@ -63,9 +67,9 @@ describe("PhotosController (e2e)", () => {
     getPresignedDownloadUrl: jest.fn(),
   };
 
-  const galleryWithAccess = (access: ReturnType<typeof buildOrganizerAccess>[]) => ({
-    ...buildGallery(),
-    event: { ...buildEvent(), eventAccesses: access },
+  const eventWithAccess = (access: ReturnType<typeof buildOrganizerAccess>[]) => ({
+    ...buildEvent(),
+    eventAccesses: access,
   });
 
   const photoWithAccess = (
@@ -73,7 +77,7 @@ describe("PhotosController (e2e)", () => {
     overrides: Parameters<typeof buildPhoto>[0] = {},
   ) => ({
     ...buildPhoto(overrides),
-    gallery: galleryWithAccess(access),
+    event: eventWithAccess(access),
   });
 
   beforeAll(async () => {
@@ -98,11 +102,11 @@ describe("PhotosController (e2e)", () => {
     s3Service.deleteObject.mockResolvedValue(undefined);
   });
 
-  describe("POST /galleries/:galleryId/photos/upload-urls", () => {
+  describe("POST /events/:eventId/photos/upload-urls", () => {
     const payload = { files: [{ contentType: "image/jpeg", sizeBytes: 1024 }] };
 
     it("returns 201 with presigned upload slots for an organizer", async () => {
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithAccess([buildOrganizerAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
       prisma.photo.createMany.mockResolvedValue({ count: 1 });
 
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(201);
@@ -139,27 +143,27 @@ describe("PhotosController (e2e)", () => {
     });
 
     it("returns 403 when the caller is a viewer", async () => {
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithAccess([buildViewerAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
 
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(TEST_GALLERY_ID));
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(TEST_EVENT_ID));
     });
 
-    it("returns 404 when the gallery does not exist", async () => {
-      prisma.gallery.findUnique.mockResolvedValue(null);
+    it("returns 404 when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
 
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(GALLERY_SERVICE_ERRORS.NOT_FOUND(TEST_GALLERY_ID));
+      expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
     });
   });
 
-  describe("POST /galleries/:galleryId/photos/confirm", () => {
+  describe("POST /events/:eventId/photos/confirm", () => {
     it("returns 201 with per-photo verification results", async () => {
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithAccess([buildParticipantAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
       prisma.photo.updateMany.mockResolvedValue({ count: 1 });
 
@@ -196,7 +200,7 @@ describe("PhotosController (e2e)", () => {
     });
 
     it("returns 403 when the caller is a viewer", async () => {
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithAccess([buildViewerAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
 
       const response = await request(httpServer)
         .post(confirmPath())
@@ -205,14 +209,14 @@ describe("PhotosController (e2e)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(TEST_GALLERY_ID));
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(TEST_EVENT_ID));
     });
   });
 
-  describe("GET /galleries/:galleryId/photos", () => {
+  describe("GET /events/:eventId/photos", () => {
     it("returns 200 with mapped photos and a null cursor on the last page", async () => {
       const photo = buildPhoto();
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithAccess([buildViewerAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
       prisma.photo.findMany.mockResolvedValue([photo]);
 
       const response = await request(httpServer).get(photosListPath()).set(authHeader()).expect(200);
@@ -227,7 +231,7 @@ describe("PhotosController (e2e)", () => {
     it("returns 200 with a nextCursor when more photos exist", async () => {
       const first = buildPhoto();
       const second = buildPhoto({ id: TEST_OTHER_PHOTO_ID });
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithAccess([buildViewerAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
       prisma.photo.findMany.mockResolvedValue([first, second]);
 
       const response = await request(httpServer)
@@ -249,8 +253,8 @@ describe("PhotosController (e2e)", () => {
       await request(httpServer).get(photosListPath()).expect(401);
     });
 
-    it("returns 403 when the caller is not a member of the parent event", async () => {
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithAccess([]) as never);
+    it("returns 403 when the caller is not a member of the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([]) as never);
 
       const response = await request(httpServer)
         .get(photosListPath())
@@ -258,11 +262,11 @@ describe("PhotosController (e2e)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(GALLERY_SERVICE_ERRORS.READ_FORBIDDEN(TEST_GALLERY_ID));
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.LIST_FORBIDDEN(TEST_EVENT_ID));
     });
 
-    it("returns 404 when the gallery does not exist", async () => {
-      prisma.gallery.findUnique.mockResolvedValue(null);
+    it("returns 404 when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
 
       await request(httpServer).get(photosListPath()).set(authHeader()).expect(404);
     });
@@ -302,7 +306,7 @@ describe("PhotosController (e2e)", () => {
       await request(httpServer).get(photoPath()).expect(401);
     });
 
-    it("returns 403 when the caller is not a member of the parent event", async () => {
+    it("returns 403 when the caller is not a member of the event", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoWithAccess([]) as never);
 
       await request(httpServer).get(photoPath()).set(authHeader(TEST_OTHER_ACCESS_TOKEN)).expect(403);

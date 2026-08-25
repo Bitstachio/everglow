@@ -10,7 +10,6 @@ import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
 import { EventsModule } from "./events/events.module";
-import { GalleriesModule } from "./galleries/galleries.module";
 import { PhotosModule } from "./photos/photos.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { S3Module } from "./sdk/aws/s3/s3.module";
@@ -33,7 +32,6 @@ import { UsersModule } from "./users/users.module";
     }),
     EventsModule,
     S3Module,
-    GalleriesModule,
     PhotosModule,
   ],
   controllers: [AppController],

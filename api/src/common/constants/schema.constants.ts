@@ -5,7 +5,7 @@
 export const STRING_LIMITS = {
   // Concise metadata, codes, and identifiers
   STRICT: 50,
-  // Display titles for events, galleries, and similar named resources (matches Prisma VarChar(100))
+  // Display titles for events and similar named resources (matches Prisma VarChar(100))
   TITLE: 100,
   // The professional and industry-standard length for general-purpose strings
   // Aligned with RFC standards for emails (254) and optimized for 1-byte length prefix storage in modern SQL engines

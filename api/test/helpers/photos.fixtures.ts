@@ -1,5 +1,5 @@
 import { Photo, PhotoStatus } from "generated/prisma/client";
-import { TEST_GALLERY_ID } from "./galleries.fixtures";
+import { TEST_EVENT_ID } from "./events.fixtures";
 import { TEST_NOW, TEST_USER_ID } from "./users.fixtures";
 
 export const TEST_PHOTO_ID = "bbbbbbbb-1111-4222-8333-bbbbbbbbbbbb";
@@ -9,9 +9,9 @@ export const TEST_SIGNED_GET_URL = "https://s3.example.com/signed-get";
 
 export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
   id: TEST_PHOTO_ID,
-  galleryId: TEST_GALLERY_ID,
+  eventId: TEST_EVENT_ID,
   addedById: TEST_USER_ID,
-  s3Key: `photos/${TEST_GALLERY_ID}/${TEST_PHOTO_ID}`,
+  s3Key: `photos/${TEST_EVENT_ID}/${TEST_PHOTO_ID}`,
   contentType: "image/jpeg",
   sizeBytes: 1024,
   status: PhotoStatus.READY,
@@ -22,7 +22,7 @@ export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
 
 export const expectedPhotoResponse = (photo: Photo, url: string) => ({
   id: photo.id,
-  galleryId: photo.galleryId,
+  eventId: photo.eventId,
   addedById: photo.addedById,
   url,
   contentType: photo.contentType,

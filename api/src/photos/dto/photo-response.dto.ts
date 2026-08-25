@@ -7,7 +7,7 @@ export class PhotoResponseDto {
   id: string;
 
   @ApiProperty({ format: "uuid" })
-  galleryId: string;
+  eventId: string;
 
   @ApiProperty({ format: "uuid" })
   addedById: string;

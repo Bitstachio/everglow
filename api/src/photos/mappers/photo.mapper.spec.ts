@@ -5,9 +5,9 @@ describe("PhotoMapper", () => {
 
   const photo: PhotoWithUrl = {
     id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-    galleryId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    eventId: "66666666-6666-6666-6666-666666666666",
     addedById: "11111111-1111-1111-1111-111111111111",
-    s3Key: "photos/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    s3Key: "photos/66666666-6666-6666-6666-666666666666/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "READY",
@@ -19,7 +19,7 @@ describe("PhotoMapper", () => {
   it("maps a photo to a response DTO without leaking the s3Key or status", () => {
     expect(PhotoMapper.toResponseDto(photo)).toEqual({
       id: photo.id,
-      galleryId: photo.galleryId,
+      eventId: photo.eventId,
       addedById: photo.addedById,
       url: photo.url,
       contentType: photo.contentType,
