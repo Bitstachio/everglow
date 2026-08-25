@@ -11,6 +11,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "openapi:generate": "ts-node --project scripts/tsconfig.json -r tsconfig-paths/register scripts/generate-openapi.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
     "openapi:check": "npm run openapi:generate && git diff --exit-code openapi/openapi.json",
     "start": "nest start",
     "start:dev": "nest start --watch",

@@ -64,6 +64,10 @@ jobs:
       # Avoid --fix in CI (npm scripts must not mutate files)
       - run: npx eslint "{src,apps,libs,test}/**/*.ts"
         background: true
+      # Full-project type check — specs and scripts are excluded from the
+      # build tsconfig and ts-jest transpiles without type checking
+      - run: npm run typecheck
+        background: true
       - run: npm run test:cov
         background: true
       - wait-all:
