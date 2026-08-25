@@ -16,7 +16,7 @@ import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 
 const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput => {
-  const ability = new AbilityFactory().createForUser({ id: lookupUserId, isOnboarded: true });
+  const ability = new AbilityFactory(mockDeep<PrismaService>()).createForUser({ id: lookupUserId, isOnboarded: true });
   return accessibleBy(ability, EVENT_ACTIONS.READ).ofType(EVENT_SUBJECT) as Prisma.EventWhereInput;
 };
 
