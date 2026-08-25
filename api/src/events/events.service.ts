@@ -11,7 +11,6 @@ import { randomUUID } from "crypto";
 import { AccessLevel, Event, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
-import { DEFAULT_GALLERY_NAME } from "src/galleries/galleries.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
@@ -58,11 +57,6 @@ export class EventsService {
           create: {
             userId: creatorId,
             accessLevel: AccessLevel.ORGANIZER,
-          },
-        },
-        galleries: {
-          create: {
-            name: DEFAULT_GALLERY_NAME,
           },
         },
       },

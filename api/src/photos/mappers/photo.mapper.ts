@@ -8,7 +8,7 @@ export class PhotoMapper {
   static toResponseDto(photo: PhotoWithUrl): PhotoResponseDto {
     return {
       id: photo.id,
-      galleryId: photo.galleryId,
+      eventId: photo.eventId,
       addedById: photo.addedById,
       url: photo.url,
       contentType: photo.contentType,

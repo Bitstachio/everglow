@@ -1,6 +1,6 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Event, EventAccess, Gallery, Photo, PrismaClient } from "generated/prisma/client";
+import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
@@ -23,7 +23,6 @@ describe("PhotosService", () => {
 
   const callerId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
-  const galleryId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
   const now = new Date("2026-06-10T12:00:00.000Z");
 
   const callerWithoutDetails: UserWithDetails = {
@@ -57,14 +56,6 @@ describe("PhotosService", () => {
     updatedAt: now,
   };
 
-  const gallery: Gallery = {
-    id: galleryId,
-    eventId,
-    name: "Main",
-    createdAt: now,
-    updatedAt: now,
-  };
-
   const callerAccess = (accessLevel: EventAccess["accessLevel"]): EventAccess => ({
     id: "44444444-4444-4444-4444-444444444444",
     userId: callerId,
@@ -74,9 +65,9 @@ describe("PhotosService", () => {
     updatedAt: now,
   });
 
-  const galleryWithEvent = (access: EventAccess[]) => ({
-    ...gallery,
-    event: { ...event, eventAccesses: access },
+  const eventWithAccess = (access: EventAccess[]) => ({
+    ...event,
+    eventAccesses: access,
   });
 
   const files: UploadFileDto[] = [
@@ -86,9 +77,9 @@ describe("PhotosService", () => {
 
   const buildPhoto = (photoId: string, overrides: Partial<Photo> = {}): Photo => ({
     id: photoId,
-    galleryId,
+    eventId,
     addedById: callerId,
-    s3Key: `photos/${galleryId}/${photoId}`,
+    s3Key: `photos/${eventId}/${photoId}`,
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "PENDING",
@@ -123,35 +114,35 @@ describe("PhotosService", () => {
   });
 
   describe("createUploadSlots", () => {
-    it("throws NotFoundException when the gallery does not exist", async () => {
+    it("throws NotFoundException when the event does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(null);
+      prisma.event.findUnique.mockResolvedValue(null);
 
-      await expect(service.createUploadSlots(galleryId, callerId, files)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
-    it("throws ForbiddenException when the caller is not a member of the parent event", async () => {
+    it("throws ForbiddenException when the caller is not a member of the event", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([]) as never);
 
-      await expect(service.createUploadSlots(galleryId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
     it("throws ForbiddenException when the caller is a viewer", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
-      await expect(service.createUploadSlots(galleryId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
     it("denies access when the caller has not completed onboarding", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithoutDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("ORGANIZER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
 
-      await expect(service.createUploadSlots(galleryId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
@@ -159,22 +150,22 @@ describe("PhotosService", () => {
       "creates PENDING rows and returns presigned slots for a %s",
       async (accessLevel) => {
         prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-        prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess(accessLevel)]) as never);
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess(accessLevel)]) as never);
         prisma.photo.createMany.mockResolvedValue({ count: files.length });
 
-        const slots = await service.createUploadSlots(galleryId, callerId, files);
+        const slots = await service.createUploadSlots(eventId, callerId, files);
 
         expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
         const { data } = prisma.photo.createMany.mock.calls[0][0] as { data: Record<string, unknown>[] };
         expect(data).toHaveLength(files.length);
         for (const [index, row] of data.entries()) {
           expect(row).toMatchObject({
-            galleryId,
+            eventId,
             addedById: callerId,
             contentType: files[index].contentType,
             sizeBytes: files[index].sizeBytes,
             status: "PENDING",
-            s3Key: `photos/${galleryId}/${row.id as string}`,
+            s3Key: `photos/${eventId}/${row.id as string}`,
           });
         }
 
@@ -195,28 +186,28 @@ describe("PhotosService", () => {
     const photoId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
     const otherPhotoId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
 
-    it("throws NotFoundException when the gallery does not exist", async () => {
+    it("throws NotFoundException when the event does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(null);
+      prisma.event.findUnique.mockResolvedValue(null);
 
-      await expect(service.confirmUploads(galleryId, callerId, [photoId])).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.confirmUploads(eventId, callerId, [photoId])).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
     it("throws ForbiddenException when the caller is a viewer", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
-      await expect(service.confirmUploads(galleryId, callerId, [photoId])).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.confirmUploads(eventId, callerId, [photoId])).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
-    it("reports NOT_FOUND for photo ids that are not in the gallery", async () => {
+    it("reports NOT_FOUND for photo ids that are not in the event", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([]);
 
-      const results = await service.confirmUploads(galleryId, callerId, [photoId]);
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
       expect(results).toEqual([{ photoId, status: "NOT_FOUND" }]);
       expect(s3Service.headObject).not.toHaveBeenCalled();
@@ -225,10 +216,10 @@ describe("PhotosService", () => {
 
     it("reports READY without re-verifying photos that are already READY", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId, { status: "READY" })]);
 
-      const results = await service.confirmUploads(galleryId, callerId, [photoId]);
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
       expect(results).toEqual([{ photoId, status: "READY" }]);
       expect(s3Service.headObject).not.toHaveBeenCalled();
@@ -237,11 +228,11 @@ describe("PhotosService", () => {
 
     it("reports MISSING when the object is not in S3 and leaves the row PENDING", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: false });
 
-      const results = await service.confirmUploads(galleryId, callerId, [photoId]);
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
       expect(results).toEqual([{ photoId, status: "MISSING" }]);
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
@@ -252,11 +243,11 @@ describe("PhotosService", () => {
       ["sizeBytes", { contentType: "image/jpeg", sizeBytes: 999 }],
     ])("reports MISMATCHED when the uploaded object differs in %s", async (_field, head) => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, ...head });
 
-      const results = await service.confirmUploads(galleryId, callerId, [photoId]);
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
       expect(results).toEqual([{ photoId, status: "MISMATCHED" }]);
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
@@ -264,20 +255,20 @@ describe("PhotosService", () => {
 
     it("flips verified photos to READY and reports per-photo results for a mixed batch", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId), buildPhoto(otherPhotoId)]);
       s3Service.headObject
         .mockResolvedValueOnce({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 })
         .mockResolvedValueOnce({ exists: false });
       prisma.photo.updateMany.mockResolvedValue({ count: 1 });
 
-      const results = await service.confirmUploads(galleryId, callerId, [photoId, otherPhotoId]);
+      const results = await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
 
       expect(results).toEqual([
         { photoId, status: "READY" },
         { photoId: otherPhotoId, status: "MISSING" },
       ]);
-      expect(s3Service.headObject).toHaveBeenCalledWith(`photos/${galleryId}/${photoId}`);
+      expect(s3Service.headObject).toHaveBeenCalledWith(`photos/${eventId}/${photoId}`);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [photoId] } },
         data: { status: "READY" },
@@ -286,12 +277,12 @@ describe("PhotosService", () => {
 
     it("deduplicates repeated photo ids in the request", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
       prisma.photo.updateMany.mockResolvedValue({ count: 1 });
 
-      const results = await service.confirmUploads(galleryId, callerId, [photoId, photoId]);
+      const results = await service.confirmUploads(eventId, callerId, [photoId, photoId]);
 
       expect(results).toEqual([{ photoId, status: "READY" }]);
       expect(s3Service.headObject).toHaveBeenCalledTimes(1);
@@ -304,29 +295,29 @@ describe("PhotosService", () => {
         buildPhoto(`dddddddd-dddd-dddd-dddd-${String(index).padStart(12, "0")}`, { status: "READY" }),
       );
 
-    it("throws NotFoundException when the gallery does not exist", async () => {
+    it("throws NotFoundException when the event does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(null);
+      prisma.event.findUnique.mockResolvedValue(null);
 
-      await expect(service.listPhotos(galleryId, callerId, {})).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.listPhotos(eventId, callerId, {})).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
-    it("throws ForbiddenException when the caller is not a member of the parent event", async () => {
+    it("throws ForbiddenException when the caller is not a member of the event", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([]) as never);
 
-      await expect(service.listPhotos(galleryId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.listPhotos(eventId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
     it("returns photos with presigned download URLs for a viewer", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
       const photos = readyPhotos(2);
       prisma.photo.findMany.mockResolvedValue(photos);
 
-      const page = await service.listPhotos(galleryId, callerId, {});
+      const page = await service.listPhotos(eventId, callerId, {});
 
       expect(page.items).toEqual(photos.map((photo) => ({ ...photo, url: "https://signed-get" })));
       expect(page.nextCursor).toBeNull();
@@ -338,14 +329,14 @@ describe("PhotosService", () => {
 
     it("queries only READY photos newest first with the default page size", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
       prisma.photo.findMany.mockResolvedValue([]);
 
-      await service.listPhotos(galleryId, callerId, {});
+      await service.listPhotos(eventId, callerId, {});
 
       expect(prisma.photo.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { AND: [{ galleryId, status: "READY" }, expect.anything()] },
+          where: { AND: [{ eventId, status: "READY" }, expect.anything()] },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 51,
         }),
@@ -354,11 +345,11 @@ describe("PhotosService", () => {
 
     it("returns a nextCursor when more photos exist and trims the page to the limit", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
       const photos = readyPhotos(3);
       prisma.photo.findMany.mockResolvedValue(photos);
 
-      const page = await service.listPhotos(galleryId, callerId, { limit: 2 });
+      const page = await service.listPhotos(eventId, callerId, { limit: 2 });
 
       expect(page.items).toHaveLength(2);
       expect(page.nextCursor).toBe(photos[1].id);
@@ -367,11 +358,11 @@ describe("PhotosService", () => {
 
     it("passes the cursor to Prisma keyset pagination, skipping the cursor row", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
       prisma.photo.findMany.mockResolvedValue([]);
       const cursor = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
 
-      await service.listPhotos(galleryId, callerId, { cursor, limit: 10 });
+      await service.listPhotos(eventId, callerId, { cursor, limit: 10 });
 
       expect(prisma.photo.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ cursor: { id: cursor }, skip: 1, take: 11 }),
@@ -380,18 +371,18 @@ describe("PhotosService", () => {
 
     it("denies access when the caller has not completed onboarding", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithoutDetails);
-      prisma.gallery.findUnique.mockResolvedValue(galleryWithEvent([callerAccess("VIEWER")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
-      await expect(service.listPhotos(galleryId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.listPhotos(eventId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 
   describe("findOne", () => {
     const photoId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
-    const photoWithGallery = (access: EventAccess[], overrides: Partial<Photo> = {}) => ({
+    const photoWithEvent = (access: EventAccess[], overrides: Partial<Photo> = {}) => ({
       ...buildPhoto(photoId, { status: "READY", ...overrides }),
-      gallery: { ...gallery, event: { ...event, eventAccesses: access } },
+      event: { ...event, eventAccesses: access },
     });
 
     it("throws NotFoundException when the photo does not exist", async () => {
@@ -404,7 +395,7 @@ describe("PhotosService", () => {
     it("throws NotFoundException for photos that are not READY", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(
-        photoWithGallery([callerAccess("ORGANIZER")], {
+        photoWithEvent([callerAccess("ORGANIZER")], {
           status: "PENDING",
         }) as never,
       );
@@ -413,23 +404,23 @@ describe("PhotosService", () => {
       expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
     });
 
-    it("throws ForbiddenException when the caller is not a member of the parent event", async () => {
+    it("throws ForbiddenException when the caller is not a member of the event", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.photo.findUnique.mockResolvedValue(photoWithGallery([]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([]) as never);
 
       await expect(service.findOne(photoId, callerId)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it("returns the photo with a presigned download URL for a viewer", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.photo.findUnique.mockResolvedValue(photoWithGallery([callerAccess("VIEWER")]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("VIEWER")]) as never);
 
       const result = await service.findOne(photoId, callerId);
 
       expect(result).toEqual({ ...buildPhoto(photoId, { status: "READY" }), url: "https://signed-get" });
-      expect(result).not.toHaveProperty("gallery");
+      expect(result).not.toHaveProperty("event");
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
-        key: `photos/${galleryId}/${photoId}`,
+        key: `photos/${eventId}/${photoId}`,
         expiresInSeconds: 900,
       });
     });
@@ -438,9 +429,9 @@ describe("PhotosService", () => {
   describe("deletePhoto", () => {
     const photoId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
-    const photoWithGallery = (access: EventAccess[], overrides: Partial<Photo> = {}) => ({
+    const photoWithEvent = (access: EventAccess[], overrides: Partial<Photo> = {}) => ({
       ...buildPhoto(photoId, { status: "READY", ...overrides }),
-      gallery: { ...gallery, event: { ...event, eventAccesses: access } },
+      event: { ...event, eventAccesses: access },
     });
 
     it("throws NotFoundException when the photo does not exist", async () => {
@@ -454,7 +445,7 @@ describe("PhotosService", () => {
     it("throws ForbiddenException when a participant deletes someone else's photo", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(
-        photoWithGallery([callerAccess("PARTICIPANT")], {
+        photoWithEvent([callerAccess("PARTICIPANT")], {
           addedById: "22222222-2222-2222-2222-222222222222",
         }) as never,
       );
@@ -467,14 +458,14 @@ describe("PhotosService", () => {
     it("lets an organizer delete any photo, removing the S3 object before the row", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(
-        photoWithGallery([callerAccess("ORGANIZER")], {
+        photoWithEvent([callerAccess("ORGANIZER")], {
           addedById: "22222222-2222-2222-2222-222222222222",
         }) as never,
       );
 
       await service.deletePhoto(photoId, callerId);
 
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(`photos/${galleryId}/${photoId}`);
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(`photos/${eventId}/${photoId}`);
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
       expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.delete.mock.invocationCallOrder[0],
@@ -483,7 +474,7 @@ describe("PhotosService", () => {
 
     it("lets an uploader delete their own photo", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.photo.findUnique.mockResolvedValue(photoWithGallery([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("PARTICIPANT")]) as never);
 
       await service.deletePhoto(photoId, callerId);
 
@@ -492,7 +483,7 @@ describe("PhotosService", () => {
 
     it("keeps the row when the S3 delete fails so the operation can be retried", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.photo.findUnique.mockResolvedValue(photoWithGallery([callerAccess("ORGANIZER")]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);
       s3Service.deleteObject.mockRejectedValueOnce(new Error("s3 down"));
 
       await expect(service.deletePhoto(photoId, callerId)).rejects.toBeInstanceOf(Error);

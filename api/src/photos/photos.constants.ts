@@ -23,7 +23,7 @@ export const DEFAULT_PHOTO_PAGE_SIZE = 50;
 
 export const MAX_PHOTO_PAGE_SIZE = 100;
 
-export const buildPhotoS3Key = (galleryId: string, photoId: string): string => `photos/${galleryId}/${photoId}`;
+export const buildPhotoS3Key = (eventId: string, photoId: string): string => `photos/${eventId}/${photoId}`;
 
 // Per-photo outcome of a confirm call. Only READY mutates the row; the rest
 // report why verification failed so the client can retry or re-upload.
@@ -38,8 +38,9 @@ export type ConfirmPhotoStatus = (typeof CONFIRM_PHOTO_STATUSES)[keyof typeof CO
 
 export const PHOTO_SERVICE_ERRORS = {
   NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(photoEntity, "ID", id),
-  CREATE_FORBIDDEN: (galleryId: string) => `Not authorized to upload photos to gallery with ID "${galleryId}"`,
-  CONFIRM_FORBIDDEN: (galleryId: string) => `Not authorized to confirm photo uploads in gallery with ID "${galleryId}"`,
+  CREATE_FORBIDDEN: (eventId: string) => `Not authorized to upload photos to event with ID "${eventId}"`,
+  CONFIRM_FORBIDDEN: (eventId: string) => `Not authorized to confirm photo uploads in event with ID "${eventId}"`,
+  LIST_FORBIDDEN: (eventId: string) => `Not authorized to list photos of event with ID "${eventId}"`,
   READ_FORBIDDEN: (photoId: string) => `Not authorized to read photo with ID "${photoId}"`,
   DELETE_FORBIDDEN: (photoId: string) => `Not authorized to delete photo with ID "${photoId}"`,
 };

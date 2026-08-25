@@ -1,32 +1,34 @@
 # Photos — Architecture & v1 Plan
 
-A gallery has many photos. Photos live in S3; metadata lives in Postgres. The API never proxies image bytes — clients talk to S3 directly using short-lived presigned URLs.
+An event has many photos. Photos live in S3; metadata lives in Postgres. The API never proxies image bytes — clients talk to S3 directly using short-lived presigned URLs.
+
+> **2026-08-25:** the intermediate Gallery layer was removed — photos attach directly to events. Paths, schema, and permissions below reflect the current event-scoped design.
 
 ---
 
 ## 1. Uploading (naive walkthrough)
 
-**Goal:** user picks N photos from their phone, they end up safely in S3 and visible in the gallery, even if they background the app.
+**Goal:** user picks N photos from their phone, they end up safely in S3 and visible in the event, even if they background the app.
 
 ### Steps
 
 1. **Mobile asks API for upload slots.**
-   `POST /galleries/:galleryId/photos/upload-urls` with the list of files (just `contentType` and `sizeBytes` per file — not the bytes).
+   `POST /events/:eventId/photos/upload-urls` with the list of files (just `contentType` and `sizeBytes` per file — not the bytes).
 2. **API mints slots.**
    For each file, API:
    - validates contentType allowlist + size cap
-   - generates a `photoId` (uuid) and `s3Key = photos/{galleryId}/{photoId}`
+   - generates a `photoId` (uuid) and `s3Key = photos/{eventId}/{photoId}`
    - inserts a `Photo` row with `status: PENDING`
    - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular)
 3. **API responds** with `[{ photoId, uploadUrl }, ...]`.
 4. **Mobile uploads bytes directly to S3.**
    Uses the OS background uploader (iOS `URLSession` background config, Android `WorkManager`). Each PUT goes straight to S3 — API is not involved. Survives app being backgrounded or killed.
 5. **Mobile calls confirm when uploads finish.**
-   `POST /galleries/:galleryId/photos/confirm` with `{ photoIds: [...] }`.
+   `POST /events/:eventId/photos/confirm` with `{ photoIds: [...] }`.
 6. **API verifies each photo with S3 `HeadObject`.**
    - object exists + size/contentType match → flip row to `READY`
    - missing or mismatched → leave `PENDING` (will be swept) or mark `FAILED`
-7. **Done.** Photo shows up in the gallery on the next list call.
+7. **Done.** Photo shows up in the event on the next list call.
 
 ### Why presigned URLs
 
@@ -38,13 +40,13 @@ We create the row *before* the upload happens (so we have a `photoId` to sign ag
 
 ---
 
-## 2. Previewing the gallery (pagination)
+## 2. Previewing an event's photos (pagination)
 
-**Goal:** user opens a gallery, sees a grid of photos, scrolls through hundreds without dying.
+**Goal:** user opens an event, sees a grid of photos, scrolls through hundreds without dying.
 
 ### Endpoint
 
-`GET /galleries/:galleryId/photos?cursor=<id>&limit=50`
+`GET /events/:eventId/photos?cursor=<id>&limit=50`
 
 - **Cursor-based pagination** (not offset). Cursor is the `createdAt` + `id` of the last photo returned. Cheaper than `OFFSET N` at large N, and stable when new photos are added mid-scroll.
 - **Filters to `status = READY`** automatically. Pending/failed photos are invisible.
@@ -103,15 +105,15 @@ Out of scope for v1. The cold-load hit is acceptable for now.
 ```prisma
 model Photo {
   id          String      @id @default(uuid())
-  galleryId   String
-  gallery     Gallery     @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   s3Key       String      @unique
   contentType String
   sizeBytes   Int
   status      PhotoStatus @default(PENDING)
   createdAt   DateTime    @default(now())
 
-  @@index([galleryId, status, createdAt])
+  @@index([eventId, status, createdAt])
 }
 
 enum PhotoStatus {
@@ -120,7 +122,7 @@ enum PhotoStatus {
 }
 ```
 
-Composite index supports the paginated list query (`WHERE galleryId = ? AND status = 'READY' ORDER BY createdAt DESC`).
+Composite index supports the paginated list query (`WHERE eventId = ? AND status = 'READY' ORDER BY createdAt DESC`).
 
 ---
 
@@ -128,7 +130,7 @@ Composite index supports the paginated list query (`WHERE galleryId = ? AND stat
 
 `DELETE /photos/:photoId`
 
-1. Verify caller can edit the parent gallery (CASL).
+1. Verify caller can delete the photo (CASL: organizer any, uploader own).
 2. Delete S3 object.
 3. Delete DB row.
 
@@ -144,7 +146,7 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 | Client confirms without uploading | `HeadObject` returns 404 → confirm reports MISSING for that photoId. |
 | Wrong contentType / oversize file | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm. |
 | Upload completes but confirm response lost | Confirm is idempotent — already-READY photoIds return READY again. |
-| Gallery deleted with pending uploads | `onDelete: Cascade` removes rows. S3 objects orphaned (cleanup later). |
+| Event deleted with pending uploads | `onDelete: Cascade` removes rows. S3 objects orphaned (cleanup later). |
 | App killed mid-upload | OS background uploader resumes. Presigned URL TTL is 1h to give it room. |
 | Two devices upload simultaneously | Each has its own photoId. No conflict. |
 | Presigned URL leaked | TTL 1h, limited to one specific key + contentType. Worst case: attacker uploads junk to one key. |
@@ -161,7 +163,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 - **Async processing queue** (SQS) for any post-upload work (EXIF strip, virus scan, ML tagging).
 - **S3 lifecycle rule** to auto-delete `pending/*` keys after 24h. One-time bucket config, no code. (Could ship as part of v1 if we add a `pending/` prefix.)
 - **Idempotency keys** on `/upload-urls` so retried requests don't mint duplicate rows.
-- **Per-gallery quota** checks (count and total bytes) before issuing upload slots.
+- **Per-event quota** checks (count and total bytes) before issuing upload slots.
 - **Rate limiting** on `/upload-urls` to prevent abuse.
 
 ### Reads / performance
@@ -186,12 +188,12 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 In order of implementation:
 
 - [x] **Prisma schema** — add `Photo` model + `PhotoStatus` enum + composite index. Generate migration. (Reshaped the pre-existing `Photo` model; kept `addedById` for attribution and delete-own-photo rules.)
-- [x] **CASL** — register `Photo` subject. Permissions inherit from parent `Gallery` (can manage gallery → can manage its photos). (Read: any member. Create: organizer + participant. Delete: organizer any, uploader own.)
+- [x] **CASL** — register `Photo` subject. Permissions derive from the parent `Event`'s access levels. (Read: any member. Create: organizer + participant. Delete: organizer any, uploader own.)
 - [x] **`S3Service.headObject`** — existence + size/contentType lookup used by confirm. (Prerequisite discovered during implementation.)
-- [x] **Photos module skeleton** — `photos.module.ts`, `photos.service.ts`, `photos.controller.ts`, DTOs. Mirror the existing `galleries` module shape.
-- [x] **`POST /galleries/:galleryId/photos/upload-urls`** — batch mint presigned PUT URLs (1h TTL), create PENDING rows in one transaction. Enforce contentType allowlist + max size + max batch size.
-- [x] **`POST /galleries/:galleryId/photos/confirm`** — batch HeadObject verify, flip to READY, return per-photoId result (`READY` / `MISSING` / `MISMATCHED` / `NOT_FOUND`).
-- [x] **`GET /galleries/:galleryId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
+- [x] **Photos module skeleton** — `photos.module.ts`, `photos.service.ts`, `photos.controller.ts`, DTOs. Mirror the existing `events` module shape.
+- [x] **`POST /events/:eventId/photos/upload-urls`** — batch mint presigned PUT URLs (1h TTL), create PENDING rows in one transaction. Enforce contentType allowlist + max size + max batch size.
+- [x] **`POST /events/:eventId/photos/confirm`** — batch HeadObject verify, flip to READY, return per-photoId result (`READY` / `MISSING` / `MISMATCHED` / `NOT_FOUND`).
+- [x] **`GET /events/:eventId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
 - [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
@@ -202,7 +204,7 @@ In order of implementation:
 ### Out of scope for v1 (tracked as future work)
 - Cleanup sweeper for PENDING rows
 - Idempotency keys
-- Per-gallery quotas
+- Per-event quotas
 - Thumbnails
 - CloudFront
 - S3 Event-driven confirm

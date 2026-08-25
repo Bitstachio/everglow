@@ -17,19 +17,15 @@ export const definePhotoAbilities = (can: AbilityBuilder<AppAbility>["can"], use
 
   // Viewers can read photos.
   can(PHOTO_ACTIONS.READ, PHOTO_SUBJECT, {
-    gallery: { is: { event: { is: { eventAccesses: { some: { userId: user.id } } } } } },
+    event: { is: { eventAccesses: { some: { userId: user.id } } } },
   });
 
   // Organizers and participants can upload photos.
   can(PHOTO_ACTIONS.CREATE, PHOTO_SUBJECT, {
-    gallery: {
+    event: {
       is: {
-        event: {
-          is: {
-            eventAccesses: {
-              some: { userId: user.id, accessLevel: { in: [AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT] } },
-            },
-          },
+        eventAccesses: {
+          some: { userId: user.id, accessLevel: { in: [AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT] } },
         },
       },
     },
@@ -37,14 +33,12 @@ export const definePhotoAbilities = (can: AbilityBuilder<AppAbility>["can"], use
 
   // Organizers can delete photos.
   can(PHOTO_ACTIONS.DELETE, PHOTO_SUBJECT, {
-    gallery: {
-      is: { event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } } },
-    },
+    event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } },
   });
 
   // Participants can delete their own photos, as long as they are still event members.
   can(PHOTO_ACTIONS.DELETE, PHOTO_SUBJECT, {
     addedById: user.id,
-    gallery: { is: { event: { is: { eventAccesses: { some: { userId: user.id } } } } } },
+    event: { is: { eventAccesses: { some: { userId: user.id } } } },
   });
 };

@@ -7,7 +7,6 @@ describe("definePhotoAbilities", () => {
   const userId = "11111111-1111-1111-1111-111111111111";
   const otherUserId = "22222222-2222-2222-2222-222222222222";
   const eventId = "66666666-6666-6666-6666-666666666666";
-  const galleryId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
   const photoId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
   const createAbilityForUser = (user: AbilityUserContext): AppAbility => {
@@ -22,15 +21,11 @@ describe("definePhotoAbilities", () => {
   ) =>
     subject(PHOTO_SUBJECT, {
       id: photoId,
-      galleryId,
+      eventId,
       addedById,
-      gallery: {
-        id: galleryId,
-        eventId,
-        event: {
-          id: eventId,
-          eventAccesses: [{ userId: accessUserId, accessLevel }],
-        },
+      event: {
+        id: eventId,
+        eventAccesses: [{ userId: accessUserId, accessLevel }],
       },
     } as never);
 
@@ -82,7 +77,7 @@ describe("definePhotoAbilities", () => {
   });
 
   describe("delete", () => {
-    it("allows organizers to delete any photo in the gallery", () => {
+    it("allows organizers to delete any photo in the event", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
       expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("ORGANIZER", { addedById: otherUserId }))).toBe(true);

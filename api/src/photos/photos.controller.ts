@@ -34,37 +34,37 @@ import { PhotosService } from "./photos.service";
 export class PhotosController {
   constructor(private readonly photosService: PhotosService) {}
 
-  @Post("galleries/:galleryId/photos/upload-urls")
+  @Post("events/:eventId/photos/upload-urls")
   @ApiOperation({ summary: "Mint presigned upload URLs for a batch of photos" })
   @ApiWrappedResponse(UploadSlotResponseDto, "Upload slots with presigned S3 PUT URLs", 201)
   async createUploadUrls(
     @CurrentUser() user: AuthenticatedUser,
-    @Param("galleryId", ParseUUIDPipe) galleryId: string,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
     @Body() dto: CreateUploadUrlsDto,
   ): Promise<UploadSlotResponseDto[]> {
-    return this.photosService.createUploadSlots(galleryId, user.id, dto.files);
+    return this.photosService.createUploadSlots(eventId, user.id, dto.files);
   }
 
-  @Post("galleries/:galleryId/photos/confirm")
+  @Post("events/:eventId/photos/confirm")
   @ApiOperation({ summary: "Confirm uploaded photos and mark them ready" })
   @ApiWrappedResponse(ConfirmPhotoResultDto, "Per-photo verification result", 201)
   async confirmUploads(
     @CurrentUser() user: AuthenticatedUser,
-    @Param("galleryId", ParseUUIDPipe) galleryId: string,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
     @Body() dto: ConfirmUploadsDto,
   ): Promise<ConfirmPhotoResultDto[]> {
-    return this.photosService.confirmUploads(galleryId, user.id, dto.photoIds);
+    return this.photosService.confirmUploads(eventId, user.id, dto.photoIds);
   }
 
-  @Get("galleries/:galleryId/photos")
-  @ApiOperation({ summary: "List ready photos in a gallery (cursor-paginated)" })
+  @Get("events/:eventId/photos")
+  @ApiOperation({ summary: "List ready photos in an event (cursor-paginated)" })
   @ApiWrappedResponse(PhotoListResponseDto, "Photos with presigned download URLs, newest first")
   async listPhotos(
     @CurrentUser() user: AuthenticatedUser,
-    @Param("galleryId", ParseUUIDPipe) galleryId: string,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
     @Query() query: ListPhotosQueryDto,
   ): Promise<PhotoListResponseDto> {
-    const page = await this.photosService.listPhotos(galleryId, user.id, query);
+    const page = await this.photosService.listPhotos(eventId, user.id, query);
     return PhotoMapper.toListResponseDto(page.items, page.nextCursor);
   }
 
