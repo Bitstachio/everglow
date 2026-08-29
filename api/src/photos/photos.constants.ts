@@ -23,7 +23,8 @@ export const DEFAULT_PHOTO_PAGE_SIZE = 50;
 
 export const MAX_PHOTO_PAGE_SIZE = 100;
 
-export const buildPhotoS3Key = (eventId: string, photoId: string): string => `photos/${eventId}/${photoId}`;
+export const buildPhotoS3Key = (userId: string, eventId: string, photoId: string): string =>
+  `photos/${userId}/${eventId}/${photoId}`;
 
 // Per-photo outcome of a confirm call. Only READY mutates the row; the rest
 // report why verification failed so the client can retry or re-upload.

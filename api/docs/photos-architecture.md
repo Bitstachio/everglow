@@ -17,7 +17,7 @@ An event has many photos. Photos live in S3; metadata lives in Postgres. The API
 2. **API mints slots.**
    For each file, API:
    - validates contentType allowlist + size cap
-   - generates a `photoId` (uuid) and `s3Key = photos/{eventId}/{photoId}`
+   - generates a `photoId` (uuid) and `s3Key = photos/{userId}/{eventId}/{photoId}` (one bucket, one prefix per uploader)
    - inserts a `Photo` row with `status: PENDING`
    - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular)
 3. **API responds** with `[{ photoId, uploadUrl }, ...]`.
@@ -33,6 +33,16 @@ An event has many photos. Photos live in S3; metadata lives in Postgres. The API
 ### Why presigned URLs
 
 The client uploads straight to S3 without our API ever seeing the bytes. No bandwidth cost on the API. No memory pressure. Scales to any file size. The URL is cryptographically tied to one specific bucket + key + contentType, so it can't be repurposed.
+
+### S3 key layout
+
+One shared bucket per environment (`everglow-photos-dev`, etc.). Objects are grouped by uploader:
+
+```
+photos/{userId}/{eventId}/{photoId}
+```
+
+`userId` is the uploader's `addedById`. This keeps each user's objects under one prefix (useful for account deletion sweeps and future per-user lifecycle rules) while events remain the domain boundary in the API. The `s3Key` is stored on the `Photo` row at slot creation and never changes.
 
 ### Why a PENDING/READY status
 

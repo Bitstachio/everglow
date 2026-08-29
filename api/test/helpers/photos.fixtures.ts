@@ -1,4 +1,5 @@
 import { Photo, PhotoStatus } from "generated/prisma/client";
+import { buildPhotoS3Key } from "src/photos/photos.constants";
 import { TEST_EVENT_ID } from "./events.fixtures";
 import { TEST_NOW, TEST_USER_ID } from "./users.fixtures";
 
@@ -11,7 +12,7 @@ export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
   id: TEST_PHOTO_ID,
   eventId: TEST_EVENT_ID,
   addedById: TEST_USER_ID,
-  s3Key: `photos/${TEST_EVENT_ID}/${TEST_PHOTO_ID}`,
+  s3Key: buildPhotoS3Key(TEST_USER_ID, TEST_EVENT_ID, TEST_PHOTO_ID),
   contentType: "image/jpeg",
   sizeBytes: 1024,
   status: PhotoStatus.READY,

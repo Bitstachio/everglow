@@ -1,3 +1,4 @@
+import { buildPhotoS3Key } from "src/photos/photos.constants";
 import { PhotoMapper, PhotoWithUrl } from "./photo.mapper";
 
 describe("PhotoMapper", () => {
@@ -7,7 +8,11 @@ describe("PhotoMapper", () => {
     id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     eventId: "66666666-6666-6666-6666-666666666666",
     addedById: "11111111-1111-1111-1111-111111111111",
-    s3Key: "photos/66666666-6666-6666-6666-666666666666/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    s3Key: buildPhotoS3Key(
+      "11111111-1111-1111-1111-111111111111",
+      "66666666-6666-6666-6666-666666666666",
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    ),
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "READY",

@@ -8,7 +8,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
-import { UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
+import { buildPhotoS3Key, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
 import { PhotosService } from "./photos.service";
 
 describe("PhotosService", () => {
@@ -79,7 +79,7 @@ describe("PhotosService", () => {
     id: photoId,
     eventId,
     addedById: callerId,
-    s3Key: `photos/${eventId}/${photoId}`,
+    s3Key: buildPhotoS3Key(callerId, eventId, photoId),
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "PENDING",
@@ -165,7 +165,7 @@ describe("PhotosService", () => {
             contentType: files[index].contentType,
             sizeBytes: files[index].sizeBytes,
             status: "PENDING",
-            s3Key: `photos/${eventId}/${row.id as string}`,
+            s3Key: buildPhotoS3Key(callerId, eventId, row.id as string),
           });
         }
 
@@ -268,7 +268,7 @@ describe("PhotosService", () => {
         { photoId, status: "READY" },
         { photoId: otherPhotoId, status: "MISSING" },
       ]);
-      expect(s3Service.headObject).toHaveBeenCalledWith(`photos/${eventId}/${photoId}`);
+      expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [photoId] } },
         data: { status: "READY" },
@@ -420,7 +420,7 @@ describe("PhotosService", () => {
       expect(result).toEqual({ ...buildPhoto(photoId, { status: "READY" }), url: "https://signed-get" });
       expect(result).not.toHaveProperty("event");
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
-        key: `photos/${eventId}/${photoId}`,
+        key: buildPhotoS3Key(callerId, eventId, photoId),
         expiresInSeconds: 900,
       });
     });
@@ -465,7 +465,7 @@ describe("PhotosService", () => {
 
       await service.deletePhoto(photoId, callerId);
 
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(`photos/${eventId}/${photoId}`);
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, photoId));
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
       expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.delete.mock.invocationCallOrder[0],
