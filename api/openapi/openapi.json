@@ -1082,11 +1082,37 @@
       },
       "CreateUserDetailsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe",
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
       },
       "UpdateUserDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe",
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "maxLength": 255
+          }
+        }
       },
       "EventResponseDto": {
         "type": "object",

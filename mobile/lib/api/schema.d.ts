@@ -294,8 +294,18 @@ export interface components {
       /** @example /api/v2/auth/signin */
       path: string;
     };
-    CreateUserDetailsDto: Record<string, never>;
-    UpdateUserDto: Record<string, never>;
+    CreateUserDetailsDto: {
+      /** @example Jane Doe */
+      name: string;
+      /** @example user@example.com */
+      email: string;
+    };
+    UpdateUserDto: {
+      /** @example Jane Doe */
+      name?: string;
+      /** @example user@example.com */
+      email?: string;
+    };
     EventResponseDto: {
       /** Format: uuid */
       id: string;

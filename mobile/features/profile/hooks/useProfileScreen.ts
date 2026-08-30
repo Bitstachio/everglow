@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Alert } from "react-native";
 import { useAuth } from "@/context/auth-context";
 import { deleteProfile, updateProfile } from "@/features/profile/api/profile.api";
-import type { UpdateProfileData } from "@/features/profile/types";
+import type { UpdateUserDto } from "@/features/profile/types";
+import { getErrorMessage } from "@/lib/api/errors";
 
 type EditProfileForm = {
   name: string;
@@ -43,7 +44,7 @@ export const useProfileScreen = () => {
   const handleUpdateProfile = async () => {
     try {
       setIsSubmitting(true);
-      const data: UpdateProfileData = {};
+      const data: UpdateUserDto = {};
 
       if (editForm.name !== user?.details?.name) data.name = editForm.name;
       if (editForm.email !== user?.details?.email) data.email = editForm.email;
@@ -58,8 +59,7 @@ export const useProfileScreen = () => {
       setShowEditModal(false);
       Alert.alert("Success", "Profile updated successfully");
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to update profile";
-      Alert.alert("Error", message);
+      Alert.alert("Error", getErrorMessage(error, "Failed to update profile"));
     } finally {
       setIsSubmitting(false);
     }
@@ -77,8 +77,7 @@ export const useProfileScreen = () => {
             await logout();
             Alert.alert("Success", "Account deleted successfully");
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : "Failed to delete account";
-            Alert.alert("Error", message);
+            Alert.alert("Error", getErrorMessage(error, "Failed to delete account"));
           }
         },
       },

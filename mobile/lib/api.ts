@@ -1,4 +1,5 @@
 import axios from "axios";
+import { toApiError } from "@/lib/api/errors";
 import { getAccessToken } from "./auth0";
 
 const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
@@ -43,7 +44,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       onUnauthorized?.();
     }
-    return Promise.reject(error);
+    return Promise.reject(toApiError(error));
   },
 );
 
