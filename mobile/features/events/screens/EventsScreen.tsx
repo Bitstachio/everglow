@@ -129,7 +129,7 @@ const EventsScreen = () => {
           isLoading={isLoading}
           events={events}
           onEventShare={handleEventShare}
-          currentUserId={user?.id ? parseInt(user.id) : undefined}
+          currentUserId={user?.id}
         />
       </ScrollView>
 

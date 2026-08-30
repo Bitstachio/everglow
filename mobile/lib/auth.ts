@@ -1,33 +1,15 @@
-import api from "./api";
+import { usersControllerCompleteOnboarding, usersControllerFindMe } from "@/lib/api/generated";
+import type { CreateUserDetailsDto, UserResponseDto } from "@/lib/api/generated";
+import { unwrapEnvelope } from "@/lib/api/envelope";
 
-export interface UserDetails {
-  name: string;
-  email: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Mirrors the backend UserResponseDto (api/src/users/dto/user-response.dto.ts).
-// A freshly provisioned Auth0 user has `isOnboarded: false` and `details: null`
-// until they complete onboarding.
-export interface User {
-  id: string;
-  isOnboarded: boolean;
-  details: UserDetails | null;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface OnboardingData {
-  name: string;
-  email: string;
-}
+export type User = UserResponseDto;
+export type OnboardingData = CreateUserDetailsDto;
 
 class AuthService {
   async getUserProfile(): Promise<User | null> {
     try {
-      const response = await api.get("/users/me");
-      return response.data.data;
+      const { data } = await usersControllerFindMe({ throwOnError: true });
+      return unwrapEnvelope(data);
     } catch (error) {
       console.error("Get user profile error:", error);
       return null;
@@ -35,22 +17,8 @@ class AuthService {
   }
 
   async completeOnboarding(data: OnboardingData): Promise<User> {
-    try {
-      const response = await api.post("/users/me/onboarding", data);
-      return response.data.data;
-    } catch (error: unknown) {
-      throw this.handleError(error);
-    }
-  }
-
-  private handleError(error: any): Error {
-    if (error.response) {
-      const message = error.response.data?.message || error.response.data?.error || "An error occurred";
-      return new Error(Array.isArray(message) ? message.join(", ") : message);
-    } else if (error.request) {
-      return new Error("Network error. Please check your connection.");
-    }
-    return new Error(error?.message || "An unexpected error occurred");
+    const { data: body } = await usersControllerCompleteOnboarding({ body: data, throwOnError: true });
+    return unwrapEnvelope(body);
   }
 }
 

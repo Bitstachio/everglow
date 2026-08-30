@@ -1,15 +1,5 @@
-export type Event = {
-  id: number;
-  title: string;
-  description: string;
-  date: string;
-  invitation_url: string;
-  created_by: number;
-  created_at: string;
-  updated_at: string;
-  eventAccess?: {
-    access_level: number;
-  }[];
+import type { EventResponseDto } from "@/lib/api/generated";
+
+export type Event = EventResponseDto & {
   isJoined?: boolean;
-  userAccessLevel?: number;
 };

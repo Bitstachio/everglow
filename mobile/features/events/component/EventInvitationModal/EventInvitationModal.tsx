@@ -29,8 +29,8 @@ const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalP
   if (!event) return null;
 
   const handleCopyLink = async () => {
-    if (event.invitation_url) {
-      Clipboard.setString(event.invitation_url);
+    if (event.invitationUrl) {
+      Clipboard.setString(event.invitationUrl);
       Alert.alert("Copied!", "Invitation link copied to clipboard");
     }
   };
@@ -38,7 +38,7 @@ const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalP
   const handleShareLink = async () => {
     try {
       await Share.share({
-        message: `Join "${event.title}" via ${event.invitation_url}`,
+        message: `Join "${event.title}" via ${event.invitationUrl}`,
       });
     } catch (error) {
       console.error("Share failed:", error);
@@ -72,7 +72,7 @@ const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalP
             <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>QR Code</Text>
             <View style={styles.qrCodeWrapper}>
               <QRCode
-                value={event.invitation_url}
+                value={event.invitationUrl}
                 size={180}
                 backgroundColor={isDark ? "#1F2937" : "#FFFFFF"}
                 color={isDark ? "#F9FAFB" : "#111827"}
@@ -90,7 +90,7 @@ const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalP
               onPress={handleCopyLink}
             >
               <Text style={[styles.linkText, isDark ? styles.linkTextDark : styles.linkTextLight]} numberOfLines={1}>
-                {event.invitation_url}
+                {event.invitationUrl}
               </Text>
               <Ionicons name="copy-outline" size={20} color="#6366F1" />
             </TouchableOpacity>

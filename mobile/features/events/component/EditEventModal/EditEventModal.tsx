@@ -21,7 +21,7 @@ const EditEventModal = ({ visible, event, onClose, onSave }: EditEventModalProps
   const isDark = colorScheme === "dark";
 
   const [title, setTitle] = useState(event.title);
-  const [description, setDescription] = useState(event.description);
+  const [description, setDescription] = useState(event.description ?? "");
   const [selectedDate, setSelectedDate] = useState(new Date(event.date));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
-import type { User } from "@/lib/auth";
-import { deleteProfile, updateProfile } from "./requests";
+import { usersControllerRemoveMe, usersControllerUpdateMe } from "@/lib/api/generated";
+import { unwrapEnvelope } from "@/lib/api/envelope";
 import { profileKeys } from "./keys";
 import type { UpdateUserDto, UserResponseDto } from "../types";
 
@@ -10,9 +10,12 @@ export const useUpdateProfileMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation<UserResponseDto, Error, UpdateUserDto>({
-    mutationFn: updateProfile,
+    mutationFn: async (body) => {
+      const { data } = await usersControllerUpdateMe({ body, throwOnError: true });
+      return unwrapEnvelope(data);
+    },
     onSuccess: (user) => {
-      updateUser(user as User);
+      updateUser(user);
       queryClient.setQueryData(profileKeys.me(), user);
     },
   });
@@ -22,7 +25,9 @@ export const useDeleteProfileMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, void>({
-    mutationFn: deleteProfile,
+    mutationFn: async () => {
+      await usersControllerRemoveMe({ throwOnError: true });
+    },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: profileKeys.all });
     },
