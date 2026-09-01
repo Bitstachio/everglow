@@ -5,8 +5,8 @@ import { unwrapEnvelope } from "@/lib/api/envelope";
 export type User = UserResponseDto;
 export type OnboardingData = CreateUserDetailsDto;
 
-class AuthService {
-  async getUserProfile(): Promise<User | null> {
+export const authService = {
+  getUserProfile: async (): Promise<User | null> => {
     try {
       const { data } = await usersControllerFindMe({ throwOnError: true });
       return unwrapEnvelope(data);
@@ -14,12 +14,10 @@ class AuthService {
       console.error("Get user profile error:", error);
       return null;
     }
-  }
+  },
 
-  async completeOnboarding(data: OnboardingData): Promise<User> {
+  completeOnboarding: async (data: OnboardingData): Promise<User> => {
     const { data: body } = await usersControllerCompleteOnboarding({ body: data, throwOnError: true });
     return unwrapEnvelope(body);
-  }
-}
-
-export const authService = new AuthService();
+  },
+};

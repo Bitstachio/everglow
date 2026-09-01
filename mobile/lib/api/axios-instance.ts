@@ -8,11 +8,11 @@ export const API_BASE_URL = `${RAW_BASE_URL.replace(/\/+$/, "")}/api/v2`;
 
 let onUnauthorized: (() => void) | null = null;
 
-export function setUnauthorizedHandler(handler: (() => void) | null): void {
+export const setUnauthorizedHandler = (handler: (() => void) | null): void => {
   onUnauthorized = handler;
-}
+};
 
-export function createAxiosInstance(): AxiosInstance {
+export const createAxiosInstance = (): AxiosInstance => {
   const instance = axios.create({
     headers: {
       "Content-Type": "application/json",
@@ -42,7 +42,7 @@ export function createAxiosInstance(): AxiosInstance {
   );
 
   return instance;
-}
+};
 
 /** Host-only base URL; Hey API SDK paths already include `/api/v2`. */
 export const API_HOST_URL = RAW_BASE_URL.replace(/\/+$/, "");

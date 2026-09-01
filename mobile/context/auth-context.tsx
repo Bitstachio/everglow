@@ -33,7 +33,7 @@ const GALLERY_ROUTE = "/(tabs)/gallery" as const;
 const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -178,15 +178,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+};
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-}
+};
 
 const styles = StyleSheet.create({
   loadingContainer: {
