@@ -87,11 +87,11 @@ Place a component in `components/` when it is specific to this feature. Place it
 
 All server communication for the feature lives here. Split by concern:
 
-| File | Purpose |
-|------|---------|
-| `keys.ts` | React Query key factory for this feature |
-| `queries.ts` | `useQuery` hooks (add when the feature fetches data) |
-| `mutations.ts` | `useMutation` hooks |
+| File           | Purpose                                              |
+| -------------- | ---------------------------------------------------- |
+| `keys.ts`      | React Query key factory for this feature             |
+| `queries.ts`   | `useQuery` hooks (add when the feature fetches data) |
+| `mutations.ts` | `useMutation` hooks                                  |
 
 #### `keys.ts`
 
@@ -122,7 +122,7 @@ const { data } = await usersControllerUpdateMe({ body, throwOnError: true });
 return unwrapEnvelope(data);
 ```
 
-#### `queries.ts` (when needed)
+#### `queries.ts`
 
 Add this file when a screen fetches data with React Query instead of reading it from context or local state. Use generated `*Options` helpers from `@/lib/api/generated/@tanstack/react-query.gen` where possible, and reference keys from `keys.ts`.
 
@@ -176,13 +176,13 @@ These live outside `features/` and are used across the app.
 
 ### API client (`lib/api/`)
 
-| Path | Role |
-|------|------|
-| `generated/` | Auto-generated SDK, types, and React Query helpers. **Do not edit by hand.** Regenerate with `npm run openapi:generate`. |
-| `axios-instance.ts` | Axios instance with auth token injection and 401 handling |
-| `hey-api.config.ts` | Wires the generated client to our Axios instance |
-| `envelope.ts` | `unwrapEnvelope` for the `{ data, meta }` API response shape |
-| `errors.ts` | `toApiError` (used by the Axios interceptor) and `getErrorMessage` (for UI error messages) |
+| Path                | Role                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `generated/`        | Auto-generated SDK, types, and React Query helpers. **Do not edit by hand.** Regenerate with `npm run openapi:generate`. |
+| `axios-instance.ts` | Axios instance with auth token injection and 401 handling                                                                |
+| `hey-api.config.ts` | Wires the generated client to our Axios instance                                                                         |
+| `envelope.ts`       | `unwrapEnvelope` for the `{ data, meta }` API response shape                                                             |
+| `errors.ts`         | `toApiError` (used by the Axios interceptor) and `getErrorMessage` (for UI error messages)                               |
 
 Generated SDK functions are imported from `@/lib/api/generated`. Query key helpers and `*Options` / `*Mutation` factories are in `@/lib/api/generated/@tanstack/react-query.gen`.
 
@@ -219,13 +219,13 @@ import { getErrorMessage } from "@/lib/api/errors";
 
 ### Naming
 
-| Item | Convention | Example |
-|------|------------|---------|
-| Feature folder | kebab-case or lowercase single word | `profile`, `event-invites` |
-| Screen file | PascalCase + `Screen` | `ProfileScreen.tsx` |
-| Screen hook | `use` + screen name | `useProfileScreen` |
-| Query keys export | `<feature>Keys` | `profileKeys` |
-| Mutation hooks | `use<Action><Entity>Mutation` | `useUpdateProfileMutation` |
+| Item              | Convention                          | Example                    |
+| ----------------- | ----------------------------------- | -------------------------- |
+| Feature folder    | kebab-case or lowercase single word | `profile`, `event-invites` |
+| Screen file       | PascalCase + `Screen`               | `ProfileScreen.tsx`        |
+| Screen hook       | `use` + screen name                 | `useProfileScreen`         |
+| Query keys export | `<feature>Keys`                     | `profileKeys`              |
+| Mutation hooks    | `use<Action><Entity>Mutation`       | `useUpdateProfileMutation` |
 
 ### Error handling
 
@@ -257,29 +257,29 @@ Arrow functions are a **codebase-wide** convention. See [Code conventions — Fu
 
 ### Codebase rules (all linted source)
 
-| Rule | Scope | What it enforces |
-|------|-------|------------------|
-| Arrow functions | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions |
-| `no-var` / `prefer-const` | Same | `let`/`const` only; prefer `const` |
+| Rule                      | Scope                                                                                        | What it enforces                          |
+| ------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Arrow functions           | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions |
+| `no-var` / `prefer-const` | Same                                                                                         | `let`/`const` only; prefer `const`        |
 
 ### Feature rules (additional)
 
-| Rule | Scope | What it enforces |
-|------|-------|------------------|
-| Feature self-imports | `features/<name>/**` | Import files inside the same feature with relative paths, not `@/features/<name>/...` |
-| Presentational components | `features/**/components/**` | No `api/`, hooks, React Query, or generated SDK imports; named exports only |
-| Thin screens | `features/**/screens/**` | No `api/`, React Query, generated SDK, or `Alert` imports (use a screen hook) |
-| Screen hooks | `features/**/hooks/**` | No generated SDK, screens, or components; named exports only |
-| API hooks | `features/**/api/**` | Named exports only |
-| Context boundary | `context/**` | No imports from `@/features/*` |
-| Thin app routes | `app/**` (except legacy `app/events/**`) | Routes may import feature screens only, not hooks, components, or `api/` |
+| Rule                      | Scope                                    | What it enforces                                                                      |
+| ------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| Feature self-imports      | `features/<name>/**`                     | Import files inside the same feature with relative paths, not `@/features/<name>/...` |
+| Presentational components | `features/**/components/**`              | No `api/`, hooks, React Query, or generated SDK imports; named exports only           |
+| Thin screens              | `features/**/screens/**`                 | No `api/`, React Query, generated SDK, or `Alert` imports (use a screen hook)         |
+| Screen hooks              | `features/**/hooks/**`                   | No generated SDK, screens, or components; named exports only                          |
+| API hooks                 | `features/**/api/**`                     | Named exports only                                                                    |
+| Context boundary          | `context/**`                             | No imports from `@/features/*`                                                        |
+| Thin app routes           | `app/**` (except legacy `app/events/**`) | Routes may import feature screens only, not hooks, components, or `api/`              |
 
 Layer rules target the profile pattern (`components/`, screen hooks, thin routes). Legacy exemptions exist only so old code keeps passing lint until refactor:
 
-| Legacy path | ESLint exemption |
-|-------------|------------------|
-| `features/events/**` screens | Thin-screen rules (listed in `legacyFeatureNames`) |
-| `app/events/**` | Thin-route rules |
+| Legacy path                    | ESLint exemption                                                    |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `features/events/**` screens   | Thin-screen rules (listed in `legacyFeatureNames`)                  |
+| `app/events/**`                | Thin-route rules                                                    |
 | `features/events/component/**` | Not covered by `components/` rules (wrong folder name; do not copy) |
 
 Photos/gallery has no `features/` module yet and is not part of this structure.

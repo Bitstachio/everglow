@@ -83,13 +83,13 @@ Inside a feature module, use relative imports for files in the same feature (for
 
 ### ESLint (global)
 
-| Rule | What it enforces |
-|------|------------------|
-| `func-style` | No `function` declarations; use `const` + arrow |
-| `prefer-arrow-callback` | Arrow callbacks in `.map`, `.then`, etc. |
-| `no-restricted-syntax` | No `function` expressions; use arrows |
-| `no-var` | `var` is forbidden |
-| `prefer-const` | Use `const` when a binding is never reassigned |
+| Rule                    | What it enforces                                |
+| ----------------------- | ----------------------------------------------- |
+| `func-style`            | No `function` declarations; use `const` + arrow |
+| `prefer-arrow-callback` | Arrow callbacks in `.map`, `.then`, etc.        |
+| `no-restricted-syntax`  | No `function` expressions; use arrows           |
+| `no-var`                | `var` is forbidden                              |
+| `prefer-const`          | Use `const` when a binding is never reassigned  |
 
 ## 2. Area conventions
 
@@ -124,13 +124,13 @@ ESLint blocks imports of feature `hooks/`, `components/`, and `api/` (legacy `ap
 
 ### `lib/` — shared utilities and API client
 
-| Path | Role |
-|------|------|
-| `lib/api/generated/` | Auto-generated SDK. **Do not edit.** Regenerate with `npm run openapi:generate`. |
-| `lib/api/axios-instance.ts` | Axios with auth and 401 handling |
-| `lib/api/envelope.ts` | `unwrapEnvelope` for API responses |
-| `lib/api/errors.ts` | `toApiError`, `getErrorMessage` |
-| `lib/auth0.ts`, `lib/query/` | Auth and React Query setup |
+| Path                         | Role                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `lib/api/generated/`         | Auto-generated SDK. **Do not edit.** Regenerate with `npm run openapi:generate`. |
+| `lib/api/axios-instance.ts`  | Axios with auth and 401 handling                                                 |
+| `lib/api/envelope.ts`        | `unwrapEnvelope` for API responses                                               |
+| `lib/api/errors.ts`          | `toApiError`, `getErrorMessage`                                                  |
+| `lib/auth0.ts`, `lib/query/` | Auth and React Query setup                                                       |
 
 Wrap generated SDK calls in feature `api/` hooks; do not call the SDK from screens or presentational components.
 
@@ -146,13 +146,13 @@ Feature modules live under `features/<name>/` with layers: `screens/`, `hooks/`,
 
 Summary of what ESLint adds on top of codebase conventions:
 
-| Rule | Scope | What it enforces |
-|------|-------|------------------|
-| Feature self-imports | `features/<name>/**` | Relative imports inside the same feature |
-| Presentational components | `features/**/components/**` | No `api/`, hooks, React Query, or SDK; named exports only |
-| Thin screens | `features/**/screens/**` | No `api/`, React Query, SDK, or `Alert`; use a screen hook |
-| Screen hooks | `features/**/hooks/**` | No SDK, screens, or components; named exports only |
-| API hooks | `features/**/api/**` | Named exports only |
+| Rule                      | Scope                       | What it enforces                                           |
+| ------------------------- | --------------------------- | ---------------------------------------------------------- |
+| Feature self-imports      | `features/<name>/**`        | Relative imports inside the same feature                   |
+| Presentational components | `features/**/components/**` | No `api/`, hooks, React Query, or SDK; named exports only  |
+| Thin screens              | `features/**/screens/**`    | No `api/`, React Query, SDK, or `Alert`; use a screen hook |
+| Screen hooks              | `features/**/hooks/**`      | No SDK, screens, or components; named exports only         |
+| API hooks                 | `features/**/api/**`        | Named exports only                                         |
 
 Legacy exemptions (`features/events/**`, `app/events/**`, `features/events/component/**`) exist so old code keeps passing lint until refactored to match `features/profile/`.
 
@@ -162,13 +162,13 @@ Lint cannot cover naming quality, whether a mutation invalidates the right keys,
 
 ## Quick reference
 
-| I am writing… | Follow |
-|---------------|--------|
-| Any TS/TSX file | Codebase conventions (this doc) |
-| A route in `app/` | Area: `app/` + codebase |
-| Shared UI in `components/` | Area: `components/` + codebase |
-| A new feature | All layers: feature guide + codebase |
-| Reviewing a PR | Checklist + `npm run lint` |
+| I am writing…              | Follow                               |
+| -------------------------- | ------------------------------------ |
+| Any TS/TSX file            | Codebase conventions (this doc)      |
+| A route in `app/`          | Area: `app/` + codebase              |
+| Shared UI in `components/` | Area: `components/` + codebase       |
+| A new feature              | All layers: feature guide + codebase |
+| Reviewing a PR             | Checklist + `npm run lint`           |
 
 ## Migrating legacy code
 
