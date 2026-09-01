@@ -50,7 +50,7 @@ describe("PhotoPendingCleanupService", () => {
 
     expect(result).toEqual({ scanned: 1, deleted: 1, failed: 0 });
     expect(prisma.photo.findMany).toHaveBeenCalledWith({
-      where: { status: PhotoStatus.PENDING, createdAt: { lt: expect.any(Date) } },
+      where: { status: PhotoStatus.PENDING, createdAt: { lt: expect.any(Date) as Date } },
       orderBy: { createdAt: "asc" },
       take: 100,
       select: { id: true, s3Key: true, eventId: true },
