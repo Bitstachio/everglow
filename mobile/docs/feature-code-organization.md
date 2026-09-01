@@ -108,6 +108,12 @@ export const profileKeys = {
 
 Use `profileKeys.all` for broad invalidation and `profileKeys.me()` for a specific cache entry.
 
+#### `queries.ts`
+
+Add this file when a screen fetches data with React Query instead of reading it from context or local state. Use generated `*Options` helpers from `@/lib/api/generated/@tanstack/react-query.gen` where possible, and reference keys from `keys.ts`.
+
+Profile does not have a `queries.ts` file because the current user is provided by `useAuth`. Use queries when the feature owns its own fetch lifecycle.
+
 #### `mutations.ts`
 
 Wrap generated SDK functions in `useMutation` hooks. Follow this pattern:
@@ -121,12 +127,6 @@ Wrap generated SDK functions in `useMutation` hooks. Follow this pattern:
 const { data } = await usersControllerUpdateMe({ body, throwOnError: true });
 return unwrapEnvelope(data);
 ```
-
-#### `queries.ts`
-
-Add this file when a screen fetches data with React Query instead of reading it from context or local state. Use generated `*Options` helpers from `@/lib/api/generated/@tanstack/react-query.gen` where possible, and reference keys from `keys.ts`.
-
-Profile does not have a `queries.ts` file because the current user is provided by `useAuth`. Use queries when the feature owns its own fetch lifecycle.
 
 ### `types.ts`
 
