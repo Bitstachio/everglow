@@ -1,5 +1,5 @@
 import { useAuth } from "@/context/auth-context";
-import type { UpdateUserDto } from "@/features/profile/types";
+import type { UpdateUserDto } from "../types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useState } from "react";
 import { Alert } from "react-native";

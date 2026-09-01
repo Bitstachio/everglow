@@ -1,9 +1,9 @@
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import EventActionCard from "@/features/events/component/EventActionCard/EventActionCard";
-import EventsList from "@/features/events/component/EventsList/EventsList";
-import JoinEventModal from "@/features/events/component/JoinEventModal/JoinEventModal";
-import EventInvitationModal from "@/features/events/component/EventInvitationModal/EventInvitationModal";
-import { Event } from "@/features/events/types";
+import EventActionCard from "../component/EventActionCard/EventActionCard";
+import EventsList from "../component/EventsList/EventsList";
+import JoinEventModal from "../component/JoinEventModal/JoinEventModal";
+import EventInvitationModal from "../component/EventInvitationModal/EventInvitationModal";
+import { Event } from "../types";
 import { getUserEvents, joinEventByUrl } from "@/lib/event";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/context/auth-context";

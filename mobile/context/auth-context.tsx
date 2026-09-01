@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { router } from "expo-router";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { authService, OnboardingData, User } from "@/lib/auth";
-import { setUnauthorizedHandler } from "@/lib/api";
+import { setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import {
   clearLocalCredentials,
   hasValidSession,

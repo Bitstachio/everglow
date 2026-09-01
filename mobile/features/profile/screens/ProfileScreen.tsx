@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button } from "@/components/ui/button";
-import { EditProfileModal } from "@/features/profile/components/EditProfileModal";
-import { useProfileScreen } from "@/features/profile/hooks/useProfileScreen";
+import { EditProfileModal } from "../components/EditProfileModal";
+import { useProfileScreen } from "../hooks/useProfileScreen";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 const ProfileScreen = () => {
