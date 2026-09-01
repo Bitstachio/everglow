@@ -19,12 +19,38 @@ const legacyFeatureNames = ["events"];
 // App routes exempt from thin-route rules while legacy event screens live outside features/.
 const legacyAppRoutePaths = ["app/events/**"];
 
+const lintedSourceGlobs = [
+  "app/**/*.{ts,tsx}",
+  "components/**/*.{ts,tsx}",
+  "constants/**/*.{ts,tsx}",
+  "context/**/*.{ts,tsx}",
+  "features/**/*.{ts,tsx}",
+  "hooks/**/*.{ts,tsx}",
+  "lib/**/*.{ts,tsx}",
+  "providers/**/*.{ts,tsx}",
+];
+
 const generatedApiPatterns = ["@/lib/api/generated", "@/lib/api/generated/**"];
 const featureApiPatterns = ["../api/*", "../api/**", "../../api/*", "../../api/**"];
 const featureHookPatterns = ["../hooks/*", "../hooks/**", "../../hooks/*", "../../hooks/**"];
 
 const generatedApiMessage =
   "Import API types from the feature types.ts file and call the API through feature api/ hooks.";
+
+// Level 1 — codebase conventions (all linted app source).
+const codebaseConventionRules = {
+  "func-style": ["error", "expression"],
+  "prefer-arrow-callback": "error",
+  "no-var": "error",
+  "prefer-const": "error",
+  "no-restricted-syntax": [
+    "error",
+    {
+      selector: "FunctionExpression",
+      message: "Use an arrow function instead of the function keyword.",
+    },
+  ],
+};
 
 // A feature references its own files relatively, so renaming or extracting the folder never
 // rewrites internal paths, and `@/features/*` is left to mean "coupling to another feature".
@@ -48,23 +74,13 @@ const featureSelfImportConfigs = featureNames.map((feature) => ({
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*", "lib/api/generated/**"],
+    ignores: ["dist/*", "lib/api/generated/**", "scripts/**"],
+  },
+  {
+    files: lintedSourceGlobs,
+    rules: codebaseConventionRules,
   },
   ...featureSelfImportConfigs,
-  {
-    files: ["features/**/*.{ts,tsx}"],
-    rules: {
-      "func-style": ["error", "expression"],
-      "prefer-arrow-callback": "error",
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "FunctionExpression",
-          message: "Use an arrow function instead of the function keyword.",
-        },
-      ],
-    },
-  },
   {
     files: ["features/**/components/**/*.{ts,tsx}"],
     rules: {
@@ -215,6 +231,17 @@ module.exports = defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["eslint.config.js", "babel.config.js"],
+    languageOptions: {
+      globals: {
+        __dirname: "readonly",
+        module: "readonly",
+        require: "readonly",
+        exports: "readonly",
+      },
     },
   },
 ]);

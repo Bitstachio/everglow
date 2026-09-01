@@ -1,13 +1,23 @@
 # Mobile Code Review Checklist
 
-ESLint catches import boundaries, export shapes, and a few structural rules in our feature modules. It cannot judge naming, API usage patterns, or whether a screen is "thin enough." Use this checklist during code review for anything ESLint does not cover.
+ESLint catches codebase conventions (arrow functions, `let`/`const`) and feature import boundaries. It cannot judge naming, API usage patterns, or whether a screen is "thin enough." Use this checklist during code review for anything ESLint does not cover.
 
 **Reference:** `features/profile/` is the model for all new feature work. `features/events/` and photos/gallery code are legacy; review new PRs against profile, not those areas.
 
 See also:
 
-- [Feature code organization](./feature-code-organization.md) for the full structure and examples
-- `mobile/eslint.config.js` for what lint enforces automatically
+- [Code conventions](./code-conventions.md) — convention hierarchy and codebase-wide rules
+- [Feature code organization](./feature-code-organization.md) — feature structure and data flow
+- `mobile/eslint.config.js` — what lint enforces automatically
+
+## Codebase conventions
+
+ESLint enforces these globally. Still verify in review:
+
+- [ ] Arrow functions (`const fn = () => {}`), not `function` keyword
+- [ ] `const` by default; `let` only when reassigned; no `var`
+- [ ] Cross-folder imports use `@/` alias
+- [ ] UI errors use `getErrorMessage`, not raw Axios shapes
 
 ## Feature structure
 
@@ -28,10 +38,7 @@ See also:
 
 ## Functions
 
-ESLint enforces arrow functions across `features/**`. Still check:
-
-- [ ] Components, hooks, handlers, and helpers use `const name = () => {}`, not the `function` keyword
-- [ ] Callbacks passed to array methods, promises, and React props use arrow syntax
+Covered by global ESLint rules. No extra checklist items unless fixing legacy code.
 
 ## Exports
 

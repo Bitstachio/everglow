@@ -2,6 +2,8 @@
 
 This document describes how we organize feature code in the Everglow mobile app.
 
+**Convention hierarchy:** Feature modules follow [codebase conventions](./code-conventions.md) (arrow functions, `let`/`const`, imports, error handling) plus the feature-specific rules in this document.
+
 **Reference implementation:** `features/profile/` is the only feature module that follows this structure today. Copy that layout and patterns when building new features.
 
 **Legacy code:** `features/events/` and photos/gallery code (`app/(tabs)/gallery.tsx`, `lib/photo.ts`, related event screens) predate this structure and will be heavily refactored. Do not use them as examples. ESLint exempts legacy paths where old code would fail; see [ESLint enforcement](#eslint-enforcement).
@@ -207,15 +209,13 @@ Feature hooks may depend on app-wide context. Avoid the reverse: context should 
 
 ### Imports
 
-Use the `@/` path alias for all internal imports:
+Use the `@/` path alias for cross-folder imports. Use relative imports only for files within the same feature (for example, `../api/mutations`). See [Code conventions — Imports](./code-conventions.md#imports).
 
 ```ts
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 ```
-
-Use relative imports only for files within the same feature (for example, `../api/mutations`).
 
 ### Naming
 
@@ -234,21 +234,7 @@ Use relative imports only for files within the same feature (for example, `../ap
 
 ### Functions
 
-Use arrow functions instead of the `function` keyword in feature code.
-
-```ts
-// Preferred
-const ProfileScreen = () => { ... };
-export const useProfileScreen = () => { ... };
-const handleSave = () => { ... };
-
-// Avoid
-function ProfileScreen() { ... }
-export function useProfileScreen() { ... }
-const handleSave = function () { ... };
-```
-
-Assign components, hooks, handlers, and helpers to `const` bindings with arrow syntax. Use concise arrow bodies when the function only returns a value.
+Arrow functions are a **codebase-wide** convention. See [Code conventions — Functions](./code-conventions.md#functions).
 
 ### Exports
 
@@ -267,11 +253,19 @@ Assign components, hooks, handlers, and helpers to `const` bindings with arrow s
 
 ## ESLint enforcement
 
-`mobile/eslint.config.js` encodes several conventions from this document. Run `npm run lint` locally and in CI to catch violations early.
+`mobile/eslint.config.js` layers rules on top of each other. Run `npm run lint` locally and in CI to catch violations early. The script runs ESLint across all app source folders (not only `app/` and `components/`). See [Code conventions](./code-conventions.md) for the full hierarchy.
+
+### Codebase rules (all linted source)
 
 | Rule | Scope | What it enforces |
 |------|-------|------------------|
-| Arrow functions | `features/**` | No `function` declarations or expressions; use arrow functions and arrow callbacks |
+| Arrow functions | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions |
+| `no-var` / `prefer-const` | Same | `let`/`const` only; prefer `const` |
+
+### Feature rules (additional)
+
+| Rule | Scope | What it enforces |
+|------|-------|------------------|
 | Feature self-imports | `features/<name>/**` | Import files inside the same feature with relative paths, not `@/features/<name>/...` |
 | Presentational components | `features/**/components/**` | No `api/`, hooks, React Query, or generated SDK imports; named exports only |
 | Thin screens | `features/**/screens/**` | No `api/`, React Query, generated SDK, or `Alert` imports (use a screen hook) |
@@ -292,7 +286,7 @@ Photos/gallery has no `features/` module yet and is not part of this structure.
 
 ### Not enforced by ESLint
 
-Lint cannot cover naming, API usage patterns, or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) during review for everything ESLint misses.
+Lint cannot cover naming, API usage patterns, or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) and [code conventions](./code-conventions.md) during review for everything ESLint misses.
 
 ## Migrating legacy code
 
