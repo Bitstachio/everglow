@@ -91,4 +91,5 @@ model Photo {
 
   @@index([eventId, status, createdAt])
   @@index([addedById])
+  @@index([status, createdAt])
 }

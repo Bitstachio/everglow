@@ -30,6 +30,13 @@ export const FREE_TIER_STORAGE_LIMIT_BYTES = 5n * 1024n * 1024n * 1024n; // 5 Gi
 
 export const STORAGE_QUOTA_EXCEEDED_CODE = "STORAGE_QUOTA_EXCEEDED";
 
+// Stale PENDING rows (never confirmed) are swept after this age. Must exceed
+// UPLOAD_URL_TTL_SECONDS so in-flight background uploads can finish and confirm.
+// Sweeping them is also what releases the quota they hold.
+export const DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS = 24;
+
+export const DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE = 100;
+
 // Per-photo outcome of a confirm call. Only READY mutates the row; the rest
 // report why verification failed so the client can retry or re-upload.
 export const CONFIRM_PHOTO_STATUSES = {

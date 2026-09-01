@@ -152,7 +152,7 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 
 | Case | Mitigation |
 |---|---|
-| Client uploads, never confirms | Row stuck PENDING. List filters to READY. Cleanup later (see TODO). |
+| Client uploads, never confirms | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h. |
 | Client confirms without uploading | `HeadObject` returns 404 → confirm reports MISSING for that photoId. |
 | Wrong contentType / oversize file | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm. |
 | Upload completes but confirm response lost | Confirm is idempotent — already-READY photoIds return READY again. |
@@ -183,7 +183,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 - **Width/height stored at confirm** if mobile ever needs non-square layouts.
 
 ### Reliability
-- **Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects. Or replace with S3 lifecycle rule.
+- ~~**Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects.~~ Implemented: `PhotoPendingCleanupService` runs hourly via `@nestjs/schedule`.
 - **Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.
 
 ### Mobile-side (not server concern, listed for completeness)
@@ -207,13 +207,14 @@ In order of implementation:
 - [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
 - [x] **Per-user storage quota** — 5 GiB free tier enforced at upload-urls; `GET /users/me/storage` for usage.
+- [x] **Pending photo cleanup** — hourly sweeper deletes stale `PENDING` rows and S3 objects (default age: 24h).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
 - [x] **README update** — implementation status is tracked in this checklist.
 
 ### Out of scope for v1 (tracked as future work)
-- Cleanup sweeper for PENDING rows
+- ~~Cleanup sweeper for PENDING rows~~ (hourly job deletes PENDING rows older than 24h and their S3 objects)
 - Idempotency keys
 - Per-user paid storage upgrades (billing)
 - Thumbnails
@@ -233,3 +234,22 @@ Each uploader has a storage cap (default **5 GiB**) enforced before upload slots
 - **Config:** `PHOTO_STORAGE_LIMIT_BYTES` overrides the default limit for all users until billing ships per-user limits.
 
 Over-quota uploads return **413 Payload Too Large** with message `Storage quota exceeded`.
+
+Because `PENDING` rows count toward usage, an upload slot that is never confirmed holds quota until §10 sweeps it. The owner cannot release it themselves: reads filter to `READY`, so the row is invisible to list and to `GET /photos/:photoId` and there is nothing for them to delete.
+
+---
+
+## 10. Stale PENDING cleanup
+
+Upload slots that are never confirmed leave `PENDING` rows (and may leave partial S3 objects). A background job reclaims them:
+
+- **Service:** `PhotoPendingCleanupService.cleanupStalePendingPhotos()`
+- **Schedule:** hourly via `PhotoPendingCleanupScheduler` (`@nestjs/schedule`)
+- **Cutoff:** `PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS` (default **24h**, must exceed the 1h presigned upload TTL)
+- **Batch:** up to `PHOTO_PENDING_CLEANUP_BATCH_SIZE` rows per run (default **100**)
+- **Order:** S3 `DeleteObject` first, then DB row delete (same as manual delete)
+- **Disable:** set `PHOTO_PENDING_CLEANUP_ENABLED=false`
+
+Failed per-photo deletes are logged and retried on the next run; successful deletes are not rolled back.
+
+This job is what makes the quota in §9 self-correcting. Without it an abandoned upload holds its bytes against the uploader's cap permanently.
