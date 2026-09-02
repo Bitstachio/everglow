@@ -12,15 +12,15 @@ This document is the entry point for how we write TypeScript and React Native co
 ┌─────────────────────────────────────────────────────────────────┐
 │ 1. Codebase conventions (all app TS/TSX)                        │
 │    Arrow functions, let/const, @/ imports, error handling       │
-│    → This document, ESLint global rules                           │
+│    → This document, ESLint global rules                         │
 ├─────────────────────────────────────────────────────────────────┤
 │ 2. Area conventions (folder-specific patterns)                  │
-│    app/ routes, components/, context/, hooks/, lib/              │
+│    app/ routes, components/, context/, hooks/, lib/             │
 │    → Sections below + targeted ESLint rules                     │
 ├─────────────────────────────────────────────────────────────────┤
-│ 3. Feature module conventions (features/<name>/)                  │
-│    Layer boundaries, relative imports, export shapes, data flow  │
-│    → feature-code-organization.md + feature ESLint rules      │
+│ 3. Feature module conventions (features/<name>/)                │
+│    Layer boundaries, relative imports, export shapes, data flow │
+│    → feature-code-organization.md + feature ESLint rules        │
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. Code review (human judgment)                                 │
 │    Naming quality, API patterns, whether a screen is thin enough│
