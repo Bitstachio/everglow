@@ -1,9 +1,13 @@
 import { INestApplication } from "@nestjs/common";
-import { PrismaClient } from "generated/prisma/client";
+import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
-import { PHOTO_SERVICE_ERRORS, FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
+import {
+  PHOTO_SERVICE_ERRORS,
+  FREE_TIER_STORAGE_LIMIT_BYTES,
+  STORAGE_RESERVATION_MAX_ATTEMPTS,
+} from "src/photos/photos.constants";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -95,6 +99,8 @@ describe("PhotosController (e2e)", () => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
+    // Interactive transactions run their callback against the same mock client.
+    prisma.$transaction.mockImplementation(async (fn) => fn(prisma));
 
     for (const mock of Object.values(s3Service)) mock.mockReset();
     s3Service.getPresignedUploadUrl.mockResolvedValue(TEST_SIGNED_PUT_URL);
@@ -116,6 +122,10 @@ describe("PhotosController (e2e)", () => {
       expect(body.data).toHaveLength(1);
       expect(body.data[0].uploadUrl).toBe(TEST_SIGNED_PUT_URL);
       expect(body.data[0].photoId).toMatch(/^[0-9a-f-]{36}$/);
+      // Quota check + insert are reserved atomically under Serializable isolation.
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
       expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
     });
 
@@ -176,6 +186,24 @@ describe("PhotosController (e2e)", () => {
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED);
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
+      expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it("returns 409 when the quota reservation keeps losing serialization conflicts", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
+      prisma.$transaction.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("Transaction failed due to a write conflict or a deadlock.", {
+          code: "P2034",
+          clientVersion: "7.8.0",
+        }),
+      );
+
+      const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(409);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.STORAGE_RESERVATION_CONFLICT);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(STORAGE_RESERVATION_MAX_ATTEMPTS);
+      expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });
   });
 
