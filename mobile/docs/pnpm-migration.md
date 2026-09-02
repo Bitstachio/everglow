@@ -42,15 +42,15 @@ Do **not** put `node-linker=hoisted` in `.npmrc` — it will look correct and do
 
 ## What changed in this migration
 
-| Change | Purpose |
-| --- | --- |
-| Removed `mobile/package-lock.json` | npm lockfile must not coexist with pnpm |
-| Added `mobile/pnpm-lock.yaml` | Commit and use this lockfile going forward |
-| Added `mobile/pnpm-workspace.yaml` | pnpm 11+ project settings live here (not `.npmrc`). Includes `nodeLinker: hoisted` and `allowBuilds`. See the hoisting section above. |
-| `nodeLinker: hoisted` | Flat/npm-like `node_modules` so Expo, Metro, and CocoaPods work. Not the purist isolated default — temporary pragmatic choice (details above). |
-| `allowBuilds` for `browser-tabs-lock` / `unrs-resolver` | Approves dependency lifecycle scripts (pnpm blocks them by default) |
-| `openapi:check` script now calls `pnpm run …` | Avoid hardcoded `npm` in package scripts |
-| `react-native-reanimated`: `^4.1.5` → `^4.1.7` | Fresh lockfile had floated Reanimated to 4.6.x (needs Worklets 0.12.x). Expo SDK 54 expects ~4.1.x with Worklets `0.5.1`. Re-pinned with `expo install`. |
+| Change                                                  | Purpose                                                                                                                                                  |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Removed `mobile/package-lock.json`                      | npm lockfile must not coexist with pnpm                                                                                                                  |
+| Added `mobile/pnpm-lock.yaml`                           | Commit and use this lockfile going forward                                                                                                               |
+| Added `mobile/pnpm-workspace.yaml`                      | pnpm 11+ project settings live here (not `.npmrc`). Includes `nodeLinker: hoisted` and `allowBuilds`. See the hoisting section above.                    |
+| `nodeLinker: hoisted`                                   | Flat/npm-like `node_modules` so Expo, Metro, and CocoaPods work. Not the purist isolated default — temporary pragmatic choice (details above).           |
+| `allowBuilds` for `browser-tabs-lock` / `unrs-resolver` | Approves dependency lifecycle scripts (pnpm blocks them by default)                                                                                      |
+| `openapi:check` script now calls `pnpm run …`           | Avoid hardcoded `npm` in package scripts                                                                                                                 |
+| `react-native-reanimated`: `^4.1.5` → `^4.1.7`          | Fresh lockfile had floated Reanimated to 4.6.x (needs Worklets 0.12.x). Expo SDK 54 expects ~4.1.x with Worklets `0.5.1`. Re-pinned with `expo install`. |
 
 **Not done yet (follow-ups):**
 
@@ -125,14 +125,14 @@ pnpm run ios
 
 ## Day-to-day commands
 
-| Task | Use |
-| --- | --- |
-| Install deps | `pnpm install` |
-| Add a dependency | `pnpm add <pkg>` |
-| Add an Expo-compatible native dep | `pnpm exec expo install <pkg>` |
-| Run a script | `pnpm run <script>` or `pnpm <script>` |
-| Exec a binary | `pnpm exec <bin>` (prefer over `npx` in this package) |
-| Lint / format / OpenAPI | `pnpm run lint`, `pnpm run format`, `pnpm run openapi:generate` |
+| Task                              | Use                                                             |
+| --------------------------------- | --------------------------------------------------------------- |
+| Install deps                      | `pnpm install`                                                  |
+| Add a dependency                  | `pnpm add <pkg>`                                                |
+| Add an Expo-compatible native dep | `pnpm exec expo install <pkg>`                                  |
+| Run a script                      | `pnpm run <script>` or `pnpm <script>`                          |
+| Exec a binary                     | `pnpm exec <bin>` (prefer over `npx` in this package)           |
+| Lint / format / OpenAPI           | `pnpm run lint`, `pnpm run format`, `pnpm run openapi:generate` |
 
 **`api/`:** still `npm install` / `npm run …` as before.
 
