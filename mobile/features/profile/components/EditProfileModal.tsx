@@ -1,13 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, View } from "react-native";
 
 type EditProfileForm = {
   name: string;
@@ -39,12 +32,7 @@ export const EditProfileModal = ({
     <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
         <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>Edit Profile</Text>
-        <Input
-          label="Name"
-          placeholder="Enter your name"
-          value={editForm.name}
-          onChangeText={onChangeName}
-        />
+        <Input label="Name" placeholder="Enter your name" value={editForm.name} onChangeText={onChangeName} />
         <Input
           label="Email"
           placeholder="Enter your email"

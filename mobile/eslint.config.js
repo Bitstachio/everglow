@@ -225,8 +225,7 @@ module.exports = defineConfig([
                 "@/features/*/api/*",
                 "@/features/*/api/**",
               ],
-              message:
-                "App routes should stay thin. Re-export a feature screen from @/features/<name>/screens/.",
+              message: "App routes should stay thin. Re-export a feature screen from @/features/<name>/screens/.",
             },
           ],
         },
