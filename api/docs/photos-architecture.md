@@ -206,6 +206,7 @@ In order of implementation:
 - [x] **`GET /events/:eventId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
 - [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
+- [x] **Per-user storage quota** — 5 GiB free tier enforced at upload-urls; `GET /users/me/storage` for usage.
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
@@ -214,8 +215,21 @@ In order of implementation:
 ### Out of scope for v1 (tracked as future work)
 - Cleanup sweeper for PENDING rows
 - Idempotency keys
-- Per-event quotas
+- Per-user paid storage upgrades (billing)
 - Thumbnails
 - CloudFront
 - S3 Event-driven confirm
 - Multipart upload
+
+---
+
+## 9. Per-user storage quota (free tier)
+
+Each uploader has a storage cap (default **5 GiB**) enforced before upload slots are minted.
+
+- **Usage:** `SUM(sizeBytes)` over the caller's photos with `status IN (PENDING, READY)`. Pending rows count so clients cannot bypass the cap by minting slots without confirming.
+- **Enforcement:** `PhotoStorageService.assertCanUpload()` in `PhotosService.createUploadSlots()`, after CASL authorization.
+- **Read API:** `GET /users/me/storage` returns `usedBytes`, `limitBytes`, and `remainingBytes` as strings (bigint-safe JSON).
+- **Config:** `PHOTO_STORAGE_LIMIT_BYTES` overrides the default limit for all users until billing ships per-user limits.
+
+Over-quota uploads return **413 Payload Too Large** with message `Storage quota exceeded`.

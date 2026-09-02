@@ -214,6 +214,33 @@ describe("UsersController (e2e)", () => {
     });
   });
 
+  describe("GET /users/me/storage", () => {
+    const path = `${USERS_BASE_PATH}/me/storage`;
+
+    it("returns 200 and the caller storage usage", async () => {
+      prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 2048 } } as never);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<{
+        usedBytes: string;
+        limitBytes: string;
+        remainingBytes: string;
+      }>;
+
+      expect(body.data).toEqual({
+        usedBytes: "2048",
+        limitBytes: "5368709120",
+        remainingBytes: "5368707072",
+      });
+      expect(body.meta.path).toBe(path);
+    });
+
+    it("returns 401 when the access token is missing", async () => {
+      await request(httpServer).get(path).expect(401);
+    });
+  });
+
   describe("PATCH /users/me", () => {
     const path = `${USERS_BASE_PATH}/me`;
 

@@ -26,6 +26,10 @@ export const MAX_PHOTO_PAGE_SIZE = 100;
 export const buildPhotoS3Key = (userId: string, eventId: string, photoId: string): string =>
   `photos/${userId}/${eventId}/${photoId}`;
 
+export const FREE_TIER_STORAGE_LIMIT_BYTES = 5n * 1024n * 1024n * 1024n; // 5 GiB
+
+export const STORAGE_QUOTA_EXCEEDED_CODE = "STORAGE_QUOTA_EXCEEDED";
+
 // Per-photo outcome of a confirm call. Only READY mutates the row; the rest
 // report why verification failed so the client can retry or re-upload.
 export const CONFIRM_PHOTO_STATUSES = {
@@ -44,4 +48,5 @@ export const PHOTO_SERVICE_ERRORS = {
   LIST_FORBIDDEN: (eventId: string) => `Not authorized to list photos of event with ID "${eventId}"`,
   READ_FORBIDDEN: (photoId: string) => `Not authorized to read photo with ID "${photoId}"`,
   DELETE_FORBIDDEN: (photoId: string) => `Not authorized to delete photo with ID "${photoId}"`,
+  STORAGE_QUOTA_EXCEEDED: "Storage quota exceeded",
 };

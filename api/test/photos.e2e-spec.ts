@@ -3,7 +3,7 @@ import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
-import { PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
+import { PHOTO_SERVICE_ERRORS, FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -94,6 +94,7 @@ describe("PhotosController (e2e)", () => {
   beforeEach(() => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
 
     for (const mock of Object.values(s3Service)) mock.mockReset();
     s3Service.getPresignedUploadUrl.mockResolvedValue(TEST_SIGNED_PUT_URL);
@@ -158,6 +159,23 @@ describe("PhotosController (e2e)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+    });
+
+    it("returns 413 when the upload would exceed the caller storage quota", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
+      prisma.photo.aggregate.mockResolvedValue({
+        _sum: { sizeBytes: Number(FREE_TIER_STORAGE_LIMIT_BYTES - 512n) },
+      } as never);
+
+      const response = await request(httpServer)
+        .post(uploadUrlsPath())
+        .set(authHeader())
+        .send({ files: [{ contentType: "image/jpeg", sizeBytes: 1024 }] })
+        .expect(413);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED);
+      expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
   });
 
