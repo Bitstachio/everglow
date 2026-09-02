@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ConflictException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PhotoStatus, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -145,6 +145,93 @@ describe("PhotoStorageService", () => {
         limitBytes: ONE_GIB.toString(),
         requestedBytes: "200",
       },
+    });
+  });
+
+  describe("addStorageLimit", () => {
+    const newLimit = FREE_TIER_STORAGE_LIMIT_BYTES + TEN_GIB;
+
+    const recordNotFound = () =>
+      new Prisma.PrismaClientKnownRequestError("An operation failed because it depends on one or more records", {
+        code: "P2025",
+        clientVersion: "7.8.0",
+      });
+
+    beforeEach(() => {
+      prisma.user.update.mockResolvedValue({ storageLimitBytes: newLimit } as never);
+    });
+
+    it("increments the stored limit in one update and returns the new value", async () => {
+      await expect(service.addStorageLimit(userId, TEN_GIB)).resolves.toBe(newLimit);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: { storageLimitBytes: { increment: TEN_GIB } },
+        select: { storageLimitBytes: true },
+      });
+      // The grant must not be read-modify-write: no lookup, no transaction.
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("accepts a plain number and converts it to a bigint increment", async () => {
+      await expect(service.addStorageLimit(userId, 1024)).resolves.toBe(newLimit);
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { storageLimitBytes: { increment: 1024n } } }),
+      );
+    });
+
+    it("logs an audit record with bigints stringified for JSON", async () => {
+      await service.addStorageLimit(userId, TEN_GIB);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        {
+          event: "user.storage_limit.increased",
+          userId,
+          additionalBytes: TEN_GIB.toString(),
+          newLimitBytes: newLimit.toString(),
+          audit: true,
+        },
+        expect.any(String),
+      );
+    });
+
+    it.each([
+      ["zero", 0n],
+      ["a negative bigint", -1n],
+      ["a negative number", -1024],
+      ["a fractional number", 1.5],
+    ])("rejects %s with 400 and touches no row", async (_label, value) => {
+      const grant = service.addStorageLimit(userId, value);
+
+      await expect(grant).rejects.toBeInstanceOf(BadRequestException);
+      await expect(grant).rejects.toThrow(PHOTO_SERVICE_ERRORS.INVALID_STORAGE_INCREMENT(String(value)));
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("translates a missing user into 404", async () => {
+      prisma.user.update.mockRejectedValue(recordNotFound());
+
+      const grant = service.addStorageLimit(userId, TEN_GIB);
+
+      await expect(grant).rejects.toBeInstanceOf(NotFoundException);
+      await expect(grant).rejects.toThrow(USER_SERVICE_ERRORS.NOT_FOUND(userId));
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("recognises a P2025 wrapped by the driver adapter", async () => {
+      prisma.user.update.mockRejectedValue(new Error("update failed", { cause: recordNotFound() }));
+
+      await expect(service.addStorageLimit(userId, TEN_GIB)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("rethrows unrelated database errors untouched", async () => {
+      const outage = new Error("connection reset");
+      prisma.user.update.mockRejectedValue(outage);
+
+      await expect(service.addStorageLimit(userId, TEN_GIB)).rejects.toBe(outage);
     });
   });
 
