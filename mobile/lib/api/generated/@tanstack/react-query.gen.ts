@@ -31,6 +31,7 @@ import {
   photosControllerRemove,
   usersControllerCompleteOnboarding,
   usersControllerFindMe,
+  usersControllerGetMyStorage,
   usersControllerRemoveMe,
   usersControllerUpdateMe,
 } from "../sdk.gen";
@@ -72,6 +73,8 @@ import type {
   UsersControllerCompleteOnboardingResponse,
   UsersControllerFindMeData,
   UsersControllerFindMeResponse,
+  UsersControllerGetMyStorageData,
+  UsersControllerGetMyStorageResponse,
   UsersControllerRemoveMeData,
   UsersControllerRemoveMeResponse,
   UsersControllerUpdateMeData,
@@ -239,6 +242,236 @@ export const usersControllerUpdateMeMutation = (
   };
   return mutationOptions;
 };
+
+export const usersControllerGetMyStorageQueryKey = (options?: Options<UsersControllerGetMyStorageData>) =>
+  createQueryKey("usersControllerGetMyStorage", options);
+
+/**
+ * Get current user photo storage quota
+ */
+export const usersControllerGetMyStorageOptions = (options?: Options<UsersControllerGetMyStorageData>) =>
+  queryOptions<
+    UsersControllerGetMyStorageResponse,
+    AxiosError<DefaultError>,
+    UsersControllerGetMyStorageResponse,
+    ReturnType<typeof usersControllerGetMyStorageQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await usersControllerGetMyStorage({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: usersControllerGetMyStorageQueryKey(options),
+  });
+
+/**
+ * Mint presigned upload URLs for a batch of photos
+ */
+export const photosControllerCreateUploadUrlsMutation = (
+  options?: Partial<Options<PhotosControllerCreateUploadUrlsData>>,
+): UseMutationOptions<
+  PhotosControllerCreateUploadUrlsResponse,
+  AxiosError<DefaultError>,
+  Options<PhotosControllerCreateUploadUrlsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PhotosControllerCreateUploadUrlsResponse,
+    AxiosError<DefaultError>,
+    Options<PhotosControllerCreateUploadUrlsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await photosControllerCreateUploadUrls({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Confirm uploaded photos and mark them ready
+ */
+export const photosControllerConfirmUploadsMutation = (
+  options?: Partial<Options<PhotosControllerConfirmUploadsData>>,
+): UseMutationOptions<
+  PhotosControllerConfirmUploadsResponse,
+  AxiosError<DefaultError>,
+  Options<PhotosControllerConfirmUploadsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PhotosControllerConfirmUploadsResponse,
+    AxiosError<DefaultError>,
+    Options<PhotosControllerConfirmUploadsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await photosControllerConfirmUploads({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const photosControllerListPhotosQueryKey = (options: Options<PhotosControllerListPhotosData>) =>
+  createQueryKey("photosControllerListPhotos", options);
+
+/**
+ * List ready photos in an event (cursor-paginated)
+ */
+export const photosControllerListPhotosOptions = (options: Options<PhotosControllerListPhotosData>) =>
+  queryOptions<
+    PhotosControllerListPhotosResponse,
+    AxiosError<DefaultError>,
+    PhotosControllerListPhotosResponse,
+    ReturnType<typeof photosControllerListPhotosQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await photosControllerListPhotos({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: photosControllerListPhotosQueryKey(options),
+  });
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], "body" | "headers" | "path" | "query">>(
+  queryKey: QueryKey<Options>,
+  page: K,
+) => {
+  const params = { ...queryKey[0] };
+  if (page.body) {
+    params.body = {
+      ...(queryKey[0].body as any),
+      ...(page.body as any),
+    };
+  }
+  if (page.headers) {
+    params.headers = {
+      ...queryKey[0].headers,
+      ...page.headers,
+    };
+  }
+  if (page.path) {
+    params.path = {
+      ...(queryKey[0].path as any),
+      ...(page.path as any),
+    };
+  }
+  if (page.query) {
+    params.query = {
+      ...(queryKey[0].query as any),
+      ...(page.query as any),
+    };
+  }
+  return params as unknown as typeof page;
+};
+
+export const photosControllerListPhotosInfiniteQueryKey = (
+  options: Options<PhotosControllerListPhotosData>,
+): QueryKey<Options<PhotosControllerListPhotosData>> => createQueryKey("photosControllerListPhotos", options, true);
+
+/**
+ * List ready photos in an event (cursor-paginated)
+ */
+export const photosControllerListPhotosInfiniteOptions = (options: Options<PhotosControllerListPhotosData>) => {
+  const opts = infiniteQueryOptions<
+    PhotosControllerListPhotosResponse,
+    AxiosError<DefaultError>,
+    InfiniteData<PhotosControllerListPhotosResponse>,
+    QueryKey<Options<PhotosControllerListPhotosData>>,
+    string | Pick<QueryKey<Options<PhotosControllerListPhotosData>>[0], "body" | "headers" | "path" | "query">
+  >(
+    // @ts-ignore
+    {
+      queryFn: async ({ pageParam, queryKey, signal }) => {
+        // @ts-ignore
+        const page: Pick<QueryKey<Options<PhotosControllerListPhotosData>>[0], "body" | "headers" | "path" | "query"> =
+          typeof pageParam === "object"
+            ? pageParam
+            : {
+                query: {
+                  cursor: pageParam,
+                },
+              };
+        const params = createInfiniteParams(queryKey, page);
+        const { data } = await photosControllerListPhotos({
+          ...options,
+          ...params,
+          signal,
+          throwOnError: true,
+        });
+        return data;
+      },
+      queryKey: photosControllerListPhotosInfiniteQueryKey(options),
+    },
+  );
+  return opts as Omit<typeof opts, "initialData">;
+};
+
+/**
+ * Delete a photo
+ */
+export const photosControllerRemoveMutation = (
+  options?: Partial<Options<PhotosControllerRemoveData>>,
+): UseMutationOptions<
+  PhotosControllerRemoveResponse,
+  AxiosError<DefaultError>,
+  Options<PhotosControllerRemoveData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PhotosControllerRemoveResponse,
+    AxiosError<DefaultError>,
+    Options<PhotosControllerRemoveData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await photosControllerRemove({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const photosControllerFindOneQueryKey = (options: Options<PhotosControllerFindOneData>) =>
+  createQueryKey("photosControllerFindOne", options);
+
+/**
+ * Get a photo by ID
+ */
+export const photosControllerFindOneOptions = (options: Options<PhotosControllerFindOneData>) =>
+  queryOptions<
+    PhotosControllerFindOneResponse,
+    AxiosError<DefaultError>,
+    PhotosControllerFindOneResponse,
+    ReturnType<typeof photosControllerFindOneQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await photosControllerFindOne({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: photosControllerFindOneQueryKey(options),
+  });
 
 export const eventsControllerFindAllQueryKey = (options?: Options<EventsControllerFindAllData>) =>
   createQueryKey("eventsControllerFindAll", options);
@@ -522,208 +755,3 @@ export const eventsControllerRegenerateInvitationUrlMutation = (
   };
   return mutationOptions;
 };
-
-/**
- * Mint presigned upload URLs for a batch of photos
- */
-export const photosControllerCreateUploadUrlsMutation = (
-  options?: Partial<Options<PhotosControllerCreateUploadUrlsData>>,
-): UseMutationOptions<
-  PhotosControllerCreateUploadUrlsResponse,
-  AxiosError<DefaultError>,
-  Options<PhotosControllerCreateUploadUrlsData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    PhotosControllerCreateUploadUrlsResponse,
-    AxiosError<DefaultError>,
-    Options<PhotosControllerCreateUploadUrlsData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await photosControllerCreateUploadUrls({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      });
-      return data;
-    },
-  };
-  return mutationOptions;
-};
-
-/**
- * Confirm uploaded photos and mark them ready
- */
-export const photosControllerConfirmUploadsMutation = (
-  options?: Partial<Options<PhotosControllerConfirmUploadsData>>,
-): UseMutationOptions<
-  PhotosControllerConfirmUploadsResponse,
-  AxiosError<DefaultError>,
-  Options<PhotosControllerConfirmUploadsData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    PhotosControllerConfirmUploadsResponse,
-    AxiosError<DefaultError>,
-    Options<PhotosControllerConfirmUploadsData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await photosControllerConfirmUploads({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      });
-      return data;
-    },
-  };
-  return mutationOptions;
-};
-
-export const photosControllerListPhotosQueryKey = (options: Options<PhotosControllerListPhotosData>) =>
-  createQueryKey("photosControllerListPhotos", options);
-
-/**
- * List ready photos in an event (cursor-paginated)
- */
-export const photosControllerListPhotosOptions = (options: Options<PhotosControllerListPhotosData>) =>
-  queryOptions<
-    PhotosControllerListPhotosResponse,
-    AxiosError<DefaultError>,
-    PhotosControllerListPhotosResponse,
-    ReturnType<typeof photosControllerListPhotosQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await photosControllerListPhotos({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      });
-      return data;
-    },
-    queryKey: photosControllerListPhotosQueryKey(options),
-  });
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], "body" | "headers" | "path" | "query">>(
-  queryKey: QueryKey<Options>,
-  page: K,
-) => {
-  const params = { ...queryKey[0] };
-  if (page.body) {
-    params.body = {
-      ...(queryKey[0].body as any),
-      ...(page.body as any),
-    };
-  }
-  if (page.headers) {
-    params.headers = {
-      ...queryKey[0].headers,
-      ...page.headers,
-    };
-  }
-  if (page.path) {
-    params.path = {
-      ...(queryKey[0].path as any),
-      ...(page.path as any),
-    };
-  }
-  if (page.query) {
-    params.query = {
-      ...(queryKey[0].query as any),
-      ...(page.query as any),
-    };
-  }
-  return params as unknown as typeof page;
-};
-
-export const photosControllerListPhotosInfiniteQueryKey = (
-  options: Options<PhotosControllerListPhotosData>,
-): QueryKey<Options<PhotosControllerListPhotosData>> => createQueryKey("photosControllerListPhotos", options, true);
-
-/**
- * List ready photos in an event (cursor-paginated)
- */
-export const photosControllerListPhotosInfiniteOptions = (options: Options<PhotosControllerListPhotosData>) => {
-  const opts = infiniteQueryOptions<
-    PhotosControllerListPhotosResponse,
-    AxiosError<DefaultError>,
-    InfiniteData<PhotosControllerListPhotosResponse>,
-    QueryKey<Options<PhotosControllerListPhotosData>>,
-    string | Pick<QueryKey<Options<PhotosControllerListPhotosData>>[0], "body" | "headers" | "path" | "query">
-  >(
-    // @ts-ignore
-    {
-      queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<PhotosControllerListPhotosData>>[0], "body" | "headers" | "path" | "query"> =
-          typeof pageParam === "object"
-            ? pageParam
-            : {
-                query: {
-                  cursor: pageParam,
-                },
-              };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await photosControllerListPhotos({
-          ...options,
-          ...params,
-          signal,
-          throwOnError: true,
-        });
-        return data;
-      },
-      queryKey: photosControllerListPhotosInfiniteQueryKey(options),
-    },
-  );
-  return opts as Omit<typeof opts, "initialData">;
-};
-
-/**
- * Delete a photo
- */
-export const photosControllerRemoveMutation = (
-  options?: Partial<Options<PhotosControllerRemoveData>>,
-): UseMutationOptions<
-  PhotosControllerRemoveResponse,
-  AxiosError<DefaultError>,
-  Options<PhotosControllerRemoveData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    PhotosControllerRemoveResponse,
-    AxiosError<DefaultError>,
-    Options<PhotosControllerRemoveData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await photosControllerRemove({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      });
-      return data;
-    },
-  };
-  return mutationOptions;
-};
-
-export const photosControllerFindOneQueryKey = (options: Options<PhotosControllerFindOneData>) =>
-  createQueryKey("photosControllerFindOne", options);
-
-/**
- * Get a photo by ID
- */
-export const photosControllerFindOneOptions = (options: Options<PhotosControllerFindOneData>) =>
-  queryOptions<
-    PhotosControllerFindOneResponse,
-    AxiosError<DefaultError>,
-    PhotosControllerFindOneResponse,
-    ReturnType<typeof photosControllerFindOneQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await photosControllerFindOne({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      });
-      return data;
-    },
-    queryKey: photosControllerFindOneQueryKey(options),
-  });

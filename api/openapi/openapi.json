@@ -180,6 +180,323 @@
         ]
       }
     },
+    "/api/v2/users/me/storage": {
+      "get": {
+        "operationId": "UsersController_getMyStorage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Photo storage usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UserStorageResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get current user photo storage quota",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/photos/upload-urls": {
+      "post": {
+        "operationId": "PhotosController_createUploadUrls",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadUrlsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload slots with presigned S3 PUT URLs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UploadSlotResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint presigned upload URLs for a batch of photos",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/photos/confirm": {
+      "post": {
+        "operationId": "PhotosController_confirmUploads",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmUploadsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Per-photo verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ConfirmPhotoResultDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm uploaded photos and mark them ready",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/photos": {
+      "get": {
+        "operationId": "PhotosController_listPhotos",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "ID of the last photo from the previous page",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Photos with presigned download URLs, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PhotoListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List ready photos in an event (cursor-paginated)",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/api/v2/photos/{photoId}": {
+      "get": {
+        "operationId": "PhotosController_findOne",
+        "parameters": [
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Photo with presigned download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PhotoResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get a photo by ID",
+        "tags": [
+          "photos"
+        ]
+      },
+      "delete": {
+        "operationId": "PhotosController_remove",
+        "parameters": [
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Photo deleted (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a photo",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
     "/api/v2/events": {
       "post": {
         "operationId": "EventsController_create",
@@ -706,281 +1023,6 @@
           "events"
         ]
       }
-    },
-    "/api/v2/events/{eventId}/photos/upload-urls": {
-      "post": {
-        "operationId": "PhotosController_createUploadUrls",
-        "parameters": [
-          {
-            "name": "eventId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateUploadUrlsDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Upload slots with presigned S3 PUT URLs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/UploadSlotResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Mint presigned upload URLs for a batch of photos",
-        "tags": [
-          "photos"
-        ]
-      }
-    },
-    "/api/v2/events/{eventId}/photos/confirm": {
-      "post": {
-        "operationId": "PhotosController_confirmUploads",
-        "parameters": [
-          {
-            "name": "eventId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfirmUploadsDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Per-photo verification result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/ConfirmPhotoResultDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Confirm uploaded photos and mark them ready",
-        "tags": [
-          "photos"
-        ]
-      }
-    },
-    "/api/v2/events/{eventId}/photos": {
-      "get": {
-        "operationId": "PhotosController_listPhotos",
-        "parameters": [
-          {
-            "name": "eventId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "ID of the last photo from the previous page",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Photos with presigned download URLs, newest first",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PhotoListResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "List ready photos in an event (cursor-paginated)",
-        "tags": [
-          "photos"
-        ]
-      }
-    },
-    "/api/v2/photos/{photoId}": {
-      "get": {
-        "operationId": "PhotosController_findOne",
-        "parameters": [
-          {
-            "name": "photoId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Photo with presigned download URL",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PhotoResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Get a photo by ID",
-        "tags": [
-          "photos"
-        ]
-      },
-      "delete": {
-        "operationId": "PhotosController_remove",
-        "parameters": [
-          {
-            "name": "photoId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Photo deleted (empty data envelope at runtime)"
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Delete a photo",
-        "tags": [
-          "photos"
-        ]
-      }
     }
   },
   "info": {
@@ -1099,6 +1141,31 @@
           "email"
         ]
       },
+      "UserStorageResponseDto": {
+        "type": "object",
+        "properties": {
+          "usedBytes": {
+            "type": "string",
+            "description": "Bytes currently used by the caller's uploads",
+            "example": "2147483648"
+          },
+          "limitBytes": {
+            "type": "string",
+            "description": "Maximum bytes the caller may use",
+            "example": "5368709120"
+          },
+          "remainingBytes": {
+            "type": "string",
+            "description": "Bytes remaining before the quota is reached",
+            "example": "3221225472"
+          }
+        },
+        "required": [
+          "usedBytes",
+          "limitBytes",
+          "remainingBytes"
+        ]
+      },
       "UpdateUserDto": {
         "type": "object",
         "properties": {
@@ -1113,121 +1180,6 @@
             "maxLength": 255
           }
         }
-      },
-      "EventResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "type": "string",
-            "maxLength": 100
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "date": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "creatorId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "invitationUrl": {
-            "type": "string",
-            "description": "Shareable invitation link composed from the stored invite token"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "description",
-          "date",
-          "creatorId",
-          "invitationUrl",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateEventDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "JoinEventDto": {
-        "type": "object",
-        "properties": {
-          "invitationUrl": {
-            "type": "string",
-            "description": "Full invitation URL or invite token",
-            "example": "https://events.everglow.app/invite/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-          }
-        },
-        "required": [
-          "invitationUrl"
-        ]
-      },
-      "UpdateEventDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AccessLevel": {
-        "type": "string",
-        "enum": [
-          "ORGANIZER",
-          "PARTICIPANT",
-          "VIEWER"
-        ]
-      },
-      "EventParticipantResponseDto": {
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "accessLevel": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AccessLevel"
-              }
-            ]
-          }
-        },
-        "required": [
-          "userId",
-          "name",
-          "accessLevel"
-        ]
-      },
-      "UpdateParticipantAccessDto": {
-        "type": "object",
-        "properties": {
-          "accessLevel": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AccessLevel"
-              }
-            ]
-          }
-        },
-        "required": [
-          "accessLevel"
-        ]
       },
       "UploadSlotResponseDto": {
         "type": "object",
@@ -1391,6 +1343,121 @@
         "required": [
           "items",
           "nextCursor"
+        ]
+      },
+      "EventResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "date": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "creatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitationUrl": {
+            "type": "string",
+            "description": "Shareable invitation link composed from the stored invite token"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "date",
+          "creatorId",
+          "invitationUrl",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateEventDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "JoinEventDto": {
+        "type": "object",
+        "properties": {
+          "invitationUrl": {
+            "type": "string",
+            "description": "Full invitation URL or invite token",
+            "example": "https://events.everglow.app/invite/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          }
+        },
+        "required": [
+          "invitationUrl"
+        ]
+      },
+      "UpdateEventDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AccessLevel": {
+        "type": "string",
+        "enum": [
+          "ORGANIZER",
+          "PARTICIPANT",
+          "VIEWER"
+        ]
+      },
+      "EventParticipantResponseDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "accessLevel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessLevel"
+              }
+            ]
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "accessLevel"
+        ]
+      },
+      "UpdateParticipantAccessDto": {
+        "type": "object",
+        "properties": {
+          "accessLevel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessLevel"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accessLevel"
         ]
       }
     }

@@ -59,6 +59,9 @@ import type {
   UsersControllerFindMeData,
   UsersControllerFindMeErrors,
   UsersControllerFindMeResponses,
+  UsersControllerGetMyStorageData,
+  UsersControllerGetMyStorageErrors,
+  UsersControllerGetMyStorageResponses,
   UsersControllerRemoveMeData,
   UsersControllerRemoveMeErrors,
   UsersControllerRemoveMeResponses,
@@ -150,6 +153,97 @@ export const usersControllerUpdateMe = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * Get current user photo storage quota
+ */
+export const usersControllerGetMyStorage = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerGetMyStorageData, ThrowOnError>,
+): RequestResult<UsersControllerGetMyStorageResponses, UsersControllerGetMyStorageErrors, ThrowOnError> =>
+  (options?.client ?? client).get<
+    UsersControllerGetMyStorageResponses,
+    UsersControllerGetMyStorageErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/storage",
+    ...options,
+  });
+
+/**
+ * Mint presigned upload URLs for a batch of photos
+ */
+export const photosControllerCreateUploadUrls = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerCreateUploadUrlsData, ThrowOnError>,
+): RequestResult<PhotosControllerCreateUploadUrlsResponses, PhotosControllerCreateUploadUrlsErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    PhotosControllerCreateUploadUrlsResponses,
+    PhotosControllerCreateUploadUrlsErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/photos/upload-urls",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Confirm uploaded photos and mark them ready
+ */
+export const photosControllerConfirmUploads = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerConfirmUploadsData, ThrowOnError>,
+): RequestResult<PhotosControllerConfirmUploadsResponses, PhotosControllerConfirmUploadsErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    PhotosControllerConfirmUploadsResponses,
+    PhotosControllerConfirmUploadsErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/photos/confirm",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * List ready photos in an event (cursor-paginated)
+ */
+export const photosControllerListPhotos = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerListPhotosData, ThrowOnError>,
+): RequestResult<PhotosControllerListPhotosResponses, PhotosControllerListPhotosErrors, ThrowOnError> =>
+  (options.client ?? client).get<PhotosControllerListPhotosResponses, PhotosControllerListPhotosErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/photos",
+    ...options,
+  });
+
+/**
+ * Delete a photo
+ */
+export const photosControllerRemove = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerRemoveData, ThrowOnError>,
+): RequestResult<PhotosControllerRemoveResponses, PhotosControllerRemoveErrors, ThrowOnError> =>
+  (options.client ?? client).delete<PhotosControllerRemoveResponses, PhotosControllerRemoveErrors, ThrowOnError>({
+    url: "/api/v2/photos/{photoId}",
+    ...options,
+  });
+
+/**
+ * Get a photo by ID
+ */
+export const photosControllerFindOne = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerFindOneData, ThrowOnError>,
+): RequestResult<PhotosControllerFindOneResponses, PhotosControllerFindOneErrors, ThrowOnError> =>
+  (options.client ?? client).get<PhotosControllerFindOneResponses, PhotosControllerFindOneErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/photos/{photoId}",
+    ...options,
   });
 
 /**
@@ -315,80 +409,5 @@ export const eventsControllerRegenerateInvitationUrl = <ThrowOnError extends boo
   >({
     responseType: "json",
     url: "/api/v2/events/{eventId}/regenerate-url",
-    ...options,
-  });
-
-/**
- * Mint presigned upload URLs for a batch of photos
- */
-export const photosControllerCreateUploadUrls = <ThrowOnError extends boolean = false>(
-  options: Options<PhotosControllerCreateUploadUrlsData, ThrowOnError>,
-): RequestResult<PhotosControllerCreateUploadUrlsResponses, PhotosControllerCreateUploadUrlsErrors, ThrowOnError> =>
-  (options.client ?? client).post<
-    PhotosControllerCreateUploadUrlsResponses,
-    PhotosControllerCreateUploadUrlsErrors,
-    ThrowOnError
-  >({
-    responseType: "json",
-    url: "/api/v2/events/{eventId}/photos/upload-urls",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-
-/**
- * Confirm uploaded photos and mark them ready
- */
-export const photosControllerConfirmUploads = <ThrowOnError extends boolean = false>(
-  options: Options<PhotosControllerConfirmUploadsData, ThrowOnError>,
-): RequestResult<PhotosControllerConfirmUploadsResponses, PhotosControllerConfirmUploadsErrors, ThrowOnError> =>
-  (options.client ?? client).post<
-    PhotosControllerConfirmUploadsResponses,
-    PhotosControllerConfirmUploadsErrors,
-    ThrowOnError
-  >({
-    responseType: "json",
-    url: "/api/v2/events/{eventId}/photos/confirm",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-
-/**
- * List ready photos in an event (cursor-paginated)
- */
-export const photosControllerListPhotos = <ThrowOnError extends boolean = false>(
-  options: Options<PhotosControllerListPhotosData, ThrowOnError>,
-): RequestResult<PhotosControllerListPhotosResponses, PhotosControllerListPhotosErrors, ThrowOnError> =>
-  (options.client ?? client).get<PhotosControllerListPhotosResponses, PhotosControllerListPhotosErrors, ThrowOnError>({
-    responseType: "json",
-    url: "/api/v2/events/{eventId}/photos",
-    ...options,
-  });
-
-/**
- * Delete a photo
- */
-export const photosControllerRemove = <ThrowOnError extends boolean = false>(
-  options: Options<PhotosControllerRemoveData, ThrowOnError>,
-): RequestResult<PhotosControllerRemoveResponses, PhotosControllerRemoveErrors, ThrowOnError> =>
-  (options.client ?? client).delete<PhotosControllerRemoveResponses, PhotosControllerRemoveErrors, ThrowOnError>({
-    url: "/api/v2/photos/{photoId}",
-    ...options,
-  });
-
-/**
- * Get a photo by ID
- */
-export const photosControllerFindOne = <ThrowOnError extends boolean = false>(
-  options: Options<PhotosControllerFindOneData, ThrowOnError>,
-): RequestResult<PhotosControllerFindOneResponses, PhotosControllerFindOneErrors, ThrowOnError> =>
-  (options.client ?? client).get<PhotosControllerFindOneResponses, PhotosControllerFindOneErrors, ThrowOnError>({
-    responseType: "json",
-    url: "/api/v2/photos/{photoId}",
     ...options,
   });

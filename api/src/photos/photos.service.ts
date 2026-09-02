@@ -11,6 +11,7 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
+import { PhotoStorageService } from "./photo-storage.service";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
 import {
   buildPhotoS3Key,
@@ -43,6 +44,7 @@ export class PhotosService {
     private readonly prisma: PrismaService,
     private readonly abilityFactory: AbilityFactory,
     private readonly s3Service: S3Service,
+    private readonly photoStorageService: PhotoStorageService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -69,6 +71,9 @@ export class PhotosService {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId));
     }
 
+    const requestedBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
+    await this.photoStorageService.assertCanUpload(callerId, requestedBytes);
+
     // Create a new photo row for each file.
     // Each photo has a unique S3 Key and status of PENDING.
     const rows = files.map((file) => {
@@ -77,7 +82,7 @@ export class PhotosService {
         id: photoId,
         eventId,
         addedById: callerId,
-        s3Key: buildPhotoS3Key(eventId, photoId),
+        s3Key: buildPhotoS3Key(callerId, eventId, photoId),
         contentType: file.contentType,
         sizeBytes: file.sizeBytes,
         status: PhotoStatus.PENDING,

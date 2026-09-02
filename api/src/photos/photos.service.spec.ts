@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -8,7 +8,8 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
-import { UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
+import { buildPhotoS3Key, PHOTO_SERVICE_ERRORS, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
+import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosService } from "./photos.service";
 
 describe("PhotosService", () => {
@@ -20,6 +21,7 @@ describe("PhotosService", () => {
     headObject: jest.Mock;
     deleteObject: jest.Mock;
   };
+  let photoStorageService: { assertCanUpload: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -79,7 +81,7 @@ describe("PhotosService", () => {
     id: photoId,
     eventId,
     addedById: callerId,
-    s3Key: `photos/${eventId}/${photoId}`,
+    s3Key: buildPhotoS3Key(callerId, eventId, photoId),
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "PENDING",
@@ -96,6 +98,7 @@ describe("PhotosService", () => {
       headObject: jest.fn(),
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
+    photoStorageService = { assertCanUpload: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -103,6 +106,7 @@ describe("PhotosService", () => {
         AbilityFactory,
         { provide: PrismaService, useValue: prisma },
         { provide: S3Service, useValue: s3Service },
+        { provide: PhotoStorageService, useValue: photoStorageService },
         {
           provide: PinoLogger,
           useValue: { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -143,6 +147,21 @@ describe("PhotosService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(photoStorageService.assertCanUpload).not.toHaveBeenCalled();
+      expect(prisma.photo.createMany).not.toHaveBeenCalled();
+    });
+
+    it("throws PayloadTooLargeException when the upload would exceed storage quota", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
+      photoStorageService.assertCanUpload.mockRejectedValue(
+        new PayloadTooLargeException(PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED),
+      );
+
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(
+        PayloadTooLargeException,
+      );
+      expect(photoStorageService.assertCanUpload).toHaveBeenCalledWith(callerId, 3072);
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
@@ -155,6 +174,7 @@ describe("PhotosService", () => {
 
         const slots = await service.createUploadSlots(eventId, callerId, files);
 
+        expect(photoStorageService.assertCanUpload).toHaveBeenCalledWith(callerId, 3072);
         expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
         const { data } = prisma.photo.createMany.mock.calls[0][0] as { data: Record<string, unknown>[] };
         expect(data).toHaveLength(files.length);
@@ -165,7 +185,7 @@ describe("PhotosService", () => {
             contentType: files[index].contentType,
             sizeBytes: files[index].sizeBytes,
             status: "PENDING",
-            s3Key: `photos/${eventId}/${row.id as string}`,
+            s3Key: buildPhotoS3Key(callerId, eventId, row.id as string),
           });
         }
 
@@ -268,7 +288,7 @@ describe("PhotosService", () => {
         { photoId, status: "READY" },
         { photoId: otherPhotoId, status: "MISSING" },
       ]);
-      expect(s3Service.headObject).toHaveBeenCalledWith(`photos/${eventId}/${photoId}`);
+      expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [photoId] } },
         data: { status: "READY" },
@@ -420,7 +440,7 @@ describe("PhotosService", () => {
       expect(result).toEqual({ ...buildPhoto(photoId, { status: "READY" }), url: "https://signed-get" });
       expect(result).not.toHaveProperty("event");
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
-        key: `photos/${eventId}/${photoId}`,
+        key: buildPhotoS3Key(callerId, eventId, photoId),
         expiresInSeconds: 900,
       });
     });
@@ -465,7 +485,7 @@ describe("PhotosService", () => {
 
       await service.deletePhoto(photoId, callerId);
 
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(`photos/${eventId}/${photoId}`);
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, photoId));
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
       expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.delete.mock.invocationCallOrder[0],

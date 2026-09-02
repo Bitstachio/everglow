@@ -29,50 +29,24 @@ export type CreateUserDetailsDto = {
   email: string;
 };
 
+export type UserStorageResponseDto = {
+  /**
+   * Bytes currently used by the caller's uploads
+   */
+  usedBytes: string;
+  /**
+   * Maximum bytes the caller may use
+   */
+  limitBytes: string;
+  /**
+   * Bytes remaining before the quota is reached
+   */
+  remainingBytes: string;
+};
+
 export type UpdateUserDto = {
   name?: string;
   email?: string;
-};
-
-export type EventResponseDto = {
-  id: string;
-  title: string;
-  description: string | null;
-  date: string;
-  creatorId: string;
-  /**
-   * Shareable invitation link composed from the stored invite token
-   */
-  invitationUrl: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type CreateEventDto = {
-  [key: string]: unknown;
-};
-
-export type JoinEventDto = {
-  /**
-   * Full invitation URL or invite token
-   */
-  invitationUrl: string;
-};
-
-export type UpdateEventDto = {
-  [key: string]: unknown;
-};
-
-export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
-
-export type EventParticipantResponseDto = {
-  userId: string;
-  name: string;
-  accessLevel: AccessLevel;
-};
-
-export type UpdateParticipantAccessDto = {
-  accessLevel: AccessLevel;
 };
 
 export type UploadSlotResponseDto = {
@@ -121,6 +95,47 @@ export type PhotoListResponseDto = {
   nextCursor: {
     [key: string]: unknown;
   } | null;
+};
+
+export type EventResponseDto = {
+  id: string;
+  title: string;
+  description: string | null;
+  date: string;
+  creatorId: string;
+  /**
+   * Shareable invitation link composed from the stored invite token
+   */
+  invitationUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateEventDto = {
+  [key: string]: unknown;
+};
+
+export type JoinEventDto = {
+  /**
+   * Full invitation URL or invite token
+   */
+  invitationUrl: string;
+};
+
+export type UpdateEventDto = {
+  [key: string]: unknown;
+};
+
+export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
+
+export type EventParticipantResponseDto = {
+  userId: string;
+  name: string;
+  accessLevel: AccessLevel;
+};
+
+export type UpdateParticipantAccessDto = {
+  accessLevel: AccessLevel;
 };
 
 export type AppControllerGetHelloData = {
@@ -235,6 +250,179 @@ export type UsersControllerUpdateMeResponses = {
 };
 
 export type UsersControllerUpdateMeResponse = UsersControllerUpdateMeResponses[keyof UsersControllerUpdateMeResponses];
+
+export type UsersControllerGetMyStorageData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/storage";
+};
+
+export type UsersControllerGetMyStorageErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type UsersControllerGetMyStorageResponses = {
+  /**
+   * Photo storage usage
+   */
+  200: {
+    data: UserStorageResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerGetMyStorageResponse =
+  UsersControllerGetMyStorageResponses[keyof UsersControllerGetMyStorageResponses];
+
+export type PhotosControllerCreateUploadUrlsData = {
+  body: CreateUploadUrlsDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/photos/upload-urls";
+};
+
+export type PhotosControllerCreateUploadUrlsErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerCreateUploadUrlsResponses = {
+  /**
+   * Upload slots with presigned S3 PUT URLs
+   */
+  201: {
+    data: UploadSlotResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PhotosControllerCreateUploadUrlsResponse =
+  PhotosControllerCreateUploadUrlsResponses[keyof PhotosControllerCreateUploadUrlsResponses];
+
+export type PhotosControllerConfirmUploadsData = {
+  body: ConfirmUploadsDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/photos/confirm";
+};
+
+export type PhotosControllerConfirmUploadsErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerConfirmUploadsResponses = {
+  /**
+   * Per-photo verification result
+   */
+  201: {
+    data: ConfirmPhotoResultDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PhotosControllerConfirmUploadsResponse =
+  PhotosControllerConfirmUploadsResponses[keyof PhotosControllerConfirmUploadsResponses];
+
+export type PhotosControllerListPhotosData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: {
+    /**
+     * ID of the last photo from the previous page
+     */
+    cursor?: string;
+    limit?: number;
+  };
+  url: "/api/v2/events/{eventId}/photos";
+};
+
+export type PhotosControllerListPhotosErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerListPhotosResponses = {
+  /**
+   * Photos with presigned download URLs, newest first
+   */
+  200: {
+    data: PhotoListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PhotosControllerListPhotosResponse =
+  PhotosControllerListPhotosResponses[keyof PhotosControllerListPhotosResponses];
+
+export type PhotosControllerRemoveData = {
+  body?: never;
+  path: {
+    photoId: string;
+  };
+  query?: never;
+  url: "/api/v2/photos/{photoId}";
+};
+
+export type PhotosControllerRemoveErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerRemoveResponses = {
+  /**
+   * Photo deleted (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PhotosControllerRemoveResponse = PhotosControllerRemoveResponses[keyof PhotosControllerRemoveResponses];
+
+export type PhotosControllerFindOneData = {
+  body?: never;
+  path: {
+    photoId: string;
+  };
+  query?: never;
+  url: "/api/v2/photos/{photoId}";
+};
+
+export type PhotosControllerFindOneErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerFindOneResponses = {
+  /**
+   * Photo with presigned download URL
+   */
+  200: {
+    data: PhotoResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PhotosControllerFindOneResponse = PhotosControllerFindOneResponses[keyof PhotosControllerFindOneResponses];
 
 export type EventsControllerFindAllData = {
   body?: never;
@@ -534,149 +722,3 @@ export type EventsControllerRegenerateInvitationUrlResponses = {
 
 export type EventsControllerRegenerateInvitationUrlResponse =
   EventsControllerRegenerateInvitationUrlResponses[keyof EventsControllerRegenerateInvitationUrlResponses];
-
-export type PhotosControllerCreateUploadUrlsData = {
-  body: CreateUploadUrlsDto;
-  path: {
-    eventId: string;
-  };
-  query?: never;
-  url: "/api/v2/events/{eventId}/photos/upload-urls";
-};
-
-export type PhotosControllerCreateUploadUrlsErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-};
-
-export type PhotosControllerCreateUploadUrlsResponses = {
-  /**
-   * Upload slots with presigned S3 PUT URLs
-   */
-  201: {
-    data: UploadSlotResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type PhotosControllerCreateUploadUrlsResponse =
-  PhotosControllerCreateUploadUrlsResponses[keyof PhotosControllerCreateUploadUrlsResponses];
-
-export type PhotosControllerConfirmUploadsData = {
-  body: ConfirmUploadsDto;
-  path: {
-    eventId: string;
-  };
-  query?: never;
-  url: "/api/v2/events/{eventId}/photos/confirm";
-};
-
-export type PhotosControllerConfirmUploadsErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-};
-
-export type PhotosControllerConfirmUploadsResponses = {
-  /**
-   * Per-photo verification result
-   */
-  201: {
-    data: ConfirmPhotoResultDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type PhotosControllerConfirmUploadsResponse =
-  PhotosControllerConfirmUploadsResponses[keyof PhotosControllerConfirmUploadsResponses];
-
-export type PhotosControllerListPhotosData = {
-  body?: never;
-  path: {
-    eventId: string;
-  };
-  query?: {
-    /**
-     * ID of the last photo from the previous page
-     */
-    cursor?: string;
-    limit?: number;
-  };
-  url: "/api/v2/events/{eventId}/photos";
-};
-
-export type PhotosControllerListPhotosErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-};
-
-export type PhotosControllerListPhotosResponses = {
-  /**
-   * Photos with presigned download URLs, newest first
-   */
-  200: {
-    data: PhotoListResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type PhotosControllerListPhotosResponse =
-  PhotosControllerListPhotosResponses[keyof PhotosControllerListPhotosResponses];
-
-export type PhotosControllerRemoveData = {
-  body?: never;
-  path: {
-    photoId: string;
-  };
-  query?: never;
-  url: "/api/v2/photos/{photoId}";
-};
-
-export type PhotosControllerRemoveErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-};
-
-export type PhotosControllerRemoveResponses = {
-  /**
-   * Photo deleted (empty data envelope at runtime)
-   */
-  204: void;
-};
-
-export type PhotosControllerRemoveResponse = PhotosControllerRemoveResponses[keyof PhotosControllerRemoveResponses];
-
-export type PhotosControllerFindOneData = {
-  body?: never;
-  path: {
-    photoId: string;
-  };
-  query?: never;
-  url: "/api/v2/photos/{photoId}";
-};
-
-export type PhotosControllerFindOneErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-};
-
-export type PhotosControllerFindOneResponses = {
-  /**
-   * Photo with presigned download URL
-   */
-  200: {
-    data: PhotoResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type PhotosControllerFindOneResponse = PhotosControllerFindOneResponses[keyof PhotosControllerFindOneResponses];

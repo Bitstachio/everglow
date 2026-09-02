@@ -21,6 +21,7 @@ export {
   photosControllerRemove,
   usersControllerCompleteOnboarding,
   usersControllerFindMe,
+  usersControllerGetMyStorage,
   usersControllerRemoveMe,
   usersControllerUpdateMe,
 } from "./sdk.gen";
@@ -119,6 +120,10 @@ export type {
   UsersControllerFindMeErrors,
   UsersControllerFindMeResponse,
   UsersControllerFindMeResponses,
+  UsersControllerGetMyStorageData,
+  UsersControllerGetMyStorageErrors,
+  UsersControllerGetMyStorageResponse,
+  UsersControllerGetMyStorageResponses,
   UsersControllerRemoveMeData,
   UsersControllerRemoveMeErrors,
   UsersControllerRemoveMeResponse,
@@ -127,4 +132,5 @@ export type {
   UsersControllerUpdateMeErrors,
   UsersControllerUpdateMeResponse,
   UsersControllerUpdateMeResponses,
+  UserStorageResponseDto,
 } from "./types.gen";
