@@ -48,7 +48,7 @@ const JoinEventModal = ({ visible, onClose, onJoinLink }: JoinEventModalProps) =
         <View className="p-6 gap-5 rounded-2xl bg-ui-background dark:bg-dark-background">
           <View className="gap-1">
             <H2>Join an Event</H2>
-            <ThemedText>Choose how you'd like to join the event shared with you.</ThemedText>
+            <ThemedText>Choose how you would like to join the event shared with you.</ThemedText>
           </View>
 
           <QRButton onPress={handleOpenScanner} />
