@@ -110,21 +110,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Generated API types are up to date
-        run: npm run openapi:check
-      - run: npm run format:check
+        run: pnpm run openapi:check
+      - run: pnpm run format:check
         background: true
-      - run: npm run lint
+      - run: pnpm run lint
         background: true
-      - run: npx tsc --noEmit
+      - run: pnpm exec tsc --noEmit
         background: true
       - wait-all:
 

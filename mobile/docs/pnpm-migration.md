@@ -52,9 +52,8 @@ Do **not** put `node-linker=hoisted` in `.npmrc` — it will look correct and do
 | `openapi:check` script now calls `pnpm run …` | Avoid hardcoded `npm` in package scripts |
 | `react-native-reanimated`: `^4.1.5` → `^4.1.7` | Fresh lockfile had floated Reanimated to 4.6.x (needs Worklets 0.12.x). Expo SDK 54 expects ~4.1.x with Worklets `0.5.1`. Re-pinned with `expo install`. |
 
-**Not done yet (follow-ups in the same PR or a quick follow-up):**
+**Not done yet (follow-ups):**
 
-- `.github/workflows/ci.yml` **mobile** job still uses `npm ci` / `package-lock.json` — must switch to pnpm or CI will fail after merge
 - `mobile/README.md` and some docs still mention `npm install` / `npm run …`
 
 `api/` CI and lockfile are intentionally untouched.
