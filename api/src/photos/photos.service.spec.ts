@@ -158,7 +158,9 @@ describe("PhotosService", () => {
         new PayloadTooLargeException(PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED),
       );
 
-      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(PayloadTooLargeException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(
+        PayloadTooLargeException,
+      );
       expect(photoStorageService.assertCanUpload).toHaveBeenCalledWith(callerId, 3072);
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });

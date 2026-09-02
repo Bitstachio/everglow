@@ -12,8 +12,5 @@ const parsePositiveBigInt = (value: string | undefined, fallback: bigint): bigin
 };
 
 export default registerAs("photos", () => ({
-  storageLimitBytes: parsePositiveBigInt(
-    process.env.PHOTO_STORAGE_LIMIT_BYTES,
-    FREE_TIER_STORAGE_LIMIT_BYTES,
-  ),
+  storageLimitBytes: parsePositiveBigInt(process.env.PHOTO_STORAGE_LIMIT_BYTES, FREE_TIER_STORAGE_LIMIT_BYTES),
 }));

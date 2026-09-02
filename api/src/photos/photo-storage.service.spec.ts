@@ -4,11 +4,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { PhotoStatus, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PrismaService } from "src/prisma/prisma.service";
-import {
-  FREE_TIER_STORAGE_LIMIT_BYTES,
-  PHOTO_SERVICE_ERRORS,
-  STORAGE_QUOTA_EXCEEDED_CODE,
-} from "./photos.constants";
+import { FREE_TIER_STORAGE_LIMIT_BYTES, PHOTO_SERVICE_ERRORS, STORAGE_QUOTA_EXCEEDED_CODE } from "./photos.constants";
 import { PhotoStorageService } from "./photo-storage.service";
 
 describe("PhotoStorageService", () => {
