@@ -5,6 +5,7 @@ import { EVENT_ACTIONS, EVENT_SUBJECT } from "src/events/events.abilities";
 import { PrismaService } from "src/prisma/prisma.service";
 import { UserWithDetails } from "src/users/users.types";
 import { AbilityFactory } from "./ability.factory";
+import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 describe("AbilityFactory", () => {
   let factory: AbilityFactory;
@@ -16,6 +17,7 @@ describe("AbilityFactory", () => {
   const callerWithoutDetails: UserWithDetails = {
     id: callerId,
     providerSub: "auth0|caller",
+    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     createdAt: now,
     updatedAt: now,
     details: null,

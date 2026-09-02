@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { ConflictException, PayloadTooLargeException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { ConflictException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PhotoStatus, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
+import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import {
   buildPhotoS3Key,
   FREE_TIER_STORAGE_LIMIT_BYTES,
@@ -28,6 +28,11 @@ describe("PhotoStorageService", () => {
     addedById: userId,
     status: { in: [PhotoStatus.PENDING, PhotoStatus.READY] },
   };
+  const limitQuery = { where: { id: userId }, select: { storageLimitBytes: true } };
+
+  const ONE_GIB = 1024n ** 3n;
+  const TEN_GIB = 10n * ONE_GIB;
+  const userWithLimit = (storageLimitBytes: bigint) => ({ storageLimitBytes }) as never;
 
   const buildRow = (sizeBytes: number): UploadReservationRow => {
     const id = randomUUID();
@@ -50,18 +55,13 @@ describe("PhotoStorageService", () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    prisma.user.findUnique.mockResolvedValue(userWithLimit(FREE_TIER_STORAGE_LIMIT_BYTES));
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PhotoStorageService,
         { provide: PrismaService, useValue: prisma },
-        {
-          provide: ConfigService,
-          useValue: {
-            getOrThrow: jest.fn(() => FREE_TIER_STORAGE_LIMIT_BYTES),
-          },
-        },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -78,10 +78,31 @@ describe("PhotoStorageService", () => {
       remainingBytes: (FREE_TIER_STORAGE_LIMIT_BYTES - 1024n).toString(),
     });
 
+    expect(prisma.user.findUnique).toHaveBeenCalledWith(limitQuery);
     expect(prisma.photo.aggregate).toHaveBeenCalledWith({
       where: usageWhere,
       _sum: { sizeBytes: true },
     });
+  });
+
+  it("reports the caller's own limit rather than the free-tier default", async () => {
+    prisma.user.findUnique.mockResolvedValue(userWithLimit(TEN_GIB));
+    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 1024 } } as never);
+
+    await expect(service.getStorageForUser(userId)).resolves.toEqual({
+      usedBytes: "1024",
+      limitBytes: TEN_GIB.toString(),
+      remainingBytes: (TEN_GIB - 1024n).toString(),
+    });
+  });
+
+  it("rejects with 404 when the user row does not exist", async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    const snapshot = service.getStorageForUser(userId);
+
+    await expect(snapshot).rejects.toBeInstanceOf(NotFoundException);
+    await expect(snapshot).rejects.toThrow(USER_SERVICE_ERRORS.NOT_FOUND(userId));
   });
 
   it("allows uploads within the remaining quota", async () => {
@@ -106,6 +127,27 @@ describe("PhotoStorageService", () => {
     await expect(service.assertCanUpload(userId, 200)).rejects.toBeInstanceOf(PayloadTooLargeException);
   });
 
+  it("enforces the caller's own limit, not the free-tier default", async () => {
+    // Above the free tier but under this user's raised ceiling: allowed.
+    prisma.user.findUnique.mockResolvedValue(userWithLimit(TEN_GIB));
+    prisma.photo.aggregate.mockResolvedValue({
+      _sum: { sizeBytes: Number(FREE_TIER_STORAGE_LIMIT_BYTES + 1n) },
+    } as never);
+    await expect(service.assertCanUpload(userId, 200)).resolves.toBeUndefined();
+
+    // Under the free tier but over this user's lowered ceiling: rejected.
+    prisma.user.findUnique.mockResolvedValue(userWithLimit(ONE_GIB));
+    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: Number(ONE_GIB - 100n) } } as never);
+    await expect(service.assertCanUpload(userId, 200)).rejects.toMatchObject({
+      response: {
+        code: STORAGE_QUOTA_EXCEEDED_CODE,
+        usedBytes: (ONE_GIB - 100n).toString(),
+        limitBytes: ONE_GIB.toString(),
+        requestedBytes: "200",
+      },
+    });
+  });
+
   describe("reserveUploadBytes", () => {
     // The transaction client is a distinct mock so the tests can prove that
     // both the usage query and the insert go through it, not the root client.
@@ -113,6 +155,7 @@ describe("PhotoStorageService", () => {
 
     beforeEach(() => {
       tx = mockDeep<Prisma.TransactionClient>();
+      tx.user.findUnique.mockResolvedValue(userWithLimit(FREE_TIER_STORAGE_LIMIT_BYTES));
       prisma.$transaction.mockImplementation(async (fn) => fn(tx));
     });
 
@@ -127,13 +170,39 @@ describe("PhotoStorageService", () => {
       expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
+      expect(tx.user.findUnique).toHaveBeenCalledWith(limitQuery);
       expect(tx.photo.aggregate).toHaveBeenCalledWith({ where: usageWhere, _sum: { sizeBytes: true } });
       expect(tx.photo.createMany).toHaveBeenCalledWith({ data: rows });
+      expect(tx.user.findUnique.mock.invocationCallOrder[0]).toBeLessThan(
+        tx.photo.createMany.mock.invocationCallOrder[0],
+      );
       expect(tx.photo.aggregate.mock.invocationCallOrder[0]).toBeLessThan(
         tx.photo.createMany.mock.invocationCallOrder[0],
       );
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
       expect(prisma.photo.aggregate).not.toHaveBeenCalled();
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
+    });
+
+    it("reserves against the caller's own limit read inside the transaction", async () => {
+      tx.user.findUnique.mockResolvedValue(userWithLimit(TEN_GIB));
+      tx.photo.aggregate.mockResolvedValue({
+        _sum: { sizeBytes: Number(FREE_TIER_STORAGE_LIMIT_BYTES + 1n) },
+      } as never);
+      tx.photo.createMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.reserveUploadBytes(userId, [buildRow(1024)])).resolves.toBeUndefined();
+
+      expect(tx.photo.createMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects with 404 and inserts nothing when the uploader row is missing", async () => {
+      tx.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.reserveUploadBytes(userId, [buildRow(1024)])).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(tx.photo.createMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
     it("reserves exactly up to the limit", async () => {
@@ -184,7 +253,8 @@ describe("PhotoStorageService", () => {
       await expect(service.reserveUploadBytes(userId, rows)).resolves.toBeUndefined();
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(2);
-      // The retry re-reads usage instead of reusing the stale sum.
+      // The retry re-reads limit and usage instead of reusing stale values.
+      expect(tx.user.findUnique).toHaveBeenCalledTimes(2);
       expect(tx.photo.aggregate).toHaveBeenCalledTimes(2);
       expect(tx.photo.createMany).toHaveBeenCalledTimes(2);
       expect(logger.warn).toHaveBeenCalledTimes(1);
