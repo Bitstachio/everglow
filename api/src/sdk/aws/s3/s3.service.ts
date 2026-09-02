@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   NotFound,
   PutObjectCommand,
   S3Client,
@@ -30,6 +31,18 @@ export interface PresignedDownloadInput {
 }
 
 export type HeadObjectResult = { exists: true; contentType?: string; sizeBytes?: number } | { exists: false };
+
+export interface S3ObjectSummary {
+  key: string;
+  sizeBytes?: number;
+  lastModified?: Date;
+}
+
+export interface ListObjectsResult {
+  objects: S3ObjectSummary[];
+  /** Present when the listing is truncated; pass it back to fetch the next page. */
+  nextContinuationToken?: string;
+}
 
 @Injectable()
 export class S3Service implements OnModuleDestroy {
@@ -98,6 +111,25 @@ export class S3Service implements OnModuleDestroy {
       if (error instanceof NotFound) return { exists: false };
       this.logger.error({ err: error as Error, key }, "s3 headObject failed");
       throw new InternalServerErrorException(S3_SERVICE_ERRORS.HEAD_FAILED(key));
+    }
+  }
+
+  /**
+   * One page (up to 1000 keys, in key order) of the objects under `prefix`.
+   * Callers paginate with the returned continuation token.
+   */
+  async listObjects(prefix: string, continuationToken?: string): Promise<ListObjectsResult> {
+    try {
+      const response = await this.client.send(
+        new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: continuationToken }),
+      );
+      const objects = (response.Contents ?? []).flatMap((object): S3ObjectSummary[] =>
+        object.Key ? [{ key: object.Key, sizeBytes: object.Size, lastModified: object.LastModified }] : [],
+      );
+      return { objects, nextContinuationToken: response.IsTruncated ? response.NextContinuationToken : undefined };
+    } catch (error) {
+      this.logger.error({ err: error as Error, prefix }, "s3 listObjects failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.LIST_FAILED(prefix));
     }
   }
 
