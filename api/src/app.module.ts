@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
 import { LoggerModule } from "nestjs-pino";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -23,6 +24,7 @@ import { UsersModule } from "./users/users.module";
       load: [auth0Config, awsConfig, encryptionConfig, photosConfig],
       envFilePath: ".env",
     }),
+    ScheduleModule.forRoot(),
     AuthModule,
     UsersModule,
     CaslModule,

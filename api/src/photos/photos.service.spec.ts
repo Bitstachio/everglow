@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -21,7 +21,7 @@ describe("PhotosService", () => {
     headObject: jest.Mock;
     deleteObject: jest.Mock;
   };
-  let photoStorageService: { assertCanUpload: jest.Mock };
+  let photoStorageService: { reserveUploadBytes: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -98,7 +98,7 @@ describe("PhotosService", () => {
       headObject: jest.fn(),
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
-    photoStorageService = { assertCanUpload: jest.fn().mockResolvedValue(undefined) };
+    photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -123,7 +123,7 @@ describe("PhotosService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(NotFoundException);
-      expect(prisma.photo.createMany).not.toHaveBeenCalled();
+      expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
     });
 
     it("throws ForbiddenException when the caller is not a member of the event", async () => {
@@ -131,7 +131,7 @@ describe("PhotosService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([]) as never);
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
-      expect(prisma.photo.createMany).not.toHaveBeenCalled();
+      expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
     });
 
     it("throws ForbiddenException when the caller is a viewer", async () => {
@@ -139,7 +139,7 @@ describe("PhotosService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
-      expect(prisma.photo.createMany).not.toHaveBeenCalled();
+      expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
     });
 
     it("denies access when the caller has not completed onboarding", async () => {
@@ -147,38 +147,61 @@ describe("PhotosService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
-      expect(photoStorageService.assertCanUpload).not.toHaveBeenCalled();
+      expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
-    it("throws PayloadTooLargeException when the upload would exceed storage quota", async () => {
+    it("throws PayloadTooLargeException and mints no URLs when the reservation exceeds storage quota", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
-      photoStorageService.assertCanUpload.mockRejectedValue(
+      photoStorageService.reserveUploadBytes.mockRejectedValue(
         new PayloadTooLargeException(PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED),
       );
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(
         PayloadTooLargeException,
       );
-      expect(photoStorageService.assertCanUpload).toHaveBeenCalledWith(callerId, 3072);
+      expect(photoStorageService.reserveUploadBytes).toHaveBeenCalledTimes(1);
+      expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it("propagates ConflictException and mints no URLs when the reservation keeps conflicting", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
+      photoStorageService.reserveUploadBytes.mockRejectedValue(
+        new ConflictException(PHOTO_SERVICE_ERRORS.STORAGE_RESERVATION_CONFLICT),
+      );
+
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ConflictException);
+      expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it("never inserts rows outside the quota reservation", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
+
+      await service.createUploadSlots(eventId, callerId, files);
+
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
+      expect(prisma.photo.create).not.toHaveBeenCalled();
     });
 
     it.each(["ORGANIZER", "PARTICIPANT"] as const)(
-      "creates PENDING rows and returns presigned slots for a %s",
+      "reserves quota for the PENDING rows, then returns presigned slots for a %s",
       async (accessLevel) => {
         prisma.user.findUnique.mockResolvedValue(callerWithDetails);
         prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess(accessLevel)]) as never);
-        prisma.photo.createMany.mockResolvedValue({ count: files.length });
 
         const slots = await service.createUploadSlots(eventId, callerId, files);
 
-        expect(photoStorageService.assertCanUpload).toHaveBeenCalledWith(callerId, 3072);
-        expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
-        const { data } = prisma.photo.createMany.mock.calls[0][0] as { data: Record<string, unknown>[] };
-        expect(data).toHaveLength(files.length);
-        for (const [index, row] of data.entries()) {
+        expect(photoStorageService.reserveUploadBytes).toHaveBeenCalledTimes(1);
+        const [reservedFor, rows] = photoStorageService.reserveUploadBytes.mock.calls[0] as [
+          string,
+          Record<string, unknown>[],
+        ];
+        expect(reservedFor).toBe(callerId);
+        expect(rows).toHaveLength(files.length);
+        for (const [index, row] of rows.entries()) {
           expect(row).toMatchObject({
             eventId,
             addedById: callerId,
@@ -191,13 +214,17 @@ describe("PhotosService", () => {
 
         expect(slots).toHaveLength(files.length);
         for (const [index, slot] of slots.entries()) {
-          expect(slot).toEqual({ photoId: data[index].id, uploadUrl: "https://signed-put" });
+          expect(slot).toEqual({ photoId: rows[index].id, uploadUrl: "https://signed-put" });
         }
         expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith({
-          key: data[0].s3Key,
+          key: rows[0].s3Key,
           contentType: files[0].contentType,
           expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
         });
+        // URLs are minted only after the reservation has committed.
+        expect(photoStorageService.reserveUploadBytes.mock.invocationCallOrder[0]).toBeLessThan(
+          s3Service.getPresignedUploadUrl.mock.invocationCallOrder[0],
+        );
       },
     );
   });
