@@ -33,7 +33,7 @@ export default function GalleryScreen() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [viewingPhotoIndex, setViewingPhotoIndex] = useState<number | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -63,7 +63,7 @@ export default function GalleryScreen() {
     fetchPhotos();
   }, []);
 
-  const togglePhotoSelection = (photoId: number) => {
+  const togglePhotoSelection = (photoId: string) => {
     const newSelected = new Set(selectedPhotos);
     if (newSelected.has(photoId)) {
       newSelected.delete(photoId);
@@ -78,7 +78,7 @@ export default function GalleryScreen() {
     }
   };
 
-  const handleLongPress = (photoId: number) => {
+  const handleLongPress = (photoId: string) => {
     setIsSelectionMode(true);
     togglePhotoSelection(photoId);
   };
@@ -116,7 +116,7 @@ export default function GalleryScreen() {
 
       for (const photo of photosToDownload) {
         // Download photo to cache directory using new API
-        const downloadedFile = await File.downloadFileAsync(photo.image_url, Paths.cache);
+        const downloadedFile = await File.downloadFileAsync(photo.url, Paths.cache);
 
         // Save to media library
         await MediaLibrary.createAssetAsync(downloadedFile.uri);
@@ -146,7 +146,7 @@ export default function GalleryScreen() {
       setIsDownloading(true);
 
       // Download photo to cache directory using new API
-      const downloadedFile = await File.downloadFileAsync(photo.image_url, Paths.cache);
+      const downloadedFile = await File.downloadFileAsync(photo.url, Paths.cache);
 
       // Save to media library
       await MediaLibrary.createAssetAsync(downloadedFile.uri);
@@ -219,7 +219,7 @@ export default function GalleryScreen() {
                   onPress={() => handlePhotoPress(photo)}
                   onLongPress={() => handleLongPress(photo.id)}
                 >
-                  <Image source={{ uri: photo.image_url }} style={styles.photo} />
+                  <Image source={{ uri: photo.url }} style={styles.photo} />
                   {isSelectionMode && (
                     <View style={styles.selectionOverlay}>
                       <View
@@ -315,7 +315,7 @@ export default function GalleryScreen() {
                 >
                   <View style={{ flex: 1, width: "100%", justifyContent: "center", alignItems: "center" }}>
                     <Image
-                      source={{ uri: photos[viewingPhotoIndex].image_url }}
+                      source={{ uri: photos[viewingPhotoIndex].url }}
                       style={styles.fullImage}
                       resizeMode="contain"
                     />

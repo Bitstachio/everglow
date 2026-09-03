@@ -8,7 +8,7 @@ interface InputProps extends TextInputProps {
   secureTextEntry?: boolean;
 }
 
-export function Input({ label, error, secureTextEntry, ...props }: InputProps) {
+export const Input = ({ label, error, secureTextEntry, ...props }: InputProps) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -32,7 +32,7 @@ export function Input({ label, error, secureTextEntry, ...props }: InputProps) {
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {

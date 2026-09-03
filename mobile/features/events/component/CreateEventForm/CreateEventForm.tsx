@@ -20,13 +20,7 @@ import {
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
-type CreatedEvent = {
-  id: number;
-  title: string;
-  description: string;
-  date: string;
-  invitation_url: string;
-};
+import type { EventResponseDto } from "@/lib/api/generated";
 
 const CreateEventForm = () => {
   const router = useRouter();
@@ -40,7 +34,7 @@ const CreateEventForm = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
+  const [createdEvent, setCreatedEvent] = useState<EventResponseDto | null>(null);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === "android") {
@@ -108,8 +102,8 @@ const CreateEventForm = () => {
   };
 
   const handleCopyLink = async () => {
-    if (createdEvent?.invitation_url) {
-      Clipboard.setString(createdEvent.invitation_url);
+    if (createdEvent?.invitationUrl) {
+      Clipboard.setString(createdEvent.invitationUrl);
       Alert.alert("Copied!", "Invitation link copied to clipboard");
     }
   };
@@ -118,7 +112,7 @@ const CreateEventForm = () => {
     if (createdEvent) {
       try {
         await Share.share({
-          message: `Join "${createdEvent.title}" via ${createdEvent.invitation_url}`,
+          message: `Join "${createdEvent.title}" via ${createdEvent.invitationUrl}`,
         });
       } catch (error) {
         console.error("Share failed:", error);
@@ -163,7 +157,7 @@ const CreateEventForm = () => {
             <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>QR Code</Text>
             <View style={styles.qrCodeWrapper}>
               <QRCode
-                value={createdEvent.invitation_url}
+                value={createdEvent.invitationUrl}
                 size={200}
                 backgroundColor={isDark ? "#1F2937" : "#FFFFFF"}
                 color={isDark ? "#F9FAFB" : "#111827"}
@@ -181,7 +175,7 @@ const CreateEventForm = () => {
               onPress={handleCopyLink}
             >
               <Text style={[styles.linkText, isDark ? styles.linkTextDark : styles.linkTextLight]} numberOfLines={1}>
-                {createdEvent.invitation_url}
+                {createdEvent.invitationUrl}
               </Text>
               <Ionicons name="copy-outline" size={20} color="#6366F1" />
             </TouchableOpacity>
