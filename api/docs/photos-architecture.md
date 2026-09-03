@@ -46,7 +46,7 @@ photos/{userId}/{eventId}/{photoId}
 
 ### Why a PENDING/READY status
 
-We create the row *before* the upload happens (so we have a `photoId` to sign against). If the upload never completes, the row would still exist — filtering reads to `READY` hides those, and a cleanup job (or S3 lifecycle rule) eventually deletes them.
+We create the row _before_ the upload happens (so we have a `photoId` to sign against). If the upload never completes, the row would still exist — filtering reads to `READY` hides those, and a cleanup job (or S3 lifecycle rule) eventually deletes them.
 
 ---
 
@@ -66,9 +66,7 @@ We create the row *before* the upload happens (so we have a `photoId` to sign ag
 
 ```json
 {
-  "items": [
-    { "id": "...", "url": "https://s3...", "contentType": "image/jpeg", "createdAt": "..." }
-  ],
+  "items": [{ "id": "...", "url": "https://s3...", "contentType": "image/jpeg", "createdAt": "..." }],
   "nextCursor": "..."
 }
 ```
@@ -103,6 +101,7 @@ Without thumbnails, there's only one file. Grid and detail view fetch the same o
 ### Caching
 
 Mobile image lib caches by URL — but presigned URLs change every request (signature differs), defeating the cache. Two options for later:
+
 - Cache by `photoId` instead of URL (most libs support custom cache keys).
 - Return a stable CDN URL via CloudFront, with signed cookies instead of query-string signatures.
 
@@ -150,17 +149,17 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 
 ## 6. Edge cases handled in v1
 
-| Case | Mitigation |
-|---|---|
-| Client uploads, never confirms | Row stuck PENDING. List filters to READY. Cleanup later (see TODO). |
-| Client confirms without uploading | `HeadObject` returns 404 → confirm reports MISSING for that photoId. |
-| Wrong contentType / oversize file | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm. |
-| Upload completes but confirm response lost | Confirm is idempotent — already-READY photoIds return READY again. |
-| Event deleted with pending uploads | `onDelete: Cascade` removes rows. S3 objects orphaned (cleanup later). |
-| App killed mid-upload | OS background uploader resumes. Presigned URL TTL is 1h to give it room. |
-| Two devices upload simultaneously | Each has its own photoId. No conflict. |
+| Case                                                            | Mitigation                                                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h.                                   |
+| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING for that photoId.                                                                 |
+| Wrong contentType / oversize file                               | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm.                                                 |
+| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                   |
+| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects orphaned (cleanup later).                                                               |
+| App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                             |
+| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                               |
 | Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9). |
-| Presigned URL leaked | TTL 1h, limited to one specific key + contentType. Worst case: attacker uploads junk to one key. |
+| Presigned URL leaked                                            | TTL 1h, limited to one specific key + contentType. Worst case: attacker uploads junk to one key.                                     |
 
 ---
 
@@ -169,6 +168,7 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 These are explicitly **not** being built now. Listed so we know what we're skipping and why.
 
 ### Server-side
+
 - **S3 Event Notifications** for confirm. Replace client `/confirm` with EventBridge → API webhook → flip READY. More reliable but requires infra.
 - **Multipart upload** for files >5MB. Lets uploads resume after network drops. Worth it once average photo size grows.
 - **Async processing queue** (SQS) for any post-upload work (EXIF strip, virus scan, ML tagging).
@@ -179,16 +179,19 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 - **Rate limiting** on `/upload-urls` to prevent abuse.
 
 ### Reads / performance
+
 - **Thumbnail generation** (server-side via `sharp` at confirm time, or on-the-fly via S3 Object Lambda + CloudFront). Add when grid scroll feels slow on cellular.
 - **CloudFront distribution** with signed cookies. Replaces per-request presigned URLs with stable CDN URLs that cache well on mobile.
 - **EXIF stripping** for privacy (location data on photos).
 - **Width/height stored at confirm** if mobile ever needs non-square layouts.
 
 ### Reliability
-- **Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects. Or replace with S3 lifecycle rule.
+
+- ~~**Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects.~~ Implemented: `PhotoPendingCleanupService` runs hourly via `@nestjs/schedule`.
 - **Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.
 
 ### Mobile-side (not server concern, listed for completeness)
+
 - Optimistic UI — show photo in grid using local file URI the moment upload starts, swap to remote URL after confirm.
 - Custom cache key (by `photoId`) so cache survives URL re-signing.
 - Background upload via native OS APIs.
@@ -210,13 +213,15 @@ In order of implementation:
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
 - [x] **Per-user storage quota** — 5 GiB free tier enforced at upload-urls; `GET /users/me/storage` for usage.
 - [x] **Race-safe quota reservation** — usage check + PENDING insert in one Serializable transaction, retried on serialization failure.
+- [x] **Pending photo cleanup** — hourly sweeper deletes stale `PENDING` rows and S3 objects (default age: 24h).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
 - [x] **README update** — implementation status is tracked in this checklist.
 
 ### Out of scope for v1 (tracked as future work)
-- Cleanup sweeper for PENDING rows
+
+- ~~Cleanup sweeper for PENDING rows~~ (hourly job deletes PENDING rows older than 24h and their S3 objects)
 - Idempotency keys
 - Per-user paid storage upgrades (billing)
 - Thumbnails
@@ -263,6 +268,25 @@ The same interleaving happens across two API instances behind a load balancer. U
 ### What it does not cover
 
 - A client under-reporting `sizeBytes` — caught at confirm, where `HeadObject` compares the real object size.
-- Orphaned S3 objects and stuck PENDING rows — cleanup sweeper (§7).
+- Orphaned S3 objects — no job reclaims them yet (§7). Stuck PENDING rows are swept by §10.
 - Multi-region deployments without a shared database — there is no cross-region serialization.
 - Per-user paid limits — the limit is global config. When billing needs cheaper reads or per-user caps, the follow-up is a denormalized `storageUsedBytes` counter on the user row updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
+
+Because `PENDING` rows count toward usage, an upload slot that is never confirmed holds quota until §10 sweeps it. The owner cannot release it themselves: reads filter to `READY`, so the row is invisible to list and to `GET /photos/:photoId` and there is nothing for them to delete.
+
+---
+
+## 10. Stale PENDING cleanup
+
+Upload slots that are never confirmed leave `PENDING` rows (and may leave partial S3 objects). A background job reclaims them:
+
+- **Service:** `PhotoPendingCleanupService.cleanupStalePendingPhotos()`
+- **Schedule:** hourly via `PhotoPendingCleanupScheduler` (`@nestjs/schedule`)
+- **Cutoff:** `PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS` (default **24h**, must exceed the 1h presigned upload TTL)
+- **Batch:** up to `PHOTO_PENDING_CLEANUP_BATCH_SIZE` rows per run (default **100**)
+- **Order:** S3 `DeleteObject` first, then DB row delete (same as manual delete)
+- **Disable:** set `PHOTO_PENDING_CLEANUP_ENABLED=false`
+
+Failed per-photo deletes are logged and retried on the next run; successful deletes are not rolled back.
+
+This job is what makes the quota in §9 self-correcting. Without it an abandoned upload holds its bytes against the uploader's cap permanently.
