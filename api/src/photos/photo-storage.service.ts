@@ -2,6 +2,7 @@ import { ConflictException, Injectable, PayloadTooLargeException } from "@nestjs
 import { ConfigService } from "@nestjs/config";
 import { PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { isSerializationFailure } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import {
   PHOTO_SERVICE_ERRORS,
@@ -19,28 +20,6 @@ export interface UserStorageSnapshot {
 
 /** A PENDING photo row to insert once its bytes are reserved against the uploader's quota. */
 export type UploadReservationRow = Prisma.PhotoCreateManyInput;
-
-// Postgres reports a serialization failure as SQLSTATE 40001. Prisma maps it to
-// P2034 when a statement inside the callback fails, but when the failure surfaces
-// at COMMIT the driver adapter's own error ({ cause: { kind, originalCode } }) is
-// rethrown unmapped, so both shapes have to be recognised.
-const PRISMA_TRANSACTION_WRITE_CONFLICT = "P2034";
-const DRIVER_TRANSACTION_WRITE_CONFLICT = "TransactionWriteConflict";
-const POSTGRES_SERIALIZATION_FAILURE = "40001";
-const MAX_CAUSE_DEPTH = 5;
-
-type ErrorLike = { code?: unknown; kind?: unknown; originalCode?: unknown; cause?: unknown };
-
-const isSerializationFailure = (error: unknown): boolean => {
-  let current: unknown = error;
-  for (let depth = 0; depth < MAX_CAUSE_DEPTH && typeof current === "object" && current !== null; depth++) {
-    const { code, kind, originalCode, cause } = current as ErrorLike;
-    if (code === PRISMA_TRANSACTION_WRITE_CONFLICT || code === POSTGRES_SERIALIZATION_FAILURE) return true;
-    if (kind === DRIVER_TRANSACTION_WRITE_CONFLICT || originalCode === POSTGRES_SERIALIZATION_FAILURE) return true;
-    current = cause;
-  }
-  return false;
-};
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
