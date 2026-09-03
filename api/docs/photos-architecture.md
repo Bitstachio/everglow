@@ -18,8 +18,8 @@ An event has many photos. Photos live in S3; metadata lives in Postgres. The API
    For each file, API:
    - validates contentType allowlist + size cap
    - generates a `photoId` (uuid) and `s3Key = photos/{userId}/{eventId}/{photoId}` (one bucket, one prefix per uploader)
-   - inserts a `Photo` row with `status: PENDING`
-   - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular)
+   - reserves the batch against the uploader's storage quota and inserts a `Photo` row with `status: PENDING` per file — both in one Serializable transaction (see §9)
+   - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular), after the transaction has committed
 3. **API responds** with `[{ photoId, uploadUrl }, ...]`.
 4. **Mobile uploads bytes directly to S3.**
    Uses the OS background uploader (iOS `URLSession` background config, Android `WorkManager`). Each PUT goes straight to S3 — API is not involved. Survives app being backgrounded or killed.
@@ -149,16 +149,17 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 
 ## 6. Edge cases handled in v1
 
-| Case                                       | Mitigation                                                                                               |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Client uploads, never confirms             | Row stuck PENDING. List filters to READY. Cleanup later (see TODO).                                      |
-| Client confirms without uploading          | `HeadObject` returns 404 → confirm reports MISSING for that photoId.                                     |
-| Wrong contentType / oversize file          | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm.                     |
-| Upload completes but confirm response lost | Confirm is idempotent — already-READY photoIds return READY again.                                       |
-| Event deleted with pending uploads         | `onDelete: Cascade` removes rows. S3 objects are orphaned until the daily reconciler removes them (§10). |
-| App killed mid-upload                      | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                 |
-| Two devices upload simultaneously          | Each has its own photoId. No conflict.                                                                   |
-| Presigned URL leaked                       | TTL 1h, limited to one specific key + contentType. Worst case: attacker uploads junk to one key.         |
+| Case                                                            | Mitigation                                                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Cleanup later (see TODO).                                                                  |
+| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING for that photoId.                                                                 |
+| Wrong contentType / oversize file                               | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm.                                                 |
+| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                   |
+| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects are orphaned until the daily reconciler removes them (§10).                             |
+| App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                             |
+| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                               |
+| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9). |
+| Presigned URL leaked                                            | TTL 1h, limited to one specific key + contentType. Worst case: attacker uploads junk to one key.                                     |
 
 ---
 
@@ -174,6 +175,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 - **S3 lifecycle rule** to auto-delete `pending/*` keys after 24h. One-time bucket config, no code. (Could ship as part of v1 if we add a `pending/` prefix.)
 - **Idempotency keys** on `/upload-urls` so retried requests don't mint duplicate rows.
 - **Per-event quota** checks (count and total bytes) before issuing upload slots.
+- **Denormalized storage counter** (`storageUsedBytes` on the user row, bumped under `SELECT … FOR UPDATE`) once billing needs per-user limits or cheaper reads than `SUM(sizeBytes)`. Same transaction shape as today, more places to keep in sync (delete, cleanup).
 - **Rate limiting** on `/upload-urls` to prevent abuse.
 
 ### Reads / performance
@@ -210,6 +212,7 @@ In order of implementation:
 - [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
 - [x] **Per-user storage quota** — 5 GiB free tier enforced at upload-urls; `GET /users/me/storage` for usage.
+- [x] **Race-safe quota reservation** — usage check + PENDING insert in one Serializable transaction, retried on serialization failure.
 - [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§10).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
@@ -230,14 +233,44 @@ In order of implementation:
 
 ## 9. Per-user storage quota (free tier)
 
-Each uploader has a storage cap (default **5 GiB**) enforced before upload slots are minted.
+Each uploader has a storage cap (default **5 GiB**) enforced when upload slots are minted.
 
 - **Usage:** `SUM(sizeBytes)` over the caller's photos with `status IN (PENDING, READY)`. Pending rows count so clients cannot bypass the cap by minting slots without confirming.
-- **Enforcement:** `PhotoStorageService.assertCanUpload()` in `PhotosService.createUploadSlots()`, after CASL authorization.
-- **Read API:** `GET /users/me/storage` returns `usedBytes`, `limitBytes`, and `remainingBytes` as strings (bigint-safe JSON).
+- **Enforcement:** `PhotoStorageService.reserveUploadBytes()` in `PhotosService.createUploadSlots()`, after CASL authorization. The usage query and the `createMany` of the batch's PENDING rows run in **one Prisma transaction at `Serializable` isolation**; presigned URLs are minted only after it commits.
+- **Read API:** `GET /users/me/storage` returns `usedBytes`, `limitBytes`, and `remainingBytes` as strings (bigint-safe JSON). It runs the same usage query outside a transaction, so `remainingBytes` is the room left before the next reservation.
 - **Config:** `PHOTO_STORAGE_LIMIT_BYTES` overrides the default limit for all users until billing ships per-user limits.
 
 Over-quota uploads return **413 Payload Too Large** with message `Storage quota exceeded`.
+
+### Why the check and the insert share a transaction
+
+A plain check-then-insert is two statements, and nothing stops two requests from interleaving them:
+
+```
+limit 5 GiB, used 4.9 GiB, each request wants 200 MiB
+
+A: SUM → 4.9 GiB → ok → INSERT 200 MiB
+B: SUM → 4.9 GiB → ok → INSERT 200 MiB   (A's rows are not visible yet)
+→ 5.3 GiB used, ~300 MiB over quota
+```
+
+The same interleaving happens across two API instances behind a load balancer. Under `Serializable` isolation Postgres tracks the read/write dependencies between the two transactions (each reads the uploader's usage, each inserts rows the other's read should have seen) and aborts one of them with a serialization failure (SQLSTATE `40001`). The survivor commits; the loser re-runs the whole transaction, re-reads usage, and is rejected with 413 if the survivor used up the room.
+
+- **Error shapes:** Prisma maps `40001` to `P2034` when a statement inside the callback fails, but a failure raised at `COMMIT` is rethrown as the driver adapter's own error (`{ cause: { kind: "TransactionWriteConflict", originalCode: "40001" } }`). Against Postgres 16 roughly a third of conflicts came back in the second shape, so `PhotoStorageService` recognises both (walking the `cause` chain) before deciding to retry.
+- **Retries:** up to `STORAGE_RESERVATION_MAX_ATTEMPTS` (5) attempts with a jittered linear backoff (`STORAGE_RESERVATION_RETRY_DELAY_MS` × attempt, plus up to one delay of jitter). Every lost conflict logs `photo.storage.reservation_conflict` at `warn` with the attempt number.
+- **Giving up:** after the last attempt the request fails with **409 Conflict** (`Storage reservation conflicted with a concurrent upload, please retry`). SSI lets roughly one same-user reservation commit per round, so a burst of N parallel in-quota batches needs about N attempts for the last one; measured against Postgres 16, five attempts cleared bursts of eight without a 409, while three started giving up at four. Beyond that the client can retry the same request.
+- **Cost:** no blocking locks. SSI only adds predicate tracking, and the `addedById` index keeps the tracked range narrow. Serializable transactions can also abort spuriously (unrelated rows on a shared index page); the same retry absorbs that.
+- **Scope:** only the usage query and the insert are inside the transaction. Event lookup and CASL run before it; S3 presigning runs after commit, so a slow S3 call never holds a database transaction open.
+- **Alternative if bursts grow:** a per-uploader `pg_advisory_xact_lock` taken as the first statement of a `READ COMMITTED` transaction makes same-user reservations queue instead of abort — deterministic, no retries, still no schema change. It must not be combined with `Serializable`: that level takes its snapshot before the lock wait ends, so the waiter reads stale usage and aborts anyway.
+
+`PhotoStorageService.assertCanUpload()` remains as a read-only pre-check. It must never gate an insert on its own.
+
+### What it does not cover
+
+- A client under-reporting `sizeBytes` — caught at confirm, where `HeadObject` compares the real object size.
+- Orphaned S3 objects and stuck PENDING rows — cleanup sweeper (§7).
+- Multi-region deployments without a shared database — there is no cross-region serialization.
+- Per-user paid limits — the limit is global config. When billing needs cheaper reads or per-user caps, the follow-up is a denormalized `storageUsedBytes` counter on the user row updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
 
 ---
 

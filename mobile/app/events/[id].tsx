@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import type { AccessLevel, EventParticipantResponseDto } from "@/lib/api/generated";
 import { Event } from "@/features/events/types";
 import {
   getEventById,
@@ -32,7 +33,8 @@ import * as MediaLibrary from "expo-media-library";
 
 const EventDetailScreen = () => {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const eventId = Array.isArray(id) ? id[0] : id;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const { user } = useAuth();
@@ -43,7 +45,7 @@ const EventDetailScreen = () => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
-  const [participants, setParticipants] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<EventParticipantResponseDto[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -56,17 +58,16 @@ const EventDetailScreen = () => {
   };
 
   const fetchEventDetails = useCallback(async () => {
+    if (!eventId) return;
     try {
       setIsLoading(true);
-      const eventData = await getEventById(Number(id));
+      const eventData = await getEventById(eventId);
       setEvent(eventData);
 
-      // Fetch photos for the event
-      const eventPhotos = await getPhotosByEvent(Number(id));
+      const eventPhotos = await getPhotosByEvent(eventId);
       setPhotos(eventPhotos);
 
-      // Fetch participants
-      const eventParticipants = await getEventParticipants(Number(id));
+      const eventParticipants = await getEventParticipants(eventId);
       setParticipants(eventParticipants);
     } catch (error: any) {
       console.error("Failed to fetch event details:", error);
@@ -75,13 +76,13 @@ const EventDetailScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, router]);
+  }, [eventId, router]);
 
   useEffect(() => {
-    if (id) {
+    if (eventId) {
       void fetchEventDetails();
     }
-  }, [id, fetchEventDetails]);
+  }, [eventId, fetchEventDetails]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -129,7 +130,12 @@ const EventDetailScreen = () => {
         const mimeType = `image/${fileType}`;
 
         // Upload photo
-        await uploadPhoto(Number(id), asset.uri, fileName, mimeType);
+        const sizeBytes = asset.fileSize ?? 0;
+        if (sizeBytes <= 0) {
+          throw new Error("Could not determine file size for upload");
+        }
+
+        await uploadPhoto(eventId, asset.uri, fileName, mimeType, sizeBytes);
 
         // Refetch event details and photos
         await fetchEventDetails();
@@ -146,7 +152,7 @@ const EventDetailScreen = () => {
 
   const handleUpdateEvent = async (data: { title: string; description: string; date: string }) => {
     try {
-      const updatedEvent = await updateEvent(Number(id), data);
+      const updatedEvent = await updateEvent(eventId, data);
       setEvent(updatedEvent);
       Alert.alert("Success", "Event updated successfully");
       setEditModalVisible(false);
@@ -164,7 +170,7 @@ const EventDetailScreen = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteEvent(Number(id));
+            await deleteEvent(eventId);
             Alert.alert("Success", "Event deleted successfully");
             router.replace("/(tabs)/events");
           } catch (error: any) {
@@ -184,7 +190,7 @@ const EventDetailScreen = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            await leaveEvent(Number(id));
+            await leaveEvent(eventId);
             Alert.alert("Success", "You have left the event");
             router.replace("/(tabs)/events");
           } catch (error: any) {
@@ -196,7 +202,7 @@ const EventDetailScreen = () => {
     ]);
   };
 
-  const handleDeletePhoto = (photoId: number, photoUserId?: number) => {
+  const handleDeletePhoto = (photoId: string, photoUserId?: string) => {
     const canDelete = isAdmin || photoUserId === user?.id;
 
     if (!canDelete) {
@@ -223,12 +229,12 @@ const EventDetailScreen = () => {
     ]);
   };
 
-  const handleRemoveMember = (participantUserId: number) => {
-    const participant = participants.find((p) => p.user_id === participantUserId);
+  const handleRemoveMember = (participantUserId: string) => {
+    const participant = participants.find((p) => p.userId === participantUserId);
 
     Alert.alert(
       "Remove Member",
-      `Are you sure you want to remove ${participant?.user?.username || "this member"} from the event?`,
+      `Are you sure you want to remove ${participant?.name || "this member"} from the event?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -236,7 +242,7 @@ const EventDetailScreen = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await removeUserFromEvent(Number(id), participantUserId);
+              await removeUserFromEvent(eventId, participantUserId);
               Alert.alert("Success", "Member removed successfully");
               await fetchEventDetails();
             } catch (error: any) {
@@ -257,7 +263,7 @@ const EventDetailScreen = () => {
         return;
       }
 
-      const downloadedFile = await File.downloadFileAsync(photo.image_url, Paths.cache);
+      const downloadedFile = await File.downloadFileAsync(photo.url, Paths.cache);
 
       await MediaLibrary.createAssetAsync(downloadedFile.uri);
 
@@ -268,15 +274,16 @@ const EventDetailScreen = () => {
     }
   };
 
-  const isAdmin = event?.userAccessLevel === 0;
+  const currentParticipant = participants.find((p) => p.userId === user?.id);
+  const isAdmin = event?.creatorId === user?.id || currentParticipant?.accessLevel === "ORGANIZER";
 
-  const getAccessLevelLabel = (accessLevel: number) => {
+  const getAccessLevelLabel = (accessLevel: AccessLevel) => {
     switch (accessLevel) {
-      case 0:
-        return "Admin";
-      case 1:
-        return "Contributor";
-      case 2:
+      case "ORGANIZER":
+        return "Organizer";
+      case "PARTICIPANT":
+        return "Participant";
+      case "VIEWER":
         return "Viewer";
       default:
         return accessLevel;
@@ -377,17 +384,17 @@ const EventDetailScreen = () => {
               <View style={styles.photosGrid}>
                 {photos.map((photo) => (
                   <View key={photo.id} style={styles.photoItem}>
-                    <Image source={{ uri: photo.image_url }} style={styles.photoImage} />
+                    <Image source={{ uri: photo.url }} style={styles.photoImage} />
                     <TouchableOpacity
                       style={styles.downloadPhotoButton}
                       onPress={() => handleDownloadSinglePhoto(photo)}
                     >
                       <Ionicons name="download-outline" size={18} color="#FFFFFF" />
                     </TouchableOpacity>
-                    {(isAdmin || photo.added_by === user?.id || photo.user_id === user?.id) && (
+                    {(isAdmin || photo.addedById === user?.id) && (
                       <TouchableOpacity
                         style={styles.deletePhotoButton}
-                        onPress={() => handleDeletePhoto(photo.id, photo.added_by || photo.user_id)}
+                        onPress={() => handleDeletePhoto(photo.id, photo.addedById)}
                       >
                         <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
                       </TouchableOpacity>
@@ -443,29 +450,26 @@ const EventDetailScreen = () => {
             </View>
             <ScrollView style={styles.membersList}>
               {participants.map((participant) => (
-                <View key={participant.id} style={[styles.memberItem, isDark ? styles.cardDark : styles.cardLight]}>
+                <View key={participant.userId} style={[styles.memberItem, isDark ? styles.cardDark : styles.cardLight]}>
                   <View style={styles.memberInfo}>
                     <View style={styles.memberAvatar}>
                       <Ionicons name="person" size={20} color="#6366F1" />
                     </View>
                     <View style={styles.memberDetails}>
                       <Text style={[styles.memberName, isDark ? styles.textDark : styles.textLight]}>
-                        {participant.user?.name || "Unknown User"}
-                      </Text>
-                      <Text style={[styles.memberEmail, isDark ? styles.textMuted : styles.textMutedLight]}>
-                        {participant.user?.email}
+                        {participant.name || "Unknown User"}
                       </Text>
                       <View style={styles.memberBadge}>
-                        <Text style={styles.memberBadgeText}>{getAccessLevelLabel(participant.access_level)}</Text>
+                        <Text style={styles.memberBadgeText}>{getAccessLevelLabel(participant.accessLevel)}</Text>
                       </View>
                     </View>
                   </View>
-                  {participant.access_level !== "owner" && (
+                  {participant.accessLevel !== "ORGANIZER" && (
                     <TouchableOpacity
                       style={styles.removeMemberButton}
                       onPress={() => {
                         setShowMembersModal(false);
-                        setTimeout(() => handleRemoveMember(participant.user_id), 300);
+                        setTimeout(() => handleRemoveMember(participant.userId), 300);
                       }}
                     >
                       <Ionicons name="trash-outline" size={20} color="#EF4444" />

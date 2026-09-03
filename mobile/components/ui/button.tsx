@@ -9,14 +9,14 @@ interface ButtonProps extends TouchableOpacityProps {
   fullWidth?: boolean;
 }
 
-export function Button({
+export const Button = ({
   title,
   variant = "primary",
   isLoading = false,
   fullWidth = true,
   disabled,
   ...props
-}: ButtonProps) {
+}: ButtonProps) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -61,7 +61,7 @@ export function Button({
       )}
     </TouchableOpacity>
   );
-}
+};
 
 const styles = StyleSheet.create({
   button: {

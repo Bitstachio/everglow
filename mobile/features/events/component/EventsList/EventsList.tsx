@@ -10,7 +10,7 @@ type EventsListProps = {
   isLoading: boolean;
   events: Event[];
   onEventShare?: (event: Event) => void;
-  currentUserId?: number;
+  currentUserId?: string;
 };
 
 // TODO: Implement onPress for EventCard
@@ -29,7 +29,7 @@ const EventsList = ({ title, isLoading, events, onEventShare, currentUserId }: E
       ) : (
         <View className="gap-4">
           {events.map((event) => {
-            const isCreator = event?.eventAccess?.[0]?.access_level === 0;
+            const isCreator = currentUserId != null && event.creatorId === currentUserId;
             return (
               <EventCard
                 key={event.id}

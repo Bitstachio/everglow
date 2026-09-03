@@ -71,11 +71,7 @@ export class PhotosService {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId));
     }
 
-    const requestedBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
-    await this.photoStorageService.assertCanUpload(callerId, requestedBytes);
-
-    // Create a new photo row for each file.
-    // Each photo has a unique S3 Key and status of PENDING.
+    // Build a PENDING row per file up front: the S3 key embeds the photo id.
     const rows = files.map((file) => {
       const photoId = randomUUID();
       return {
@@ -88,8 +84,12 @@ export class PhotosService {
         status: PhotoStatus.PENDING,
       };
     });
-    await this.prisma.photo.createMany({ data: rows });
+    // Quota check and insert run in one serializable transaction, so concurrent
+    // batches for the same uploader cannot both slip under the cap.
+    await this.photoStorageService.reserveUploadBytes(callerId, rows);
 
+    // Presign only once the reservation has committed: no transaction is held
+    // open across S3 calls, and a rejected batch mints no URLs.
     return Promise.all(
       rows.map(async (row) => ({
         photoId: row.id,

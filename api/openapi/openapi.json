@@ -1124,7 +1124,22 @@
       },
       "CreateUserDetailsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe",
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
       },
       "UserStorageResponseDto": {
         "type": "object",
@@ -1153,7 +1168,18 @@
       },
       "UpdateUserDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe",
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "maxLength": 255
+          }
+        }
       },
       "UploadSlotResponseDto": {
         "type": "object",

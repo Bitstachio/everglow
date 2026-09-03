@@ -3,7 +3,6 @@ import { ThemedText } from "@/components/ui/ThemedText/ThemedText";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, TouchableOpacity, View } from "react-native";
 import { Event } from "../../types";
-import { formatEventDate } from "../../utils";
 
 type EventCardProps = {
   event: Event;
