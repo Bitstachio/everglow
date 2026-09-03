@@ -1,95 +1,94 @@
-import api from "./api";
+import {
+  eventsControllerCreate,
+  eventsControllerFindAll,
+  eventsControllerFindOne,
+  eventsControllerGetParticipants,
+  eventsControllerJoin,
+  eventsControllerLeave,
+  eventsControllerRegenerateInvitationUrl,
+  eventsControllerRemove,
+  eventsControllerRemoveParticipant,
+  eventsControllerUpdate,
+  eventsControllerUpdateParticipantAccess,
+} from "@/lib/api/generated";
+import { unwrapEnvelope } from "@/lib/api/envelope";
+import type {
+  AccessLevel,
+  CreateEventDto,
+  EventParticipantResponseDto,
+  EventResponseDto,
+  JoinEventDto,
+  UpdateEventDto,
+} from "@/lib/api/generated";
 
-export type CreateEventDTO = {
-  title: string;
-  description: string;
-  date: string;
+export type {
+  AccessLevel,
+  CreateEventDto,
+  EventParticipantResponseDto,
+  EventResponseDto,
+  JoinEventDto,
+  UpdateEventDto,
 };
 
-export type UpdateEventDTO = {
-  title?: string;
-  description?: string;
-  date?: string;
+export const createEvent = async (body: CreateEventDto): Promise<EventResponseDto> => {
+  const { data } = await eventsControllerCreate({ body, throwOnError: true });
+  return unwrapEnvelope(data);
 };
 
-export type EventResponse = {
-  id: number;
-  title: string;
-  description: string;
-  date: string;
-  invitation_url: string;
-  created_by: number;
-  created_at: string;
-  updated_at: string;
+export const getUserEvents = async (): Promise<EventResponseDto[]> => {
+  const { data } = await eventsControllerFindAll({ throwOnError: true });
+  // OpenAPI currently types `data` as a single event; runtime returns an array.
+  return unwrapEnvelope(data) as unknown as EventResponseDto[];
 };
 
-export type ParticipantResponse = {
-  id: number;
-  user_id: number;
-  event_id: number;
-  access_level: "owner" | "admin" | "member";
-  joined_at: string;
-  user?: {
-    id: number;
-    email: string;
-    username: string;
-  };
+export const getEventById = async (eventId: string): Promise<EventResponseDto> => {
+  const { data } = await eventsControllerFindOne({ path: { eventId }, throwOnError: true });
+  return unwrapEnvelope(data);
 };
 
-export type AccessLevel = "owner" | "admin" | "member";
-
-export const createEvent = async (data: CreateEventDTO): Promise<EventResponse> => {
-  const response = await api.post("/events", data);
-  return response.data.data;
+export const updateEvent = async (eventId: string, body: UpdateEventDto): Promise<EventResponseDto> => {
+  const { data } = await eventsControllerUpdate({ path: { eventId }, body, throwOnError: true });
+  return unwrapEnvelope(data);
 };
 
-export const getUserEvents = async (): Promise<EventResponse[]> => {
-  const response = await api.get("/events");
-  return response.data.data;
+export const deleteEvent = async (eventId: string): Promise<void> => {
+  await eventsControllerRemove({ path: { eventId }, throwOnError: true });
 };
 
-export const getEventById = async (eventId: number): Promise<EventResponse> => {
-  const response = await api.get(`/events/${eventId}`);
-  return response.data.data;
+export const joinEventByUrl = async (invitationUrl: string): Promise<EventResponseDto> => {
+  const body: JoinEventDto = { invitationUrl };
+  const { data } = await eventsControllerJoin({ body, throwOnError: true });
+  return unwrapEnvelope(data);
 };
 
-export const updateEvent = async (eventId: number, data: UpdateEventDTO): Promise<EventResponse> => {
-  const response = await api.patch(`/events/${eventId}`, data);
-  return response.data.data;
+export const leaveEvent = async (eventId: string): Promise<void> => {
+  await eventsControllerLeave({ path: { eventId }, throwOnError: true });
 };
 
-export const deleteEvent = async (eventId: number): Promise<void> => {
-  await api.delete(`/events/${eventId}`);
-};
-
-export const joinEventByUrl = async (invitationUrl: string): Promise<EventResponse> => {
-  const response = await api.post("/events/join", { invitationUrl });
-  return response.data.data;
-};
-
-export const leaveEvent = async (eventId: number): Promise<void> => {
-  await api.post(`/events/${eventId}/leave`);
-};
-
-export const getEventParticipants = async (eventId: number): Promise<ParticipantResponse[]> => {
-  const response = await api.get(`/events/${eventId}/participants`);
-  return response.data.data;
+export const getEventParticipants = async (eventId: string): Promise<EventParticipantResponseDto[]> => {
+  const { data } = await eventsControllerGetParticipants({ path: { eventId }, throwOnError: true });
+  // OpenAPI currently types `data` as a single participant; runtime returns an array.
+  return unwrapEnvelope(data) as unknown as EventParticipantResponseDto[];
 };
 
 export const updateUserAccessLevel = async (
-  eventId: number,
-  userId: number,
+  eventId: string,
+  targetUserId: string,
   accessLevel: AccessLevel,
-): Promise<ParticipantResponse> => {
-  const response = await api.put(`/events/${eventId}/participants/${userId}/access`, { accessLevel });
-  return response.data.data;
+): Promise<EventParticipantResponseDto> => {
+  const { data } = await eventsControllerUpdateParticipantAccess({
+    path: { eventId, targetUserId },
+    body: { accessLevel },
+    throwOnError: true,
+  });
+  return unwrapEnvelope(data);
 };
 
-export const removeUserFromEvent = async (eventId: number, userId: number): Promise<void> => {
-  await api.delete(`/events/${eventId}/participants/${userId}`);
+export const removeUserFromEvent = async (eventId: string, targetUserId: string): Promise<void> => {
+  await eventsControllerRemoveParticipant({ path: { eventId, targetUserId }, throwOnError: true });
 };
 
-export const regenerateInvitationUrl = async (eventId: number): Promise<string> => {
-  const response = await api.post(`/events/${eventId}/regenerate-url`);
-  return response.data.data.invitation_url;
+export const regenerateInvitationUrl = async (eventId: string): Promise<string> => {
+  const { data } = await eventsControllerRegenerateInvitationUrl({ path: { eventId }, throwOnError: true });
+  return unwrapEnvelope(data).invitationUrl;
 };
