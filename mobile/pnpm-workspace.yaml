@@ -1,0 +1,7 @@
+# Single-package project; this file also holds pnpm 11+ settings
+# (non-auth config no longer lives in .npmrc).
+nodeLinker: hoisted
+
+allowBuilds:
+  browser-tabs-lock: true
+  unrs-resolver: true
