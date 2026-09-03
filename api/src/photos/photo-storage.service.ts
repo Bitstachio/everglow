@@ -2,6 +2,7 @@ import { ConflictException, Injectable, PayloadTooLargeException } from "@nestjs
 import { ConfigService } from "@nestjs/config";
 import { PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { jitteredLinearBackoffMs, sleep } from "src/common/utils/async.utils";
 import { isSerializationFailure } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import {
@@ -20,12 +21,6 @@ export interface UserStorageSnapshot {
 
 /** A PENDING photo row to insert once its bytes are reserved against the uploader's quota. */
 export type UploadReservationRow = Prisma.PhotoCreateManyInput;
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Linear backoff with jitter: the losers of one round must not retry in lockstep.
-const retryDelayMs = (attempt: number): number =>
-  STORAGE_RESERVATION_RETRY_DELAY_MS * attempt + Math.random() * STORAGE_RESERVATION_RETRY_DELAY_MS;
 
 @Injectable()
 export class PhotoStorageService {
@@ -117,7 +112,7 @@ export class PhotoStorageService {
             message: PHOTO_SERVICE_ERRORS.STORAGE_RESERVATION_CONFLICT,
           });
         }
-        await sleep(retryDelayMs(attempt));
+        await sleep(jitteredLinearBackoffMs(attempt, STORAGE_RESERVATION_RETRY_DELAY_MS));
       }
     }
   }
