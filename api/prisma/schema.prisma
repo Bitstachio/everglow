@@ -21,10 +21,14 @@ enum PhotoStatus {
 }
 
 model User {
-  id          String   @id @default(uuid()) @db.Uuid
-  providerSub String   @unique @db.VarChar(255)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(uuid()) @db.Uuid
+  providerSub       String   @unique @db.VarChar(255)
+  // Photo storage ceiling in bytes. Defaults to the free tier (5 GiB); keep in
+  // sync with FREE_TIER_STORAGE_LIMIT_BYTES in src/photos/photos.constants.ts.
+  // Billing raises it per account; usage stays computed from Photo rows.
+  storageLimitBytes BigInt   @default(5368709120)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   details       UserDetails?
   createdEvents Event[]       @relation("CreatedEvents")

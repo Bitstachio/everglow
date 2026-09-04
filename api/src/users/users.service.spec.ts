@@ -9,6 +9,7 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
 import { UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
+import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 describe("UsersService", () => {
   let service: UsersService;
@@ -26,6 +27,7 @@ describe("UsersService", () => {
   const userWithoutDetails: UserWithDetails = {
     id: userId,
     providerSub,
+    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -34,6 +36,7 @@ describe("UsersService", () => {
   const userWithDetails: UserWithDetails = {
     id: userId,
     providerSub,
+    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     createdAt: now,
     updatedAt: now,
     details: {
