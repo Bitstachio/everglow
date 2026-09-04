@@ -28,12 +28,15 @@ import {
   buildPhoto,
   expectedPhotoResponse,
 } from "./helpers/photos.fixtures";
-import { buildUserWithDetails } from "./helpers/users.fixtures";
+import { TEST_USER_ID, buildUserWithDetails } from "./helpers/users.fixtures";
 
 const uploadUrlsPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos/upload-urls`;
 const confirmPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos/confirm`;
 const photosListPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos`;
 const photoPath = (photoId = TEST_PHOTO_ID) => `/${API_GLOBAL_PREFIX}/photos/${photoId}`;
+
+const ONE_GIB = 1024n ** 3n;
+const TEN_GIB = 10n * ONE_GIB;
 
 type WrappedResponse<T> = {
   data: T;
@@ -129,6 +132,23 @@ describe("PhotosController (e2e)", () => {
       expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
     });
 
+    it("mints slots against the caller's own limit when usage is already above the free tier", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ storageLimitBytes: TEN_GIB }));
+      prisma.photo.aggregate.mockResolvedValue({
+        _sum: { sizeBytes: Number(FREE_TIER_STORAGE_LIMIT_BYTES + 1024n) },
+      } as never);
+      prisma.photo.createMany.mockResolvedValue({ count: 1 });
+
+      await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(201);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: TEST_USER_ID },
+        select: { storageLimitBytes: true },
+      });
+      expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
+    });
+
     it("returns 400 for a disallowed contentType", async () => {
       await request(httpServer)
         .post(uploadUrlsPath())
@@ -171,11 +191,11 @@ describe("PhotosController (e2e)", () => {
       expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
     });
 
-    it("returns 413 when the upload would exceed the caller storage quota", async () => {
+    it("returns 413 when the upload would exceed the caller's own storage limit", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
-      prisma.photo.aggregate.mockResolvedValue({
-        _sum: { sizeBytes: Number(FREE_TIER_STORAGE_LIMIT_BYTES - 512n) },
-      } as never);
+      // A limit below the free tier proves the ceiling comes from the user row, not the constant.
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ storageLimitBytes: ONE_GIB }));
+      prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: Number(ONE_GIB - 512n) } } as never);
 
       const response = await request(httpServer)
         .post(uploadUrlsPath())

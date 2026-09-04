@@ -1,10 +1,10 @@
-import { ConflictException, Injectable, PayloadTooLargeException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { ConflictException, Injectable, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
 import { PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { jitteredLinearBackoffMs, sleep } from "src/common/utils/async.utils";
 import { isSerializationFailure } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
+import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import {
   PHOTO_SERVICE_ERRORS,
   STORAGE_QUOTA_EXCEEDED_CODE,
@@ -26,14 +26,9 @@ export type UploadReservationRow = Prisma.PhotoCreateManyInput;
 export class PhotoStorageService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
-  }
-
-  private getLimitBytes(): bigint {
-    return this.configService.getOrThrow<bigint>("photos.storageLimitBytes");
   }
 
   async getUsedBytes(userId: string, db: Prisma.TransactionClient = this.prisma): Promise<bigint> {
@@ -49,8 +44,7 @@ export class PhotoStorageService {
   }
 
   async getStorageForUser(userId: string): Promise<UserStorageSnapshot> {
-    const usedBytes = await this.getUsedBytes(userId);
-    const limitBytes = this.getLimitBytes();
+    const [limitBytes, usedBytes] = await Promise.all([this.getLimitBytes(userId), this.getUsedBytes(userId)]);
     const remainingBytes = usedBytes >= limitBytes ? 0n : limitBytes - usedBytes;
 
     return {
@@ -72,12 +66,12 @@ export class PhotoStorageService {
   /**
    * Atomically checks the uploader's quota and inserts the given PENDING rows.
    *
-   * The check and the insert run in one Serializable transaction, so
-   * overlapping reservations for the same uploader cannot all slip under the
-   * cap: Postgres commits one and aborts the others with a serialization
-   * failure. Losers retry (re-reading usage each time) and finally surface as
-   * 409. Presigned URLs should be minted only after this resolves, so no
-   * transaction is held open across S3 calls.
+   * The limit lookup, the usage query, and the insert run in one Serializable
+   * transaction, so overlapping reservations for the same uploader cannot all
+   * slip under the cap: Postgres commits one and aborts the others with a
+   * serialization failure. Losers retry (re-reading limit and usage each time)
+   * and finally surface as 409. Presigned URLs should be minted only after this
+   * resolves, so no transaction is held open across S3 calls.
    */
   async reserveUploadBytes(userId: string, rows: UploadReservationRow[]): Promise<void> {
     const requestedBytes = rows.reduce((sum, row) => sum + BigInt(row.sizeBytes), 0n);
@@ -117,9 +111,25 @@ export class PhotoStorageService {
     }
   }
 
+  /**
+   * The uploader's own ceiling (`User.storageLimitBytes`). Billing raises it
+   * per account; there is no global override. Read through `db` so that inside
+   * a transaction it shares the snapshot with the usage query.
+   */
+  private async getLimitBytes(userId: string, db: Prisma.TransactionClient = this.prisma): Promise<bigint> {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { storageLimitBytes: true },
+    });
+
+    if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId));
+
+    return user.storageLimitBytes;
+  }
+
   private async assertWithinQuota(db: Prisma.TransactionClient, userId: string, requested: bigint): Promise<void> {
+    const limitBytes = await this.getLimitBytes(userId, db);
     const usedBytes = await this.getUsedBytes(userId, db);
-    const limitBytes = this.getLimitBytes();
 
     if (usedBytes + requested <= limitBytes) return;
 

@@ -180,7 +180,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 - **S3 lifecycle rule** to auto-delete `pending/*` keys after 24h. One-time bucket config, no code. (Could ship as part of v1 if we add a `pending/` prefix.)
 - **Idempotency keys** on `/upload-urls` so retried requests don't mint duplicate rows.
 - **Per-event quota** checks (count and total bytes) before issuing upload slots.
-- **Denormalized storage counter** (`storageUsedBytes` on the user row, bumped under `SELECT … FOR UPDATE`) once billing needs per-user limits or cheaper reads than `SUM(sizeBytes)`. Same transaction shape as today, more places to keep in sync (delete, cleanup).
+- **Denormalized storage counter** (`storageUsedBytes` next to `storageLimitBytes` on the user row, bumped under `SELECT … FOR UPDATE`) if `SUM(sizeBytes)` per reservation becomes too expensive. Same transaction shape as today, more places to keep in sync (delete, cleanup).
 - **Rate limiting** on `/upload-urls` to prevent abuse.
 
 ### Reads / performance
@@ -221,6 +221,7 @@ In order of implementation:
 - [x] **Per-user storage quota** — 5 GiB free tier enforced at upload-urls; `GET /users/me/storage` for usage.
 - [x] **Race-safe quota reservation** — usage check + PENDING insert in one Serializable transaction, retried on serialization failure.
 - [x] **Pending photo cleanup** — hourly sweeper deletes stale `PENDING` rows and S3 objects (default age: 24h).
+- [x] **Per-user storage limit** — `User.storageLimitBytes` (default 5 GiB) replaces the global env cap, so billing can raise one account without a redeploy.
 - [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§11).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
@@ -243,14 +244,32 @@ In order of implementation:
 
 ## 9. Per-user storage quota (free tier)
 
-Each uploader has a storage cap (default **5 GiB**) enforced when upload slots are minted.
+Each uploader has their own storage cap, `User.storageLimitBytes` (default **5 GiB**), enforced when upload slots are minted.
 
 - **Usage:** `SUM(sizeBytes)` over the caller's photos with `status IN (PENDING, READY)`. Pending rows count so clients cannot bypass the cap by minting slots without confirming.
-- **Enforcement:** `PhotoStorageService.reserveUploadBytes()` in `PhotosService.createUploadSlots()`, after CASL authorization. The usage query and the `createMany` of the batch's PENDING rows run in **one Prisma transaction at `Serializable` isolation**; presigned URLs are minted only after it commits.
+- **Enforcement:** `PhotoStorageService.reserveUploadBytes()` in `PhotosService.createUploadSlots()`, after CASL authorization. The limit lookup, the usage query, and the `createMany` of the batch's PENDING rows run in **one Prisma transaction at `Serializable` isolation**; presigned URLs are minted only after it commits.
 - **Read API:** `GET /users/me/storage` returns `usedBytes`, `limitBytes`, and `remainingBytes` as strings (bigint-safe JSON). It runs the same usage query outside a transaction, so `remainingBytes` is the room left before the next reservation.
-- **Config:** `PHOTO_STORAGE_LIMIT_BYTES` overrides the default limit for all users until billing ships per-user limits.
+- **Limit:** `User.storageLimitBytes` (`BigInt`; the Prisma `@default` and `FREE_TIER_STORAGE_LIMIT_BYTES` must stay in sync at 5 GiB). It is read inside the reservation transaction so it shares the snapshot with the usage query. There is no env override: raising a limit is a row update, not a redeploy. Usage remains computed from `Photo` rows.
 
 Over-quota uploads return **413 Payload Too Large** with message `Storage quota exceeded`.
+
+### Raising a user's limit
+
+The column is the hook for paid tiers. Billing (not built yet) will bump it per account from a payment webhook, so no HTTP endpoint exposes it:
+
+```ts
+// Future: BillingService, driven by a payment webhook
+await prisma.user.update({
+  where: { id: userId },
+  data: { storageLimitBytes: { increment: additionalBytes } },
+});
+```
+
+Until then support can do the same by hand: `UPDATE "User" SET "storageLimitBytes" = 10737418240 WHERE id = '…';`
+
+- **New accounts:** JIT provisioning in `UsersService.resolveByProviderSub()` relies on the column default; no code sets the limit.
+- **Limit lowered below current usage:** new uploads fail with 413 until usage drops; existing photos stay.
+- **Account deleted:** the row goes with it and photos cascade, so there is nothing to reconcile.
 
 ### Why the check and the insert share a transaction
 
@@ -280,7 +299,7 @@ The same interleaving happens across two API instances behind a load balancer. U
 - A client under-reporting `sizeBytes` — caught at confirm, where `HeadObject` compares the real object size.
 - Orphaned S3 objects — reclaimed by the daily reconciler (§11). Stuck PENDING rows are swept hourly (§10).
 - Multi-region deployments without a shared database — there is no cross-region serialization.
-- Per-user paid limits — the limit is global config. When billing needs cheaper reads or per-user caps, the follow-up is a denormalized `storageUsedBytes` counter on the user row updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
+- Cheaper reads — usage is still `SUM(sizeBytes)` on every reservation. If that becomes a hotspot, the follow-up is a denormalized `storageUsedBytes` counter next to the limit on the user row, updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
 
 Because `PENDING` rows count toward usage, an upload slot that is never confirmed holds quota until §10 sweeps it. The owner cannot release it themselves: reads filter to `READY`, so the row is invisible to list and to `GET /photos/:photoId` and there is nothing for them to delete.
 

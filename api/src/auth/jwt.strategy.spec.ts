@@ -22,6 +22,7 @@ import { UsersService } from "src/users/users.service";
 import { UserWithDetails } from "src/users/users.types";
 import { JwtPayloadDto } from "./jwt-payload.dto";
 import { JwtStrategy } from "./jwt.strategy";
+import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 describe("JwtStrategy", () => {
   let strategy: JwtStrategy;
@@ -40,6 +41,7 @@ describe("JwtStrategy", () => {
   const resolvedUser: UserWithDetails = {
     id: userId,
     providerSub,
+    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     createdAt: now,
     updatedAt: now,
     details: null,
