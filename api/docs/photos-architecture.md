@@ -156,6 +156,11 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 | Wrong contentType / oversize file                               | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm.                                                 |
 | Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                   |
 | Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects orphaned (cleanup later).                                                               |
+| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Cleanup later (see TODO).                                                                  |
+| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING for that photoId.                                                                 |
+| Wrong contentType / oversize file                               | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm.                                                 |
+| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                   |
+| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects are orphaned until the daily reconciler removes them (§11).                             |
 | App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                             |
 | Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                               |
 | Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9). |
@@ -189,6 +194,8 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 
 - ~~**Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects.~~ Implemented: `PhotoPendingCleanupService` runs hourly via `@nestjs/schedule`.
 - **Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.
+- **Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects. Or replace with S3 lifecycle rule.
+- ~~**Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.~~ Implemented: `PhotoOrphanReconcilerService` runs daily via `@nestjs/schedule` (§11).
 
 ### Mobile-side (not server concern, listed for completeness)
 
@@ -215,6 +222,7 @@ In order of implementation:
 - [x] **Race-safe quota reservation** — usage check + PENDING insert in one Serializable transaction, retried on serialization failure.
 - [x] **Pending photo cleanup** — hourly sweeper deletes stale `PENDING` rows and S3 objects (default age: 24h).
 - [x] **Per-user storage limit** — `User.storageLimitBytes` (default 5 GiB) replaces the global env cap, so billing can raise one account without a redeploy.
+- [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§11).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
@@ -223,6 +231,8 @@ In order of implementation:
 ### Out of scope for v1 (tracked as future work)
 
 - ~~Cleanup sweeper for PENDING rows~~ (hourly job deletes PENDING rows older than 24h and their S3 objects)
+
+- Cleanup sweeper for PENDING rows
 - Idempotency keys
 - Per-user paid storage upgrades (billing)
 - Thumbnails
@@ -287,7 +297,7 @@ The same interleaving happens across two API instances behind a load balancer. U
 ### What it does not cover
 
 - A client under-reporting `sizeBytes` — caught at confirm, where `HeadObject` compares the real object size.
-- Orphaned S3 objects — no job reclaims them yet (§7). Stuck PENDING rows are swept by §10.
+- Orphaned S3 objects — reclaimed by the daily reconciler (§11). Stuck PENDING rows are swept hourly (§10).
 - Multi-region deployments without a shared database — there is no cross-region serialization.
 - Cheaper reads — usage is still `SUM(sizeBytes)` on every reservation. If that becomes a hotspot, the follow-up is a denormalized `storageUsedBytes` counter next to the limit on the user row, updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
 
@@ -309,3 +319,48 @@ Upload slots that are never confirmed leave `PENDING` rows (and may leave partia
 Failed per-photo deletes are logged and retried on the next run; successful deletes are not rolled back.
 
 This job is what makes the quota in §9 self-correcting. Without it an abandoned upload holds its bytes against the uploader's cap permanently.
+
+---
+
+## 11. S3 orphan reconciler
+
+Postgres is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete (`onDelete: Cascade` removes the rows, nothing touches S3), an account delete (same cascade), a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
+
+- **Service:** `PhotoOrphanReconcilerService.reconcileOrphanedObjects()`
+- **Schedule:** daily at 03:00 via `PhotoOrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists the whole prefix, which is not worth doing hourly, and orphans cost money rather than correctness.
+- **Walk:** `S3Service.listObjects()` (`ListObjectsV2`) under `photos/`, one page of up to 1000 keys at a time, end to end on every run. Nothing is loaded into memory beyond the current page.
+- **Candidates:** keys shaped like `photos/{userId}/{eventId}/{photoId}` or the legacy `photos/{eventId}/{photoId}` (UUID segments, `isPhotoS3Key()`), with `LastModified` older than `PHOTO_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS` (default **24h**, `0` disables the buffer). Anything else under the prefix is skipped and never deleted.
+- **Lookup:** one `Photo.findMany({ s3Key: { in } })` per page. `s3Key` is unique, so this is an index probe per key without a round trip per key. A key with a row in **any** status is left alone; `PENDING` rows belong to the stale-PENDING cleanup.
+- **Delete:** `DeleteObject` per orphan, at most `PHOTO_ORPHAN_RECONCILER_BATCH_SIZE` per run (default **100**). The cap bounds the blast radius of a bad run more than the work: when it is hit the summary reports `completed: false` and the next run picks up the rest. Failed deletes count against the cap and are retried next run.
+- **Enable:** `PHOTO_ORPHAN_RECONCILER_ENABLED=true`. Off unless set to exactly that, because the
+  job decides what to delete from `AWS_S3_BUCKET` using rows in `DATABASE_URL`, and the two are only
+  paired in a deployed environment. `docker-compose.yml` overrides `DATABASE_URL` to its own empty
+  database while still loading the shared bucket credentials from `.env`, and local dev does the same,
+  so an on-by-default sweep would delete another environment's live photos. The bucket has no
+  versioning, so those deletes are final. Gating on `NODE_ENV` would not help: compose sets it to
+  `production`.
+- **IAM:** needs `s3:ListBucket` on the bucket, which Terraform already grants (`infra/main.tf`).
+
+Every deletion logs `photo.orphan_reconcile.deleted` with `audit: true`; every run ends with `photo.orphan_reconcile.completed` carrying the counts, so a quiet bucket still leaves a daily trace.
+
+### Why "no row" is enough to delete
+
+A `Photo` row is inserted before its upload URL is minted (§1), so an object can only exist after its row did. When the lookup finds no row, the row was deleted afterwards, which is exactly the orphan case. The minimum age is belt and braces for clock skew and for an upload that finished moments before the scan. The manual delete path (§5) removes the object before the row, so it rarely produces orphans on its own.
+
+### Not the stale-PENDING cleanup
+
+The two jobs start from opposite sides and stay separate services, schedulers, and config:
+
+|             | Stale PENDING cleanup (§10)                     | Orphan reconciler                   |
+| ----------- | ----------------------------------------------- | ----------------------------------- |
+| Starts from | Postgres                                        | S3                                  |
+| Finds       | `PENDING` rows older than 24h                   | objects under `photos/` with no row |
+| Deletes     | S3 object, then the row                         | S3 object only                      |
+| Fixes       | abandoned uploads that still count toward quota | billed bytes nobody references      |
+| Ignores     | objects without rows                            | rows, whatever their status         |
+
+They cannot fight over an object: the reconciler deletes only when no row exists, and the cleanup only touches keys whose row it has just read.
+
+### Out of scope
+
+Eager S3 cleanup when an event or account is deleted, S3 Inventory or Athena-based reconciliation for very large buckets, and an endpoint to trigger a run by hand.
