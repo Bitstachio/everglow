@@ -1,4 +1,5 @@
 import { INestApplication } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Server } from "http";
 import request from "supertest";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
@@ -14,6 +15,17 @@ describe("AppController (e2e)", () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  // The photo cleanup scheduler reads its config only when the cron fires, so an
+  // unregistered namespace would surface in production rather than in any test.
+  // Booting the real AppModule and resolving the keys is what catches it here.
+  it("registers the photos config namespace the background jobs depend on", () => {
+    const configService = app.get(ConfigService);
+
+    expect(configService.get("photos.pendingCleanupMaxAgeHours")).toEqual(expect.any(Number));
+    expect(configService.get("photos.pendingCleanupBatchSize")).toEqual(expect.any(Number));
+    expect(configService.get("photos.pendingCleanupEnabled")).toEqual(expect.any(Boolean));
   });
 
   it(`GET /${API_GLOBAL_PREFIX} returns Hello World`, async () => {

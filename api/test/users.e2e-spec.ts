@@ -17,6 +17,7 @@ import {
 } from "./helpers/users.fixtures";
 
 const USERS_BASE_PATH = `/${API_GLOBAL_PREFIX}/users`;
+const ONE_GIB = 1024n ** 3n;
 
 type WrappedResponse<T> = {
   data: T;
@@ -217,23 +218,48 @@ describe("UsersController (e2e)", () => {
   describe("GET /users/me/storage", () => {
     const path = `${USERS_BASE_PATH}/me/storage`;
 
-    it("returns 200 and the caller storage usage", async () => {
+    type StorageBody = { usedBytes: string; limitBytes: string; remainingBytes: string };
+
+    it("returns 200 and the caller storage usage against their own limit", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ storageLimitBytes: ONE_GIB }));
       prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 2048 } } as never);
 
       const response = await request(httpServer).get(path).set(authHeader()).expect(200);
 
-      const body = response.body as WrappedResponse<{
-        usedBytes: string;
-        limitBytes: string;
-        remainingBytes: string;
-      }>;
-
+      const body = response.body as WrappedResponse<StorageBody>;
       expect(body.data).toEqual({
         usedBytes: "2048",
-        limitBytes: "5368709120",
-        remainingBytes: "5368707072",
+        limitBytes: "1073741824",
+        remainingBytes: "1073739776",
       });
       expect(body.meta.path).toBe(path);
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: TEST_USER_ID },
+        select: { storageLimitBytes: true },
+      });
+    });
+
+    it("returns the free-tier default for a user whose limit was never raised", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<StorageBody>;
+      expect(body.data).toEqual({
+        usedBytes: "0",
+        limitBytes: "5368709120",
+        remainingBytes: "5368709120",
+      });
+    });
+
+    it("returns 404 when the caller's user row no longer exists", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(404);
+
+      expect((response.body as { message?: string }).message).toBe(USER_SERVICE_ERRORS.NOT_FOUND(TEST_USER_ID));
     });
 
     it("returns 401 when the access token is missing", async () => {
