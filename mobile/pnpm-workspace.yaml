@@ -1,6 +1,11 @@
 # Single-package project; this file also holds pnpm 11+ settings
-# (non-auth config no longer lives in .npmrc).
+# (non-auth config no longer lives in .npmrc / package.json "pnpm" field).
 nodeLinker: hoisted
+
+# NativeWind v5 / react-native-css require lightningcss ≤1.30.1
+# (newer versions throw StyleSheetExit deserialize errors).
+overrides:
+  lightningcss: 1.30.1
 
 allowBuilds:
   browser-tabs-lock: true
