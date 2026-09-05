@@ -215,6 +215,7 @@ In order of implementation:
 - [x] **Race-safe quota reservation** — usage check + PENDING insert in one Serializable transaction, retried on serialization failure.
 - [x] **Pending photo cleanup** — hourly sweeper deletes stale `PENDING` rows and S3 objects (default age: 24h).
 - [x] **Per-user storage limit** — `User.storageLimitBytes` (default 5 GiB) replaces the global env cap, so billing can raise one account without a redeploy.
+- [x] **Storage limit grants** — internal `PhotoStorageService.addStorageLimit()` for billing to raise one account. No HTTP route, no Stripe yet.
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
@@ -224,7 +225,7 @@ In order of implementation:
 
 - ~~Cleanup sweeper for PENDING rows~~ (hourly job deletes PENDING rows older than 24h and their S3 objects)
 - Idempotency keys
-- Per-user paid storage upgrades (billing)
+- Per-user paid storage upgrades — the internal grant method is in place (§9); the Stripe webhook and its idempotency are still future work
 - Thumbnails
 - CloudFront
 - S3 Event-driven confirm
@@ -245,17 +246,20 @@ Over-quota uploads return **413 Payload Too Large** with message `Storage quota 
 
 ### Raising a user's limit
 
-The column is the hook for paid tiers. Billing (not built yet) will bump it per account from a payment webhook, so no HTTP endpoint exposes it:
+`PhotoStorageService.addStorageLimit(userId, additionalBytes)` raises one account's ceiling and returns the new limit. It is an internal method: no HTTP route reaches it, and the service that owns the quota read owns the grant.
 
 ```ts
 // Future: BillingService, driven by a payment webhook
-await prisma.user.update({
-  where: { id: userId },
-  data: { storageLimitBytes: { increment: additionalBytes } },
-});
+const newLimitBytes = await photoStorageService.addStorageLimit(userId, purchasedBytes);
 ```
 
-Until then support can do the same by hand: `UPDATE "User" SET "storageLimitBytes" = 10737418240 WHERE id = '…';`
+- **Additive, never absolute.** A purchase grants capacity rather than declaring a total, so two overlapping grants accumulate. Prisma's `increment` compiles to one `UPDATE`, so there is no read-modify-write window for a grant to be lost in and no transaction is needed.
+- **Rejects a non-positive or fractional increment** with 400 before touching the row. Lowering a limit is deliberately not offered; a downgrade needs its own method with its own rules about usage already above the new ceiling.
+- **Unknown user** surfaces as 404: Prisma reports `P2025` for an update whose row is missing, recognised through the wrapped cause chain like the serialization failures above.
+- **Every grant logs** `user.storage_limit.increased` with `audit: true` and both byte counts as strings, since bigints are not JSON-serializable.
+- **Idempotency belongs to the caller.** A webhook redelivered twice grants twice; the payment layer must dedupe by event id.
+
+Support can still do it by hand: `UPDATE "User" SET "storageLimitBytes" = 10737418240 WHERE id = '…';`
 
 - **New accounts:** JIT provisioning in `UsersService.resolveByProviderSub()` relies on the column default; no code sets the limit.
 - **Limit lowered below current usage:** new uploads fail with 413 until usage drops; existing photos stay.

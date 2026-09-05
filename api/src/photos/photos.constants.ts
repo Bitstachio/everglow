@@ -70,5 +70,7 @@ export const PHOTO_SERVICE_ERRORS = {
   READ_FORBIDDEN: (photoId: string) => `Not authorized to read photo with ID "${photoId}"`,
   DELETE_FORBIDDEN: (photoId: string) => `Not authorized to delete photo with ID "${photoId}"`,
   STORAGE_QUOTA_EXCEEDED: "Storage quota exceeded",
+  INVALID_STORAGE_INCREMENT: (value: string) =>
+    `Storage limit increase must be a positive whole number of bytes, received "${value}"`,
   STORAGE_RESERVATION_CONFLICT: "Storage reservation conflicted with a concurrent upload, please retry",
 };
