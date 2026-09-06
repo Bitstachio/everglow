@@ -1,5 +1,4 @@
 import { render, screen, userEvent } from "@testing-library/react-native";
-
 import { EditProfileModal } from "./EditProfileModal";
 
 test("renders edit profile fields and cancels", async () => {
