@@ -16,6 +16,9 @@ const DRIVER_TRANSACTION_WRITE_CONFLICT = "TransactionWriteConflict";
 // Postgres SQLSTATE 40001, the serialization failure behind both of the above.
 const POSTGRES_SERIALIZATION_FAILURE = "40001";
 
+// Prisma raises P2025 when a write targets a row that does not exist.
+const PRISMA_RECORD_NOT_FOUND = "P2025";
+
 // Wrapped errors nest a few levels deep. The bound also stops a cyclic cause
 // chain from spinning forever.
 const MAX_CAUSE_DEPTH = 5;
@@ -46,3 +49,10 @@ export const isSerializationFailure = (error: unknown): boolean =>
       kind === DRIVER_TRANSACTION_WRITE_CONFLICT ||
       originalCode === POSTGRES_SERIALIZATION_FAILURE,
   );
+
+/**
+ * True when a write targeted a row that does not exist. Callers translate this
+ * into their own not-found error, since only they know what the row represents.
+ */
+export const isRecordNotFound = (error: unknown): boolean =>
+  someCause(error, ({ code }) => code === PRISMA_RECORD_NOT_FOUND);
