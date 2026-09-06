@@ -1,4 +1,11 @@
-import { DeleteObjectCommand, HeadObjectCommand, NotFound, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  NotFound,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import * as presigner from "@aws-sdk/s3-request-presigner";
 import { InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -154,6 +161,70 @@ describe("S3Service", () => {
       sendSpy.mockRejectedValueOnce(new Error("boom"));
 
       await expect(service.headObject("a/b.jpg")).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+  });
+
+  describe("listObjects", () => {
+    const lastModified = new Date("2026-08-01T00:00:00.000Z");
+
+    it("lists one page under the prefix and maps the entries", async () => {
+      sendSpy.mockResolvedValueOnce({
+        Contents: [
+          { Key: "photos/a", Size: 10, LastModified: lastModified },
+          { Key: "photos/b", Size: 20, LastModified: lastModified },
+        ],
+        IsTruncated: false,
+      } as never);
+
+      const result = await service.listObjects("photos/");
+
+      expect(sendSpy).toHaveBeenCalledWith(expect.any(ListObjectsV2Command));
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: bucket, Prefix: "photos/", ContinuationToken: undefined } }),
+      );
+      expect(result).toEqual({
+        objects: [
+          { key: "photos/a", sizeBytes: 10, lastModified },
+          { key: "photos/b", sizeBytes: 20, lastModified },
+        ],
+        nextContinuationToken: undefined,
+      });
+    });
+
+    it("passes the continuation token through and returns the next one while truncated", async () => {
+      sendSpy.mockResolvedValueOnce({
+        Contents: [{ Key: "photos/c", Size: 1, LastModified: lastModified }],
+        IsTruncated: true,
+        NextContinuationToken: "token-2",
+      } as never);
+
+      const result = await service.listObjects("photos/", "token-1");
+
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: bucket, Prefix: "photos/", ContinuationToken: "token-1" } }),
+      );
+      expect(result.nextContinuationToken).toBe("token-2");
+    });
+
+    it("returns an empty page when the prefix has no objects", async () => {
+      sendSpy.mockResolvedValueOnce({ IsTruncated: false } as never);
+
+      await expect(service.listObjects("photos/")).resolves.toEqual({ objects: [], nextContinuationToken: undefined });
+    });
+
+    it("drops entries without a key", async () => {
+      sendSpy.mockResolvedValueOnce({ Contents: [{ Size: 1 }, { Key: "photos/d" }] } as never);
+
+      const result = await service.listObjects("photos/");
+
+      expect(result.objects).toEqual([{ key: "photos/d", sizeBytes: undefined, lastModified: undefined }]);
+    });
+
+    it("wraps client errors in InternalServerErrorException", async () => {
+      sendSpy.mockRejectedValue(new Error("boom"));
+
+      await expect(service.listObjects("photos/")).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.listObjects("photos/")).rejects.toThrow(S3_SERVICE_ERRORS.LIST_FAILED("photos/"));
     });
   });
 
