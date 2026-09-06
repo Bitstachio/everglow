@@ -12,6 +12,7 @@ import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
 import { PhotoStorageService } from "./photo-storage.service";
+import { decodePhotoCursor, encodePhotoCursor } from "./photos.cursor";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
 import {
   buildPhotoS3Key,
@@ -255,19 +256,28 @@ export class PhotosService {
     }
 
     const limit = query.limit ?? DEFAULT_PHOTO_PAGE_SIZE;
+    // Decode before querying so a malformed cursor is a 400, not an empty page.
+    const cursor = query.cursor ? decodePhotoCursor(query.cursor) : null;
     // Fetch one extra row to know whether a next page exists. The cursor is
-    // the last photo id of the previous page; Prisma resolves its sort values
-    // for keyset pagination, so results stay stable while new photos arrive.
+    // the (createdAt, id) keyset the previous page ended at, applied as a
+    // WHERE clause: the page stays correct while photos arrive, and also when
+    // the photo the cursor points at has since been deleted.
     const photos = await this.prisma.photo.findMany({
       where: {
         AND: [
           { eventId, status: PhotoStatus.READY },
           accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
+          ...(cursor
+            ? [
+                {
+                  OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }],
+                },
+              ]
+            : []),
         ],
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
-      ...(query.cursor && { cursor: { id: query.cursor }, skip: 1 }),
     });
 
     const hasMore = photos.length > limit;
@@ -283,7 +293,7 @@ export class PhotosService {
       })),
     );
 
-    return { items, nextCursor: hasMore ? page[page.length - 1].id : null };
+    return { items, nextCursor: hasMore ? encodePhotoCursor(page[page.length - 1]) : null };
   }
 
   async findOne(photoId: string, callerId: string): Promise<PhotoWithUrl> {

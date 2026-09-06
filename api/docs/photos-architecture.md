@@ -60,9 +60,11 @@ We create the row _before_ the upload happens (so we have a `photoId` to sign ag
 
 ### Endpoint
 
-`GET /events/:eventId/photos?cursor=<id>&limit=50`
+`GET /events/:eventId/photos?cursor=<opaque>&limit=50`
 
-- **Cursor-based pagination** (not offset). Cursor is the `createdAt` + `id` of the last photo returned. Cheaper than `OFFSET N` at large N, and stable when new photos are added mid-scroll.
+- **Cursor-based pagination** (not offset). The cursor is the `createdAt` + `id` of the last photo returned, base64url-encoded and opaque to clients (`photos.cursor.ts`). Cheaper than `OFFSET N` at large N, and stable when new photos are added mid-scroll.
+- **Applied as a keyset `WHERE`**, not as Prisma's `cursor: { id }`. Prisma resolves the cursor row's sort values at query time, so once that photo is deleted the next page comes back empty and the client thinks the list ended; `(createdAt, id) < (cursorCreatedAt, cursorId)` does not need the row to exist and hits the `(eventId, status, createdAt)` index directly.
+- **Malformed cursor** (anything but a `nextCursor` this API produced) → **400** `Invalid cursor`, never an empty page.
 - **Filters to `status = READY`** automatically. Pending/failed photos are invisible.
 - **Default sort:** newest first (`createdAt DESC, id DESC`).
 

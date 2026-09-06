@@ -8,6 +8,7 @@ import {
   FREE_TIER_STORAGE_LIMIT_BYTES,
   STORAGE_RESERVATION_MAX_ATTEMPTS,
 } from "src/photos/photos.constants";
+import { encodePhotoCursor } from "src/photos/photos.cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -373,7 +374,49 @@ describe("PhotosController (e2e)", () => {
 
       const body = response.body as WrappedResponse<PhotoListBody>;
       expect(body.data.items).toHaveLength(1);
-      expect(body.data.nextCursor).toBe(first.id);
+      expect(body.data.nextCursor).toBe(encodePhotoCursor(first));
+    });
+
+    it("returns 200 and applies a cursor as a keyset filter on the next page", async () => {
+      const last = buildPhoto();
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto({ id: TEST_OTHER_PHOTO_ID })]);
+
+      const response = await request(httpServer)
+        .get(photosListPath())
+        .query({ cursor: encodePhotoCursor(last), limit: 1 })
+        .set(authHeader())
+        .expect(200);
+
+      const body = response.body as WrappedResponse<PhotoListBody>;
+      expect(body.data.items.map((item) => item.id)).toEqual([TEST_OTHER_PHOTO_ID]);
+      expect(body.data.nextCursor).toBeNull();
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              { eventId: TEST_EVENT_ID, status: "READY" },
+              expect.anything(),
+              { OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
+            ],
+          },
+          take: 2,
+        }),
+      );
+    });
+
+    it("returns 400 for a malformed cursor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+
+      const response = await request(httpServer)
+        .get(photosListPath())
+        .query({ cursor: TEST_PHOTO_ID })
+        .set(authHeader())
+        .expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.INVALID_CURSOR);
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
     it("returns 400 for an invalid limit", async () => {

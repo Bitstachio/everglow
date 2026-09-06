@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  PayloadTooLargeException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -8,6 +14,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
+import { encodePhotoCursor } from "./photos.cursor";
 import {
   buildPhotoS3Key,
   FREE_TIER_STORAGE_LIMIT_BYTES,
@@ -541,21 +548,45 @@ describe("PhotosService", () => {
       const page = await service.listPhotos(eventId, callerId, { limit: 2 });
 
       expect(page.items).toHaveLength(2);
-      expect(page.nextCursor).toBe(photos[1].id);
+      // The cursor is the keyset of the last item on the page, not its id.
+      expect(page.nextCursor).toBe(encodePhotoCursor(photos[1]));
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(2);
     });
 
-    it("passes the cursor to Prisma keyset pagination, skipping the cursor row", async () => {
+    it("applies the cursor as a (createdAt, id) keyset filter rather than a Prisma cursor", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
       prisma.photo.findMany.mockResolvedValue([]);
-      const cursor = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+      const last = { createdAt: new Date("2026-06-10T12:00:00.500Z"), id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee" };
 
-      await service.listPhotos(eventId, callerId, { cursor, limit: 10 });
+      await service.listPhotos(eventId, callerId, { cursor: encodePhotoCursor(last), limit: 10 });
 
       expect(prisma.photo.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ cursor: { id: cursor }, skip: 1, take: 11 }),
+        expect.objectContaining({
+          where: {
+            AND: [
+              { eventId, status: "READY" },
+              expect.anything(),
+              { OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
+            ],
+          },
+          take: 11,
+        }),
       );
+      // No Prisma cursor: the page must not depend on the cursor row still existing.
+      const [args] = prisma.photo.findMany.mock.calls[0];
+      expect(args).not.toHaveProperty("cursor");
+      expect(args).not.toHaveProperty("skip");
+    });
+
+    it("rejects a malformed cursor with 400 before querying", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+
+      await expect(service.listPhotos(eventId, callerId, { cursor: "not-a-cursor" })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
     it("denies access when the caller has not completed onboarding", async () => {
