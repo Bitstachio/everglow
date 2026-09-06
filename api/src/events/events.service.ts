@@ -11,6 +11,7 @@ import { randomUUID } from "crypto";
 import { AccessLevel, Event, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
@@ -25,6 +26,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly abilityFactory: AbilityFactory,
+    private readonly photoPurgeService: PhotoPurgeService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -355,9 +357,24 @@ export class EventsService {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId));
     }
 
-    await this.prisma.event.delete({ where: { id: eventId } });
+    // Collect the photo keys in the same transaction as the delete: the cascade
+    // removes every Photo row of the event, so afterwards nothing remembers
+    // which objects belonged to it. Rows go first on purpose. Once they are
+    // gone no member can see a photo whose object is missing and the
+    // uploaders' quota is already released; the objects are then purged
+    // best effort after the commit, never inside a database transaction.
+    const s3Keys = await this.prisma.$transaction(async (tx) => {
+      const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
+      await tx.event.delete({ where: { id: eventId } });
+      return photos.map((photo) => photo.s3Key);
+    });
 
-    this.logger.info({ event: "event.deleted", eventId, callerId, audit: true }, "Event deleted");
+    this.logger.info(
+      { event: "event.deleted", eventId, callerId, photoCount: s3Keys.length, audit: true },
+      "Event deleted",
+    );
+
+    await this.photoPurgeService.purgeObjects(s3Keys, { event: "event.photos.purged", eventId, callerId });
   }
 
   private async countOrganizers(eventId: string): Promise<number> {

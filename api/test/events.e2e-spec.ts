@@ -5,6 +5,7 @@ import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { buildInvitationUrl } from "src/events/events.invitation";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "src/events/events.types";
+import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import request from "supertest";
@@ -71,8 +72,10 @@ describe("EventsController (e2e)", () => {
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;
 
+  const s3Service = { deleteObjects: jest.fn() };
+
   beforeAll(async () => {
-    const context = await createTestApp();
+    const context = await createTestApp((builder) => builder.overrideProvider(S3Service).useValue(s3Service));
     app = context.app;
     prisma = context.prisma;
     httpServer = app.getHttpServer() as Server;
@@ -85,6 +88,11 @@ describe("EventsController (e2e)", () => {
   beforeEach(() => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+    // Interactive transactions run their callback against the same mock client.
+    prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    prisma.photo.findMany.mockResolvedValue([]);
+    s3Service.deleteObjects.mockReset();
+    s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [] });
   });
 
   describe("POST /events", () => {
@@ -371,6 +379,37 @@ describe("EventsController (e2e)", () => {
       await request(httpServer).delete(path()).set(authHeader()).expect(204);
 
       expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: TEST_EVENT_ID } });
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
+
+    it("returns 204 and purges the event's photo objects from S3 after the rows are gone", async () => {
+      const s3Keys = [`photos/${TEST_USER_ID}/${TEST_EVENT_ID}/a`, `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/b`];
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.photo.findMany.mockResolvedValue(s3Keys.map((s3Key) => ({ s3Key })) as never);
+      prisma.event.delete.mockResolvedValue(buildEvent());
+      s3Service.deleteObjects.mockResolvedValue({ deleted: s3Keys, failed: [] });
+
+      await request(httpServer).delete(path()).set(authHeader()).expect(204);
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith({
+        where: { eventId: TEST_EVENT_ID },
+        select: { s3Key: true },
+      });
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(s3Keys);
+      expect(prisma.event.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        s3Service.deleteObjects.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("returns 204 even when the S3 purge fails, leaving the objects to the reconciler", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.photo.findMany.mockResolvedValue([{ s3Key: `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/a` }] as never);
+      prisma.event.delete.mockResolvedValue(buildEvent());
+      s3Service.deleteObjects.mockRejectedValue(new Error("s3 down"));
+
+      await request(httpServer).delete(path()).set(authHeader()).expect(204);
+
+      expect(prisma.event.delete).toHaveBeenCalledTimes(1);
     });
 
     it("returns 401 when the access token is missing", async () => {

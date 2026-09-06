@@ -153,24 +153,33 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 
 `PENDING` rows can be deleted too. The uploader holds the `photoId` from `upload-urls`, and deleting it cancels the slot and releases its quota; this works even after they have left or been removed from the event (§9). S3 `DeleteObject` on a key that was never written is a no-op.
 
+### Event delete
+
+`DELETE /events/:eventId` takes every photo of the event with it, objects included:
+
+1. In one transaction: read the `s3Key` of every `Photo` row of the event, then delete the event (`onDelete: Cascade` removes the rows).
+2. After the commit: `PhotoPurgeService.purgeObjects()` deletes the objects with S3 `DeleteObjects`, 1000 keys per request (`S3Service.deleteObjects`).
+
+The order is the reverse of the single-photo delete, on purpose. A manual delete is retried by the user, so it keeps the row when S3 fails. An event delete cannot be retried once the event is gone, and with the rows removed first no member can ever see a photo whose object is missing, and every uploader's quota is released immediately. What is at stake after the commit is only storage cost: a purge that fails, in part or as a whole, is logged at `error` with the counts and leaves orphans, which is exactly what the daily reconciler (§11) reclaims. The purge never fails the request. The same holds for a slot minted between the key read and the commit: its row is cascaded, its object (if the upload still lands) is an orphan.
+
 ---
 
 ## 6. Edge cases handled in v1
 
-| Case                                                            | Mitigation                                                                                                                                                             |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h (§10).                                                               |
-| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING and deletes the row; the quota is released immediately.                                                             |
-| Wrong contentType / oversize file                               | `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 rejects the upload. `HeadObject` re-verifies at confirm; a mismatch deletes the object and row. |
-| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                                                     |
-| Someone else's photoId in a confirm call                        | Confirm only considers the caller's own rows; other ids report NOT_FOUND and are never released.                                                                       |
-| Presigning fails after the quota reservation                    | The batch's rows are deleted again before the error is returned, so no quota is held for URLs the client never received.                                               |
-| Uploader leaves or is removed from the event mid-upload         | They can no longer confirm, but `DELETE /photos/:photoId` still works for their own PENDING slots; otherwise the sweeper releases them.                                |
-| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects are orphaned until the daily reconciler removes them (§11).                                                               |
-| App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                                                               |
-| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                                                                 |
-| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9).                                   |
-| Presigned URL leaked                                            | TTL 1h, limited to one key, content type, and length. Worst case: attacker uploads a file of exactly the declared shape to one key the owner already reserved.         |
+| Case                                                            | Mitigation                                                                                                                                                                                    |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h (§10).                                                                                      |
+| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING and deletes the row; the quota is released immediately.                                                                                    |
+| Wrong contentType / oversize file                               | `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 rejects the upload. `HeadObject` re-verifies at confirm; a mismatch deletes the object and row.                        |
+| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                                                                            |
+| Someone else's photoId in a confirm call                        | Confirm only considers the caller's own rows; other ids report NOT_FOUND and are never released.                                                                                              |
+| Presigning fails after the quota reservation                    | The batch's rows are deleted again before the error is returned, so no quota is held for URLs the client never received.                                                                      |
+| Uploader leaves or is removed from the event mid-upload         | They can no longer confirm, but `DELETE /photos/:photoId` still works for their own PENDING slots; otherwise the sweeper releases them.                                                       |
+| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows; the objects of every photo of the event are purged right after the commit (§5). Anything that fails, or lands later, is an orphan for the reconciler (§11). |
+| App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                                                                                      |
+| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                                                                                        |
+| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9).                                                          |
+| Presigned URL leaked                                            | TTL 1h, limited to one key, content type, and length. Worst case: attacker uploads a file of exactly the declared shape to one key the owner already reserved.                                |
 
 ---
 
@@ -332,7 +341,7 @@ This job is what makes the quota in §9 self-correcting. Without it an abandoned
 
 ## 11. S3 orphan reconciler
 
-Postgres is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete (`onDelete: Cascade` removes the rows, nothing touches S3), an account delete (same cascade), a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
+Postgres is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete whose post-commit purge failed or raced an in-flight upload (§5), an account delete (the cascade removes the rows, nothing touches S3), a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
 
 - **Service:** `PhotoOrphanReconcilerService.reconcileOrphanedObjects()`
 - **Schedule:** daily at 03:00 via `PhotoOrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists the whole prefix, which is not worth doing hourly, and orphans cost money rather than correctness.
@@ -371,4 +380,4 @@ They cannot fight over an object: the reconciler deletes only when no row exists
 
 ### Out of scope
 
-Eager S3 cleanup when an event or account is deleted, S3 Inventory or Athena-based reconciliation for very large buckets, and an endpoint to trigger a run by hand.
+Eager S3 cleanup when an account is deleted (events have it, §5), S3 Inventory or Athena-based reconciliation for very large buckets, and an endpoint to trigger a run by hand.
