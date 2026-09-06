@@ -2,19 +2,23 @@ import photosConfig from "./photos.config";
 import {
   DEFAULT_ORPHAN_RECONCILER_BATCH_SIZE,
   DEFAULT_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS,
+  DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE,
+  DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS,
 } from "src/photos/photos.constants";
 
 describe("photosConfig", () => {
-  const ORPHAN_VARS = [
+  const MANAGED_VARS = [
     "PHOTO_ORPHAN_RECONCILER_ENABLED",
     "PHOTO_ORPHAN_RECONCILER_BATCH_SIZE",
     "PHOTO_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS",
+    "PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS",
+    "PHOTO_PENDING_CLEANUP_BATCH_SIZE",
   ] as const;
 
-  const original = new Map(ORPHAN_VARS.map((name) => [name, process.env[name]]));
+  const original = new Map(MANAGED_VARS.map((name) => [name, process.env[name]]));
 
   beforeEach(() => {
-    for (const name of ORPHAN_VARS) delete process.env[name];
+    for (const name of MANAGED_VARS) delete process.env[name];
   });
 
   afterAll(() => {
@@ -67,6 +71,37 @@ describe("photosConfig", () => {
       process.env.PHOTO_ORPHAN_RECONCILER_BATCH_SIZE = value;
 
       expect(photosConfig().orphanReconcilerBatchSize).toBe(DEFAULT_ORPHAN_RECONCILER_BATCH_SIZE);
+    });
+  });
+
+  // Both bounds share parseIntegerEnv with the orphan keys, so the floor of 1 is
+  // the only thing separating them. A fractional value used to be accepted here.
+  describe("pending cleanup bounds", () => {
+    it("falls back to the defaults when unset", () => {
+      const config = photosConfig();
+
+      expect(config.pendingCleanupMaxAgeHours).toBe(DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS);
+      expect(config.pendingCleanupBatchSize).toBe(DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE);
+    });
+
+    it("reads a valid override", () => {
+      process.env.PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS = "6";
+      process.env.PHOTO_PENDING_CLEANUP_BATCH_SIZE = "50";
+
+      const config = photosConfig();
+
+      expect(config.pendingCleanupMaxAgeHours).toBe(6);
+      expect(config.pendingCleanupBatchSize).toBe(50);
+    });
+
+    it.each(["0", "-1", "1.5", "abc", " "])("ignores the invalid bound %p", (value) => {
+      process.env.PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS = value;
+      process.env.PHOTO_PENDING_CLEANUP_BATCH_SIZE = value;
+
+      const config = photosConfig();
+
+      expect(config.pendingCleanupMaxAgeHours).toBe(DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS);
+      expect(config.pendingCleanupBatchSize).toBe(DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE);
     });
   });
 });
