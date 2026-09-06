@@ -68,6 +68,9 @@ export type CreateUploadUrlsDto = {
 
 export type ConfirmPhotoResultDto = {
   photoId: string;
+  /**
+   * READY: the object was verified and the photo is now visible. MISSING: no object was uploaded; the slot has been released, mint a new one. MISMATCHED: the object differs from the declared size or type; it and the slot have been removed, mint a new one. NOT_FOUND: not a pending upload of the caller in this event.
+   */
   status: "READY" | "MISSING" | "MISMATCHED" | "NOT_FOUND";
 };
 
