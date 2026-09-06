@@ -1,8 +1,14 @@
-import { ConflictException, Injectable, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  PayloadTooLargeException,
+} from "@nestjs/common";
 import { PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { jitteredLinearBackoffMs, sleep } from "src/common/utils/async.utils";
-import { isSerializationFailure } from "src/prisma/prisma.errors";
+import { isRecordNotFound, isSerializationFailure } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import {
@@ -108,6 +114,52 @@ export class PhotoStorageService {
         }
         await sleep(jitteredLinearBackoffMs(attempt, STORAGE_RESERVATION_RETRY_DELAY_MS));
       }
+    }
+  }
+
+  /**
+   * Raises the account's ceiling by `additionalBytes` and returns the new limit.
+   *
+   * Additive on purpose: a purchase grants capacity rather than declaring a
+   * total, so two grants that overlap accumulate instead of overwriting each
+   * other. Prisma's `increment` is one UPDATE, so there is no read-modify-write
+   * window to lose a grant in, and no transaction is needed.
+   *
+   * Internal only. Billing calls this; nothing routes to it over HTTP, and
+   * lowering a limit is deliberately not offered here.
+   */
+  async addStorageLimit(userId: string, additionalBytes: bigint | number): Promise<bigint> {
+    if (typeof additionalBytes === "number" && !Number.isInteger(additionalBytes)) {
+      throw new BadRequestException(PHOTO_SERVICE_ERRORS.INVALID_STORAGE_INCREMENT(String(additionalBytes)));
+    }
+
+    const increment = BigInt(additionalBytes);
+    if (increment <= 0n) {
+      throw new BadRequestException(PHOTO_SERVICE_ERRORS.INVALID_STORAGE_INCREMENT(increment.toString()));
+    }
+
+    try {
+      const { storageLimitBytes } = await this.prisma.user.update({
+        where: { id: userId },
+        data: { storageLimitBytes: { increment } },
+        select: { storageLimitBytes: true },
+      });
+
+      this.logger.info(
+        {
+          event: "user.storage_limit.increased",
+          userId,
+          additionalBytes: increment.toString(),
+          newLimitBytes: storageLimitBytes.toString(),
+          audit: true,
+        },
+        "User storage limit increased",
+      );
+
+      return storageLimitBytes;
+    } catch (error) {
+      if (isRecordNotFound(error)) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId));
+      throw error;
     }
   }
 

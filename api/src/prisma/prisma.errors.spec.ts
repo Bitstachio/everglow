@@ -1,5 +1,5 @@
 import { Prisma } from "generated/prisma/client";
-import { isSerializationFailure } from "./prisma.errors";
+import { isRecordNotFound, isSerializationFailure } from "./prisma.errors";
 
 describe("isSerializationFailure", () => {
   const knownRequestError = (code: string) =>
@@ -76,5 +76,27 @@ describe("isSerializationFailure", () => {
 
       expect(isSerializationFailure(outer)).toBe(false);
     });
+  });
+});
+
+describe("isRecordNotFound", () => {
+  const knownRequestError = (code: string) =>
+    new Prisma.PrismaClientKnownRequestError("An operation failed", { code, clientVersion: "7.8.0" });
+
+  it("matches the code Prisma raises for a write against a missing row", () => {
+    expect(isRecordNotFound(knownRequestError("P2025"))).toBe(true);
+  });
+
+  it("matches it through a wrapping cause chain", () => {
+    expect(isRecordNotFound(new Error("update failed", { cause: knownRequestError("P2025") }))).toBe(true);
+  });
+
+  it.each([
+    ["a serialization failure", knownRequestError("P2034")],
+    ["a unique constraint violation", knownRequestError("P2002")],
+    ["a plain error", new Error("connection reset")],
+    ["null", null],
+  ])("returns false for %s", (_label, error) => {
+    expect(isRecordNotFound(error)).toBe(false);
   });
 });
