@@ -78,6 +78,53 @@ export type ConfirmUploadsDto = {
   photoIds: Array<string>;
 };
 
+export type MultipartPartResponseDto = {
+  /**
+   * 1-based S3 part number
+   */
+  partNumber: number;
+  /**
+   * Exact byte length of this part; the URL rejects any other Content-Length
+   */
+  sizeBytes: number;
+  /**
+   * Presigned S3 PUT URL for this part's bytes
+   */
+  uploadUrl: string;
+  /**
+   * True when S3 already holds this part in full; re-uploading it is harmless
+   */
+  uploaded: boolean;
+};
+
+export type MultipartUploadResponseDto = {
+  photoId: string;
+  /**
+   * Declared size of the whole file
+   */
+  sizeBytes: number;
+  /**
+   * Every part but the last is exactly this many bytes
+   */
+  partSizeBytes: number;
+  /**
+   * When the part URLs expire; fetch the upload state again for fresh ones
+   */
+  expiresAt: string;
+  /**
+   * The full layout, in part order
+   */
+  parts: Array<MultipartPartResponseDto>;
+};
+
+export type InitiateMultipartUploadDto = {
+  contentType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+  /**
+   * Exact size of the file. Files below the minimum use the single-PUT upload-urls flow instead.
+   */
+  sizeBytes: number;
+};
+
 export type PhotoResponseDto = {
   id: string;
   eventId: string;
@@ -336,6 +383,93 @@ export type PhotosControllerConfirmUploadsResponses = {
 
 export type PhotosControllerConfirmUploadsResponse =
   PhotosControllerConfirmUploadsResponses[keyof PhotosControllerConfirmUploadsResponses];
+
+export type PhotosControllerCreateMultipartUploadData = {
+  body: InitiateMultipartUploadDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/photos/multipart-uploads";
+};
+
+export type PhotosControllerCreateMultipartUploadErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerCreateMultipartUploadResponses = {
+  /**
+   * Upload layout with a presigned PUT URL per part
+   */
+  201: {
+    data: MultipartUploadResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PhotosControllerCreateMultipartUploadResponse =
+  PhotosControllerCreateMultipartUploadResponses[keyof PhotosControllerCreateMultipartUploadResponses];
+
+export type PhotosControllerGetMultipartUploadData = {
+  body?: never;
+  path: {
+    photoId: string;
+  };
+  query?: never;
+  url: "/api/v2/photos/{photoId}/multipart-upload";
+};
+
+export type PhotosControllerGetMultipartUploadErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerGetMultipartUploadResponses = {
+  /**
+   * Which parts S3 already holds, plus a presigned PUT URL per part
+   */
+  200: {
+    data: MultipartUploadResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PhotosControllerGetMultipartUploadResponse =
+  PhotosControllerGetMultipartUploadResponses[keyof PhotosControllerGetMultipartUploadResponses];
+
+export type PhotosControllerCompleteMultipartUploadData = {
+  body?: never;
+  path: {
+    photoId: string;
+  };
+  query?: never;
+  url: "/api/v2/photos/{photoId}/multipart-upload/complete";
+};
+
+export type PhotosControllerCompleteMultipartUploadErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type PhotosControllerCompleteMultipartUploadResponses = {
+  /**
+   * Verification result for the assembled photo
+   */
+  201: {
+    data: ConfirmPhotoResultDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PhotosControllerCompleteMultipartUploadResponse =
+  PhotosControllerCompleteMultipartUploadResponses[keyof PhotosControllerCompleteMultipartUploadResponses];
 
 export type PhotosControllerListPhotosData = {
   body?: never;

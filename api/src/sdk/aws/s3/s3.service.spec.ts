@@ -1,11 +1,18 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListPartsCommand,
+  NoSuchUpload,
   NotFound,
   PutObjectCommand,
   S3Client,
+  S3ServiceException,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import * as presigner from "@aws-sdk/s3-request-presigner";
 import { InternalServerErrorException } from "@nestjs/common";
@@ -288,6 +295,184 @@ describe("S3Service", () => {
 
       await expect(service.listObjects("photos/")).rejects.toBeInstanceOf(InternalServerErrorException);
       await expect(service.listObjects("photos/")).rejects.toThrow(S3_SERVICE_ERRORS.LIST_FAILED("photos/"));
+    });
+  });
+
+  describe("multipart uploads", () => {
+    const ref = { key: "photos/a", uploadId: "upload-1" };
+    const noSuchUpload = () => new NoSuchUpload({ $metadata: {}, message: "NoSuchUpload" });
+    const s3Error = (name: string) => new S3ServiceException({ name, $fault: "client", $metadata: {} });
+
+    describe("createMultipartUpload", () => {
+      it("opens the upload with the object's content type and returns the upload id", async () => {
+        sendSpy.mockResolvedValueOnce({ UploadId: "upload-1" } as never);
+
+        await expect(service.createMultipartUpload({ key: "photos/a", contentType: "image/jpeg" })).resolves.toBe(
+          "upload-1",
+        );
+
+        expect(sendSpy).toHaveBeenCalledWith(expect.any(CreateMultipartUploadCommand));
+        expect(sendSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ input: { Bucket: bucket, Key: "photos/a", ContentType: "image/jpeg" } }),
+        );
+      });
+
+      it("wraps a response without an upload id, and client errors, in InternalServerErrorException", async () => {
+        sendSpy.mockResolvedValueOnce({} as never);
+        await expect(service.createMultipartUpload({ key: "photos/a", contentType: "image/jpeg" })).rejects.toThrow(
+          S3_SERVICE_ERRORS.MULTIPART_CREATE_FAILED("photos/a"),
+        );
+
+        sendSpy.mockRejectedValueOnce(new Error("boom"));
+        await expect(
+          service.createMultipartUpload({ key: "photos/a", contentType: "image/jpeg" }),
+        ).rejects.toBeInstanceOf(InternalServerErrorException);
+      });
+    });
+
+    describe("getPresignedUploadPartUrl", () => {
+      it("presigns an UploadPart bound to the part number, upload id, and exact length", async () => {
+        getSignedUrlMock.mockResolvedValue("https://signed-part");
+
+        const url = await service.getPresignedUploadPartUrl({
+          ...ref,
+          partNumber: 2,
+          contentLength: 5 * 1024 * 1024,
+          expiresInSeconds: 60,
+        });
+
+        expect(url).toBe("https://signed-part");
+        expect(getSignedUrlMock).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.any(UploadPartCommand),
+          expect.objectContaining({ expiresIn: 60, signableHeaders: new Set(["content-length"]) }),
+        );
+        const [, command] = getSignedUrlMock.mock.calls[0];
+        expect((command as UploadPartCommand).input).toEqual({
+          Bucket: bucket,
+          Key: "photos/a",
+          UploadId: "upload-1",
+          PartNumber: 2,
+          ContentLength: 5 * 1024 * 1024,
+        });
+      });
+    });
+
+    describe("listMultipartParts", () => {
+      it("maps the parts S3 holds, following the part number marker across pages", async () => {
+        sendSpy
+          .mockResolvedValueOnce({
+            Parts: [{ PartNumber: 1, Size: 10, ETag: '"a"' }],
+            IsTruncated: true,
+            NextPartNumberMarker: "1",
+          } as never)
+          .mockResolvedValueOnce({
+            Parts: [{ PartNumber: 2, Size: 5, ETag: '"b"' }, { Size: 1 }],
+            IsTruncated: false,
+          } as never);
+
+        const result = await service.listMultipartParts(ref);
+
+        expect(result).toEqual({
+          exists: true,
+          parts: [
+            { partNumber: 1, sizeBytes: 10, etag: '"a"' },
+            { partNumber: 2, sizeBytes: 5, etag: '"b"' },
+          ],
+        });
+        expect(sendSpy).toHaveBeenCalledTimes(2);
+        expect(sendSpy).toHaveBeenNthCalledWith(1, expect.any(ListPartsCommand));
+        expect(sendSpy).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            input: { Bucket: bucket, Key: "photos/a", UploadId: "upload-1", PartNumberMarker: "1" },
+          }),
+        );
+      });
+
+      it("returns exists false when S3 no longer knows the upload", async () => {
+        sendSpy.mockRejectedValueOnce(noSuchUpload());
+
+        await expect(service.listMultipartParts(ref)).resolves.toEqual({ exists: false });
+      });
+
+      it("wraps other client errors in InternalServerErrorException", async () => {
+        sendSpy.mockRejectedValue(new Error("boom"));
+
+        await expect(service.listMultipartParts(ref)).rejects.toThrow(
+          S3_SERVICE_ERRORS.MULTIPART_LIST_FAILED("photos/a"),
+        );
+      });
+    });
+
+    describe("completeMultipartUpload", () => {
+      const parts = [
+        { partNumber: 1, etag: '"a"' },
+        { partNumber: 2, etag: '"b"' },
+      ];
+
+      it("assembles the object from the given parts", async () => {
+        await expect(service.completeMultipartUpload({ ...ref, parts })).resolves.toEqual({ completed: true });
+
+        expect(sendSpy).toHaveBeenCalledWith(expect.any(CompleteMultipartUploadCommand));
+        expect(sendSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            input: {
+              Bucket: bucket,
+              Key: "photos/a",
+              UploadId: "upload-1",
+              MultipartUpload: {
+                Parts: [
+                  { PartNumber: 1, ETag: '"a"' },
+                  { PartNumber: 2, ETag: '"b"' },
+                ],
+              },
+            },
+          }),
+        );
+      });
+
+      it.each(["NoSuchUpload", "InvalidPart", "InvalidPartOrder", "EntityTooSmall"])(
+        "reports %s as a refused completion instead of throwing",
+        async (code) => {
+          sendSpy.mockRejectedValueOnce(code === "NoSuchUpload" ? noSuchUpload() : s3Error(code));
+
+          await expect(service.completeMultipartUpload({ ...ref, parts })).resolves.toEqual({ completed: false, code });
+        },
+      );
+
+      it("wraps other errors in InternalServerErrorException", async () => {
+        sendSpy.mockRejectedValueOnce(s3Error("InternalError"));
+
+        await expect(service.completeMultipartUpload({ ...ref, parts })).rejects.toThrow(
+          S3_SERVICE_ERRORS.MULTIPART_COMPLETE_FAILED("photos/a"),
+        );
+      });
+    });
+
+    describe("abortMultipartUpload", () => {
+      it("sends an AbortMultipartUploadCommand", async () => {
+        await service.abortMultipartUpload(ref);
+
+        expect(sendSpy).toHaveBeenCalledWith(expect.any(AbortMultipartUploadCommand));
+        expect(sendSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ input: { Bucket: bucket, Key: "photos/a", UploadId: "upload-1" } }),
+        );
+      });
+
+      it("treats an upload S3 no longer knows as already aborted", async () => {
+        sendSpy.mockRejectedValueOnce(noSuchUpload());
+
+        await expect(service.abortMultipartUpload(ref)).resolves.toBeUndefined();
+      });
+
+      it("wraps other errors in InternalServerErrorException", async () => {
+        sendSpy.mockRejectedValueOnce(new Error("boom"));
+
+        await expect(service.abortMultipartUpload(ref)).rejects.toThrow(
+          S3_SERVICE_ERRORS.MULTIPART_ABORT_FAILED("photos/a"),
+        );
+      });
     });
   });
 

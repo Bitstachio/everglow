@@ -24,9 +24,12 @@ import {
   eventsControllerUpdate,
   eventsControllerUpdateParticipantAccess,
   type Options,
+  photosControllerCompleteMultipartUpload,
   photosControllerConfirmUploads,
+  photosControllerCreateMultipartUpload,
   photosControllerCreateUploadUrls,
   photosControllerFindOne,
+  photosControllerGetMultipartUpload,
   photosControllerListPhotos,
   photosControllerRemove,
   usersControllerCompleteOnboarding,
@@ -59,12 +62,18 @@ import type {
   EventsControllerUpdateParticipantAccessData,
   EventsControllerUpdateParticipantAccessResponse,
   EventsControllerUpdateResponse,
+  PhotosControllerCompleteMultipartUploadData,
+  PhotosControllerCompleteMultipartUploadResponse,
   PhotosControllerConfirmUploadsData,
   PhotosControllerConfirmUploadsResponse,
+  PhotosControllerCreateMultipartUploadData,
+  PhotosControllerCreateMultipartUploadResponse,
   PhotosControllerCreateUploadUrlsData,
   PhotosControllerCreateUploadUrlsResponse,
   PhotosControllerFindOneData,
   PhotosControllerFindOneResponse,
+  PhotosControllerGetMultipartUploadData,
+  PhotosControllerGetMultipartUploadResponse,
   PhotosControllerListPhotosData,
   PhotosControllerListPhotosResponse,
   PhotosControllerRemoveData,
@@ -312,6 +321,85 @@ export const photosControllerConfirmUploadsMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await photosControllerConfirmUploads({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Start a multipart upload for one photo of at least 5 MiB
+ */
+export const photosControllerCreateMultipartUploadMutation = (
+  options?: Partial<Options<PhotosControllerCreateMultipartUploadData>>,
+): UseMutationOptions<
+  PhotosControllerCreateMultipartUploadResponse,
+  AxiosError<DefaultError>,
+  Options<PhotosControllerCreateMultipartUploadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PhotosControllerCreateMultipartUploadResponse,
+    AxiosError<DefaultError>,
+    Options<PhotosControllerCreateMultipartUploadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await photosControllerCreateMultipartUpload({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const photosControllerGetMultipartUploadQueryKey = (options: Options<PhotosControllerGetMultipartUploadData>) =>
+  createQueryKey("photosControllerGetMultipartUpload", options);
+
+/**
+ * Get the state of a multipart upload, with fresh part URLs
+ */
+export const photosControllerGetMultipartUploadOptions = (options: Options<PhotosControllerGetMultipartUploadData>) =>
+  queryOptions<
+    PhotosControllerGetMultipartUploadResponse,
+    AxiosError<DefaultError>,
+    PhotosControllerGetMultipartUploadResponse,
+    ReturnType<typeof photosControllerGetMultipartUploadQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await photosControllerGetMultipartUpload({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: photosControllerGetMultipartUploadQueryKey(options),
+  });
+
+/**
+ * Assemble an uploaded multipart photo and mark it ready
+ */
+export const photosControllerCompleteMultipartUploadMutation = (
+  options?: Partial<Options<PhotosControllerCompleteMultipartUploadData>>,
+): UseMutationOptions<
+  PhotosControllerCompleteMultipartUploadResponse,
+  AxiosError<DefaultError>,
+  Options<PhotosControllerCompleteMultipartUploadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PhotosControllerCompleteMultipartUploadResponse,
+    AxiosError<DefaultError>,
+    Options<PhotosControllerCompleteMultipartUploadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await photosControllerCompleteMultipartUpload({
         ...options,
         ...fnOptions,
         throwOnError: true,

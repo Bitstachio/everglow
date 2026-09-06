@@ -1,12 +1,19 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListPartsCommand,
+  NoSuchUpload,
   NotFound,
   PutObjectCommand,
   S3Client,
+  S3ServiceException,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Injectable, InternalServerErrorException, OnModuleDestroy } from "@nestjs/common";
@@ -53,6 +60,46 @@ export interface DeleteObjectsResult {
   /** Keys S3 refused to delete, with the error it gave for each. */
   failed: { key: string; code?: string; message?: string }[];
 }
+
+export interface MultipartUploadRef {
+  key: string;
+  uploadId: string;
+}
+
+export interface PresignedUploadPartInput extends MultipartUploadRef {
+  /** 1-based, as S3 numbers parts. */
+  partNumber: number;
+  /** Exact part size the URL accepts; any other Content-Length is rejected by S3. */
+  contentLength: number;
+  expiresInSeconds?: number;
+}
+
+export interface MultipartPartSummary {
+  partNumber: number;
+  sizeBytes?: number;
+  etag?: string;
+}
+
+/** `exists: false` when S3 no longer knows the upload id: completed, aborted, or expired by a lifecycle rule. */
+export type ListMultipartPartsResult = { exists: true; parts: MultipartPartSummary[] } | { exists: false };
+
+export interface CompleteMultipartPart {
+  partNumber: number;
+  etag: string;
+}
+
+/**
+ * `completed: false` carries the S3 error code when the assembly was refused
+ * on the request's own terms (unknown upload, a part missing, too small, or
+ * out of order). Anything else throws like the rest of this service.
+ */
+export type CompleteMultipartUploadResult = { completed: true } | { completed: false; code: string };
+
+const MULTIPART_COMPLETE_CLIENT_ERRORS = new Set(["NoSuchUpload", "InvalidPart", "InvalidPartOrder", "EntityTooSmall"]);
+
+// UploadPart has no content type of its own (the object's is fixed when the
+// upload is created), so a part URL binds only the part's exact length.
+const PRESIGNED_UPLOAD_PART_SIGNED_HEADERS = new Set(["content-length"]);
 
 // Request headers a presigned PUT binds the client to. The S3 presigner marks
 // content-type unsignable by default, so a URL minted for image/jpeg would
@@ -153,6 +200,112 @@ export class S3Service implements OnModuleDestroy {
     }
 
     return result;
+  }
+
+  /** Opens a multipart upload for `key`. The object's content type is fixed here; returns the upload id. */
+  async createMultipartUpload({ key, contentType }: { key: string; contentType: string }): Promise<string> {
+    try {
+      const response = await this.client.send(
+        new CreateMultipartUploadCommand({ Bucket: this.bucket, Key: key, ContentType: contentType }),
+      );
+      if (!response.UploadId) throw new Error("S3 returned no upload id");
+      return response.UploadId;
+    } catch (error) {
+      this.logger.error({ err: error as Error, key }, "s3 createMultipartUpload failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.MULTIPART_CREATE_FAILED(key));
+    }
+  }
+
+  /** A PUT URL for one part of an open multipart upload, bound to that part's exact size. */
+  async getPresignedUploadPartUrl({
+    key,
+    uploadId,
+    partNumber,
+    contentLength,
+    expiresInSeconds = DEFAULT_PRESIGNED_URL_TTL_SECONDS,
+  }: PresignedUploadPartInput): Promise<string> {
+    try {
+      return await getSignedUrl(
+        this.client,
+        new UploadPartCommand({
+          Bucket: this.bucket,
+          Key: key,
+          UploadId: uploadId,
+          PartNumber: partNumber,
+          ContentLength: contentLength,
+        }),
+        { expiresIn: expiresInSeconds, signableHeaders: PRESIGNED_UPLOAD_PART_SIGNED_HEADERS },
+      );
+    } catch (error) {
+      this.logger.error({ err: error as Error, key, partNumber }, "s3 getPresignedUploadPartUrl failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.PRESIGN_FAILED(key));
+    }
+  }
+
+  /** Every part S3 has received for the upload so far, across all result pages. */
+  async listMultipartParts({ key, uploadId }: MultipartUploadRef): Promise<ListMultipartPartsResult> {
+    const parts: MultipartPartSummary[] = [];
+    let partNumberMarker: string | undefined;
+
+    try {
+      do {
+        const response = await this.client.send(
+          new ListPartsCommand({
+            Bucket: this.bucket,
+            Key: key,
+            UploadId: uploadId,
+            PartNumberMarker: partNumberMarker,
+          }),
+        );
+        for (const part of response.Parts ?? []) {
+          if (part.PartNumber !== undefined) {
+            parts.push({ partNumber: part.PartNumber, sizeBytes: part.Size, etag: part.ETag });
+          }
+        }
+        partNumberMarker = response.IsTruncated ? response.NextPartNumberMarker : undefined;
+      } while (partNumberMarker);
+      return { exists: true, parts };
+    } catch (error) {
+      if (error instanceof NoSuchUpload) return { exists: false };
+      this.logger.error({ err: error as Error, key }, "s3 listParts failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.MULTIPART_LIST_FAILED(key));
+    }
+  }
+
+  /** Assembles the object from the given parts, which must be listed in ascending part number. */
+  async completeMultipartUpload({
+    key,
+    uploadId,
+    parts,
+  }: MultipartUploadRef & { parts: CompleteMultipartPart[] }): Promise<CompleteMultipartUploadResult> {
+    try {
+      await this.client.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: this.bucket,
+          Key: key,
+          UploadId: uploadId,
+          MultipartUpload: { Parts: parts.map(({ partNumber, etag }) => ({ PartNumber: partNumber, ETag: etag })) },
+        }),
+      );
+      return { completed: true };
+    } catch (error) {
+      if (error instanceof S3ServiceException && MULTIPART_COMPLETE_CLIENT_ERRORS.has(error.name)) {
+        return { completed: false, code: error.name };
+      }
+      this.logger.error({ err: error as Error, key }, "s3 completeMultipartUpload failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.MULTIPART_COMPLETE_FAILED(key));
+    }
+  }
+
+  /** Discards an open upload and its parts. An upload S3 no longer knows counts as already aborted. */
+  async abortMultipartUpload({ key, uploadId }: MultipartUploadRef): Promise<void> {
+    try {
+      await this.client.send(new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId }));
+    } catch (error) {
+      if (error instanceof NoSuchUpload) return;
+      this.logger.error({ err: error as Error, key }, "s3 abortMultipartUpload failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.MULTIPART_ABORT_FAILED(key));
+    }
   }
 
   async headObject(key: string): Promise<HeadObjectResult> {

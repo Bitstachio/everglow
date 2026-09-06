@@ -32,6 +32,7 @@ describe("PhotosService", () => {
     getPresignedDownloadUrl: jest.Mock;
     headObject: jest.Mock;
     deleteObject: jest.Mock;
+    abortMultipartUpload: jest.Mock;
   };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
@@ -99,6 +100,8 @@ describe("PhotosService", () => {
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "PENDING",
+    multipartUploadId: null,
+    multipartPartSizeBytes: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -111,6 +114,7 @@ describe("PhotosService", () => {
       getPresignedDownloadUrl: jest.fn().mockResolvedValue("https://signed-get"),
       headObject: jest.fn(),
       deleteObject: jest.fn().mockResolvedValue(undefined),
+      abortMultipartUpload: jest.fn().mockResolvedValue(undefined),
     };
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
@@ -402,6 +406,45 @@ describe("PhotosService", () => {
       );
     });
 
+    it("aborts the open multipart upload of a MISSING slot before releasing it", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([
+        buildPhoto(photoId, { multipartUploadId: "upload-1", multipartPartSizeBytes: 5 * 1024 * 1024 }),
+      ]);
+      s3Service.headObject.mockResolvedValue({ exists: false });
+
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
+
+      expect(results).toEqual([{ photoId, status: "MISSING" }]);
+      expect(s3Service.abortMultipartUpload).toHaveBeenCalledWith({
+        key: buildPhotoS3Key(callerId, eventId, photoId),
+        uploadId: "upload-1",
+      });
+      expect(s3Service.abortMultipartUpload.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.photo.deleteMany.mock.invocationCallOrder[0],
+      );
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(photoId));
+    });
+
+    it("still releases a multipart slot when the abort fails, leaving the parts to the lifecycle rule", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([
+        buildPhoto(photoId, { multipartUploadId: "upload-1", multipartPartSizeBytes: 5 * 1024 * 1024 }),
+      ]);
+      s3Service.headObject.mockResolvedValue({ exists: false });
+      s3Service.abortMultipartUpload.mockRejectedValueOnce(new Error("s3 down"));
+
+      await service.confirmUploads(eventId, callerId, [photoId]);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(photoId));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "photo.multipart.abort_failed", photoId, eventId }),
+        expect.any(String),
+      );
+    });
+
     it("releases only the rejected slots of a mixed batch", async () => {
       const mismatchedPhotoId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
@@ -428,7 +471,7 @@ describe("PhotosService", () => {
       ]);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [photoId] } },
-        data: { status: "READY" },
+        data: { status: "READY", multipartUploadId: null, multipartPartSizeBytes: null },
       });
       expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
       expect(s3Service.deleteObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, mismatchedPhotoId));
@@ -453,7 +496,7 @@ describe("PhotosService", () => {
       expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [photoId] } },
-        data: { status: "READY" },
+        data: { status: "READY", multipartUploadId: null, multipartPartSizeBytes: null },
       });
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId));
     });
@@ -699,6 +742,45 @@ describe("PhotosService", () => {
       await service.deletePhoto(photoId, callerId);
 
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
+      expect(s3Service.abortMultipartUpload).not.toHaveBeenCalled();
+    });
+
+    it("aborts an open multipart upload before removing the object and the row", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithEvent([callerAccess("PARTICIPANT")], {
+          status: "PENDING",
+          multipartUploadId: "upload-1",
+          multipartPartSizeBytes: 5 * 1024 * 1024,
+        }) as never,
+      );
+
+      await service.deletePhoto(photoId, callerId);
+
+      expect(s3Service.abortMultipartUpload).toHaveBeenCalledWith({
+        key: buildPhotoS3Key(callerId, eventId, photoId),
+        uploadId: "upload-1",
+      });
+      expect(s3Service.abortMultipartUpload.mock.invocationCallOrder[0]).toBeLessThan(
+        s3Service.deleteObject.mock.invocationCallOrder[0],
+      );
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
+    });
+
+    it("keeps the row when aborting the multipart upload fails so the delete can be retried", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithEvent([callerAccess("PARTICIPANT")], {
+          status: "PENDING",
+          multipartUploadId: "upload-1",
+          multipartPartSizeBytes: 5 * 1024 * 1024,
+        }) as never,
+      );
+      s3Service.abortMultipartUpload.mockRejectedValueOnce(new Error("s3 down"));
+
+      await expect(service.deletePhoto(photoId, callerId)).rejects.toBeInstanceOf(Error);
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.photo.delete).not.toHaveBeenCalled();
     });
 
     it("keeps the row when the S3 delete fails so the operation can be retried", async () => {

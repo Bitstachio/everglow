@@ -22,10 +22,14 @@ import {
   buildViewerAccess,
 } from "./helpers/events.fixtures";
 import {
+  TEST_MULTIPART_PART_SIZE_BYTES,
+  TEST_MULTIPART_SIZE_BYTES,
+  TEST_MULTIPART_UPLOAD_ID,
   TEST_OTHER_PHOTO_ID,
   TEST_PHOTO_ID,
   TEST_SIGNED_GET_URL,
   TEST_SIGNED_PUT_URL,
+  buildMultipartPhoto,
   buildPhoto,
   expectedPhotoResponse,
 } from "./helpers/photos.fixtures";
@@ -35,6 +39,10 @@ const uploadUrlsPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/event
 const confirmPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos/confirm`;
 const photosListPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos`;
 const photoPath = (photoId = TEST_PHOTO_ID) => `/${API_GLOBAL_PREFIX}/photos/${photoId}`;
+const multipartUploadsPath = (eventId = TEST_EVENT_ID) =>
+  `/${API_GLOBAL_PREFIX}/events/${eventId}/photos/multipart-uploads`;
+const multipartPath = (photoId = TEST_PHOTO_ID) => `/${API_GLOBAL_PREFIX}/photos/${photoId}/multipart-upload`;
+const multipartCompletePath = (photoId = TEST_PHOTO_ID) => `${multipartPath(photoId)}/complete`;
 
 const ONE_GIB = 1024n ** 3n;
 const TEN_GIB = 10n * ONE_GIB;
@@ -60,6 +68,14 @@ type PhotoBody = {
   createdAt: string;
 };
 type PhotoListBody = { items: PhotoBody[]; nextCursor: string | null };
+type MultipartPartBody = { partNumber: number; sizeBytes: number; uploadUrl: string; uploaded: boolean };
+type MultipartUploadBody = {
+  photoId: string;
+  sizeBytes: number;
+  partSizeBytes: number;
+  expiresAt: string;
+  parts: MultipartPartBody[];
+};
 
 describe("PhotosController (e2e)", () => {
   let app: INestApplication;
@@ -73,6 +89,11 @@ describe("PhotosController (e2e)", () => {
     headObject: jest.fn(),
     getPresignedUploadUrl: jest.fn(),
     getPresignedDownloadUrl: jest.fn(),
+    createMultipartUpload: jest.fn(),
+    getPresignedUploadPartUrl: jest.fn(),
+    listMultipartParts: jest.fn(),
+    completeMultipartUpload: jest.fn(),
+    abortMultipartUpload: jest.fn(),
   };
 
   const eventWithAccess = (access: ReturnType<typeof buildOrganizerAccess>[]) => ({
@@ -111,6 +132,13 @@ describe("PhotosController (e2e)", () => {
     s3Service.getPresignedDownloadUrl.mockResolvedValue(TEST_SIGNED_GET_URL);
     s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
     s3Service.deleteObject.mockResolvedValue(undefined);
+    s3Service.createMultipartUpload.mockResolvedValue(TEST_MULTIPART_UPLOAD_ID);
+    s3Service.getPresignedUploadPartUrl.mockImplementation(({ partNumber }: { partNumber: number }) =>
+      Promise.resolve(`${TEST_SIGNED_PUT_URL}?partNumber=${partNumber}`),
+    );
+    s3Service.listMultipartParts.mockResolvedValue({ exists: true, parts: [] });
+    s3Service.completeMultipartUpload.mockResolvedValue({ completed: true });
+    s3Service.abortMultipartUpload.mockResolvedValue(undefined);
   });
 
   describe("POST /events/:eventId/photos/upload-urls", () => {
@@ -264,7 +292,7 @@ describe("PhotosController (e2e)", () => {
       ]);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [TEST_PHOTO_ID] } },
-        data: { status: "READY" },
+        data: { status: "READY", multipartUploadId: null, multipartPartSizeBytes: null },
       });
       // Only the caller's own slots are considered; an unknown id is not released.
       expect(prisma.photo.findMany).toHaveBeenCalledWith({
@@ -342,6 +370,289 @@ describe("PhotosController (e2e)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(TEST_EVENT_ID));
+    });
+  });
+
+  describe("POST /events/:eventId/photos/multipart-uploads", () => {
+    const payload = { contentType: "image/jpeg", sizeBytes: TEST_MULTIPART_SIZE_BYTES };
+    const MIB = 1024 * 1024;
+
+    it("returns 201 with the part layout and a presigned URL per part for a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.createMany.mockResolvedValue({ count: 1 });
+      prisma.photo.update.mockResolvedValue(buildMultipartPhoto());
+
+      const response = await request(httpServer)
+        .post(multipartUploadsPath())
+        .set(authHeader())
+        .send(payload)
+        .expect(201);
+
+      const body = response.body as WrappedResponse<MultipartUploadBody>;
+      expect(body.data.photoId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(body.data.sizeBytes).toBe(TEST_MULTIPART_SIZE_BYTES);
+      expect(body.data.partSizeBytes).toBe(TEST_MULTIPART_PART_SIZE_BYTES);
+      expect(new Date(body.data.expiresAt).getTime()).toBeGreaterThan(Date.now());
+      expect(body.data.parts).toEqual([
+        { partNumber: 1, sizeBytes: 5 * MIB, uploadUrl: `${TEST_SIGNED_PUT_URL}?partNumber=1`, uploaded: false },
+        { partNumber: 2, sizeBytes: 5 * MIB, uploadUrl: `${TEST_SIGNED_PUT_URL}?partNumber=2`, uploaded: false },
+        { partNumber: 3, sizeBytes: 2 * MIB, uploadUrl: `${TEST_SIGNED_PUT_URL}?partNumber=3`, uploaded: false },
+      ]);
+      // Same quota reservation as a single-PUT slot, then the upload id lands on the row.
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+      expect(prisma.photo.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({ id: body.data.photoId, sizeBytes: TEST_MULTIPART_SIZE_BYTES, status: "PENDING" }),
+        ],
+      });
+      expect(s3Service.createMultipartUpload).toHaveBeenCalledWith({
+        key: expect.stringContaining(body.data.photoId) as string,
+        contentType: "image/jpeg",
+      });
+      expect(prisma.photo.update).toHaveBeenCalledWith({
+        where: { id: body.data.photoId },
+        data: { multipartUploadId: TEST_MULTIPART_UPLOAD_ID },
+      });
+    });
+
+    it("returns 400 for a file smaller than one part", async () => {
+      await request(httpServer)
+        .post(multipartUploadsPath())
+        .set(authHeader())
+        .send({ contentType: "image/jpeg", sizeBytes: 5 * MIB - 1 })
+        .expect(400);
+    });
+
+    it("returns 400 for a disallowed contentType", async () => {
+      await request(httpServer)
+        .post(multipartUploadsPath())
+        .set(authHeader())
+        .send({ contentType: "application/pdf", sizeBytes: TEST_MULTIPART_SIZE_BYTES })
+        .expect(400);
+    });
+
+    it("returns 401 when the access token is missing", async () => {
+      await request(httpServer).post(multipartUploadsPath()).send(payload).expect(401);
+    });
+
+    it("returns 403 when the caller is a viewer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+
+      const response = await request(httpServer)
+        .post(multipartUploadsPath())
+        .set(authHeader())
+        .send(payload)
+        .expect(403);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(TEST_EVENT_ID));
+    });
+
+    it("returns 404 when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await request(httpServer).post(multipartUploadsPath()).set(authHeader()).send(payload).expect(404);
+    });
+
+    it("returns 500 and releases the slot when S3 cannot open the upload", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.createMany.mockResolvedValue({ count: 1 });
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.createMultipartUpload.mockRejectedValue(new InternalServerErrorException("s3 down"));
+
+      await request(httpServer).post(multipartUploadsPath()).set(authHeader()).send(payload).expect(500);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [expect.stringMatching(/^[0-9a-f-]{36}$/) as string] }, status: "PENDING" },
+      });
+      expect(s3Service.abortMultipartUpload).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /photos/:photoId/multipart-upload", () => {
+    const MIB = 1024 * 1024;
+
+    it("returns 200 with fresh URLs and which parts S3 already holds", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildParticipantAccess()], buildMultipartPhoto()) as never,
+      );
+      s3Service.listMultipartParts.mockResolvedValue({
+        exists: true,
+        parts: [
+          { partNumber: 1, sizeBytes: 5 * MIB, etag: '"a"' },
+          { partNumber: 2, sizeBytes: 1 * MIB, etag: '"partial"' },
+        ],
+      });
+
+      const response = await request(httpServer).get(multipartPath()).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<MultipartUploadBody>;
+      expect(body.data.photoId).toBe(TEST_PHOTO_ID);
+      expect(body.data.parts.map((part) => [part.partNumber, part.uploaded])).toEqual([
+        [1, true],
+        [2, false],
+        [3, false],
+      ]);
+      expect(s3Service.listMultipartParts).toHaveBeenCalledWith({
+        key: buildMultipartPhoto().s3Key,
+        uploadId: TEST_MULTIPART_UPLOAD_ID,
+      });
+    });
+
+    it("returns 404 for another uploader's upload", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildOrganizerAccess()], buildMultipartPhoto({ addedById: TEST_OTHER_USER_ID })) as never,
+      );
+
+      await request(httpServer).get(multipartPath()).set(authHeader()).expect(404);
+    });
+
+    it("returns 404 for a single-PUT slot", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildParticipantAccess()], buildPhoto({ status: "PENDING" })) as never,
+      );
+
+      const response = await request(httpServer).get(multipartPath()).set(authHeader()).expect(404);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.MULTIPART_NOT_FOUND(TEST_PHOTO_ID));
+    });
+
+    it("returns 403 when the uploader has lost event access", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([], buildMultipartPhoto()) as never);
+
+      await request(httpServer).get(multipartPath()).set(authHeader()).expect(403);
+    });
+
+    it("returns 410 and releases the slot when S3 no longer knows the upload", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildParticipantAccess()], buildMultipartPhoto()) as never,
+      );
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.listMultipartParts.mockResolvedValue({ exists: false });
+
+      const response = await request(httpServer).get(multipartPath()).set(authHeader()).expect(410);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.MULTIPART_EXPIRED(TEST_PHOTO_ID));
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
+      });
+    });
+
+    it("returns 401 when the access token is missing", async () => {
+      await request(httpServer).get(multipartPath()).expect(401);
+    });
+  });
+
+  describe("POST /photos/:photoId/multipart-upload/complete", () => {
+    const MIB = 1024 * 1024;
+    const allParts = {
+      exists: true,
+      parts: [
+        { partNumber: 1, sizeBytes: 5 * MIB, etag: '"a"' },
+        { partNumber: 2, sizeBytes: 5 * MIB, etag: '"b"' },
+        { partNumber: 3, sizeBytes: 2 * MIB, etag: '"c"' },
+      ],
+    };
+
+    it("returns 201 READY after assembling the parts and verifying the object", async () => {
+      const photo = buildMultipartPhoto();
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()], photo) as never);
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+      s3Service.listMultipartParts.mockResolvedValue(allParts);
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: photo.sizeBytes });
+
+      const response = await request(httpServer).post(multipartCompletePath()).set(authHeader()).expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody>;
+      expect(body.data).toEqual({ photoId: TEST_PHOTO_ID, status: "READY" });
+      expect(s3Service.completeMultipartUpload).toHaveBeenCalledWith({
+        key: photo.s3Key,
+        uploadId: TEST_MULTIPART_UPLOAD_ID,
+        parts: [
+          { partNumber: 1, etag: '"a"' },
+          { partNumber: 2, etag: '"b"' },
+          { partNumber: 3, etag: '"c"' },
+        ],
+      });
+      expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] } },
+        data: { status: "READY", multipartUploadId: null, multipartPartSizeBytes: null },
+      });
+    });
+
+    it("returns 201 READY again for an already completed photo without calling S3", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildParticipantAccess()], buildPhoto({ status: "READY" })) as never,
+      );
+
+      const response = await request(httpServer).post(multipartCompletePath()).set(authHeader()).expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody>;
+      expect(body.data).toEqual({ photoId: TEST_PHOTO_ID, status: "READY" });
+      expect(s3Service.listMultipartParts).not.toHaveBeenCalled();
+      expect(s3Service.completeMultipartUpload).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 naming the parts that are still missing", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildParticipantAccess()], buildMultipartPhoto()) as never,
+      );
+      s3Service.listMultipartParts.mockResolvedValue({
+        exists: true,
+        parts: [{ partNumber: 1, sizeBytes: 5 * MIB, etag: '"a"' }],
+      });
+
+      const response = await request(httpServer).post(multipartCompletePath()).set(authHeader()).expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.MULTIPART_INCOMPLETE([2, 3]));
+      expect(s3Service.completeMultipartUpload).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 and keeps the upload open when S3 refuses the assembly", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildParticipantAccess()], buildMultipartPhoto()) as never,
+      );
+      s3Service.listMultipartParts.mockResolvedValue(allParts);
+      s3Service.completeMultipartUpload.mockResolvedValue({ completed: false, code: "InvalidPart" });
+
+      const response = await request(httpServer).post(multipartCompletePath()).set(authHeader()).expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.MULTIPART_COMPLETE_REJECTED("InvalidPart"));
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 410 and releases the slot when S3 lost the upload", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildParticipantAccess()], buildMultipartPhoto()) as never,
+      );
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.listMultipartParts.mockResolvedValue(allParts);
+      s3Service.completeMultipartUpload.mockResolvedValue({ completed: false, code: "NoSuchUpload" });
+
+      await request(httpServer).post(multipartCompletePath()).set(authHeader()).expect(410);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
+      });
+    });
+
+    it("returns 404 for another uploader's upload", async () => {
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithAccess([buildOrganizerAccess()], buildMultipartPhoto({ addedById: TEST_OTHER_USER_ID })) as never,
+      );
+
+      await request(httpServer).post(multipartCompletePath()).set(authHeader()).expect(404);
+    });
+
+    it("returns 401 when the access token is missing", async () => {
+      await request(httpServer).post(multipartCompletePath()).expect(401);
     });
   });
 
@@ -507,6 +818,23 @@ describe("PhotosController (e2e)", () => {
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
 
       expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+    });
+
+    it("returns 204 and aborts the open multipart upload when a pending multipart slot is deleted", async () => {
+      const photo = photoWithAccess([buildParticipantAccess()], buildMultipartPhoto());
+      prisma.photo.findUnique.mockResolvedValue(photo as never);
+      prisma.photo.delete.mockResolvedValue(buildMultipartPhoto() as never);
+
+      await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+      expect(s3Service.abortMultipartUpload).toHaveBeenCalledWith({
+        key: photo.s3Key,
+        uploadId: TEST_MULTIPART_UPLOAD_ID,
+      });
+      expect(s3Service.abortMultipartUpload.mock.invocationCallOrder[0]).toBeLessThan(
+        s3Service.deleteObject.mock.invocationCallOrder[0],
+      );
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
     });
 

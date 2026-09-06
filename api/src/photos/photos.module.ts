@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { CaslModule } from "src/casl/casl.module";
+import { PhotoMultipartService } from "./photo-multipart.service";
 import { PhotoOrphanReconcilerScheduler } from "./photo-orphan-reconciler.scheduler";
 import { PhotoOrphanReconcilerService } from "./photo-orphan-reconciler.service";
 import { PhotoPendingCleanupScheduler } from "./photo-pending-cleanup.scheduler";
@@ -14,6 +15,7 @@ import { PhotosService } from "./photos.service";
   controllers: [PhotosController],
   providers: [
     PhotosService,
+    PhotoMultipartService,
     PhotoStorageService,
     PhotoPurgeService,
     PhotoPendingCleanupService,
