@@ -89,17 +89,58 @@ export class PhotosService {
     await this.photoStorageService.reserveUploadBytes(callerId, rows);
 
     // Presign only once the reservation has committed: no transaction is held
-    // open across S3 calls, and a rejected batch mints no URLs.
-    return Promise.all(
-      rows.map(async (row) => ({
-        photoId: row.id,
-        uploadUrl: await this.s3Service.getPresignedUploadUrl({
-          key: row.s3Key,
-          contentType: row.contentType,
-          expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
-        }),
-      })),
-    );
+    // open across S3 calls, and a rejected batch mints no URLs. The URL binds
+    // the declared type and size, so S3 refuses a body that differs from them.
+    try {
+      return await Promise.all(
+        rows.map(async (row) => ({
+          photoId: row.id,
+          uploadUrl: await this.s3Service.getPresignedUploadUrl({
+            key: row.s3Key,
+            contentType: row.contentType,
+            contentLength: row.sizeBytes,
+            expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
+          }),
+        })),
+      );
+    } catch (error) {
+      // No URL reached the client, so nothing can ever land on these keys.
+      // Release the rows now instead of letting them hold quota until the
+      // stale-PENDING sweeper gets to them.
+      await this.releaseSlots(
+        rows.map((row) => row.id),
+        { event: "photo.upload_slots.presign_failed", eventId, callerId },
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes PENDING rows whose upload can no longer complete, returning their
+   * quota. Only PENDING rows are touched, so a concurrent confirm that has
+   * just verified one of them keeps its photo. Failure is logged rather than
+   * thrown: the sweeper reclaims whatever is left, and the caller's own error
+   * (if any) is the one worth surfacing.
+   */
+  private async releaseSlots(
+    photoIds: string[],
+    context: { event: string; eventId: string; callerId: string; [key: string]: unknown },
+  ): Promise<number> {
+    if (photoIds.length === 0) return 0;
+
+    try {
+      const { count } = await this.prisma.photo.deleteMany({
+        where: { id: { in: photoIds }, status: PhotoStatus.PENDING },
+      });
+      this.logger.info({ ...context, released: count, audit: true }, "Upload slots released");
+      return count;
+    } catch (error) {
+      this.logger.error(
+        { err: error as Error, ...context, photoIds },
+        "Failed to release upload slots; the stale-PENDING sweeper will reclaim them",
+      );
+      return 0;
+    }
   }
 
   async confirmUploads(eventId: string, callerId: string, photoIds: string[]): Promise<ConfirmResult[]> {
@@ -113,10 +154,17 @@ export class PhotosService {
     }
 
     const uniqueIds = [...new Set(photoIds)];
-    const photos = await this.prisma.photo.findMany({ where: { id: { in: uniqueIds }, eventId } });
+    // Only the caller's own slots: a photoId minted for someone else is not
+    // theirs to confirm, and since a rejected slot is released below, it must
+    // not be theirs to release either.
+    const photos = await this.prisma.photo.findMany({
+      where: { id: { in: uniqueIds }, eventId, addedById: callerId },
+    });
     const photosById = new Map(photos.map((photo) => [photo.id, photo]));
 
     const verifiedIds: string[] = [];
+    const missingIds: string[] = [];
+    const mismatched: Photo[] = [];
     const results = await Promise.all(
       uniqueIds.map(async (photoId): Promise<ConfirmResult> => {
         const photo = photosById.get(photoId);
@@ -126,8 +174,12 @@ export class PhotosService {
 
         // Verify the photo exists and matches the metadata.
         const head = await this.s3Service.headObject(photo.s3Key);
-        if (!head.exists) return { photoId, status: CONFIRM_PHOTO_STATUSES.MISSING };
+        if (!head.exists) {
+          missingIds.push(photoId);
+          return { photoId, status: CONFIRM_PHOTO_STATUSES.MISSING };
+        }
         if (head.contentType !== photo.contentType || head.sizeBytes !== photo.sizeBytes) {
+          mismatched.push(photo);
           return { photoId, status: CONFIRM_PHOTO_STATUSES.MISMATCHED };
         }
 
@@ -147,7 +199,49 @@ export class PhotosService {
       );
     }
 
+    await this.releaseRejectedSlots(eventId, callerId, missingIds, mismatched);
+
     return results;
+  }
+
+  /**
+   * A MISSING or MISMATCHED verdict is final: the client said the upload was
+   * done, and the bytes are absent or not what was declared. Releasing the
+   * slot here returns its quota at once instead of after the sweeper's cutoff,
+   * and removes a mismatched object rather than leaving it billed under a row
+   * that can never become READY. The client mints a fresh slot to retry.
+   */
+  private async releaseRejectedSlots(
+    eventId: string,
+    callerId: string,
+    missingIds: string[],
+    mismatched: Photo[],
+  ): Promise<void> {
+    if (missingIds.length === 0 && mismatched.length === 0) return;
+
+    // A mismatched object exists in S3: remove it before its row, as a manual
+    // delete does, so a failed S3 delete leaves the row for the sweeper to retry.
+    const objectDeletes = await Promise.allSettled(mismatched.map((photo) => this.s3Service.deleteObject(photo.s3Key)));
+    const releasable = [...missingIds];
+    objectDeletes.forEach((outcome, index) => {
+      const photo = mismatched[index];
+      if (outcome.status === "fulfilled") {
+        releasable.push(photo.id);
+        return;
+      }
+      this.logger.warn(
+        { event: "photo.upload_rejected.object_retained", photoId: photo.id, eventId, callerId },
+        "Mismatched upload could not be deleted from S3; its row stays for the sweeper",
+      );
+    });
+
+    await this.releaseSlots(releasable, {
+      event: "photo.upload_slots.rejected",
+      eventId,
+      callerId,
+      missing: missingIds.length,
+      mismatched: mismatched.length,
+    });
   }
 
   async listPhotos(eventId: string, callerId: string, query: ListPhotosQueryDto): Promise<PhotoPage> {

@@ -75,8 +75,10 @@ export const DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS = 24;
 
 export const DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE = 100;
 
-// Per-photo outcome of a confirm call. Only READY mutates the row; the rest
-// report why verification failed so the client can retry or re-upload.
+// Per-photo outcome of a confirm call. READY flips the row; MISSING and
+// MISMATCHED are final verdicts that release the slot (row, and object if one
+// landed) so the client mints a fresh one; NOT_FOUND names an id that is not a
+// pending upload of the caller in this event.
 export const CONFIRM_PHOTO_STATUSES = {
   READY: "READY",
   MISSING: "MISSING",

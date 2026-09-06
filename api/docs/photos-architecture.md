@@ -19,20 +19,24 @@ An event has many photos. Photos live in S3; metadata lives in Postgres. The API
    - validates contentType allowlist + size cap
    - generates a `photoId` (uuid) and `s3Key = photos/{userId}/{eventId}/{photoId}` (one bucket, one prefix per uploader)
    - reserves the batch against the uploader's storage quota and inserts a `Photo` row with `status: PENDING` per file — both in one Serializable transaction (see §9)
-   - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular), after the transaction has committed
+   - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular), after the transaction has committed. The URL is bound to the key, the declared `contentType`, and the declared `sizeBytes`: S3 rejects a PUT whose `Content-Type` or `Content-Length` differs
+   - if presigning fails after the commit, deletes the batch's `PENDING` rows again so no quota is held for URLs that never reached the client
 3. **API responds** with `[{ photoId, uploadUrl }, ...]`.
 4. **Mobile uploads bytes directly to S3.**
    Uses the OS background uploader (iOS `URLSession` background config, Android `WorkManager`). Each PUT goes straight to S3 — API is not involved. Survives app being backgrounded or killed.
 5. **Mobile calls confirm when uploads finish.**
    `POST /events/:eventId/photos/confirm` with `{ photoIds: [...] }`.
 6. **API verifies each photo with S3 `HeadObject`.**
+   - only the caller's own rows are considered; anyone else's ids report `NOT_FOUND`
    - object exists + size/contentType match → flip row to `READY`
-   - missing or mismatched → leave `PENDING` (will be swept) or mark `FAILED`
+   - missing → `MISSING`; the row is deleted, since nothing was uploaded
+   - mismatched → `MISMATCHED`; the object and the row are deleted
+   - both verdicts are final: the slot's quota is released on the spot and the client mints a new slot to retry
 7. **Done.** Photo shows up in the event on the next list call.
 
 ### Why presigned URLs
 
-The client uploads straight to S3 without our API ever seeing the bytes. No bandwidth cost on the API. No memory pressure. Scales to any file size. The URL is cryptographically tied to one specific bucket + key + contentType, so it can't be repurposed.
+The client uploads straight to S3 without our API ever seeing the bytes. No bandwidth cost on the API. No memory pressure. Scales to any file size. The URL is cryptographically tied to one specific bucket + key + `Content-Type` + `Content-Length` (the S3 presigner leaves `Content-Type` unsigned unless asked, so `S3Service` names both headers explicitly), so it can't be repurposed or used to upload something other than what was declared.
 
 ### S3 key layout
 
@@ -145,26 +149,26 @@ Composite index supports the paginated list query (`WHERE eventId = ? AND status
 
 Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3 fails after step 2 succeeds, we have a row pointing at nothing — list still works (presigned URL would 404 on read, edge case to handle later).
 
+`PENDING` rows can be deleted too. The uploader holds the `photoId` from `upload-urls`, and deleting it cancels the slot and releases its quota; this works even after they have left or been removed from the event (§9). S3 `DeleteObject` on a key that was never written is a no-op.
+
 ---
 
 ## 6. Edge cases handled in v1
 
-| Case                                                            | Mitigation                                                                                                                           |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h.                                   |
-| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING for that photoId.                                                                 |
-| Wrong contentType / oversize file                               | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm.                                                 |
-| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                   |
-| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects orphaned (cleanup later).                                                               |
-| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Cleanup later (see TODO).                                                                  |
-| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING for that photoId.                                                                 |
-| Wrong contentType / oversize file                               | Enforced at presign time (contentType signed in). HeadObject re-verifies at confirm.                                                 |
-| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                   |
-| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects are orphaned until the daily reconciler removes them (§11).                             |
-| App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                             |
-| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                               |
-| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9). |
-| Presigned URL leaked                                            | TTL 1h, limited to one specific key + contentType. Worst case: attacker uploads junk to one key.                                     |
+| Case                                                            | Mitigation                                                                                                                                                             |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h (§10).                                                               |
+| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING and deletes the row; the quota is released immediately.                                                             |
+| Wrong contentType / oversize file                               | `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 rejects the upload. `HeadObject` re-verifies at confirm; a mismatch deletes the object and row. |
+| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                                                     |
+| Someone else's photoId in a confirm call                        | Confirm only considers the caller's own rows; other ids report NOT_FOUND and are never released.                                                                       |
+| Presigning fails after the quota reservation                    | The batch's rows are deleted again before the error is returned, so no quota is held for URLs the client never received.                                               |
+| Uploader leaves or is removed from the event mid-upload         | They can no longer confirm, but `DELETE /photos/:photoId` still works for their own PENDING slots; otherwise the sweeper releases them.                                |
+| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows. S3 objects are orphaned until the daily reconciler removes them (§11).                                                               |
+| App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                                                               |
+| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                                                                 |
+| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9).                                   |
+| Presigned URL leaked                                            | TTL 1h, limited to one key, content type, and length. Worst case: attacker uploads a file of exactly the declared shape to one key the owner already reserved.         |
 
 ---
 
@@ -193,8 +197,6 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 ### Reliability
 
 - ~~**Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects.~~ Implemented: `PhotoPendingCleanupService` runs hourly via `@nestjs/schedule`.
-- **Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.
-- **Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects. Or replace with S3 lifecycle rule.
 - ~~**Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.~~ Implemented: `PhotoOrphanReconcilerService` runs daily via `@nestjs/schedule` (§11).
 
 ### Mobile-side (not server concern, listed for completeness)
@@ -224,6 +226,8 @@ In order of implementation:
 - [x] **Per-user storage limit** — `User.storageLimitBytes` (default 5 GiB) replaces the global env cap, so billing can raise one account without a redeploy.
 - [x] **Storage limit grants** — internal `PhotoStorageService.addStorageLimit()` for billing to raise one account. No HTTP route, no Stripe yet.
 - [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§11).
+- [x] **Signed upload shape** — `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 refuses a body other than the declared one.
+- [x] **Rejected slots released at confirm** — MISSING deletes the row, MISMATCHED deletes the object and the row; quota returns immediately instead of after the sweep. Confirm is scoped to the caller's own rows, and uploaders can delete their own PENDING rows without event access.
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
@@ -232,8 +236,6 @@ In order of implementation:
 ### Out of scope for v1 (tracked as future work)
 
 - ~~Cleanup sweeper for PENDING rows~~ (hourly job deletes PENDING rows older than 24h and their S3 objects)
-
-- Cleanup sweeper for PENDING rows
 - Idempotency keys
 - Per-user paid storage upgrades — the internal grant method is in place (§9); the Stripe webhook and its idempotency are still future work
 - Thumbnails
@@ -300,12 +302,12 @@ The same interleaving happens across two API instances behind a load balancer. U
 
 ### What it does not cover
 
-- A client under-reporting `sizeBytes` — caught at confirm, where `HeadObject` compares the real object size.
+- A client under-reporting `sizeBytes` — S3 rejects the PUT, because `Content-Length` is signed into the URL. Should an object of the wrong size ever land regardless, confirm deletes it together with its row.
 - Orphaned S3 objects — reclaimed by the daily reconciler (§11). Stuck PENDING rows are swept hourly (§10).
 - Multi-region deployments without a shared database — there is no cross-region serialization.
 - Cheaper reads — usage is still `SUM(sizeBytes)` on every reservation. If that becomes a hotspot, the follow-up is a denormalized `storageUsedBytes` counter next to the limit on the user row, updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
 
-Because `PENDING` rows count toward usage, an upload slot that is never confirmed holds quota until §10 sweeps it. The owner cannot release it themselves: reads filter to `READY`, so the row is invisible to list and to `GET /photos/:photoId` and there is nothing for them to delete.
+Because `PENDING` rows count toward usage, an upload slot holds quota from the moment it is minted. Three things release it early: a confirm that reports `MISSING` or `MISMATCHED` (the verdict deletes the slot), a presign failure (the batch is rolled back), or the uploader calling `DELETE /photos/:photoId` with the id from `upload-urls`, which is allowed for their own `PENDING` rows even after they lose event access. Only a slot that is neither confirmed nor deleted waits for §10. Reads still filter to `READY`, so a pending slot never shows up in a list.
 
 ---
 

@@ -1,4 +1,4 @@
-import { INestApplication } from "@nestjs/common";
+import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
@@ -130,6 +130,23 @@ describe("PhotosController (e2e)", () => {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
       expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
+      // The URL is bound to the declared shape, so S3 refuses any other body.
+      expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ contentType: "image/jpeg", contentLength: 1024 }),
+      );
+    });
+
+    it("returns 500 and releases the reserved rows when presigning fails", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
+      prisma.photo.createMany.mockResolvedValue({ count: 1 });
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.getPresignedUploadUrl.mockRejectedValue(new InternalServerErrorException("presign failed"));
+
+      await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(500);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [expect.stringMatching(/^[0-9a-f-]{36}$/) as string] }, status: "PENDING" },
+      });
     });
 
     it("mints slots against the caller's own limit when usage is already above the free tier", async () => {
@@ -247,6 +264,54 @@ describe("PhotosController (e2e)", () => {
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [TEST_PHOTO_ID] } },
         data: { status: "READY" },
+      });
+      // Only the caller's own slots are considered; an unknown id is not released.
+      expect(prisma.photo.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID, TEST_OTHER_PHOTO_ID] }, eventId: TEST_EVENT_ID, addedById: TEST_USER_ID },
+      });
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 201 with MISSING and releases the slot when nothing was uploaded", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.headObject.mockResolvedValue({ exists: false });
+
+      const response = await request(httpServer)
+        .post(confirmPath())
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID] })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody[]>;
+      expect(body.data).toEqual([{ photoId: TEST_PHOTO_ID, status: "MISSING" }]);
+      expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
+      });
+    });
+
+    it("returns 201 with MISMATCHED and removes the object and the slot when the upload differs", async () => {
+      const photo = buildPhoto({ status: "PENDING" });
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([photo]);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 999 });
+
+      const response = await request(httpServer)
+        .post(confirmPath())
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID] })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody[]>;
+      expect(body.data).toEqual([{ photoId: TEST_PHOTO_ID, status: "MISMATCHED" }]);
+      expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
       });
     });
 
@@ -389,6 +454,25 @@ describe("PhotosController (e2e)", () => {
 
       expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+    });
+
+    it("returns 204 when the uploader cancels their own pending slot after losing event access", async () => {
+      const photo = photoWithAccess([], { status: "PENDING" });
+      prisma.photo.findUnique.mockResolvedValue(photo as never);
+      prisma.photo.delete.mockResolvedValue(buildPhoto({ status: "PENDING" }) as never);
+
+      await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+    });
+
+    it("returns 403 when a former member deletes their own READY photo", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([]) as never);
+
+      await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
+
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
     });
 
     it("returns 403 when a participant deletes someone else's photo", async () => {

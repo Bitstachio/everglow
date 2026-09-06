@@ -229,12 +229,13 @@ describe("S3Service", () => {
   });
 
   describe("presigned URLs", () => {
-    it("generates a presigned PUT URL", async () => {
+    it("generates a presigned PUT URL bound to the declared type and length", async () => {
       getSignedUrlMock.mockResolvedValue("https://signed-put");
 
       const url = await service.getPresignedUploadUrl({
         key: "a/b.jpg",
         contentType: "image/jpeg",
+        contentLength: 1024,
         expiresInSeconds: 60,
       });
 
@@ -242,8 +243,15 @@ describe("S3Service", () => {
       expect(getSignedUrlMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.any(PutObjectCommand),
-        expect.objectContaining({ expiresIn: 60 }),
+        expect.objectContaining({ expiresIn: 60, signableHeaders: new Set(["content-type", "content-length"]) }),
       );
+      const [, command] = getSignedUrlMock.mock.calls[0];
+      expect((command as PutObjectCommand).input).toEqual({
+        Bucket: bucket,
+        Key: "a/b.jpg",
+        ContentType: "image/jpeg",
+        ContentLength: 1024,
+      });
     });
 
     it("generates a presigned GET URL", async () => {
