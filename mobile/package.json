@@ -8,6 +8,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint app components constants context features hooks lib providers",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
@@ -61,13 +64,18 @@
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "jest": "^30.5.1",
+    "jest-expo": "~54.0.18",
     "postcss": "^8.5.28",
     "prettier": "3.6.2",
     "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^4.3.3",
+    "test-renderer": "^1.2.0",
     "typescript": "~5.9.2"
   },
   "private": true

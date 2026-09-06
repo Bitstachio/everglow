@@ -5,7 +5,8 @@ node_modules/
 
 # Expo
 .expo/
-dist/
+# Anchor to package root so IDE/TS still reads package `dist/` type roots under node_modules
+/dist/
 web-build/
 expo-env.d.ts
 
@@ -37,7 +38,8 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-app-example
+# testing
+coverage/
 
 # generated native folders
 /ios
