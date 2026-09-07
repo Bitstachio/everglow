@@ -40,6 +40,9 @@ const ProfileScreen = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>Account Settings</Text>
           <TouchableOpacity
+            testID="profile-edit-button"
+            accessibilityRole="button"
+            accessibilityLabel="Edit Profile"
             style={[styles.menuItem, isDark ? styles.menuItemDark : styles.menuItemLight]}
             onPress={handleEditProfile}
           >
