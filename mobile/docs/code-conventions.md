@@ -83,7 +83,7 @@ Inside a feature module, use relative imports for files in the same feature (for
 
 ### Forms
 
-Every form uses React Hook Form with a Zod schema, including single-field forms. Plain `useState` is only for inputs that are never submitted (search boxes, local filters). See [Forms](./forms.md).
+Form structure, validation, and state ownership have their own conventions. See [Forms](./forms.md).
 
 ### ESLint (global)
 

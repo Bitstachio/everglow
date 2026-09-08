@@ -1,8 +1,8 @@
 # Forms
 
-All forms use React Hook Form with a Zod schema. There is no separate approach for small forms.
-Read [docs/forms.md](./docs/forms.md) before creating or changing a form, and follow the pattern there
-rather than the `useState` form handling still present in `features/profile/` and `features/events/`.
+Read [docs/forms.md](./docs/forms.md) before creating or changing any form. It is the only place the
+form conventions are defined. Follow it rather than inferring the pattern from existing form code,
+which has not all been migrated.
 
 # React Native Testing Library in this project
 

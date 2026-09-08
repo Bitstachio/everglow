@@ -136,7 +136,7 @@ Re-export only the types the feature needs from the generated API client. Do not
 export type { UpdateUserDto, UserResponseDto } from "@/lib/api/generated";
 ```
 
-Add feature-local types (form shapes, UI enums) in the hook or component file that owns them, unless multiple files in the feature need the same type. Form value types are inferred from a Zod schema rather than written by hand — see [Forms](./forms.md).
+Add feature-local types (form shapes, UI enums) in the hook or component file that owns them, unless multiple files in the feature need the same type. Form value types follow [Forms](./forms.md).
 
 ### `utils.ts` (optional)
 
