@@ -81,6 +81,10 @@ Inside a feature module, use relative imports for files in the same feature (for
 - API layer: the Axios interceptor normalizes failures via `toApiError`.
 - UI layer: use `getErrorMessage(error, "Fallback message")` in mutation `onError` callbacks. Do not read `error.response?.data` or raw `error.message` in screens.
 
+### Forms
+
+Every form uses React Hook Form with a Zod schema, including single-field forms. Plain `useState` is only for inputs that are never submitted (search boxes, local filters). See [Forms](./forms.md).
+
 ### ESLint (global)
 
 | Rule                    | What it enforces                                |
@@ -168,6 +172,7 @@ Lint cannot cover naming quality, whether a mutation invalidates the right keys,
 | A route in `app/`          | Area: `app/` + codebase              |
 | Shared UI in `components/` | Area: `components/` + codebase       |
 | A new feature              | All layers: feature guide + codebase |
+| A form                     | [Forms](./forms.md) + feature guide  |
 | Reviewing a PR             | Checklist + `npm run lint`           |
 
 ## Migrating legacy code
