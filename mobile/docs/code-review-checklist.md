@@ -6,9 +6,11 @@ ESLint catches codebase conventions (arrow functions, `let`/`const`) and feature
 
 See also:
 
-- [Code conventions](./code-conventions.md) — convention hierarchy and codebase-wide rules
-- [Feature code organization](./feature-code-organization.md) — feature structure and data flow
-- `mobile/eslint.config.js` — what lint enforces automatically
+- [Code conventions](./code-conventions.md): convention hierarchy and codebase-wide rules
+- [Feature code organization](./feature-code-organization.md): feature folder structure and layer boundaries
+- [API](./api.md): client, React Query, feature `api/` hooks
+- [Forms](./forms.md): React Hook Form + Zod
+- `mobile/eslint.config.js`: what lint enforces automatically
 
 ## Codebase conventions
 
@@ -32,9 +34,8 @@ ESLint enforces these globally. Still verify in review:
 ## Naming
 
 - [ ] Screen hook is named `use<ScreenName>` and lives in `hooks/` (`useProfileScreen`)
-- [ ] Query key factory is named `<feature>Keys` and lives in `api/keys.ts` (`profileKeys`)
-- [ ] Mutation hooks follow `use<Action><Entity>Mutation` (`useUpdateProfileMutation`)
 - [ ] File names match their primary export (PascalCase for components and screens, camelCase for hooks)
+- [ ] API key factories and mutation hooks follow [API naming](./api.md#naming)
 
 ## Functions
 
@@ -79,19 +80,17 @@ ESLint blocks `api/`, hooks, React Query, and SDK imports. Still check:
 
 ## API layer (`features/**/api/`)
 
-- [ ] Server calls for the feature live here, split across `keys.ts`, `queries.ts`, and/or `mutations.ts`
-- [ ] Generated SDK calls use `throwOnError: true`
-- [ ] Responses are unwrapped with `unwrapEnvelope` before returning from `mutationFn` / `queryFn`
-- [ ] Mutations update or invalidate cache through the feature key factory (`profileKeys.me()`, `profileKeys.all`)
-- [ ] Auth-sensitive updates also sync app context when appropriate (`updateUser` after profile update)
-- [ ] `queries.ts` is added when the feature owns fetch lifecycle; context or props are used when data is already available elsewhere
-- [ ] Generated `*Options` and query key helpers from `@/lib/api/generated/@tanstack/react-query.gen` are preferred over hand-rolled keys
+See [API](./api.md) for the full checklist. Spot-check in review:
+
+- [ ] Server calls live in `api/` with `throwOnError`, `unwrapEnvelope`, and key-factory cache updates
+- [ ] Screens and components do not call the generated SDK
 
 ## Types (`features/**/types.ts`)
 
 - [ ] DTOs are re-exported from `@/lib/api/generated`, not copied or redefined
 - [ ] Only types the feature actually uses are exported
-- [ ] Form shapes and UI-only types live in the owning hook or component unless shared across the feature
+- [ ] UI-only types live in the owning hook or component unless shared across the feature
+- [ ] Form value types come from `z.infer` in the form hook (see [Forms](./forms.md))
 
 ## App routes (`app/`)
 
@@ -108,8 +107,10 @@ export { default } from "@/features/profile/screens/ProfileScreen";
 
 ## Error handling
 
-- [ ] UI-facing mutation errors use `getErrorMessage(error, "Fallback message")`, not `error.response?.data` or raw `error.message`
-- [ ] API errors are normalized by the Axios interceptor (`toApiError`); feature code does not re-parse Axios shapes in screens
+See [API: Error handling](./api.md#error-handling).
+
+- [ ] UI-facing mutation errors use `getErrorMessage(error, "Fallback message")`
+- [ ] Feature code does not re-parse Axios shapes in screens
 
 ## Imports
 
@@ -121,10 +122,10 @@ ESLint enforces relative imports inside a feature and blocks some cross-layer im
 
 ## React Query and cache
 
-- [ ] `keys.ts` defines an `all` root key for broad invalidation
-- [ ] Specific queries have named key functions on the factory object
-- [ ] After mutations, cache is updated with `setQueryData` or invalidated with `invalidateQueries` using keys from `keys.ts`
-- [ ] Query hooks use consistent `staleTime` / refetch behavior; do not override defaults without a reason
+See [API](./api.md). Spot-check:
+
+- [ ] `keys.ts` defines an `all` root key; mutations update or invalidate through that factory
+- [ ] Do not override default `staleTime` / refetch behavior without a reason
 
 ## Shared infrastructure
 
@@ -145,5 +146,5 @@ Legacy areas are exempt from some ESLint rules so existing code keeps passing. T
 1. Run `npm run lint` and fix automated violations first.
 2. Confirm the feature folder layout and naming match the profile reference.
 3. Trace data flow: route → screen → hook → `api/` → generated SDK.
-4. Check mutations for `throwOnError`, `unwrapEnvelope`, cache updates, and `getErrorMessage`.
+4. For API work, check [API](./api.md); for forms, check [Forms](./forms.md).
 5. Skim screens and components for logic that slipped past import rules (effects, service calls, inline fetches).

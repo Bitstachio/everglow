@@ -1,10 +1,12 @@
 # Feature Code Organization
 
-This document describes how we organize feature code in the Everglow mobile app.
+This document describes **feature folder structure and layer boundaries** in the Everglow mobile app: what lives where, what each layer may do, and how routes wire in.
 
-**Convention hierarchy:** Feature modules follow [codebase conventions](./code-conventions.md) (arrow functions, `let`/`const`, imports, error handling) plus the feature-specific rules in this document.
+It does not define how to call the API, build forms, or write TypeScript style. Those have their own docs.
 
-**Reference implementation:** `features/profile/` is the only feature module that follows this structure today. Copy that layout and patterns when building new features.
+**Convention hierarchy:** Feature modules follow [codebase conventions](./code-conventions.md) plus the structural rules in this document.
+
+**Reference implementation:** `features/profile/` is the only feature module that follows this structure today. Copy that layout when building new features.
 
 **Legacy code:** `features/events/` and photos/gallery code (`app/(tabs)/gallery.tsx`, `lib/photo.ts`, related event screens) predate this structure and will be heavily refactored. Do not use them as examples. ESLint exempts legacy paths where old code would fail; see [ESLint enforcement](#eslint-enforcement).
 
@@ -32,7 +34,9 @@ features/profile/
 ├── screens/
 │   └── ProfileScreen.tsx
 ├── hooks/
-│   └── useProfileScreen.ts
+│   ├── useProfileScreen.ts
+│   ├── useEditProfileForm.ts
+│   └── useEditProfileForm.test.tsx
 ├── components/
 │   └── EditProfileModal.tsx
 ├── api/
@@ -40,6 +44,8 @@ features/profile/
 │   └── mutations.ts
 └── types.ts
 ```
+
+Form conventions (React Hook Form + Zod): [Forms](./forms.md).
 
 ## Layer responsibilities
 
@@ -60,15 +66,15 @@ Keep screens thin. If you find yourself writing `Alert.alert`, mutation calls, o
 
 Screen-level hooks named `use<ScreenName>`. A screen hook should:
 
-- Own local UI state (modals, form fields, loading flags)
-- Call feature API hooks (`useQuery`, `useMutation`) from `api/`
+- Own local UI state (modals, toggles, loading flags)
+- Call feature API hooks from `api/`
 - Read app-wide state from `@/context` when needed (for example, `useAuth`)
-- Handle user actions (confirm dialogs, form submission, navigation triggers)
+- Handle user actions (confirm dialogs, navigation triggers, orchestration)
 - Return everything the screen needs as a flat object
 
-Export hooks as named exports.
+Export hooks as named exports. Additional named hooks for the same feature (for example, a form hook) also live in `hooks/`.
 
-**Example:** `useProfileScreen` manages the edit modal, builds the update payload, runs mutations, and surfaces `getErrorMessage` feedback via `Alert`.
+**Example:** `useProfileScreen` manages the edit modal and delete/logout flows. Profile edit submit lives in `useEditProfileForm` (see [Forms](./forms.md)).
 
 ### `components/`
 
@@ -81,62 +87,17 @@ Feature-specific UI pieces used by one or more screens in the same feature. A co
 
 Place a component in `components/` when it is specific to this feature. Place it in `@/components/` when it is reused across multiple features.
 
-**Example:** `EditProfileModal` receives `editForm`, `onSave`, and `onCancel` from the screen hook via props.
+**Example:** `EditProfileModal` receives its data and handlers from the screen hook via props.
 
 ### `api/`
 
-All server communication for the feature lives here. Split by concern:
-
-| File           | Purpose                                              |
-| -------------- | ---------------------------------------------------- |
-| `keys.ts`      | React Query key factory for this feature             |
-| `queries.ts`   | `useQuery` hooks (add when the feature fetches data) |
-| `mutations.ts` | `useMutation` hooks                                  |
-
-#### `keys.ts`
-
-Define a key factory object with an `all` root key and specific key functions. Reuse generated query key helpers from the OpenAPI client when available.
-
-```ts
-import { usersControllerFindMeQueryKey } from "@/lib/api/generated/@tanstack/react-query.gen";
-
-export const profileKeys = {
-  all: ["profile"] as const,
-  me: () => usersControllerFindMeQueryKey(),
-};
-```
-
-Use `profileKeys.all` for broad invalidation and `profileKeys.me()` for a specific cache entry.
-
-#### `queries.ts`
-
-Add this file when a screen fetches data with React Query instead of reading it from context or local state. Use generated `*Options` helpers from `@/lib/api/generated/@tanstack/react-query.gen` where possible, and reference keys from `keys.ts`.
-
-Profile does not have a `queries.ts` file because the current user is provided by `useAuth`. Use queries when the feature owns its own fetch lifecycle.
-
-#### `mutations.ts`
-
-Wrap generated SDK functions in `useMutation` hooks. Follow this pattern:
-
-1. Call the generated SDK function with `throwOnError: true`
-2. Unwrap the API envelope with `unwrapEnvelope`
-3. Update React Query cache and/or app context in `onSuccess`
-4. Export a named hook (for example, `useUpdateProfileMutation`)
-
-```ts
-const { data } = await usersControllerUpdateMe({ body, throwOnError: true });
-return unwrapEnvelope(data);
-```
+All server communication for the feature lives here. Typical files: `keys.ts`, `queries.ts`, `mutations.ts`. Conventions for those files are in [API](./api.md).
 
 ### `types.ts`
 
-Re-export only the types the feature needs from the generated API client. Do not duplicate DTO definitions.
+Re-export only the types the feature needs from `@/lib/api/generated`. Do not duplicate DTO definitions.
 
-```ts
-export type { UpdateUserDto, UserResponseDto } from "@/lib/api/generated";
-```
-
-Add feature-local types (form shapes, UI enums) in the hook or component file that owns them, unless multiple files in the feature need the same type.
+Add feature-local types (UI enums, props shared across files) in the hook or component file that owns them, unless multiple files in the feature need the same type.
 
 ### `utils.ts` (optional)
 
@@ -161,82 +122,41 @@ app/(tabs)/profile.tsx
         ▼
 screens/ProfileScreen.tsx          ← layout + composition
         │
-        ├── hooks/useProfileScreen.ts   ← state, handlers, orchestration
+        ├── hooks/useProfileScreen.ts      ← modal state, screen actions
         │         │
-        │         ├── api/mutations.ts  ← useMutation hooks
-        │         ├── context/auth    ← app-wide user state
-        │         └── lib/api/errors    ← user-facing error messages
+        │         ├── hooks/useEditProfileForm.ts  ← RHF + submit
+        │         ├── api/mutations.ts             ← useMutation hooks
+        │         ├── context/auth                 ← app-wide user state
+        │         └── lib/api/errors               ← user-facing error messages
         │
-        └── components/EditProfileModal.tsx   ← presentational UI
+        └── components/EditProfileModal.tsx   ← presentational UI (`control`)
 ```
 
-## Shared infrastructure
+## Shared folders outside `features/`
 
-These live outside `features/` and are used across the app.
-
-### API client (`lib/api/`)
-
-| Path                | Role                                                                                                                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `generated/`        | Auto-generated SDK, types, and React Query helpers. **Do not edit by hand.** Regenerate with `npm run openapi:generate`. |
-| `axios-instance.ts` | Axios instance with auth token injection and 401 handling                                                                |
-| `hey-api.config.ts` | Wires the generated client to our Axios instance                                                                         |
-| `envelope.ts`       | `unwrapEnvelope` for the `{ data, meta }` API response shape                                                             |
-| `errors.ts`         | `toApiError` (used by the Axios interceptor) and `getErrorMessage` (for UI error messages)                               |
-
-Generated SDK functions are imported from `@/lib/api/generated`. Query key helpers and `*Options` / `*Mutation` factories are in `@/lib/api/generated/@tanstack/react-query.gen`.
-
-Prefer wrapping generated helpers in feature `api/` hooks rather than calling the SDK directly from screens or components.
-
-### React Query (`lib/query/`, `providers/query-provider.tsx`)
-
-- `QueryProvider` wraps the app in `app/_layout.tsx`
-- Default query options: 60s stale time, 2 retries, refetch on focus
-- Feature mutations should update or invalidate keys from the feature's `keys.ts`
-
-### Shared UI (`components/ui/`)
-
-Reusable primitives such as `Button` and `Input`. Feature components should compose these instead of reimplementing common patterns.
-
-### App-wide hooks and context (`hooks/`, `context/`)
-
-- `hooks/` for cross-feature hooks (for example, `useColorScheme`)
-- `context/` for global state (for example, `AuthProvider` / `useAuth`)
+| Location         | Role                                                       |
+| ---------------- | ---------------------------------------------------------- |
+| `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. |
+| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`)        |
+| `context/`       | Global state (for example, `AuthProvider` / `useAuth`)     |
+| `lib/`           | Shared utilities and the API client                        |
+| `providers/`     | App-level providers wired in `app/_layout.tsx`             |
 
 Feature hooks may depend on app-wide context. Avoid the reverse: context should not import from `features/`.
 
-## Conventions
+## Naming
 
-### Imports
+| Item           | Convention                          | Example                    |
+| -------------- | ----------------------------------- | -------------------------- |
+| Feature folder | kebab-case or lowercase single word | `profile`, `event-invites` |
+| Screen file    | PascalCase + `Screen`               | `ProfileScreen.tsx`        |
+| Screen hook    | `use` + screen name                 | `useProfileScreen`         |
 
-Use the `@/` path alias for cross-folder imports. Use relative imports only for files within the same feature (for example, `../api/mutations`). See [Code conventions — Imports](./code-conventions.md#imports).
+## Imports
 
-```ts
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/context/auth-context";
-import { getErrorMessage } from "@/lib/api/errors";
-```
+Use the `@/` path alias for cross-folder imports. Use relative imports only for files within the same feature (for example, `../api/mutations`). See [Code conventions: Imports](./code-conventions.md#imports).
 
-### Naming
-
-| Item              | Convention                          | Example                    |
-| ----------------- | ----------------------------------- | -------------------------- |
-| Feature folder    | kebab-case or lowercase single word | `profile`, `event-invites` |
-| Screen file       | PascalCase + `Screen`               | `ProfileScreen.tsx`        |
-| Screen hook       | `use` + screen name                 | `useProfileScreen`         |
-| Query keys export | `<feature>Keys`                     | `profileKeys`              |
-| Mutation hooks    | `use<Action><Entity>Mutation`       | `useUpdateProfileMutation` |
-
-### Error handling
-
-- API layer: Axios interceptor converts failures to `Error` via `toApiError`
-- UI layer: use `getErrorMessage(error, "Fallback message")` in mutation `onError` callbacks
-
-### Functions
-
-Arrow functions are a **codebase-wide** convention. See [Code conventions — Functions](./code-conventions.md#functions).
-
-### Exports
+## Exports
 
 - Screens: default export
 - Hooks, components, API hooks, keys: named exports
@@ -245,11 +165,9 @@ Arrow functions are a **codebase-wide** convention. See [Code conventions — Fu
 
 1. Create `features/<name>/` with `screens/`, `hooks/`, `components/`, and `api/` as needed
 2. Add `types.ts` with re-exports from `@/lib/api/generated`
-3. Add `api/keys.ts` with a key factory
-4. Add `api/queries.ts` and/or `api/mutations.ts` wrapping the generated SDK
-5. Implement `use<Screen>Screen` hook with state and handlers
-6. Build the screen as a thin composition layer
-7. Wire the route in `app/` as a one-line re-export
+3. Implement `use<Screen>Screen` hook with state and handlers
+4. Build the screen as a thin composition layer
+5. Wire the route in `app/` as a one-line re-export
 
 ## ESLint enforcement
 
@@ -286,7 +204,7 @@ Photos/gallery has no `features/` module yet and is not part of this structure.
 
 ### Not enforced by ESLint
 
-Lint cannot cover naming, API usage patterns, or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) and [code conventions](./code-conventions.md) during review for everything ESLint misses.
+Lint cannot cover naming quality or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) during review for everything ESLint misses.
 
 ## Migrating legacy code
 
