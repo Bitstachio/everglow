@@ -82,10 +82,10 @@ Auth-sensitive updates should also sync app context when appropriate (for exampl
 
 ## Naming
 
-| Item              | Convention                    | Example                    |
-| ----------------- | ----------------------------- | -------------------------- |
-| Query keys export | `<feature>Keys`               | `profileKeys`              |
-| Mutation hooks    | `use<Action><Entity>Mutation` | `useUpdateProfileMutation` |
+| Item              | Convention                         | Example                              |
+| ----------------- | ---------------------------------- | ------------------------------------ |
+| Query keys export | `<feature>Keys`                    | `profileKeys`                        |
+| Mutation hooks    | `use<Action><Entity>Mutation`      | `useUpdateProfileMutation`           |
 | Query hooks       | `use<Entity>` / `use<Entity>Query` | Prefer generated names when wrapping |
 
 ## Types

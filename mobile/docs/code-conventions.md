@@ -8,12 +8,12 @@ This document is the entry point for how we write TypeScript and React Native co
 
 ## Topic docs
 
-| Topic                                      | Doc                                                          |
-| ------------------------------------------ | ------------------------------------------------------------ |
+| Topic                                         | Doc                                                         |
+| --------------------------------------------- | ----------------------------------------------------------- |
 | Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
-| API client, React Query, feature `api/`    | [API](./api.md)                                              |
-| Forms (React Hook Form + Zod)              | [Forms](./forms.md)                                          |
-| PR review judgments                        | [Code review checklist](./code-review-checklist.md)          |
+| API client, React Query, feature `api/`       | [API](./api.md)                                             |
+| Forms (React Hook Form + Zod)                 | [Forms](./forms.md)                                         |
+| PR review judgments                           | [Code review checklist](./code-review-checklist.md)         |
 
 ## Convention hierarchy
 
@@ -167,15 +167,15 @@ Lint cannot cover naming quality, whether a mutation invalidates the right keys,
 
 ## Quick reference
 
-| I am writing…              | Follow                                      |
-| -------------------------- | ------------------------------------------- |
-| Any TS/TSX file            | Codebase conventions (this doc)             |
-| A route in `app/`          | Area: `app/` + codebase                     |
-| Shared UI in `components/` | Area: `components/` + codebase              |
+| I am writing…              | Follow                                                      |
+| -------------------------- | ----------------------------------------------------------- |
+| Any TS/TSX file            | Codebase conventions (this doc)                             |
+| A route in `app/`          | Area: `app/` + codebase                                     |
+| Shared UI in `components/` | Area: `components/` + codebase                              |
 | A new feature              | [Feature code organization](./feature-code-organization.md) |
-| Feature API / React Query  | [API](./api.md)                             |
-| A form                     | [Forms](./forms.md)                         |
-| Reviewing a PR             | Checklist + `npm run lint`                  |
+| Feature API / React Query  | [API](./api.md)                                             |
+| A form                     | [Forms](./forms.md)                                         |
+| Reviewing a PR             | Checklist + `npm run lint`                                  |
 
 ## Migrating legacy code
 
