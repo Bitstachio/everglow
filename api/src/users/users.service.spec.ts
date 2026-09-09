@@ -1,4 +1,9 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PrismaClient } from "generated/prisma/client";
@@ -7,6 +12,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
+import { hashProviderSub } from "./deleted-account";
 import { UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
@@ -286,38 +292,6 @@ describe("UsersService", () => {
     });
   });
 
-  describe("remove", () => {
-    it("deletes the user when they exist", async () => {
-      prisma.user.findUnique.mockResolvedValue(userWithDetails);
-      prisma.user.delete.mockResolvedValue(userWithDetails);
-
-      await service.remove(userId);
-
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: userId },
-        include: userWithDetailsInclude,
-      });
-      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
-    });
-
-    it("throws NotFoundException when the user does not exist", async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.remove(userId)).rejects.toThrow(
-        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
-      );
-      expect(prisma.user.delete).not.toHaveBeenCalled();
-    });
-
-    it("rethrows unexpected Prisma errors from user.delete", async () => {
-      const prismaError = new Error("Foreign key constraint violation");
-      prisma.user.findUnique.mockResolvedValue(userWithDetails);
-      prisma.user.delete.mockRejectedValue(prismaError);
-
-      await expect(service.remove(userId)).rejects.toThrow(prismaError);
-    });
-  });
-
   describe("resolveByProviderSub", () => {
     it("returns the existing user when found by providerSub", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
@@ -334,6 +308,7 @@ describe("UsersService", () => {
 
     it("creates a new user when no record exists for the providerSub", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedAccount.findUnique.mockResolvedValue(null);
       prisma.user.create.mockResolvedValue(userWithoutDetails);
 
       const result = await service.resolveByProviderSub(providerSub);
@@ -360,9 +335,58 @@ describe("UsersService", () => {
     it("rethrows unexpected Prisma errors from user.create during JIT provisioning", async () => {
       const prismaError = new Error("Insert failed");
       prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedAccount.findUnique.mockResolvedValue(null);
       prisma.user.create.mockRejectedValue(prismaError);
 
       await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(prismaError);
+    });
+
+    describe("after the account was deleted", () => {
+      const deletedAt = new Date("2026-06-10T12:00:00.000Z");
+      const deletedAtSeconds = deletedAt.getTime() / 1000;
+      const tombstone = { id: "t", providerSubHash: hashProviderSub(providerSub), userId, deletedAt };
+
+      beforeEach(() => {
+        prisma.user.findUnique.mockResolvedValue(null);
+        prisma.deletedAccount.findUnique.mockResolvedValue(tombstone);
+      });
+
+      it("does not consult the tombstone while the account exists", async () => {
+        prisma.user.findUnique.mockResolvedValue(userWithDetails);
+
+        await service.resolveByProviderSub(providerSub, deletedAtSeconds - 60);
+
+        expect(prisma.deletedAccount.findUnique).not.toHaveBeenCalled();
+      });
+
+      it("refuses a token issued before the deletion instead of resurrecting the account", async () => {
+        await expect(service.resolveByProviderSub(providerSub, deletedAtSeconds - 60)).rejects.toThrow(
+          new UnauthorizedException(USER_SERVICE_ERRORS.ACCOUNT_DELETED),
+        );
+
+        expect(prisma.deletedAccount.findUnique).toHaveBeenCalledWith({
+          where: { providerSubHash: hashProviderSub(providerSub) },
+        });
+        expect(prisma.user.create).not.toHaveBeenCalled();
+      });
+
+      it("refuses a token that carries no issue time", async () => {
+        await expect(service.resolveByProviderSub(providerSub)).rejects.toBeInstanceOf(UnauthorizedException);
+
+        expect(prisma.user.create).not.toHaveBeenCalled();
+      });
+
+      it("provisions a fresh account for a token issued after the deletion", async () => {
+        prisma.user.create.mockResolvedValue(userWithoutDetails);
+
+        const result = await service.resolveByProviderSub(providerSub, deletedAtSeconds + 60);
+
+        expect(prisma.user.create).toHaveBeenCalledWith({
+          data: { providerSub },
+          include: userWithDetailsInclude,
+        });
+        expect(result).toEqual(userWithoutDetails);
+      });
     });
   });
 });

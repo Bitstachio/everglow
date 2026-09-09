@@ -165,7 +165,7 @@ export const usersControllerCompleteOnboardingMutation = (
 };
 
 /**
- * Delete current user
+ * Delete the current user's account
  */
 export const usersControllerRemoveMeMutation = (
   options?: Partial<Options<UsersControllerRemoveMeData>>,

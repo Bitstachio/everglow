@@ -52,12 +52,14 @@ model Event {
   title         String   @db.VarChar(100)
   description   String?  @db.Text
   date          DateTime
-  creatorId     String   @db.Uuid
+  // Attribution only; null once the creator's account is deleted. Who may
+  // manage the event is decided by EventAccess, never by this column.
+  creatorId     String?  @db.Uuid
   invitationUrl String   @unique @db.VarChar(100)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  creator       User          @relation("CreatedEvents", fields: [creatorId], references: [id])
+  creator       User?         @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: SetNull)
   photos        Photo[]
   eventAccesses EventAccess[]
 
@@ -72,7 +74,8 @@ model EventAccess {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  user  User  @relation(fields: [userId], references: [id])
+  // A deleted account takes its memberships with it.
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventId])
@@ -85,15 +88,31 @@ model Photo {
   contentType String      @db.VarChar(100)
   sizeBytes   Int
   status      PhotoStatus @default(PENDING)
-  addedById   String      @db.Uuid
+  // Null once the uploader's account is deleted and the photo was kept for
+  // the event (see docs/account-deletion.md). Usage is summed per uploader,
+  // so such photos count toward nobody's quota.
+  addedById   String?     @db.Uuid
   eventId     String      @db.Uuid
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  addedBy User  @relation(fields: [addedById], references: [id])
+  addedBy User? @relation(fields: [addedById], references: [id], onDelete: SetNull)
   event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, status, createdAt])
   @@index([addedById])
   @@index([status, createdAt])
+}
+
+// Tombstone of a deleted account. Access tokens outlive the row they were
+// issued for, and an unknown subject is otherwise provisioned as a new user on
+// its first request, so the deletion timestamp is what stops a still-valid
+// token from resurrecting the account. The subject is stored hashed: the
+// table must not become a directory of identities that asked to be forgotten.
+model DeletedAccount {
+  id              String   @id @default(uuid()) @db.Uuid
+  providerSubHash String   @unique @db.VarChar(64)
+  // The id the account had, for log correlation only; nothing references it.
+  userId          String   @db.Uuid
+  deletedAt       DateTime @default(now())
 }

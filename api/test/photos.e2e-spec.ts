@@ -54,7 +54,7 @@ type ConfirmResultBody = { photoId: string; status: string };
 type PhotoBody = {
   id: string;
   eventId: string;
-  addedById: string;
+  addedById: string | null;
   url: string;
   contentType: string;
   createdAt: string;

@@ -117,7 +117,7 @@ export const usersControllerCompleteOnboarding = <ThrowOnError extends boolean =
   });
 
 /**
- * Delete current user
+ * Delete the current user's account
  */
 export const usersControllerRemoveMe = <ThrowOnError extends boolean = false>(
   options?: Options<UsersControllerRemoveMeData, ThrowOnError>,

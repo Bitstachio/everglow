@@ -1,6 +1,13 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
+import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-account";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
@@ -72,21 +79,27 @@ export class UsersService {
     return updated;
   }
 
-  async remove(id: string): Promise<void> {
-    await this.getById(id);
-
-    await this.prisma.user.delete({ where: { id } });
-
-    this.logger.info({ event: "user.account.deleted", userId: id, audit: true }, "User account deleted");
-  }
-
-  async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
+  /**
+   * The account behind a verified token. An unknown subject is normally a
+   * first login and gets an account on the spot. It is also exactly what a
+   * deleted account looks like to a token issued before the deletion, and
+   * provisioning that would bring the account back under a fresh id. The
+   * tombstone tells the two apart by the token's issue time: older tokens
+   * are refused, and a token from a later sign-in starts a new account, the
+   * way a deleted messaging account can register again.
+   */
+  async resolveByProviderSub(sub: string, issuedAt?: number): Promise<UserWithDetails> {
     const existing = await this.prisma.user.findUnique({
       where: { providerSub: sub },
       include: userWithDetailsInclude,
     });
 
     if (existing) return existing;
+
+    const tombstone = await this.prisma.deletedAccount.findUnique({ where: { providerSubHash: hashProviderSub(sub) } });
+    if (tombstone && !isIssuedAfterDeletion(issuedAt, tombstone.deletedAt)) {
+      throw new UnauthorizedException(USER_SERVICE_ERRORS.ACCOUNT_DELETED);
+    }
 
     // JIT provisioning: create user record on first-ever login.
     const created = await this.prisma.user.create({
