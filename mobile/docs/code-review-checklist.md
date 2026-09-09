@@ -1,6 +1,6 @@
 # Mobile Code Review Checklist
 
-ESLint catches codebase conventions (arrow functions, `let`/`const`) and feature import boundaries. It cannot judge naming, API usage patterns, or whether a screen is "thin enough." Use this checklist during code review for anything ESLint does not cover.
+ESLint catches codebase conventions (arrow functions, `let`/`const`), kebab-case filenames, and feature import boundaries. It cannot judge identifier naming quality, API usage patterns, or whether a screen is "thin enough." Use this checklist during code review for anything ESLint does not cover.
 
 **Reference:** `features/profile/` is the model for all new feature work. `features/events/` and photos/gallery code are legacy; review new PRs against profile, not those areas.
 
@@ -27,7 +27,7 @@ ESLint enforces these globally. Still verify in review:
 
 - [ ] New work follows the profile feature layout: `screens/`, `hooks/`, `components/`, `api/`, and `types.ts`
 - [ ] Feature folder name is kebab-case or a single lowercase word (`profile`, `event-invites`)
-- [ ] Screen files live in `screens/` and end with `Screen.tsx` (`ProfileScreen.tsx`)
+- [ ] Screen files live in `screens/` and use kebab-case ending in `-screen.tsx` (`profile-screen.tsx`)
 - [ ] Feature-specific UI lives in `components/`, not in `@/components/`
 - [ ] Shared UI that multiple features need lives in `@/components/ui/`, not inside a feature
 - [ ] Pure helpers shared across the feature belong in `utils.ts`, not duplicated in hooks or screens
@@ -35,8 +35,9 @@ ESLint enforces these globally. Still verify in review:
 
 ## Naming
 
-- [ ] Screen hook is named `use<ScreenName>` and lives in `hooks/` (`useProfileScreen`)
-- [ ] File names match their primary export (PascalCase for components and screens, camelCase for hooks)
+- [ ] Files and folders use kebab-case (`local/kebab-case-filename`)
+- [ ] Screen hook symbol is `use<ScreenName>` in a kebab-case file (`use-profile-screen.ts` → `useProfileScreen`)
+- [ ] Export identifiers match their role (PascalCase components/screens, camelCase hooks); file names are kebab-case
 - [ ] API key factories and mutation hooks follow [API naming](./api.md#naming)
 
 ## Functions
@@ -101,7 +102,7 @@ ESLint blocks imports of feature hooks, components, and `api/` (except legacy `a
 - [ ] Route file is a thin entry point, ideally a one-line re-export:
 
 ```ts
-export { default } from "@/features/profile/screens/ProfileScreen";
+export { default } from "@/features/profile/screens/profile-screen";
 ```
 
 - [ ] Layout, param parsing, and navigation guards are the only logic that stays in `app/`

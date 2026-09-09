@@ -6,7 +6,7 @@ This document covers building forms in the Everglow mobile app. Every form uses 
 
 **Shared primitive:** `components/ui/form-field.tsx` (`FormField`) is the only place `Controller` should appear. Wrap it, don't repeat it.
 
-**Reference implementation:** `features/profile/` — `hooks/useEditProfileForm.ts`, `components/EditProfileModal.tsx`, and `hooks/useEditProfileForm.test.tsx`. Prefer those files over older form code.
+**Reference implementation:** `features/profile/` — `hooks/use-edit-profile-form.ts`, `components/edit-profile-modal.tsx`, and `hooks/use-edit-profile-form.test.tsx`. Prefer those files over older form code.
 
 **Migration status:** Profile edit is migrated. Other forms (including `features/events/`) are not; do not copy them.
 
@@ -32,10 +32,10 @@ Forms map onto the existing feature layers. No new folders.
 
 | Piece                         | Location                                 | Notes                                        |
 | ----------------------------- | ---------------------------------------- | -------------------------------------------- |
-| Zod schema + inferred type    | Same file as the form hook               | Promote to `schemas.ts` only if shared       |
-| `useForm` call and `onSubmit` | `features/<name>/hooks/use<Form>Form.ts` | Named export, one hook per form              |
-| Rendered fields               | `features/<name>/components/`            | Presentational; receives `control` as a prop |
-| Mutation                      | `features/<name>/api/mutations.ts`       | Called by the form hook, never the component |
+| Zod schema + inferred type    | Same file as the form hook                    | Promote to `schemas.ts` only if shared       |
+| `useForm` call and `onSubmit` | `features/<name>/hooks/use-<form>-form.ts`    | Named export `use<Form>Form`, one hook per form |
+| Rendered fields               | `features/<name>/components/`                 | Presentational; receives `control` as a prop |
+| Mutation                      | `features/<name>/api/mutations.ts`            | Called by the form hook, never the component |
 
 Form value types are inferred from the Zod schema in the form hook file. Do not hand-write a parallel type, and do not put form shapes in `types.ts` unless multiple files share them.
 
@@ -209,7 +209,7 @@ Do not assert on React Hook Form internals. Test what the user sees and what the
 
 Form tests mount JSX: a small probe (or the real form component) with `FormField` / `Button`. That requires TSX. A `.ts` file cannot contain the harness, and `renderHook` alone is a poor fit here (see below).
 
-Name the file next to the form hook: `use<Form>Form.test.tsx`.
+Name the file next to the form hook: `use-<form>-form.test.tsx` (export remains `use<Form>Form`).
 
 ### Why a probe component (not bare `renderHook`)
 
@@ -282,7 +282,7 @@ Everything else here is review-only. Use the [code review checklist](./code-revi
 4. Return `{ form, onSubmit }`.
 5. Build the component to accept `control` plus `isSubmitting`, `isDirty`, and callbacks.
 6. Render each string field with `FormField`; use `Controller` directly only for non-text inputs.
-7. Add `use<Form>Form.test.tsx` with a probe: one valid submission and one validation failure (see [Testing](#testing)).
+7. Add `use-<form>-form.test.tsx` with a probe: one valid submission and one validation failure (see [Testing](#testing)).
 8. Run `npm run lint` and `npx tsc --noEmit`.
 
 ## Review checklist
