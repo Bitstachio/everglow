@@ -1,27 +1,22 @@
 import { useAuth } from "@/context/auth-context";
-import type { UpdateUserDto } from "../types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useState } from "react";
 import { Alert } from "react-native";
-import { useDeleteProfileMutation, useUpdateProfileMutation } from "../api/mutations";
-
-type EditProfileForm = {
-  name: string;
-  email: string;
-};
-
-const emptyEditForm = (): EditProfileForm => ({
-  name: "",
-  email: "",
-});
+import { useDeleteProfileMutation } from "../api/mutations";
+import { useEditProfileForm } from "./useEditProfileForm";
 
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();
-  const updateProfileMutation = useUpdateProfileMutation();
   const deleteProfileMutation = useDeleteProfileMutation();
-
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState<EditProfileForm>(emptyEditForm);
+
+  const { form, onSubmit } = useEditProfileForm({
+    user,
+    onSuccess: () => {
+      setShowEditModal(false);
+      Alert.alert("Success", "Profile updated successfully");
+    },
+  });
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -35,33 +30,11 @@ export const useProfileScreen = () => {
   };
 
   const handleEditProfile = () => {
-    setEditForm({
-      name: user?.details?.name || "",
-      email: user?.details?.email || "",
+    form.reset({
+      name: user?.details?.name ?? "",
+      email: user?.details?.email ?? "",
     });
     setShowEditModal(true);
-  };
-
-  const handleUpdateProfile = () => {
-    const data: UpdateUserDto = {};
-
-    if (editForm.name !== user?.details?.name) data.name = editForm.name;
-    if (editForm.email !== user?.details?.email) data.email = editForm.email;
-
-    if (Object.keys(data).length === 0) {
-      setShowEditModal(false);
-      return;
-    }
-
-    updateProfileMutation.mutate(data, {
-      onSuccess: () => {
-        setShowEditModal(false);
-        Alert.alert("Success", "Profile updated successfully");
-      },
-      onError: (error) => {
-        Alert.alert("Error", getErrorMessage(error, "Failed to update profile"));
-      },
-    });
   };
 
   const handleDeleteAccount = () => {
@@ -85,14 +58,6 @@ export const useProfileScreen = () => {
     ]);
   };
 
-  const handleChangeName = (name: string) => {
-    setEditForm((current) => ({ ...current, name }));
-  };
-
-  const handleChangeEmail = (email: string) => {
-    setEditForm((current) => ({ ...current, email }));
-  };
-
   const handleCancelEdit = () => {
     setShowEditModal(false);
   };
@@ -101,14 +66,11 @@ export const useProfileScreen = () => {
     user,
     isLoading,
     showEditModal,
-    isSubmitting: updateProfileMutation.isPending,
-    editForm,
+    form,
+    onSubmit,
     handleLogout,
     handleEditProfile,
-    handleUpdateProfile,
     handleDeleteAccount,
-    handleChangeName,
-    handleChangeEmail,
     handleCancelEdit,
   };
 };

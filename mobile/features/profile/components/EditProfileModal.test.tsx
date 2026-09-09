@@ -1,21 +1,29 @@
 import { render, screen, userEvent } from "@testing-library/react-native";
+import { useForm } from "react-hook-form";
 import { EditProfileModal } from "./EditProfileModal";
 
-test("renders edit profile fields and cancels", async () => {
-  const onCancel = jest.fn();
+const EditProfileModalProbe = ({ onCancel }: { onCancel: () => void }) => {
+  const { control } = useForm<{ name: string; email: string }>({
+    defaultValues: { name: "Ada", email: "ada@example.com" },
+  });
 
-  await render(
+  return (
     <EditProfileModal
       visible
       isDark={false}
       isSubmitting={false}
-      editForm={{ name: "Ada", email: "ada@example.com" }}
-      onChangeName={jest.fn()}
-      onChangeEmail={jest.fn()}
-      onSave={jest.fn()}
+      isDirty={false}
+      control={control}
+      onSubmit={jest.fn()}
       onCancel={onCancel}
-    />,
+    />
   );
+};
+
+test("renders edit profile fields and cancels", async () => {
+  const onCancel = jest.fn();
+
+  await render(<EditProfileModalProbe onCancel={onCancel} />);
 
   expect(screen.getByText("Edit Profile")).toBeOnTheScreen();
   expect(screen.getByDisplayValue("Ada")).toBeOnTheScreen();
