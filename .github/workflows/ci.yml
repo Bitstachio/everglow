@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Every pull request, whatever its base: stacked PRs whose base is another
+  # feature branch need the same checks as PRs into main.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 

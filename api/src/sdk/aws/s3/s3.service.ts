@@ -22,6 +22,8 @@ export interface PutObjectInput {
 export interface PresignedUploadInput {
   key: string;
   contentType?: string;
+  /** Exact body size the URL accepts; any other Content-Length is rejected by S3. */
+  contentLength?: number;
   expiresInSeconds?: number;
 }
 
@@ -43,6 +45,14 @@ export interface ListObjectsResult {
   /** Present when the listing is truncated; pass it back to fetch the next page. */
   nextContinuationToken?: string;
 }
+
+// Request headers a presigned PUT binds the client to. The S3 presigner marks
+// content-type unsignable by default, so a URL minted for image/jpeg would
+// accept a body of any type; naming it here puts it in X-Amz-SignedHeaders and
+// S3 then rejects a PUT whose Content-Type differs from what was signed.
+// content-length is signed as soon as ContentLength is set on the command and
+// is listed for the same clarity.
+const PRESIGNED_UPLOAD_SIGNED_HEADERS = new Set(["content-type", "content-length"]);
 
 @Injectable()
 export class S3Service implements OnModuleDestroy {
@@ -133,16 +143,23 @@ export class S3Service implements OnModuleDestroy {
     }
   }
 
+  /**
+   * A PUT URL tied to one key, and to the declared content type and length
+   * when given: S3 refuses a body whose Content-Type or Content-Length differs
+   * from what was signed, so the caller's validation of those values holds all
+   * the way to the bucket.
+   */
   async getPresignedUploadUrl({
     key,
     contentType,
+    contentLength,
     expiresInSeconds = DEFAULT_PRESIGNED_URL_TTL_SECONDS,
   }: PresignedUploadInput): Promise<string> {
     try {
       return await getSignedUrl(
         this.client,
-        new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType }),
-        { expiresIn: expiresInSeconds },
+        new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType, ContentLength: contentLength }),
+        { expiresIn: expiresInSeconds, signableHeaders: PRESIGNED_UPLOAD_SIGNED_HEADERS },
       );
     } catch (error) {
       this.logger.error({ err: error as Error, key }, "s3 getPresignedUploadUrl failed");
