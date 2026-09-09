@@ -34,7 +34,9 @@ features/profile/
 ├── screens/
 │   └── ProfileScreen.tsx
 ├── hooks/
-│   └── useProfileScreen.ts
+│   ├── useProfileScreen.ts
+│   ├── useEditProfileForm.ts
+│   └── useEditProfileForm.test.tsx
 ├── components/
 │   └── EditProfileModal.tsx
 ├── api/
@@ -42,6 +44,8 @@ features/profile/
 │   └── mutations.ts
 └── types.ts
 ```
+
+Form conventions (React Hook Form + Zod): [Forms](./forms.md).
 
 ## Layer responsibilities
 
@@ -70,7 +74,7 @@ Screen-level hooks named `use<ScreenName>`. A screen hook should:
 
 Export hooks as named exports. Additional named hooks for the same feature (for example, a form hook) also live in `hooks/`.
 
-**Example:** `useProfileScreen` manages the edit modal, runs mutations, and surfaces error feedback via `Alert`.
+**Example:** `useProfileScreen` manages the edit modal and delete/logout flows. Profile edit submit lives in `useEditProfileForm` (see [Forms](./forms.md)).
 
 ### `components/`
 
@@ -118,24 +122,25 @@ app/(tabs)/profile.tsx
         ▼
 screens/ProfileScreen.tsx          ← layout + composition
         │
-        ├── hooks/useProfileScreen.ts   ← state, handlers, orchestration
+        ├── hooks/useProfileScreen.ts      ← modal state, screen actions
         │         │
-        │         ├── api/mutations.ts  ← useMutation hooks
-        │         ├── context/auth    ← app-wide user state
-        │         └── lib/api/errors    ← user-facing error messages
+        │         ├── hooks/useEditProfileForm.ts  ← RHF + submit
+        │         ├── api/mutations.ts             ← useMutation hooks
+        │         ├── context/auth                 ← app-wide user state
+        │         └── lib/api/errors               ← user-facing error messages
         │
-        └── components/EditProfileModal.tsx   ← presentational UI
+        └── components/EditProfileModal.tsx   ← presentational UI (`control`)
 ```
 
 ## Shared folders outside `features/`
 
-| Location         | Role                                                                 |
-| ---------------- | -------------------------------------------------------------------- |
+| Location         | Role                                                       |
+| ---------------- | ---------------------------------------------------------- |
 | `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. |
-| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`)                  |
-| `context/`       | Global state (for example, `AuthProvider` / `useAuth`)               |
-| `lib/`           | Shared utilities and the API client                                  |
-| `providers/`     | App-level providers wired in `app/_layout.tsx`                       |
+| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`)        |
+| `context/`       | Global state (for example, `AuthProvider` / `useAuth`)     |
+| `lib/`           | Shared utilities and the API client                        |
+| `providers/`     | App-level providers wired in `app/_layout.tsx`             |
 
 Feature hooks may depend on app-wide context. Avoid the reverse: context should not import from `features/`.
 

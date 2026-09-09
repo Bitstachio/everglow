@@ -6,7 +6,9 @@ This document covers building forms in the Everglow mobile app. Every form uses 
 
 **Shared primitive:** `components/ui/form-field.tsx` (`FormField`) is the only place `Controller` should appear. Wrap it, don't repeat it.
 
-**Migration status:** `FormField` exists, but no form has been migrated yet. `features/profile/` is the intended first migration and will become the reference implementation. Until then, treat this document (not existing form code) as the pattern. Do not copy `features/events/` or `useProfileScreen`'s manual `useState` form handling.
+**Reference implementation:** `features/profile/` — `hooks/useEditProfileForm.ts`, `components/EditProfileModal.tsx`, and `hooks/useEditProfileForm.test.tsx`. Prefer those files over older form code.
+
+**Migration status:** Profile edit is migrated. Other forms (including `features/events/`) are not; do not copy them.
 
 ## Stack
 
@@ -141,9 +143,12 @@ Pass `control` as a prop. Reach for `FormProvider` / `useFormContext` only when 
 Use `reset` in an effect rather than keying the component or assigning `defaultValues` from data that arrives late.
 
 ```ts
+const { reset } = form;
+
 useEffect(() => {
-  if (user) form.reset({ name: user.details.name, email: user.details.email });
-}, [user, form]);
+  if (!user?.details) return;
+  reset({ name: user.details.name, email: user.details.email });
+}, [user, reset]);
 ```
 
 ### Submitting only changed fields
@@ -186,13 +191,62 @@ React Hook Form's headline optimization (uncontrolled inputs registered by ref) 
 
 Read `node_modules/@testing-library/react-native/docs/guides/llm-guidelines.md` before writing form tests, per [AGENTS.md](../AGENTS.md).
 
+**Reference test:** `features/profile/hooks/useEditProfileForm.test.tsx`.
+
+### What to assert
+
 Test forms through the rendered UI:
 
 - Type into fields with `userEvent`, press submit, assert the mutation was called with the expected payload.
 - Assert validation messages by their visible text after triggering the invalid state, not by inspecting `formState`.
+- Cover at least one valid submission and one validation failure. Add cases for patch/dirty behavior, hydration, and mutation errors when the form has that logic.
 - Test a Zod schema directly only when it has non-obvious `.refine()` logic worth isolating.
+- Mock the feature mutation (`mutateAsync`), not the generated SDK.
 
 Do not assert on React Hook Form internals. Test what the user sees and what the server receives.
+
+### Why the test file is `.tsx`
+
+Form tests mount JSX: a small probe (or the real form component) with `FormField` / `Button`. That requires TSX. A `.ts` file cannot contain the harness, and `renderHook` alone is a poor fit here (see below).
+
+Name the file next to the form hook: `use<Form>Form.test.tsx`.
+
+### Why a probe component (not bare `renderHook`)
+
+RHF form behavior is driven by field events (change, blur, submit). Asserting `result.current.form.formState` after manually calling `onSubmit` skips that path and couples tests to library internals.
+
+Put a thin **probe** in the test file that:
+
+1. Calls the form hook with controllable props (`user`, `onSuccess`, …).
+2. Renders `FormField` for each string field and a Save `Button` wired to `onSubmit`.
+3. Omits modal chrome, theming, and screen orchestration so failures stay about the form.
+
+That is a shallow integration test of hook + fields + submit wiring, which is what you want for RHF. Prefer the probe over mounting the full feature modal when the modal adds noise (visibility, keyboard avoiding, cancel layout) unrelated to schema/submit.
+
+`renderHook` remains appropriate for non-form hooks, or for pure helpers extracted from a form hook (for example, a patch builder with no UI). Do not use it as the primary way to test `use<Form>Form`.
+
+### Probe sketch
+
+```tsx
+const EditProfileFormProbe = ({ user, onSuccess }: Props) => {
+  const { form, onSubmit } = useEditProfileForm({ user, onSuccess });
+
+  return (
+    <View>
+      <FormField control={form.control} name="name" label="Name" placeholder="Enter your name" />
+      <FormField control={form.control} name="email" label="Email" placeholder="Enter your email" />
+      <Button
+        title="Save"
+        onPress={onSubmit}
+        isLoading={form.formState.isSubmitting}
+        disabled={form.formState.isSubmitting || !form.formState.isDirty}
+      />
+    </View>
+  );
+};
+```
+
+Mock `useUpdateProfileMutation` at the feature `api/` boundary, then drive the probe with `userEvent`.
 
 ## Anti-patterns
 
@@ -205,6 +259,7 @@ Do not assert on React Hook Form internals. Test what the user sees and what the
 | `Controller` inline in feature components                 | Use `FormField`; keep the React Hook Form seam in one place                                                                                                                |
 | `z.string().email()`                                      | Deprecated in Zod 4; use `z.email()`                                                                                                                                       |
 | Validation messages built in the component                | Copy belongs in the schema, next to the rule                                                                                                                               |
+| Primary form tests via `renderHook` only                  | Misses field events; assert visible errors and mutation payloads through a `.tsx` probe instead                                                                            |
 
 ## Enforcement
 
@@ -227,7 +282,7 @@ Everything else here is review-only. Use the [code review checklist](./code-revi
 4. Return `{ form, onSubmit }`.
 5. Build the component to accept `control` plus `isSubmitting`, `isDirty`, and callbacks.
 6. Render each string field with `FormField`; use `Controller` directly only for non-text inputs.
-7. Add an RNTL test covering one valid submission and one validation failure.
+7. Add `use<Form>Form.test.tsx` with a probe: one valid submission and one validation failure (see [Testing](#testing)).
 8. Run `npm run lint` and `npx tsc --noEmit`.
 
 ## Review checklist
@@ -240,3 +295,4 @@ Everything else here is review-only. Use the [code review checklist](./code-revi
 - [ ] Submit button disabled while `isSubmitting`
 - [ ] Component receives `control` and imports no feature `hooks/` or `api/`
 - [ ] String fields use `FormField` rather than an inline `Controller`
+- [ ] Form tests are `.tsx`, drive a probe (or the real form) with `userEvent`, and mock the feature mutation
