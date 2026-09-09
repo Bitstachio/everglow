@@ -5,6 +5,10 @@ export class PhotoListResponseDto {
   @ApiProperty({ type: [PhotoResponseDto] })
   items: PhotoResponseDto[];
 
-  @ApiProperty({ format: "uuid", nullable: true, description: "Pass as ?cursor= to fetch the next page" })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "Opaque cursor for the next page; pass it as ?cursor=. Null on the last page.",
+  })
   nextCursor: string | null;
 }

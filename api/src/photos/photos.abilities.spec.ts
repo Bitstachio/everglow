@@ -17,12 +17,13 @@ describe("definePhotoAbilities", () => {
 
   const photoWithAccess = (
     accessLevel: "ORGANIZER" | "PARTICIPANT" | "VIEWER",
-    { accessUserId = userId, addedById = userId } = {},
+    { accessUserId = userId, addedById = userId, status = "READY" as "READY" | "PENDING" } = {},
   ) =>
     subject(PHOTO_SUBJECT, {
       id: photoId,
       eventId,
       addedById,
+      status,
       event: {
         id: eventId,
         eventAccesses: [{ userId: accessUserId, accessLevel }],
@@ -104,6 +105,34 @@ describe("definePhotoAbilities", () => {
         ability.can(
           PHOTO_ACTIONS.DELETE,
           photoWithAccess("ORGANIZER", { accessUserId: otherUserId, addedById: userId }),
+        ),
+      ).toBe(false);
+    });
+
+    it("allows uploaders to release their own PENDING slot after losing event access", () => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+
+      expect(
+        ability.can(
+          PHOTO_ACTIONS.DELETE,
+          photoWithAccess("ORGANIZER", { accessUserId: otherUserId, addedById: userId, status: "PENDING" }),
+        ),
+      ).toBe(true);
+    });
+
+    it("denies releasing someone else's PENDING slot", () => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+
+      expect(
+        ability.can(
+          PHOTO_ACTIONS.DELETE,
+          photoWithAccess("PARTICIPANT", { addedById: otherUserId, status: "PENDING" }),
+        ),
+      ).toBe(false);
+      expect(
+        ability.can(
+          PHOTO_ACTIONS.DELETE,
+          photoWithAccess("ORGANIZER", { accessUserId: otherUserId, addedById: otherUserId, status: "PENDING" }),
         ),
       ).toBe(false);
     });

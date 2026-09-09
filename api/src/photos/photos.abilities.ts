@@ -1,5 +1,5 @@
 import { AbilityBuilder } from "@casl/ability";
-import { AccessLevel } from "generated/prisma/client";
+import { AccessLevel, PhotoStatus } from "generated/prisma/client";
 import { AbilityUserContext, AppAbility } from "src/casl/ability.types";
 
 export const PHOTO_ACTIONS = {
@@ -41,4 +41,9 @@ export const definePhotoAbilities = (can: AbilityBuilder<AppAbility>["can"], use
     addedById: user.id,
     event: { is: { eventAccesses: { some: { userId: user.id } } } },
   });
+
+  // Uploaders can always release their own unconfirmed slots, membership or
+  // not. A PENDING row is invisible to every other member and holds only the
+  // uploader's quota, so nobody else can free it on their behalf.
+  can(PHOTO_ACTIONS.DELETE, PHOTO_SUBJECT, { addedById: user.id, status: PhotoStatus.PENDING });
 };
