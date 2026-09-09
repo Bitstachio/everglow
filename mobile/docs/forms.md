@@ -55,7 +55,7 @@ type EditProfileValues = z.infer<typeof editProfileSchema>;
 Zod 4 notes:
 
 - Use top-level format validators: `z.email()`, `z.url()`, `z.uuid()`. The Zod 3 style `z.string().email()` is deprecated.
-- Put user-facing copy in the schema as the second argument. Error messages are content, and they belong next to the rule they describe.
+- Pass the error message into the Zod rule (e.g., `.min(1, "Name is required")` or `z.email("Enter a valid email")`). The UI should render `fieldState.error?.message`, not invent its own validation copy.
 - Chain `.trim()` before `.min(1)` so a whitespace-only value fails.
 
 ### 2. Form hook
@@ -196,15 +196,15 @@ Do not assert on React Hook Form internals. Test what the user sees and what the
 
 ## Anti-patterns
 
-| Don't                                                     | Why                                                                                                                                                                         |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Don't                                                     | Why                                                                                                                                                                        |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A generic `useAppForm()` wrapping `useForm`               | Every form needs an option you didn't forward; it degrades into a pass-through with worse types. React Hook Form has no `createFormHook` equivalent; that's TanStack Form. |
-| Returning `{ name, setName, nameError }` from a form hook | Re-implements the library one property at a time and loses render isolation                                                                                                 |
-| A hand-written `type` for form values                     | Duplicates the schema; renames stop being compile errors                                                                                                                    |
-| `useState` for a form because it "only has one field"     | Field count doesn't predict complexity; every such form is a future migration                                                                                               |
-| `Controller` inline in feature components                 | Use `FormField`; keep the React Hook Form seam in one place                                                                                                                 |
-| `z.string().email()`                                      | Deprecated in Zod 4; use `z.email()`                                                                                                                                        |
-| Validation messages built in the component                | Copy belongs in the schema, next to the rule                                                                                                                                |
+| Returning `{ name, setName, nameError }` from a form hook | Re-implements the library one property at a time and loses render isolation                                                                                                |
+| A hand-written `type` for form values                     | Duplicates the schema; renames stop being compile errors                                                                                                                   |
+| `useState` for a form because it "only has one field"     | Field count doesn't predict complexity; every such form is a future migration                                                                                              |
+| `Controller` inline in feature components                 | Use `FormField`; keep the React Hook Form seam in one place                                                                                                                |
+| `z.string().email()`                                      | Deprecated in Zod 4; use `z.email()`                                                                                                                                       |
+| Validation messages built in the component                | Copy belongs in the schema, next to the rule                                                                                                                               |
 
 ## Enforcement
 
