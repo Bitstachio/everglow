@@ -1,10 +1,19 @@
 # Mobile Code Conventions
 
-This document is the entry point for how we write TypeScript and React Native code in the Everglow mobile app. Conventions are layered: global rules apply everywhere, area rules apply to specific folders, and feature rules apply inside `features/`.
+This document is the entry point for how we write TypeScript and React Native code in the Everglow mobile app. Conventions are layered: global rules apply everywhere, area rules apply to specific folders, and topic docs cover feature structure, API usage, and forms.
 
-**Reference implementation:** `features/profile/` for feature structure. See [Feature code organization](./feature-code-organization.md) for the full feature guide.
+**Reference implementation:** `features/profile/` for feature structure.
 
 **Enforcement:** `mobile/eslint.config.js` encodes what can be automated. Run `npm run lint` before opening a PR (lints `app/`, `components/`, `constants/`, `context/`, `features/`, `hooks/`, `lib/`, and `providers/`). Use the [code review checklist](./code-review-checklist.md) for everything lint cannot judge.
+
+## Topic docs
+
+| Topic                                      | Doc                                                          |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
+| API client, React Query, feature `api/`    | [API](./api.md)                                              |
+| Forms (React Hook Form + Zod)              | [Forms](./forms.md)                                          |
+| PR review judgments                        | [Code review checklist](./code-review-checklist.md)          |
 
 ## Convention hierarchy
 
@@ -18,17 +27,17 @@ This document is the entry point for how we write TypeScript and React Native co
 │    app/ routes, components/, context/, hooks/, lib/             │
 │    → Sections below + targeted ESLint rules                     │
 ├─────────────────────────────────────────────────────────────────┤
-│ 3. Feature module conventions (features/<name>/)                │
-│    Layer boundaries, relative imports, export shapes, data flow │
-│    → feature-code-organization.md + feature ESLint rules        │
+│ 3. Topic conventions (as needed)                                │
+│    Feature structure, API, forms                                │
+│    → feature-code-organization.md, api.md, forms.md             │
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. Code review (human judgment)                                 │
-│    Naming quality, API patterns, whether a screen is thin enough│
+│    Naming quality, whether a screen is thin enough              │
 │    → code-review-checklist.md                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Higher layers inherit lower layers. Feature code must follow codebase conventions **and** feature-specific rules.
+Higher layers inherit lower layers. Feature code must follow codebase conventions **and** the topic docs that apply to the work.
 
 ## 1. Codebase conventions
 
@@ -81,9 +90,7 @@ Inside a feature module, use relative imports for files in the same feature (for
 - API layer: the Axios interceptor normalizes failures via `toApiError`.
 - UI layer: use `getErrorMessage(error, "Fallback message")` in mutation `onError` callbacks. Do not read `error.response?.data` or raw `error.message` in screens.
 
-### Forms
-
-Form structure, validation, and state ownership have their own conventions. See [Forms](./forms.md).
+Full API error patterns: [API](./api.md#error-handling).
 
 ### ESLint (global)
 
@@ -97,7 +104,7 @@ Form structure, validation, and state ownership have their own conventions. See 
 
 ## 2. Area conventions
 
-### `app/` — Expo Router routes
+### `app/`: Expo Router routes
 
 - Routes are thin entry points. Re-export feature screens; do not embed feature business logic.
 - Layout files, param parsing, and navigation guards may live here.
@@ -109,32 +116,26 @@ export { default } from "@/features/profile/screens/ProfileScreen";
 
 ESLint blocks imports of feature `hooks/`, `components/`, and `api/` (legacy `app/events/**` is exempt until refactor).
 
-### `components/` — shared UI
+### `components/`: shared UI
 
 - Reusable primitives used across features (`@/components/ui/`).
 - Prefer named exports for shared components.
 - Compose primitives instead of duplicating button, input, or text patterns.
 - No feature-specific business logic.
 
-### `context/` — app-wide React context
+### `context/`: app-wide React context
 
 - Global state providers (`AuthProvider`, etc.).
 - Must not import from `@/features/*` (enforced by ESLint).
 
-### `hooks/` — app-wide hooks
+### `hooks/`: app-wide hooks
 
 - Cross-feature hooks (for example, `useColorScheme`).
 - Feature screen hooks belong in `features/<name>/hooks/`, not here.
 
-### `lib/` — shared utilities and API client
+### `lib/`: shared utilities and API client
 
-| Path                         | Role                                                                             |
-| ---------------------------- | -------------------------------------------------------------------------------- |
-| `lib/api/generated/`         | Auto-generated SDK. **Do not edit.** Regenerate with `npm run openapi:generate`. |
-| `lib/api/axios-instance.ts`  | Axios with auth and 401 handling                                                 |
-| `lib/api/envelope.ts`        | `unwrapEnvelope` for API responses                                               |
-| `lib/api/errors.ts`          | `toApiError`, `getErrorMessage`                                                  |
-| `lib/auth0.ts`, `lib/query/` | Auth and React Query setup                                                       |
+Shared client layout, envelope unwrapping, and React Query defaults: [API](./api.md).
 
 Wrap generated SDK calls in feature `api/` hooks; do not call the SDK from screens or presentational components.
 
@@ -166,14 +167,15 @@ Lint cannot cover naming quality, whether a mutation invalidates the right keys,
 
 ## Quick reference
 
-| I am writing…              | Follow                               |
-| -------------------------- | ------------------------------------ |
-| Any TS/TSX file            | Codebase conventions (this doc)      |
-| A route in `app/`          | Area: `app/` + codebase              |
-| Shared UI in `components/` | Area: `components/` + codebase       |
-| A new feature              | All layers: feature guide + codebase |
-| A form                     | [Forms](./forms.md) + feature guide  |
-| Reviewing a PR             | Checklist + `npm run lint`           |
+| I am writing…              | Follow                                      |
+| -------------------------- | ------------------------------------------- |
+| Any TS/TSX file            | Codebase conventions (this doc)             |
+| A route in `app/`          | Area: `app/` + codebase                     |
+| Shared UI in `components/` | Area: `components/` + codebase              |
+| A new feature              | [Feature code organization](./feature-code-organization.md) |
+| Feature API / React Query  | [API](./api.md)                             |
+| A form                     | [Forms](./forms.md)                         |
+| Reviewing a PR             | Checklist + `npm run lint`                  |
 
 ## Migrating legacy code
 

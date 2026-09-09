@@ -2,7 +2,7 @@
 
 This guide is for teammates pulling the branch that switches **`/mobile`** from npm to pnpm.
 
-**Scope:** `mobile/` only. `api/` stays on npm for now — keep using `npm` there.
+**Scope:** `mobile/` only. `api/` stays on npm for now; keep using `npm` there.
 
 ---
 
@@ -10,13 +10,13 @@ This guide is for teammates pulling the branch that switches **`/mobile`** from 
 
 - Faster, more reproducible installs via pnpm’s content-addressable store
 - Smaller disk usage across projects
-- Stricter dependency handling than npm’s flat tree (with an Expo-friendly layout — see below)
+- Stricter dependency handling than npm’s flat tree (with an Expo-friendly layout; see below)
 
 We are **not** setting up a repo-wide pnpm workspace yet. When/if we add a web client that shares packages with mobile, a monorepo workspace becomes more useful. Backend (`api/`) can stay separate until that matters.
 
 ---
 
-## Hoisting (`nodeLinker: hoisted`) — pragmatic, not purist
+## Hoisting (`nodeLinker: hoisted`): pragmatic, not purist
 
 pnpm’s default linker is **`isolated`**: a strict, non-flat layout under `node_modules/.pnpm` with symlinks. That is the “proper” pnpm model (stricter deps, less phantom dependencies).
 
@@ -36,7 +36,7 @@ On **pnpm 11+**, `.npmrc` is for **auth and registry settings only**. Other proj
 
 They belong in **`pnpm-workspace.yaml`** (or the global pnpm config). That is why this single-package app still has a `pnpm-workspace.yaml`: it is the config file for pnpm 11, not because we are a multi-package monorepo.
 
-Do **not** put `node-linker=hoisted` in `.npmrc` — it will look correct and do nothing, and you will get isolated installs again.
+Do **not** put `node-linker=hoisted` in `.npmrc`; it will look correct and do nothing, and you will get isolated installs again.
 
 ---
 
@@ -47,7 +47,7 @@ Do **not** put `node-linker=hoisted` in `.npmrc` — it will look correct and do
 | Removed `mobile/package-lock.json`                      | npm lockfile must not coexist with pnpm                                                                                                                  |
 | Added `mobile/pnpm-lock.yaml`                           | Commit and use this lockfile going forward                                                                                                               |
 | Added `mobile/pnpm-workspace.yaml`                      | pnpm 11+ project settings live here (not `.npmrc`). Includes `nodeLinker: hoisted` and `allowBuilds`. See the hoisting section above.                    |
-| `nodeLinker: hoisted`                                   | Flat/npm-like `node_modules` so Expo, Metro, and CocoaPods work. Not the purist isolated default — temporary pragmatic choice (details above).           |
+| `nodeLinker: hoisted`                                   | Flat/npm-like `node_modules` so Expo, Metro, and CocoaPods work. Not the purist isolated default; temporary pragmatic choice (details above).           |
 | `allowBuilds` for `browser-tabs-lock` / `unrs-resolver` | Approves dependency lifecycle scripts (pnpm blocks them by default)                                                                                      |
 | `openapi:check` script now calls `pnpm run …`           | Avoid hardcoded `npm` in package scripts                                                                                                                 |
 | `react-native-reanimated`: `^4.1.5` → `^4.1.7`          | Fresh lockfile had floated Reanimated to 4.6.x (needs Worklets 0.12.x). Expo SDK 54 expects ~4.1.x with Worklets `0.5.1`. Re-pinned with `expo install`. |
@@ -140,10 +140,10 @@ pnpm run ios
 
 ## Important conventions
 
-1. **One package manager in `mobile/`** — only commit `pnpm-lock.yaml`. Never reintroduce `package-lock.json` here.
-2. **Keep `nodeLinker: hoisted` in `pnpm-workspace.yaml`** — required for Expo/RN/Metro today. Do **not** move it to `.npmrc` (ignored on pnpm 11). Prefer leaving this as-is until isolated linking works for our stack.
-3. **Prefer `expo install` for Expo/RN packages** — avoids caret ranges floating past Expo SDK–compatible versions (what happened with Reanimated).
-4. **Approve new build scripts consciously** — if install warns about ignored builds, run `pnpm approve-builds` and commit the resulting allowlist change (`pnpm-workspace.yaml` / related config).
+1. **One package manager in `mobile/`:** only commit `pnpm-lock.yaml`. Never reintroduce `package-lock.json` here.
+2. **Keep `nodeLinker: hoisted` in `pnpm-workspace.yaml`:** required for Expo/RN/Metro today. Do **not** move it to `.npmrc` (ignored on pnpm 11). Prefer leaving this as-is until isolated linking works for our stack.
+3. **Prefer `expo install` for Expo/RN packages:** avoids caret ranges floating past Expo SDK–compatible versions (what happened with Reanimated).
+4. **Approve new build scripts consciously:** if install warns about ignored builds, run `pnpm approve-builds` and commit the resulting allowlist change (`pnpm-workspace.yaml` / related config).
 
 ---
 
@@ -162,7 +162,7 @@ pnpm install
 cd ios && rm -rf Pods Podfile.lock build && pod install && cd ..
 ```
 
-### iOS: Hermes script — `with-environment.sh: No such file or directory` (path contains `.pnpm/`)
+### iOS: Hermes script: `with-environment.sh: No such file or directory` (path contains `.pnpm/`)
 
 CocoaPods was generated under isolated linking and still references `node_modules/.pnpm/react-native@.../`. Regenerate pods (see step 3 above), then rebuild.
 

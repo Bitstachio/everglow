@@ -1,12 +1,12 @@
 # Forms
 
-This document is the single source of truth for building forms in the Everglow mobile app. Every form uses React Hook Form with a Zod schema — there is no second approach for "simple" forms.
+This document covers building forms in the Everglow mobile app. Every form uses React Hook Form with a Zod schema; there is no second approach for "simple" forms.
 
-**Convention hierarchy:** Forms follow [codebase conventions](./code-conventions.md) and [feature code organization](./feature-code-organization.md) on top of the rules in this document.
+**Convention hierarchy:** Forms follow [codebase conventions](./code-conventions.md) on top of the rules in this document. Form files use the feature folders from [feature code organization](./feature-code-organization.md); mutations follow [API](./api.md).
 
 **Shared primitive:** `components/ui/form-field.tsx` (`FormField`) is the only place `Controller` should appear. Wrap it, don't repeat it.
 
-**Migration status:** `FormField` exists, but no form has been migrated yet. `features/profile/` is the intended first migration and will become the reference implementation. Until then, treat this document — not existing form code — as the pattern. Do not copy `features/events/` or `useProfileScreen`'s manual `useState` form handling.
+**Migration status:** `FormField` exists, but no form has been migrated yet. `features/profile/` is the intended first migration and will become the reference implementation. Until then, treat this document (not existing form code) as the pattern. Do not copy `features/events/` or `useProfileScreen`'s manual `useState` form handling.
 
 ## Stack
 
@@ -18,11 +18,11 @@ This document is the single source of truth for building forms in the Everglow m
 
 ## When to use React Hook Form
 
-Use it when a component **collects values and submits them** — to an API, a parent callback, or navigation params. Field count is irrelevant; a one-field form with a validation message still uses React Hook Form.
+Use it when a component **collects values and submits them**: to an API, a parent callback, or navigation params. Field count is irrelevant; a one-field form with a validation message still uses React Hook Form.
 
 Use plain `useState` only when an input **is never submitted**: a search box filtering a list, a debounced query feeding `useQuery`, a local text filter. These are inputs, not forms.
 
-Do not decide based on how "simple" a form looks. That judgment is unstable — forms grow validation, and a half-migrated codebase costs more than either approach alone.
+Do not decide based on how "simple" a form looks. That judgment is unstable: forms grow validation, and a half-migrated codebase costs more than either approach alone.
 
 ## Where form code lives
 
@@ -35,13 +35,13 @@ Forms map onto the existing feature layers. No new folders.
 | Rendered fields               | `features/<name>/components/`            | Presentational; receives `control` as a prop |
 | Mutation                      | `features/<name>/api/mutations.ts`       | Called by the form hook, never the component |
 
-This matches the rule in [feature code organization](./feature-code-organization.md#typests) that form shapes belong in the file that owns them.
+Form value types are inferred from the Zod schema in the form hook file. Do not hand-write a parallel type, and do not put form shapes in `types.ts` unless multiple files share them.
 
 ## The pattern
 
 ### 1. Schema
 
-Define the schema and infer the value type from it. The schema is the single source of truth — never hand-write a parallel `type` for form values.
+Define the schema and infer the value type from it. Never hand-write a parallel `type` for form values.
 
 ```ts
 const editProfileSchema = z.object({
@@ -95,7 +95,7 @@ Rules for the hook:
 - **`await mutateAsync`, don't use `mutate`.** `formState.isSubmitting` only stays true while the submit handler's promise is pending, so a fire-and-forget `mutate` leaves the button enabled mid-request.
 - Error feedback (`Alert`, `getErrorMessage`) belongs here. ESLint blocks `Alert` in `features/**/screens/**`.
 
-On the return shape: [feature code organization](./feature-code-organization.md#hooks) says screen hooks return a flat object. That still holds — `form` is one entry in that flat object. Don't flatten React Hook Form's internals into it.
+Screen hooks return a flat object of values and handlers. When a screen owns a form, `form` is one entry in that object. Do not flatten React Hook Form's internals into the screen hook return.
 
 ### 3. Component
 
@@ -132,7 +132,7 @@ export const EditProfileModal = ({
 
 `FormField` is generic over the form's value type, so `name` is checked against the schema. A typo like `name="nmae"` is a compile error, not a silent no-op.
 
-Pass `control` as a prop. Reach for `FormProvider` / `useFormContext` only when a form is deep enough that drilling genuinely hurts — context subscribers re-render more broadly than a directly passed `control`.
+Pass `control` as a prop. Reach for `FormProvider` / `useFormContext` only when a form is deep enough that drilling genuinely hurts; context subscribers re-render more broadly than a directly passed `control`.
 
 ## Recipes
 
@@ -180,7 +180,7 @@ const schema = z.object({ startsAt: z.date(), endsAt: z.date() }).refine((values
 
 ## React Native caveat
 
-React Hook Form's headline optimization — uncontrolled inputs registered by ref — is a DOM feature and does not apply here. In React Native every field goes through `Controller` and is controlled. You still get field-level render isolation, but do not expect the zero-re-render behavior described in web-oriented articles.
+React Hook Form's headline optimization (uncontrolled inputs registered by ref) is a DOM feature and does not apply here. In React Native every field goes through `Controller` and is controlled. You still get field-level render isolation, but do not expect the zero-re-render behavior described in web-oriented articles.
 
 ## Testing
 
@@ -198,7 +198,7 @@ Do not assert on React Hook Form internals. Test what the user sees and what the
 
 | Don't                                                     | Why                                                                                                                                                                         |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A generic `useAppForm()` wrapping `useForm`               | Every form needs an option you didn't forward; it degrades into a pass-through with worse types. React Hook Form has no `createFormHook` equivalent — that's TanStack Form. |
+| A generic `useAppForm()` wrapping `useForm`               | Every form needs an option you didn't forward; it degrades into a pass-through with worse types. React Hook Form has no `createFormHook` equivalent; that's TanStack Form. |
 | Returning `{ name, setName, nameError }` from a form hook | Re-implements the library one property at a time and loses render isolation                                                                                                 |
 | A hand-written `type` for form values                     | Duplicates the schema; renames stop being compile errors                                                                                                                    |
 | `useState` for a form because it "only has one field"     | Field count doesn't predict complexity; every such form is a future migration                                                                                               |
