@@ -93,11 +93,9 @@ export type PhotoResponseDto = {
 export type PhotoListResponseDto = {
   items: Array<PhotoResponseDto>;
   /**
-   * Pass as ?cursor= to fetch the next page
+   * Opaque cursor for the next page; pass it as ?cursor=. Null on the last page.
    */
-  nextCursor: {
-    [key: string]: unknown;
-  } | null;
+  nextCursor: string | null;
 };
 
 export type EventResponseDto = {
@@ -346,7 +344,7 @@ export type PhotosControllerListPhotosData = {
   };
   query?: {
     /**
-     * ID of the last photo from the previous page
+     * Opaque cursor: the nextCursor value from the previous page. Omit for the first page.
      */
     cursor?: string;
     limit?: number;

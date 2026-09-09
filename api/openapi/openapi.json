@@ -360,9 +360,9 @@
             "name": "cursor",
             "required": false,
             "in": "query",
-            "description": "ID of the last photo from the previous page",
+            "description": "Opaque cursor: the nextCursor value from the previous page. Omit for the first page.",
             "schema": {
-              "format": "uuid",
+              "maxLength": 255,
               "type": "string"
             }
           },
@@ -1335,10 +1335,9 @@
             }
           },
           "nextCursor": {
-            "type": "object",
-            "format": "uuid",
+            "type": "string",
             "nullable": true,
-            "description": "Pass as ?cursor= to fetch the next page"
+            "description": "Opaque cursor for the next page; pass it as ?cursor=. Null on the last page."
           }
         },
         "required": [

@@ -99,4 +99,5 @@ export const PHOTO_SERVICE_ERRORS = {
   INVALID_STORAGE_INCREMENT: (value: string) =>
     `Storage limit increase must be a positive whole number of bytes, received "${value}"`,
   STORAGE_RESERVATION_CONFLICT: "Storage reservation conflicted with a concurrent upload, please retry",
+  INVALID_CURSOR: "Invalid cursor; pass the nextCursor value returned by the previous page",
 };
