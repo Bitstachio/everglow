@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   NotFound,
@@ -138,6 +139,68 @@ describe("S3Service", () => {
       await service.deleteObject("a/b.jpg");
 
       expect(sendSpy).toHaveBeenCalledWith(expect.any(DeleteObjectCommand));
+    });
+  });
+
+  describe("deleteObjects", () => {
+    const keys = ["photos/a", "photos/b", "photos/c"];
+
+    it("sends one quiet DeleteObjectsCommand for a small batch and reports every key deleted", async () => {
+      sendSpy.mockResolvedValueOnce({} as never);
+
+      const result = await service.deleteObjects(keys);
+
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy).toHaveBeenCalledWith(expect.any(DeleteObjectsCommand));
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: {
+            Bucket: bucket,
+            Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+          },
+        }),
+      );
+      expect(result).toEqual({ deleted: keys, failed: [] });
+    });
+
+    it("returns the per-key errors S3 reports and counts the rest as deleted", async () => {
+      sendSpy.mockResolvedValueOnce({
+        Errors: [{ Key: "photos/b", Code: "AccessDenied", Message: "Access Denied" }, { Code: "NoKey" }],
+      } as never);
+
+      const result = await service.deleteObjects(keys);
+
+      expect(result).toEqual({
+        deleted: ["photos/a", "photos/c"],
+        failed: [{ key: "photos/b", code: "AccessDenied", message: "Access Denied" }],
+      });
+    });
+
+    it("splits more than 1000 keys across requests", async () => {
+      const many = Array.from({ length: 2500 }, (_, index) => `photos/${index}`);
+      sendSpy.mockResolvedValue({} as never);
+
+      const result = await service.deleteObjects(many);
+
+      expect(sendSpy).toHaveBeenCalledTimes(3);
+      const sizes = sendSpy.mock.calls.map(
+        ([command]) => (command as DeleteObjectsCommand).input.Delete?.Objects?.length,
+      );
+      expect(sizes).toEqual([1000, 1000, 500]);
+      expect(result.deleted).toHaveLength(2500);
+    });
+
+    it("makes no request for an empty key list", async () => {
+      await expect(service.deleteObjects([])).resolves.toEqual({ deleted: [], failed: [] });
+
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it("wraps a failed request in InternalServerErrorException", async () => {
+      sendSpy.mockRejectedValue(new Error("boom"));
+
+      await expect(service.deleteObjects(keys)).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.deleteObjects(keys)).rejects.toThrow(S3_SERVICE_ERRORS.DELETE_BATCH_FAILED(3));
     });
   });
 

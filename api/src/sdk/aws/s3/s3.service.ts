@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
@@ -11,7 +12,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Injectable, InternalServerErrorException, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PinoLogger } from "nestjs-pino";
-import { DEFAULT_PRESIGNED_URL_TTL_SECONDS, S3_SERVICE_ERRORS } from "./s3.constants";
+import { DEFAULT_PRESIGNED_URL_TTL_SECONDS, MAX_DELETE_OBJECTS_BATCH_SIZE, S3_SERVICE_ERRORS } from "./s3.constants";
 
 export interface PutObjectInput {
   key: string;
@@ -44,6 +45,13 @@ export interface ListObjectsResult {
   objects: S3ObjectSummary[];
   /** Present when the listing is truncated; pass it back to fetch the next page. */
   nextContinuationToken?: string;
+}
+
+export interface DeleteObjectsResult {
+  /** Keys S3 reported as deleted (a key that did not exist counts as deleted). */
+  deleted: string[];
+  /** Keys S3 refused to delete, with the error it gave for each. */
+  failed: { key: string; code?: string; message?: string }[];
 }
 
 // Request headers a presigned PUT binds the client to. The S3 presigner marks
@@ -111,6 +119,40 @@ export class S3Service implements OnModuleDestroy {
       this.logger.error({ err: error as Error, key }, "s3 deleteObject failed");
       throw new InternalServerErrorException(S3_SERVICE_ERRORS.DELETE_FAILED(key));
     }
+  }
+
+  /**
+   * Deletes many keys with as few requests as S3 allows (1000 per call).
+   * S3 reports per-key failures inside a successful response, so those come
+   * back in `failed` rather than as a throw; only a request that fails as a
+   * whole throws, in which case none of that request's keys were attempted.
+   */
+  async deleteObjects(keys: string[]): Promise<DeleteObjectsResult> {
+    const result: DeleteObjectsResult = { deleted: [], failed: [] };
+
+    for (let start = 0; start < keys.length; start += MAX_DELETE_OBJECTS_BATCH_SIZE) {
+      const batch = keys.slice(start, start + MAX_DELETE_OBJECTS_BATCH_SIZE);
+      try {
+        const response = await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            // Quiet: the response lists only the keys that failed.
+            Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+          }),
+        );
+        const errors = (response.Errors ?? []).flatMap((error) =>
+          error.Key ? [{ key: error.Key, code: error.Code, message: error.Message }] : [],
+        );
+        const failedKeys = new Set(errors.map((error) => error.key));
+        result.failed.push(...errors);
+        result.deleted.push(...batch.filter((key) => !failedKeys.has(key)));
+      } catch (error) {
+        this.logger.error({ err: error as Error, count: batch.length }, "s3 deleteObjects failed");
+        throw new InternalServerErrorException(S3_SERVICE_ERRORS.DELETE_BATCH_FAILED(batch.length));
+      }
+    }
+
+    return result;
   }
 
   async headObject(key: string): Promise<HeadObjectResult> {
