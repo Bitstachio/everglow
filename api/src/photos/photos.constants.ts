@@ -14,6 +14,14 @@ export const MAX_PHOTO_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
 
 export const MAX_UPLOAD_BATCH_SIZE = 20; // 20 photos per batch
 
+// S3 accepts multipart parts of at least 5 MiB (only the last may be smaller).
+// Parts are fixed at that minimum, so a file at MAX_PHOTO_SIZE_BYTES is five.
+export const MULTIPART_PART_SIZE_BYTES = 5 * 1024 * 1024;
+
+// Multipart exists for uploads that can fail halfway. A file that fits in one
+// part gains nothing from it and uses the single-PUT flow.
+export const MULTIPART_MIN_SIZE_BYTES = MULTIPART_PART_SIZE_BYTES;
+
 // Long enough for the OS background uploader to finish on flaky cellular.
 export const UPLOAD_URL_TTL_SECONDS = 3600; // 1 hour to upload a photo
 
@@ -100,4 +108,13 @@ export const PHOTO_SERVICE_ERRORS = {
     `Storage limit increase must be a positive whole number of bytes, received "${value}"`,
   STORAGE_RESERVATION_CONFLICT: "Storage reservation conflicted with a concurrent upload, please retry",
   INVALID_CURSOR: "Invalid cursor; pass the nextCursor value returned by the previous page",
+  MULTIPART_NOT_FOUND: (photoId: string) => `No multipart upload in progress for photo with ID "${photoId}"`,
+  MULTIPART_EXPIRED: (photoId: string) =>
+    `Multipart upload for photo with ID "${photoId}" no longer exists; start a new one`,
+  MULTIPART_FORBIDDEN: (photoId: string) =>
+    `Not authorized to continue the multipart upload of photo with ID "${photoId}"`,
+  MULTIPART_INCOMPLETE: (partNumbers: number[]) =>
+    `Multipart upload is incomplete; upload part(s) ${partNumbers.join(", ")} and complete again`,
+  MULTIPART_COMPLETE_REJECTED: (code: string) =>
+    `S3 rejected the multipart upload (${code}); re-upload the affected parts and complete again`,
 };

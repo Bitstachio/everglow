@@ -38,15 +38,24 @@ import type {
   EventsControllerUpdateParticipantAccessErrors,
   EventsControllerUpdateParticipantAccessResponses,
   EventsControllerUpdateResponses,
+  PhotosControllerCompleteMultipartUploadData,
+  PhotosControllerCompleteMultipartUploadErrors,
+  PhotosControllerCompleteMultipartUploadResponses,
   PhotosControllerConfirmUploadsData,
   PhotosControllerConfirmUploadsErrors,
   PhotosControllerConfirmUploadsResponses,
+  PhotosControllerCreateMultipartUploadData,
+  PhotosControllerCreateMultipartUploadErrors,
+  PhotosControllerCreateMultipartUploadResponses,
   PhotosControllerCreateUploadUrlsData,
   PhotosControllerCreateUploadUrlsErrors,
   PhotosControllerCreateUploadUrlsResponses,
   PhotosControllerFindOneData,
   PhotosControllerFindOneErrors,
   PhotosControllerFindOneResponses,
+  PhotosControllerGetMultipartUploadData,
+  PhotosControllerGetMultipartUploadErrors,
+  PhotosControllerGetMultipartUploadResponses,
   PhotosControllerListPhotosData,
   PhotosControllerListPhotosErrors,
   PhotosControllerListPhotosResponses,
@@ -209,6 +218,66 @@ export const photosControllerConfirmUploads = <ThrowOnError extends boolean = fa
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * Start a multipart upload for one photo of at least 5 MiB
+ */
+export const photosControllerCreateMultipartUpload = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerCreateMultipartUploadData, ThrowOnError>,
+): RequestResult<
+  PhotosControllerCreateMultipartUploadResponses,
+  PhotosControllerCreateMultipartUploadErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PhotosControllerCreateMultipartUploadResponses,
+    PhotosControllerCreateMultipartUploadErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/photos/multipart-uploads",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Get the state of a multipart upload, with fresh part URLs
+ */
+export const photosControllerGetMultipartUpload = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerGetMultipartUploadData, ThrowOnError>,
+): RequestResult<PhotosControllerGetMultipartUploadResponses, PhotosControllerGetMultipartUploadErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    PhotosControllerGetMultipartUploadResponses,
+    PhotosControllerGetMultipartUploadErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/photos/{photoId}/multipart-upload",
+    ...options,
+  });
+
+/**
+ * Assemble an uploaded multipart photo and mark it ready
+ */
+export const photosControllerCompleteMultipartUpload = <ThrowOnError extends boolean = false>(
+  options: Options<PhotosControllerCompleteMultipartUploadData, ThrowOnError>,
+): RequestResult<
+  PhotosControllerCompleteMultipartUploadResponses,
+  PhotosControllerCompleteMultipartUploadErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PhotosControllerCompleteMultipartUploadResponses,
+    PhotosControllerCompleteMultipartUploadErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/photos/{photoId}/multipart-upload/complete",
+    ...options,
   });
 
 /**

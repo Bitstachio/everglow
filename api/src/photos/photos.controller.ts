@@ -19,11 +19,14 @@ import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.deco
 import { ConfirmPhotoResultDto } from "./dto/confirm-photo-result.dto";
 import { ConfirmUploadsDto } from "./dto/confirm-uploads.dto";
 import { CreateUploadUrlsDto } from "./dto/create-upload-urls.dto";
+import { InitiateMultipartUploadDto } from "./dto/initiate-multipart-upload.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
+import { MultipartUploadResponseDto } from "./dto/multipart-upload-response.dto";
 import { PhotoListResponseDto } from "./dto/photo-list-response.dto";
 import { PhotoResponseDto } from "./dto/photo-response.dto";
 import { UploadSlotResponseDto } from "./dto/upload-slot-response.dto";
 import { PhotoMapper } from "./mappers/photo.mapper";
+import { PhotoMultipartService } from "./photo-multipart.service";
 import { PhotosService } from "./photos.service";
 
 @ApiTags("photos")
@@ -32,7 +35,10 @@ import { PhotosService } from "./photos.service";
 @UseGuards(JwtAuthGuard)
 @ApiUnauthorizedResponse({ description: "Missing or invalid access token" })
 export class PhotosController {
-  constructor(private readonly photosService: PhotosService) {}
+  constructor(
+    private readonly photosService: PhotosService,
+    private readonly photoMultipartService: PhotoMultipartService,
+  ) {}
 
   @Post("events/:eventId/photos/upload-urls")
   @ApiOperation({ summary: "Mint presigned upload URLs for a batch of photos" })
@@ -54,6 +60,37 @@ export class PhotosController {
     @Body() dto: ConfirmUploadsDto,
   ): Promise<ConfirmPhotoResultDto[]> {
     return this.photosService.confirmUploads(eventId, user.id, dto.photoIds);
+  }
+
+  @Post("events/:eventId/photos/multipart-uploads")
+  @ApiOperation({ summary: "Start a multipart upload for one photo of at least 5 MiB" })
+  @ApiWrappedResponse(MultipartUploadResponseDto, "Upload layout with a presigned PUT URL per part", 201)
+  async createMultipartUpload(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+    @Body() dto: InitiateMultipartUploadDto,
+  ): Promise<MultipartUploadResponseDto> {
+    return this.photoMultipartService.initiate(eventId, user.id, dto);
+  }
+
+  @Get("photos/:photoId/multipart-upload")
+  @ApiOperation({ summary: "Get the state of a multipart upload, with fresh part URLs" })
+  @ApiWrappedResponse(MultipartUploadResponseDto, "Which parts S3 already holds, plus a presigned PUT URL per part")
+  async getMultipartUpload(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("photoId", ParseUUIDPipe) photoId: string,
+  ): Promise<MultipartUploadResponseDto> {
+    return this.photoMultipartService.getState(photoId, user.id);
+  }
+
+  @Post("photos/:photoId/multipart-upload/complete")
+  @ApiOperation({ summary: "Assemble an uploaded multipart photo and mark it ready" })
+  @ApiWrappedResponse(ConfirmPhotoResultDto, "Verification result for the assembled photo", 201)
+  async completeMultipartUpload(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("photoId", ParseUUIDPipe) photoId: string,
+  ): Promise<ConfirmPhotoResultDto> {
+    return this.photoMultipartService.complete(photoId, user.id);
   }
 
   @Get("events/:eventId/photos")

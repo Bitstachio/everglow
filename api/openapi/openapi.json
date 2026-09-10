@@ -344,6 +344,169 @@
         ]
       }
     },
+    "/api/v2/events/{eventId}/photos/multipart-uploads": {
+      "post": {
+        "operationId": "PhotosController_createMultipartUpload",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiateMultipartUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload layout with a presigned PUT URL per part",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MultipartUploadResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a multipart upload for one photo of at least 5 MiB",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/api/v2/photos/{photoId}/multipart-upload": {
+      "get": {
+        "operationId": "PhotosController_getMultipartUpload",
+        "parameters": [
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Which parts S3 already holds, plus a presigned PUT URL per part",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MultipartUploadResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get the state of a multipart upload, with fresh part URLs",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/api/v2/photos/{photoId}/multipart-upload/complete": {
+      "post": {
+        "operationId": "PhotosController_completeMultipartUpload",
+        "parameters": [
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Verification result for the assembled photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ConfirmPhotoResultDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Assemble an uploaded multipart photo and mark it ready",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
     "/api/v2/events/{eventId}/photos": {
       "get": {
         "operationId": "PhotosController_listPhotos",
@@ -1278,6 +1441,98 @@
         },
         "required": [
           "photoIds"
+        ]
+      },
+      "MultipartPartResponseDto": {
+        "type": "object",
+        "properties": {
+          "partNumber": {
+            "type": "number",
+            "minimum": 1,
+            "description": "1-based S3 part number"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "description": "Exact byte length of this part; the URL rejects any other Content-Length"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Presigned S3 PUT URL for this part's bytes"
+          },
+          "uploaded": {
+            "type": "boolean",
+            "description": "True when S3 already holds this part in full; re-uploading it is harmless"
+          }
+        },
+        "required": [
+          "partNumber",
+          "sizeBytes",
+          "uploadUrl",
+          "uploaded"
+        ]
+      },
+      "MultipartUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "photoId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "description": "Declared size of the whole file"
+          },
+          "partSizeBytes": {
+            "type": "number",
+            "description": "Every part but the last is exactly this many bytes"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When the part URLs expire; fetch the upload state again for fresh ones"
+          },
+          "parts": {
+            "description": "The full layout, in part order",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MultipartPartResponseDto"
+            }
+          }
+        },
+        "required": [
+          "photoId",
+          "sizeBytes",
+          "partSizeBytes",
+          "expiresAt",
+          "parts"
+        ]
+      },
+      "InitiateMultipartUploadDto": {
+        "type": "object",
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+              "image/heic",
+              "image/heif"
+            ],
+            "example": "image/jpeg"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 5242880,
+            "maximum": 26214400,
+            "example": 12582912,
+            "description": "Exact size of the file. Files below the minimum use the single-PUT upload-urls flow instead."
+          }
+        },
+        "required": [
+          "contentType",
+          "sizeBytes"
         ]
       },
       "PhotoResponseDto": {

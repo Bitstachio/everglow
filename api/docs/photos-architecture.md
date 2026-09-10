@@ -52,6 +52,30 @@ photos/{userId}/{eventId}/{photoId}
 
 We create the row _before_ the upload happens (so we have a `photoId` to sign against). If the upload never completes, the row would still exist — filtering reads to `READY` hides those, and a cleanup job (or S3 lifecycle rule) eventually deletes them.
 
+### Multipart upload (files of 5 MiB and more)
+
+A single PUT lands whole or not at all: a 20 MB photo that drops at 95% on cellular starts over from zero. S3 multipart upload splits the object into parts that are uploaded, retried, and resumed independently and assembled by S3, so a drop costs one part. Files under 5 MiB, S3's minimum part size, gain nothing from it and keep using `upload-urls`.
+
+1. **Mobile starts the upload.** `POST /events/:eventId/photos/multipart-uploads` with `{ contentType, sizeBytes }` for one file (`sizeBytes` ≥ 5 MiB).
+2. **API opens it.** Same authorization and quota reservation as a single slot and one `PENDING` row, then S3 `CreateMultipartUpload` (which fixes the object's content type); the upload id and the part size are stored on the row (`multipartUploadId`, `multipartPartSizeBytes`). Parts are fixed at 5 MiB, so a file at the 25 MB cap is five parts. If S3 or the row update fails, the slot is released (and the upload aborted) before the error is returned.
+3. **API responds** with the layout: `{ photoId, sizeBytes, partSizeBytes, expiresAt, parts: [{ partNumber, sizeBytes, uploadUrl, uploaded }] }`. Each `uploadUrl` is a presigned `UploadPart` PUT (1h TTL) bound to that part's exact `Content-Length`.
+4. **Mobile PUTs each part** to its URL, in any order, in parallel if it likes. There is nothing to remember per part: no ETags, no upload id.
+5. **Mobile completes.** `POST /photos/:photoId/multipart-upload/complete` (no body). The API lists the parts S3 holds (`ListParts`), checks that every planned part is there at its planned size, calls `CompleteMultipartUpload` with the ETags S3 reported, then verifies the assembled object exactly as confirm does (`HeadObject`: size and content type) and flips the row to `READY`. The response is the same `{ photoId, status }` as confirm. Completing an already `READY` photo returns `READY` again.
+6. **Resuming.** After a drop, an app restart, or once the URLs have expired, `GET /photos/:photoId/multipart-upload` returns the same layout with fresh URLs and `uploaded: true` on the parts S3 already holds; the client sends only the rest. Re-sending a part replaces it, which is the safe move for a part the client is unsure about.
+7. **Giving up.** `DELETE /photos/:photoId` aborts the upload, discards its parts, and releases the slot.
+
+**Failure modes.**
+
+- `complete` with parts still missing → **400** naming the part numbers; upload them and complete again.
+- S3 refuses the assembly (`InvalidPart`, `EntityTooSmall`, …) → **400** with the S3 code; the upload stays open for another attempt.
+- S3 no longer knows the upload (aborted, or expired by the bucket's lifecycle rule after a day) → the slot is released and the request gets **410 Gone**; start a new upload.
+- Someone else's `photoId`, a single-PUT slot, or a photo that is not `PENDING` → **404**. Continuing an upload takes the same event permission as starting one, otherwise **403**.
+- `confirm` on a multipart photo that was never completed → `HeadObject` finds no object → `MISSING`; the slot is released and the upload aborted. `complete` is for multipart uploads, `confirm` for single-PUT slots.
+
+**Why the server holds the ETags.** S3 needs each part's ETag to assemble the object. Making the client collect and resend them means every client must persist them across restarts or lose the upload; `ListParts` gives the server the same list, with sizes, for one S3 call per completion and the `s3:ListMultipartUploadParts` permission. It also lets the server check the layout against what was planned without trusting the request.
+
+**Cleanup.** Parts of an upload that is never completed are invisible to `ListObjectsV2` (the orphan reconciler never sees them) but are billed. Three things bound that: the bucket's lifecycle rule aborts incomplete multipart uploads after one day (`infra/main.tf`), the stale-`PENDING` sweeper (§10) aborts the upload before deleting the row, and every path that releases a slot (`DELETE`, a rejected confirm, an expired upload) aborts first. IAM needs `s3:AbortMultipartUpload` and `s3:ListMultipartUploadParts` on the bucket objects on top of what single PUTs need.
+
 ---
 
 ## 2. Previewing an event's photos (pagination)
@@ -126,6 +150,9 @@ model Photo {
   contentType String
   sizeBytes   Int
   status      PhotoStatus @default(PENDING)
+  // Set while a multipart upload is open, cleared once READY; null for single PUTs.
+  multipartUploadId      String?
+  multipartPartSizeBytes Int?
   createdAt   DateTime    @default(now())
 
   @@index([eventId, status, createdAt])
@@ -146,8 +173,9 @@ Composite index supports the paginated list query (`WHERE eventId = ? AND status
 `DELETE /photos/:photoId`
 
 1. Verify caller can delete the photo (CASL: organizer any, uploader own).
-2. Delete S3 object.
-3. Delete DB row.
+2. Abort the multipart upload, if the row has one open.
+3. Delete S3 object.
+4. Delete DB row.
 
 Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3 fails after step 2 succeeds, we have a row pointing at nothing — list still works (presigned URL would 404 on read, edge case to handle later).
 
@@ -166,20 +194,22 @@ The order is the reverse of the single-photo delete, on purpose. A manual delete
 
 ## 6. Edge cases handled in v1
 
-| Case                                                            | Mitigation                                                                                                                                                                                    |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h (§10).                                                                                      |
-| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING and deletes the row; the quota is released immediately.                                                                                    |
-| Wrong contentType / oversize file                               | `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 rejects the upload. `HeadObject` re-verifies at confirm; a mismatch deletes the object and row.                        |
-| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                                                                            |
-| Someone else's photoId in a confirm call                        | Confirm only considers the caller's own rows; other ids report NOT_FOUND and are never released.                                                                                              |
-| Presigning fails after the quota reservation                    | The batch's rows are deleted again before the error is returned, so no quota is held for URLs the client never received.                                                                      |
-| Uploader leaves or is removed from the event mid-upload         | They can no longer confirm, but `DELETE /photos/:photoId` still works for their own PENDING slots; otherwise the sweeper releases them.                                                       |
-| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows; the objects of every photo of the event are purged right after the commit (§5). Anything that fails, or lands later, is an orphan for the reconciler (§11). |
-| App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                                                                                      |
-| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                                                                                        |
-| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9).                                                          |
-| Presigned URL leaked                                            | TTL 1h, limited to one key, content type, and length. Worst case: attacker uploads a file of exactly the declared shape to one key the owner already reserved.                                |
+| Case                                                            | Mitigation                                                                                                                                                                                               |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h (§10).                                                                                                 |
+| Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING and deletes the row; the quota is released immediately.                                                                                               |
+| Wrong contentType / oversize file                               | `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 rejects the upload. `HeadObject` re-verifies at confirm; a mismatch deletes the object and row.                                   |
+| Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                                                                                       |
+| Someone else's photoId in a confirm call                        | Confirm only considers the caller's own rows; other ids report NOT_FOUND and are never released.                                                                                                         |
+| Presigning fails after the quota reservation                    | The batch's rows are deleted again before the error is returned, so no quota is held for URLs the client never received.                                                                                 |
+| Uploader leaves or is removed from the event mid-upload         | They can no longer confirm, but `DELETE /photos/:photoId` still works for their own PENDING slots; otherwise the sweeper releases them.                                                                  |
+| Event deleted with pending uploads                              | `onDelete: Cascade` removes rows; the objects of every photo of the event are purged right after the commit (§5). Anything that fails, or lands later, is an orphan for the reconciler (§11).            |
+| App killed mid-upload                                           | Single PUT: the OS background uploader resumes, and the URL TTL is 1h to give it room. Multipart: `GET /photos/:photoId/multipart-upload` says which parts landed; only the rest are re-sent.            |
+| Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                                                                                                   |
+| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9).                                                                     |
+| Presigned URL leaked                                            | TTL 1h, limited to one key, content type, and length (one part's length for a multipart URL). Worst case: attacker uploads a file of exactly the declared shape to one key the owner already reserved.   |
+| Multipart upload started, never completed                       | Parts are billed but invisible to the reconciler. The bucket lifecycle rule aborts the upload after a day; the sweeper aborts it before deleting the row; `DELETE /photos/:photoId` aborts it on demand. |
+| Multipart upload expired under the client                       | S3 answers `NoSuchUpload`; the API releases the slot and returns 410, and the client starts a new upload.                                                                                                |
 
 ---
 
@@ -190,7 +220,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 ### Server-side
 
 - **S3 Event Notifications** for confirm. Replace client `/confirm` with EventBridge → API webhook → flip READY. More reliable but requires infra.
-- **Multipart upload** for files >5MB. Lets uploads resume after network drops. Worth it once average photo size grows.
+- ~~**Multipart upload** for files >5MB. Lets uploads resume after network drops.~~ Implemented for files of 5 MiB and more (§1).
 - **Async processing queue** (SQS) for any post-upload work (EXIF strip, virus scan, ML tagging).
 - **S3 lifecycle rule** to auto-delete `pending/*` keys after 24h. One-time bucket config, no code. (Could ship as part of v1 if we add a `pending/` prefix.)
 - **Idempotency keys** on `/upload-urls` so retried requests don't mint duplicate rows.
@@ -238,6 +268,7 @@ In order of implementation:
 - [x] **Storage limit grants** — internal `PhotoStorageService.addStorageLimit()` for billing to raise one account. No HTTP route, no Stripe yet.
 - [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§11).
 - [x] **Signed upload shape** — `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 refuses a body other than the declared one.
+- [x] **Multipart upload** — `POST …/photos/multipart-uploads`, `GET /photos/:photoId/multipart-upload`, `POST /photos/:photoId/multipart-upload/complete`; parts of 5 MiB with per-part signed URLs, server-side `ListParts` + `CompleteMultipartUpload`, abort on delete, sweep, and release (§1).
 - [x] **Rejected slots released at confirm** — MISSING deletes the row, MISMATCHED deletes the object and the row; quota returns immediately instead of after the sweep. Confirm is scoped to the caller's own rows, and uploaders can delete their own PENDING rows without event access.
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **E2E tests** — controller-level, with auth + CASL.
@@ -252,7 +283,6 @@ In order of implementation:
 - Thumbnails
 - CloudFront
 - S3 Event-driven confirm
-- Multipart upload
 
 ---
 
@@ -330,7 +360,7 @@ Upload slots that are never confirmed leave `PENDING` rows (and may leave partia
 - **Schedule:** hourly via `PhotoPendingCleanupScheduler` (`@nestjs/schedule`)
 - **Cutoff:** `PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS` (default **24h**, must exceed the 1h presigned upload TTL)
 - **Batch:** up to `PHOTO_PENDING_CLEANUP_BATCH_SIZE` rows per run (default **100**)
-- **Order:** S3 `DeleteObject` first, then DB row delete (same as manual delete)
+- **Order:** abort the multipart upload if one is open, S3 `DeleteObject`, then DB row delete (same as manual delete)
 - **Disable:** set `PHOTO_PENDING_CLEANUP_ENABLED=false`
 
 Failed per-photo deletes are logged and retried on the next run; successful deletes are not rolled back.

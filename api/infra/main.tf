@@ -105,9 +105,17 @@ resource "aws_iam_user_policy" "api_s3" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Exactly what S3Service calls — nothing else.
-        Effect   = "Allow"
-        Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+        # Exactly what S3Service calls — nothing else. PutObject also covers
+        # opening a multipart upload, uploading its parts, and completing it;
+        # aborting one and listing its parts are separate actions.
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:AbortMultipartUpload",
+          "s3:ListMultipartUploadParts",
+        ]
         Resource = "${aws_s3_bucket.photos.arn}/*"
       },
       {

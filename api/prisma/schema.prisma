@@ -80,15 +80,20 @@ model EventAccess {
 }
 
 model Photo {
-  id          String      @id @default(uuid()) @db.Uuid
-  s3Key       String      @unique @db.VarChar(255)
-  contentType String      @db.VarChar(100)
-  sizeBytes   Int
-  status      PhotoStatus @default(PENDING)
-  addedById   String      @db.Uuid
-  eventId     String      @db.Uuid
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                     String      @id @default(uuid()) @db.Uuid
+  s3Key                  String      @unique @db.VarChar(255)
+  contentType            String      @db.VarChar(100)
+  sizeBytes              Int
+  status                 PhotoStatus @default(PENDING)
+  addedById              String      @db.Uuid
+  eventId                String      @db.Uuid
+  // Set while an S3 multipart upload is in progress and cleared once the
+  // photo is READY. Null for single-PUT uploads. The part size is stored so an
+  // in-flight upload keeps its layout even if the default changes.
+  multipartUploadId      String?     @db.VarChar(2048)
+  multipartPartSizeBytes Int?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
   addedBy User  @relation(fields: [addedById], references: [id])
   event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)

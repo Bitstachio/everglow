@@ -31,7 +31,7 @@ export class PhotoPendingCleanupService {
       where: { status: PhotoStatus.PENDING, createdAt: { lt: cutoff } },
       orderBy: { createdAt: "asc" },
       take: batchSize,
-      select: { id: true, s3Key: true, eventId: true },
+      select: { id: true, s3Key: true, eventId: true, multipartUploadId: true },
     });
 
     let deleted = 0;
@@ -39,6 +39,11 @@ export class PhotoPendingCleanupService {
 
     for (const photo of stalePhotos) {
       try {
+        // Parts of an unfinished multipart upload are billed until the upload
+        // is aborted; the row is the only record of its id, so abort first.
+        if (photo.multipartUploadId) {
+          await this.s3Service.abortMultipartUpload({ key: photo.s3Key, uploadId: photo.multipartUploadId });
+        }
         await this.s3Service.deleteObject(photo.s3Key);
         await this.prisma.photo.delete({ where: { id: photo.id } });
         deleted += 1;

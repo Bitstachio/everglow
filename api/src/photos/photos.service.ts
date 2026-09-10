@@ -39,6 +39,16 @@ export interface PhotoPage {
   nextCursor: string | null;
 }
 
+/** What releasing an upload slot needs: the row, and the multipart upload to abort if one is open. */
+export type ReleasableSlot = Pick<Photo, "id" | "s3Key" | "multipartUploadId">;
+
+export interface SlotReleaseContext {
+  event: string;
+  eventId: string;
+  callerId: string;
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class PhotosService {
   constructor(
@@ -61,16 +71,28 @@ export class PhotosService {
     return event;
   }
 
-  async createUploadSlots(eventId: string, callerId: string, files: UploadFileDto[]): Promise<UploadSlot[]> {
+  /**
+   * Loads the event and checks the caller may add photos to it. Every step of
+   * an upload runs this, since finishing one takes the same right as starting
+   * it; `forbidden` names the step in the 403.
+   */
+  async assertCanUploadToEvent(
+    eventId: string,
+    callerId: string,
+    forbidden: (eventId: string) => string,
+  ): Promise<void> {
     const event = await this.findEventForCaller(eventId, callerId);
 
-    // Check if the caller is authorized to upload photos to the event.
     const ability = await this.abilityFactory.createForCaller(callerId);
     // The photo does not exist yet, so authorize against a prospective row.
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
     if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId));
+      throw new ForbiddenException(forbidden(eventId));
     }
+  }
+
+  async createUploadSlots(eventId: string, callerId: string, files: UploadFileDto[]): Promise<UploadSlot[]> {
+    await this.assertCanUploadToEvent(eventId, callerId, PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN);
 
     // Build a PENDING row per file up front: the S3 key embeds the photo id.
     const rows = files.map((file) => {
@@ -108,8 +130,8 @@ export class PhotosService {
       // No URL reached the client, so nothing can ever land on these keys.
       // Release the rows now instead of letting them hold quota until the
       // stale-PENDING sweeper gets to them.
-      await this.releaseSlots(
-        rows.map((row) => row.id),
+      await this.releaseUploadSlots(
+        rows.map((row) => ({ id: row.id, s3Key: row.s3Key, multipartUploadId: null })),
         { event: "photo.upload_slots.presign_failed", eventId, callerId },
       );
       throw error;
@@ -123,12 +145,28 @@ export class PhotosService {
    * thrown: the sweeper reclaims whatever is left, and the caller's own error
    * (if any) is the one worth surfacing.
    */
-  private async releaseSlots(
-    photoIds: string[],
-    context: { event: string; eventId: string; callerId: string; [key: string]: unknown },
-  ): Promise<number> {
-    if (photoIds.length === 0) return 0;
+  async releaseUploadSlots(slots: ReleasableSlot[], context: SlotReleaseContext): Promise<number> {
+    if (slots.length === 0) return 0;
 
+    // An open multipart upload keeps its parts billed until it is aborted, and
+    // the row is the only record of its id, so abort before the row goes. A
+    // failed abort is left to the bucket's lifecycle rule.
+    await Promise.all(
+      slots
+        .flatMap((slot) => (slot.multipartUploadId ? [{ slot, uploadId: slot.multipartUploadId }] : []))
+        .map(async ({ slot, uploadId }) => {
+          try {
+            await this.s3Service.abortMultipartUpload({ key: slot.s3Key, uploadId });
+          } catch {
+            this.logger.warn(
+              { event: "photo.multipart.abort_failed", photoId: slot.id, eventId: context.eventId },
+              "Multipart upload could not be aborted; the bucket lifecycle rule will expire it",
+            );
+          }
+        }),
+    );
+
+    const photoIds = slots.map((slot) => slot.id);
     try {
       const { count } = await this.prisma.photo.deleteMany({
         where: { id: { in: photoIds }, status: PhotoStatus.PENDING },
@@ -145,14 +183,8 @@ export class PhotosService {
   }
 
   async confirmUploads(eventId: string, callerId: string, photoIds: string[]): Promise<ConfirmResult[]> {
-    const event = await this.findEventForCaller(eventId, callerId);
-
     // Confirming is part of the upload flow, so it requires the same permission as minting upload slots.
-    const ability = await this.abilityFactory.createForCaller(callerId);
-    const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
-    if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(eventId));
-    }
+    await this.assertCanUploadToEvent(eventId, callerId, PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN);
 
     const uniqueIds = [...new Set(photoIds)];
     // Only the caller's own slots: a photoId minted for someone else is not
@@ -161,22 +193,36 @@ export class PhotosService {
     const photos = await this.prisma.photo.findMany({
       where: { id: { in: uniqueIds }, eventId, addedById: callerId },
     });
-    const photosById = new Map(photos.map((photo) => [photo.id, photo]));
 
+    const verdicts = await this.verifyUploads(photos, { eventId, callerId });
+    const statusById = new Map(verdicts.map((verdict) => [verdict.photoId, verdict.status]));
+    return uniqueIds.map((photoId) => ({
+      photoId,
+      status: statusById.get(photoId) ?? CONFIRM_PHOTO_STATUSES.NOT_FOUND,
+    }));
+  }
+
+  /**
+   * Checks the object behind each row against what was declared and settles
+   * the row: READY when it matches, otherwise the slot is released (see
+   * releaseRejectedSlots). Rows already READY pass through unchanged, which is
+   * what makes confirming twice harmless. Callers have authorised the caller
+   * for the event and loaded only that caller's rows.
+   */
+  async verifyUploads(photos: Photo[], context: { eventId: string; callerId: string }): Promise<ConfirmResult[]> {
     const verifiedIds: string[] = [];
-    const missingIds: string[] = [];
+    const missing: Photo[] = [];
     const mismatched: Photo[] = [];
     const results = await Promise.all(
-      uniqueIds.map(async (photoId): Promise<ConfirmResult> => {
-        const photo = photosById.get(photoId);
-        if (!photo) return { photoId, status: CONFIRM_PHOTO_STATUSES.NOT_FOUND };
+      photos.map(async (photo): Promise<ConfirmResult> => {
+        const photoId = photo.id;
         // Idempotent: re-confirming an already verified photo is a no-op.
         if (photo.status === PhotoStatus.READY) return { photoId, status: CONFIRM_PHOTO_STATUSES.READY };
 
         // Verify the photo exists and matches the metadata.
         const head = await this.s3Service.headObject(photo.s3Key);
         if (!head.exists) {
-          missingIds.push(photoId);
+          missing.push(photo);
           return { photoId, status: CONFIRM_PHOTO_STATUSES.MISSING };
         }
         if (head.contentType !== photo.contentType || head.sizeBytes !== photo.sizeBytes) {
@@ -192,15 +238,16 @@ export class PhotosService {
     if (verifiedIds.length > 0) {
       await this.prisma.photo.updateMany({
         where: { id: { in: verifiedIds } },
-        data: { status: PhotoStatus.READY },
+        // A finished multipart upload has no upload id left to abort.
+        data: { status: PhotoStatus.READY, multipartUploadId: null, multipartPartSizeBytes: null },
       });
       this.logger.info(
-        { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verifiedIds.length },
+        { event: "photo.uploads_confirmed", ...context, confirmedCount: verifiedIds.length },
         "Photo uploads confirmed",
       );
     }
 
-    await this.releaseRejectedSlots(eventId, callerId, missingIds, mismatched);
+    await this.releaseRejectedSlots(context.eventId, context.callerId, missing, mismatched);
 
     return results;
   }
@@ -215,19 +262,19 @@ export class PhotosService {
   private async releaseRejectedSlots(
     eventId: string,
     callerId: string,
-    missingIds: string[],
+    missing: Photo[],
     mismatched: Photo[],
   ): Promise<void> {
-    if (missingIds.length === 0 && mismatched.length === 0) return;
+    if (missing.length === 0 && mismatched.length === 0) return;
 
     // A mismatched object exists in S3: remove it before its row, as a manual
     // delete does, so a failed S3 delete leaves the row for the sweeper to retry.
     const objectDeletes = await Promise.allSettled(mismatched.map((photo) => this.s3Service.deleteObject(photo.s3Key)));
-    const releasable = [...missingIds];
+    const releasable: ReleasableSlot[] = [...missing];
     objectDeletes.forEach((outcome, index) => {
       const photo = mismatched[index];
       if (outcome.status === "fulfilled") {
-        releasable.push(photo.id);
+        releasable.push(photo);
         return;
       }
       this.logger.warn(
@@ -236,11 +283,11 @@ export class PhotosService {
       );
     });
 
-    await this.releaseSlots(releasable, {
+    await this.releaseUploadSlots(releasable, {
       event: "photo.upload_slots.rejected",
       eventId,
       callerId,
-      missing: missingIds.length,
+      missing: missing.length,
       mismatched: mismatched.length,
     });
   }
@@ -332,7 +379,12 @@ export class PhotosService {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.DELETE_FORBIDDEN(photoId));
     }
 
-    // S3 first: if it fails the row survives and the delete can be retried.
+    // S3 first: if it fails the row survives and the delete can be retried. An
+    // open multipart upload is aborted the same way, since its parts stay
+    // billed until the bucket's lifecycle rule expires them.
+    if (photo.multipartUploadId) {
+      await this.s3Service.abortMultipartUpload({ key: photo.s3Key, uploadId: photo.multipartUploadId });
+    }
     await this.s3Service.deleteObject(photo.s3Key);
     await this.prisma.photo.delete({ where: { id: photoId } });
 

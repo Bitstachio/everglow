@@ -5,6 +5,10 @@ export const S3_SERVICE_ERRORS = {
   DELETE_BATCH_FAILED: (count: number) => `Failed to delete a batch of ${count} objects from S3`,
   HEAD_FAILED: (key: string) => `Failed to fetch object metadata from S3 at key "${key}"`,
   LIST_FAILED: (prefix: string) => `Failed to list objects in S3 under prefix "${prefix}"`,
+  MULTIPART_CREATE_FAILED: (key: string) => `Failed to start multipart upload for key "${key}"`,
+  MULTIPART_LIST_FAILED: (key: string) => `Failed to list multipart upload parts for key "${key}"`,
+  MULTIPART_COMPLETE_FAILED: (key: string) => `Failed to complete multipart upload for key "${key}"`,
+  MULTIPART_ABORT_FAILED: (key: string) => `Failed to abort multipart upload for key "${key}"`,
   PRESIGN_FAILED: (key: string) => `Failed to generate presigned URL for key "${key}"`,
   CREDENTIALS_NOT_CONFIGURED: () => "AWS credentials are not configured",
 };

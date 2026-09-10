@@ -58,6 +58,22 @@ describe("S3Service presigned URLs (real signer)", () => {
     expect(signedHeaders(url)).toEqual(["content-length", "content-type", "host"]);
   });
 
+  it("signs the part length into an upload-part URL and names the part and upload in the query", async () => {
+    const url = await service.getPresignedUploadPartUrl({
+      key: "photos/a/b/c",
+      uploadId: "upload-1",
+      partNumber: 2,
+      contentLength: 5 * 1024 * 1024,
+      expiresInSeconds: 60,
+    });
+
+    const parsed = new URL(url);
+    expect(parsed.pathname).toBe("/photos/a/b/c");
+    expect(parsed.searchParams.get("partNumber")).toBe("2");
+    expect(parsed.searchParams.get("uploadId")).toBe("upload-1");
+    expect(signedHeaders(url)).toEqual(["content-length", "host"]);
+  });
+
   it("signs only the host into a download URL", async () => {
     const url = await service.getPresignedDownloadUrl({ key: "photos/a/b/c", expiresInSeconds: 900 });
 

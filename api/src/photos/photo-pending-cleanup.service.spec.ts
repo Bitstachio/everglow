@@ -10,7 +10,7 @@ import { PhotoPendingCleanupService } from "./photo-pending-cleanup.service";
 describe("PhotoPendingCleanupService", () => {
   let service: PhotoPendingCleanupService;
   let prisma: DeepMockProxy<PrismaClient>;
-  let s3Service: { deleteObject: jest.Mock };
+  let s3Service: { deleteObject: jest.Mock; abortMultipartUpload: jest.Mock };
 
   const photoId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -18,7 +18,10 @@ describe("PhotoPendingCleanupService", () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
-    s3Service = { deleteObject: jest.fn().mockResolvedValue(undefined) };
+    s3Service = {
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+      abortMultipartUpload: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -53,13 +56,39 @@ describe("PhotoPendingCleanupService", () => {
       where: { status: PhotoStatus.PENDING, createdAt: { lt: expect.any(Date) as Date } },
       orderBy: { createdAt: "asc" },
       take: 100,
-      select: { id: true, s3Key: true, eventId: true },
+      select: { id: true, s3Key: true, eventId: true, multipartUploadId: true },
     });
     expect(s3Service.deleteObject).toHaveBeenCalledWith(s3Key);
+    expect(s3Service.abortMultipartUpload).not.toHaveBeenCalled();
     expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
     expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.photo.delete.mock.invocationCallOrder[0],
     );
+  });
+
+  it("aborts an open multipart upload before deleting the object and the row", async () => {
+    prisma.photo.findMany.mockResolvedValue([{ id: photoId, s3Key, eventId, multipartUploadId: "upload-1" }] as never);
+    prisma.photo.delete.mockResolvedValue({} as never);
+
+    const result = await service.cleanupStalePendingPhotos();
+
+    expect(result).toEqual({ scanned: 1, deleted: 1, failed: 0 });
+    expect(s3Service.abortMultipartUpload).toHaveBeenCalledWith({ key: s3Key, uploadId: "upload-1" });
+    expect(s3Service.abortMultipartUpload.mock.invocationCallOrder[0]).toBeLessThan(
+      s3Service.deleteObject.mock.invocationCallOrder[0],
+    );
+    expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
+  });
+
+  it("leaves the row for the next run when the abort fails", async () => {
+    prisma.photo.findMany.mockResolvedValue([{ id: photoId, s3Key, eventId, multipartUploadId: "upload-1" }] as never);
+    s3Service.abortMultipartUpload.mockRejectedValueOnce(new Error("s3 down"));
+
+    const result = await service.cleanupStalePendingPhotos();
+
+    expect(result).toEqual({ scanned: 1, deleted: 0, failed: 1 });
+    expect(s3Service.deleteObject).not.toHaveBeenCalled();
+    expect(prisma.photo.delete).not.toHaveBeenCalled();
   });
 
   it("returns zero counts when there is nothing to clean up", async () => {
