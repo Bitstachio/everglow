@@ -82,23 +82,23 @@ Use **kebab-case** for source file and folder names under linted app directories
 
 Keep component (and hook/screen) files **flat** under their layer folder. Do not wrap a file in a same-named directory (`button/button.tsx` or `Button/Button.tsx`) or ship an `index.tsx` as the component entry.
 
-| Kind              | File name                         | Export                         |
-| ----------------- | --------------------------------- | ------------------------------ |
-| Screen            | `profile-screen.tsx`              | `ProfileScreen` (default)      |
-| Component         | `edit-profile-modal.tsx`          | `EditProfileModal` (named)     |
-| Hook              | `use-profile-screen.ts`           | `useProfileScreen` (named)     |
-| Test              | `use-edit-profile-form.test.tsx`  | (mirrors the unit under test)  |
-| Shared util       | `axios-instance.ts`               | camelCase named exports        |
+| Kind        | File name                        | Export                        |
+| ----------- | -------------------------------- | ----------------------------- |
+| Screen      | `profile-screen.tsx`             | `ProfileScreen` (default)     |
+| Component   | `edit-profile-modal.tsx`         | `EditProfileModal` (named)    |
+| Hook        | `use-profile-screen.ts`          | `useProfileScreen` (named)    |
+| Test        | `use-edit-profile-form.test.tsx` | (mirrors the unit under test) |
+| Shared util | `axios-instance.ts`              | camelCase named exports       |
 
 ```ts
 // Preferred
-components/ui/button.tsx
-features/profile/components/edit-profile-modal.tsx
+components / ui / button.tsx;
+features / profile / components / edit - profile - modal.tsx;
 
 // Avoid
-components/ui/button/button.tsx
-components/ui/Button/Button.tsx
-components/ui/button/index.tsx
+components / ui / button / button.tsx;
+components / ui / Button / Button.tsx;
+components / ui / button / index.tsx;
 ```
 
 Expo Router keeps its own path conventions in `app/`: `_layout.tsx`, `[id].tsx`, and route groups like `(tabs)/`. Those are allowed; do not rename them to force kebab-case. The flat-file rule does not apply under `app/`.
@@ -124,15 +124,15 @@ Full API error patterns: [API](./api.md#error-handling).
 
 ### ESLint (global)
 
-| Rule                     | What it enforces                                |
-| ------------------------ | ----------------------------------------------- |
-| `func-style`             | No `function` declarations; use `const` + arrow |
-| `prefer-arrow-callback`  | Arrow callbacks in `.map`, `.then`, etc.        |
-| `no-restricted-syntax`   | No `function` expressions; use arrows           |
-| `no-var`                 | `var` is forbidden                              |
-| `prefer-const`           | Use `const` when a binding is never reassigned  |
-| `local/kebab-case-filename` | Kebab-case filenames                          |
-| `local/no-component-folder` | No same-named / `index` component folders     |
+| Rule                        | What it enforces                                |
+| --------------------------- | ----------------------------------------------- |
+| `func-style`                | No `function` declarations; use `const` + arrow |
+| `prefer-arrow-callback`     | Arrow callbacks in `.map`, `.then`, etc.        |
+| `no-restricted-syntax`      | No `function` expressions; use arrows           |
+| `no-var`                    | `var` is forbidden                              |
+| `prefer-const`              | Use `const` when a binding is never reassigned  |
+| `local/kebab-case-filename` | Kebab-case filenames                            |
+| `local/no-component-folder` | No same-named / `index` component folders       |
 
 ## 2. Area conventions
 

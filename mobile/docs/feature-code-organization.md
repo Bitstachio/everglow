@@ -148,12 +148,12 @@ Feature hooks may depend on app-wide context. Avoid the reverse: context should 
 
 File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names).
 
-| Item           | File / folder                         | Export / symbol              |
-| -------------- | ------------------------------------- | ---------------------------- |
-| Feature folder | `profile`, `event-invites`            | —                            |
-| Screen file    | `profile-screen.tsx`                  | `ProfileScreen` (default)    |
-| Screen hook    | `use-profile-screen.ts`               | `useProfileScreen` (named)   |
-| Component file | `edit-profile-modal.tsx`              | `EditProfileModal` (named)   |
+| Item           | File / folder              | Export / symbol            |
+| -------------- | -------------------------- | -------------------------- |
+| Feature folder | `profile`, `event-invites` | —                          |
+| Screen file    | `profile-screen.tsx`       | `ProfileScreen` (default)  |
+| Screen hook    | `use-profile-screen.ts`    | `useProfileScreen` (named) |
+| Component file | `edit-profile-modal.tsx`   | `EditProfileModal` (named) |
 
 ## Imports
 
@@ -178,11 +178,11 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 
 ### Codebase rules (all linted source)
 
-| Rule                      | Scope                                                                                        | What it enforces                          |
-| ------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Arrow functions           | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions |
-| `no-var` / `prefer-const` | Same                                                                                         | `let`/`const` only; prefer `const`        |
-| `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                      |
+| Rule                        | Scope                                                                                        | What it enforces                           |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Arrow functions             | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions  |
+| `no-var` / `prefer-const`   | Same                                                                                         | `let`/`const` only; prefer `const`         |
+| `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                       |
 | `local/no-component-folder` | Same (skips `app/`)                                                                          | No same-named or `index` component folders |
 
 ### Feature rules (additional)

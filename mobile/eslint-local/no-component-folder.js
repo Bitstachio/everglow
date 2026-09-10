@@ -23,8 +23,7 @@ module.exports = {
   meta: {
     type: "problem",
     docs: {
-      description:
-        "Forbid wrapping a source file in a same-named folder (or an index.tsx component folder)",
+      description: "Forbid wrapping a source file in a same-named folder (or an index.tsx component folder)",
     },
     schema: [],
     messages: {

@@ -30,12 +30,12 @@ Do not decide based on how "simple" a form looks. That judgment is unstable: for
 
 Forms map onto the existing feature layers. No new folders.
 
-| Piece                         | Location                                 | Notes                                        |
-| ----------------------------- | ---------------------------------------- | -------------------------------------------- |
-| Zod schema + inferred type    | Same file as the form hook                    | Promote to `schemas.ts` only if shared       |
-| `useForm` call and `onSubmit` | `features/<name>/hooks/use-<form>-form.ts`    | Named export `use<Form>Form`, one hook per form |
-| Rendered fields               | `features/<name>/components/`                 | Presentational; receives `control` as a prop |
-| Mutation                      | `features/<name>/api/mutations.ts`            | Called by the form hook, never the component |
+| Piece                         | Location                                   | Notes                                           |
+| ----------------------------- | ------------------------------------------ | ----------------------------------------------- |
+| Zod schema + inferred type    | Same file as the form hook                 | Promote to `schemas.ts` only if shared          |
+| `useForm` call and `onSubmit` | `features/<name>/hooks/use-<form>-form.ts` | Named export `use<Form>Form`, one hook per form |
+| Rendered fields               | `features/<name>/components/`              | Presentational; receives `control` as a prop    |
+| Mutation                      | `features/<name>/api/mutations.ts`         | Called by the form hook, never the component    |
 
 Form value types are inferred from the Zod schema in the form hook file. Do not hand-write a parallel type, and do not put form shapes in `types.ts` unless multiple files share them.
 
