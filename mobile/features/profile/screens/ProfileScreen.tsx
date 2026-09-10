@@ -12,14 +12,11 @@ const ProfileScreen = () => {
     user,
     isLoading,
     showEditModal,
-    isSubmitting,
-    editForm,
+    form,
+    onSubmit,
     handleLogout,
     handleEditProfile,
-    handleUpdateProfile,
     handleDeleteAccount,
-    handleChangeName,
-    handleChangeEmail,
     handleCancelEdit,
   } = useProfileScreen();
 
@@ -63,11 +60,10 @@ const ProfileScreen = () => {
       <EditProfileModal
         visible={showEditModal}
         isDark={isDark}
-        isSubmitting={isSubmitting}
-        editForm={editForm}
-        onChangeName={handleChangeName}
-        onChangeEmail={handleChangeEmail}
-        onSave={handleUpdateProfile}
+        isSubmitting={form.formState.isSubmitting}
+        isDirty={form.formState.isDirty}
+        control={form.control}
+        onSubmit={onSubmit}
         onCancel={handleCancelEdit}
       />
     </ScrollView>

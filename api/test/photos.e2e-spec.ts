@@ -1,4 +1,4 @@
-import { INestApplication } from "@nestjs/common";
+import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
@@ -8,6 +8,7 @@ import {
   FREE_TIER_STORAGE_LIMIT_BYTES,
   STORAGE_RESERVATION_MAX_ATTEMPTS,
 } from "src/photos/photos.constants";
+import { encodePhotoCursor } from "src/photos/photos.cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -130,6 +131,23 @@ describe("PhotosController (e2e)", () => {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
       expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
+      // The URL is bound to the declared shape, so S3 refuses any other body.
+      expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ contentType: "image/jpeg", contentLength: 1024 }),
+      );
+    });
+
+    it("returns 500 and releases the reserved rows when presigning fails", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
+      prisma.photo.createMany.mockResolvedValue({ count: 1 });
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.getPresignedUploadUrl.mockRejectedValue(new InternalServerErrorException("presign failed"));
+
+      await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(500);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [expect.stringMatching(/^[0-9a-f-]{36}$/) as string] }, status: "PENDING" },
+      });
     });
 
     it("mints slots against the caller's own limit when usage is already above the free tier", async () => {
@@ -248,6 +266,54 @@ describe("PhotosController (e2e)", () => {
         where: { id: { in: [TEST_PHOTO_ID] } },
         data: { status: "READY" },
       });
+      // Only the caller's own slots are considered; an unknown id is not released.
+      expect(prisma.photo.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID, TEST_OTHER_PHOTO_ID] }, eventId: TEST_EVENT_ID, addedById: TEST_USER_ID },
+      });
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 201 with MISSING and releases the slot when nothing was uploaded", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.headObject.mockResolvedValue({ exists: false });
+
+      const response = await request(httpServer)
+        .post(confirmPath())
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID] })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody[]>;
+      expect(body.data).toEqual([{ photoId: TEST_PHOTO_ID, status: "MISSING" }]);
+      expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
+      });
+    });
+
+    it("returns 201 with MISMATCHED and removes the object and the slot when the upload differs", async () => {
+      const photo = buildPhoto({ status: "PENDING" });
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([photo]);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 999 });
+
+      const response = await request(httpServer)
+        .post(confirmPath())
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID] })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody[]>;
+      expect(body.data).toEqual([{ photoId: TEST_PHOTO_ID, status: "MISMATCHED" }]);
+      expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
+      });
     });
 
     it("returns 400 when photoIds contains a non-UUID value", async () => {
@@ -308,7 +374,49 @@ describe("PhotosController (e2e)", () => {
 
       const body = response.body as WrappedResponse<PhotoListBody>;
       expect(body.data.items).toHaveLength(1);
-      expect(body.data.nextCursor).toBe(first.id);
+      expect(body.data.nextCursor).toBe(encodePhotoCursor(first));
+    });
+
+    it("returns 200 and applies a cursor as a keyset filter on the next page", async () => {
+      const last = buildPhoto();
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto({ id: TEST_OTHER_PHOTO_ID })]);
+
+      const response = await request(httpServer)
+        .get(photosListPath())
+        .query({ cursor: encodePhotoCursor(last), limit: 1 })
+        .set(authHeader())
+        .expect(200);
+
+      const body = response.body as WrappedResponse<PhotoListBody>;
+      expect(body.data.items.map((item) => item.id)).toEqual([TEST_OTHER_PHOTO_ID]);
+      expect(body.data.nextCursor).toBeNull();
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              { eventId: TEST_EVENT_ID, status: "READY" },
+              expect.anything(),
+              { OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
+            ],
+          },
+          take: 2,
+        }),
+      );
+    });
+
+    it("returns 400 for a malformed cursor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+
+      const response = await request(httpServer)
+        .get(photosListPath())
+        .query({ cursor: TEST_PHOTO_ID })
+        .set(authHeader())
+        .expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.INVALID_CURSOR);
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
     it("returns 400 for an invalid limit", async () => {
@@ -389,6 +497,25 @@ describe("PhotosController (e2e)", () => {
 
       expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+    });
+
+    it("returns 204 when the uploader cancels their own pending slot after losing event access", async () => {
+      const photo = photoWithAccess([], { status: "PENDING" });
+      prisma.photo.findUnique.mockResolvedValue(photo as never);
+      prisma.photo.delete.mockResolvedValue(buildPhoto({ status: "PENDING" }) as never);
+
+      await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+    });
+
+    it("returns 403 when a former member deletes their own READY photo", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([]) as never);
+
+      await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
+
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
     });
 
     it("returns 403 when a participant deletes someone else's photo", async () => {

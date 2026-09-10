@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  PayloadTooLargeException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -8,6 +14,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
+import { encodePhotoCursor } from "./photos.cursor";
 import {
   buildPhotoS3Key,
   FREE_TIER_STORAGE_LIMIT_BYTES,
@@ -27,6 +34,7 @@ describe("PhotosService", () => {
     deleteObject: jest.Mock;
   };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
+  let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -105,6 +113,7 @@ describe("PhotosService", () => {
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
+    logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -113,10 +122,7 @@ describe("PhotosService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: S3Service, useValue: s3Service },
         { provide: PhotoStorageService, useValue: photoStorageService },
-        {
-          provide: PinoLogger,
-          useValue: { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
-        },
+        { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
 
@@ -225,6 +231,7 @@ describe("PhotosService", () => {
         expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith({
           key: rows[0].s3Key,
           contentType: files[0].contentType,
+          contentLength: files[0].sizeBytes,
           expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
         });
         // URLs are minted only after the reservation has committed.
@@ -235,9 +242,55 @@ describe("PhotosService", () => {
     );
   });
 
+  describe("createUploadSlots when presigning fails", () => {
+    const presignError = new Error("presign down");
+
+    const reservedIds = () => {
+      const [, rows] = photoStorageService.reserveUploadBytes.mock.calls[0] as [string, { id: string }[]];
+      return rows.map((row) => row.id);
+    };
+
+    beforeEach(() => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
+      s3Service.getPresignedUploadUrl.mockRejectedValue(presignError);
+    });
+
+    it("releases the reserved PENDING rows and rethrows", async () => {
+      prisma.photo.deleteMany.mockResolvedValue({ count: files.length });
+
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBe(presignError);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: reservedIds() }, status: "PENDING" },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "photo.upload_slots.presign_failed", released: files.length, audit: true }),
+        expect.any(String),
+      );
+    });
+
+    it("still rethrows the presign error when the release itself fails", async () => {
+      prisma.photo.deleteMany.mockRejectedValue(new Error("db down"));
+
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBe(presignError);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "photo.upload_slots.presign_failed", photoIds: reservedIds() }),
+        expect.any(String),
+      );
+    });
+  });
+
   describe("confirmUploads", () => {
     const photoId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
     const otherPhotoId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
+    const releaseOf = (...ids: string[]) => ({ where: { id: { in: ids }, status: "PENDING" } });
+
+    beforeEach(() => {
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+    });
 
     it("throws NotFoundException when the event does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
@@ -255,7 +308,7 @@ describe("PhotosService", () => {
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
-    it("reports NOT_FOUND for photo ids that are not in the event", async () => {
+    it("reports NOT_FOUND for photo ids that are not the caller's pending uploads in the event", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([]);
@@ -263,8 +316,13 @@ describe("PhotosService", () => {
       const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
       expect(results).toEqual([{ photoId, status: "NOT_FOUND" }]);
+      // Scoped to the caller's own rows: another member's slot is neither confirmed nor released.
+      expect(prisma.photo.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [photoId] }, eventId, addedById: callerId },
+      });
       expect(s3Service.headObject).not.toHaveBeenCalled();
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
     });
 
     it("reports READY without re-verifying photos that are already READY", async () => {
@@ -279,7 +337,7 @@ describe("PhotosService", () => {
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
     });
 
-    it("reports MISSING when the object is not in S3 and leaves the row PENDING", async () => {
+    it("reports MISSING and releases the slot when the object is not in S3", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
@@ -289,12 +347,27 @@ describe("PhotosService", () => {
 
       expect(results).toEqual([{ photoId, status: "MISSING" }]);
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      // Nothing was uploaded, so there is no object to remove: only the row goes.
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(photoId));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "photo.upload_slots.rejected",
+          eventId,
+          callerId,
+          missing: 1,
+          mismatched: 0,
+          released: 1,
+          audit: true,
+        }),
+        expect.any(String),
+      );
     });
 
     it.each([
       ["contentType", { contentType: "image/png", sizeBytes: 1024 }],
       ["sizeBytes", { contentType: "image/jpeg", sizeBytes: 999 }],
-    ])("reports MISMATCHED when the uploaded object differs in %s", async (_field, head) => {
+    ])("reports MISMATCHED and removes the object and the slot when the upload differs in %s", async (_field, head) => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
@@ -304,6 +377,62 @@ describe("PhotosService", () => {
 
       expect(results).toEqual([{ photoId, status: "MISMATCHED" }]);
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      // Object first, then the row, same order as a manual delete.
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, photoId));
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(photoId));
+      expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.photo.deleteMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("keeps the row for the sweeper when a mismatched object cannot be deleted", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 999 });
+      s3Service.deleteObject.mockRejectedValueOnce(new Error("s3 down"));
+
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
+
+      expect(results).toEqual([{ photoId, status: "MISMATCHED" }]);
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "photo.upload_rejected.object_retained", photoId, eventId, callerId }),
+        expect.any(String),
+      );
+    });
+
+    it("releases only the rejected slots of a mixed batch", async () => {
+      const mismatchedPhotoId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([
+        buildPhoto(photoId),
+        buildPhoto(otherPhotoId),
+        buildPhoto(mismatchedPhotoId, { contentType: "image/png" }),
+      ]);
+      s3Service.headObject.mockImplementation((key: string) => {
+        if (key.endsWith(photoId)) return Promise.resolve({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+        if (key.endsWith(otherPhotoId)) return Promise.resolve({ exists: false });
+        return Promise.resolve({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+      });
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+      prisma.photo.deleteMany.mockResolvedValue({ count: 2 });
+
+      const results = await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId, mismatchedPhotoId]);
+
+      expect(results).toEqual([
+        { photoId, status: "READY" },
+        { photoId: otherPhotoId, status: "MISSING" },
+        { photoId: mismatchedPhotoId, status: "MISMATCHED" },
+      ]);
+      expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: [photoId] } },
+        data: { status: "READY" },
+      });
+      expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, mismatchedPhotoId));
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId, mismatchedPhotoId));
     });
 
     it("flips verified photos to READY and reports per-photo results for a mixed batch", async () => {
@@ -326,6 +455,20 @@ describe("PhotosService", () => {
         where: { id: { in: [photoId] } },
         data: { status: "READY" },
       });
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId));
+    });
+
+    it("touches no rows beyond the READY flip when every photo verifies", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.confirmUploads(eventId, callerId, [photoId]);
+
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
     });
 
     it("deduplicates repeated photo ids in the request", async () => {
@@ -405,21 +548,45 @@ describe("PhotosService", () => {
       const page = await service.listPhotos(eventId, callerId, { limit: 2 });
 
       expect(page.items).toHaveLength(2);
-      expect(page.nextCursor).toBe(photos[1].id);
+      // The cursor is the keyset of the last item on the page, not its id.
+      expect(page.nextCursor).toBe(encodePhotoCursor(photos[1]));
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(2);
     });
 
-    it("passes the cursor to Prisma keyset pagination, skipping the cursor row", async () => {
+    it("applies the cursor as a (createdAt, id) keyset filter rather than a Prisma cursor", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
       prisma.photo.findMany.mockResolvedValue([]);
-      const cursor = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+      const last = { createdAt: new Date("2026-06-10T12:00:00.500Z"), id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee" };
 
-      await service.listPhotos(eventId, callerId, { cursor, limit: 10 });
+      await service.listPhotos(eventId, callerId, { cursor: encodePhotoCursor(last), limit: 10 });
 
       expect(prisma.photo.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ cursor: { id: cursor }, skip: 1, take: 11 }),
+        expect.objectContaining({
+          where: {
+            AND: [
+              { eventId, status: "READY" },
+              expect.anything(),
+              { OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
+            ],
+          },
+          take: 11,
+        }),
       );
+      // No Prisma cursor: the page must not depend on the cursor row still existing.
+      const [args] = prisma.photo.findMany.mock.calls[0];
+      expect(args).not.toHaveProperty("cursor");
+      expect(args).not.toHaveProperty("skip");
+    });
+
+    it("rejects a malformed cursor with 400 before querying", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+
+      await expect(service.listPhotos(eventId, callerId, { cursor: "not-a-cursor" })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
     it("denies access when the caller has not completed onboarding", async () => {

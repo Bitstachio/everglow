@@ -68,6 +68,9 @@ export type CreateUploadUrlsDto = {
 
 export type ConfirmPhotoResultDto = {
   photoId: string;
+  /**
+   * READY: the object was verified and the photo is now visible. MISSING: no object was uploaded; the slot has been released, mint a new one. MISMATCHED: the object differs from the declared size or type; it and the slot have been removed, mint a new one. NOT_FOUND: not a pending upload of the caller in this event.
+   */
   status: "READY" | "MISSING" | "MISMATCHED" | "NOT_FOUND";
 };
 
@@ -90,11 +93,9 @@ export type PhotoResponseDto = {
 export type PhotoListResponseDto = {
   items: Array<PhotoResponseDto>;
   /**
-   * Pass as ?cursor= to fetch the next page
+   * Opaque cursor for the next page; pass it as ?cursor=. Null on the last page.
    */
-  nextCursor: {
-    [key: string]: unknown;
-  } | null;
+  nextCursor: string | null;
 };
 
 export type EventResponseDto = {
@@ -343,7 +344,7 @@ export type PhotosControllerListPhotosData = {
   };
   query?: {
     /**
-     * ID of the last photo from the previous page
+     * Opaque cursor: the nextCursor value from the previous page. Omit for the first page.
      */
     cursor?: string;
     limit?: number;

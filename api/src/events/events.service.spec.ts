@@ -5,6 +5,7 @@ import { AccessLevel, Event, EventAccess, Prisma, PrismaClient } from "generated
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
@@ -24,6 +25,7 @@ const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput 
 describe("EventsService", () => {
   let service: EventsService;
   let prisma: DeepMockProxy<PrismaClient>;
+  let photoPurgeService: { purgeObjects: jest.Mock };
   let logger: {
     setContext: jest.Mock;
     info: jest.Mock;
@@ -241,6 +243,8 @@ describe("EventsService", () => {
       debug: jest.fn(),
     };
 
+    photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EventsService,
@@ -249,6 +253,7 @@ describe("EventsService", () => {
           provide: PrismaService,
           useValue: prisma,
         },
+        { provide: PhotoPurgeService, useValue: photoPurgeService },
         {
           provide: PinoLogger,
           useValue: logger,
@@ -259,6 +264,9 @@ describe("EventsService", () => {
     service = module.get<EventsService>(EventsService);
 
     prisma.user.findUnique.mockResolvedValue(userWithDetails);
+    // Interactive transactions run their callback against the same mock client.
+    prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    prisma.photo.findMany.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -1085,8 +1093,50 @@ describe("EventsService", () => {
       expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
       expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: eventId } });
       expect(logger.info).toHaveBeenCalledWith(
-        { event: "event.deleted", eventId, callerId, audit: true },
+        { event: "event.deleted", eventId, callerId, photoCount: 0, audit: true },
         "Event deleted",
+      );
+    });
+
+    it("reads the photo keys and deletes the event in one transaction, then purges the objects", async () => {
+      const s3Keys = [`photos/${callerId}/${eventId}/a`, `photos/${callerId}/${eventId}/b`];
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.photo.findMany.mockResolvedValue(s3Keys.map((s3Key) => ({ s3Key })) as never);
+      prisma.event.delete.mockResolvedValue(eventCreatedByUser);
+
+      await service.delete(eventId, callerId);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.photo.findMany).toHaveBeenCalledWith({ where: { eventId }, select: { s3Key: true } });
+      // Keys are read before the cascade wipes the rows, and the purge runs after the transaction resolved.
+      expect(prisma.photo.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.event.delete.mock.invocationCallOrder[0],
+      );
+      expect(prisma.event.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        photoPurgeService.purgeObjects.mock.invocationCallOrder[0],
+      );
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledWith(s3Keys, {
+        event: "event.photos.purged",
+        eventId,
+        callerId,
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.deleted", eventId, callerId, photoCount: 2, audit: true },
+        "Event deleted",
+      );
+    });
+
+    it("purges nothing and deletes nothing when the delete transaction fails", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.photo.findMany.mockResolvedValue([{ s3Key: "photos/x" }] as never);
+      prisma.event.delete.mockRejectedValue(new Error("db down"));
+
+      await expect(service.delete(eventId, callerId)).rejects.toThrow("db down");
+
+      expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event: "event.deleted" }),
+        expect.anything(),
       );
     });
 

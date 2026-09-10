@@ -1,20 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FormField } from "@/components/ui/form-field";
+import type { Control } from "react-hook-form";
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, View } from "react-native";
-
-type EditProfileForm = {
-  name: string;
-  email: string;
-};
 
 type EditProfileModalProps = {
   visible: boolean;
   isDark: boolean;
   isSubmitting: boolean;
-  editForm: EditProfileForm;
-  onChangeName: (name: string) => void;
-  onChangeEmail: (email: string) => void;
-  onSave: () => void;
+  isDirty: boolean;
+  control: Control<{ name: string; email: string }>;
+  onSubmit: () => void;
   onCancel: () => void;
 };
 
@@ -22,34 +17,27 @@ export const EditProfileModal = ({
   visible,
   isDark,
   isSubmitting,
-  editForm,
-  onChangeName,
-  onChangeEmail,
-  onSave,
+  isDirty,
+  control,
+  onSubmit,
   onCancel,
 }: EditProfileModalProps) => (
   <Modal visible={visible} animationType="slide" transparent>
     <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
         <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>Edit Profile</Text>
-        <Input
-          testID="profile-edit-name"
-          label="Name"
-          placeholder="Enter your name"
-          value={editForm.name}
-          onChangeText={onChangeName}
-        />
-        <Input
+        <FormField control={control} testID="profile-edit-name" name="name" label="Name" placeholder="Enter your name" />
+        <FormField
+          control={control}
           testID="profile-edit-email"
+          name="email"
           label="Email"
           placeholder="Enter your email"
-          value={editForm.email}
-          onChangeText={onChangeEmail}
           keyboardType="email-address"
           autoCapitalize="none"
         />
         <View style={styles.modalActions}>
-          <Button title="Save" onPress={onSave} isLoading={isSubmitting} disabled={isSubmitting} />
+          <Button title="Save" onPress={onSubmit} isLoading={isSubmitting} disabled={isSubmitting || !isDirty} />
           <View style={styles.modalButtonSpacing} />
           <Button
             testID="profile-edit-cancel"
