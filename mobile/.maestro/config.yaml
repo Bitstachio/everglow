@@ -1,0 +1,3 @@
+# Only discover test flows; keep helpers and generated artifacts out of the suite.
+flows:
+  - "flows/**"

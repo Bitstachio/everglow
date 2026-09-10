@@ -13,6 +13,8 @@ This document is the entry point for how we write TypeScript and React Native co
 | Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
 | API client, React Query, feature `api/`       | [API](./api.md)                                             |
 | Forms (React Hook Form + Zod)                 | [Forms](./forms.md)                                         |
+| Component / hook tests (Jest + RNTL)          | [Testing](./testing.md)                                     |
+| E2E tests (Maestro)                           | [E2E](./e2e.md)                                             |
 | PR review judgments                           | [Code review checklist](./code-review-checklist.md)         |
 
 ## Convention hierarchy
@@ -28,8 +30,9 @@ This document is the entry point for how we write TypeScript and React Native co
 │    → Sections below + targeted ESLint rules                     │
 ├─────────────────────────────────────────────────────────────────┤
 │ 3. Topic conventions (as needed)                                │
-│    Feature structure, API, forms                                │
-│    → feature-code-organization.md, api.md, forms.md             │
+│    Feature structure, API, forms, testing, E2E                  │
+│    → feature-code-organization.md, api.md, forms.md,            │
+│      testing.md, e2e.md                                         │
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. Code review (human judgment)                                 │
 │    Naming quality, whether a screen is thin enough              │
@@ -175,6 +178,8 @@ Lint cannot cover naming quality, whether a mutation invalidates the right keys,
 | A new feature              | [Feature code organization](./feature-code-organization.md) |
 | Feature API / React Query  | [API](./api.md)                                             |
 | A form                     | [Forms](./forms.md)                                         |
+| Component / hook tests     | [Testing](./testing.md)                                     |
+| Mobile E2E / Maestro       | [E2E](./e2e.md)                                             |
 | Reviewing a PR             | Checklist + `npm run lint`                                  |
 
 ## Migrating legacy code

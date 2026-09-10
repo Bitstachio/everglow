@@ -25,6 +25,10 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## End-to-end tests
+
+Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run instructions are in [docs/e2e.md](docs/e2e.md). After installing the Maestro CLI, building the native app (`pnpm ios` / `pnpm android`), and signing in on a simulator/emulator, run `pnpm test:e2e:ios` or `pnpm test:e2e:android` from `mobile/`.
+
 ## Get a fresh project
 
 When you're ready, run:

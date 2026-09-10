@@ -26,9 +26,16 @@ export const EditProfileModal = ({
     <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
         <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>Edit Profile</Text>
-        <FormField control={control} name="name" label="Name" placeholder="Enter your name" />
         <FormField
           control={control}
+          testID="profile-edit-name"
+          name="name"
+          label="Name"
+          placeholder="Enter your name"
+        />
+        <FormField
+          control={control}
+          testID="profile-edit-email"
           name="email"
           label="Email"
           placeholder="Enter your email"
@@ -38,7 +45,13 @@ export const EditProfileModal = ({
         <View style={styles.modalActions}>
           <Button title="Save" onPress={onSubmit} isLoading={isSubmitting} disabled={isSubmitting || !isDirty} />
           <View style={styles.modalButtonSpacing} />
-          <Button title="Cancel" onPress={onCancel} variant="outline" disabled={isSubmitting} />
+          <Button
+            testID="profile-edit-cancel"
+            title="Cancel"
+            onPress={onCancel}
+            variant="outline"
+            disabled={isSubmitting}
+          />
         </View>
       </View>
     </KeyboardAvoidingView>

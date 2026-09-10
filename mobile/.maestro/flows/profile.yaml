@@ -1,0 +1,31 @@
+appId: ${APP_ID}
+name: Profile tab opens and dismisses the edit form
+tags:
+  - smoke
+  - profile
+---
+# Prerequisite: sign in and complete onboarding on this device first.
+# Restart the app while preserving the Auth0 session.
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "tab-profile"
+    timeout: 30000
+- tapOn:
+    id: "tab-profile"
+- assertVisible: "Account Settings"
+- tapOn:
+    id: "profile-edit-button"
+- assertVisible:
+    id: "profile-edit-name"
+- assertVisible:
+    id: "profile-edit-email"
+- tapOn:
+    id: "profile-edit-cancel"
+- assertNotVisible:
+    id: "profile-edit-name"
+- assertNotVisible:
+    id: "profile-edit-email"
+- assertVisible:
+    id: "profile-edit-button"

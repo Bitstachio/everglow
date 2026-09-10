@@ -1,6 +1,7 @@
 # Ignore artifacts:
 build
 coverage
+.maestro/results
 
 # pnpm rewrites the lockfile in its own style on every install, so formatting it
 # here only causes churn between pnpm and Prettier.
