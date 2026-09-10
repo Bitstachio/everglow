@@ -3,7 +3,7 @@ import { getErrorMessage } from "@/lib/api/errors";
 import { useState } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
-import { useEditProfileForm } from "./useEditProfileForm";
+import { useEditProfileForm } from "./use-edit-profile-form";
 
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();

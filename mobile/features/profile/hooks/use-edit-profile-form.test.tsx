@@ -3,7 +3,7 @@ import { FormField } from "@/components/ui/form-field";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { Alert, View } from "react-native";
 import type { UserResponseDto } from "../types";
-import { useEditProfileForm } from "./useEditProfileForm";
+import { useEditProfileForm } from "./use-edit-profile-form";
 
 const mockMutateAsync = jest.fn();
 
