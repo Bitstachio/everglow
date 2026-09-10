@@ -53,6 +53,8 @@ const codebaseConventionRules = {
   ],
   // Filenames only (not directories) so Expo Router `(groups)` stay valid.
   "local/kebab-case-filename": "error",
+  // Blocks Button/Button.tsx and button/button.tsx (and index.tsx wrappers). Skips app/.
+  "local/no-component-folder": "error",
 };
 
 // A feature references its own files relatively, so renaming or extracting the folder never

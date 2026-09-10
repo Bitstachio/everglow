@@ -36,6 +36,7 @@ ESLint enforces these globally. Still verify in review:
 ## Naming
 
 - [ ] Files and folders use kebab-case (`local/kebab-case-filename`)
+- [ ] Component/hook/screen files are flat — no `Name/Name.tsx` or `name/index.tsx` wrappers (`local/no-component-folder`)
 - [ ] Screen hook symbol is `use<ScreenName>` in a kebab-case file (`use-profile-screen.ts` → `useProfileScreen`)
 - [ ] Export identifiers match their role (PascalCase components/screens, camelCase hooks); file names are kebab-case
 - [ ] API key factories and mutation hooks follow [API naming](./api.md#naming)
