@@ -10,6 +10,8 @@ See also:
 - [Feature code organization](./feature-code-organization.md): feature folder structure and layer boundaries
 - [API](./api.md): client, React Query, feature `api/` hooks
 - [Forms](./forms.md): React Hook Form + Zod
+- [Testing](./testing.md): Jest + React Native Testing Library
+- [E2E](./e2e.md): Maestro setup and flows under `.maestro/`
 - `mobile/eslint.config.js`: what lint enforces automatically
 
 ## Codebase conventions
