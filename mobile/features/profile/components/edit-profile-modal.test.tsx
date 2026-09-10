@@ -1,6 +1,6 @@
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { useForm } from "react-hook-form";
-import { EditProfileModal } from "./EditProfileModal";
+import { EditProfileModal } from "./edit-profile-modal";
 
 type ModalProbeProps = {
   visible?: boolean;
