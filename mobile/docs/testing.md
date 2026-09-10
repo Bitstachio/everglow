@@ -6,9 +6,9 @@ This document covers **component and hook tests** in the Everglow mobile app (Je
 
 ## Stack
 
-| Tool | Role |
-| ---- | ---- |
-| Jest (`pnpm test`) | Unit and component test runner |
+| Tool                                   | Role                                             |
+| -------------------------------------- | ------------------------------------------------ |
+| Jest (`pnpm test`)                     | Unit and component test runner                   |
 | `@testing-library/react-native` (RNTL) | Render, query, and interact with React Native UI |
 
 Place `*.test.ts` / `*.test.tsx` next to the file under test (for example, `EditProfileModal.test.tsx` beside `EditProfileModal.tsx`).

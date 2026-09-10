@@ -10,12 +10,12 @@ This document covers end-to-end testing for the Everglow mobile app: what we use
 
 ## Layout
 
-| Path                    | Role                                              |
-| ----------------------- | ------------------------------------------------- |
-| `.maestro/config.yaml`  | Flow discovery (`flows/**`)                       |
-| `.maestro/flows/`       | Runnable YAML tests                               |
-| `.maestro/helpers/`     | Optional reusable subflows (`runFlow`); not standalone |
-| `.maestro/results/`     | Generated reports and debug output (gitignored)   |
+| Path                   | Role                                                   |
+| ---------------------- | ------------------------------------------------------ |
+| `.maestro/config.yaml` | Flow discovery (`flows/**`)                            |
+| `.maestro/flows/`      | Runnable YAML tests                                    |
+| `.maestro/helpers/`    | Optional reusable subflows (`runFlow`); not standalone |
+| `.maestro/results/`    | Generated reports and debug output (gitignored)        |
 
 Keep the Maestro workspace under `mobile/` because it targets this Expo app (bundle IDs, `testID`s, native builds). Needing a running API does not move the suite to the monorepo root.
 
