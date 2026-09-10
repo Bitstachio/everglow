@@ -27,7 +27,7 @@ You can start developing by editing the files inside the **app** directory. This
 
 ## End-to-end tests
 
-Maestro flows live in [`.maestro/`](.maestro/README.md). After installing the Maestro CLI, building the native app, and signing in on a simulator/emulator, run `pnpm test:e2e:ios` or `pnpm test:e2e:android` from `mobile/`. The sample covers opening the Profile tab and dismissing its edit form. See the linked guide for prerequisites and troubleshooting.
+Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run instructions are in [docs/e2e.md](docs/e2e.md). After installing the Maestro CLI, building the native app (`pnpm ios` / `pnpm android`), and signing in on a simulator/emulator, run `pnpm test:e2e:ios` or `pnpm test:e2e:android` from `mobile/`.
 
 ## Get a fresh project
 

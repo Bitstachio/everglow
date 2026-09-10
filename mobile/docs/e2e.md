@@ -1,10 +1,27 @@
-# Maestro E2E tests
+# E2E tests (Maestro)
 
-Keep mobile E2E tests in `mobile/.maestro/`, at the Expo project root. `flows/` contains runnable YAML tests; `config.yaml` controls discovery. Jest component tests stay beside their components.
+This document covers end-to-end testing for the Everglow mobile app: what we use, where flows live, and how to set up a machine to run them. It is not a Maestro tutorial; use the [official Maestro docs](https://docs.maestro.dev/) for flow syntax.
+
+**Convention hierarchy:** E2E work follows [codebase conventions](./code-conventions.md). Flows live under `mobile/.maestro/` next to the Expo app; component tests stay beside their components and use Jest / RNTL (see [Testing](./testing.md)).
+
+**Tool:** [Maestro](https://maestro.dev/) — a separate CLI (not an npm dependency). Flows are YAML under `.maestro/`; `config.yaml` controls discovery.
+
+**Sample flow:** `.maestro/flows/profile.yaml` — Profile tab opens and dismisses the edit form.
+
+## Layout
+
+| Path                    | Role                                              |
+| ----------------------- | ------------------------------------------------- |
+| `.maestro/config.yaml`  | Flow discovery (`flows/**`)                       |
+| `.maestro/flows/`       | Runnable YAML tests                               |
+| `.maestro/helpers/`     | Optional reusable subflows (`runFlow`); not standalone |
+| `.maestro/results/`     | Generated reports and debug output (gitignored)   |
+
+Keep the Maestro workspace under `mobile/` because it targets this Expo app (bundle IDs, `testID`s, native builds). Needing a running API does not move the suite to the monorepo root.
 
 ## Install the CLI
 
-Maestro is a separate CLI, with no npm dependency or native test SDK to add to the app. Install Java 17 or newer, then follow the [official CLI installation guide](https://docs.maestro.dev/maestro-cli/how-to-install-maestro-cli). On macOS:
+Install Java 17 or newer, then follow the [official CLI installation guide](https://docs.maestro.dev/maestro-cli/how-to-install-maestro-cli). On macOS:
 
 ```sh
 curl -fsSL "https://get.maestro.mobile.dev" | MAESTRO_VERSION=2.10.0 bash
