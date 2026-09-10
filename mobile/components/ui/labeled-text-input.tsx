@@ -1,6 +1,6 @@
 import { View, Text } from "react-native";
-import AppTextInput from "../AppTextInput";
-import { ThemedText } from "../../ThemedText/ThemedText";
+import AppTextInput from "./app-text-input";
+import { ThemedText } from "./themed-text";
 
 type LabeledTextInputProps = {
   label: string;

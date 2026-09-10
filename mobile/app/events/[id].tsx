@@ -24,7 +24,7 @@ import {
   getEventParticipants,
   removeUserFromEvent,
 } from "@/lib/event";
-import EditEventModal from "@/features/events/component/EditEventModal/EditEventModal";
+import EditEventModal from "@/features/events/component/edit-event-modal";
 import { useAuth } from "@/context/auth-context";
 import * as ImagePicker from "expo-image-picker";
 import { Photo, getPhotosByEvent, uploadPhoto, deletePhoto } from "@/lib/photo";

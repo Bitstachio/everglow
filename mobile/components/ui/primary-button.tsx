@@ -1,4 +1,4 @@
-import AppButton from "../AppButton";
+import AppButton from "./app-button";
 
 type PrimaryButtonProps = {
   text: string;

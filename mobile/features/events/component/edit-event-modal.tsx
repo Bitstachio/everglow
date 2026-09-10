@@ -1,13 +1,13 @@
-import AppTextInput from "@/components/ui/AppTextInput/AppTextInput";
-import CancelButton from "@/components/ui/AppButton/CancelButton/CancelButton";
-import PrimaryButton from "@/components/ui/AppButton/PrimaryButton/PrimaryButton";
-import { H2 } from "@/components/ui/ThemedText/Heading/Heading";
-import { ThemedText } from "@/components/ui/ThemedText/ThemedText";
+import AppTextInput from "@/components/ui/app-text-input";
+import CancelButton from "@/components/ui/cancel-button";
+import PrimaryButton from "@/components/ui/primary-button";
+import { H2 } from "@/components/ui/heading";
+import { ThemedText } from "@/components/ui/themed-text";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useState } from "react";
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Event } from "../../types";
+import { Event } from "../types";
 
 type EditEventModalProps = {
   visible: boolean;
