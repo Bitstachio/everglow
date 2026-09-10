@@ -183,6 +183,7 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 | Arrow functions           | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions |
 | `no-var` / `prefer-const` | Same                                                                                         | `let`/`const` only; prefer `const`        |
 | `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                      |
+| `local/no-component-folder` | Same (skips `app/`)                                                                          | No same-named or `index` component folders |
 
 ### Feature rules (additional)
 

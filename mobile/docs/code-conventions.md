@@ -80,6 +80,8 @@ export default ProfileScreen;
 
 Use **kebab-case** for source file and folder names under linted app directories. Export identifiers stay PascalCase (components, screens) or camelCase (hooks, helpers).
 
+Keep component (and hook/screen) files **flat** under their layer folder. Do not wrap a file in a same-named directory (`button/button.tsx` or `Button/Button.tsx`) or ship an `index.tsx` as the component entry.
+
 | Kind              | File name                         | Export                         |
 | ----------------- | --------------------------------- | ------------------------------ |
 | Screen            | `profile-screen.tsx`              | `ProfileScreen` (default)      |
@@ -88,7 +90,18 @@ Use **kebab-case** for source file and folder names under linted app directories
 | Test              | `use-edit-profile-form.test.tsx`  | (mirrors the unit under test)  |
 | Shared util       | `axios-instance.ts`               | camelCase named exports        |
 
-Expo Router keeps its own path conventions in `app/`: `_layout.tsx`, `[id].tsx`, and route groups like `(tabs)/`. Those are allowed; do not rename them to force kebab-case.
+```ts
+// Preferred
+components/ui/button.tsx
+features/profile/components/edit-profile-modal.tsx
+
+// Avoid
+components/ui/button/button.tsx
+components/ui/Button/Button.tsx
+components/ui/button/index.tsx
+```
+
+Expo Router keeps its own path conventions in `app/`: `_layout.tsx`, `[id].tsx`, and route groups like `(tabs)/`. Those are allowed; do not rename them to force kebab-case. The flat-file rule does not apply under `app/`.
 
 ### Imports
 
@@ -119,6 +132,7 @@ Full API error patterns: [API](./api.md#error-handling).
 | `no-var`                 | `var` is forbidden                              |
 | `prefer-const`           | Use `const` when a binding is never reassigned  |
 | `local/kebab-case-filename` | Kebab-case filenames                          |
+| `local/no-component-folder` | No same-named / `index` component folders     |
 
 ## 2. Area conventions
 
@@ -203,5 +217,5 @@ When refactoring `events`, gallery, or other pre-profile code:
 
 1. Match `features/profile/` structure and patterns.
 2. Convert `function` declarations to arrow `const` bindings.
-3. Keep file and folder names kebab-case (`local/kebab-case-filename`).
+3. Keep file and folder names kebab-case (`local/kebab-case-filename`), and keep component files flat (`local/no-component-folder`).
 4. Remove the relevant ESLint legacy exemptions in the same PR.
