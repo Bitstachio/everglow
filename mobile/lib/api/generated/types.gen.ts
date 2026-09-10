@@ -81,7 +81,10 @@ export type ConfirmUploadsDto = {
 export type PhotoResponseDto = {
   id: string;
   eventId: string;
-  addedById: string;
+  /**
+   * Who uploaded the photo; null once that account has been deleted and the photo was kept for the event.
+   */
+  addedById: string | null;
   /**
    * Presigned S3 GET URL, valid for a short period
    */
@@ -103,7 +106,10 @@ export type EventResponseDto = {
   title: string;
   description: string | null;
   date: string;
-  creatorId: string;
+  /**
+   * Who created the event; null once that account has been deleted. Not a permission: see accessLevel.
+   */
+  creatorId: string | null;
   /**
    * Shareable invitation link composed from the stored invite token
    */
@@ -180,7 +186,12 @@ export type UsersControllerCompleteOnboardingResponse =
 export type UsersControllerRemoveMeData = {
   body?: never;
   path?: never;
-  query?: never;
+  query?: {
+    /**
+     * What happens to photos the account uploaded into events that outlive it. keep: they stay in the event with no uploader. delete: they are removed everywhere. Uploads still in progress are always discarded.
+     */
+    photos?: "keep" | "delete";
+  };
   url: "/api/v2/users/me";
 };
 
@@ -193,7 +204,7 @@ export type UsersControllerRemoveMeErrors = {
 
 export type UsersControllerRemoveMeResponses = {
   /**
-   * User deleted (empty data envelope at runtime)
+   * Account deleted, or already gone (empty data envelope at runtime). Tokens issued before the deletion are refused from now on.
    */
   204: void;
 };

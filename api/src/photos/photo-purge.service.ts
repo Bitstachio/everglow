@@ -11,8 +11,9 @@ export interface PhotoPurgeResult {
 export interface PhotoPurgeContext {
   /** Dotted event name for the log line, e.g. `event.photos.purged`. */
   event: string;
-  eventId: string;
   callerId: string;
+  /** The event the objects belonged to, when there is a single one. */
+  eventId?: string;
 }
 
 /**

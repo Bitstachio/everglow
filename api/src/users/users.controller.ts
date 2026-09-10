@@ -1,14 +1,17 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
+import { AccountDeletionService } from "./account-deletion.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
+import { DeleteAccountQueryDto } from "./dto/delete-account-query.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { UserStorageResponseDto } from "./dto/user-storage-response.dto";
 import { UserMapper } from "./mappers/user.mapper";
+import { DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY } from "./users.constants";
 import { UsersService } from "./users.service";
 import { PhotoStorageService } from "src/photos/photo-storage.service";
 
@@ -21,6 +24,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly photoStorageService: PhotoStorageService,
+    private readonly accountDeletionService: AccountDeletionService,
   ) {}
 
   @Post("me/onboarding")
@@ -59,9 +63,13 @@ export class UsersController {
 
   @Delete("me")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Delete current user" })
-  @ApiNoContentResponse({ description: "User deleted (empty data envelope at runtime)" })
-  async removeMe(@CurrentUser() user: AuthenticatedUser): Promise<void> {
-    return this.usersService.remove(user.id);
+  @ApiOperation({ summary: "Delete the current user's account" })
+  @ApiNoContentResponse({
+    description:
+      "Account deleted, or already gone (empty data envelope at runtime). " +
+      "Tokens issued before the deletion are refused from now on.",
+  })
+  async removeMe(@CurrentUser() user: AuthenticatedUser, @Query() query: DeleteAccountQueryDto): Promise<void> {
+    await this.accountDeletionService.deleteAccount(user.id, query.photos ?? DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY);
   }
 }

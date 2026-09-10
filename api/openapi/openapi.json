@@ -160,10 +160,25 @@
       },
       "delete": {
         "operationId": "UsersController_removeMe",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "photos",
+            "required": false,
+            "in": "query",
+            "description": "What happens to photos the account uploaded into events that outlive it. keep: they stay in the event with no uploader. delete: they are removed everywhere. Uploads still in progress are always discarded.",
+            "schema": {
+              "default": "keep",
+              "type": "string",
+              "enum": [
+                "keep",
+                "delete"
+              ]
+            }
+          }
+        ],
         "responses": {
           "204": {
-            "description": "User deleted (empty data envelope at runtime)"
+            "description": "Account deleted, or already gone (empty data envelope at runtime). Tokens issued before the deletion are refused from now on."
           },
           "401": {
             "description": "Missing or invalid access token"
@@ -174,7 +189,7 @@
             "access-token": []
           }
         ],
-        "summary": "Delete current user",
+        "summary": "Delete the current user's account",
         "tags": [
           "users"
         ]
@@ -1293,7 +1308,9 @@
           },
           "addedById": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who uploaded the photo; null once that account has been deleted and the photo was kept for the event."
           },
           "url": {
             "type": "string",
@@ -1366,7 +1383,9 @@
           },
           "creatorId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who created the event; null once that account has been deleted. Not a permission: see accessLevel."
           },
           "invitationUrl": {
             "type": "string",

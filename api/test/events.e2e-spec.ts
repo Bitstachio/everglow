@@ -55,7 +55,7 @@ type EventResponseBody = {
   title: string;
   description: string | null;
   date: string;
-  creatorId: string;
+  creatorId: string | null;
   invitationUrl: string;
   createdAt: string;
   updatedAt: string;
