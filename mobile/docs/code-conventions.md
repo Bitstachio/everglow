@@ -35,7 +35,7 @@ This document is the entry point for how we write TypeScript and React Native co
 │      testing.md, e2e.md                                         │
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. Code review (human judgment)                                 │
-│    Naming quality, whether a screen is thin enough              │
+│    Identifier naming quality, whether a screen is thin enough   │
 │    → code-review-checklist.md                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -76,6 +76,33 @@ export default ProfileScreen;
 - Use `let` only when a binding is reassigned.
 - Never use `var`.
 
+### File and folder names
+
+Use **kebab-case** for source file and folder names under linted app directories. Export identifiers stay PascalCase (components, screens) or camelCase (hooks, helpers).
+
+Keep component (and hook/screen) files **flat** under their layer folder. Do not wrap a file in a same-named directory (`button/button.tsx` or `Button/Button.tsx`) or ship an `index.tsx` as the component entry.
+
+| Kind        | File name                        | Export                        |
+| ----------- | -------------------------------- | ----------------------------- |
+| Screen      | `profile-screen.tsx`             | `ProfileScreen` (default)     |
+| Component   | `edit-profile-modal.tsx`         | `EditProfileModal` (named)    |
+| Hook        | `use-profile-screen.ts`          | `useProfileScreen` (named)    |
+| Test        | `use-edit-profile-form.test.tsx` | (mirrors the unit under test) |
+| Shared util | `axios-instance.ts`              | camelCase named exports       |
+
+```ts
+// Preferred
+components / ui / button.tsx;
+features / profile / components / edit - profile - modal.tsx;
+
+// Avoid
+components / ui / button / button.tsx;
+components / ui / Button / Button.tsx;
+components / ui / button / index.tsx;
+```
+
+Expo Router keeps its own path conventions in `app/`: `_layout.tsx`, `[id].tsx`, and route groups like `(tabs)/`. Those are allowed; do not rename them to force kebab-case. The flat-file rule does not apply under `app/`.
+
 ### Imports
 
 Use the `@/` path alias for cross-folder imports:
@@ -97,13 +124,15 @@ Full API error patterns: [API](./api.md#error-handling).
 
 ### ESLint (global)
 
-| Rule                    | What it enforces                                |
-| ----------------------- | ----------------------------------------------- |
-| `func-style`            | No `function` declarations; use `const` + arrow |
-| `prefer-arrow-callback` | Arrow callbacks in `.map`, `.then`, etc.        |
-| `no-restricted-syntax`  | No `function` expressions; use arrows           |
-| `no-var`                | `var` is forbidden                              |
-| `prefer-const`          | Use `const` when a binding is never reassigned  |
+| Rule                        | What it enforces                                |
+| --------------------------- | ----------------------------------------------- |
+| `func-style`                | No `function` declarations; use `const` + arrow |
+| `prefer-arrow-callback`     | Arrow callbacks in `.map`, `.then`, etc.        |
+| `no-restricted-syntax`      | No `function` expressions; use arrows           |
+| `no-var`                    | `var` is forbidden                              |
+| `prefer-const`              | Use `const` when a binding is never reassigned  |
+| `local/kebab-case-filename` | Kebab-case filenames                            |
+| `local/no-component-folder` | No same-named / `index` component folders       |
 
 ## 2. Area conventions
 
@@ -114,7 +143,7 @@ Full API error patterns: [API](./api.md#error-handling).
 - Prefer the profile route pattern:
 
 ```ts
-export { default } from "@/features/profile/screens/ProfileScreen";
+export { default } from "@/features/profile/screens/profile-screen";
 ```
 
 ESLint blocks imports of feature `hooks/`, `components/`, and `api/` (legacy `app/events/**` is exempt until refactor).
@@ -166,7 +195,7 @@ Legacy exemptions (`features/events/**`, `app/events/**`, `features/events/compo
 
 ## 4. Code review
 
-Lint cannot cover naming quality, whether a mutation invalidates the right keys, or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) during PR review.
+Lint covers filename case and many structure rules. It cannot cover identifier naming quality, whether a mutation invalidates the right keys, or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) during PR review.
 
 ## Quick reference
 
@@ -188,4 +217,5 @@ When refactoring `events`, gallery, or other pre-profile code:
 
 1. Match `features/profile/` structure and patterns.
 2. Convert `function` declarations to arrow `const` bindings.
-3. Remove the relevant ESLint legacy exemptions in the same PR.
+3. Keep file and folder names kebab-case (`local/kebab-case-filename`), and keep component files flat (`local/no-component-folder`).
+4. Remove the relevant ESLint legacy exemptions in the same PR.

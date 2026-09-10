@@ -1,7 +1,7 @@
 import { KeyboardAvoidingView, Platform } from "react-native";
 
 import { ThemedView } from "@/components/themed-view";
-import CreateEventForm from "@/features/events/component/CreateEventForm/CreateEventForm";
+import CreateEventForm from "@/features/events/component/create-event-form";
 
 export default function CreateEventScreen() {
   return (

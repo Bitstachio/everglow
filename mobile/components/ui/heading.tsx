@@ -1,4 +1,4 @@
-import { ThemedText } from "../ThemedText";
+import { ThemedText } from "./themed-text";
 
 type HeadingProps = {
   children: string;

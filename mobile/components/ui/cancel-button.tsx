@@ -1,4 +1,4 @@
-import AppButton from "../AppButton";
+import AppButton from "./app-button";
 
 type CancelButtonProps = {
   onPress: () => void;

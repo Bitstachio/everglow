@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { defineConfig } = require("eslint/config");
 const expoConfig = require("eslint-config-expo/flat");
+const localPlugin = require("./eslint-local");
 
 const featuresDir = path.join(__dirname, "features");
 const featureNames = fs.existsSync(featuresDir)
@@ -50,6 +51,10 @@ const codebaseConventionRules = {
       message: "Use an arrow function instead of the function keyword.",
     },
   ],
+  // Filenames only (not directories) so Expo Router `(groups)` stay valid.
+  "local/kebab-case-filename": "error",
+  // Blocks Button/Button.tsx and button/button.tsx (and index.tsx wrappers). Skips app/.
+  "local/no-component-folder": "error",
 };
 
 // A feature references its own files relatively, so renaming or extracting the folder never
@@ -78,6 +83,9 @@ module.exports = defineConfig([
   },
   {
     files: lintedSourceGlobs,
+    plugins: {
+      local: localPlugin,
+    },
     rules: codebaseConventionRules,
   },
   ...featureSelfImportConfigs,

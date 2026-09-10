@@ -1,8 +1,8 @@
-import { H3 } from "@/components/ui/ThemedText/Heading/Heading";
-import { ThemedText } from "@/components/ui/ThemedText/ThemedText";
+import { H3 } from "@/components/ui/heading";
+import { ThemedText } from "@/components/ui/themed-text";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, TouchableOpacity, View } from "react-native";
-import { Event } from "../../types";
+import { Event } from "../types";
 
 type EventCardProps = {
   event: Event;

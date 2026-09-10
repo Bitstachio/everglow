@@ -32,13 +32,13 @@ mobile/
 ```
 features/profile/
 ├── screens/
-│   └── ProfileScreen.tsx
+│   └── profile-screen.tsx
 ├── hooks/
-│   ├── useProfileScreen.ts
-│   ├── useEditProfileForm.ts
-│   └── useEditProfileForm.test.tsx
+│   ├── use-profile-screen.ts
+│   ├── use-edit-profile-form.ts
+│   └── use-edit-profile-form.test.tsx
 ├── components/
-│   └── EditProfileModal.tsx
+│   └── edit-profile-modal.tsx
 ├── api/
 │   ├── keys.ts
 │   └── mutations.ts
@@ -109,7 +109,7 @@ Expo Router files in `app/` are thin entry points. They should re-export the fea
 
 ```ts
 // app/(tabs)/profile.tsx
-export { default } from "@/features/profile/screens/ProfileScreen";
+export { default } from "@/features/profile/screens/profile-screen";
 ```
 
 Route-specific params, layouts, and navigation guards can live in `app/`, but screens and business logic belong in `features/`.
@@ -120,16 +120,16 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 app/(tabs)/profile.tsx
         │
         ▼
-screens/ProfileScreen.tsx          ← layout + composition
+screens/profile-screen.tsx          ← layout + composition
         │
-        ├── hooks/useProfileScreen.ts      ← modal state, screen actions
+        ├── hooks/use-profile-screen.ts      ← modal state, screen actions
         │         │
-        │         ├── hooks/useEditProfileForm.ts  ← RHF + submit
-        │         ├── api/mutations.ts             ← useMutation hooks
-        │         ├── context/auth                 ← app-wide user state
-        │         └── lib/api/errors               ← user-facing error messages
+        │         ├── hooks/use-edit-profile-form.ts  ← RHF + submit
+        │         ├── api/mutations.ts                ← useMutation hooks
+        │         ├── context/auth                    ← app-wide user state
+        │         └── lib/api/errors                  ← user-facing error messages
         │
-        └── components/EditProfileModal.tsx   ← presentational UI (`control`)
+        └── components/edit-profile-modal.tsx   ← presentational UI (`control`)
 ```
 
 ## Shared folders outside `features/`
@@ -146,11 +146,14 @@ Feature hooks may depend on app-wide context. Avoid the reverse: context should 
 
 ## Naming
 
-| Item           | Convention                          | Example                    |
-| -------------- | ----------------------------------- | -------------------------- |
-| Feature folder | kebab-case or lowercase single word | `profile`, `event-invites` |
-| Screen file    | PascalCase + `Screen`               | `ProfileScreen.tsx`        |
-| Screen hook    | `use` + screen name                 | `useProfileScreen`         |
+File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names).
+
+| Item           | File / folder              | Export / symbol            |
+| -------------- | -------------------------- | -------------------------- |
+| Feature folder | `profile`, `event-invites` | —                          |
+| Screen file    | `profile-screen.tsx`       | `ProfileScreen` (default)  |
+| Screen hook    | `use-profile-screen.ts`    | `useProfileScreen` (named) |
+| Component file | `edit-profile-modal.tsx`   | `EditProfileModal` (named) |
 
 ## Imports
 
@@ -175,10 +178,12 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 
 ### Codebase rules (all linted source)
 
-| Rule                      | Scope                                                                                        | What it enforces                          |
-| ------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Arrow functions           | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions |
-| `no-var` / `prefer-const` | Same                                                                                         | `let`/`const` only; prefer `const`        |
+| Rule                        | Scope                                                                                        | What it enforces                           |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Arrow functions             | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions  |
+| `no-var` / `prefer-const`   | Same                                                                                         | `let`/`const` only; prefer `const`         |
+| `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                       |
+| `local/no-component-folder` | Same (skips `app/`)                                                                          | No same-named or `index` component folders |
 
 ### Feature rules (additional)
 
@@ -204,8 +209,8 @@ Photos/gallery has no `features/` module yet and is not part of this structure.
 
 ### Not enforced by ESLint
 
-Lint cannot cover naming quality or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) during review for everything ESLint misses.
+Lint cannot cover identifier naming quality or how thin a screen really is. Use the [code review checklist](./code-review-checklist.md) during review for everything ESLint misses.
 
 ## Migrating legacy code
 
-When refactoring `events`, gallery, or other pre-profile code, match `features/profile/` and remove the relevant ESLint exemptions in the same PR.
+When refactoring `events`, gallery, or other pre-profile code, match `features/profile/` and remove the relevant ESLint exemptions (`legacyFeatureNames`, `legacyAppRoutePaths`) in the same PR.

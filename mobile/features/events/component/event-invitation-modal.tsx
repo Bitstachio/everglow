@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import { Event } from "../../types";
+import { Event } from "../types";
 
 type EventInvitationModalProps = {
   visible: boolean;
