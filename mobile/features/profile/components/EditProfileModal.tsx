@@ -26,7 +26,13 @@ export const EditProfileModal = ({
     <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
         <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>Edit Profile</Text>
-        <FormField control={control} testID="profile-edit-name" name="name" label="Name" placeholder="Enter your name" />
+        <FormField
+          control={control}
+          testID="profile-edit-name"
+          name="name"
+          label="Name"
+          placeholder="Enter your name"
+        />
         <FormField
           control={control}
           testID="profile-edit-email"
