@@ -1,13 +1,13 @@
-import CancelButton from "@/components/ui/AppButton/CancelButton/CancelButton";
-import PrimaryButton from "@/components/ui/AppButton/PrimaryButton/PrimaryButton";
-import AppTextInput from "@/components/ui/AppTextInput/AppTextInput";
-import { H2 } from "@/components/ui/ThemedText/Heading/Heading";
-import { ThemedText } from "@/components/ui/ThemedText/ThemedText";
+import CancelButton from "@/components/ui/cancel-button";
+import PrimaryButton from "@/components/ui/primary-button";
+import AppTextInput from "@/components/ui/app-text-input";
+import { H2 } from "@/components/ui/heading";
+import { ThemedText } from "@/components/ui/themed-text";
 import { useEffect, useState } from "react";
 import { Modal, View } from "react-native";
-import { useJoinEventModal } from "../../hooks/useJoinEventModal";
-import QRButton from "../QRButton/QRButton";
-import QRScanner from "../QRScanner/QRScanner";
+import { useJoinEventModal } from "../hooks/use-join-event-modal";
+import QRButton from "./qr-button";
+import QRScanner from "./qr-scanner";
 
 type JoinEventModalProps = {
   visible: boolean;

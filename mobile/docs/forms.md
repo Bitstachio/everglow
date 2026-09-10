@@ -191,7 +191,7 @@ React Hook Form's headline optimization (uncontrolled inputs registered by ref) 
 
 Read the RNTL guidance in [Testing](./testing.md) before writing form tests (start with the package `llm-guidelines.md`).
 
-**Reference test:** `features/profile/hooks/useEditProfileForm.test.tsx`.
+**Reference test:** `features/profile/hooks/use-edit-profile-form.test.tsx`.
 
 ### What to assert
 

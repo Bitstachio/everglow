@@ -1,4 +1,4 @@
-import { ThemedText } from "@/components/ui/ThemedText/ThemedText";
+import { ThemedText } from "@/components/ui/themed-text";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
 

@@ -1,9 +1,9 @@
-import { H2 } from "@/components/ui/ThemedText/Heading/Heading";
+import { H2 } from "@/components/ui/heading";
 import { ActivityIndicator, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Event } from "../../types";
-import EventCard from "../EventCard/EventCard";
-import NoEventsBanner from "../NoEventsBanner/NoEventsBanner";
+import { Event } from "../types";
+import EventCard from "./event-card";
+import NoEventsBanner from "./no-events-banner";
 
 type EventsListProps = {
   title: string;

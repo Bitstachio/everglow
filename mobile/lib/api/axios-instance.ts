@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from "axios";
+import { create, type AxiosInstance } from "axios";
 import { getAccessToken } from "@/lib/auth0";
 import { toApiError } from "@/lib/api/errors";
 
@@ -13,7 +13,7 @@ export const setUnauthorizedHandler = (handler: (() => void) | null): void => {
 };
 
 export const createAxiosInstance = (): AxiosInstance => {
-  const instance = axios.create({
+  const instance = create({
     headers: {
       "Content-Type": "application/json",
     },
