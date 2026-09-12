@@ -5,7 +5,7 @@ import request from "supertest";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { createTestApp } from "./helpers/create-test-app";
 
-describe("AppController (e2e)", () => {
+describe("AppController (integration)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {

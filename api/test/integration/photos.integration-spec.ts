@@ -61,7 +61,7 @@ type PhotoBody = {
 };
 type PhotoListBody = { items: PhotoBody[]; nextCursor: string | null };
 
-describe("PhotosController (e2e)", () => {
+describe("PhotosController (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;

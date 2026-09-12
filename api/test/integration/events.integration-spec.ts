@@ -67,7 +67,7 @@ type ParticipantResponseBody = {
   accessLevel: AccessLevel;
 };
 
-describe("EventsController (e2e)", () => {
+describe("EventsController (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;

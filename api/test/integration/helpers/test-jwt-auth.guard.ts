@@ -6,7 +6,7 @@ import { resolveAuthenticatedUser } from "./auth.fixtures";
 export const TEST_AUTH_HEADER = "authorization";
 
 /**
- * Lightweight JWT stand-in for E2E tests.
+ * Lightweight JWT stand-in for HTTP integration tests.
  * Maps known Bearer tokens to authenticated users; defaults to the primary test user.
  */
 @Injectable()
