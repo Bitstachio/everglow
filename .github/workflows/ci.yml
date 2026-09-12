@@ -73,7 +73,7 @@ jobs:
         background: true
       - wait-all:
 
-      - run: npm run test:e2e
+      - run: npm run test:integration
 
       - run: npm run build
 
