@@ -20,7 +20,8 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "types": ["jest", "node"]
   },
   // scripts/ is a separate CommonJS project (scripts/tsconfig.json); checking
   // it under this config's nodenext rules produces false module errors
