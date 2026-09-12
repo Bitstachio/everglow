@@ -14,6 +14,7 @@ import photosConfig from "./config/photos.config";
 import { EventsModule } from "./events/events.module";
 import { PhotosModule } from "./photos/photos.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { Auth0ManagementModule } from "./sdk/auth0/auth0-management.module";
 import { S3Module } from "./sdk/aws/s3/s3.module";
 import { UsersModule } from "./users/users.module";
 
@@ -35,6 +36,7 @@ import { UsersModule } from "./users/users.module";
     }),
     EventsModule,
     S3Module,
+    Auth0ManagementModule,
     PhotosModule,
   ],
   controllers: [AppController],

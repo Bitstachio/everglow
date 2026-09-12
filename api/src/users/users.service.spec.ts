@@ -1,19 +1,21 @@
 import { ConflictException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
-import { PrismaClient } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
+import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
 import { UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 describe("UsersService", () => {
   let service: UsersService;
   let prisma: DeepMockProxy<PrismaClient>;
+  let auth0Management: DeepMockProxy<Auth0ManagementService>;
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const providerSub = "auth0|abc123";
@@ -51,6 +53,7 @@ describe("UsersService", () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    auth0Management = mockDeep<Auth0ManagementService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -58,6 +61,10 @@ describe("UsersService", () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: Auth0ManagementService,
+          useValue: auth0Management,
         },
         {
           provide: PinoLogger,
@@ -287,9 +294,17 @@ describe("UsersService", () => {
   });
 
   describe("remove", () => {
-    it("deletes the user when they exist", async () => {
+    let tx: DeepMockProxy<Prisma.TransactionClient>;
+
+    beforeEach(() => {
+      tx = mockDeep<Prisma.TransactionClient>();
+      prisma.$transaction.mockImplementation(async (fn) => fn(tx));
+    });
+
+    it("deletes the user and Auth0 record when they exist", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
-      prisma.user.delete.mockResolvedValue(userWithDetails);
+      tx.user.delete.mockResolvedValue(userWithDetails);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
 
       await service.remove(userId);
 
@@ -297,7 +312,13 @@ describe("UsersService", () => {
         where: { id: userId },
         include: userWithDetailsInclude,
       });
-      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(tx.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(auth0Management.deleteUser).toHaveBeenCalledWith(providerSub);
+      expect(tx.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        auth0Management.deleteUser.mock.invocationCallOrder[0],
+      );
+      expect(prisma.user.delete).not.toHaveBeenCalled();
     });
 
     it("throws NotFoundException when the user does not exist", async () => {
@@ -306,15 +327,31 @@ describe("UsersService", () => {
       await expect(service.remove(userId)).rejects.toThrow(
         new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
       );
-      expect(prisma.user.delete).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
     });
 
     it("rethrows unexpected Prisma errors from user.delete", async () => {
       const prismaError = new Error("Foreign key constraint violation");
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
-      prisma.user.delete.mockRejectedValue(prismaError);
+      tx.user.delete.mockRejectedValue(prismaError);
 
       await expect(service.remove(userId)).rejects.toThrow(prismaError);
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("fails the operation and does not commit the user delete when Auth0 deletion fails", async () => {
+      const auth0Error = new Error("Auth0 Management API unavailable");
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      tx.user.delete.mockResolvedValue(userWithDetails);
+      auth0Management.deleteUser.mockRejectedValue(auth0Error);
+
+      await expect(service.remove(userId)).rejects.toThrow(auth0Error);
+
+      expect(tx.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(auth0Management.deleteUser).toHaveBeenCalledWith(providerSub);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      await expect(prisma.$transaction.mock.results[0].value).rejects.toThrow(auth0Error);
     });
   });
 
