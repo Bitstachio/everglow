@@ -35,7 +35,7 @@ type ErrorResponse = {
   };
 };
 
-describe("UsersController (e2e)", () => {
+describe("UsersController (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;

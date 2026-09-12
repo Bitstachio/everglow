@@ -240,7 +240,7 @@ In order of implementation:
 - [x] **Signed upload shape** — `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 refuses a body other than the declared one.
 - [x] **Rejected slots released at confirm** — MISSING deletes the row, MISMATCHED deletes the object and the row; quota returns immediately instead of after the sweep. Confirm is scoped to the caller's own rows, and uploaders can delete their own PENDING rows without event access.
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
-- [x] **E2E tests** — controller-level, with auth + CASL.
+- [x] **Integration tests** — HTTP/controller-level, with auth + CASL (see [Testing](./testing.md)).
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
 - [x] **README update** — implementation status is tracked in this checklist.
 

@@ -2,6 +2,10 @@
 /dist
 /node_modules
 
+# api uses npm (package-lock.json). Ignore accidental pnpm artifacts.
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
 # Logs
 logs
 *.log
