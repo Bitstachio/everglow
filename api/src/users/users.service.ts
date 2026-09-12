@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
+import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
@@ -10,6 +11,7 @@ import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly auth0Management: Auth0ManagementService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(UsersService.name);
@@ -73,9 +75,12 @@ export class UsersService {
   }
 
   async remove(id: string): Promise<void> {
-    await this.getById(id);
+    const user = await this.getById(id);
 
-    await this.prisma.user.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.delete({ where: { id } });
+      await this.auth0Management.deleteUser(user.providerSub);
+    });
 
     this.logger.info({ event: "user.account.deleted", userId: id, audit: true }, "User account deleted");
   }
@@ -88,7 +93,7 @@ export class UsersService {
 
     if (existing) return existing;
 
-    // JIT provisioning: create user record on first-ever login.
+    // JIT provisioning: create user record on first-ever login
     const created = await this.prisma.user.create({
       data: { providerSub: sub },
       include: userWithDetailsInclude,
