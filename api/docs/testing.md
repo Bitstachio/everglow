@@ -7,7 +7,7 @@ This document covers **unit** and **integration** tests for the Everglow API (Je
 | Layer           | Where                              | Naming                     | What it exercises                                      | External deps                          |
 | --------------- | ---------------------------------- | -------------------------- | ------------------------------------------------------ | -------------------------------------- |
 | Unit            | Colocated under `src/`             | `*.spec.ts`                | One class or pure function                             | Mocked (Prisma, S3, logger, …)         |
-| Integration     | `test/integration/`                | `*.integration-spec.ts`    | Full Nest app over HTTP (routing, pipes, guards, CASL) | Prisma/Auth/S3 still mocked            |
+| Integration     | `test/integration/`                | `*.integration.spec.ts`    | Full Nest app over HTTP (routing, pipes, guards, CASL) | Prisma/Auth/S3 still mocked            |
 | E2E (planned)   | TBD under `test/`                  | TBD                        | Critical workflows only                                | Real services — **no mocks**           |
 
 ```sh
@@ -40,7 +40,7 @@ Unit tests stay fast and local so feature folders can grow without pulling in th
 
 **Location:** `test/integration/` (not colocated under `src/`).
 
-**Naming:** `*.integration-spec.ts` so they use a separate Jest config (`test/integration/jest-integration.json`) and never run under `npm test`.
+**Naming:** `*.integration.spec.ts` so they use a separate Jest config (`test/integration/jest-integration.json`) and never run under `npm test`.
 
 ### Why “integration” (not E2E)
 
@@ -68,14 +68,14 @@ Feature-owned **unit** specs stay colocated. Shared integration fixtures live in
 
 | Path                                         | Role                                              |
 | -------------------------------------------- | ------------------------------------------------- |
-| `test/integration/*.integration-spec.ts`     | HTTP suites (users, events, photos, app smoke)    |
+| `test/integration/*.integration.spec.ts`     | HTTP suites (users, events, photos, app smoke)    |
 | `test/integration/helpers/create-test-app.ts`| Boots `AppModule`, swaps JWT guard + Prisma mock  |
 | `test/integration/helpers/*fixtures.ts`      | Tokens, users, events, photos payloads            |
 | `test/integration/helpers/test-jwt-auth.guard.ts` | Maps Bearer tokens → test users              |
 | `test/integration/jest-integration.json`     | Jest config for this suite only                   |
 | `test/integration/jest-integration.setup.ts` | Env stubs + Auth0/passport mocks                  |
 
-**Sample:** `users.integration-spec.ts` posts to onboarding/profile routes with `authHeader()`, stubs Prisma return values, and asserts status codes plus the `{ data, meta }` envelope.
+**Sample:** `users.integration.spec.ts` posts to onboarding/profile routes with `authHeader()`, stubs Prisma return values, and asserts status codes plus the `{ data, meta }` envelope.
 
 When a suite needs an extra override (e.g. mock `S3Service`), pass a `configureModule` callback into `createTestApp`.
 
@@ -86,7 +86,7 @@ When a suite needs an extra override (e.g. mock `S3Service`), pass a `configureM
 | You are changing…                         | Prefer                                      |
 | ----------------------------------------- | ------------------------------------------- |
 | Service logic, mappers, abilities, utils  | Unit (`*.spec.ts`)                          |
-| Route contract, authz, validation, wiring | Integration (`*.integration-spec.ts`)       |
+| Route contract, authz, validation, wiring | Integration (`*.integration.spec.ts`)       |
 | Rare, high-value path across real deps    | Future E2E (do not duplicate unit/integration coverage) |
 
 Do not re-assert the same service branches in integration that unit tests already cover in depth. Integration should prove the HTTP boundary and cross-cutting stack.

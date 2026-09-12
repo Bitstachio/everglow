@@ -34,7 +34,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.spec.ts', '**/*.integration-spec.ts'],
+    files: ['**/*.spec.ts'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',
     },
