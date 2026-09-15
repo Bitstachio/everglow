@@ -15,14 +15,15 @@ jest.mock("passport-jwt", () => {
   };
 });
 
+import { UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
+import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { UsersService } from "src/users/users.service";
 import { UserWithDetails } from "src/users/users.types";
 import { JwtPayloadDto } from "./jwt-payload.dto";
 import { JwtStrategy } from "./jwt.strategy";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 describe("JwtStrategy", () => {
   let strategy: JwtStrategy;
@@ -116,6 +117,12 @@ describe("JwtStrategy", () => {
 
       await expect(strategy.validate(payload)).rejects.toThrow(error);
       expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub);
+    });
+
+    it("propagates UnauthorizedException when the identity is tombstoned or deleting", async () => {
+      usersService.resolveByProviderSub.mockRejectedValue(new UnauthorizedException());
+
+      await expect(strategy.validate(payload)).rejects.toThrow(new UnauthorizedException());
     });
   });
 });

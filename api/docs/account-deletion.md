@@ -118,7 +118,7 @@ This is a small **saga / state machine** for dual-store delete. Durable intent l
    (events, memberships, photos, etc. per product rules)
 4. Delete Auth0 user (idempotent: already-gone / 404 counts as success)
 5. Set auth0DeletedAt
-6. Delete the database User row (details cascade; other relations prepped)
+6. In one transaction: upsert DeletedProviderSub tombstone, then delete the User row
 7. Best-effort S3 / other side cleanup (same spirit as event photo purge)
 ```
 
@@ -145,7 +145,7 @@ While flagged:
 
 - Do not treat the user as a normal active account.
 - Do not JIT-provision a fresh life for that identity in a way that undoes deletion intent.
-- In-flight JWTs remain cryptographically valid until they expire even after Auth0 and the row are gone. That is a separate hole from “Auth0 still alive.” We close it with deleted-`providerSub` tombstones on the JIT path; see [auth.md](./auth.md).
+- In-flight JWTs remain cryptographically valid until they expire even after Auth0 and the row are gone. That is a separate hole from “Auth0 still alive.” We close it with deleted-`providerSub` tombstones on the JIT path; see [authentication.md](./authentication.md).
 
 ### Why the flag matters
 

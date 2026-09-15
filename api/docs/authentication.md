@@ -101,14 +101,15 @@ A **tombstone** is a durable record that this `providerSub` belonged to an accou
 
 ### Rules
 
-1. When account deletion removes the `User` row (or as part of that final step), write a tombstone for that `providerSub`.
+1. When account deletion removes the `User` row, write a `DeletedProviderSub` tombstone for that `providerSub` in the same database transaction (tombstone first, then delete).
 2. In `resolveByProviderSub`, **before** create:
-   - if a tombstone exists for `sub` → do not create; reject the request (unauthorized / account gone)
+   - if a live `User` exists with `deletionStartedAt` set → reject with a **generic 401** (same client message as any other unauthorized request; deletion reason stays in server logs only)
    - if a live `User` exists → return it
+   - if a tombstone exists for `sub` → do not create; reject with the same generic 401
    - otherwise → JIT create as today (real first login)
 3. Keep tombstones at least as long as the maximum access-token lifetime we issue (longer is fine and simpler). After that window, an old JWT cannot authenticate anyway.
 
-Mid-deletion rows that still exist (`deletionStartedAt` set) should also be treated as inactive on authenticated paths. That covers the saga window before the hard delete and tombstone. See [account-deletion.md](./account-deletion.md).
+Mid-deletion rows that still exist (`deletionStartedAt` set) are rejected on the resolve path before the hard delete and tombstone. See [account-deletion.md](./account-deletion.md).
 
 ### Re-registration after delete
 
