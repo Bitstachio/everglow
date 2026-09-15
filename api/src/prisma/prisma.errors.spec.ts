@@ -1,5 +1,5 @@
 import { Prisma } from "generated/prisma/client";
-import { isRecordNotFound, isSerializationFailure } from "./prisma.errors";
+import { isRecordNotFound, isSerializationFailure, isUniqueConstraintViolation } from "./prisma.errors";
 
 describe("isSerializationFailure", () => {
   const knownRequestError = (code: string) =>
@@ -98,5 +98,27 @@ describe("isRecordNotFound", () => {
     ["null", null],
   ])("returns false for %s", (_label, error) => {
     expect(isRecordNotFound(error)).toBe(false);
+  });
+});
+
+describe("isUniqueConstraintViolation", () => {
+  const knownRequestError = (code: string) =>
+    new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code, clientVersion: "7.8.0" });
+
+  it("matches the code Prisma raises for a unique / primary-key conflict", () => {
+    expect(isUniqueConstraintViolation(knownRequestError("P2002"))).toBe(true);
+  });
+
+  it("matches it through a wrapping cause chain", () => {
+    expect(isUniqueConstraintViolation(new Error("insert failed", { cause: knownRequestError("P2002") }))).toBe(true);
+  });
+
+  it.each([
+    ["a serialization failure", knownRequestError("P2034")],
+    ["a missing record", knownRequestError("P2025")],
+    ["a plain error", new Error("connection reset")],
+    ["null", null],
+  ])("returns false for %s", (_label, error) => {
+    expect(isUniqueConstraintViolation(error)).toBe(false);
   });
 });

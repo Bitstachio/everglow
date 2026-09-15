@@ -1,6 +1,6 @@
 # Photos — Architecture & v1 Plan
 
-An event has many photos. Photos live in S3; metadata lives in Postgres. The API never proxies image bytes — clients talk to S3 directly using short-lived presigned URLs.
+An event has many photos. Photos live in S3; metadata lives in the application database. The API never proxies image bytes — clients talk to S3 directly using short-lived presigned URLs.
 
 > **2026-08-25:** the intermediate Gallery layer was removed — photos attach directly to events. Paths, schema, and permissions below reflect the current event-scoped design.
 
@@ -178,7 +178,7 @@ The order is the reverse of the single-photo delete, on purpose. A manual delete
 | Event deleted with pending uploads                              | `onDelete: Cascade` removes rows; the objects of every photo of the event are purged right after the commit (§5). Anything that fails, or lands later, is an orphan for the reconciler (§11). |
 | App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                                                                                      |
 | Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                                                                                        |
-| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; Postgres aborts the loser, which retries and eventually gets 409 (see §9).                                                          |
+| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; the database aborts the loser, which retries and eventually gets 409 (see §9).                                                          |
 | Presigned URL leaked                                            | TTL 1h, limited to one key, content type, and length. Worst case: attacker uploads a file of exactly the declared shape to one key the owner already reserved.                                |
 
 ---
@@ -300,11 +300,11 @@ B: SUM → 4.9 GiB → ok → INSERT 200 MiB   (A's rows are not visible yet)
 → 5.3 GiB used, ~300 MiB over quota
 ```
 
-The same interleaving happens across two API instances behind a load balancer. Under `Serializable` isolation Postgres tracks the read/write dependencies between the two transactions (each reads the uploader's usage, each inserts rows the other's read should have seen) and aborts one of them with a serialization failure (SQLSTATE `40001`). The survivor commits; the loser re-runs the whole transaction, re-reads usage, and is rejected with 413 if the survivor used up the room.
+The same interleaving happens across two API instances behind a load balancer. Under `Serializable` isolation the database tracks the read/write dependencies between the two transactions (each reads the uploader's usage, each inserts rows the other's read should have seen) and aborts one of them with a serialization failure (SQLSTATE `40001`). The survivor commits; the loser re-runs the whole transaction, re-reads usage, and is rejected with 413 if the survivor used up the room.
 
-- **Error shapes:** Prisma maps `40001` to `P2034` when a statement inside the callback fails, but a failure raised at `COMMIT` is rethrown as the driver adapter's own error (`{ cause: { kind: "TransactionWriteConflict", originalCode: "40001" } }`). Against Postgres 16 roughly a third of conflicts came back in the second shape, so `PhotoStorageService` recognises both (walking the `cause` chain) before deciding to retry.
+- **Error shapes:** Prisma maps `40001` to `P2034` when a statement inside the callback fails, but a failure raised at `COMMIT` is rethrown as the driver adapter's own error (`{ cause: { kind: "TransactionWriteConflict", originalCode: "40001" } }`). In our measurements roughly a third of conflicts came back in the second shape, so `PhotoStorageService` recognises both (walking the `cause` chain) before deciding to retry.
 - **Retries:** up to `STORAGE_RESERVATION_MAX_ATTEMPTS` (5) attempts with a jittered linear backoff (`STORAGE_RESERVATION_RETRY_DELAY_MS` × attempt, plus up to one delay of jitter). Every lost conflict logs `photo.storage.reservation_conflict` at `warn` with the attempt number.
-- **Giving up:** after the last attempt the request fails with **409 Conflict** (`Storage reservation conflicted with a concurrent upload, please retry`). SSI lets roughly one same-user reservation commit per round, so a burst of N parallel in-quota batches needs about N attempts for the last one; measured against Postgres 16, five attempts cleared bursts of eight without a 409, while three started giving up at four. Beyond that the client can retry the same request.
+- **Giving up:** after the last attempt the request fails with **409 Conflict** (`Storage reservation conflicted with a concurrent upload, please retry`). SSI lets roughly one same-user reservation commit per round, so a burst of N parallel in-quota batches needs about N attempts for the last one; in our measurements, five attempts cleared bursts of eight without a 409, while three started giving up at four. Beyond that the client can retry the same request.
 - **Cost:** no blocking locks. SSI only adds predicate tracking, and the `addedById` index keeps the tracked range narrow. Serializable transactions can also abort spuriously (unrelated rows on a shared index page); the same retry absorbs that.
 - **Scope:** only the usage query and the insert are inside the transaction. Event lookup and CASL run before it; S3 presigning runs after commit, so a slow S3 call never holds a database transaction open.
 - **Alternative if bursts grow:** a per-uploader `pg_advisory_xact_lock` taken as the first statement of a `READ COMMITTED` transaction makes same-user reservations queue instead of abort — deterministic, no retries, still no schema change. It must not be combined with `Serializable`: that level takes its snapshot before the lock wait ends, so the waiter reads stale usage and aborts anyway.
@@ -341,7 +341,7 @@ This job is what makes the quota in §9 self-correcting. Without it an abandoned
 
 ## 11. S3 orphan reconciler
 
-Postgres is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete whose post-commit purge failed or raced an in-flight upload (§5), an account delete (the cascade removes the rows, nothing touches S3), a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
+The database is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete whose post-commit purge failed or raced an in-flight upload (§5), an account delete (the cascade removes the rows, nothing touches S3), a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
 
 - **Service:** `PhotoOrphanReconcilerService.reconcileOrphanedObjects()`
 - **Schedule:** daily at 03:00 via `PhotoOrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists the whole prefix, which is not worth doing hourly, and orphans cost money rather than correctness.
@@ -370,7 +370,7 @@ The two jobs start from opposite sides and stay separate services, schedulers, a
 
 |             | Stale PENDING cleanup (§10)                     | Orphan reconciler                   |
 | ----------- | ----------------------------------------------- | ----------------------------------- |
-| Starts from | Postgres                                        | S3                                  |
+| Starts from | Database                                        | S3                                  |
 | Finds       | `PENDING` rows older than 24h                   | objects under `photos/` with no row |
 | Deletes     | S3 object, then the row                         | S3 object only                      |
 | Fixes       | abandoned uploads that still count toward quota | billed bytes nobody references      |

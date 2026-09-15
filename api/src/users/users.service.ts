@@ -1,5 +1,12 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
+import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
@@ -123,12 +130,22 @@ export class UsersService {
       );
     }
 
-    await this.prisma.user.delete({ where: { id } });
+    // Tombstone before (or with) the hard delete so an in-flight JWT cannot JIT
+    // recreate this providerSub. Upsert keeps reconciler retries idempotent.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.deletedProviderSub.upsert({
+        where: { providerSub },
+        create: { providerSub, formerUserId: id },
+        update: { formerUserId: id },
+      });
+      await tx.user.delete({ where: { id } });
+    });
 
     this.logger.info(
       {
         event: "user.account.deleted",
         userId: id,
+        providerSub,
         deletionStartedAt,
         auth0DeletedAt,
         audit: true,
@@ -137,23 +154,95 @@ export class UsersService {
     );
   }
 
+  /**
+   * Resolve the app user for an Auth0 `sub`, JIT-creating on first login.
+   * Rejects mid-deletion rows and tombstoned identities (see docs/authentication.md).
+   */
   async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
     const existing = await this.prisma.user.findUnique({
       where: { providerSub: sub },
       include: userWithDetailsInclude,
     });
 
-    if (existing) return existing;
+    if (existing) {
+      this.assertNotDeleting(existing);
+      return existing;
+    }
 
-    // JIT provisioning: create user record on first-ever login
-    const created = await this.prisma.user.create({
-      data: { providerSub: sub },
+    return this.provisionUnlessTombstoned(sub);
+  }
+
+  private assertNotDeleting(user: UserWithDetails): void {
+    if (!user.deletionStartedAt) return;
+
+    this.logger.info(
+      {
+        event: "user.resolve.rejected_deletion_in_progress",
+        userId: user.id,
+        providerSub: user.providerSub,
+        audit: true,
+      },
+      "Rejected resolve for account with deletion in progress",
+    );
+    // Generic 401: do not tell the client the account was deleted.
+    throw new UnauthorizedException();
+  }
+
+  private rejectTombstoned(sub: string): never {
+    this.logger.info(
+      { event: "user.resolve.rejected_tombstone", providerSub: sub, audit: true },
+      "Rejected JIT provisioning for tombstoned providerSub",
+    );
+    // Generic 401: do not tell the client the account was deleted.
+    throw new UnauthorizedException();
+  }
+
+  private async provisionUnlessTombstoned(sub: string): Promise<UserWithDetails> {
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const tombstone = await tx.deletedProviderSub.findUnique({
+          where: { providerSub: sub },
+        });
+        if (tombstone) this.rejectTombstoned(sub);
+
+        return tx.user.create({
+          data: { providerSub: sub },
+          include: userWithDetailsInclude,
+        });
+      });
+
+      this.logger.info({ event: "user.provisioned", userId: created.id }, "Provisioned new user on first login");
+      return created;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+
+      // Lost race with another JIT create (or a delete that already tombstoned).
+      if (isUniqueConstraintViolation(error)) {
+        return this.resolveAfterProvisionRace(sub);
+      }
+
+      throw error;
+    }
+  }
+
+  private async resolveAfterProvisionRace(sub: string): Promise<UserWithDetails> {
+    const existing = await this.prisma.user.findUnique({
+      where: { providerSub: sub },
       include: userWithDetailsInclude,
     });
 
-    this.logger.info({ event: "user.provisioned", userId: created.id }, "Provisioned new user on first login");
+    if (existing) {
+      this.assertNotDeleting(existing);
+      return existing;
+    }
 
-    return created;
+    const tombstone = await this.prisma.deletedProviderSub.findUnique({
+      where: { providerSub: sub },
+    });
+    if (tombstone) this.rejectTombstoned(sub);
+
+    // Generic 401: same client-visible outcome as an invalid session.
+    throw new UnauthorizedException();
   }
 
   private async assertEmailIsUnique(email: string, excludeUserId?: string): Promise<void> {

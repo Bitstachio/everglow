@@ -19,6 +19,9 @@ const POSTGRES_SERIALIZATION_FAILURE = "40001";
 // Prisma raises P2025 when a write targets a row that does not exist.
 const PRISMA_RECORD_NOT_FOUND = "P2025";
 
+// Prisma raises P2002 when a unique / primary-key constraint is violated.
+const PRISMA_UNIQUE_CONSTRAINT = "P2002";
+
 // Wrapped errors nest a few levels deep. The bound also stops a cyclic cause
 // chain from spinning forever.
 const MAX_CAUSE_DEPTH = 5;
@@ -56,3 +59,10 @@ export const isSerializationFailure = (error: unknown): boolean =>
  */
 export const isRecordNotFound = (error: unknown): boolean =>
   someCause(error, ({ code }) => code === PRISMA_RECORD_NOT_FOUND);
+
+/**
+ * True when a write violated a unique or primary-key constraint. Callers often
+ * re-read and continue (lost JIT race) or map to a domain conflict.
+ */
+export const isUniqueConstraintViolation = (error: unknown): boolean =>
+  someCause(error, ({ code }) => code === PRISMA_UNIQUE_CONSTRAINT);
