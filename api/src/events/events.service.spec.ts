@@ -52,6 +52,8 @@ describe("EventsService", () => {
     id: creatorId,
     providerSub,
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
+    deletionStartedAt: null,
+    auth0DeletedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -61,6 +63,8 @@ describe("EventsService", () => {
     id: creatorId,
     providerSub,
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
+    deletionStartedAt: null,
+    auth0DeletedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -113,6 +117,8 @@ describe("EventsService", () => {
     id: otherUserId,
     providerSub: "auth0|other",
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
+    deletionStartedAt: null,
+    auth0DeletedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -166,6 +172,8 @@ describe("EventsService", () => {
     id: targetUserId,
     providerSub: "auth0|target",
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
+    deletionStartedAt: null,
+    auth0DeletedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {

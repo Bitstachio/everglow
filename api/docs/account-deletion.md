@@ -113,16 +113,22 @@ This is a small **saga / state machine** for dual-store delete. Durable intent l
 
 ```text
 1. Load user
-2. Mark deletion intent on the User row
-   (e.g. deletionStartedAt, or an explicit status)
+2. Mark deletion intent: set deletionStartedAt
 3. Prep related Postgres data so user.delete is likely to succeed
    (events, memberships, photos, etc. per product rules)
 4. Delete Auth0 user (idempotent: already-gone / 404 counts as success)
-5. Optionally record that Auth0 is cleared (e.g. auth0DeletedAt)
+5. Set auth0DeletedAt
 6. Delete the Postgres User row (details cascade; other relations prepped)
 7. Best-effort S3 / other side cleanup (same spirit as event photo purge)
 ```
 
+Derived state from the two nullable timestamps (no separate status enum):
+
+| `deletionStartedAt` | `auth0DeletedAt` | Meaning |
+|---|---|---|
+| null | null | Active account |
+| set | null | Deletion in progress; Auth0 not confirmed cleared |
+| set | set | Auth0 cleared; Postgres teardown still owed (reconciler) |
 ### If Auth0 fails (after the flag)
 
 Clear the flag (or leave it and retry Auth0 on the next attempt, if you prefer idempotent retries). The account stays usable. Do not delete the Postgres user.

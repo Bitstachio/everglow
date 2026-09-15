@@ -24,6 +24,8 @@ export const buildUserWithoutDetails = (overrides: Partial<UserWithDetails> = {}
   id: TEST_USER_ID,
   providerSub: TEST_PROVIDER_SUB,
   storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
+  deletionStartedAt: null,
+  auth0DeletedAt: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   details: null,
@@ -34,6 +36,8 @@ export const buildUserWithDetails = (overrides: Partial<UserWithDetails> = {}): 
   id: TEST_USER_ID,
   providerSub: TEST_PROVIDER_SUB,
   storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
+  deletionStartedAt: null,
+  auth0DeletedAt: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   details: {

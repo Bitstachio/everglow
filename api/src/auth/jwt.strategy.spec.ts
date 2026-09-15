@@ -42,6 +42,8 @@ describe("JwtStrategy", () => {
     id: userId,
     providerSub,
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
+    deletionStartedAt: null,
+    auth0DeletedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
