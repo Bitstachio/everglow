@@ -405,9 +405,7 @@ describe("UsersService", () => {
 
     it("does not delete Postgres when stamping auth0DeletedAt fails after Auth0 succeeds", async () => {
       const stampError = new Error("Database write failed");
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt } as never)
-        .mockRejectedValueOnce(stampError);
+      prisma.user.update.mockResolvedValueOnce({ deletionStartedAt } as never).mockRejectedValueOnce(stampError);
       auth0Management.deleteUser.mockResolvedValue(undefined);
 
       await expect(service.completeAccountDeletion(freshDeletionUser())).rejects.toThrow(stampError);
