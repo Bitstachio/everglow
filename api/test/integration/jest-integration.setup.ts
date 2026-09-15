@@ -1,5 +1,7 @@
 process.env.AUTH0_DOMAIN ??= "integration.auth0.com";
 process.env.AUTH0_AUDIENCE ??= "https://integration-api";
+process.env.AUTH0_MANAGEMENT_CLIENT_ID ??= "integration-mgmt-client-id";
+process.env.AUTH0_MANAGEMENT_CLIENT_SECRET ??= "integration-mgmt-client-secret";
 process.env.DATABASE_URL ??= "postgresql://integration:integration@localhost:5432/integration";
 process.env.AWS_REGION ??= "us-east-1";
 process.env.AWS_S3_BUCKET ??= "integration-bucket";

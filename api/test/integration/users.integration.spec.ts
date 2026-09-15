@@ -1,7 +1,8 @@
 import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
-import { DeepMockProxy, mockReset } from "jest-mock-extended";
+import { DeepMockProxy, mockDeep, mockReset } from "jest-mock-extended";
+import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
@@ -9,6 +10,7 @@ import request from "supertest";
 import { authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
+  TEST_PROVIDER_SUB,
   TEST_USER_ID,
   buildUserWithDetails,
   buildUserWithoutDetails,
@@ -38,10 +40,14 @@ type ErrorResponse = {
 describe("UsersController (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
+  let auth0Management: DeepMockProxy<Auth0ManagementService>;
   let httpServer: Server;
 
   beforeAll(async () => {
-    const context = await createTestApp();
+    auth0Management = mockDeep<Auth0ManagementService>();
+    const context = await createTestApp((builder) =>
+      builder.overrideProvider(Auth0ManagementService).useValue(auth0Management),
+    );
     app = context.app;
     prisma = context.prisma;
     httpServer = app.getHttpServer() as Server;
@@ -55,6 +61,7 @@ describe("UsersController (integration)", () => {
     // mockReset (unlike jest.clearAllMocks) also removes mockResolvedValue
     // implementations, preventing stubs from leaking between tests
     mockReset(prisma);
+    mockReset(auth0Management);
   });
 
   describe("POST /users/me/onboarding", () => {
@@ -374,15 +381,25 @@ describe("UsersController (integration)", () => {
   describe("DELETE /users/me", () => {
     const path = `${USERS_BASE_PATH}/me`;
 
-    it("returns 204 when the user is deleted successfully", async () => {
+    it("returns 204 when the account deletion saga completes", async () => {
+      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
+      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.user.update
+        .mockResolvedValueOnce(buildUserWithDetails({ deletionStartedAt }) as never)
+        .mockResolvedValueOnce(buildUserWithDetails({ deletionStartedAt, auth0DeletedAt }) as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
       await request(httpServer).delete(path).set(authHeader()).expect(204);
 
+      expect(auth0Management.deleteUser).toHaveBeenCalledWith(TEST_PROVIDER_SUB);
       expect(prisma.user.delete).toHaveBeenCalledWith({
         where: { id: TEST_USER_ID },
       });
+      expect(auth0Management.deleteUser.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.user.delete.mock.invocationCallOrder[0],
+      );
     });
 
     it("returns 401 when the access token is missing", async () => {
@@ -401,6 +418,8 @@ describe("UsersController (integration)", () => {
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(USER_SERVICE_ERRORS.NOT_FOUND(TEST_USER_ID));
       expect(body.meta.path).toBe(path);
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+      expect(prisma.user.delete).not.toHaveBeenCalled();
     });
   });
 });

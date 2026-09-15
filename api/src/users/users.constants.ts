@@ -8,3 +8,6 @@ export const USER_SERVICE_ERRORS = {
   EMAIL_TAKEN: (email: string) => RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(entity, "email", email),
   ONBOARDING_INCOMPLETE: "Onboarding is incomplete. Please complete the user onboarding to continue.",
 };
+
+export const DEFAULT_ACCOUNT_DELETION_RECONCILER_BATCH_SIZE = 50;
+export const DEFAULT_ACCOUNT_DELETION_RECONCILER_STUCK_AFTER_HOURS = 1;

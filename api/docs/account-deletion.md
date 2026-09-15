@@ -129,9 +129,11 @@ Derived state from the two nullable timestamps (no separate status enum):
 | null | null | Active account |
 | set | null | Deletion in progress; Auth0 not confirmed cleared |
 | set | set | Auth0 cleared; Postgres teardown still owed (reconciler) |
+
 ### If Auth0 fails (after the flag)
 
-Clear the flag (or leave it and retry Auth0 on the next attempt, if you prefer idempotent retries). The account stays usable. Do not delete the Postgres user.
+Leave `deletionStartedAt` set and return an error. Do not delete the Postgres user.
+Retries (client or reconciler) call Auth0 again; `404` is treated as success so a lost success response cannot drop the durable marker.
 
 ### If Auth0 succeeds and Postgres delete fails
 

@@ -1,19 +1,21 @@
 import { ConflictException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PrismaClient } from "generated/prisma/client";
+import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
+import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
 import { UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 describe("UsersService", () => {
   let service: UsersService;
   let prisma: DeepMockProxy<PrismaClient>;
+  let auth0Management: DeepMockProxy<Auth0ManagementService>;
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const providerSub = "auth0|abc123";
@@ -55,6 +57,7 @@ describe("UsersService", () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    auth0Management = mockDeep<Auth0ManagementService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -62,6 +65,10 @@ describe("UsersService", () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: Auth0ManagementService,
+          useValue: auth0Management,
         },
         {
           provide: PinoLogger,
@@ -291,16 +298,47 @@ describe("UsersService", () => {
   });
 
   describe("remove", () => {
-    it("deletes the user when they exist", async () => {
+    it("runs the deletion saga: mark intent, Auth0, mark auth0 cleared, then Postgres", async () => {
+      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
+      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.user.update
+        .mockResolvedValueOnce({ ...userWithDetails, deletionStartedAt } as never)
+        .mockResolvedValueOnce({ ...userWithDetails, deletionStartedAt, auth0DeletedAt } as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(userWithDetails);
 
       await service.remove(userId);
 
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      expect(prisma.user.update).toHaveBeenNthCalledWith(1, {
         where: { id: userId },
-        include: userWithDetailsInclude,
+        data: { deletionStartedAt: expect.any(Date) as Date },
+        select: { deletionStartedAt: true },
       });
+      expect(auth0Management.deleteUser).toHaveBeenCalledWith(providerSub);
+      expect(prisma.user.update).toHaveBeenNthCalledWith(2, {
+        where: { id: userId },
+        data: { auth0DeletedAt: expect.any(Date) as Date },
+        select: { auth0DeletedAt: true },
+      });
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(auth0Management.deleteUser.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.user.delete.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("skips Auth0 when auth0DeletedAt is already set (reconciler / retry)", async () => {
+      const deletingUser = {
+        ...userWithDetails,
+        deletionStartedAt: now,
+        auth0DeletedAt: now,
+      };
+      prisma.user.findUnique.mockResolvedValue(deletingUser);
+      prisma.user.delete.mockResolvedValue(deletingUser);
+
+      await service.remove(userId);
+
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
     });
 
@@ -310,15 +348,36 @@ describe("UsersService", () => {
       await expect(service.remove(userId)).rejects.toThrow(
         new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
       );
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();
     });
 
-    it("rethrows unexpected Prisma errors from user.delete", async () => {
-      const prismaError = new Error("Foreign key constraint violation");
+    it("leaves deletionStartedAt set and does not delete Postgres when Auth0 fails", async () => {
+      const auth0Error = new Error("Auth0 Management API unavailable");
+      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.user.update.mockResolvedValue({ ...userWithDetails, deletionStartedAt } as never);
+      auth0Management.deleteUser.mockRejectedValue(auth0Error);
+
+      await expect(service.remove(userId)).rejects.toThrow(auth0Error);
+      expect(auth0Management.deleteUser).toHaveBeenCalledWith(providerSub);
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+
+    it("rethrows unexpected Prisma errors from user.delete after Auth0 succeeded", async () => {
+      const prismaError = new Error("Foreign key constraint violation");
+      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
+      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.user.update
+        .mockResolvedValueOnce({ ...userWithDetails, deletionStartedAt } as never)
+        .mockResolvedValueOnce({ ...userWithDetails, deletionStartedAt, auth0DeletedAt } as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockRejectedValue(prismaError);
 
       await expect(service.remove(userId)).rejects.toThrow(prismaError);
+      expect(auth0Management.deleteUser).toHaveBeenCalledWith(providerSub);
     });
   });
 
