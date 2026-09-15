@@ -52,7 +52,7 @@ These suites boot the real `AppModule`, apply `configureApp()`, and hit the HTTP
 - response envelope / error shaping
 - module wiring across features
 
-They are **not** end-to-end against production-like infrastructure. `createTestApp()` still overrides Prisma (and often S3) with mocks; Auth0/JWKS are stubbed in `jest-integration.setup.ts`. A failing integration test means the Nest HTTP stack or wiring broke — not that Postgres or S3 misbehaved.
+They are **not** end-to-end against production-like infrastructure. `createTestApp()` still overrides Prisma (and often S3) with mocks; Auth0/JWKS are stubbed in `jest-integration.setup.ts`. A failing integration test means the Nest HTTP stack or wiring broke — not that the database or S3 misbehaved.
 
 ### Why under `test/` instead of colocated
 
