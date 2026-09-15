@@ -11,9 +11,11 @@ import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
 import photosConfig from "./config/photos.config";
+import usersConfig from "./config/users.config";
 import { EventsModule } from "./events/events.module";
 import { PhotosModule } from "./photos/photos.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { Auth0ManagementModule } from "./sdk/auth0/auth0-management.module";
 import { S3Module } from "./sdk/aws/s3/s3.module";
 import { UsersModule } from "./users/users.module";
 
@@ -21,7 +23,7 @@ import { UsersModule } from "./users/users.module";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [auth0Config, awsConfig, encryptionConfig, photosConfig],
+      load: [auth0Config, awsConfig, encryptionConfig, photosConfig, usersConfig],
       envFilePath: ".env",
     }),
     ScheduleModule.forRoot(),
@@ -35,8 +37,10 @@ import { UsersModule } from "./users/users.module";
     }),
     EventsModule,
     S3Module,
+    Auth0ManagementModule,
     PhotosModule,
   ],
+
   controllers: [AppController],
   providers: [AppService],
 })

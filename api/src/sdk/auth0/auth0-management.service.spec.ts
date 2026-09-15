@@ -1,0 +1,85 @@
+import { InternalServerErrorException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Test, TestingModule } from "@nestjs/testing";
+import { ManagementClient, ManagementError } from "auth0";
+import { PinoLogger } from "nestjs-pino";
+import { Auth0ManagementService } from "./auth0-management.service";
+
+const mockDeleteUser = jest.fn();
+
+jest.mock("auth0", () => {
+  class MockManagementError extends Error {
+    statusCode?: number;
+    constructor(opts: { message?: string; statusCode?: number }) {
+      super(opts.message);
+      this.name = "ManagementError";
+      this.statusCode = opts.statusCode;
+    }
+  }
+  return {
+    ManagementClient: jest.fn().mockImplementation(() => ({
+      users: { delete: mockDeleteUser },
+    })),
+    ManagementError: MockManagementError,
+  };
+});
+
+describe("Auth0ManagementService", () => {
+  let service: Auth0ManagementService;
+
+  beforeEach(async () => {
+    mockDeleteUser.mockReset();
+    jest.mocked(ManagementClient).mockClear();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        Auth0ManagementService,
+        {
+          provide: ConfigService,
+          useValue: {
+            getOrThrow: jest.fn((key: string) => {
+              if (key === "auth0.domain") return "test.example.auth0.com";
+              throw new Error(`Unexpected getOrThrow key: ${key}`);
+            }),
+            get: jest.fn((key: string) => {
+              if (key === "auth0.managementClientId") return "mgmt-client-id";
+              if (key === "auth0.managementClientSecret") return "mgmt-client-secret";
+              return undefined;
+            }),
+          },
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: jest.fn(),
+            error: jest.fn(),
+            info: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get(Auth0ManagementService);
+  });
+
+  it("deletes the Auth0 user by providerSub", async () => {
+    mockDeleteUser.mockResolvedValue(undefined);
+
+    await expect(service.deleteUser("auth0|abc123")).resolves.toBeUndefined();
+    expect(mockDeleteUser).toHaveBeenCalledWith("auth0|abc123");
+  });
+
+  it("treats Auth0 404 as success for idempotent retries", async () => {
+    mockDeleteUser.mockRejectedValue(new ManagementError({ message: "not found", statusCode: 404 }));
+
+    await expect(service.deleteUser("auth0|abc123")).resolves.toBeUndefined();
+  });
+
+  it("maps unexpected Auth0 errors to InternalServerErrorException", async () => {
+    mockDeleteUser.mockRejectedValue(new ManagementError({ message: "boom", statusCode: 500 }));
+
+    await expect(service.deleteUser("auth0|abc123")).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+});
