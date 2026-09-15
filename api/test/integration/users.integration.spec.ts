@@ -1,4 +1,4 @@
-import { INestApplication } from "@nestjs/common";
+import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockDeep, mockReset } from "jest-mock-extended";
@@ -386,20 +386,29 @@ describe("UsersController (integration)", () => {
       const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
       prisma.user.update
-        .mockResolvedValueOnce(buildUserWithDetails({ deletionStartedAt }) as never)
-        .mockResolvedValueOnce(buildUserWithDetails({ deletionStartedAt, auth0DeletedAt }) as never);
+        .mockResolvedValueOnce({ deletionStartedAt } as never)
+        .mockResolvedValueOnce({ auth0DeletedAt } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
       await request(httpServer).delete(path).set(authHeader()).expect(204);
 
       expect(auth0Management.deleteUser).toHaveBeenCalledWith(TEST_PROVIDER_SUB);
-      expect(prisma.user.delete).toHaveBeenCalledWith({
-        where: { id: TEST_USER_ID },
-      });
-      expect(auth0Management.deleteUser.mock.invocationCallOrder[0]).toBeLessThan(
-        prisma.user.delete.mock.invocationCallOrder[0],
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: TEST_USER_ID } });
+    });
+
+    it("returns 500 and leaves the Postgres row when Auth0 deletion fails after intent is stamped", async () => {
+      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.user.update.mockResolvedValueOnce({ deletionStartedAt } as never);
+      auth0Management.deleteUser.mockRejectedValue(
+        new InternalServerErrorException(`Failed to delete Auth0 user "${TEST_PROVIDER_SUB}"`),
       );
+
+      await request(httpServer).delete(path).set(authHeader()).expect(500);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+      expect(prisma.user.delete).not.toHaveBeenCalled();
     });
 
     it("returns 401 when the access token is missing", async () => {
