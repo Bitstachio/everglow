@@ -7,7 +7,7 @@ import { AccountDeletionReconcilerService } from "./account-deletion-reconciler.
 describe("AccountDeletionReconcilerScheduler", () => {
   let scheduler: AccountDeletionReconcilerScheduler;
   let reconcilerService: { reconcilePendingDeletions: jest.Mock };
-  let logger: { setContext: jest.Mock; info: jest.Mock; error: jest.Mock };
+  let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
   let enabled: boolean;
 
   beforeEach(async () => {
@@ -15,7 +15,7 @@ describe("AccountDeletionReconcilerScheduler", () => {
     reconcilerService = {
       reconcilePendingDeletions: jest.fn().mockResolvedValue({ scanned: 0, deleted: 0, failed: 0, stuck: 0 }),
     };
-    logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
+    logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -32,6 +32,23 @@ describe("AccountDeletionReconcilerScheduler", () => {
     }).compile();
 
     scheduler = module.get(AccountDeletionReconcilerScheduler);
+  });
+
+  it("warns at boot when the job is disabled, since a failed deletion then never finishes", () => {
+    enabled = false;
+
+    scheduler.onApplicationBootstrap();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "user.account.deletion_reconciler.disabled" }),
+      expect.stringContaining("ACCOUNT_DELETION_RECONCILER_ENABLED"),
+    );
+  });
+
+  it("says nothing at boot when the job is enabled", () => {
+    scheduler.onApplicationBootstrap();
+
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("runs the reconciler when enabled", async () => {

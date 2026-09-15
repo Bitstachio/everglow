@@ -13,8 +13,13 @@ export class EventResponseDto {
   @ApiProperty()
   date: Date;
 
-  @ApiProperty({ format: "uuid" })
-  creatorId: string;
+  @ApiProperty({
+    format: "uuid",
+    nullable: true,
+    type: String,
+    description: "Who created the event; null once that account has been deleted. Not a permission: see accessLevel.",
+  })
+  creatorId: string | null;
 
   @ApiProperty({ description: "Shareable invitation link composed from the stored invite token" })
   invitationUrl: string;

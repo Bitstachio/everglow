@@ -11,8 +11,12 @@ export interface PhotoPurgeResult {
 export interface PhotoPurgeContext {
   /** Dotted event name for the log line, e.g. `event.photos.purged`. */
   event: string;
-  eventId: string;
-  callerId: string;
+  /**
+   * Whatever ids identify this purge, named by the caller: an event delete has
+   * an eventId and a callerId, an account delete has the deleted userId and no
+   * caller at all when the reconciler drives it.
+   */
+  [key: string]: unknown;
 }
 
 /**

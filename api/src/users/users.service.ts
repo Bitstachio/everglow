@@ -5,23 +5,32 @@ import {
   UnauthorizedException,
   UnprocessableEntityException,
 } from "@nestjs/common";
+import { AccountDeletionPhotoPolicy } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
+import { AccountDeletionPrepService } from "./account-deletion-prep.service";
+import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { USER_SERVICE_ERRORS } from "./users.constants";
+import { DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY, USER_SERVICE_ERRORS } from "./users.constants";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
 /** Fields the account-deletion saga needs; callers may pass a lean select. */
-export type AccountDeletionUser = Pick<UserWithDetails, "id" | "providerSub" | "deletionStartedAt" | "auth0DeletedAt">;
+export type AccountDeletionUser = Pick<
+  UserWithDetails,
+  "id" | "providerSub" | "deletionStartedAt" | "auth0DeletedAt" | "deletionPhotoPolicy"
+>;
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auth0Management: Auth0ManagementService,
+    private readonly deletionPrep: AccountDeletionPrepService,
+    private readonly photoPurge: PhotoPurgeService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(UsersService.name);
@@ -84,35 +93,46 @@ export class UsersService {
     return updated;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, photoPolicy?: AccountDeletionPhotoPolicy): Promise<void> {
     const user = await this.getById(id);
-    await this.completeAccountDeletion(user);
+    await this.completeAccountDeletion(user, photoPolicy);
   }
 
   /**
    * Dual-store account deletion saga (see docs/account-deletion.md).
    * Idempotent: safe for request retries and the account-deletion reconciler.
    *
-   * Related-row prep (events, photos, …) is intentionally out of scope here and
-   * will land in follow-up work; until then `user.delete` may still fail on RESTRICT FKs.
+   * Prep runs before the Auth0 call on purpose. Deleting the Auth0 identity
+   * cannot be compensated, so nothing irreversible happens until the
+   * application data is in a state that can actually be torn down; the other
+   * order strands the user with no login and all their data.
+   *
+   * `photoPolicy` is only read when the saga starts; a resumed saga uses the
+   * choice already stored on the row.
    */
-  async completeAccountDeletion(user: AccountDeletionUser): Promise<void> {
+  async completeAccountDeletion(user: AccountDeletionUser, photoPolicy?: AccountDeletionPhotoPolicy): Promise<void> {
     const { id, providerSub } = user;
     let deletionStartedAt = user.deletionStartedAt;
     let auth0DeletedAt = user.auth0DeletedAt;
+    let policy = user.deletionPhotoPolicy;
 
     if (!deletionStartedAt) {
+      policy = photoPolicy ?? DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY;
       const started = await this.prisma.user.update({
         where: { id },
-        data: { deletionStartedAt: new Date() },
+        data: { deletionStartedAt: new Date(), deletionPhotoPolicy: policy },
         select: { deletionStartedAt: true },
       });
       deletionStartedAt = started.deletionStartedAt;
       this.logger.info(
-        { event: "user.account.deletion_started", userId: id, audit: true },
+        { event: "user.account.deletion_started", userId: id, photoPolicy: policy, audit: true },
         "Account deletion saga started",
       );
     }
+
+    // Settle events and photos so user.delete has nothing left to trip on and
+    // no event is orphaned. Idempotent, so a resumed saga repeats it harmlessly.
+    const { s3Keys } = await this.deletionPrep.prepareRelatedData(id, policy ?? DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY);
 
     if (!auth0DeletedAt) {
       // Leave deletionStartedAt set if Auth0 fails so a lost success response
@@ -132,11 +152,12 @@ export class UsersService {
 
     // Tombstone before (or with) the hard delete so an in-flight JWT cannot JIT
     // recreate this providerSub. Upsert keeps reconciler retries idempotent.
+    const providerSubHash = hashProviderSub(providerSub);
     await this.prisma.$transaction(async (tx) => {
       await tx.deletedProviderSub.upsert({
-        where: { providerSub },
-        create: { providerSub, formerUserId: id },
-        update: { formerUserId: id },
+        where: { providerSubHash },
+        create: { providerSubHash, formerUserId: id },
+        update: { formerUserId: id, deletedAt: new Date() },
       });
       await tx.user.delete({ where: { id } });
     });
@@ -145,20 +166,28 @@ export class UsersService {
       {
         event: "user.account.deleted",
         userId: id,
-        providerSub,
         deletionStartedAt,
         auth0DeletedAt,
+        photoPolicy: policy,
         audit: true,
       },
       "User account deleted",
     );
+
+    // S3 last and best effort: the rows are already gone, so what is left at
+    // stake is storage cost, which the photo orphan reconciler also covers.
+    await this.photoPurge.purgeObjects(s3Keys, { event: "user.account.photos_purged", userId: id });
   }
 
   /**
    * Resolve the app user for an Auth0 `sub`, JIT-creating on first login.
    * Rejects mid-deletion rows and tombstoned identities (see docs/authentication.md).
+   *
+   * `issuedAt` is the token's `iat` claim. A tombstoned subject whose token was
+   * minted after the deletion signed in again, which is a new account rather
+   * than a resurrection of the old one.
    */
-  async resolveByProviderSub(sub: string): Promise<UserWithDetails> {
+  async resolveByProviderSub(sub: string, issuedAt?: number): Promise<UserWithDetails> {
     const existing = await this.prisma.user.findUnique({
       where: { providerSub: sub },
       include: userWithDetailsInclude,
@@ -169,7 +198,7 @@ export class UsersService {
       return existing;
     }
 
-    return this.provisionUnlessTombstoned(sub);
+    return this.provisionUnlessTombstoned(sub, issuedAt);
   }
 
   private assertNotDeleting(user: UserWithDetails): void {
@@ -179,7 +208,6 @@ export class UsersService {
       {
         event: "user.resolve.rejected_deletion_in_progress",
         userId: user.id,
-        providerSub: user.providerSub,
         audit: true,
       },
       "Rejected resolve for account with deletion in progress",
@@ -188,22 +216,36 @@ export class UsersService {
     throw new UnauthorizedException();
   }
 
-  private rejectTombstoned(sub: string): never {
+  private rejectTombstoned(formerUserId: string): never {
     this.logger.info(
-      { event: "user.resolve.rejected_tombstone", providerSub: sub, audit: true },
+      { event: "user.resolve.rejected_tombstone", formerUserId, audit: true },
       "Rejected JIT provisioning for tombstoned providerSub",
     );
     // Generic 401: do not tell the client the account was deleted.
     throw new UnauthorizedException();
   }
 
-  private async provisionUnlessTombstoned(sub: string): Promise<UserWithDetails> {
+  /**
+   * A tombstone blocks the tokens the deleted account left behind, not the
+   * person. Signing in again mints a token after the deletion, and that starts
+   * a fresh empty account, the way a deleted messaging account can register
+   * again. This matters most for social connections, where Auth0 derives the
+   * same `sub` from the provider's stable user id after a re-signup; without
+   * the `iat` comparison those users could never come back.
+   *
+   * A token with no `iat` cannot be placed in time and is refused. Auth0 always
+   * sets it.
+   */
+  private async provisionUnlessTombstoned(sub: string, issuedAt?: number): Promise<UserWithDetails> {
+    const providerSubHash = hashProviderSub(sub);
     try {
       const created = await this.prisma.$transaction(async (tx) => {
         const tombstone = await tx.deletedProviderSub.findUnique({
-          where: { providerSub: sub },
+          where: { providerSubHash },
         });
-        if (tombstone) this.rejectTombstoned(sub);
+        if (tombstone && !isIssuedAfterDeletion(issuedAt, tombstone.deletedAt)) {
+          this.rejectTombstoned(tombstone.formerUserId);
+        }
 
         return tx.user.create({
           data: { providerSub: sub },
@@ -218,14 +260,14 @@ export class UsersService {
 
       // Lost race with another JIT create (or a delete that already tombstoned).
       if (isUniqueConstraintViolation(error)) {
-        return this.resolveAfterProvisionRace(sub);
+        return this.resolveAfterProvisionRace(sub, issuedAt);
       }
 
       throw error;
     }
   }
 
-  private async resolveAfterProvisionRace(sub: string): Promise<UserWithDetails> {
+  private async resolveAfterProvisionRace(sub: string, issuedAt?: number): Promise<UserWithDetails> {
     const existing = await this.prisma.user.findUnique({
       where: { providerSub: sub },
       include: userWithDetailsInclude,
@@ -237,9 +279,11 @@ export class UsersService {
     }
 
     const tombstone = await this.prisma.deletedProviderSub.findUnique({
-      where: { providerSub: sub },
+      where: { providerSubHash: hashProviderSub(sub) },
     });
-    if (tombstone) this.rejectTombstoned(sub);
+    if (tombstone && !isIssuedAfterDeletion(issuedAt, tombstone.deletedAt)) {
+      this.rejectTombstoned(tombstone.formerUserId);
+    }
 
     // Generic 401: same client-visible outcome as an invalid session.
     throw new UnauthorizedException();

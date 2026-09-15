@@ -9,8 +9,14 @@ export class PhotoResponseDto {
   @ApiProperty({ format: "uuid" })
   eventId: string;
 
-  @ApiProperty({ format: "uuid" })
-  addedById: string;
+  @ApiProperty({
+    format: "uuid",
+    nullable: true,
+    type: String,
+    description:
+      "Who uploaded the photo; null once that account has been deleted and the photo was kept for the event.",
+  })
+  addedById: string | null;
 
   @ApiProperty({ maxLength: STRING_LIMITS.LONG, description: "Presigned S3 GET URL, valid for a short period" })
   url: string;

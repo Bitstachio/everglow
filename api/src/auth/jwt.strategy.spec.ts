@@ -45,6 +45,8 @@ describe("JwtStrategy", () => {
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
+    deletionPhotoPolicy: null,
+    deletionAttempts: 0,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -94,7 +96,7 @@ describe("JwtStrategy", () => {
 
       const result = await strategy.validate(payload);
 
-      expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub);
+      expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub, payload.iat);
       expect(result).toEqual({ id: userId, sub: providerSub });
     });
 
@@ -116,7 +118,7 @@ describe("JwtStrategy", () => {
       usersService.resolveByProviderSub.mockRejectedValue(error);
 
       await expect(strategy.validate(payload)).rejects.toThrow(error);
-      expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub);
+      expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub, payload.iat);
     });
 
     it("propagates UnauthorizedException when the identity is tombstoned or deleting", async () => {

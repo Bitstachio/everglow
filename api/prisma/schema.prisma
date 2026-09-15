@@ -21,20 +21,34 @@ enum PhotoStatus {
   READY
 }
 
+/// What happens to photos the account uploaded into events that outlive it.
+/// Chosen by the caller and stored on the row, so the reconciler resumes a
+/// saga with the choice the user actually made.
+enum AccountDeletionPhotoPolicy {
+  KEEP
+  DELETE
+}
+
 model User {
-  id                String    @id @default(uuid()) @db.Uuid
-  providerSub       String    @unique @db.VarChar(255)
+  id                  String                      @id @default(uuid()) @db.Uuid
+  providerSub         String                      @unique @db.VarChar(255)
   // Photo storage ceiling in bytes. Defaults to the free tier (5 GiB); keep in
   // sync with FREE_TIER_STORAGE_LIMIT_BYTES in src/photos/photos.constants.ts.
   // Billing raises it per account; usage stays computed from Photo rows.
-  storageLimitBytes BigInt    @default(5368709120)
+  storageLimitBytes   BigInt                      @default(5368709120)
   // Account deletion saga (see docs/account-deletion.md): null means that
   // phase has not happened. deletionStartedAt marks durable intent;
   // auth0DeletedAt marks that the IdP user is already gone.
-  deletionStartedAt DateTime?
-  auth0DeletedAt    DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  deletionStartedAt   DateTime?
+  auth0DeletedAt      DateTime?
+  // The caller's photo choice, captured with the intent so a resumed saga
+  // honours it. Null until a deletion starts.
+  deletionPhotoPolicy AccountDeletionPhotoPolicy?
+  // Failed reconciler passes. Bounded so a permanently stuck row is reported
+  // once instead of alerting every hour forever.
+  deletionAttempts    Int                         @default(0)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
 
   details       UserDetails?
   createdEvents Event[]       @relation("CreatedEvents")
@@ -48,9 +62,12 @@ model User {
 // Tombstone for a deleted Auth0 identity (see docs/authentication.md).
 // Blocks JIT provisioning when an in-flight access token outlives the User row.
 model DeletedProviderSub {
-  providerSub  String   @id @db.VarChar(255)
-  formerUserId String   @db.Uuid
-  deletedAt    DateTime @default(now())
+  /// SHA-256 of the Auth0 sub. Hashed because this table outlives the accounts
+  /// in it: it must answer "have I seen this subject?" without becoming a
+  /// readable list of the identities that asked to be forgotten.
+  providerSubHash String   @id @db.VarChar(64)
+  formerUserId    String   @db.Uuid
+  deletedAt       DateTime @default(now())
 
   @@index([deletedAt])
 }
@@ -71,12 +88,14 @@ model Event {
   title         String   @db.VarChar(100)
   description   String?  @db.Text
   date          DateTime
-  creatorId     String   @db.Uuid
+  // Attribution only; null once the creator's account is deleted. Who may
+  // manage the event is decided by EventAccess, never by this column.
+  creatorId     String?  @db.Uuid
   invitationUrl String   @unique @db.VarChar(100)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  creator       User          @relation("CreatedEvents", fields: [creatorId], references: [id])
+  creator       User?         @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: SetNull)
   photos        Photo[]
   eventAccesses EventAccess[]
 
@@ -91,7 +110,8 @@ model EventAccess {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  user  User  @relation(fields: [userId], references: [id])
+  // A deleted account takes its memberships with it.
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventId])
@@ -104,12 +124,14 @@ model Photo {
   contentType String      @db.VarChar(100)
   sizeBytes   Int
   status      PhotoStatus @default(PENDING)
-  addedById   String      @db.Uuid
+  // Null once the uploader's account is deleted and the photo was kept for the
+  // event. Usage is summed per uploader, so such photos count toward nobody's quota.
+  addedById   String?     @db.Uuid
   eventId     String      @db.Uuid
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  addedBy User  @relation(fields: [addedById], references: [id])
+  addedBy User? @relation(fields: [addedById], references: [id], onDelete: SetNull)
   event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, status, createdAt])

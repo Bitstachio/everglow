@@ -101,11 +101,12 @@ A **tombstone** is a durable record that this `providerSub` belonged to an accou
 
 ### Rules
 
-1. When account deletion removes the `User` row, write a `DeletedProviderSub` tombstone for that `providerSub` in the same database transaction (tombstone first, then delete).
+1. When account deletion removes the `User` row, write a `DeletedProviderSub` tombstone in the same database transaction (tombstone first, then delete). The key is a **SHA-256 of the `providerSub`**, not the subject itself: this table outlives the accounts in it, and a readable list of the identities that asked to be forgotten is exactly what it must not become. It answers "have I seen this subject?" without being able to name one. `formerUserId` stays for audit; it is an internal id, not an external identifier.
 2. In `resolveByProviderSub`, **before** create:
    - if a live `User` exists with `deletionStartedAt` set → reject with a **generic 401** (same client message as any other unauthorized request; deletion reason stays in server logs only)
    - if a live `User` exists → return it
-   - if a tombstone exists for `sub` → do not create; reject with the same generic 401
+   - if a tombstone exists for `sub` **and the token was issued before `deletedAt`** → do not create; reject with the same generic 401
+   - if a tombstone exists but the token was issued **after** `deletedAt` → the person signed in again, so JIT create a fresh account (see below)
    - otherwise → JIT create as today (real first login)
 3. Keep tombstones at least as long as the maximum access-token lifetime we issue (longer is fine and simpler). After that window, an old JWT cannot authenticate anyway.
 
@@ -115,18 +116,27 @@ Mid-deletion rows that still exist (`deletionStartedAt` set) are rejected on the
 
 Tombstones are keyed by Auth0 `providerSub`, not by email or “this human forever.”
 
-After we delete the Auth0 user, a later signup typically creates a **new** Auth0 identity and thus a **new** `sub`. That new `sub` has no tombstone, so JIT may create a fresh Everglow user. That is intentional: permanent delete of one identity, plus a clean comeback path if they sign up again under a new IdP user.
+For a **database connection** (email and password), a later signup creates a new Auth0 identity and therefore a new `sub`. That new `sub` has no tombstone, so JIT creates a fresh Everglow user.
 
-If the **same** `sub` appeared again (for example an IdP restore), the tombstone would correctly block automatic recreate. Allowing that would be an explicit product or support action (clear or expire the tombstone), not the default.
+For a **social connection** (Google, Apple), it does not work that way. Auth0 derives the `sub` from the provider's stable user id, so `google-oauth2|1234` is the same before and after we delete the Auth0 user. Signing in with the same Google account produces the **same** `sub`, hits the tombstone, and would lock that person out of the product for good. Universal Login offers whichever connections the tenant enables, so this is not hypothetical.
+
+The `iat` comparison is what separates the two cases. A tombstone blocks the tokens the deleted account left behind, not the person:
+
+- a token minted **before** `deletedAt` is a leftover of the deleted account → reject
+- a token minted **after** `deletedAt` means they passed Auth0 login again → a real new sign-in, so provision a fresh, empty account
+
+The deletion timestamp is refreshed whenever the same subject is tombstoned again, so a second deletion is judged against the second timestamp rather than the first.
+
+A token with no `iat` cannot be placed in time and is refused. Auth0 always sets it.
 
 ---
 
 ## 7. Mental model
 
-| Fact | Who decides |
-| ---- | ----------- |
-| “This token is a valid Auth0 access token for our API” | JWT verification (JWKS, aud, iss, exp) |
-| “This `sub` should have an Everglow account right now” | Database `User`, constrained by tombstones and deletion flags |
+| Fact                                                      | Who decides                                                       |
+| --------------------------------------------------------- | ----------------------------------------------------------------- |
+| “This token is a valid Auth0 access token for our API”    | JWT verification (JWKS, aud, iss, exp)                            |
+| “This `sub` should have an Everglow account right now”    | Database `User`, constrained by tombstones and deletion flags     |
 | “Create an account because we have never seen this `sub`” | JIT in `resolveByProviderSub`, only when no user and no tombstone |
 
 Valid JWT proves identity. Tombstone proves we already honored a delete for that identity. JIT creates only when both “no user” and “not deleted” are true.
@@ -157,13 +167,13 @@ We do not call Auth0 to create the identity as part of an Everglow-orchestrated 
 
 A `PENDING` user row before Auth0 would also have no natural key. `providerSub` does not exist until Auth0 creates the user. You would invent a temporary id, then somehow bind it after login. That adds a state machine without removing the dual-store problem; it mostly invents half-states we avoid with JIT.
 
-| | Photos + S3 | Users + Auth0 |
-| - | ----------- | ------------- |
-| Who starts? | Our API (mint slot, then upload) | Auth0 (login, then our API) |
-| What can fail after local write? | S3 PUT missing or mismatched | N/A on first login: IdP already done |
-| Proof the external side worked | `HeadObject` on confirm | Valid JWT on the request |
-| Local row before external success? | Yes (PENDING + quota) | No useful `providerSub` yet |
-| Pattern we use | Reserve → upload → confirm | JIT create after JWT verifies |
+|                                    | Photos + S3                      | Users + Auth0                        |
+| ---------------------------------- | -------------------------------- | ------------------------------------ |
+| Who starts?                        | Our API (mint slot, then upload) | Auth0 (login, then our API)          |
+| What can fail after local write?   | S3 PUT missing or mismatched     | N/A on first login: IdP already done |
+| Proof the external side worked     | `HeadObject` on confirm          | Valid JWT on the request             |
+| Local row before external success? | Yes (PENDING + quota)            | No useful `providerSub` yet          |
+| Pattern we use                     | Reserve → upload → confirm       | JIT create after JWT verifies        |
 
 The photo pattern is for **we reserved locally, then asked the outside world to finish**. Registration is **outside world already finished, then we create locally**. JIT is the small local write after proof we already trust.
 

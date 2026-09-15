@@ -13,6 +13,8 @@ export interface AccountDeletionReconcileResult {
   failed: number;
   // Users whose deletionStartedAt is older than the stuck threshold (also counted in failed/deleted)
   stuck: number;
+  // Users that used up their attempt budget on this run and will not be retried
+  abandoned: number;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -38,10 +40,14 @@ export class AccountDeletionReconcilerService {
   async reconcilePendingDeletions(): Promise<AccountDeletionReconcileResult> {
     const batchSize = this.configService.getOrThrow<number>("users.accountDeletionReconcilerBatchSize");
     const stuckAfterHours = this.configService.getOrThrow<number>("users.accountDeletionReconcilerStuckAfterHours");
+    const maxAttempts = this.configService.getOrThrow<number>("users.accountDeletionMaxAttempts");
     const stuckCutoff = new Date(Date.now() - stuckAfterHours * HOUR_MS);
 
+    // Rows that used up the budget are left for a person. Re-running them every
+    // hour would not fix a failure that is not transient, and the noise trains
+    // everyone to ignore the alert that matters.
     const pending = await this.prisma.user.findMany({
-      where: { deletionStartedAt: { not: null } },
+      where: { deletionStartedAt: { not: null }, deletionAttempts: { lt: maxAttempts } },
       orderBy: { deletionStartedAt: "asc" },
       take: batchSize,
       select: {
@@ -49,6 +55,8 @@ export class AccountDeletionReconcilerService {
         providerSub: true,
         deletionStartedAt: true,
         auth0DeletedAt: true,
+        deletionPhotoPolicy: true,
+        deletionAttempts: true,
       },
     });
 
@@ -57,6 +65,7 @@ export class AccountDeletionReconcilerService {
       deleted: 0,
       failed: 0,
       stuck: 0,
+      abandoned: 0,
     };
 
     for (const user of pending) {
@@ -81,6 +90,14 @@ export class AccountDeletionReconcilerService {
         result.deleted += 1;
       } catch (error) {
         result.failed += 1;
+        const attempts = user.deletionAttempts + 1;
+        try {
+          await this.prisma.user.update({ where: { id: user.id }, data: { deletionAttempts: attempts } });
+        } catch {
+          // The budget is a guard rail, not the outcome being reported. Losing
+          // the counter must not hide the deletion failure below.
+        }
+
         this.logger.error(
           {
             err: error as Error,
@@ -88,10 +105,27 @@ export class AccountDeletionReconcilerService {
             userId: user.id,
             deletionStartedAt: user.deletionStartedAt,
             auth0DeletedAt: user.auth0DeletedAt,
+            attempts,
+            maxAttempts,
             audit: true,
           },
           "Failed to finish pending account deletion",
         );
+
+        if (attempts >= maxAttempts) {
+          result.abandoned += 1;
+          this.logger.error(
+            {
+              event: "user.account.deletion_abandoned",
+              userId: user.id,
+              deletionStartedAt: user.deletionStartedAt,
+              auth0DeletedAt: user.auth0DeletedAt,
+              attempts,
+              audit: true,
+            },
+            "Account deletion has used up its retry budget and needs manual recovery",
+          );
+        }
       }
     }
 

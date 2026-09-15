@@ -160,7 +160,22 @@
       },
       "delete": {
         "operationId": "UsersController_removeMe",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "photos",
+            "required": false,
+            "in": "query",
+            "description": "What happens to photos the account uploaded into events that outlive it. KEEP: they stay in the event with no uploader. DELETE: they are removed everywhere. Uploads still in progress are always discarded. The choice is stored with the deletion intent, so a resumed saga honours it.",
+            "schema": {
+              "default": "KEEP",
+              "type": "string",
+              "enum": [
+                "KEEP",
+                "DELETE"
+              ]
+            }
+          }
+        ],
         "responses": {
           "204": {
             "description": "User deleted (empty data envelope at runtime)"
@@ -1293,7 +1308,9 @@
           },
           "addedById": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who uploaded the photo; null once that account has been deleted and the photo was kept for the event."
           },
           "url": {
             "type": "string",
@@ -1366,7 +1383,9 @@
           },
           "creatorId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who created the event; null once that account has been deleted. Not a permission: see accessLevel."
           },
           "invitationUrl": {
             "type": "string",

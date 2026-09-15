@@ -13,6 +13,8 @@ describe("UserMapper", () => {
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
+    deletionPhotoPolicy: null,
+    deletionAttempts: 0,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -24,6 +26,8 @@ describe("UserMapper", () => {
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
+    deletionPhotoPolicy: null,
+    deletionAttempts: 0,
     createdAt: now,
     updatedAt: now,
     details: {

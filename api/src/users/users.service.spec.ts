@@ -5,21 +5,31 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Prisma, PrismaClient } from "generated/prisma/client";
+import { AccountDeletionPhotoPolicy, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
+import { AccountDeletionPrepService } from "./account-deletion-prep.service";
+import { hashProviderSub } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { USER_SERVICE_ERRORS } from "./users.constants";
 import { AccountDeletionUser, UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
-// Asserts the four saga steps ran in order: intent → Auth0 → auth0 cleared → tombstone+delete tx.
-const expectDeletionSagaOrder = (userUpdate: jest.Mock, deleteAuth0: jest.Mock, transaction: jest.Mock): void => {
-  expect(userUpdate.mock.invocationCallOrder[0]).toBeLessThan(deleteAuth0.mock.invocationCallOrder[0]);
+// Asserts the saga steps ran in order: intent → prep → Auth0 → auth0 cleared → tombstone+delete tx.
+const expectDeletionSagaOrder = (
+  userUpdate: jest.Mock,
+  prepare: jest.Mock,
+  deleteAuth0: jest.Mock,
+  transaction: jest.Mock,
+): void => {
+  expect(userUpdate.mock.invocationCallOrder[0]).toBeLessThan(prepare.mock.invocationCallOrder[0]);
+  // The irreversible step comes after the data is ready to be torn down.
+  expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(deleteAuth0.mock.invocationCallOrder[0]);
   expect(deleteAuth0.mock.invocationCallOrder[0]).toBeLessThan(userUpdate.mock.invocationCallOrder[1]);
   expect(userUpdate.mock.invocationCallOrder[1]).toBeLessThan(transaction.mock.invocationCallOrder[0]);
 };
@@ -28,6 +38,10 @@ describe("UsersService", () => {
   let service: UsersService;
   let prisma: DeepMockProxy<PrismaClient>;
   let auth0Management: DeepMockProxy<Auth0ManagementService>;
+  let deletionPrep: { prepareRelatedData: jest.Mock };
+  let photoPurge: { purgeObjects: jest.Mock };
+
+  const providerSubHash = hashProviderSub("auth0|abc123");
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const providerSub = "auth0|abc123";
@@ -44,6 +58,8 @@ describe("UsersService", () => {
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
+    deletionPhotoPolicy: null,
+    deletionAttempts: 0,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -55,6 +71,8 @@ describe("UsersService", () => {
     storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
+    deletionPhotoPolicy: null,
+    deletionAttempts: 0,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -76,6 +94,13 @@ describe("UsersService", () => {
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
     auth0Management = mockDeep<Auth0ManagementService>();
+    deletionPrep = {
+      prepareRelatedData: jest.fn().mockResolvedValue({
+        summary: { eventsDeleted: 0, eventsHandedOver: 0, photosKept: 0, photosDeleted: 0, uploadsDiscarded: 0 },
+        s3Keys: [],
+      }),
+    };
+    photoPurge = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
 
     const module: TestingModule = await Test.createTestingModule({
@@ -88,6 +113,14 @@ describe("UsersService", () => {
         {
           provide: Auth0ManagementService,
           useValue: auth0Management,
+        },
+        {
+          provide: AccountDeletionPrepService,
+          useValue: deletionPrep,
+        },
+        {
+          provide: PhotoPurgeService,
+          useValue: photoPurge,
         },
         {
           provide: PinoLogger,
@@ -325,13 +358,16 @@ describe("UsersService", () => {
       providerSub,
       deletionStartedAt: null,
       auth0DeletedAt: null,
+      deletionPhotoPolicy: null,
     });
 
     const expectTombstoneThenDelete = (): void => {
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledWith({
-        where: { providerSub },
-        create: { providerSub, formerUserId: userId },
-        update: { formerUserId: userId },
+        where: { providerSubHash },
+        create: { providerSubHash, formerUserId: userId },
+        // deletedAt is refreshed: a subject that registered again and deleted
+        // again must be judged against the later deletion, not the first.
+        update: { formerUserId: userId, deletedAt: expect.any(Date) as Date },
       });
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
       expect(prisma.deletedProviderSub.upsert.mock.invocationCallOrder[0]).toBeLessThan(
@@ -345,7 +381,7 @@ describe("UsersService", () => {
         .mockResolvedValueOnce({ auth0DeletedAt } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.deletedProviderSub.upsert.mockResolvedValue({
-        providerSub,
+        providerSubHash,
         formerUserId: userId,
         deletedAt: now,
       });
@@ -355,7 +391,7 @@ describe("UsersService", () => {
 
       expect(prisma.user.update).toHaveBeenNthCalledWith(1, {
         where: { id: userId },
-        data: { deletionStartedAt: expect.any(Date) as Date },
+        data: { deletionStartedAt: expect.any(Date) as Date, deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP },
         select: { deletionStartedAt: true },
       });
       expect(auth0Management.deleteUser).toHaveBeenCalledWith(providerSub);
@@ -366,7 +402,12 @@ describe("UsersService", () => {
       });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expectTombstoneThenDelete();
-      expectDeletionSagaOrder(prisma.user.update, auth0Management.deleteUser, prisma.$transaction);
+      expectDeletionSagaOrder(
+        prisma.user.update,
+        deletionPrep.prepareRelatedData,
+        auth0Management.deleteUser,
+        prisma.$transaction,
+      );
     });
 
     it("resumes mid-saga: skips re-stamping intent, retries Auth0, then tombstones and deletes", async () => {
@@ -375,11 +416,12 @@ describe("UsersService", () => {
         providerSub,
         deletionStartedAt,
         auth0DeletedAt: null,
+        deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP,
       };
       prisma.user.update.mockResolvedValueOnce({ auth0DeletedAt } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.deletedProviderSub.upsert.mockResolvedValue({
-        providerSub,
+        providerSubHash,
         formerUserId: userId,
         deletedAt: now,
       });
@@ -406,9 +448,10 @@ describe("UsersService", () => {
         providerSub,
         deletionStartedAt,
         auth0DeletedAt,
+        deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP,
       };
       prisma.deletedProviderSub.upsert.mockResolvedValue({
-        providerSub,
+        providerSubHash,
         formerUserId: userId,
         deletedAt: now,
       });
@@ -427,9 +470,10 @@ describe("UsersService", () => {
         providerSub,
         deletionStartedAt,
         auth0DeletedAt,
+        deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP,
       };
       prisma.deletedProviderSub.upsert.mockResolvedValue({
-        providerSub,
+        providerSubHash,
         formerUserId: userId,
         deletedAt: now,
       });
@@ -438,10 +482,92 @@ describe("UsersService", () => {
       await service.completeAccountDeletion(auth0ClearedUser);
 
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledWith({
-        where: { providerSub },
-        create: { providerSub, formerUserId: userId },
-        update: { formerUserId: userId },
+        where: { providerSubHash },
+        create: { providerSubHash, formerUserId: userId },
+        // deletedAt is refreshed: a subject that registered again and deleted
+        // again must be judged against the later deletion, not the first.
+        update: { formerUserId: userId, deletedAt: expect.any(Date) as Date },
       });
+    });
+
+    it("leaves the Auth0 identity alone when prep fails, so a retryable error costs no login", async () => {
+      const prepError = new Error("prep failed");
+      prisma.user.update.mockResolvedValueOnce({ deletionStartedAt } as never);
+      deletionPrep.prepareRelatedData.mockRejectedValue(prepError);
+
+      await expect(service.completeAccountDeletion(freshDeletionUser())).rejects.toThrow(prepError);
+
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+      expect(prisma.deletedProviderSub.upsert).not.toHaveBeenCalled();
+    });
+
+    it("prepares with the requested policy and records it with the intent", async () => {
+      prisma.user.update
+        .mockResolvedValueOnce({ deletionStartedAt } as never)
+        .mockResolvedValueOnce({ auth0DeletedAt } as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(userWithDetails);
+
+      await service.completeAccountDeletion(freshDeletionUser(), AccountDeletionPhotoPolicy.DELETE);
+
+      expect(prisma.user.update).toHaveBeenNthCalledWith(1, {
+        where: { id: userId },
+        data: { deletionStartedAt: expect.any(Date) as Date, deletionPhotoPolicy: AccountDeletionPhotoPolicy.DELETE },
+        select: { deletionStartedAt: true },
+      });
+      expect(deletionPrep.prepareRelatedData).toHaveBeenCalledWith(userId, AccountDeletionPhotoPolicy.DELETE);
+    });
+
+    it("resumes with the stored policy, ignoring what the retry asks for", async () => {
+      const midSaga: AccountDeletionUser = {
+        id: userId,
+        providerSub,
+        deletionStartedAt,
+        auth0DeletedAt,
+        deletionPhotoPolicy: AccountDeletionPhotoPolicy.DELETE,
+      };
+      prisma.user.delete.mockResolvedValue(userWithDetails);
+
+      await service.completeAccountDeletion(midSaga, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(deletionPrep.prepareRelatedData).toHaveBeenCalledWith(userId, AccountDeletionPhotoPolicy.DELETE);
+    });
+
+    it("purges the prepared S3 keys only after the row is gone", async () => {
+      const s3Keys = ["photos/u/e/a", "photos/u/e/b"];
+      deletionPrep.prepareRelatedData.mockResolvedValue({
+        summary: { eventsDeleted: 1, eventsHandedOver: 0, photosKept: 0, photosDeleted: 2, uploadsDiscarded: 0 },
+        s3Keys,
+      });
+      prisma.user.update
+        .mockResolvedValueOnce({ deletionStartedAt } as never)
+        .mockResolvedValueOnce({ auth0DeletedAt } as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(userWithDetails);
+
+      await service.completeAccountDeletion(freshDeletionUser());
+
+      expect(photoPurge.purgeObjects).toHaveBeenCalledWith(s3Keys, {
+        event: "user.account.photos_purged",
+        userId,
+      });
+      expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        photoPurge.purgeObjects.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("never stores the raw subject in the tombstone", async () => {
+      prisma.user.update
+        .mockResolvedValueOnce({ deletionStartedAt } as never)
+        .mockResolvedValueOnce({ auth0DeletedAt } as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(userWithDetails);
+
+      await service.completeAccountDeletion(freshDeletionUser());
+
+      const [args] = prisma.deletedProviderSub.upsert.mock.calls[0];
+      expect(JSON.stringify(args)).not.toContain(providerSub);
     });
 
     it("does not call Auth0 or delete the user when stamping deletionStartedAt fails", async () => {
@@ -450,6 +576,7 @@ describe("UsersService", () => {
 
       await expect(service.completeAccountDeletion(freshDeletionUser())).rejects.toThrow(stampError);
 
+      expect(deletionPrep.prepareRelatedData).not.toHaveBeenCalled();
       expect(auth0Management.deleteUser).not.toHaveBeenCalled();
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();
@@ -501,7 +628,7 @@ describe("UsersService", () => {
         .mockResolvedValueOnce({ auth0DeletedAt } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.deletedProviderSub.upsert.mockResolvedValue({
-        providerSub,
+        providerSubHash,
         formerUserId: userId,
         deletedAt: now,
       });
@@ -526,7 +653,7 @@ describe("UsersService", () => {
         where: { id: userId },
         include: userWithDetailsInclude,
       });
-      expect(completeSpy).toHaveBeenCalledWith(userWithDetails);
+      expect(completeSpy).toHaveBeenCalledWith(userWithDetails, undefined);
       completeSpy.mockRestore();
     });
 
@@ -578,7 +705,7 @@ describe("UsersService", () => {
       });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(prisma.deletedProviderSub.findUnique).toHaveBeenCalledWith({
-        where: { providerSub },
+        where: { providerSubHash },
       });
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: { providerSub },
@@ -587,10 +714,39 @@ describe("UsersService", () => {
       expect(result).toEqual(userWithoutDetails);
     });
 
+    it("provisions a fresh account when the token was issued after the deletion", async () => {
+      // A social sub survives an Auth0 delete and re-signup, so the tombstone
+      // must block the old tokens without banning the person for good.
+      const deletedAt = new Date("2026-06-10T12:00:00.000Z");
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedProviderSub.findUnique.mockResolvedValue({ providerSubHash, formerUserId: userId, deletedAt });
+      prisma.user.create.mockResolvedValue(userWithoutDetails);
+
+      const result = await service.resolveByProviderSub(providerSub, deletedAt.getTime() / 1000 + 60);
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: { providerSub },
+        include: userWithDetailsInclude,
+      });
+      expect(result).toEqual(userWithoutDetails);
+    });
+
+    it("refuses a tombstoned subject whose token predates the deletion", async () => {
+      const deletedAt = new Date("2026-06-10T12:00:00.000Z");
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedProviderSub.findUnique.mockResolvedValue({ providerSubHash, formerUserId: userId, deletedAt });
+
+      await expect(service.resolveByProviderSub(providerSub, deletedAt.getTime() / 1000 - 60)).rejects.toThrow(
+        new UnauthorizedException(),
+      );
+
+      expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+
     it("rejects JIT create when a tombstone exists for the providerSub", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.deletedProviderSub.findUnique.mockResolvedValue({
-        providerSub,
+        providerSubHash,
         formerUserId: userId,
         deletedAt: now,
       });
@@ -624,7 +780,7 @@ describe("UsersService", () => {
     it("rejects when a unique race finds no user but a tombstone now exists", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.deletedProviderSub.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({
-        providerSub,
+        providerSubHash,
         formerUserId: userId,
         deletedAt: now,
       });
