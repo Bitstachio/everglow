@@ -401,6 +401,10 @@ describe("UsersController (integration)", () => {
 
   describe("DELETE /users/me", () => {
     const path = `${USERS_BASE_PATH}/me`;
+    // `?photos=` is required: both outcomes are irreversible, so the API never
+    // guesses. Requests that are meant to reach the saga carry an explicit
+    // choice; the 400 cases cover omitting it and getting it wrong.
+    const keepPath = `${path}?photos=${AccountDeletionPhotoPolicy.KEEP}`;
 
     it("returns 204 when the account deletion saga completes and writes a tombstone", async () => {
       const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
@@ -417,7 +421,7 @@ describe("UsersController (integration)", () => {
       });
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
-      await request(httpServer).delete(path).set(authHeader()).expect(204);
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
 
       expect(auth0Management.deleteUser).toHaveBeenCalledWith(TEST_PROVIDER_SUB);
       // Two transactions: prep, then the tombstone with the row delete.
@@ -433,7 +437,7 @@ describe("UsersController (integration)", () => {
       );
     });
 
-    it("stamps the default photo policy with the intent and keeps uploaded photos", async () => {
+    it("stamps the caller's KEEP choice with the intent and keeps uploaded photos", async () => {
       const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
       const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
@@ -444,7 +448,7 @@ describe("UsersController (integration)", () => {
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
-      await request(httpServer).delete(path).set(authHeader()).expect(204);
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
 
       expect(prisma.user.update).toHaveBeenNthCalledWith(1, {
         where: { id: TEST_USER_ID },
@@ -500,9 +504,21 @@ describe("UsersController (integration)", () => {
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
       s3Service.deleteObjects.mockRejectedValue(new Error("s3 down"));
 
-      await request(httpServer).delete(path).set(authHeader()).expect(204);
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
 
       expect(prisma.user.delete).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns 400 when no photo policy is given and touches nothing", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+
+      const response = await request(httpServer).delete(path).set(authHeader()).expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBeDefined();
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+      expect(prisma.user.delete).not.toHaveBeenCalled();
     });
 
     it("returns 400 for an unknown photo policy and touches nothing", async () => {
@@ -522,7 +538,7 @@ describe("UsersController (integration)", () => {
         new InternalServerErrorException(`Failed to delete Auth0 user "${TEST_PROVIDER_SUB}"`),
       );
 
-      await request(httpServer).delete(path).set(authHeader()).expect(500);
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(500);
 
       expect(prisma.user.update).toHaveBeenCalledTimes(1);
       // Prep has its own transaction; what must not happen is the tombstone.
@@ -541,7 +557,7 @@ describe("UsersController (integration)", () => {
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.deletedProviderSub.upsert.mockRejectedValue(new Error("Tombstone write failed"));
 
-      await request(httpServer).delete(path).set(authHeader()).expect(500);
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(500);
 
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();
@@ -558,11 +574,11 @@ describe("UsersController (integration)", () => {
     it("returns 404 when the authenticated user does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      const response = await request(httpServer).delete(path).set(authHeader()).expect(404);
+      const response = await request(httpServer).delete(keepPath).set(authHeader()).expect(404);
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(USER_SERVICE_ERRORS.NOT_FOUND(TEST_USER_ID));
-      expect(body.meta.path).toBe(path);
+      expect(body.meta.path).toBe(keepPath);
       expect(auth0Management.deleteUser).not.toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();
     });

@@ -643,24 +643,24 @@ describe("UsersService", () => {
   });
 
   describe("remove", () => {
-    it("loads the user and delegates to completeAccountDeletion", async () => {
+    it("loads the user and forwards the caller's photo policy to completeAccountDeletion", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       const completeSpy = jest.spyOn(service, "completeAccountDeletion").mockResolvedValue(undefined);
 
-      await service.remove(userId);
+      await service.remove(userId, AccountDeletionPhotoPolicy.DELETE);
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: userId },
         include: userWithDetailsInclude,
       });
-      expect(completeSpy).toHaveBeenCalledWith(userWithDetails, undefined);
+      expect(completeSpy).toHaveBeenCalledWith(userWithDetails, AccountDeletionPhotoPolicy.DELETE);
       completeSpy.mockRestore();
     });
 
     it("throws NotFoundException when the user does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.remove(userId)).rejects.toThrow(
+      await expect(service.remove(userId, AccountDeletionPhotoPolicy.KEEP)).rejects.toThrow(
         new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
       );
     });

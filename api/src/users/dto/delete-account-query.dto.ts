@@ -1,19 +1,17 @@
-import { ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty } from "@nestjs/swagger";
 import { AccountDeletionPhotoPolicy } from "generated/prisma/client";
-import { IsEnum, IsOptional } from "class-validator";
-import { DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY } from "../users.constants";
+import { IsEnum } from "class-validator";
 
 export class DeleteAccountQueryDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     enum: AccountDeletionPhotoPolicy,
-    default: DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY,
     description:
       "What happens to photos the account uploaded into events that outlive it. " +
       "KEEP: they stay in the event with no uploader. DELETE: they are removed everywhere. " +
       "Uploads still in progress are always discarded. The choice is stored with the deletion " +
-      "intent, so a resumed saga honours it.",
+      "intent, so a resumed saga honours it. Required: the two outcomes are both irreversible, " +
+      "so a caller that omits it gets a 400 rather than a guess.",
   })
-  @IsOptional()
   @IsEnum(AccountDeletionPhotoPolicy)
-  photos?: AccountDeletionPhotoPolicy;
+  photos: AccountDeletionPhotoPolicy;
 }

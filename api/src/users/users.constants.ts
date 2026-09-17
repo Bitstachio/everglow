@@ -20,9 +20,12 @@ export const DEFAULT_ACCOUNT_DELETION_RECONCILER_STUCK_AFTER_HOURS = 1;
 export const DEFAULT_ACCOUNT_DELETION_MAX_ATTEMPTS = 5;
 
 /**
- * Photos the account uploaded into events that outlive it stay in the event by
- * default, with no uploader. An event album is a shared space: a guest's photos
- * of the wedding are the couple's memories too, and messaging products treat
- * shared media the same way. Callers who want them gone pass `?photos=DELETE`.
+ * `DELETE /users/me` has no default: `?photos=` is required, because both
+ * outcomes are irreversible and neither is safe to guess (see
+ * docs/account-deletion.md). This is the fallback for a saga that is *resumed*
+ * with no stored choice, which the reconciler cannot ask anyone about. It keeps
+ * the photos: an event album is a shared space, and a guest's photos of the
+ * wedding are the couple's memories too, so the recoverable outcome wins over
+ * destroying other people's media on a row we know nothing about.
  */
-export const DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY = AccountDeletionPhotoPolicy.KEEP;
+export const ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK = AccountDeletionPhotoPolicy.KEEP;

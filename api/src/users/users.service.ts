@@ -15,7 +15,7 @@ import { AccountDeletionPrepService } from "./account-deletion-prep.service";
 import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY, USER_SERVICE_ERRORS } from "./users.constants";
+import { ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK, USER_SERVICE_ERRORS } from "./users.constants";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
 /** Fields the account-deletion saga needs; callers may pass a lean select. */
@@ -93,7 +93,7 @@ export class UsersService {
     return updated;
   }
 
-  async remove(id: string, photoPolicy?: AccountDeletionPhotoPolicy): Promise<void> {
+  async remove(id: string, photoPolicy: AccountDeletionPhotoPolicy): Promise<void> {
     const user = await this.getById(id);
     await this.completeAccountDeletion(user, photoPolicy);
   }
@@ -107,8 +107,9 @@ export class UsersService {
    * application data is in a state that can actually be torn down; the other
    * order strands the user with no login and all their data.
    *
-   * `photoPolicy` is only read when the saga starts; a resumed saga uses the
-   * choice already stored on the row.
+   * `photoPolicy` is only read when the saga starts, where the HTTP edge always
+   * supplies it (`?photos=` is required); a resumed saga uses the choice already
+   * stored on the row, and falls back to KEEP only if the row has none.
    */
   async completeAccountDeletion(user: AccountDeletionUser, photoPolicy?: AccountDeletionPhotoPolicy): Promise<void> {
     const { id, providerSub } = user;
@@ -117,7 +118,7 @@ export class UsersService {
     let policy = user.deletionPhotoPolicy;
 
     if (!deletionStartedAt) {
-      policy = photoPolicy ?? DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY;
+      policy = photoPolicy ?? ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK;
       const started = await this.prisma.user.update({
         where: { id },
         data: { deletionStartedAt: new Date(), deletionPhotoPolicy: policy },
@@ -132,7 +133,7 @@ export class UsersService {
 
     // Settle events and photos so user.delete has nothing left to trip on and
     // no event is orphaned. Idempotent, so a resumed saga repeats it harmlessly.
-    const { s3Keys } = await this.deletionPrep.prepareRelatedData(id, policy ?? DEFAULT_ACCOUNT_DELETION_PHOTO_POLICY);
+    const { s3Keys } = await this.deletionPrep.prepareRelatedData(id, policy ?? ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK);
 
     if (!auth0DeletedAt) {
       // Leave deletionStartedAt set if Auth0 fails so a lost success response

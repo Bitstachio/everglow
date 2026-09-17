@@ -239,15 +239,17 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 | Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                |
 | Events with another organizer                 | Untouched; only the membership goes.                                          |
 | `Event.creatorId` on surviving events         | Null.                                                                         |
-| Uploaded photos in surviving events           | Kept with no uploader (default), or deleted everywhere with `?photos=DELETE`. |
+| Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere. |
 | Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                             |
 | Storage quota, purchased limit                | Gone with the row. Kept photos count toward nobody's quota.                   |
 
-### Photos are kept by default
+### The photo choice is required, and KEEP is the one to offer
 
 WhatsApp leaves the media you sent with the people you sent it to, and Telegram keeps a deleted sender's messages in the group. Both treat what you share into a group as belonging to the group from that moment. An event album is that kind of place: a guest's photos of the wedding are the couple's memories as much as the guest's, and losing them because a guest tidied up their phone a year later is the surprising outcome, not the safe one.
 
 Privacy still wins when the person asks: `?photos=DELETE` removes their uploads everywhere. Either way the _link_ between person and photo is gone, which is the part that is their personal data. The choice is stored on the row with the intent, so a resumed saga honours what the user actually chose rather than a default.
+
+So `?photos=` is **required**, with no server-side default. Both outcomes are irreversible and they are opposites: one leaves a stranger's binaries in an album, the other destroys other people's wedding photos. A client that forgets the parameter is a bug, and the only answer that cannot be the wrong one is a 400 — deletion is retriable, a wiped album is not. The app therefore has to ask, which is also what the App Store disclosure needs: the person is told that KEEP leaves their photos in the event and only the link to them is removed. `ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK` (KEEP) is not that default; it is what a *resumed* saga uses if its row somehow carries no choice, because the reconciler has nobody left to ask.
 
 ### Events are handed over, not orphaned
 
@@ -255,7 +257,7 @@ Telegram leaves a channel whose owner deleted their account without an owner: ad
 
 ### No grace period
 
-Facebook and Instagram hold a deleted account for 30 days and let a sign-in cancel it; WhatsApp and Telegram delete immediately. A grace period needs a pending state, a scheduler, a restore endpoint, a mobile flow to cancel, and a story for hiding the account's content for a month without breaking events for everyone else. That is a product decision with its own UI. Immediate deletion is what Apple's requirement needs, and the kept-photos default removes the largest regret.
+Facebook and Instagram hold a deleted account for 30 days and let a sign-in cancel it; WhatsApp and Telegram delete immediately. A grace period needs a pending state, a scheduler, a restore endpoint, a mobile flow to cancel, and a story for hiding the account's content for a month without breaking events for everyone else. That is a product decision with its own UI. Immediate deletion is what Apple's requirement needs, and asking about the photos removes the largest regret.
 
 ---
 
@@ -268,7 +270,7 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Only organizer, other members are only viewers | Longest-standing viewer promoted                                                                         |
 | Only member of the event                       | Event deleted with all its photos; S3 purged after commit                                                |
 | Created an event it later left                 | `creatorId` set to null; nothing else                                                                    |
-| Uploaded photos, default policy                | Kept, `addedById` null; organizers can still delete them                                                 |
+| Uploaded photos, `?photos=KEEP`                | Kept, `addedById` null; organizers can still delete them                                                 |
 | Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit                                                        |
 | Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the photo reconciler             |
 | Prep fails                                     | 500, Auth0 untouched, login intact, retryable                                                            |
@@ -284,6 +286,7 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Event already deleted by a concurrent deletion | `deleteMany` makes it a no-op, and the run is not counted as a deletion                                  |
 | Account with a raised storage limit            | Limit gone with the row; refunds are billing's concern                                                   |
 | Account never onboarded                        | Same flow; only the row to remove                                                                        |
+| Missing `?photos=`                             | 400, nothing deleted; the choice is required                                                             |
 | Unknown `?photos=` value                       | 400, nothing deleted                                                                                     |
 
 ---

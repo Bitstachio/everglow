@@ -186,11 +186,11 @@ export type UsersControllerCompleteOnboardingResponse =
 export type UsersControllerRemoveMeData = {
   body?: never;
   path?: never;
-  query?: {
+  query: {
     /**
-     * What happens to photos the account uploaded into events that outlive it. KEEP: they stay in the event with no uploader. DELETE: they are removed everywhere. Uploads still in progress are always discarded. The choice is stored with the deletion intent, so a resumed saga honours it.
+     * What happens to photos the account uploaded into events that outlive it. KEEP: they stay in the event with no uploader. DELETE: they are removed everywhere. Uploads still in progress are always discarded. The choice is stored with the deletion intent, so a resumed saga honours it. Required: the two outcomes are both irreversible, so a caller that omits it gets a 400 rather than a guess.
      */
-    photos?: "KEEP" | "DELETE";
+    photos: "KEEP" | "DELETE";
   };
   url: "/api/v2/users/me";
 };
