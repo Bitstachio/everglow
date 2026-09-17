@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
+import { DeleteAccountQueryDto } from "./dto/delete-account-query.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { UserStorageResponseDto } from "./dto/user-storage-response.dto";
@@ -61,7 +62,7 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete current user" })
   @ApiNoContentResponse({ description: "User deleted (empty data envelope at runtime)" })
-  async removeMe(@CurrentUser() user: AuthenticatedUser): Promise<void> {
-    return this.usersService.remove(user.id);
+  async removeMe(@CurrentUser() user: AuthenticatedUser, @Query() query: DeleteAccountQueryDto): Promise<void> {
+    return this.usersService.remove(user.id, query.photos);
   }
 }

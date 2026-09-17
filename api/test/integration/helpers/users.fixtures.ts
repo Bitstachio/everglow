@@ -26,6 +26,8 @@ export const buildUserWithoutDetails = (overrides: Partial<UserWithDetails> = {}
   storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
   deletionStartedAt: null,
   auth0DeletedAt: null,
+  deletionPhotoPolicy: null,
+  deletionAttempts: 0,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   details: null,
@@ -38,6 +40,8 @@ export const buildUserWithDetails = (overrides: Partial<UserWithDetails> = {}): 
   storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
   deletionStartedAt: null,
   auth0DeletedAt: null,
+  deletionPhotoPolicy: null,
+  deletionAttempts: 0,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   details: {

@@ -394,7 +394,7 @@ const EventDetailScreen = () => {
                     {(isAdmin || photo.addedById === user?.id) && (
                       <TouchableOpacity
                         style={styles.deletePhotoButton}
-                        onPress={() => handleDeletePhoto(photo.id, photo.addedById)}
+                        onPress={() => handleDeletePhoto(photo.id, photo.addedById ?? undefined)}
                       >
                         <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
                       </TouchableOpacity>

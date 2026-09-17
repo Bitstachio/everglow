@@ -44,7 +44,11 @@ export const useProfileScreen = () => {
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          deleteProfileMutation.mutate(undefined, {
+          // TODO: ask which one the person wants. Until the picker ships, this
+          // sends KEEP: photos stay in the events they were added to with the
+          // uploader removed, which is the outcome that cannot destroy other
+          // members' albums.
+          deleteProfileMutation.mutate("KEEP", {
             onSuccess: async () => {
               await logout();
               Alert.alert("Success", "Account deleted successfully");

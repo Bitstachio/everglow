@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ManagementClient, ManagementError } from "auth0";
 import { PinoLogger } from "nestjs-pino";
+import { AUTH0_MANAGEMENT_ERRORS } from "./auth0-management.constants";
 import { Auth0ManagementService } from "./auth0-management.service";
 
 const mockDeleteUser = jest.fn();
@@ -26,6 +27,30 @@ jest.mock("auth0", () => {
 
 describe("Auth0ManagementService", () => {
   let service: Auth0ManagementService;
+
+  const buildService = async (credentials: Record<string, string | undefined>): Promise<Auth0ManagementService> => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        Auth0ManagementService,
+        {
+          provide: ConfigService,
+          useValue: {
+            getOrThrow: jest.fn((key: string) => {
+              if (key === "auth0.domain") return "test.example.auth0.com";
+              throw new Error(`Unexpected getOrThrow key: ${key}`);
+            }),
+            get: jest.fn((key: string) => credentials[key]),
+          },
+        },
+        {
+          provide: PinoLogger,
+          useValue: { setContext: jest.fn(), error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    return module.get(Auth0ManagementService);
+  };
 
   beforeEach(async () => {
     mockDeleteUser.mockReset();
@@ -81,5 +106,35 @@ describe("Auth0ManagementService", () => {
     mockDeleteUser.mockRejectedValue(new ManagementError({ message: "boom", statusCode: 500 }));
 
     await expect(service.deleteUser("auth0|abc123")).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  describe("credentials", () => {
+    // Account deletion is the only caller, so a missing secret must fail that
+    // one endpoint rather than stop the whole API from starting.
+    it("constructs without management credentials and does not build a client", async () => {
+      jest.mocked(ManagementClient).mockClear();
+
+      await expect(buildService({})).resolves.toBeInstanceOf(Auth0ManagementService);
+
+      expect(ManagementClient).not.toHaveBeenCalled();
+    });
+
+    it("fails the delete with a server error when credentials are missing", async () => {
+      const unconfigured = await buildService({ "auth0.managementClientId": "id-only" });
+
+      await expect(unconfigured.deleteUser("auth0|abc123")).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(unconfigured.deleteUser("auth0|abc123")).rejects.toThrow(
+        AUTH0_MANAGEMENT_ERRORS.CREDENTIALS_NOT_CONFIGURED(),
+      );
+    });
+
+    it("builds the client once and reuses it across calls", async () => {
+      jest.mocked(ManagementClient).mockClear();
+
+      await service.deleteUser("auth0|abc123");
+      await service.deleteUser("auth0|def456");
+
+      expect(ManagementClient).toHaveBeenCalledTimes(1);
+    });
   });
 });

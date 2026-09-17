@@ -3,7 +3,7 @@ import { useAuth } from "@/context/auth-context";
 import { usersControllerRemoveMe, usersControllerUpdateMe } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { profileKeys } from "./keys";
-import type { UpdateUserDto, UserResponseDto } from "../types";
+import type { DeleteAccountPhotoPolicy, UpdateUserDto, UserResponseDto } from "../types";
 
 export const useUpdateProfileMutation = () => {
   const { updateUser } = useAuth();
@@ -24,9 +24,12 @@ export const useUpdateProfileMutation = () => {
 export const useDeleteProfileMutation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, void>({
-    mutationFn: async () => {
-      await usersControllerRemoveMe({ throwOnError: true });
+  // `photos` is required by the API: KEEP leaves the photos in the events they
+  // were added to with the uploader removed, DELETE removes them everywhere.
+  // Both are irreversible, so the caller has to say which one it wants.
+  return useMutation<void, Error, DeleteAccountPhotoPolicy>({
+    mutationFn: async (photos) => {
+      await usersControllerRemoveMe({ query: { photos }, throwOnError: true });
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: profileKeys.all });

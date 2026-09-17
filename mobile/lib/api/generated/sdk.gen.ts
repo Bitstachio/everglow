@@ -120,9 +120,9 @@ export const usersControllerCompleteOnboarding = <ThrowOnError extends boolean =
  * Delete current user
  */
 export const usersControllerRemoveMe = <ThrowOnError extends boolean = false>(
-  options?: Options<UsersControllerRemoveMeData, ThrowOnError>,
+  options: Options<UsersControllerRemoveMeData, ThrowOnError>,
 ): RequestResult<UsersControllerRemoveMeResponses, UsersControllerRemoveMeErrors, ThrowOnError> =>
-  (options?.client ?? client).delete<UsersControllerRemoveMeResponses, UsersControllerRemoveMeErrors, ThrowOnError>({
+  (options.client ?? client).delete<UsersControllerRemoveMeResponses, UsersControllerRemoveMeErrors, ThrowOnError>({
     url: "/api/v2/users/me",
     ...options,
   });
