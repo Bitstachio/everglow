@@ -12,6 +12,7 @@ import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { AccountDeletionPrepService } from "./account-deletion-prep.service";
+import { AppleIdentityRevocationService } from "./apple-identity-revocation.service";
 import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -30,6 +31,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly auth0Management: Auth0ManagementService,
     private readonly deletionPrep: AccountDeletionPrepService,
+    private readonly appleRevocation: AppleIdentityRevocationService,
     private readonly photoPurge: PhotoPurgeService,
     private readonly logger: PinoLogger,
   ) {
@@ -136,6 +138,12 @@ export class UsersService {
     const { s3Keys } = await this.deletionPrep.prepareRelatedData(id, policy ?? ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK);
 
     if (!auth0DeletedAt) {
+      // Apple keeps the app authorised until the token Auth0 obtained is
+      // revoked, and that token lives on the Auth0 user, so it has to go
+      // before the user does. Idempotent: Apple answers 200 for a token that
+      // is already revoked, so a resumed saga repeats it harmlessly.
+      await this.appleRevocation.revokeBeforeAuth0Delete(id, providerSub);
+
       // Leave deletionStartedAt set if Auth0 fails so a lost success response
       // cannot drop the durable marker; retries treat Auth0 404 as success.
       await this.auth0Management.deleteUser(providerSub);
