@@ -189,3 +189,54 @@ Account **deletion** is closer in spirit to a saga across two stores (flags, Aut
 4. **Re-join via new identity**: a new Auth0 `sub` after a real re-signup can provision a new app user; the old `sub` stays blocked.
 
 Implementation details (table or column names, exact status codes, retention job) live with the users / auth code and can evolve. This document is the why.
+
+---
+
+## 10. Sign in with Apple
+
+Apple login goes through the Auth0 **Apple social connection**; the API never talks to Apple to authenticate anyone. What reaches the API is still an Auth0 access token, so the request path in §2 is unchanged. Three things are specific to Apple.
+
+### 10.1 What the API sees
+
+Auth0 derives the subject from Apple's stable per-team user identifier, so the `sub` (and our `providerSub`) looks like `apple|001234.abcdef0123456789abcdef.0123`. Nothing else about the token differs: same issuer, audience and signing keys. JIT provisioning (§4) creates the `User` row on first request exactly as for any other connection, and `isAppleProviderSub` in `users.constants.ts` is the only place the prefix is inspected.
+
+The access token carries no email or name. Onboarding stays the client's job: `POST /users/me/onboarding` receives the email the person chooses to give us. With **Hide My Email**, that may be an `@privaterelay.appleid.com` address. It is a valid, unique address for that person and app, so nothing on the API needs to know it is a relay; `UserDetails.email` stores it like any other. It cascades away with the `User` row on deletion, so a later re-signup that produces a different relay address cannot collide with it.
+
+### 10.2 Re-signup after delete
+
+Apple's identifier is stable for the same Apple ID and developer team, so after deletion the same `apple|…` `sub` comes back. That is the social-connection case §6 already handles: a token minted after the tombstone's `deletedAt` provisions a fresh account. No Apple-specific rule is needed.
+
+What Apple _does_ need is the token revocation below. Without it the app stays listed under the person's Apple ID as authorised, so their next sign-in skips Apple's consent screen and Apple never re-sends their email or name to Auth0. The Auth0 user is then created without an email, and any email-dependent step in the tenant fails. Revocation resets that, and is also what Apple's App Store review checks.
+
+### 10.3 Token revocation on account deletion
+
+Apple requires apps that offer Sign in with Apple to revoke the user's Apple tokens when the account is deleted (App Store Review Guideline 5.1.1(v); Apple technote TN3194). Auth0 obtained those tokens when it exchanged the authorization code, keeps them on the user's `identities[]` entry for the Apple connection, and **does not revoke them when the user is deleted**. Deleting the Auth0 user simply discards them. So the API revokes first, then deletes:
+
+```text
+intent → prep → revoke Apple token (if apple|) → Auth0 delete → tombstone + row delete
+```
+
+Implementation:
+
+- `AppleIdentityRevocationService` (users module) decides whether the step applies and what to log. It reads the Apple identity's tokens through `Auth0ManagementService.getIdentityProviderTokens`, prefers the refresh token (revoking only the access token leaves the authorisation in place) and calls `AppleSiwaService.revokeToken`.
+- `AppleSiwaService` (`src/sdk/apple`) posts to `https://appleid.apple.com/auth/revoke` with a per-request `client_secret`: an ES256 JWT signed with the Sign in with Apple private key (`signAppleClientSecret`). Apple answers `200` for a token that is already revoked, so the step is idempotent and a resumed saga repeats it safely.
+- Failure handling is in [account-deletion.md](./account-deletion.md): Apple unreachable → the saga stops and retries later with the token still in Auth0; Apple refuses or there is no token → logged, deletion continues.
+
+The client id sent to Apple must be the one Auth0 presented when the person authorised. For the native iOS flow that is the app's bundle identifier (the App ID on the connection's iOS settings), not the Services ID used by browser-based Universal Login. A mismatch is a `400 invalid_client`, logged and not retried.
+
+Nothing here is stored in our database: no Apple tokens, no new columns. Apple's own user identifier only ever appears inside `providerSub`.
+
+### 10.4 Tenant and portal setup (outside this repository)
+
+Auth0 Dashboard:
+
+1. **Authentication → Social → Apple**: Client ID (Services ID), Team ID, Key ID and the .p8 signing key; under iOS settings the app's **App ID / bundle identifier** for the native flow. Enable the connection for the mobile application.
+2. Same connection: turn on storing the Apple refresh token if the setting is offered (Auth0 staff refer to it as "Fetch Refresh Token"). Without it only the access token is available and revocation does not fully unlink the app; the API logs `tokenType: "access_token"` when that happens.
+3. **Applications → APIs → Auth0 Management API → Machine to Machine Applications**: the API's management client needs `read:users` and `read:user_idp_tokens` in addition to `delete:users`.
+
+Apple Developer portal:
+
+4. The Sign in with Apple key (Team ID, Key ID, .p8) and the App ID must match what the connection uses. The API gets the same values as `APPLE_SIWA_TEAM_ID`, `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` and `APPLE_SIWA_CLIENT_ID` (see `.env.example`).
+5. Optional, not required for review: register a server-to-server notification endpoint so Apple's `consent-revoked` and `account-delete` events can start the deletion saga when the person unlinks the app from their Apple ID settings instead of from within the app. Not implemented yet.
+
+Verifying a deployment: delete an Apple-signed-in test account, then check the device's Settings → Apple ID → Sign in with Apple. The app must no longer be listed, and the next sign-in must show Apple's full consent screen again.

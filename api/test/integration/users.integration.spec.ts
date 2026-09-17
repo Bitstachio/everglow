@@ -2,6 +2,7 @@ import { INestApplication, InternalServerErrorException, UnauthorizedException }
 import { AccountDeletionPhotoPolicy, PhotoStatus, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockDeep, mockReset } from "jest-mock-extended";
+import { AppleSiwaService, AppleTokenRevocationError } from "src/sdk/apple/apple-siwa.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
@@ -45,6 +46,7 @@ describe("UsersController (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let auth0Management: DeepMockProxy<Auth0ManagementService>;
+  let appleSiwa: DeepMockProxy<AppleSiwaService>;
   let usersService: UsersService;
   let httpServer: Server;
 
@@ -52,10 +54,13 @@ describe("UsersController (integration)", () => {
 
   beforeAll(async () => {
     auth0Management = mockDeep<Auth0ManagementService>();
+    appleSiwa = mockDeep<AppleSiwaService>();
     const context = await createTestApp((builder) =>
       builder
         .overrideProvider(Auth0ManagementService)
         .useValue(auth0Management)
+        .overrideProvider(AppleSiwaService)
+        .useValue(appleSiwa)
         .overrideProvider(S3Service)
         .useValue(s3Service),
     );
@@ -74,6 +79,7 @@ describe("UsersController (integration)", () => {
     // implementations, preventing stubs from leaking between tests
     mockReset(prisma);
     mockReset(auth0Management);
+    mockReset(appleSiwa);
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     // Prep sweeps events and photos before the Auth0 call; an account with
     // nothing to settle is the default for these cases.
@@ -561,6 +567,88 @@ describe("UsersController (integration)", () => {
 
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("does not touch Apple for an identity from another connection", async () => {
+      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
+      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.user.update
+        .mockResolvedValueOnce({ deletionStartedAt } as never)
+        .mockResolvedValueOnce({ auth0DeletedAt } as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(buildUserWithDetails());
+
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+
+      expect(auth0Management.getIdentityProviderTokens).not.toHaveBeenCalled();
+      expect(appleSiwa.revokeToken).not.toHaveBeenCalled();
+    });
+
+    describe("Sign in with Apple", () => {
+      const appleSub = "apple|001234.abcdef0123456789.0123";
+      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
+      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
+
+      beforeEach(() => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ providerSub: appleSub }));
+        prisma.user.update
+          .mockResolvedValueOnce({ deletionStartedAt } as never)
+          .mockResolvedValueOnce({ auth0DeletedAt } as never);
+        prisma.user.delete.mockResolvedValue(buildUserWithDetails({ providerSub: appleSub }));
+        appleSiwa.isRevocationConfigured.mockReturnValue(true);
+      });
+
+      it("revokes the Apple refresh token before deleting the Auth0 user", async () => {
+        auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "apple-refresh" });
+        appleSiwa.revokeToken.mockResolvedValue(undefined);
+        auth0Management.deleteUser.mockResolvedValue(undefined);
+
+        await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+
+        expect(auth0Management.getIdentityProviderTokens).toHaveBeenCalledWith(appleSub, "apple");
+        expect(appleSiwa.revokeToken).toHaveBeenCalledWith("apple-refresh", "refresh_token");
+        expect(appleSiwa.revokeToken.mock.invocationCallOrder[0]).toBeLessThan(
+          auth0Management.deleteUser.mock.invocationCallOrder[0],
+        );
+        expect(auth0Management.deleteUser).toHaveBeenCalledWith(appleSub);
+        expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: TEST_USER_ID } });
+      });
+
+      it("returns 500 and keeps the Auth0 user when Apple is unreachable, so a retry can still revoke", async () => {
+        auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "apple-refresh" });
+        appleSiwa.revokeToken.mockRejectedValue(new AppleTokenRevocationError("Apple down", true));
+
+        await request(httpServer).delete(keepPath).set(authHeader()).expect(500);
+
+        expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+        expect(prisma.deletedProviderSub.upsert).not.toHaveBeenCalled();
+        expect(prisma.user.delete).not.toHaveBeenCalled();
+        // Intent stays stamped for the reconciler.
+        expect(prisma.user.update).toHaveBeenCalledTimes(1);
+      });
+
+      it("still deletes the account when Apple refuses the revocation outright", async () => {
+        auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "apple-refresh" });
+        appleSiwa.revokeToken.mockRejectedValue(new AppleTokenRevocationError("invalid_client", false));
+        auth0Management.deleteUser.mockResolvedValue(undefined);
+
+        await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+
+        expect(auth0Management.deleteUser).toHaveBeenCalledWith(appleSub);
+        expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: TEST_USER_ID } });
+      });
+
+      it("still deletes the account when Apple credentials are not configured", async () => {
+        appleSiwa.isRevocationConfigured.mockReturnValue(false);
+        auth0Management.deleteUser.mockResolvedValue(undefined);
+
+        await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+
+        expect(auth0Management.getIdentityProviderTokens).not.toHaveBeenCalled();
+        expect(appleSiwa.revokeToken).not.toHaveBeenCalled();
+        expect(auth0Management.deleteUser).toHaveBeenCalledWith(appleSub);
+      });
     });
 
     it("returns 401 when the access token is missing", async () => {
