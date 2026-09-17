@@ -120,11 +120,15 @@ This is a small **saga / state machine** for dual-store delete. Durable intent l
 2. Mark deletion intent: set deletionStartedAt
 3. Prep related database data so user.delete is likely to succeed
    (events, memberships, photos, etc. per product rules)
-4. Delete Auth0 user (idempotent: already-gone / 404 counts as success)
-5. Set auth0DeletedAt
-6. In one transaction: upsert DeletedProviderSub tombstone, then delete the User row
-7. Best-effort S3 / other side cleanup (same spirit as event photo purge)
+4. Sign in with Apple only: revoke the Apple token Auth0 holds for the user
+   (idempotent: Apple answers 200 for an already-revoked token)
+5. Delete Auth0 user (idempotent: already-gone / 404 counts as success)
+6. Set auth0DeletedAt
+7. In one transaction: upsert DeletedProviderSub tombstone, then delete the User row
+8. Best-effort S3 / other side cleanup (same spirit as event photo purge)
 ```
+
+Step 4 exists because Apple treats the app as still authorised until the token is revoked, and that token lives on the Auth0 user, so it must be revoked before the user is deleted. It repeats on every pass that still has an Auth0 user, which is safe. See [authentication.md](./authentication.md#10-sign-in-with-apple) for the rule and the ops setup.
 
 Derived state from the two nullable timestamps (no separate status enum):
 
@@ -133,6 +137,13 @@ Derived state from the two nullable timestamps (no separate status enum):
 | null                | null             | Active account                                           |
 | set                 | null             | Deletion in progress; Auth0 not confirmed cleared        |
 | set                 | set              | Auth0 cleared; database teardown still owed (reconciler) |
+
+### If Apple revocation fails (after the flag)
+
+Two cases, decided by whether trying again could help:
+
+- **Apple unreachable** (transport error, 5xx): the saga stops before the Auth0 delete and returns an error. `deletionStartedAt` stays set, the Auth0 user and its token stay put, and the next pass (client retry or reconciler) revokes again. Same shape as an Auth0 failure.
+- **Apple refuses** (400: wrong client id, bad key) or **no token to revoke** (Apple credentials not configured, management client lacks `read:user_idp_tokens`, connection stores no token): logged at `error` with `audit: true`, and the saga carries on to delete the Auth0 user. Apple's own guidance is that the deletion must still be honoured; the person then has to unlink the app under Settings → Apple ID → Sign in with Apple themselves. Retrying would only delay a deletion the person asked for, and the token is lost with the Auth0 user either way.
 
 ### If Auth0 fails (after the flag)
 
