@@ -13,6 +13,7 @@ This document is the entry point for how we write TypeScript and React Native co
 | Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
 | API client, React Query, feature `api/`       | [API](./api.md)                                             |
 | Forms (React Hook Form + Zod)                 | [Forms](./forms.md)                                         |
+| Custom SVG icons (`AppIcon`)                  | [Icons](./icons.md)                                         |
 | Component / hook tests (Jest + RNTL)          | [Testing](./testing.md)                                     |
 | E2E tests (Maestro)                           | [E2E](./e2e.md)                                             |
 | PR review judgments                           | [Code review checklist](./code-review-checklist.md)         |
