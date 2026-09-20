@@ -1,4 +1,4 @@
-# Ignore artifacts:
+# artifacts
 build
 coverage
 .maestro/results
@@ -6,3 +6,6 @@ coverage
 # pnpm rewrites the lockfile in its own style on every install, so formatting it
 # here only causes churn between pnpm and Prettier.
 pnpm-lock.yaml
+
+# third-party agent skills (installed/updated via skills-lock.json)
+.agents/skills
