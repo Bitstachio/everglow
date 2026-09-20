@@ -90,6 +90,14 @@
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos to your library.",
           "isAccessMediaLocationEnabled": true
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
+        }
       ]
     ],
     "experiments": {
