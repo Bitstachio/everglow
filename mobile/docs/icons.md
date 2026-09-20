@@ -30,10 +30,10 @@ Size tokens live in `constants/icons.ts` (`xs`–`xl`). Prefer a token; use a nu
 
 ## Related files
 
-| Piece | Location |
-| --- | --- |
-| Icon files | `assets/icons/` |
-| Size tokens | `constants/icons.ts` |
-| Wrapper | `components/ui/app-icon.tsx` |
-| SVGR config | `.svgrrc` |
-| Metro wiring | `metro.config.js` |
+| Piece        | Location                     |
+| ------------ | ---------------------------- |
+| Icon files   | `assets/icons/`              |
+| Size tokens  | `constants/icons.ts`         |
+| Wrapper      | `components/ui/app-icon.tsx` |
+| SVGR config  | `.svgrrc`                    |
+| Metro wiring | `metro.config.js`            |

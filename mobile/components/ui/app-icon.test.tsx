@@ -12,19 +12,13 @@ describe("AppIcon", () => {
   it("defaults to the md token", async () => {
     const { getByTestId } = await render(<AppIcon icon={MockSvg} color="#111827" />);
 
-    expect(getByTestId("mock-svg")).toHaveProp(
-      "accessibilityLabel",
-      `${IconSize.md}x${IconSize.md}:#111827`,
-    );
+    expect(getByTestId("mock-svg")).toHaveProp("accessibilityLabel", `${IconSize.md}x${IconSize.md}:#111827`);
   });
 
   it("resolves named sizes", async () => {
     const { getByTestId } = await render(<AppIcon icon={MockSvg} size="lg" color="#111827" />);
 
-    expect(getByTestId("mock-svg")).toHaveProp(
-      "accessibilityLabel",
-      `${IconSize.lg}x${IconSize.lg}:#111827`,
-    );
+    expect(getByTestId("mock-svg")).toHaveProp("accessibilityLabel", `${IconSize.lg}x${IconSize.lg}:#111827`);
   });
 
   it("allows a numeric size override", async () => {
