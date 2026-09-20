@@ -20,7 +20,7 @@ export const useEventsScreen = () => {
     }
   }, [error, errorUpdatedAt]);
 
-  // Legacy create/detail pages do not invalidate queries yet. Refresh when returning.
+  // Legacy detail pages do not invalidate queries yet. Refresh when returning.
   useFocusEffect(
     useCallback(() => {
       if (user?.id) void refetch({ cancelRefetch: false });

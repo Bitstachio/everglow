@@ -218,7 +218,7 @@ module.exports = defineConfig([
   },
   {
     files: ["app/**/*.{ts,tsx}"],
-    ignores: legacyAppRoutePaths,
+    ignores: [...legacyAppRoutePaths, "!app/events/create.tsx"],
     rules: {
       "no-restricted-imports": [
         "error",
