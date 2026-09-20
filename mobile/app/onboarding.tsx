@@ -17,10 +17,12 @@ export default function OnboardingScreen() {
   const [email, setEmail] = useState("");
   const [formErrors, setFormErrors] = useState({ name: "", email: "" });
 
-  // Prefill from the Auth0 ID token when available.
+  // Prefill from the Auth0 ID token when available (token may arrive after first render).
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time async Auth0 profile prefill */
     if (auth0User?.name) setName((prev) => prev || auth0User.name || "");
     if (auth0User?.email) setEmail((prev) => prev || auth0User.email || "");
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [auth0User]);
 
   useEffect(() => {

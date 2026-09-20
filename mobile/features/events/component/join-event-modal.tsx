@@ -23,9 +23,11 @@ const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubmit, onS
 
   // Reset scanner state when modal closes
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- clear transient scanner when parent hides modal */
     if (!visible) {
       setScannerVisible(false);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [visible]);
 
   const handleScanSuccess = (data: string) => {
