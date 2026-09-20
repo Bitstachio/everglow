@@ -38,13 +38,7 @@ export default function GalleryScreen() {
   const [viewingPhotoIndex, setViewingPhotoIndex] = useState<number | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchPhotos();
-    }, []),
-  );
-
-  const fetchPhotos = async () => {
+  const fetchPhotos = useCallback(async () => {
     try {
       setIsLoading(true);
       const allPhotos = await getAllPhotosFromUserEvents();
@@ -56,12 +50,18 @@ export default function GalleryScreen() {
       setIsLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchPhotos();
+    }, [fetchPhotos]),
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchPhotos();
-  }, []);
+    void fetchPhotos();
+  }, [fetchPhotos]);
 
   const togglePhotoSelection = (photoId: string) => {
     const newSelected = new Set(selectedPhotos);
