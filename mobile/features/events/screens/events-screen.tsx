@@ -50,7 +50,7 @@ const EventsScreen = () => {
         </View>
 
         <EventsList
-          title="Upcoming Events"
+          title="My Events"
           isLoading={isLoading}
           events={events}
           onEventShare={handleEventShare}
