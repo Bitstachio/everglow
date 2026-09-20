@@ -2,6 +2,7 @@ import { FormField } from "@/components/ui/form-field";
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Controller } from "react-hook-form";
 import { Button, Text, View } from "react-native";
+import { deferred } from "../testing/fixtures";
 import { useCreateEventForm } from "./use-create-event-form";
 
 const mockMutateAsync = jest.fn();
@@ -30,6 +31,7 @@ const CreateFormProbe = () => {
         )}
       />
       {form.formState.errors.root?.server && <Text>{form.formState.errors.root.server.message}</Text>}
+      <Button title="Submit again" onPress={onSubmit} />
       <Button title="Create" onPress={onSubmit} disabled={form.formState.isSubmitting} />
     </View>
   );
@@ -119,4 +121,55 @@ test("disables submission while the request is pending", async () => {
   await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeDisabled());
   await user.press(screen.getByRole("button", { name: "Create" }));
   expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+});
+
+test("accepts maximum field lengths after trimming whitespace", async () => {
+  await render(<CreateFormProbe />);
+  const user = userEvent.setup();
+  await user.paste(screen.getByPlaceholderText("Title"), `  ${"t".repeat(100)}  `);
+  await user.paste(screen.getByPlaceholderText("Description"), `  ${"d".repeat(255)}  `);
+  await user.press(screen.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
+  expect(mockMutateAsync).toHaveBeenCalledWith({
+    title: "t".repeat(100),
+    description: "d".repeat(255),
+    date: expect.any(String),
+  });
+});
+
+test("omits whitespace-only descriptions", async () => {
+  await render(<CreateFormProbe />);
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.type(screen.getByPlaceholderText("Description"), "   ");
+  await user.press(screen.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
+  expect(mockMutateAsync).toHaveBeenCalledWith({ title: "Meetup", date: expect.any(String) });
+});
+
+test("uses a fallback server error and unlocks the form", async () => {
+  mockMutateAsync.mockRejectedValueOnce({ unexpected: true });
+  await render(<CreateFormProbe />);
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.press(screen.getByRole("button", { name: "Create" }));
+  expect(await screen.findByText("Failed to create event")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
+  await user.press(screen.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
+});
+
+test("guards duplicate submission callbacks until the request settles", async () => {
+  const pending = deferred<{ id: string }>();
+  mockMutateAsync.mockReturnValueOnce(pending.promise);
+  await render(<CreateFormProbe />);
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.press(screen.getByRole("button", { name: "Create" }));
+  // Simulate an additional submit source that does not depend on button disabling.
+  await user.press(screen.getByRole("button", { name: "Submit again" }));
+  expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+  pending.resolve({ id: "created-event" });
+  await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
 });

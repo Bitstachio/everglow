@@ -58,3 +58,26 @@ because React Native's default Jest mock discards them; native refresh and barco
 
 Create and detail routes are separate from this page; this suite tests navigation to those routes.
 Device E2E coverage remains a separate follow-up.
+
+## Create Event page
+
+Run the Create Event unit/component and full-screen integration suites from `mobile/`:
+
+```sh
+pnpm test --runInBand create-event features/events/api/mutations.test.tsx
+pnpm test --runInBand features/events/screens/create-event-screen-integration.test.tsx
+```
+
+The integration suite renders the real screen, form, hooks, validation, and React Query mutation.
+Only the generated SDK, navigation, native services, and date/time picker are mocked. It covers
+creation with an optional description, validation, pending submission, retries, cache invalidation,
+invitation copying/sharing, share failures, creating another event, and returning with Done.
+
+Component tests exercise iOS and Android picker changes and dismissal, preservation of the date
+when changing time (and vice versa), picker visibility, disabled controls, themes, and success
+callbacks. Form-hook tests cover field limits, trimming, invalid dates, fallback errors, reset,
+and duplicate submit callbacks. Screen-hook tests also check actions before/after a created event
+exists. The mutation tests verify that creation waits for active event lists to refresh.
+
+Native picker events are simulated; these tests do not exercise a device or real HTTP transport.
+Device E2E tests remain deferred.

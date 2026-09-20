@@ -132,6 +132,8 @@ export const CreateEventForm = ({
           {/* Overlay to close pickers when clicking outside */}
           {(showDatePicker || showTimePicker) && (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close date and time picker"
               style={styles.pickerOverlay}
               onPress={() => {
                 setShowDatePicker(false);
@@ -166,6 +168,8 @@ export const CreateEventForm = ({
                     <Text style={[styles.label, isDark ? styles.labelDark : styles.labelLight]}>Date & Time</Text>
                     <View style={styles.dateTimeContainer}>
                       <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Choose date"
                         disabled={isSubmitting}
                         onPress={() => {
                           setShowTimePicker(false);
@@ -180,6 +184,8 @@ export const CreateEventForm = ({
                       </Pressable>
 
                       <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Choose time"
                         disabled={isSubmitting}
                         onPress={() => {
                           setShowDatePicker(false);
