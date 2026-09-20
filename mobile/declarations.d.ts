@@ -4,3 +4,6 @@ declare module "*.svg" {
   const content: React.FC<SvgProps>;
   export default content;
 }
+
+// TypeScript 6 enables noUncheckedSideEffectImports by default.
+declare module "*.css" {}
