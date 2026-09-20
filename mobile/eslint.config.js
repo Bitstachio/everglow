@@ -15,7 +15,7 @@ const featureNames = fs.existsSync(featuresDir)
 
 // Profile (features/profile/) is the reference structure. Legacy feature folders listed here
 // are exempt from layer rules until refactored to match profile. Do not copy their patterns.
-const legacyFeatureNames = ["events"];
+const legacyFeatureNames = [];
 
 // App routes exempt from thin-route rules while legacy event screens live outside features/.
 const legacyAppRoutePaths = ["app/events/**"];
@@ -218,7 +218,7 @@ module.exports = defineConfig([
   },
   {
     files: ["app/**/*.{ts,tsx}"],
-    ignores: legacyAppRoutePaths,
+    ignores: [...legacyAppRoutePaths, "!app/events/create.tsx"],
     rules: {
       "no-restricted-imports": [
         "error",

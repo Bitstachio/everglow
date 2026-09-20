@@ -1,22 +1,24 @@
-import CancelButton from "@/components/ui/cancel-button";
-import PrimaryButton from "@/components/ui/primary-button";
-import AppTextInput from "@/components/ui/app-text-input";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import type { Control } from "react-hook-form";
+import type { JoinEventValues } from "../hooks/use-join-event-form";
 import { H2 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useEffect, useState } from "react";
 import { Modal, View } from "react-native";
-import { useJoinEventModal } from "../hooks/use-join-event-modal";
 import QRButton from "./qr-button";
 import QRScanner from "./qr-scanner";
 
 type JoinEventModalProps = {
   visible: boolean;
   onClose: () => void;
-  onJoinLink: (link: string) => void;
+  control: Control<JoinEventValues>;
+  isSubmitting: boolean;
+  onSubmit: () => void;
+  onScan: (link: string) => void;
 };
 
-const JoinEventModal = ({ visible, onClose, onJoinLink }: JoinEventModalProps) => {
-  const { inviteLink, error, handleInviteLinkChange, handleInviteLinkSubmit } = useJoinEventModal(visible, onJoinLink);
+const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubmit, onScan }: JoinEventModalProps) => {
   const [scannerVisible, setScannerVisible] = useState(false);
 
   // Reset scanner state when modal closes
@@ -28,13 +30,11 @@ const JoinEventModal = ({ visible, onClose, onJoinLink }: JoinEventModalProps) =
 
   const handleScanSuccess = (data: string) => {
     setScannerVisible(false);
-    // Close the join modal and pass the scanned data
-    onClose();
-    onJoinLink(data);
+    onScan(data);
   };
 
   const handleOpenScanner = () => {
-    setScannerVisible(true);
+    if (!isSubmitting) setScannerVisible(true);
   };
 
   // If scanner is visible, don't show the join modal
@@ -43,7 +43,7 @@ const JoinEventModal = ({ visible, onClose, onJoinLink }: JoinEventModalProps) =
   }
 
   return (
-    <Modal animationType="slide" visible={visible} transparent>
+    <Modal testID="join-event-modal" animationType="slide" visible={visible} transparent onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/45">
         <View className="p-6 gap-5 rounded-2xl bg-ui-background dark:bg-dark-background">
           <View className="gap-1">
@@ -55,16 +55,21 @@ const JoinEventModal = ({ visible, onClose, onJoinLink }: JoinEventModalProps) =
 
           <View className="gap-2">
             <ThemedText>Or paste the invite link</ThemedText>
-            <AppTextInput
-              value={inviteLink}
+            <FormField
+              control={control}
+              name="invitationUrl"
               placeholder="https://events.everglow.app/invite/example123"
-              onChangeText={handleInviteLinkChange}
+              accessibilityLabel="Invitation URL or token"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isSubmitting}
+              onSubmitEditing={onSubmit}
+              returnKeyType="go"
             />
-            {error ? <ThemedText className="text-red-500">{error}</ThemedText> : null}
-            <PrimaryButton text="Join with Link" onPress={handleInviteLinkSubmit} />
+            <Button title="Join with Link" onPress={onSubmit} isLoading={isSubmitting} disabled={isSubmitting} />
           </View>
 
-          <CancelButton onPress={onClose} />
+          <Button title="Cancel" onPress={onClose} variant="outline" disabled={isSubmitting} />
         </View>
       </View>
     </Modal>

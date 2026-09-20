@@ -36,6 +36,8 @@ const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${event.title}`}
       key={`joined-${event.id}`}
       onPress={onPress}
       className="border border-ui-border dark:border-dark-border rounded-3xl p-5 bg-white dark:bg-gray-800 shadow-sm active:opacity-80"
@@ -48,6 +50,8 @@ const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
           </View>
           {onShare && (
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={`Share ${event.title}`}
               onPress={handleSharePress}
               className="w-8 h-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30"
             >

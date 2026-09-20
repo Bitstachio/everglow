@@ -1,61 +1,42 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FormField } from "@/components/ui/form-field";
+import { Controller, type Control } from "react-hook-form";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { createEvent } from "@/lib/event";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useState } from "react";
-import {
-  Alert,
-  Clipboard,
-  Platform,
-  Pressable,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
-import type { EventResponseDto } from "@/lib/api/generated";
+import type { CreateEventValues, EventResponseDto } from "../types";
 
-const CreateEventForm = () => {
-  const router = useRouter();
+type CreateEventFormProps = {
+  control: Control<CreateEventValues>;
+  isSubmitting: boolean;
+  error?: string;
+  onSubmit: () => void;
+  createdEvent: EventResponseDto | null;
+  handleCopyLink: () => void;
+  handleShareLink: () => void;
+  handleCreateAnother: () => void;
+  handleDone: () => void;
+};
+
+export const CreateEventForm = ({
+  control,
+  isSubmitting,
+  error,
+  onSubmit,
+  createdEvent,
+  handleCopyLink,
+  handleShareLink,
+  handleCreateAnother,
+  handleDone,
+}: CreateEventFormProps) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdEvent, setCreatedEvent] = useState<EventResponseDto | null>(null);
-
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === "android") {
-      setShowDatePicker(false);
-    }
-    if (selectedDate) {
-      setDate(selectedDate);
-    }
-  };
-
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
-    if (Platform.OS === "android") {
-      setShowTimePicker(false);
-    }
-    if (selectedTime) {
-      const newDate = new Date(date);
-      newDate.setHours(selectedTime.getHours());
-      newDate.setMinutes(selectedTime.getMinutes());
-      setDate(newDate);
-    }
-  };
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
@@ -72,62 +53,6 @@ const CreateEventForm = () => {
       minute: "2-digit",
       hour12: true,
     });
-  };
-
-  const handleCreateEvent = async () => {
-    if (!title.trim() || !description.trim()) {
-      setError("Please complete all of the required fields.");
-      return;
-    }
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const event = await createEvent({
-        title: title.trim(),
-        description: description.trim(),
-        date: date.toISOString(),
-      });
-
-      setCreatedEvent(event);
-      setTitle("");
-      setDescription("");
-      setDate(new Date());
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || err.message || "Failed to create event";
-      setError(errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCopyLink = async () => {
-    if (createdEvent?.invitationUrl) {
-      Clipboard.setString(createdEvent.invitationUrl);
-      Alert.alert("Copied!", "Invitation link copied to clipboard");
-    }
-  };
-
-  const handleShareLink = async () => {
-    if (createdEvent) {
-      try {
-        await Share.share({
-          message: `Join "${createdEvent.title}" via ${createdEvent.invitationUrl}`,
-        });
-      } catch (error) {
-        console.error("Share failed:", error);
-      }
-    }
-  };
-
-  const handleCreateAnother = () => {
-    setCreatedEvent(null);
-    setError(null);
-  };
-
-  const handleDone = () => {
-    setCreatedEvent(null);
-    router.back();
   };
 
   if (createdEvent) {
@@ -207,6 +132,8 @@ const CreateEventForm = () => {
           {/* Overlay to close pickers when clicking outside */}
           {(showDatePicker || showTimePicker) && (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close date and time picker"
               style={styles.pickerOverlay}
               onPress={() => {
                 setShowDatePicker(false);
@@ -214,78 +141,114 @@ const CreateEventForm = () => {
               }}
             />
           )}
-          <Input label="Event Title" placeholder="Enter event name" value={title} onChangeText={setTitle} />
-
-          <Input
-            label="Description"
-            placeholder="What's this event about?"
-            value={description}
-            onChangeText={setDescription}
+          <FormField
+            control={control}
+            name="title"
+            label="Event Title"
+            placeholder="Enter event name"
+            editable={!isSubmitting}
           />
 
-          <View style={styles.inputContainer}>
-            <Text style={[styles.label, isDark ? styles.labelDark : styles.labelLight]}>Date & Time</Text>
-            <View style={styles.dateTimeContainer}>
-              <Pressable
-                onPress={() => {
-                  setShowTimePicker(false);
-                  setShowDatePicker(true);
-                }}
-                style={[styles.dateTimeButton, isDark ? styles.dateTimeButtonDark : styles.dateTimeButtonLight]}
-              >
-                <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                <Text style={[styles.dateTimeText, isDark ? styles.textDark : styles.textLight]}>
-                  {formatDate(date)}
-                </Text>
-              </Pressable>
+          <FormField
+            control={control}
+            name="description"
+            label="Description (optional)"
+            placeholder="What's this event about?"
+            editable={!isSubmitting}
+          />
 
-              <Pressable
-                onPress={() => {
-                  setShowDatePicker(false);
-                  setShowTimePicker(true);
-                }}
-                style={[styles.dateTimeButton, isDark ? styles.dateTimeButtonDark : styles.dateTimeButtonLight]}
-              >
-                <Ionicons name="time-outline" size={20} color="#6B7280" />
-                <Text style={[styles.dateTimeText, isDark ? styles.textDark : styles.textLight]}>
-                  {formatTime(date)}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          <Controller
+            control={control}
+            name="date"
+            render={({ field, fieldState }) => {
+              const date = field.value;
+              return (
+                <>
+                  <View style={styles.inputContainer}>
+                    <Text style={[styles.label, isDark ? styles.labelDark : styles.labelLight]}>Date & Time</Text>
+                    <View style={styles.dateTimeContainer}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Choose date"
+                        disabled={isSubmitting}
+                        onPress={() => {
+                          setShowTimePicker(false);
+                          setShowDatePicker(true);
+                        }}
+                        style={[styles.dateTimeButton, isDark ? styles.dateTimeButtonDark : styles.dateTimeButtonLight]}
+                      >
+                        <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                        <Text style={[styles.dateTimeText, isDark ? styles.textDark : styles.textLight]}>
+                          {formatDate(date)}
+                        </Text>
+                      </Pressable>
 
-          {showDatePicker && (
-            <View style={styles.pickerWrapper} pointerEvents="box-none">
-              <DateTimePicker
-                value={date}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handleDateChange}
-                minimumDate={new Date()}
-              />
-            </View>
-          )}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Choose time"
+                        disabled={isSubmitting}
+                        onPress={() => {
+                          setShowDatePicker(false);
+                          setShowTimePicker(true);
+                        }}
+                        style={[styles.dateTimeButton, isDark ? styles.dateTimeButtonDark : styles.dateTimeButtonLight]}
+                      >
+                        <Ionicons name="time-outline" size={20} color="#6B7280" />
+                        <Text style={[styles.dateTimeText, isDark ? styles.textDark : styles.textLight]}>
+                          {formatTime(date)}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
 
-          {showTimePicker && (
-            <View style={styles.pickerWrapper} pointerEvents="box-none">
-              <DateTimePicker
-                value={date}
-                mode="time"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handleTimeChange}
-              />
-            </View>
-          )}
+                  {showDatePicker && (
+                    <View style={styles.pickerWrapper} pointerEvents="box-none">
+                      <DateTimePicker
+                        value={date}
+                        mode="date"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={(event, selectedDate) => {
+                          if (Platform.OS === "android") setShowDatePicker(false);
+                          field.onBlur();
+                          if (event.type === "set" && selectedDate) {
+                            const next = new Date(date);
+                            next.setFullYear(
+                              selectedDate.getFullYear(),
+                              selectedDate.getMonth(),
+                              selectedDate.getDate(),
+                            );
+                            field.onChange(next);
+                          }
+                        }}
+                        minimumDate={new Date()}
+                      />
+                    </View>
+                  )}
 
-          {/* {Platform.OS === "ios" && (showDatePicker || showTimePicker) && (
-            <Button
-              title="Done"
-              onPress={() => {
-                setShowDatePicker(false);
-                setShowTimePicker(false);
-              }}
-            />
-          )} */}
+                  {showTimePicker && (
+                    <View style={styles.pickerWrapper} pointerEvents="box-none">
+                      <DateTimePicker
+                        value={date}
+                        mode="time"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={(event, selectedTime) => {
+                          if (Platform.OS === "android") setShowTimePicker(false);
+                          field.onBlur();
+                          if (event.type === "set" && selectedTime) {
+                            const next = new Date(date);
+                            next.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                            field.onChange(next);
+                          }
+                        }}
+                      />
+                    </View>
+                  )}
+
+                  {fieldState.error && <Text style={styles.errorText}>{fieldState.error.message}</Text>}
+                </>
+              );
+            }}
+          />
         </View>
 
         {error && (
@@ -294,7 +257,16 @@ const CreateEventForm = () => {
           </View>
         )}
 
-        <Button title="Create Event" onPress={handleCreateEvent} isLoading={isSubmitting} />
+        <Button
+          title="Create Event"
+          onPress={() => {
+            setShowDatePicker(false);
+            setShowTimePicker(false);
+            onSubmit();
+          }}
+          isLoading={isSubmitting}
+          disabled={isSubmitting}
+        />
       </View>
     </ScrollView>
   );
@@ -531,5 +503,3 @@ const styles = StyleSheet.create({
     height: 12,
   },
 });
-
-export default CreateEventForm;

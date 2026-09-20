@@ -51,7 +51,12 @@ const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalP
         <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
           <View style={styles.header}>
             <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>Share Event</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Close invitation"
+              onPress={onClose}
+              style={styles.closeButton}
+            >
               <Ionicons name="close" size={24} color={isDark ? "#F9FAFB" : "#111827"} />
             </TouchableOpacity>
           </View>

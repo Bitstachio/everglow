@@ -84,7 +84,12 @@ const QRScanner = ({ visible, onClose, onScan }: QRScannerProps) => {
           <View style={styles.overlay}>
             {/* Header */}
             <View style={styles.header}>
-              <Pressable onPress={onClose} style={styles.closeButton}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close scanner"
+                onPress={onClose}
+                style={styles.closeButton}
+              >
                 <MaterialCommunityIcons name="close" size={28} color="#FFFFFF" />
               </Pressable>
             </View>

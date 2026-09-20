@@ -15,6 +15,8 @@ const EventActionCard = ({ title, description, onPress }: EventActionCardProps) 
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={title}
       style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}
       onPress={onPress}
       activeOpacity={0.8}
