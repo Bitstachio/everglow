@@ -35,7 +35,7 @@ const EventsScreen = () => {
       <ScrollView
         style={[styles.scrollView, isDark ? styles.containerDark : styles.containerLight]}
         contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 16) + 24 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl testID="events-refresh" refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.header}>
           <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>Events</Text>

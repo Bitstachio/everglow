@@ -32,3 +32,29 @@ pnpm test:coverage     # coverage report
 ```
 
 For Maestro device tests, see [E2E](./e2e.md).
+
+## Events page
+
+Run the Events tab's component, hook, API, and screen integration tests from `mobile/`:
+
+```sh
+pnpm test --runInBand features/events
+pnpm test --runInBand features/events/screens/events-screen-integration.test.tsx
+```
+
+The screen integration suite renders the real `EventsScreen`, child components, form hooks,
+validation, and React Query provider. It replaces the generated SDK calls and native boundaries
+(camera, QR rendering, clipboard/share/alerts, safe-area insets, and navigation). These tests do
+not require an API server or device and do not verify HTTP transport or native camera rendering.
+
+Coverage includes loading/empty/populated states, link and QR joining, validation and retries,
+pending-submission guards, modal reset, creator-only sharing, navigation, refresh and focus
+refetching, fetch failures, and account-specific caches. API hook tests additionally verify
+cancellation, envelope handling, and successful/failed mutation cache invalidation.
+
+`testing/native-mocks.tsx` keeps feature components real. Its refresh-control mock preserves props
+because React Native's default Jest mock discards them; native refresh and barcode events use
+`fireEvent`, while ordinary interactions use `userEvent`.
+
+Create and detail routes are separate from this page; this suite tests navigation to those routes.
+Device E2E coverage remains a separate follow-up.

@@ -77,3 +77,41 @@ test("QR submission stays pending and blocks duplicate requests", async () => {
   expect(mockMutateAsync).toHaveBeenCalledTimes(1);
   expect(mockMutateAsync).toHaveBeenCalledWith({ invitationUrl: "scanned-token" });
 });
+
+test.each(["   ", "x".repeat(256)])("rejects invalid invitation length (%s)", async (invitation) => {
+  await render(<JoinFormProbe />);
+  const user = userEvent.setup();
+  await user.paste(screen.getByPlaceholderText("Invitation"), invitation);
+  await user.press(screen.getByRole("button", { name: "Join" }));
+  expect(
+    await screen.findByText(
+      invitation.trim()
+        ? "Invitation must be 255 characters or fewer."
+        : "Please paste the invitation URL or invite token.",
+    ),
+  ).toBeOnTheScreen();
+  expect(mockMutateAsync).not.toHaveBeenCalled();
+});
+
+test("accepts the maximum invitation length and resets after success", async () => {
+  await render(<JoinFormProbe />);
+  const user = userEvent.setup();
+  const invitation = "x".repeat(255);
+  await user.paste(screen.getByPlaceholderText("Invitation"), invitation);
+  await user.press(screen.getByRole("button", { name: "Join" }));
+  await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
+  expect(mockMutateAsync).toHaveBeenCalledWith({ invitationUrl: invitation });
+  expect(screen.getByPlaceholderText("Invitation")).toHaveDisplayValue("");
+});
+
+test("uses fallback errors and unlocks submission for retry", async () => {
+  mockMutateAsync.mockRejectedValueOnce({ unexpected: true });
+  await render(<JoinFormProbe />);
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText("Invitation"), "token");
+  await user.press(screen.getByRole("button", { name: "Join" }));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to join event"));
+  await user.press(screen.getByRole("button", { name: "Join" }));
+  await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
+  expect(mockMutateAsync).toHaveBeenCalledTimes(2);
+});

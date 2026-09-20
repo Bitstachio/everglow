@@ -22,7 +22,7 @@ const EventsList = ({ title, isLoading, events, onEventShare, currentUserId }: E
       <H2>{title}</H2>
       {isLoading ? (
         <View className="py-12 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator accessibilityLabel="Loading events" size="large" color="#3B82F6" />
         </View>
       ) : events.length === 0 ? (
         <NoEventsBanner />
