@@ -37,7 +37,8 @@ ESLint enforces these globally. Still verify in review:
 ## Naming
 
 - [ ] Files and folders use kebab-case (`local/kebab-case-filename`)
-- [ ] Component/hook/screen files are flat — no `Name/Name.tsx` or `name/index.tsx` wrappers (`local/no-component-folder`)
+- [ ] Component/hook/screen files stay flat by default; same-named folders only when colocating a private hook/util (not just a test). No `index.tsx` component entries (`local/no-component-folder`)
+- [ ] Private component hooks live next to the component (e.g. `components/ui/bottom-sheet/`), not in global `hooks/` unless reused across unrelated surfaces
 - [ ] Screen hook symbol is `use<ScreenName>` in a kebab-case file (`use-profile-screen.ts` → `useProfileScreen`)
 - [ ] Export identifiers match their role (PascalCase components/screens, camelCase hooks); file names are kebab-case
 - [ ] API key factories and mutation hooks follow [API naming](./api.md#naming)
@@ -136,7 +137,7 @@ See [API](./api.md). Spot-check:
 
 - [ ] No hand-edits under `lib/api/generated/` (regenerate with `npm run openapi:generate`)
 - [ ] New endpoints are consumed through feature `api/` wrappers, not ad hoc Axios calls
-- [ ] Global hooks stay in `hooks/`; feature hooks stay in `features/<name>/hooks/`
+- [ ] Global hooks stay in `hooks/`; feature hooks stay in `features/<name>/hooks/`; component-private hooks colocate with their component
 
 ## Legacy code (events, photos/gallery)
 

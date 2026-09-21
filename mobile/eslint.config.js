@@ -76,7 +76,7 @@ const codebaseConventionRules = {
   ],
   // Filenames only (not directories) so Expo Router `(groups)` stay valid.
   "local/kebab-case-filename": "error",
-  // Blocks Button/Button.tsx and button/button.tsx (and index.tsx wrappers). Skips app/.
+  // Flat by default; same-named folders only when colocating a hook/util (not just a test). No index.tsx. Skips app/.
   "local/no-component-folder": "error",
   // Prefer NativeWind className over StyleSheet.create. See docs/theme.md.
   "local/no-stylesheet": "error",

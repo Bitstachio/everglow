@@ -82,7 +82,9 @@ export default ProfileScreen;
 
 Use **kebab-case** for source file and folder names under linted app directories. Export identifiers stay PascalCase (components, screens) or camelCase (hooks, helpers).
 
-Keep component (and hook/screen) files **flat** under their layer folder. Do not wrap a file in a same-named directory (`button/button.tsx` or `Button/Button.tsx`) or ship an `index.tsx` as the component entry.
+Keep component (and hook/screen) files **flat** under their layer folder by default. Do not ship an `index.tsx` as the component entry.
+
+Use a **same-named folder** only when the component needs colocated non-test modules (a private hook, util, or subcomponent). A folder that only wraps the component and its test must stay flat.
 
 | Kind        | File name                            | Export                                      |
 | ----------- | ------------------------------------ | ------------------------------------------- |
@@ -94,14 +96,21 @@ Keep component (and hook/screen) files **flat** under their layer folder. Do not
 | Shared util | `axios-instance.ts`                  | camelCase named exports                     |
 
 ```ts
-// Preferred
-components / ui / button.tsx;
-features / profile / components / edit - profile - modal.tsx;
+// Preferred — flat when the component is self-contained
+components/ui/button.tsx
+components/ui/button.test.tsx
+features/profile/components/edit-profile-modal.tsx
+
+// Preferred — folder when colocating a private hook/util with the component
+components/ui/bottom-sheet/bottom-sheet.tsx
+components/ui/bottom-sheet/use-bottom-sheet-presentation.ts
+components/ui/bottom-sheet/bottom-sheet.test.tsx
 
 // Avoid
-components / ui / button / button.tsx;
-components / ui / Button / Button.tsx;
-components / ui / button / index.tsx;
+components/ui/button/button.tsx // only the component (+ test) — keep flat
+components/ui/Button/Button.tsx
+components/ui/button/index.tsx
+components/ui/bottom-sheet/index.tsx
 ```
 
 Expo Router keeps its own path conventions in `app/`: `_layout.tsx`, `[id].tsx`, and route groups like `(tabs)/`. Those are allowed; do not rename them to force kebab-case. The flat-file rule does not apply under `app/`.
@@ -112,11 +121,12 @@ Use the `@/` path alias for cross-folder imports:
 
 ```ts
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 ```
 
-Inside a feature module, use relative imports for files in the same feature (for example, `../api/mutations`). See [Feature code organization](./feature-code-organization.md#imports).
+Import the component file directly (no `index` barrel). Inside a feature module, use relative imports for files in the same feature (for example, `../api/mutations`). See [Feature code organization](./feature-code-organization.md#imports).
 
 ### Error handling
 
@@ -135,7 +145,7 @@ Full API error patterns: [API](./api.md#error-handling).
 | `no-var`                    | `var` is forbidden                              |
 | `prefer-const`              | Use `const` when a binding is never reassigned  |
 | `local/kebab-case-filename` | Kebab-case filenames                            |
-| `local/no-component-folder` | No same-named / `index` component folders       |
+| `local/no-component-folder` | No `index` entries; no same-named folders that only wrap a component (+ tests) |
 | `local/no-stylesheet`       | No React Native `StyleSheet` (use NativeWind)   |
 
 Styling: prefer NativeWind `className` and theme tokens. Do not use `StyleSheet` — see [Theme](./theme.md#no-stylesheet).
@@ -168,6 +178,7 @@ ESLint blocks imports of feature `hooks/`, `components/`, and `api/` (legacy `ap
 
 - Cross-feature hooks (for example, `useColorScheme`).
 - Feature screen hooks belong in `features/<name>/hooks/`, not here.
+- Hooks private to one UI component belong next to that component (same-named folder), not here.
 
 ### `lib/`: shared utilities and API client
 
@@ -221,6 +232,6 @@ When refactoring `events`, gallery, or other pre-profile code:
 
 1. Match `features/profile/` structure and patterns.
 2. Convert `function` declarations to arrow `const` bindings.
-3. Keep file and folder names kebab-case (`local/kebab-case-filename`), and keep component files flat (`local/no-component-folder`).
+3. Keep file and folder names kebab-case (`local/kebab-case-filename`). Prefer flat component files; use a same-named folder only to colocate a private hook/util (`local/no-component-folder`).
 4. Replace `StyleSheet` with NativeWind `className` and remove the path from `legacyStyleSheetPaths` in `eslint.config.js`.
 5. Remove the relevant ESLint legacy exemptions in the same PR.

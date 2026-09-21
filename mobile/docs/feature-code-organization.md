@@ -122,8 +122,8 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 | Location         | Role                                                       |
 | ---------------- | ---------------------------------------------------------- |
-| `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. |
-| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`)        |
+| `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. Private component hooks colocate in a same-named folder when needed. |
+| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`). Not for hooks owned by a single UI component. |
 | `context/`       | Global state (for example, `AuthProvider` / `useAuth`)     |
 | `lib/`           | Shared utilities and the API client                        |
 | `providers/`     | App-level providers wired in `app/_layout.tsx`             |
@@ -132,7 +132,7 @@ Feature hooks may depend on app-wide context. Avoid the reverse: context should 
 
 ## Naming
 
-File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names).
+File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). Prefer flat component files; use a same-named folder only when colocating a private hook, util, or subcomponent (not just a test). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names).
 
 | Item           | File / folder              | Export / symbol            |
 | -------------- | -------------------------- | -------------------------- |
@@ -140,6 +140,7 @@ File and folder names are kebab-case. Export identifiers keep React conventions 
 | Screen file    | `profile-screen.tsx`       | `ProfileScreen` (default)  |
 | Screen hook    | `use-profile-screen.ts`    | `useProfileScreen` (named) |
 | Component file | `edit-profile-modal.tsx`   | `EditProfileModal` (named) |
+| Colocated UI   | `bottom-sheet/bottom-sheet.tsx` + `use-bottom-sheet-presentation.ts` | `BottomSheet` (named) |
 
 ## Imports
 
@@ -169,7 +170,7 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 | Arrow functions             | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions  |
 | `no-var` / `prefer-const`   | Same                                                                                         | `let`/`const` only; prefer `const`         |
 | `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                       |
-| `local/no-component-folder` | Same (skips `app/`)                                                                          | No same-named or `index` component folders |
+| `local/no-component-folder` | Same (skips `app/`)                                                                          | No `index` entries; no same-named folders that only wrap a component (+ tests) |
 
 ### Feature rules (additional)
 

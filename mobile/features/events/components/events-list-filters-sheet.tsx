@@ -1,8 +1,9 @@
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { ThemedText } from "@/components/ui/themed-text";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, Modal, Platform, Pressable, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, Pressable, View } from "react-native";
 import type { AccessLevel } from "../types";
 import {
   displayFilterDay,
@@ -25,10 +26,6 @@ type EventsListFiltersSheetProps = {
   onApply: () => void;
 };
 
-const SHEET_SLIDE_DISTANCE = Dimensions.get("window").height * 0.4;
-const OPEN_DURATION_MS = { scrim: 200, sheet: 280 };
-const CLOSE_DURATION_MS = { scrim: 200, sheet: 250 };
-
 export const EventsListFiltersSheet = ({
   visible,
   draft,
@@ -40,64 +37,12 @@ export const EventsListFiltersSheet = ({
   onApply,
 }: EventsListFiltersSheetProps) => {
   const [activeDateField, setActiveDateField] = useState<DateField | null>(null);
-  // Keep the Modal mounted while the exit animation runs after `visible` becomes false.
-  const [presented, setPresented] = useState(visible);
-  const presentedRef = useRef(visible);
-  const visibleRef = useRef(visible);
-  const animation = useRef<Animated.CompositeAnimation | null>(null);
-  const scrimOpacity = useMemo(() => new Animated.Value(0), []);
-  const sheetTranslateY = useMemo(() => new Animated.Value(SHEET_SLIDE_DISTANCE), []);
 
   useEffect(() => {
-    visibleRef.current = visible;
-    animation.current?.stop();
-
-    if (visible) {
-      presentedRef.current = true;
-      /* eslint-disable react-hooks/set-state-in-effect -- present Modal before open animation */
-      setPresented(true);
-      /* eslint-enable react-hooks/set-state-in-effect */
-      scrimOpacity.setValue(0);
-      sheetTranslateY.setValue(SHEET_SLIDE_DISTANCE);
-      animation.current = Animated.parallel([
-        Animated.timing(scrimOpacity, {
-          toValue: 1,
-          duration: OPEN_DURATION_MS.scrim,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sheetTranslateY, {
-          toValue: 0,
-          duration: OPEN_DURATION_MS.sheet,
-          useNativeDriver: true,
-        }),
-      ]);
-      animation.current.start();
-      return () => animation.current?.stop();
-    }
-
-    if (!presentedRef.current) return;
-
-    animation.current = Animated.parallel([
-      Animated.timing(scrimOpacity, {
-        toValue: 0,
-        duration: CLOSE_DURATION_MS.scrim,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetTranslateY, {
-        toValue: SHEET_SLIDE_DISTANCE,
-        duration: CLOSE_DURATION_MS.sheet,
-        useNativeDriver: true,
-      }),
-    ]);
-    animation.current.start(({ finished }) => {
-      if (!finished || visibleRef.current) return;
-      presentedRef.current = false;
-      setPresented(false);
-      setActiveDateField(null);
-    });
-
-    return () => animation.current?.stop();
-  }, [visible, scrimOpacity, sheetTranslateY]);
+    /* eslint-disable react-hooks/set-state-in-effect -- clear transient picker when parent hides sheet */
+    if (!visible) setActiveDateField(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [visible]);
 
   const handleDateChange = (field: DateField, event: { type: string }, selectedDate?: Date) => {
     if (Platform.OS === "android") setActiveDateField(null);
@@ -108,154 +53,122 @@ export const EventsListFiltersSheet = ({
   };
 
   return (
-    <Modal
+    <BottomSheet
       testID="events-list-filters-sheet"
-      animationType="none"
-      visible={presented}
-      transparent
-      onRequestClose={onClose}
+      visible={visible}
+      onClose={onClose}
+      title="Filter My Events"
+      dismissAccessibilityLabel="Dismiss filters"
+      closeAccessibilityLabel="Close filters"
     >
-      <View className="flex-1 justify-end" pointerEvents={visible ? "auto" : "none"}>
-        <View className="absolute inset-0">
-          <Animated.View style={{ flex: 1, opacity: scrimOpacity }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss filters"
-              className="flex-1 bg-scrim"
-              onPress={onClose}
-            />
-          </Animated.View>
-        </View>
+      {activeDateField ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close date picker"
+          className="absolute inset-0 z-10"
+          onPress={() => setActiveDateField(null)}
+        />
+      ) : null}
 
-        <Animated.View style={{ transform: [{ translateY: sheetTranslateY }] }}>
-          <View className="rounded-t-3xl bg-background px-6 pb-8 pt-3 gap-6">
-            {activeDateField ? (
+      <View className="gap-3">
+        <ThemedText className="text-sm font-medium" textColor="muted">
+          My Role
+        </ThemedText>
+        <View className="flex-row gap-2">
+          {EVENT_ROLE_OPTIONS.map(({ value, label }) => {
+            const selected = draft.roles.includes(value);
+            return (
               <Pressable
+                key={value}
                 accessibilityRole="button"
-                accessibilityLabel="Close date picker"
-                className="absolute inset-0 z-10"
-                onPress={() => setActiveDateField(null)}
-              />
-            ) : null}
-
-            <View className="items-center">
-              <View className="h-1 w-10 rounded-full bg-border" />
-            </View>
-
-            <View className="flex-row items-center justify-between">
-              <ThemedText className="text-xl font-bold">Filter My Events</ThemedText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close filters"
-                onPress={onClose}
-                className="h-9 w-9 items-center justify-center rounded-full bg-surface"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Filter by ${label}`}
+                onPress={() => onChangeRole(value)}
+                className={`flex-1 items-center rounded-xl px-3 py-3 ${selected ? "bg-border" : "bg-surface"}`}
               >
-                <Ionicons name="close" size={18} color="#64748B" />
-              </Pressable>
-            </View>
-
-            <View className="gap-3">
-              <ThemedText className="text-sm font-medium" textColor="muted">
-                My Role
-              </ThemedText>
-              <View className="flex-row gap-2">
-                {EVENT_ROLE_OPTIONS.map(({ value, label }) => {
-                  const selected = draft.roles.includes(value);
-                  return (
-                    <Pressable
-                      key={value}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={`Filter by ${label}`}
-                      onPress={() => onChangeRole(value)}
-                      className={`flex-1 items-center rounded-xl px-3 py-3 ${selected ? "bg-border" : "bg-surface"}`}
-                    >
-                      <ThemedText
-                        className={`text-sm ${selected ? "font-semibold" : ""}`}
-                        textColor={selected ? "main" : "muted"}
-                      >
-                        {label}
-                      </ThemedText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View className="gap-3">
-              <ThemedText className="text-sm font-medium" textColor="muted">
-                Date Range
-              </ThemedText>
-              <View className="flex-row gap-3">
-                <View className="flex-1 gap-1">
-                  <ThemedText className="text-xs" textColor="subtle">
-                    From
-                  </ThemedText>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Filter from date"
-                    onPress={() => setActiveDateField(activeDateField === "from" ? null : "from")}
-                    className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
-                  >
-                    <Ionicons name="calendar-outline" size={16} color="#64748B" />
-                    <ThemedText className="text-sm" textColor={draft.dateFrom ? "main" : "subtle"}>
-                      {displayFilterDay(draft.dateFrom)}
-                    </ThemedText>
-                  </Pressable>
-                </View>
-                <View className="flex-1 gap-1">
-                  <ThemedText className="text-xs" textColor="subtle">
-                    To
-                  </ThemedText>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Filter to date"
-                    onPress={() => setActiveDateField(activeDateField === "to" ? null : "to")}
-                    className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
-                  >
-                    <Ionicons name="calendar-outline" size={16} color="#64748B" />
-                    <ThemedText className="text-sm" textColor={draft.dateTo ? "main" : "subtle"}>
-                      {displayFilterDay(draft.dateTo)}
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              </View>
-
-              {activeDateField ? (
-                <View className="z-20" pointerEvents="box-none">
-                  <DateTimePicker
-                    value={parseFilterDay(activeDateField === "from" ? draft.dateFrom : draft.dateTo)}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(event, selectedDate) => handleDateChange(activeDateField, event, selectedDate)}
-                  />
-                </View>
-              ) : null}
-            </View>
-
-            <View className="flex-row gap-3 pt-1">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Reset filters"
-                onPress={onReset}
-                className="flex-1 items-center rounded-xl bg-surface px-4 py-3.5"
-              >
-                <ThemedText className="text-base font-medium" textColor="muted">
-                  Reset
+                <ThemedText
+                  className={`text-sm ${selected ? "font-semibold" : ""}`}
+                  textColor={selected ? "main" : "muted"}
+                >
+                  {label}
                 </ThemedText>
               </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Apply filters"
-                onPress={onApply}
-                className="flex-[1.4] items-center rounded-xl bg-border px-4 py-3.5"
-              >
-                <ThemedText className="text-base font-semibold">Apply Filters</ThemedText>
-              </Pressable>
-            </View>
-          </View>
-        </Animated.View>
+            );
+          })}
+        </View>
       </View>
-    </Modal>
+
+      <View className="gap-3">
+        <ThemedText className="text-sm font-medium" textColor="muted">
+          Date Range
+        </ThemedText>
+        <View className="flex-row gap-3">
+          <View className="flex-1 gap-1">
+            <ThemedText className="text-xs" textColor="subtle">
+              From
+            </ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Filter from date"
+              onPress={() => setActiveDateField(activeDateField === "from" ? null : "from")}
+              className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
+            >
+              <Ionicons name="calendar-outline" size={16} color="#64748B" />
+              <ThemedText className="text-sm" textColor={draft.dateFrom ? "main" : "subtle"}>
+                {displayFilterDay(draft.dateFrom)}
+              </ThemedText>
+            </Pressable>
+          </View>
+          <View className="flex-1 gap-1">
+            <ThemedText className="text-xs" textColor="subtle">
+              To
+            </ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Filter to date"
+              onPress={() => setActiveDateField(activeDateField === "to" ? null : "to")}
+              className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
+            >
+              <Ionicons name="calendar-outline" size={16} color="#64748B" />
+              <ThemedText className="text-sm" textColor={draft.dateTo ? "main" : "subtle"}>
+                {displayFilterDay(draft.dateTo)}
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
+
+        {activeDateField ? (
+          <View className="z-20" pointerEvents="box-none">
+            <DateTimePicker
+              value={parseFilterDay(activeDateField === "from" ? draft.dateFrom : draft.dateTo)}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(event, selectedDate) => handleDateChange(activeDateField, event, selectedDate)}
+            />
+          </View>
+        ) : null}
+      </View>
+
+      <View className="flex-row gap-3 pt-1">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Reset filters"
+          onPress={onReset}
+          className="flex-1 items-center rounded-xl bg-surface px-4 py-3.5"
+        >
+          <ThemedText className="text-base font-medium" textColor="muted">
+            Reset
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Apply filters"
+          onPress={onApply}
+          className="flex-[1.4] items-center rounded-xl bg-border px-4 py-3.5"
+        >
+          <ThemedText className="text-base font-semibold">Apply Filters</ThemedText>
+        </Pressable>
+      </View>
+    </BottomSheet>
   );
 };
