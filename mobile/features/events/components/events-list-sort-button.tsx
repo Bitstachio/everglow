@@ -1,7 +1,5 @@
-import { AppIcon } from "@/components/ui/app-icon";
 import { ThemedText } from "@/components/ui/themed-text";
-import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react-native";
-import { Pressable, View } from "react-native";
+import { Pressable } from "react-native";
 import type { EventsListSortDirection } from "../utils";
 
 type EventsListSortButtonProps = {
@@ -9,23 +7,23 @@ type EventsListSortButtonProps = {
   onPress: () => void;
 };
 
+const SORT_LABELS: Record<EventsListSortDirection, string> = {
+  asc: "Oldest to newest",
+  desc: "Newest to oldest",
+};
+
 export const EventsListSortButton = ({ direction, onPress }: EventsListSortButtonProps) => {
-  const ascending = direction === "asc";
-  const Icon = ascending ? ArrowUpNarrowWide : ArrowDownWideNarrow;
-  const directionLabel = ascending ? "ascending" : "descending";
+  const label = SORT_LABELS[direction];
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Sort by date ${directionLabel}`}
-      accessibilityHint="Toggles ascending and descending"
+      accessibilityLabel={label}
+      accessibilityHint="Toggles between newest to oldest and oldest to newest"
       onPress={onPress}
       className="self-start rounded-xl border border-border bg-background px-4 py-2.5"
     >
-      <View className="flex-row items-center gap-2">
-        <AppIcon icon={Icon} size="sm" color="#64748B" />
-        <ThemedText className="text-sm font-medium">Date</ThemedText>
-      </View>
+      <ThemedText className="text-sm font-medium">{label}</ThemedText>
     </Pressable>
   );
 };
