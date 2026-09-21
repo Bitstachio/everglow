@@ -3,9 +3,9 @@
 const path = require("path");
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const PLATFORM_OR_TEST_SUFFIX = /(?:\.(?:ios|android|web|native|test|spec|config))+$/;
+const PLATFORM_OR_TEST_SUFFIX = /(?:\.(?:ios|android|web|native|integration|test|spec|config))+$/;
 
-/** Strip .ts/.tsx (and platform/test/config suffixes) so only the file stem is checked. */
+/** Strip .ts/.tsx (and platform/test/integration/config suffixes) so only the file stem is checked. */
 const getFileStem = (basename) => {
   const withoutJsTs = basename.replace(/\.(?:tsx|ts|jsx|js)$/u, "");
   return withoutJsTs.replace(PLATFORM_OR_TEST_SUFFIX, "");

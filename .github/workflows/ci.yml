@@ -51,7 +51,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: api/package-lock.json
 
@@ -117,7 +117,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: mobile/pnpm-lock.yaml
 
@@ -132,6 +132,12 @@ jobs:
       - run: pnpm exec tsc --noEmit
         background: true
       - wait-all:
+
+      # Sequential: RNTL suites starve if they share a 2-core runner with tsc/lint
+      - name: Unit tests
+        run: pnpm test --maxWorkers=2
+      - name: Integration tests
+        run: pnpm test:integration
 
   ci-success:
     name: CI

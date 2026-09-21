@@ -45,8 +45,8 @@ beforeEach(() => {
 test("submits trimmed values and an ISO date, then resets for another event", async () => {
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "  Meetup  ");
-  await user.type(screen.getByPlaceholderText("Description"), "  Bring friends  ");
+  await user.paste(screen.getByPlaceholderText("Title"), "  Meetup  ");
+  await user.paste(screen.getByPlaceholderText("Description"), "  Bring friends  ");
   await user.press(screen.getByRole("button", { name: "Choose date" }));
   await user.press(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(mockSuccess).toHaveBeenCalledWith({ id: "created-event" }));
@@ -62,7 +62,7 @@ test("submits trimmed values and an ISO date, then resets for another event", as
 test("allows an omitted description", async () => {
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledWith({ title: "Meetup", date: expect.any(String) }));
 });
@@ -70,7 +70,7 @@ test("allows an omitted description", async () => {
 test("rejects a whitespace-only title", async () => {
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "   ");
+  await user.paste(screen.getByPlaceholderText("Title"), "   ");
   await user.press(screen.getByRole("button", { name: "Create" }));
   expect(await screen.findByText("Event title is required.")).toBeOnTheScreen();
   expect(mockMutateAsync).not.toHaveBeenCalled();
@@ -91,7 +91,7 @@ test.each([
 test("rejects an invalid date before ISO conversion", async () => {
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Invalid date" }));
   await user.press(screen.getByRole("button", { name: "Create" }));
   expect(await screen.findByText("Choose a valid event date and time.")).toBeOnTheScreen();
@@ -102,7 +102,7 @@ test("preserves values after an API failure and allows retry", async () => {
   mockMutateAsync.mockRejectedValueOnce(new Error("Network unavailable"));
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Create" }));
   expect(await screen.findByText("Network unavailable")).toBeOnTheScreen();
   expect(screen.getByPlaceholderText("Title")).toHaveDisplayValue("Meetup");
@@ -116,7 +116,7 @@ test("disables submission while the request is pending", async () => {
   mockMutateAsync.mockReturnValue(new Promise(() => {}));
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeDisabled());
   await user.press(screen.getByRole("button", { name: "Create" }));
@@ -140,8 +140,8 @@ test("accepts maximum field lengths after trimming whitespace", async () => {
 test("omits whitespace-only descriptions", async () => {
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
-  await user.type(screen.getByPlaceholderText("Description"), "   ");
+  await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.paste(screen.getByPlaceholderText("Description"), "   ");
   await user.press(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
   expect(mockMutateAsync).toHaveBeenCalledWith({ title: "Meetup", date: expect.any(String) });
@@ -151,7 +151,7 @@ test("uses a fallback server error and unlocks the form", async () => {
   mockMutateAsync.mockRejectedValueOnce({ unexpected: true });
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Create" }));
   expect(await screen.findByText("Failed to create event")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
@@ -164,7 +164,7 @@ test("guards duplicate submission callbacks until the request settles", async ()
   mockMutateAsync.mockReturnValueOnce(pending.promise);
   await render(<CreateFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Title"), "Meetup");
+  await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Create" }));
   // Simulate an additional submit source that does not depend on button disabling.
   await user.press(screen.getByRole("button", { name: "Submit again" }));

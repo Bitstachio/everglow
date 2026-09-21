@@ -36,7 +36,7 @@ const renderScreen = async () => {
 };
 const submit = async (title = "Meetup") => {
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Enter event name"), title);
+  await user.paste(screen.getByPlaceholderText("Enter event name"), title);
   await user.press(screen.getByText("Create Event"));
 };
 
@@ -60,8 +60,8 @@ test.each(["ios", "android"] as const)(
     Platform.OS = os;
     const client = await renderScreen();
     const user = userEvent.setup();
-    await user.type(screen.getByPlaceholderText("Enter event name"), "  Meetup  ");
-    await user.type(screen.getByPlaceholderText("What's this event about?"), "  Bring friends  ");
+    await user.paste(screen.getByPlaceholderText("Enter event name"), "  Meetup  ");
+    await user.paste(screen.getByPlaceholderText("What's this event about?"), "  Bring friends  ");
     await user.press(screen.getByRole("button", { name: "Choose date" }));
     const initial = screen.getByTestId("date-picker").props.value as Date;
     await fireEvent(screen.getByTestId("date-picker"), "change", { type: "set" }, new Date(2031, 1, 10));
@@ -113,7 +113,7 @@ test("displays date validation from the real form", async () => {
 test("keeps entered values after failure, preserves caches, and permits retry", async () => {
   mockCreate.mockRejectedValueOnce(new Error("Network unavailable"));
   const client = await renderScreen();
-  await userEvent.setup().type(screen.getByPlaceholderText("What's this event about?"), "Bring friends");
+  await userEvent.setup().paste(screen.getByPlaceholderText("What's this event about?"), "Bring friends");
   await submit();
   expect(await screen.findByText("Network unavailable")).toBeOnTheScreen();
   expect(screen.getByPlaceholderText("Enter event name")).toHaveDisplayValue("Meetup");

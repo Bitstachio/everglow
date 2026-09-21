@@ -45,7 +45,7 @@ const renderScreen = async () => {
 };
 const openJoin = async () => userEvent.setup().press(screen.getByRole("button", { name: "Join Event" }));
 const enterInvitation = async (value = "invite-token") =>
-  userEvent.setup().type(screen.getByLabelText("Invitation URL or token"), value);
+  userEvent.setup().paste(screen.getByLabelText("Invitation URL or token"), value);
 
 beforeEach(() => {
   mockUser = { id: "user-1" };

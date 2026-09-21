@@ -92,7 +92,7 @@ test("submits only the changed name field", async () => {
 
   const nameInput = screen.getByPlaceholderText("Enter your name");
   await user.clear(nameInput);
-  await user.type(nameInput, "Ada Lovelace");
+  await user.paste(nameInput, "Ada Lovelace");
   await user.press(screen.getByText("Save"));
 
   expect(mockMutateAsync).toHaveBeenCalledTimes(1);
@@ -109,7 +109,7 @@ test("submits only the changed email field", async () => {
 
   const emailInput = screen.getByPlaceholderText("Enter your email");
   await user.clear(emailInput);
-  await user.type(emailInput, "lovelace@example.com");
+  await user.paste(emailInput, "lovelace@example.com");
   await user.press(screen.getByText("Save"));
 
   expect(mockMutateAsync).toHaveBeenCalledTimes(1);
@@ -126,9 +126,9 @@ test("submits both fields when both are changed", async () => {
   const nameInput = screen.getByPlaceholderText("Enter your name");
   const emailInput = screen.getByPlaceholderText("Enter your email");
   await user.clear(nameInput);
-  await user.type(nameInput, "Ada Lovelace");
+  await user.paste(nameInput, "Ada Lovelace");
   await user.clear(emailInput);
-  await user.type(emailInput, "lovelace@example.com");
+  await user.paste(emailInput, "lovelace@example.com");
   await user.press(screen.getByText("Save"));
 
   expect(mockMutateAsync).toHaveBeenCalledTimes(1);
@@ -158,7 +158,7 @@ test("resets dirty state after a successful submit", async () => {
 
   const nameInput = screen.getByPlaceholderText("Enter your name");
   await user.clear(nameInput);
-  await user.type(nameInput, "Ada Lovelace");
+  await user.paste(nameInput, "Ada Lovelace");
   expect(screen.getByText("Save")).toBeEnabled();
 
   await user.press(screen.getByText("Save"));
@@ -186,7 +186,7 @@ test("shows a validation message and does not submit when name is whitespace onl
 
   const nameInput = screen.getByPlaceholderText("Enter your name");
   await user.clear(nameInput);
-  await user.type(nameInput, "   ");
+  await user.paste(nameInput, "   ");
   await user.press(screen.getByText("Save"));
 
   expect(screen.getByText("Name is required")).toBeOnTheScreen();
@@ -200,7 +200,7 @@ test("shows a validation message and does not submit when email is invalid", asy
 
   const emailInput = screen.getByPlaceholderText("Enter your email");
   await user.clear(emailInput);
-  await user.type(emailInput, "not-an-email");
+  await user.paste(emailInput, "not-an-email");
   await user.press(screen.getByText("Save"));
 
   expect(screen.getByText("Enter a valid email")).toBeOnTheScreen();
@@ -216,7 +216,7 @@ test("alerts and does not call onSuccess when the mutation fails", async () => {
 
   const nameInput = screen.getByPlaceholderText("Enter your name");
   await user.clear(nameInput);
-  await user.type(nameInput, "Ada Lovelace");
+  await user.paste(nameInput, "Ada Lovelace");
   await user.press(screen.getByText("Save"));
 
   expect(mockMutateAsync).toHaveBeenCalledTimes(1);
