@@ -7,7 +7,7 @@ import EventCard from "./event-card";
 import NoEventsBanner from "./no-events-banner";
 
 type EventsListProps = {
-  title: string;
+  title?: string;
   isLoading: boolean;
   events: Event[];
   onEventShare?: (event: Event) => void;
@@ -21,18 +21,20 @@ const EventsList = ({ title, isLoading, events, onEventShare, currentUserId, see
 
   return (
     <View className="gap-4">
-      <View className="flex-row items-center justify-between gap-3">
-        <H2>{title}</H2>
-        {seeAllHref ? (
-          <Link href={seeAllHref} asChild>
-            <Pressable accessibilityRole="link" accessibilityLabel="See all events">
-              <ThemedText className="text-sm font-medium" textColor="muted">
-                See all →
-              </ThemedText>
-            </Pressable>
-          </Link>
-        ) : null}
-      </View>
+      {title || seeAllHref ? (
+        <View className="flex-row items-center justify-between gap-3">
+          {title ? <H2>{title}</H2> : <View />}
+          {seeAllHref ? (
+            <Link href={seeAllHref} asChild>
+              <Pressable accessibilityRole="link" accessibilityLabel="See all events">
+                <ThemedText className="text-sm font-medium" textColor="muted">
+                  See all →
+                </ThemedText>
+              </Pressable>
+            </Link>
+          ) : null}
+        </View>
+      ) : null}
       {isLoading ? (
         <View className="py-12 items-center justify-center">
           <ActivityIndicator accessibilityLabel="Loading events" size="large" color="#3B82F6" />

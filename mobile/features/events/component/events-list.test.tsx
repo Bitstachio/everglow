@@ -62,6 +62,13 @@ test("hides See all when no href is provided", async () => {
   expect(screen.queryByRole("link", { name: "See all events" })).not.toBeOnTheScreen();
 });
 
+test("omits the section header when title and See all are absent", async () => {
+  await render(<EventsList isLoading={false} events={[buildEvent()]} />);
+  expect(screen.queryByText("My Events")).not.toBeOnTheScreen();
+  expect(screen.queryByRole("link", { name: "See all events" })).not.toBeOnTheScreen();
+  expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
+});
+
 test("only the creator can share and sharing does not navigate", async () => {
   const onShare = jest.fn();
   const event = buildEvent();
