@@ -84,14 +84,14 @@ Use **kebab-case** for source file and folder names under linted app directories
 
 Keep component (and hook/screen) files **flat** under their layer folder. Do not wrap a file in a same-named directory (`button/button.tsx` or `Button/Button.tsx`) or ship an `index.tsx` as the component entry.
 
-| Kind        | File name                        | Export                        |
-| ----------- | -------------------------------- | ----------------------------- |
-| Screen      | `profile-screen.tsx`             | `ProfileScreen` (default)     |
-| Component   | `edit-profile-modal.tsx`         | `EditProfileModal` (named)    |
-| Hook        | `use-profile-screen.ts`          | `useProfileScreen` (named)    |
-| Test        | `use-edit-profile-form.test.tsx` | (mirrors the unit under test) |
+| Kind        | File name                            | Export                                      |
+| ----------- | ------------------------------------ | ------------------------------------------- |
+| Screen      | `profile-screen.tsx`                 | `ProfileScreen` (default)                   |
+| Component   | `edit-profile-modal.tsx`             | `EditProfileModal` (named)                  |
+| Hook        | `use-profile-screen.ts`              | `useProfileScreen` (named)                  |
+| Test        | `use-edit-profile-form.test.tsx`     | (mirrors the unit under test)               |
 | Integration | `events-screen.integration.test.tsx` | (screen suite; see [Testing](./testing.md)) |
-| Shared util | `axios-instance.ts`              | camelCase named exports       |
+| Shared util | `axios-instance.ts`                  | camelCase named exports                     |
 
 ```ts
 // Preferred
