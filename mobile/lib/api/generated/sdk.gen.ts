@@ -5,6 +5,12 @@ import { client } from "./client.gen";
 import type {
   AppControllerGetHelloData,
   AppControllerGetHelloResponses,
+  EventsControllerConfirmCoverUploadData,
+  EventsControllerConfirmCoverUploadErrors,
+  EventsControllerConfirmCoverUploadResponses,
+  EventsControllerCreateCoverUploadUrlData,
+  EventsControllerCreateCoverUploadUrlErrors,
+  EventsControllerCreateCoverUploadUrlResponses,
   EventsControllerCreateData,
   EventsControllerCreateErrors,
   EventsControllerCreateResponses,
@@ -26,6 +32,9 @@ import type {
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlErrors,
   EventsControllerRegenerateInvitationUrlResponses,
+  EventsControllerRemoveCoverData,
+  EventsControllerRemoveCoverErrors,
+  EventsControllerRemoveCoverResponses,
   EventsControllerRemoveData,
   EventsControllerRemoveErrors,
   EventsControllerRemoveParticipantData,
@@ -475,4 +484,60 @@ export const eventsControllerRegenerateInvitationUrl = <ThrowOnError extends boo
     responseType: "json",
     url: "/api/v2/events/{eventId}/regenerate-url",
     ...options,
+  });
+
+/**
+ * Mint a presigned upload URL for the event cover image
+ */
+export const eventsControllerCreateCoverUploadUrl = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerCreateCoverUploadUrlData, ThrowOnError>,
+): RequestResult<
+  EventsControllerCreateCoverUploadUrlResponses,
+  EventsControllerCreateCoverUploadUrlErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    EventsControllerCreateCoverUploadUrlResponses,
+    EventsControllerCreateCoverUploadUrlErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/cover/upload-url",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Remove the event cover image
+ */
+export const eventsControllerRemoveCover = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerRemoveCoverData, ThrowOnError>,
+): RequestResult<EventsControllerRemoveCoverResponses, EventsControllerRemoveCoverErrors, ThrowOnError> =>
+  (options.client ?? client).delete<
+    EventsControllerRemoveCoverResponses,
+    EventsControllerRemoveCoverErrors,
+    ThrowOnError
+  >({ url: "/api/v2/events/{eventId}/cover", ...options });
+
+/**
+ * Confirm an uploaded cover image and set it on the event
+ */
+export const eventsControllerConfirmCoverUpload = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerConfirmCoverUploadData, ThrowOnError>,
+): RequestResult<EventsControllerConfirmCoverUploadResponses, EventsControllerConfirmCoverUploadErrors, ThrowOnError> =>
+  (options.client ?? client).put<
+    EventsControllerConfirmCoverUploadResponses,
+    EventsControllerConfirmCoverUploadErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/cover",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });

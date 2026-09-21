@@ -141,6 +141,10 @@ export type EventResponseDto = {
    * Shareable invitation link composed from the stored invite token
    */
   invitationUrl: string;
+  /**
+   * Short-lived presigned URL of the event cover image; null when none is set
+   */
+  coverUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -843,3 +847,87 @@ export type EventsControllerRegenerateInvitationUrlResponses = {
 
 export type EventsControllerRegenerateInvitationUrlResponse =
   EventsControllerRegenerateInvitationUrlResponses[keyof EventsControllerRegenerateInvitationUrlResponses];
+
+export type EventsControllerCreateCoverUploadUrlData = {
+  body: CreateImageUploadDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/cover/upload-url";
+};
+
+export type EventsControllerCreateCoverUploadUrlErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type EventsControllerCreateCoverUploadUrlResponses = {
+  /**
+   * Upload id with a presigned S3 PUT URL
+   */
+  201: {
+    data: ImageUploadResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerCreateCoverUploadUrlResponse =
+  EventsControllerCreateCoverUploadUrlResponses[keyof EventsControllerCreateCoverUploadUrlResponses];
+
+export type EventsControllerRemoveCoverData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/cover";
+};
+
+export type EventsControllerRemoveCoverErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type EventsControllerRemoveCoverResponses = {
+  /**
+   * Cover removed (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type EventsControllerRemoveCoverResponse =
+  EventsControllerRemoveCoverResponses[keyof EventsControllerRemoveCoverResponses];
+
+export type EventsControllerConfirmCoverUploadData = {
+  body: ConfirmImageUploadDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/cover";
+};
+
+export type EventsControllerConfirmCoverUploadErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type EventsControllerConfirmCoverUploadResponses = {
+  /**
+   * Event with the new cover
+   */
+  200: {
+    data: EventResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerConfirmCoverUploadResponse =
+  EventsControllerConfirmCoverUploadResponses[keyof EventsControllerConfirmCoverUploadResponses];
