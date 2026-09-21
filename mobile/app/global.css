@@ -3,3 +3,62 @@
 @import "tailwindcss/utilities.css";
 
 @import "nativewind/theme";
+
+/*
+ * Semantic theme tokens. Light values live in `@theme` so Tailwind generates
+ * the utilities (`bg-background`, `text-foreground`, ...); the dark block below
+ * overrides them. NativeWind re-evaluates `prefers-color-scheme` against
+ * `Appearance` on native, so the switch needs no JavaScript.
+ *
+ * The dark override is also what keeps these variables alive: the native
+ * compiler constant-folds any custom property declared only once.
+ *
+ * Mirrors `theme/tokens.ts`, which exists for props NativeWind can't style.
+ */
+@theme {
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-elevated: #ffffff;
+
+  --color-strong: #0f172a;
+  --color-foreground: #1e293b;
+  --color-muted: #64748b;
+  --color-subtle: #94a3b8;
+
+  --color-accent: #4f46e5;
+  --color-accent-hover: #4338ca;
+  --color-accent-active: #3730a3;
+  --color-accent-foreground: #ffffff;
+
+  --color-border: #e2e8f0;
+  --color-border-muted: #f1f5f9;
+
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
+  --color-success: #16a34a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0b1220;
+    --color-surface: #111827;
+    --color-elevated: #1f2937;
+
+    --color-strong: #f8fafc;
+    --color-foreground: #e2e8f0;
+    --color-muted: #94a3b8;
+    --color-subtle: #64748b;
+
+    --color-accent: #818cf8;
+    --color-accent-hover: #a5b4fc;
+    --color-accent-active: #6366f1;
+    --color-accent-foreground: #0f172a;
+
+    --color-border: #334155;
+    --color-border-muted: #1e293b;
+
+    --color-danger: #f87171;
+    --color-warning: #fbbf24;
+    --color-success: #4ade80;
+  }
+}
