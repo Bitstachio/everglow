@@ -16,6 +16,7 @@ jest.mock("../api/mutations", () => ({
 const userProfile: UserResponseDto = {
   id: "user-1",
   isOnboarded: true,
+  termsAcceptedAt: null,
   details: {
     name: "Ada",
     email: "ada@example.com",
