@@ -1,6 +1,7 @@
 import { H2 } from "@/components/ui/heading";
-import { ActivityIndicator, View } from "react-native";
-import { useRouter } from "expo-router";
+import { ThemedText } from "@/components/ui/themed-text";
+import { ActivityIndicator, Pressable, View } from "react-native";
+import { Href, Link, useRouter } from "expo-router";
 import { Event } from "../types";
 import EventCard from "./event-card";
 import NoEventsBanner from "./no-events-banner";
@@ -11,15 +12,27 @@ type EventsListProps = {
   events: Event[];
   onEventShare?: (event: Event) => void;
   currentUserId?: string;
+  seeAllHref?: Href;
 };
 
 // TODO: Implement onPress for EventCard
-const EventsList = ({ title, isLoading, events, onEventShare, currentUserId }: EventsListProps) => {
+const EventsList = ({ title, isLoading, events, onEventShare, currentUserId, seeAllHref }: EventsListProps) => {
   const router = useRouter();
 
   return (
     <View className="gap-4">
-      <H2>{title}</H2>
+      <View className="flex-row items-center justify-between gap-3">
+        <H2>{title}</H2>
+        {seeAllHref ? (
+          <Link href={seeAllHref} asChild>
+            <Pressable accessibilityRole="link" accessibilityLabel="See all events">
+              <ThemedText className="text-sm font-medium" textColor="muted">
+                See all →
+              </ThemedText>
+            </Pressable>
+          </Link>
+        ) : null}
+      </View>
       {isLoading ? (
         <View className="py-12 items-center justify-center">
           <ActivityIndicator accessibilityLabel="Loading events" size="large" color="#3B82F6" />

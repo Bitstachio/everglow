@@ -4,7 +4,20 @@ import { buildEvent } from "../testing/fixtures";
 import EventsList from "./events-list";
 
 const mockPush = jest.fn();
-jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock("expo-router", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  return {
+    useRouter: () => ({ push: mockPush }),
+    Link: ({
+      href,
+      children,
+    }: {
+      href: string;
+      children: React.ReactElement<{ onPress?: () => void }>;
+      asChild?: boolean;
+    }) => React.cloneElement(children, { onPress: () => mockPush(href) }),
+  };
+});
 beforeEach(() => {
   mockPush.mockReset();
   mockColorScheme.mockReturnValue("light");
@@ -36,6 +49,17 @@ test("opens the selected event detail route", async () => {
   );
   await userEvent.setup().press(screen.getByRole("button", { name: "Open Picnic" }));
   expect(mockPush).toHaveBeenCalledWith("/events/event-2");
+});
+
+test("opens the events list route from See all", async () => {
+  await render(<EventsList title="My Events" isLoading={false} events={[]} seeAllHref="/events/list" />);
+  await userEvent.setup().press(screen.getByRole("link", { name: "See all events" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/list");
+});
+
+test("hides See all when no href is provided", async () => {
+  await render(<EventsList title="My Events" isLoading={false} events={[]} />);
+  expect(screen.queryByRole("link", { name: "See all events" })).not.toBeOnTheScreen();
 });
 
 test("only the creator can share and sharing does not navigate", async () => {

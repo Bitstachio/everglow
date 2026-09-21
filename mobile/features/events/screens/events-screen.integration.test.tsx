@@ -20,16 +20,27 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
-jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush }),
-  useFocusEffect: (callback: () => void) => {
-    const { useEffect } = jest.requireActual<typeof import("react")>("react");
-    const focused = mockFocused;
-    useEffect(() => {
-      if (focused) return callback();
-    }, [callback, focused]);
-  },
-}));
+jest.mock("expo-router", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  return {
+    useRouter: () => ({ push: mockPush }),
+    useFocusEffect: (callback: () => void) => {
+      const { useEffect } = jest.requireActual<typeof import("react")>("react");
+      const focused = mockFocused;
+      useEffect(() => {
+        if (focused) return callback();
+      }, [callback, focused]);
+    },
+    Link: ({
+      href,
+      children,
+    }: {
+      href: string;
+      children: React.ReactElement<{ onPress?: () => void }>;
+      asChild?: boolean;
+    }) => React.cloneElement(children, { onPress: () => mockPush(href) }),
+  };
+});
 
 const renderScreen = async () => {
   const client = new QueryClient({
@@ -273,4 +284,10 @@ test("opens Account Settings from the Events header avatar", async () => {
   expect(screen.getByRole("header", { name: "Everglow" })).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Account Settings" }));
   expect(mockPush).toHaveBeenCalledWith("/account-settings");
+});
+
+test("opens the My Events list from See all", async () => {
+  await renderScreen();
+  await userEvent.setup().press(screen.getByRole("link", { name: "See all events" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/list");
 });

@@ -36,6 +36,7 @@ const RootNavigator = () => {
       <Stack.Protected guard={isAuthenticated && isOnboarded}>
         <Stack.Screen name="events/index" options={{ headerShown: false }} />
         <Stack.Screen name="account-settings" options={{ title: "Account Settings", headerBackTitle: "Back" }} />
+        <Stack.Screen name="events/list" options={{ title: "My Events", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/create" options={{ title: "Create Event", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/[id]" />
         <Stack.Screen name="modal" options={{ presentation: "modal", title: "Modal" }} />

@@ -70,6 +70,7 @@ const EventsScreen = () => {
           events={events}
           onEventShare={handleEventShare}
           currentUserId={currentUserId}
+          seeAllHref="/events/list"
         />
       </ScrollView>
 
