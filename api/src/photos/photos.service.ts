@@ -5,6 +5,7 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import { Photo, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
@@ -110,7 +111,7 @@ export class PhotosService {
       // stale-PENDING sweeper gets to them.
       await this.releaseSlots(
         rows.map((row) => row.id),
-        { event: "photo.upload_slots.presign_failed", eventId, callerId },
+        { event: ALERT_EVENTS.UPLOAD_SLOTS_PRESIGN_FAILED, eventId, callerId },
       );
       throw error;
     }
@@ -237,7 +238,7 @@ export class PhotosService {
     });
 
     await this.releaseSlots(releasable, {
-      event: "photo.upload_slots.rejected",
+      event: ALERT_EVENTS.UPLOAD_SLOTS_REJECTED,
       eventId,
       callerId,
       missing: missingIds.length,
