@@ -209,7 +209,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 ### Reliability
 
 - ~~**Cleanup sweeper** — cron job that deletes PENDING rows older than 24h and their S3 objects.~~ Implemented: `PhotoPendingCleanupService` runs hourly via `@nestjs/schedule`.
-- ~~**Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.~~ Implemented: `PhotoOrphanReconcilerService` runs daily via `@nestjs/schedule` (§11).
+- ~~**Orphan reconciler** — periodic scan that finds S3 objects without matching DB rows (e.g., from failed deletes) and removes them.~~ Implemented: `S3OrphanReconcilerService` runs daily via `@nestjs/schedule` (§11).
 
 ### Mobile-side (not server concern, listed for completeness)
 
@@ -345,15 +345,19 @@ This job is what makes the quota in §9 self-correcting. Without it an abandoned
 
 ## 11. S3 orphan reconciler
 
-The database is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete whose post-commit purge failed or raced an in-flight upload (§5), an account delete (the cascade removes the rows, nothing touches S3), a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
+The database is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete whose post-commit purge failed or raced an in-flight upload (§5), an account delete whose purge failed, a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
 
-- **Service:** `PhotoOrphanReconcilerService.reconcileOrphanedObjects()`
-- **Schedule:** daily at 03:00 via `PhotoOrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists the whole prefix, which is not worth doing hourly, and orphans cost money rather than correctness.
-- **Walk:** `S3Service.listObjects()` (`ListObjectsV2`) under `photos/`, one page of up to 1000 keys at a time, end to end on every run. Nothing is loaded into memory beyond the current page.
-- **Candidates:** keys shaped like `photos/{userId}/{eventId}/{photoId}` or the legacy `photos/{eventId}/{photoId}` (UUID segments, `isPhotoS3Key()`), with `LastModified` older than `PHOTO_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS` (default **24h**, `0` disables the buffer). Anything else under the prefix is skipped and never deleted.
-- **Lookup:** one `Photo.findMany({ s3Key: { in } })` per page. `s3Key` is unique, so this is an index probe per key without a round trip per key. A key with a row in **any** status is left alone; `PENDING` rows belong to the stale-PENDING cleanup.
-- **Delete:** `DeleteObject` per orphan, at most `PHOTO_ORPHAN_RECONCILER_BATCH_SIZE` per run (default **100**). The cap bounds the blast radius of a bad run more than the work: when it is hit the summary reports `completed: false` and the next run picks up the rest. Failed deletes count against the cap and are retried next run.
-- **Enable:** `PHOTO_ORPHAN_RECONCILER_ENABLED=true`. Off unless set to exactly that, because the
+The job is not specific to photos. It lives in `src/storage` and walks a registry of owned prefixes (`OrphanSourceRegistry`); `photos/` is the source `PhotoOrphanSource` registers, and single-image prefixes such as `avatars/` register theirs ([image-uploads.md §5](./image-uploads.md#5-orphan-reconciler)). What follows describes the shared job and the photos source.
+
+- **Service:** `S3OrphanReconcilerService.reconcileOrphanedObjects()`
+- **Schedule:** daily at 03:00 via `S3OrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists every registered prefix end to end, which is not worth doing hourly, and orphans cost money rather than correctness.
+- **Walk:** `S3Service.listObjects()` (`ListObjectsV2`) under each registered prefix (`photos/` here), one page of up to 1000 keys at a time, end to end on every run. Nothing is loaded into memory beyond the current page.
+- **Candidates:** keys shaped like `photos/{userId}/{eventId}/{photoId}` or the legacy `photos/{eventId}/{photoId}` (UUID segments, `isPhotoS3Key()`), with `LastModified` older than `PHOTO_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS` (default **24h**, `0` disables the buffer; a source may set a floor under it, which image prefixes do). Anything else under the prefix is skipped and never deleted.
+- **Lookup:** `OrphanSource.findReferencedKeys()`, for photos one `Photo.findMany({ s3Key: { in } })` per page. `s3Key` is unique, so this is an index probe per key without a round trip per key. A key with a row in **any** status is left alone; `PENDING` rows belong to the stale-PENDING cleanup.
+- **Delete:** `DeleteObject` per orphan, at most `PHOTO_ORPHAN_RECONCILER_BATCH_SIZE` per run (default **100**), shared by all prefixes. The cap bounds the blast radius of a bad run more than the work: when it is hit the summary reports `completed: false` and the next run picks up the rest. Failed deletes count against the cap and are retried next run.
+- **Enable:** `PHOTO_ORPHAN_RECONCILER_ENABLED=true` (the three variables keep their `PHOTO_` names from
+  when `photos/` was the only prefix; renaming an opt-in flag would silently switch the job off where it
+  is on). Off unless set to exactly that, because the
   job decides what to delete from `AWS_S3_BUCKET` using rows in `DATABASE_URL`, and the two are only
   paired in a deployed environment. `docker-compose.yml` overrides `DATABASE_URL` to its own empty
   database while still loading the shared bucket credentials from `.env`, and local dev does the same,
@@ -362,7 +366,7 @@ The database is the source of truth for photos, so a row can disappear while its
   `production`.
 - **IAM:** needs `s3:ListBucket` on the bucket, which Terraform already grants (`infra/main.tf`).
 
-Every deletion logs `photo.orphan_reconcile.deleted` with `audit: true`; every run ends with `photo.orphan_reconcile.completed` carrying the counts, so a quiet bucket still leaves a daily trace.
+Every deletion logs `storage.orphan_reconcile.deleted` with `audit: true` and the `prefix` it came from; every run ends with `storage.orphan_reconcile.completed` carrying the counts, so a quiet bucket still leaves a daily trace. (These events were named `photo.orphan_reconcile.*` while the job only walked `photos/`.)
 
 ### Why "no row" is enough to delete
 
@@ -372,7 +376,7 @@ A `Photo` row is inserted before its upload URL is minted (§1), so an object ca
 
 The two jobs start from opposite sides and stay separate services, schedulers, and config:
 
-|             | Stale PENDING cleanup (§10)                     | Orphan reconciler                   |
+|             | Stale PENDING cleanup (§10)                     | Orphan reconciler (photos source)   |
 | ----------- | ----------------------------------------------- | ----------------------------------- |
 | Starts from | Database                                        | S3                                  |
 | Finds       | `PENDING` rows older than 24h                   | objects under `photos/` with no row |
@@ -384,4 +388,4 @@ They cannot fight over an object: the reconciler deletes only when no row exists
 
 ### Out of scope
 
-Eager S3 cleanup when an account is deleted (events have it, §5), S3 Inventory or Athena-based reconciliation for very large buckets, and an endpoint to trigger a run by hand.
+S3 Inventory or Athena-based reconciliation for very large buckets, and an endpoint to trigger a run by hand.

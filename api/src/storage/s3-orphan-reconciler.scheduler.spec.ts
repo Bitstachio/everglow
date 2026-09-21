@@ -1,11 +1,11 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
-import { PhotoOrphanReconcilerScheduler } from "./photo-orphan-reconciler.scheduler";
-import { PhotoOrphanReconcilerService } from "./photo-orphan-reconciler.service";
+import { S3OrphanReconcilerScheduler } from "./s3-orphan-reconciler.scheduler";
+import { S3OrphanReconcilerService } from "./s3-orphan-reconciler.service";
 
-describe("PhotoOrphanReconcilerScheduler", () => {
-  let scheduler: PhotoOrphanReconcilerScheduler;
+describe("S3OrphanReconcilerScheduler", () => {
+  let scheduler: S3OrphanReconcilerScheduler;
   let reconcilerService: { reconcileOrphanedObjects: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; error: jest.Mock };
   let enabled: boolean;
@@ -21,19 +21,19 @@ describe("PhotoOrphanReconcilerScheduler", () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        PhotoOrphanReconcilerScheduler,
-        { provide: PhotoOrphanReconcilerService, useValue: reconcilerService },
+        S3OrphanReconcilerScheduler,
+        { provide: S3OrphanReconcilerService, useValue: reconcilerService },
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string) => (key === "photos.orphanReconcilerEnabled" ? enabled : undefined)),
+            get: jest.fn((key: string) => (key === "storage.orphanReconcilerEnabled" ? enabled : undefined)),
           },
         },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
 
-    scheduler = module.get(PhotoOrphanReconcilerScheduler);
+    scheduler = module.get(S3OrphanReconcilerScheduler);
   });
 
   it("runs the reconciler when enabled", async () => {
@@ -56,7 +56,7 @@ describe("PhotoOrphanReconcilerScheduler", () => {
     await expect(scheduler.handleReconcile()).resolves.toBeUndefined();
 
     expect(logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ event: "photo.orphan_reconcile.run_failed" }),
+      expect.objectContaining({ event: "storage.orphan_reconcile.run_failed" }),
       expect.any(String),
     );
   });
