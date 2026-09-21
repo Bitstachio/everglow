@@ -56,12 +56,21 @@ import type {
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingErrors,
   UsersControllerCompleteOnboardingResponses,
+  UsersControllerConfirmAvatarUploadData,
+  UsersControllerConfirmAvatarUploadErrors,
+  UsersControllerConfirmAvatarUploadResponses,
+  UsersControllerCreateAvatarUploadUrlData,
+  UsersControllerCreateAvatarUploadUrlErrors,
+  UsersControllerCreateAvatarUploadUrlResponses,
   UsersControllerFindMeData,
   UsersControllerFindMeErrors,
   UsersControllerFindMeResponses,
   UsersControllerGetMyStorageData,
   UsersControllerGetMyStorageErrors,
   UsersControllerGetMyStorageResponses,
+  UsersControllerRemoveAvatarData,
+  UsersControllerRemoveAvatarErrors,
+  UsersControllerRemoveAvatarResponses,
   UsersControllerRemoveMeData,
   UsersControllerRemoveMeErrors,
   UsersControllerRemoveMeResponses,
@@ -169,6 +178,62 @@ export const usersControllerGetMyStorage = <ThrowOnError extends boolean = false
     responseType: "json",
     url: "/api/v2/users/me/storage",
     ...options,
+  });
+
+/**
+ * Mint a presigned upload URL for the current user's avatar
+ */
+export const usersControllerCreateAvatarUploadUrl = <ThrowOnError extends boolean = false>(
+  options: Options<UsersControllerCreateAvatarUploadUrlData, ThrowOnError>,
+): RequestResult<
+  UsersControllerCreateAvatarUploadUrlResponses,
+  UsersControllerCreateAvatarUploadUrlErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    UsersControllerCreateAvatarUploadUrlResponses,
+    UsersControllerCreateAvatarUploadUrlErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/avatar/upload-url",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Remove the current user's avatar
+ */
+export const usersControllerRemoveAvatar = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerRemoveAvatarData, ThrowOnError>,
+): RequestResult<UsersControllerRemoveAvatarResponses, UsersControllerRemoveAvatarErrors, ThrowOnError> =>
+  (options?.client ?? client).delete<
+    UsersControllerRemoveAvatarResponses,
+    UsersControllerRemoveAvatarErrors,
+    ThrowOnError
+  >({ url: "/api/v2/users/me/avatar", ...options });
+
+/**
+ * Confirm an uploaded avatar and set it on the current user
+ */
+export const usersControllerConfirmAvatarUpload = <ThrowOnError extends boolean = false>(
+  options: Options<UsersControllerConfirmAvatarUploadData, ThrowOnError>,
+): RequestResult<UsersControllerConfirmAvatarUploadResponses, UsersControllerConfirmAvatarUploadErrors, ThrowOnError> =>
+  (options.client ?? client).put<
+    UsersControllerConfirmAvatarUploadResponses,
+    UsersControllerConfirmAvatarUploadErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/avatar",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });
 
 /**

@@ -7,6 +7,10 @@ export type ClientOptions = {
 export type UserDetailsResponseDto = {
   email: string;
   name: string;
+  /**
+   * Short-lived presigned URL of the profile avatar; null when none is set
+   */
+  avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -47,6 +51,29 @@ export type UserStorageResponseDto = {
 export type UpdateUserDto = {
   name?: string;
   email?: string;
+};
+
+export type ImageUploadResponseDto = {
+  /**
+   * Pass it back to confirm the upload
+   */
+  uploadId: string;
+  /**
+   * Presigned S3 PUT URL the client uploads bytes to
+   */
+  uploadUrl: string;
+};
+
+export type CreateImageUploadDto = {
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  sizeBytes: number;
+};
+
+export type ConfirmImageUploadDto = {
+  /**
+   * The uploadId returned when the upload URL was minted
+   */
+  uploadId: string;
 };
 
 export type UploadSlotResponseDto = {
@@ -139,6 +166,10 @@ export type EventParticipantResponseDto = {
   userId: string;
   name: string;
   accessLevel: AccessLevel;
+  /**
+   * Short-lived presigned URL of the member's avatar; null when none is set
+   */
+  avatarUrl: string | null;
 };
 
 export type UpdateParticipantAccessDto = {
@@ -289,6 +320,84 @@ export type UsersControllerGetMyStorageResponses = {
 
 export type UsersControllerGetMyStorageResponse =
   UsersControllerGetMyStorageResponses[keyof UsersControllerGetMyStorageResponses];
+
+export type UsersControllerCreateAvatarUploadUrlData = {
+  body: CreateImageUploadDto;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/avatar/upload-url";
+};
+
+export type UsersControllerCreateAvatarUploadUrlErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type UsersControllerCreateAvatarUploadUrlResponses = {
+  /**
+   * Upload id with a presigned S3 PUT URL
+   */
+  201: {
+    data: ImageUploadResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCreateAvatarUploadUrlResponse =
+  UsersControllerCreateAvatarUploadUrlResponses[keyof UsersControllerCreateAvatarUploadUrlResponses];
+
+export type UsersControllerRemoveAvatarData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/avatar";
+};
+
+export type UsersControllerRemoveAvatarErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type UsersControllerRemoveAvatarResponses = {
+  /**
+   * Avatar removed (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type UsersControllerRemoveAvatarResponse =
+  UsersControllerRemoveAvatarResponses[keyof UsersControllerRemoveAvatarResponses];
+
+export type UsersControllerConfirmAvatarUploadData = {
+  body: ConfirmImageUploadDto;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/avatar";
+};
+
+export type UsersControllerConfirmAvatarUploadErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type UsersControllerConfirmAvatarUploadResponses = {
+  /**
+   * User profile with the new avatar
+   */
+  200: {
+    data: UserResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerConfirmAvatarUploadResponse =
+  UsersControllerConfirmAvatarUploadResponses[keyof UsersControllerConfirmAvatarUploadResponses];
 
 export type PhotosControllerCreateUploadUrlsData = {
   body: CreateUploadUrlsDto;
