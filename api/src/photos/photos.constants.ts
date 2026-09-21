@@ -19,6 +19,19 @@ export const UPLOAD_URL_TTL_SECONDS = 3600; // 1 hour to upload a photo
 
 export const DOWNLOAD_URL_TTL_SECONDS = 900; // 15 minutes to download a photo
 
+// S3 checks a presigned URL's expiry when the PUT arrives, not when its body
+// finishes, so a PUT that started just before the TTL ran out can still be
+// streaming after it. A slot only counts as expired this long after the TTL.
+// Generous on purpose: a 25 MB body on slow cellular takes minutes, not this.
+export const UPLOAD_COMPLETION_GRACE_SECONDS = 15 * 60;
+
+// Age past which a PENDING slot whose key holds no object can never complete:
+// its URL no longer accepts a PUT and nothing started before that is still in
+// flight. The sweeper releases such slots without waiting for
+// DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS, which exists for slots that did receive
+// an object and may still be confirmed.
+export const EXPIRED_UPLOAD_SLOT_AGE_SECONDS = UPLOAD_URL_TTL_SECONDS + UPLOAD_COMPLETION_GRACE_SECONDS;
+
 export const DEFAULT_PHOTO_PAGE_SIZE = 50;
 
 export const MAX_PHOTO_PAGE_SIZE = 100;
