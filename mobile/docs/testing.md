@@ -47,6 +47,8 @@ pnpm test:coverage     # unit + coverage
 pnpm test:integration  # screen-integration only (15s, maxWorkers: 2)
 ```
 
+CI runs `pnpm test --maxWorkers=2`, then `pnpm test:integration`. See `.github/workflows/ci.yml`. Maestro is not in CI.
+
 Unit hang detection stays at Jest’s default 5s (`jest.config.js`). Screen-integration uses 15s in `jest.integration.config.js`. If a unit test times out under load, re-run with `--runInBand` rather than raising the unit timeout:
 
 ```sh
