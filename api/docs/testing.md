@@ -68,7 +68,7 @@ Feature-owned **unit** specs stay colocated. Shared integration fixtures live in
 
 | Path                                         | Role                                              |
 | -------------------------------------------- | ------------------------------------------------- |
-| `test/integration/*.integration.spec.ts`     | HTTP suites (users, events, photos, app smoke)    |
+| `test/integration/*.integration.spec.ts`     | HTTP suites (users, events, photos, moderation, app smoke) |
 | `test/integration/helpers/create-test-app.ts`| Boots `AppModule`, swaps JWT guard + Prisma mock  |
 | `test/integration/helpers/*fixtures.ts`      | Tokens, users, events, photos payloads            |
 | `test/integration/helpers/test-jwt-auth.guard.ts` | Maps Bearer tokens → test users              |

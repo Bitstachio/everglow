@@ -19,7 +19,12 @@ import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_SERVICE_ERRORS } from "./events.constants";
-import { EventParticipant, eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
+import {
+  EventAccessWithUser,
+  EventParticipant,
+  eventAccessWithUserInclude,
+  eventWithCallerAccessInclude,
+} from "./events.types";
 
 @Injectable()
 export class EventsService {
@@ -228,17 +233,11 @@ export class EventsService {
 
     const accesses = await this.prisma.eventAccess.findMany({
       where: { eventId },
-      include: eventAccessWithUserInclude,
+      include: eventAccessWithUserInclude(callerId),
       orderBy: { createdAt: "asc" },
     });
 
-    return accesses
-      .filter((access) => access.user.details)
-      .map((access) => ({
-        userId: access.userId,
-        name: access.user.details!.name,
-        accessLevel: access.accessLevel,
-      }));
+    return accesses.filter((access) => access.user.details).map((access) => this.toEventParticipant(eventId, access));
   }
 
   async updateUserAccessLevel(
@@ -265,7 +264,7 @@ export class EventsService {
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
-      include: eventAccessWithUserInclude,
+      include: eventAccessWithUserInclude(callerId),
     });
     if (!targetAccess) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId));
@@ -285,7 +284,7 @@ export class EventsService {
     const updated = await this.prisma.eventAccess.update({
       where: { userId_eventId: { userId: targetUserId, eventId } },
       data: { accessLevel },
-      include: eventAccessWithUserInclude,
+      include: eventAccessWithUserInclude(callerId),
     });
 
     this.logger.info(
@@ -383,14 +382,7 @@ export class EventsService {
     });
   }
 
-  private toEventParticipant(
-    eventId: string,
-    access: {
-      userId: string;
-      accessLevel: AccessLevel;
-      user: { details: { name: string } | null };
-    },
-  ): EventParticipant {
+  private toEventParticipant(eventId: string, access: EventAccessWithUser): EventParticipant {
     if (!access.user.details) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, access.userId));
     }
@@ -399,6 +391,7 @@ export class EventsService {
       userId: access.userId,
       name: access.user.details.name,
       accessLevel: access.accessLevel,
+      isBlockedByCaller: access.user.blocksReceived.length > 0,
     };
   }
 }

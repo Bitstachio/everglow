@@ -2,13 +2,14 @@ import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
+import { PAGINATION_ERRORS } from "src/common/pagination/pagination.constants";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import {
   PHOTO_SERVICE_ERRORS,
   FREE_TIER_STORAGE_LIMIT_BYTES,
   STORAGE_RESERVATION_MAX_ATTEMPTS,
 } from "src/photos/photos.constants";
-import { encodePhotoCursor } from "src/photos/photos.cursor";
+import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -78,6 +79,7 @@ describe("PhotosController (integration)", () => {
   const eventWithAccess = (access: ReturnType<typeof buildOrganizerAccess>[]) => ({
     ...buildEvent(),
     eventAccesses: access,
+    _count: { eventAccesses: 5 },
   });
 
   const photoWithAccess = (
@@ -103,6 +105,9 @@ describe("PhotosController (integration)", () => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
+    // Moderation defaults: no photo is over the report threshold, and a photo read one by one is visible.
+    prisma.report.groupBy.mockResolvedValue([]);
+    prisma.photo.count.mockResolvedValue(1);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => fn(prisma));
 
@@ -374,7 +379,7 @@ describe("PhotosController (integration)", () => {
 
       const body = response.body as WrappedResponse<PhotoListBody>;
       expect(body.data.items).toHaveLength(1);
-      expect(body.data.nextCursor).toBe(encodePhotoCursor(first));
+      expect(body.data.nextCursor).toBe(encodeKeysetCursor(first));
     });
 
     it("returns 200 and applies a cursor as a keyset filter on the next page", async () => {
@@ -384,7 +389,7 @@ describe("PhotosController (integration)", () => {
 
       const response = await request(httpServer)
         .get(photosListPath())
-        .query({ cursor: encodePhotoCursor(last), limit: 1 })
+        .query({ cursor: encodeKeysetCursor(last), limit: 1 })
         .set(authHeader())
         .expect(200);
 
@@ -396,6 +401,8 @@ describe("PhotosController (integration)", () => {
           where: {
             AND: [
               { eventId: TEST_EVENT_ID, status: "READY" },
+              expect.anything(),
+              // The moderation visibility filter; its content is asserted below.
               expect.anything(),
               { OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
             ],
@@ -415,12 +422,38 @@ describe("PhotosController (integration)", () => {
         .expect(400);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.INVALID_CURSOR);
+      expect(body.message).toBe(PAGINATION_ERRORS.INVALID_CURSOR);
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
     it("returns 400 for an invalid limit", async () => {
       await request(httpServer).get(photosListPath()).query({ limit: 0 }).set(authHeader()).expect(400);
+    });
+
+    it("returns 200 without the photos that reports or blocks hide from a member", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+      prisma.report.groupBy.mockResolvedValue([{ photoId: TEST_OTHER_PHOTO_ID }] as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+
+      await request(httpServer).get(photosListPath()).set(authHeader()).expect(200);
+
+      const [args] = prisma.photo.findMany.mock.calls[0];
+      const filters = JSON.stringify(args?.where);
+      expect(filters).toContain(JSON.stringify({ reports: { none: { reporterId: TEST_USER_ID, status: "OPEN" } } }));
+      expect(filters).toContain(JSON.stringify({ id: { notIn: [TEST_OTHER_PHOTO_ID] } }));
+      expect(filters).toContain(JSON.stringify({ blocksReceived: { some: { blockerId: TEST_USER_ID } } }));
+      expect(filters).toContain(JSON.stringify({ blocksInitiated: { some: { blockedId: TEST_USER_ID } } }));
+    });
+
+    it("returns 200 with nothing hidden for an organizer of the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+
+      await request(httpServer).get(photosListPath()).set(authHeader()).expect(200);
+
+      const [args] = prisma.photo.findMany.mock.calls[0];
+      expect(JSON.stringify(args?.where)).not.toContain("blocksReceived");
+      expect(prisma.report.groupBy).not.toHaveBeenCalled();
     });
 
     it("returns 401 when the access token is missing", async () => {
@@ -455,6 +488,17 @@ describe("PhotosController (integration)", () => {
 
       const body = response.body as WrappedResponse<PhotoBody>;
       expect(body.data).toMatchObject(expectedPhotoResponse(photo, TEST_SIGNED_GET_URL));
+    });
+
+    it("returns 404 when reports or blocks hide the photo from the caller", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildViewerAccess()]) as never);
+      prisma.photo.count.mockResolvedValue(0);
+
+      const response = await request(httpServer).get(photoPath()).set(authHeader()).expect(404);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.NOT_FOUND(TEST_PHOTO_ID));
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
     });
 
     it("returns 404 when the photo does not exist", async () => {

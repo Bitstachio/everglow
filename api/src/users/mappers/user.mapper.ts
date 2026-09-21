@@ -14,6 +14,7 @@ export class UserMapper {
             updatedAt: user.details.updatedAt,
           }
         : null,
+      termsAcceptedAt: user.termsAcceptedAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

@@ -137,6 +137,48 @@ describe("UsersController (integration)", () => {
       });
     });
 
+    it("returns 201 with termsAcceptedAt null for a client that does not send acceptedTerms yet", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+      prisma.userDetails.count.mockResolvedValue(0);
+      prisma.user.update.mockResolvedValue(buildUserWithDetails());
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader())
+        .send(createUserDetailsPayload())
+        .expect(201);
+
+      const body = response.body as WrappedResponse<{ termsAcceptedAt: string | null }>;
+      expect(body.data.termsAcceptedAt).toBeNull();
+    });
+
+    it("returns 201 and records the acceptance time when acceptedTerms is true", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+      prisma.userDetails.count.mockResolvedValue(0);
+      prisma.user.update.mockResolvedValue(buildUserWithDetails({ termsAcceptedAt: TEST_NOW }));
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader())
+        .send({ ...createUserDetailsPayload(), acceptedTerms: true })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<{ termsAcceptedAt: string | null }>;
+      expect(body.data.termsAcceptedAt).toBe(TEST_NOW.toISOString());
+      const [args] = prisma.user.update.mock.calls[0];
+      expect(args.data.termsAcceptedAt).toEqual(expect.any(Date));
+    });
+
+    it("returns 400 when acceptedTerms is anything but true", async () => {
+      await request(httpServer)
+        .post(path)
+        .set(authHeader())
+        .send({ ...createUserDetailsPayload(), acceptedTerms: false })
+        .expect(400);
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
     it("returns 400 when the payload fails validation", async () => {
       const response = await request(httpServer)
         .post(path)

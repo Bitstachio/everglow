@@ -5,20 +5,22 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import { Photo, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
+import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
+import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
+import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
 import { PhotoStorageService } from "./photo-storage.service";
-import { decodePhotoCursor, encodePhotoCursor } from "./photos.cursor";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
 import {
   buildPhotoS3Key,
   CONFIRM_PHOTO_STATUSES,
   ConfirmPhotoStatus,
-  DEFAULT_PHOTO_PAGE_SIZE,
   DOWNLOAD_URL_TTL_SECONDS,
   PHOTO_SERVICE_ERRORS,
   UPLOAD_URL_TTL_SECONDS,
@@ -34,10 +36,7 @@ export interface ConfirmResult {
   status: ConfirmPhotoStatus;
 }
 
-export interface PhotoPage {
-  items: PhotoWithUrl[];
-  nextCursor: string | null;
-}
+export type PhotoPage = KeysetPage<PhotoWithUrl>;
 
 @Injectable()
 export class PhotosService {
@@ -46,16 +45,17 @@ export class PhotosService {
     private readonly abilityFactory: AbilityFactory,
     private readonly s3Service: S3Service,
     private readonly photoStorageService: PhotoStorageService,
+    private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
   }
 
-  /** Loads the event with the caller's access rows, or 404s. */
+  /** Loads the event with the caller's access rows and its member count, or 404s. */
   private async findEventForCaller(eventId: string, callerId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      include: { eventAccesses: { where: { userId: callerId } } },
+      include: eventForPhotoVisibilityInclude(callerId),
     });
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
     return event;
@@ -255,9 +255,9 @@ export class PhotosService {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.LIST_FORBIDDEN(eventId));
     }
 
-    const limit = query.limit ?? DEFAULT_PHOTO_PAGE_SIZE;
+    const limit = query.limit ?? DEFAULT_PAGE_SIZE;
     // Decode before querying so a malformed cursor is a 400, not an empty page.
-    const cursor = query.cursor ? decodePhotoCursor(query.cursor) : null;
+    const afterCursor = keysetAfter(query.cursor);
     // Fetch one extra row to know whether a next page exists. The cursor is
     // the (createdAt, id) keyset the previous page ended at, applied as a
     // WHERE clause: the page stays correct while photos arrive, and also when
@@ -267,24 +267,19 @@ export class PhotosService {
         AND: [
           { eventId, status: PhotoStatus.READY },
           accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
-          ...(cursor
-            ? [
-                {
-                  OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }],
-                },
-              ]
-            : []),
+          // Reported and blocked photos drop out here (docs/moderation.md).
+          await this.photoVisibilityService.whereVisibleTo(callerId, event),
+          ...afterCursor,
         ],
       },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: KEYSET_ORDER_BY,
       take: limit + 1,
     });
 
-    const hasMore = photos.length > limit;
-    const page = hasMore ? photos.slice(0, limit) : photos;
+    const page = toKeysetPage(photos, limit);
 
     const items = await Promise.all(
-      page.map(async (photo) => ({
+      page.items.map(async (photo) => ({
         ...photo,
         url: await this.s3Service.getPresignedDownloadUrl({
           key: photo.s3Key,
@@ -293,13 +288,13 @@ export class PhotosService {
       })),
     );
 
-    return { items, nextCursor: hasMore ? encodePhotoCursor(page[page.length - 1]) : null };
+    return { items, nextCursor: page.nextCursor };
   }
 
   async findOne(photoId: string, callerId: string): Promise<PhotoWithUrl> {
     const photo = await this.prisma.photo.findUnique({
       where: { id: photoId },
-      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
+      include: { event: { include: eventForPhotoVisibilityInclude(callerId) } },
     });
     // Unverified photos are invisible, same as in the event photo list.
     if (!photo || photo.status !== PhotoStatus.READY) {
@@ -309,6 +304,11 @@ export class PhotosService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(PHOTO_ACTIONS.READ, subject(PHOTO_SUBJECT, photo))) {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.READ_FORBIDDEN(photoId));
+    }
+
+    // Same filter as the list, so a photo missing there is a 404 here too.
+    if (!(await this.photoVisibilityService.isVisibleTo(photoId, callerId, photo.event))) {
+      throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
     }
 
     const { event, ...rest } = photo;

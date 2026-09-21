@@ -22,6 +22,7 @@ describe("EventMapper", () => {
     userId: "44444444-4444-4444-4444-444444444444",
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
+    isBlockedByCaller: true,
   };
 
   describe("toResponseDto", () => {
@@ -66,6 +67,7 @@ describe("EventMapper", () => {
         userId: participant.userId,
         name: participant.name,
         accessLevel: participant.accessLevel,
+        isBlockedByCaller: true,
       });
     });
   });

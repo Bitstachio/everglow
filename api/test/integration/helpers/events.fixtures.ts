@@ -1,8 +1,8 @@
-import { AccessLevel, Event, EventAccess, Prisma } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess } from "generated/prisma/client";
 import { CreateEventDto } from "src/events/dto/create-event.dto";
 import { UpdateEventDto } from "src/events/dto/update-event.dto";
 import { buildInvitationUrl } from "src/events/events.invitation";
-import { eventAccessWithUserInclude } from "src/events/events.types";
+import { EventAccessWithUser } from "src/events/events.types";
 import { UserWithDetails } from "src/users/users.types";
 import { TEST_NOW, TEST_USER_ID, buildUserWithDetails } from "./users.fixtures";
 import { TEST_OTHER_USER_ID, TEST_TARGET_USER_ID } from "./auth.fixtures";
@@ -86,13 +86,14 @@ export const buildTargetParticipantAccess = (overrides: Partial<EventAccess> = {
   ...overrides,
 });
 
-export type EventAccessWithUser = Prisma.EventAccessGetPayload<{
-  include: typeof eventAccessWithUserInclude;
-}>;
-
-export const buildEventAccessWithUser = (access: EventAccess, user: UserWithDetails): EventAccessWithUser => ({
+/** `blockedByCaller` mirrors what the include returns: the caller's block on that user, if any. */
+export const buildEventAccessWithUser = (
+  access: EventAccess,
+  user: UserWithDetails,
+  { blockedByCaller = false }: { blockedByCaller?: boolean } = {},
+): EventAccessWithUser => ({
   ...access,
-  user,
+  user: { ...user, blocksReceived: blockedByCaller ? [{ id: "b10cb10c-b10c-4b10-8b10-b10cb10cb10c" }] : [] },
 });
 
 export const eventWithCallerAccess = (event: Event, access: EventAccess[]) => ({

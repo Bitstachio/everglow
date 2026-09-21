@@ -14,6 +14,7 @@ import encryptionConfig from "./config/encryption.config";
 import photosConfig from "./config/photos.config";
 import usersConfig from "./config/users.config";
 import { EventsModule } from "./events/events.module";
+import { ModerationModule } from "./moderation/moderation.module";
 import { PhotosModule } from "./photos/photos.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AppleSiwaModule } from "./sdk/apple/apple-siwa.module";
@@ -42,6 +43,7 @@ import { UsersModule } from "./users/users.module";
     AppleSiwaModule,
     Auth0ManagementModule,
     PhotosModule,
+    ModerationModule,
   ],
 
   controllers: [AppController],

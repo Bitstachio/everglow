@@ -10,4 +10,11 @@ export class EventParticipantResponseDto {
 
   @ApiProperty({ enum: AccessLevel, enumName: "AccessLevel" })
   accessLevel: AccessLevel;
+
+  @ApiProperty({
+    description:
+      "Whether the caller has blocked this member, so the client can offer to unblock. " +
+      "Blocks the other way round are never exposed.",
+  })
+  isBlockedByCaller: boolean;
 }

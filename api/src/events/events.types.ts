@@ -1,4 +1,5 @@
-import { AccessLevel } from "generated/prisma/client";
+import { AccessLevel, Prisma } from "generated/prisma/client";
+import { blockByCallerArgs } from "src/moderation/moderation.types";
 import { userWithDetailsInclude } from "src/users/users.types";
 
 export const eventWithCallerAccessInclude = (userId: string) =>
@@ -12,8 +13,16 @@ export type EventParticipant = {
   userId: string;
   name: string;
   accessLevel: AccessLevel;
+  /** Whether the caller has blocked this member. Never the reverse (docs/moderation.md). */
+  isBlockedByCaller: boolean;
 };
 
-export const eventAccessWithUserInclude = {
-  user: { include: userWithDetailsInclude },
-} as const;
+/** A membership with its user's profile and, in the same query, the caller's block on that user if any. */
+export const eventAccessWithUserInclude = (callerId: string) =>
+  ({
+    user: { include: { ...userWithDetailsInclude, blocksReceived: blockByCallerArgs(callerId) } },
+  }) as const;
+
+export type EventAccessWithUser = Prisma.EventAccessGetPayload<{
+  include: ReturnType<typeof eventAccessWithUserInclude>;
+}>;

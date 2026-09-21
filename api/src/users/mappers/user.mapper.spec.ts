@@ -15,6 +15,7 @@ describe("UserMapper", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -28,6 +29,7 @@ describe("UserMapper", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -53,9 +55,16 @@ describe("UserMapper", () => {
           createdAt: now,
           updatedAt: now,
         },
+        termsAcceptedAt: null,
         createdAt: now,
         updatedAt: now,
       });
+    });
+
+    it("exposes when the terms were accepted", () => {
+      const result = UserMapper.toResponseDto({ ...userWithDetails, termsAcceptedAt: now });
+
+      expect(result.termsAcceptedAt).toEqual(now);
     });
 
     it("maps a user without details and sets isOnboarded to false", () => {
@@ -65,6 +74,7 @@ describe("UserMapper", () => {
         id: userId,
         isOnboarded: false,
         details: null,
+        termsAcceptedAt: null,
         createdAt: now,
         updatedAt: now,
       });

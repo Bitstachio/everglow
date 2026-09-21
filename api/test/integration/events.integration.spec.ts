@@ -65,6 +65,7 @@ type ParticipantResponseBody = {
   userId: string;
   name: string;
   accessLevel: AccessLevel;
+  isBlockedByCaller: boolean;
 };
 
 describe("EventsController (integration)", () => {
@@ -465,20 +466,28 @@ describe("EventsController (integration)", () => {
 
     it("returns 200 and a mapped participant roster", async () => {
       const organizerRow = buildEventAccessWithUser(buildOrganizerAccess(), buildUserWithDetails());
-      const targetRow = buildEventAccessWithUser(buildTargetParticipantAccess(), buildTargetUserWithDetails());
+      const targetRow = buildEventAccessWithUser(buildTargetParticipantAccess(), buildTargetUserWithDetails(), {
+        blockedByCaller: true,
+      });
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
 
       const response = await request(httpServer).get(path()).set(authHeader()).expect(200);
 
       const body = response.body as WrappedResponse<ParticipantResponseBody[]>;
+      // The flag marks who the caller blocked; nothing in the row says who blocked the caller.
       expect(body.data).toEqual([
-        { userId: TEST_USER_ID, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER },
-        { userId: TEST_TARGET_USER_ID, name: "Target User", accessLevel: AccessLevel.PARTICIPANT },
+        { userId: TEST_USER_ID, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, isBlockedByCaller: false },
+        {
+          userId: TEST_TARGET_USER_ID,
+          name: "Target User",
+          accessLevel: AccessLevel.PARTICIPANT,
+          isBlockedByCaller: true,
+        },
       ]);
       expect(prisma.eventAccess.findMany).toHaveBeenCalledWith({
         where: { eventId: TEST_EVENT_ID },
-        include: eventAccessWithUserInclude,
+        include: eventAccessWithUserInclude(TEST_USER_ID),
         orderBy: { createdAt: "asc" },
       });
     });
@@ -519,6 +528,7 @@ describe("EventsController (integration)", () => {
         userId: TEST_TARGET_USER_ID,
         name: "Target User",
         accessLevel: AccessLevel.ORGANIZER,
+        isBlockedByCaller: false,
       });
     });
 
