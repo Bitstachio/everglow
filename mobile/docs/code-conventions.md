@@ -90,6 +90,7 @@ Keep component (and hook/screen) files **flat** under their layer folder. Do not
 | Component   | `edit-profile-modal.tsx`         | `EditProfileModal` (named)    |
 | Hook        | `use-profile-screen.ts`          | `useProfileScreen` (named)    |
 | Test        | `use-edit-profile-form.test.tsx` | (mirrors the unit under test) |
+| Integration | `events-screen.integration.test.tsx` | (screen suite; see [Testing](./testing.md)) |
 | Shared util | `axios-instance.ts`              | camelCase named exports       |
 
 ```ts
