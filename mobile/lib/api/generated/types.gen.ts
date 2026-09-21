@@ -15,6 +15,10 @@ export type UserResponseDto = {
   id: string;
   isOnboarded: boolean;
   details: UserDetailsResponseDto | null;
+  /**
+   * When the user accepted the terms of use; null if they have not been asked yet.
+   */
+  termsAcceptedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -27,6 +31,10 @@ export type ResponseMetaDto = {
 export type CreateUserDetailsDto = {
   name: string;
   email: string;
+  /**
+   * The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Only `true` is valid; when sent, the acceptance time is recorded as termsAcceptedAt.
+   */
+  acceptedTerms?: boolean;
 };
 
 export type UserStorageResponseDto = {
@@ -101,6 +109,76 @@ export type PhotoListResponseDto = {
   nextCursor: string | null;
 };
 
+export type ReportTargetType = "PHOTO" | "MEMBER";
+
+export type ReportReason = "SPAM" | "NUDITY_OR_SEXUAL" | "HARASSMENT" | "VIOLENCE" | "OTHER";
+
+export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED";
+
+export type ReportResponseDto = {
+  id: string;
+  eventId: string;
+  targetType: ReportTargetType;
+  /**
+   * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
+   */
+  photoId: string | null;
+  /**
+   * The reported member, or the uploader of the reported photo. Null once that account has been deleted, or when the photo had no uploader left.
+   */
+  reportedUserId: string | null;
+  reason: ReportReason;
+  note: string | null;
+  status: ReportStatus;
+  /**
+   * The organizer who resolved the report. Null while OPEN, and once that account has been deleted.
+   */
+  resolvedById: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+};
+
+export type CreateReportDto = {
+  reason: ReportReason;
+  /**
+   * Optional context for the organizers, in the reporter's own words.
+   */
+  note?: string;
+};
+
+export type ReportListResponseDto = {
+  items: Array<ReportResponseDto>;
+  /**
+   * Opaque cursor for the next page; pass it as ?cursor=. Null on the last page.
+   */
+  nextCursor: string | null;
+};
+
+/**
+ * ACTIONED: the organizer dealt with the target (deleted the photo, removed the member). DISMISSED: nothing was wrong. Neither deletes anything by itself; both end the report's hiding effect.
+ */
+export type ReportResolution = "ACTIONED" | "DISMISSED";
+
+export type ResolveReportDto = {
+  /**
+   * ACTIONED: the organizer dealt with the target (deleted the photo, removed the member). DISMISSED: nothing was wrong. Neither deletes anything by itself; both end the report's hiding effect.
+   */
+  status: ReportResolution;
+};
+
+export type BlockedUserResponseDto = {
+  userId: string;
+  /**
+   * Null when the blocked account has no profile.
+   */
+  name: string | null;
+  blockedAt: string;
+};
+
+export type BlockedUserListResponseDto = {
+  items: Array<BlockedUserResponseDto>;
+};
+
 export type EventResponseDto = {
   id: string;
   title: string;
@@ -139,6 +217,10 @@ export type EventParticipantResponseDto = {
   userId: string;
   name: string;
   accessLevel: AccessLevel;
+  /**
+   * Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed.
+   */
+  isBlockedByCaller: boolean;
 };
 
 export type UpdateParticipantAccessDto = {
@@ -435,6 +517,212 @@ export type PhotosControllerFindOneResponses = {
 };
 
 export type PhotosControllerFindOneResponse = PhotosControllerFindOneResponses[keyof PhotosControllerFindOneResponses];
+
+export type ReportsControllerReportPhotoData = {
+  body: CreateReportDto;
+  path: {
+    photoId: string;
+  };
+  query?: never;
+  url: "/api/v2/photos/{photoId}/reports";
+};
+
+export type ReportsControllerReportPhotoErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type ReportsControllerReportPhotoResponses = {
+  /**
+   * The caller's open report on the photo
+   */
+  201: {
+    data: ReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportPhotoResponse =
+  ReportsControllerReportPhotoResponses[keyof ReportsControllerReportPhotoResponses];
+
+export type ReportsControllerReportMemberData = {
+  body: CreateReportDto;
+  path: {
+    eventId: string;
+    targetUserId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/participants/{targetUserId}/reports";
+};
+
+export type ReportsControllerReportMemberErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type ReportsControllerReportMemberResponses = {
+  /**
+   * The caller's open report on the member
+   */
+  201: {
+    data: ReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportMemberResponse =
+  ReportsControllerReportMemberResponses[keyof ReportsControllerReportMemberResponses];
+
+export type ReportsControllerListReportsData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: {
+    /**
+     * Opaque cursor: the nextCursor value from the previous page. Omit for the first page.
+     */
+    cursor?: string;
+    limit?: number;
+    /**
+     * Omit for every status.
+     */
+    status?: ReportStatus;
+  };
+  url: "/api/v2/events/{eventId}/reports";
+};
+
+export type ReportsControllerListReportsErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type ReportsControllerListReportsResponses = {
+  /**
+   * Reports, newest first
+   */
+  200: {
+    data: ReportListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerListReportsResponse =
+  ReportsControllerListReportsResponses[keyof ReportsControllerListReportsResponses];
+
+export type ReportsControllerResolveReportData = {
+  body: ResolveReportDto;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/reports/{reportId}";
+};
+
+export type ReportsControllerResolveReportErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type ReportsControllerResolveReportResponses = {
+  /**
+   * Resolved report
+   */
+  200: {
+    data: ReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerResolveReportResponse =
+  ReportsControllerResolveReportResponses[keyof ReportsControllerResolveReportResponses];
+
+export type BlocksControllerListData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/blocks";
+};
+
+export type BlocksControllerListErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type BlocksControllerListResponses = {
+  /**
+   * Blocked users, most recent first
+   */
+  200: {
+    data: BlockedUserListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type BlocksControllerListResponse = BlocksControllerListResponses[keyof BlocksControllerListResponses];
+
+export type BlocksControllerUnblockData = {
+  body?: never;
+  path: {
+    userId: string;
+  };
+  query?: never;
+  url: "/api/v2/users/me/blocks/{userId}";
+};
+
+export type BlocksControllerUnblockErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type BlocksControllerUnblockResponses = {
+  /**
+   * User is not blocked any more (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type BlocksControllerUnblockResponse = BlocksControllerUnblockResponses[keyof BlocksControllerUnblockResponses];
+
+export type BlocksControllerBlockData = {
+  body?: never;
+  path: {
+    userId: string;
+  };
+  query?: never;
+  url: "/api/v2/users/me/blocks/{userId}";
+};
+
+export type BlocksControllerBlockErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+};
+
+export type BlocksControllerBlockResponses = {
+  /**
+   * The blocked user
+   */
+  200: {
+    data: BlockedUserResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type BlocksControllerBlockResponse = BlocksControllerBlockResponses[keyof BlocksControllerBlockResponses];
 
 export type EventsControllerFindAllData = {
   body?: never;

@@ -12,6 +12,9 @@ import type { AxiosError } from "axios";
 import { client } from "../client.gen";
 import {
   appControllerGetHello,
+  blocksControllerBlock,
+  blocksControllerList,
+  blocksControllerUnblock,
   eventsControllerCreate,
   eventsControllerFindAll,
   eventsControllerFindOne,
@@ -29,6 +32,10 @@ import {
   photosControllerFindOne,
   photosControllerListPhotos,
   photosControllerRemove,
+  reportsControllerListReports,
+  reportsControllerReportMember,
+  reportsControllerReportPhoto,
+  reportsControllerResolveReport,
   usersControllerCompleteOnboarding,
   usersControllerFindMe,
   usersControllerGetMyStorage,
@@ -37,6 +44,12 @@ import {
 } from "../sdk.gen";
 import type {
   AppControllerGetHelloData,
+  BlocksControllerBlockData,
+  BlocksControllerBlockResponse,
+  BlocksControllerListData,
+  BlocksControllerListResponse,
+  BlocksControllerUnblockData,
+  BlocksControllerUnblockResponse,
   EventsControllerCreateData,
   EventsControllerCreateResponse,
   EventsControllerFindAllData,
@@ -69,6 +82,14 @@ import type {
   PhotosControllerListPhotosResponse,
   PhotosControllerRemoveData,
   PhotosControllerRemoveResponse,
+  ReportsControllerListReportsData,
+  ReportsControllerListReportsResponse,
+  ReportsControllerReportMemberData,
+  ReportsControllerReportMemberResponse,
+  ReportsControllerReportPhotoData,
+  ReportsControllerReportPhotoResponse,
+  ReportsControllerResolveReportData,
+  ReportsControllerResolveReportResponse,
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingResponse,
   UsersControllerFindMeData,
@@ -472,6 +493,240 @@ export const photosControllerFindOneOptions = (options: Options<PhotosController
     },
     queryKey: photosControllerFindOneQueryKey(options),
   });
+
+/**
+ * Report a photo
+ *
+ * Any member of the photo's event. The photo is hidden from the reporter at once. Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned.
+ */
+export const reportsControllerReportPhotoMutation = (
+  options?: Partial<Options<ReportsControllerReportPhotoData>>,
+): UseMutationOptions<
+  ReportsControllerReportPhotoResponse,
+  AxiosError<DefaultError>,
+  Options<ReportsControllerReportPhotoData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportsControllerReportPhotoResponse,
+    AxiosError<DefaultError>,
+    Options<ReportsControllerReportPhotoData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reportsControllerReportPhoto({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Report a member of an event
+ *
+ * Any member of the event, about any other member. Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned.
+ */
+export const reportsControllerReportMemberMutation = (
+  options?: Partial<Options<ReportsControllerReportMemberData>>,
+): UseMutationOptions<
+  ReportsControllerReportMemberResponse,
+  AxiosError<DefaultError>,
+  Options<ReportsControllerReportMemberData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportsControllerReportMemberResponse,
+    AxiosError<DefaultError>,
+    Options<ReportsControllerReportMemberData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reportsControllerReportMember({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const reportsControllerListReportsQueryKey = (options: Options<ReportsControllerListReportsData>) =>
+  createQueryKey("reportsControllerListReports", options);
+
+/**
+ * List an event's reports (organizers only, cursor-paginated)
+ */
+export const reportsControllerListReportsOptions = (options: Options<ReportsControllerListReportsData>) =>
+  queryOptions<
+    ReportsControllerListReportsResponse,
+    AxiosError<DefaultError>,
+    ReportsControllerListReportsResponse,
+    ReturnType<typeof reportsControllerListReportsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await reportsControllerListReports({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: reportsControllerListReportsQueryKey(options),
+  });
+
+export const reportsControllerListReportsInfiniteQueryKey = (
+  options: Options<ReportsControllerListReportsData>,
+): QueryKey<Options<ReportsControllerListReportsData>> => createQueryKey("reportsControllerListReports", options, true);
+
+/**
+ * List an event's reports (organizers only, cursor-paginated)
+ */
+export const reportsControllerListReportsInfiniteOptions = (options: Options<ReportsControllerListReportsData>) => {
+  const opts = infiniteQueryOptions<
+    ReportsControllerListReportsResponse,
+    AxiosError<DefaultError>,
+    InfiniteData<ReportsControllerListReportsResponse>,
+    QueryKey<Options<ReportsControllerListReportsData>>,
+    string | Pick<QueryKey<Options<ReportsControllerListReportsData>>[0], "body" | "headers" | "path" | "query">
+  >(
+    // @ts-ignore
+    {
+      queryFn: async ({ pageParam, queryKey, signal }) => {
+        // @ts-ignore
+        const page: Pick<
+          QueryKey<Options<ReportsControllerListReportsData>>[0],
+          "body" | "headers" | "path" | "query"
+        > =
+          typeof pageParam === "object"
+            ? pageParam
+            : {
+                query: {
+                  cursor: pageParam,
+                },
+              };
+        const params = createInfiniteParams(queryKey, page);
+        const { data } = await reportsControllerListReports({
+          ...options,
+          ...params,
+          signal,
+          throwOnError: true,
+        });
+        return data;
+      },
+      queryKey: reportsControllerListReportsInfiniteQueryKey(options),
+    },
+  );
+  return opts as Omit<typeof opts, "initialData">;
+};
+
+/**
+ * Resolve a report (organizers only)
+ *
+ * Not available to the organizer the report is about. Resolving never deletes anything by itself.
+ */
+export const reportsControllerResolveReportMutation = (
+  options?: Partial<Options<ReportsControllerResolveReportData>>,
+): UseMutationOptions<
+  ReportsControllerResolveReportResponse,
+  AxiosError<DefaultError>,
+  Options<ReportsControllerResolveReportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportsControllerResolveReportResponse,
+    AxiosError<DefaultError>,
+    Options<ReportsControllerResolveReportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reportsControllerResolveReport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const blocksControllerListQueryKey = (options?: Options<BlocksControllerListData>) =>
+  createQueryKey("blocksControllerList", options);
+
+/**
+ * List the users the caller has blocked
+ */
+export const blocksControllerListOptions = (options?: Options<BlocksControllerListData>) =>
+  queryOptions<
+    BlocksControllerListResponse,
+    AxiosError<DefaultError>,
+    BlocksControllerListResponse,
+    ReturnType<typeof blocksControllerListQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await blocksControllerList({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: blocksControllerListQueryKey(options),
+  });
+
+/**
+ * Unblock a user
+ */
+export const blocksControllerUnblockMutation = (
+  options?: Partial<Options<BlocksControllerUnblockData>>,
+): UseMutationOptions<
+  BlocksControllerUnblockResponse,
+  AxiosError<DefaultError>,
+  Options<BlocksControllerUnblockData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    BlocksControllerUnblockResponse,
+    AxiosError<DefaultError>,
+    Options<BlocksControllerUnblockData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await blocksControllerUnblock({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Block a user
+ *
+ * Only someone the caller shares an event with; anyone else is a 404. Silent: the blocked user is never told. Idempotent: blocking an already blocked user returns the existing block.
+ */
+export const blocksControllerBlockMutation = (
+  options?: Partial<Options<BlocksControllerBlockData>>,
+): UseMutationOptions<BlocksControllerBlockResponse, AxiosError<DefaultError>, Options<BlocksControllerBlockData>> => {
+  const mutationOptions: UseMutationOptions<
+    BlocksControllerBlockResponse,
+    AxiosError<DefaultError>,
+    Options<BlocksControllerBlockData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await blocksControllerBlock({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 export const eventsControllerFindAllQueryKey = (options?: Options<EventsControllerFindAllData>) =>
   createQueryKey("eventsControllerFindAll", options);
