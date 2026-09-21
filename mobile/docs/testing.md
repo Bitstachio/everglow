@@ -1,17 +1,30 @@
 # Testing
 
-This document covers **component and hook tests** in the Everglow mobile app (Jest + React Native Testing Library). Device E2E flows are separate: [E2E (Maestro)](./e2e.md).
+This document covers **unit/component** and **screen-integration** tests in the Everglow mobile app (Jest + React Native Testing Library). Device E2E flows are separate: [E2E (Maestro)](./e2e.md).
 
 **Convention hierarchy:** Tests follow [codebase conventions](./code-conventions.md). Form-specific patterns (probes, `.tsx` harnesses) are in [Forms](./forms.md#testing).
+
+## Layers at a glance
+
+| Layer              | Where                                      | Naming                        | Runner                   | Timeout / workers                          |
+| ------------------ | ------------------------------------------ | ----------------------------- | ------------------------ | ------------------------------------------ |
+| Unit / component   | Colocated next to the file under test      | `*.test.ts` / `*.test.tsx`    | `pnpm test`              | Jest default 5s; parallel workers          |
+| Screen integration | Colocated next to the screen               | `*.integration.test.tsx`      | `pnpm test:integration`  | 15s; `maxWorkers: 2`                       |
+| E2E (Maestro)      | `.maestro/`                                | Maestro flows                 | `pnpm test:e2e`          | Device / simulator — see [E2E](./e2e.md)   |
+
+Filename is the gate: future screen-integration suites must be named `*.integration.test.tsx` so `pnpm test` ignores them and `pnpm test:integration` picks them up. Do not use the API’s `*.integration.spec.ts` naming here.
+
+Form-hook probes (`use-*-form.test.tsx`) are shallow RHF unit tests and stay under `pnpm test`.
 
 ## Stack
 
 | Tool                                   | Role                                             |
 | -------------------------------------- | ------------------------------------------------ |
 | Jest (`pnpm test`)                     | Unit and component test runner                   |
+| Jest (`pnpm test:integration`)         | Screen-integration suites                        |
 | `@testing-library/react-native` (RNTL) | Render, query, and interact with React Native UI |
 
-Place `*.test.ts` / `*.test.tsx` next to the file under test (for example, `edit-profile-modal.test.tsx` beside `edit-profile-modal.tsx`).
+Place `*.test.ts` / `*.test.tsx` next to the file under test (for example, `edit-profile-modal.test.tsx` beside `edit-profile-modal.tsx`). Screen-integration files sit beside the screen they mount (for example, `events-screen.integration.test.tsx` beside `events-screen.tsx`).
 
 ## React Native Testing Library
 
@@ -26,20 +39,28 @@ Prefer those docs over stale assumptions, and follow deprecation notices.
 ## Scripts
 
 ```sh
-pnpm test              # run once
-pnpm test:watch        # watch mode
-pnpm test:coverage     # coverage report
+pnpm test              # unit / component (default 5s timeout)
+pnpm test:watch        # unit watch mode
+pnpm test:coverage     # unit + coverage
+pnpm test:integration  # screen-integration only (15s, maxWorkers: 2)
+```
+
+Unit hang detection stays at Jest’s default 5s (`jest.config.js`). Screen-integration uses 15s in `jest.integration.config.js`. If a unit test times out under load, re-run with `--runInBand` rather than raising the unit timeout:
+
+```sh
+pnpm test --runInBand
+pnpm test:integration --runInBand
 ```
 
 For Maestro device tests, see [E2E](./e2e.md).
 
 ## Events page
 
-Run the Events tab's component, hook, API, and screen integration tests from `mobile/`:
+Run the Events unit/component suites and the screen-integration suite from `mobile/`:
 
 ```sh
-pnpm test --runInBand features/events
-pnpm test --runInBand features/events/screens/events-screen-integration.test.tsx
+pnpm test -- features/events
+pnpm test:integration -- features/events/screens/events-screen.integration.test.tsx
 ```
 
 The screen integration suite renders the real `EventsScreen`, child components, form hooks,
@@ -64,8 +85,8 @@ Device E2E coverage remains a separate follow-up.
 Run the Create Event unit/component and full-screen integration suites from `mobile/`:
 
 ```sh
-pnpm test --runInBand create-event features/events/api/mutations.test.tsx
-pnpm test --runInBand features/events/screens/create-event-screen-integration.test.tsx
+pnpm test -- create-event features/events/api/mutations.test.tsx
+pnpm test:integration -- features/events/screens/create-event-screen.integration.test.tsx
 ```
 
 The integration suite renders the real screen, form, hooks, validation, and React Query mutation.
