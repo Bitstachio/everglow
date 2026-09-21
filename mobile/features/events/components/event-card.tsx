@@ -76,4 +76,3 @@ export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
     </Pressable>
   );
 };
-

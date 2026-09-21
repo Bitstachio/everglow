@@ -4,18 +4,15 @@ import { DEFAULT_EVENTS_LIST_FILTERS } from "../../utils";
 import { useEventsListFiltersSheet } from "./use-events-list-filters-sheet";
 
 const setup = (overrides?: Partial<Parameters<typeof useEventsListFiltersSheet>[0]>) =>
-  renderHook(
-    (props: Parameters<typeof useEventsListFiltersSheet>[0]) => useEventsListFiltersSheet(props),
-    {
-      initialProps: {
-        visible: true,
-        draft: DEFAULT_EVENTS_LIST_FILTERS,
-        onChangeDateFrom: jest.fn(),
-        onChangeDateTo: jest.fn(),
-        ...overrides,
-      },
+  renderHook((props: Parameters<typeof useEventsListFiltersSheet>[0]) => useEventsListFiltersSheet(props), {
+    initialProps: {
+      visible: true,
+      draft: DEFAULT_EVENTS_LIST_FILTERS,
+      onChangeDateFrom: jest.fn(),
+      onChangeDateTo: jest.fn(),
+      ...overrides,
     },
-  );
+  });
 
 test("toggles the active date field", async () => {
   const { result } = await setup();

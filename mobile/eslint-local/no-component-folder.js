@@ -22,8 +22,7 @@ const isUnderApp = (filename) => /(^|[/\\])app([/\\]|$)/u.test(filename);
 const normalizeName = (name) => name.replace(/_/gu, "-").toLowerCase();
 
 /** True when the file is the folder's main module or a test/platform variant of it. */
-const isFolderCompanion = (basename, folderName) =>
-  normalizeName(getFileStem(basename)) === normalizeName(folderName);
+const isFolderCompanion = (basename, folderName) => normalizeName(getFileStem(basename)) === normalizeName(folderName);
 
 /**
  * Same-named folders are allowed when they hold related modules (hook, util, subcomponent).

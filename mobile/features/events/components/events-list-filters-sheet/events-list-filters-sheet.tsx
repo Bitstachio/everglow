@@ -28,14 +28,8 @@ export const EventsListFiltersSheet = ({
   onReset,
   onApply,
 }: EventsListFiltersSheetProps) => {
-  const {
-    activeDateField,
-    toggleDateField,
-    closeDatePicker,
-    handleDateChange,
-    datePickerValue,
-    datePickerDisplay,
-  } = useEventsListFiltersSheet({ visible, draft, onChangeDateFrom, onChangeDateTo });
+  const { activeDateField, toggleDateField, closeDatePicker, handleDateChange, datePickerValue, datePickerDisplay } =
+    useEventsListFiltersSheet({ visible, draft, onChangeDateFrom, onChangeDateTo });
 
   return (
     <BottomSheet

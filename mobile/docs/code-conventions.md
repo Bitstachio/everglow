@@ -88,11 +88,11 @@ Keep component (and hook/screen) files **flat** under their layer folder by defa
 
 Components stay mostly presentational. Do **not** grow sophisticated logic in the component body (multi-step state, effects that orchestrate UI lifecycle, animation drivers, pickers with platform branching, etc.). Extract that into a hook first:
 
-| Logic ownership | Where it lives | Layout |
-| --------------- | -------------- | ------ |
-| Tied to one component (private presentation/state) | Next to that component | Same-named folder: `component-name/component-name.tsx` + `use-component-name.ts` |
-| Reused across unrelated UI surfaces | `hooks/` | Flat file (e.g. `hooks/use-color-scheme.ts`) |
-| Feature screen / form orchestration | `features/<name>/hooks/` | Flat under `hooks/` (screen and form hooks — not component-private) |
+| Logic ownership                                    | Where it lives           | Layout                                                                           |
+| -------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------- |
+| Tied to one component (private presentation/state) | Next to that component   | Same-named folder: `component-name/component-name.tsx` + `use-component-name.ts` |
+| Reused across unrelated UI surfaces                | `hooks/`                 | Flat file (e.g. `hooks/use-color-scheme.ts`)                                     |
+| Feature screen / form orchestration                | `features/<name>/hooks/` | Flat under `hooks/` (screen and form hooks — not component-private)              |
 
 A folder that only wraps the component and its test must stay flat (`local/no-component-folder`). Use a same-named folder when colocating a private hook, util, or subcomponent.
 
@@ -107,22 +107,22 @@ A folder that only wraps the component and its test must stay flat (`local/no-co
 
 ```ts
 // Preferred — flat when the component is self-contained (JSX + trivial derived UI)
-components/ui/button.tsx
-components/ui/button.test.tsx
-features/profile/components/edit-profile-modal.tsx
+components / ui / button.tsx;
+components / ui / button.test.tsx;
+features / profile / components / edit - profile - modal.tsx;
 
 // Preferred — extract private logic into a colocated hook (same-named folder)
-components/ui/bottom-sheet/bottom-sheet.tsx
-components/ui/bottom-sheet/use-bottom-sheet.ts
-components/ui/bottom-sheet/bottom-sheet.test.tsx
-features/events/components/events-list-filters-sheet/events-list-filters-sheet.tsx
-features/events/components/events-list-filters-sheet/use-events-list-filters-sheet.ts
+components / ui / bottom - sheet / bottom - sheet.tsx;
+components / ui / bottom - sheet / use - bottom - sheet.ts;
+components / ui / bottom - sheet / bottom - sheet.test.tsx;
+features / events / components / events - list - filters - sheet / events - list - filters - sheet.tsx;
+features / events / components / events - list - filters - sheet / use - events - list - filters - sheet.ts;
 
 // Avoid
-components/ui/button/button.tsx // only the component (+ test) — keep flat
-components/ui/Button/Button.tsx
-components/ui/button/index.tsx
-components/ui/bottom-sheet/index.tsx
+components / ui / button / button.tsx; // only the component (+ test) — keep flat
+components / ui / Button / Button.tsx;
+components / ui / button / index.tsx;
+components / ui / bottom - sheet / index.tsx;
 // Avoid stuffing presentation lifecycle / multi-step state into the component body
 ```
 
@@ -150,16 +150,16 @@ Full API error patterns: [API](./api.md#error-handling).
 
 ### ESLint (global)
 
-| Rule                        | What it enforces                                |
-| --------------------------- | ----------------------------------------------- |
-| `func-style`                | No `function` declarations; use `const` + arrow |
-| `prefer-arrow-callback`     | Arrow callbacks in `.map`, `.then`, etc.        |
-| `no-restricted-syntax`      | No `function` expressions; use arrows           |
-| `no-var`                    | `var` is forbidden                              |
-| `prefer-const`              | Use `const` when a binding is never reassigned  |
-| `local/kebab-case-filename` | Kebab-case filenames                            |
+| Rule                        | What it enforces                                                               |
+| --------------------------- | ------------------------------------------------------------------------------ |
+| `func-style`                | No `function` declarations; use `const` + arrow                                |
+| `prefer-arrow-callback`     | Arrow callbacks in `.map`, `.then`, etc.                                       |
+| `no-restricted-syntax`      | No `function` expressions; use arrows                                          |
+| `no-var`                    | `var` is forbidden                                                             |
+| `prefer-const`              | Use `const` when a binding is never reassigned                                 |
+| `local/kebab-case-filename` | Kebab-case filenames                                                           |
 | `local/no-component-folder` | No `index` entries; no same-named folders that only wrap a component (+ tests) |
-| `local/no-stylesheet`       | No React Native `StyleSheet` (use NativeWind)   |
+| `local/no-stylesheet`       | No React Native `StyleSheet` (use NativeWind)                                  |
 
 Styling: prefer NativeWind `className` and theme tokens. Do not use `StyleSheet` — see [Theme](./theme.md#no-stylesheet).
 

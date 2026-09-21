@@ -61,7 +61,8 @@ export const useEventsListScreen = () => {
     handleCloseFilters: () => setFiltersVisible(false),
     handleChangeFilterRole: (role: AccessLevel) =>
       setDraftFilters((current) => ({ ...current, roles: toggleEventsListRole(current.roles, role) })),
-    handleChangeFilterDateFrom: (value: string | null) => setDraftFilters((current) => ({ ...current, dateFrom: value })),
+    handleChangeFilterDateFrom: (value: string | null) =>
+      setDraftFilters((current) => ({ ...current, dateFrom: value })),
     handleChangeFilterDateTo: (value: string | null) => setDraftFilters((current) => ({ ...current, dateTo: value })),
     handleResetFilters: () => setDraftFilters(DEFAULT_EVENTS_LIST_FILTERS),
     handleApplyFilters: () => {

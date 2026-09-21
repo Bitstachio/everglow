@@ -77,4 +77,3 @@ export const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubm
     </Modal>
   );
 };
-

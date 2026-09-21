@@ -25,7 +25,7 @@ Animated values (opacity, `translateY`, …) may still use a `style` prop when N
 
 ```tsx
 // Preferred
-<View className="absolute inset-0 bg-scrim" />
+<View className="absolute inset-0 bg-scrim" />;
 
 // Avoid
 const styles = StyleSheet.create({ scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "#0000008c" } });

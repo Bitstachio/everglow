@@ -128,13 +128,13 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 ## Shared folders outside `features/`
 
-| Location         | Role                                                       |
-| ---------------- | ---------------------------------------------------------- |
+| Location         | Role                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. Private component hooks colocate in a same-named folder when needed. |
-| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`). Not for hooks owned by a single UI component. |
-| `context/`       | Global state (for example, `AuthProvider` / `useAuth`)     |
-| `lib/`           | Shared utilities and the API client                        |
-| `providers/`     | App-level providers wired in `app/_layout.tsx`             |
+| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`). Not for hooks owned by a single UI component.                              |
+| `context/`       | Global state (for example, `AuthProvider` / `useAuth`)                                                                          |
+| `lib/`           | Shared utilities and the API client                                                                                             |
+| `providers/`     | App-level providers wired in `app/_layout.tsx`                                                                                  |
 
 Feature hooks may depend on app-wide context. Avoid the reverse: context should not import from `features/`.
 
@@ -142,13 +142,13 @@ Feature hooks may depend on app-wide context. Avoid the reverse: context should 
 
 File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). Prefer flat component files; when a component needs a private hook or util, use a same-named folder and colocate it (not just a test). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names) and [Component logic and hooks](./code-conventions.md#component-logic-and-hooks).
 
-| Item           | File / folder              | Export / symbol            |
-| -------------- | -------------------------- | -------------------------- |
-| Feature folder | `profile`, `event-invites` | —                          |
-| Screen file    | `profile-screen.tsx`       | `ProfileScreen` (default)  |
-| Screen hook    | `use-profile-screen.ts`    | `useProfileScreen` (named) |
-| Component file | `edit-profile-modal.tsx`   | `EditProfileModal` (named) |
-| Colocated UI   | `bottom-sheet/bottom-sheet.tsx` + `use-bottom-sheet.ts` | `BottomSheet` (named) |
+| Item           | File / folder                                           | Export / symbol            |
+| -------------- | ------------------------------------------------------- | -------------------------- |
+| Feature folder | `profile`, `event-invites`                              | —                          |
+| Screen file    | `profile-screen.tsx`                                    | `ProfileScreen` (default)  |
+| Screen hook    | `use-profile-screen.ts`                                 | `useProfileScreen` (named) |
+| Component file | `edit-profile-modal.tsx`                                | `EditProfileModal` (named) |
+| Colocated UI   | `bottom-sheet/bottom-sheet.tsx` + `use-bottom-sheet.ts` | `BottomSheet` (named)      |
 
 ## Imports
 
@@ -173,11 +173,11 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 
 ### Codebase rules (all linted source)
 
-| Rule                        | Scope                                                                                        | What it enforces                           |
-| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Arrow functions             | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions  |
-| `no-var` / `prefer-const`   | Same                                                                                         | `let`/`const` only; prefer `const`         |
-| `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                       |
+| Rule                        | Scope                                                                                        | What it enforces                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Arrow functions             | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions                                      |
+| `no-var` / `prefer-const`   | Same                                                                                         | `let`/`const` only; prefer `const`                                             |
+| `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                                                           |
 | `local/no-component-folder` | Same (skips `app/`)                                                                          | No `index` entries; no same-named folders that only wrap a component (+ tests) |
 
 ### Feature rules (additional)
