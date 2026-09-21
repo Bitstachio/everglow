@@ -136,8 +136,9 @@ Full API error patterns: [API](./api.md#error-handling).
 | `prefer-const`              | Use `const` when a binding is never reassigned  |
 | `local/kebab-case-filename` | Kebab-case filenames                            |
 | `local/no-component-folder` | No same-named / `index` component folders       |
+| `local/no-stylesheet`       | No React Native `StyleSheet` (use NativeWind)   |
 
-## 2. Area conventions
+Styling: prefer NativeWind `className` and theme tokens. Do not use `StyleSheet` — see [Theme](./theme.md#no-stylesheet).
 
 ### `app/`: Expo Router routes
 
@@ -194,7 +195,7 @@ Summary of what ESLint adds on top of codebase conventions:
 | Screen hooks              | `features/**/hooks/**`      | No SDK, screens, or components; named exports only         |
 | API hooks                 | `features/**/api/**`        | Named exports only                                         |
 
-Legacy exemptions (`features/events/**` screens via `legacyFeatureNames`, `app/events/**`) exist so old code keeps passing lint until refactored to match `features/profile/`.
+Legacy exemptions (`features/events/**` screens via `legacyFeatureNames`, `app/events/**`, and a `legacyStyleSheetPaths` allowlist for `local/no-stylesheet`) exist so old code keeps passing lint until refactored to match `features/profile/` and NativeWind.
 
 ## 4. Code review
 
@@ -221,4 +222,5 @@ When refactoring `events`, gallery, or other pre-profile code:
 1. Match `features/profile/` structure and patterns.
 2. Convert `function` declarations to arrow `const` bindings.
 3. Keep file and folder names kebab-case (`local/kebab-case-filename`), and keep component files flat (`local/no-component-folder`).
-4. Remove the relevant ESLint legacy exemptions in the same PR.
+4. Replace `StyleSheet` with NativeWind `className` and remove the path from `legacyStyleSheetPaths` in `eslint.config.js`.
+5. Remove the relevant ESLint legacy exemptions in the same PR.

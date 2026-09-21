@@ -46,7 +46,7 @@ export const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubm
 
   return (
     <Modal testID="join-event-modal" animationType="slide" visible={visible} transparent onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/45">
+      <View className="flex-1 justify-end bg-scrim">
         <View className="p-6 gap-5 rounded-2xl bg-ui-background dark:bg-dark-background">
           <View className="gap-1">
             <H2>Join an Event</H2>

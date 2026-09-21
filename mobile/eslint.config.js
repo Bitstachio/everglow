@@ -20,6 +20,29 @@ const legacyFeatureNames = [];
 // App routes exempt from thin-route rules while legacy event screens live outside features/.
 const legacyAppRoutePaths = ["app/events/**"];
 
+// Pre-NativeWind StyleSheet usage. Turn off local/no-stylesheet only for these until migrated.
+const legacyStyleSheetPaths = [
+  "app/events/\\[id\\].tsx",
+  "app/login.tsx",
+  "app/onboarding.tsx",
+  "app/signup.tsx",
+  "components/parallax-scroll-view.tsx",
+  "components/themed-text.tsx",
+  "components/ui/button.tsx",
+  "components/ui/collapsible.tsx",
+  "components/ui/input.tsx",
+  "context/auth-context.tsx",
+  "features/events/components/create-event-form.tsx",
+  "features/events/components/edit-event-modal.tsx",
+  "features/events/components/event-action-card.tsx",
+  "features/events/components/event-invitation-modal.tsx",
+  "features/events/components/no-events-banner.tsx",
+  "features/events/components/qr-scanner.tsx",
+  "features/events/screens/events-list-screen.tsx",
+  "features/events/screens/events-screen.tsx",
+  "features/profile/components/edit-profile-modal.tsx",
+];
+
 const lintedSourceGlobs = [
   "app/**/*.{ts,tsx}",
   "components/**/*.{ts,tsx}",
@@ -55,6 +78,8 @@ const codebaseConventionRules = {
   "local/kebab-case-filename": "error",
   // Blocks Button/Button.tsx and button/button.tsx (and index.tsx wrappers). Skips app/.
   "local/no-component-folder": "error",
+  // Prefer NativeWind className over StyleSheet.create. See docs/theme.md.
+  "local/no-stylesheet": "error",
 };
 
 // A feature references its own files relatively, so renaming or extracting the folder never
@@ -87,6 +112,12 @@ module.exports = defineConfig([
       local: localPlugin,
     },
     rules: codebaseConventionRules,
+  },
+  {
+    files: legacyStyleSheetPaths,
+    rules: {
+      "local/no-stylesheet": "on",
+    },
   },
   ...featureSelfImportConfigs,
   {

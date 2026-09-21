@@ -22,6 +22,7 @@ ESLint enforces these globally. Still verify in review:
 - [ ] `const` by default; `let` only when reassigned; no `var`
 - [ ] Cross-folder imports use `@/` alias
 - [ ] UI errors use `getErrorMessage`, not raw Axios shapes
+- [ ] No new `StyleSheet` usage — NativeWind `className` + theme tokens ([Theme](./theme.md))
 
 ## Feature structure
 
@@ -143,6 +144,7 @@ Legacy areas are exempt from some ESLint rules so existing code keeps passing. T
 
 - [ ] New features match `features/profile/`, not `features/events/` or gallery/`lib/photo` patterns
 - [ ] New code does not introduce `component/` folders, screen logic, or direct `lib/event` / `lib/photo` calls from UI layers
+- [ ] New code does not add paths to `legacyStyleSheetPaths`; migrate StyleSheet call sites toward NativeWind instead
 - [ ] Legacy refactors move toward the profile pattern and remove ESLint exemptions in the same PR
 
 ## Quick review flow
