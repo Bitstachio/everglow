@@ -18,7 +18,7 @@ export type UserResponseDto = {
   /**
    * When the user accepted the terms of use; null if they have not been asked yet.
    */
-  termsAcceptedAt?: string | null;
+  termsAcceptedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
