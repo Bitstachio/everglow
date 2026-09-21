@@ -222,7 +222,7 @@ Implementation:
 - `AppleSiwaService` (`src/sdk/apple`) posts to `https://appleid.apple.com/auth/revoke` with a per-request `client_secret`: an ES256 JWT signed with the Sign in with Apple private key (`signAppleClientSecret`). Apple answers `200` for a token that is already revoked, so the step is idempotent and a resumed saga repeats it safely.
 - Failure handling is in [account-deletion.md](./account-deletion.md): Apple unreachable → the saga stops and retries later with the token still in Auth0; Apple refuses or there is no token → logged, deletion continues.
 
-The client id sent to Apple must be the one Auth0 presented when the person authorised. For the native iOS flow that is the app's bundle identifier (the App ID on the connection's iOS settings), not the Services ID used by browser-based Universal Login. A mismatch is a `400 invalid_client`, logged and not retried.
+The client id sent to Apple must be the one Auth0 presented when the person authorised. The mobile app signs in through **Universal Login** (`webAuth.authorize` in `mobile/lib/auth0.ts`), a browser flow, so that is the **Services ID**: the "Client ID" field on the Auth0 Apple connection. The app's bundle identifier (App ID) is only correct for Auth0's native iOS flow, which the app does not use. A mismatch is a `400 invalid_client`, logged and not retried, so the account is deleted but stays authorised under the person's Apple ID. If the app ever moves to the native flow, this value has to change with it.
 
 Nothing here is stored in our database: no Apple tokens, no new columns. Apple's own user identifier only ever appears inside `providerSub`.
 
@@ -230,13 +230,13 @@ Nothing here is stored in our database: no Apple tokens, no new columns. Apple's
 
 Auth0 Dashboard:
 
-1. **Authentication → Social → Apple**: Client ID (Services ID), Team ID, Key ID and the .p8 signing key; under iOS settings the app's **App ID / bundle identifier** for the native flow. Enable the connection for the mobile application.
+1. **Authentication → Social → Apple**: Client ID (the Services ID, which is also `APPLE_SIWA_CLIENT_ID`), Team ID, Key ID and the .p8 signing key. Enable the connection for the mobile application. The iOS settings (App ID / bundle identifier) only matter for the native flow, which the app does not use.
 2. Same connection: turn on storing the Apple refresh token if the setting is offered (Auth0 staff refer to it as "Fetch Refresh Token"). Without it only the access token is available and revocation does not fully unlink the app; the API logs `tokenType: "access_token"` when that happens.
 3. **Applications → APIs → Auth0 Management API → Machine to Machine Applications**: the API's management client needs `read:users` and `read:user_idp_tokens` in addition to `delete:users`.
 
 Apple Developer portal:
 
-4. The Sign in with Apple key (Team ID, Key ID, .p8) and the App ID must match what the connection uses. The API gets the same values as `APPLE_SIWA_TEAM_ID`, `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` and `APPLE_SIWA_CLIENT_ID` (see `.env.example`).
+4. The Sign in with Apple key (Team ID, Key ID, .p8) and the Services ID must match what the connection uses. The API gets the same values as `APPLE_SIWA_TEAM_ID`, `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` and `APPLE_SIWA_CLIENT_ID` (see `.env.example`).
 5. Optional, not required for review: register a server-to-server notification endpoint so Apple's `consent-revoked` and `account-delete` events can start the deletion saga when the person unlinks the app from their Apple ID settings instead of from within the app. Not implemented yet.
 
 Verifying a deployment: delete an Apple-signed-in test account, then check the device's Settings → Apple ID → Sign in with Apple. The app must no longer be listed, and the next sign-in must show Apple's full consent screen again.

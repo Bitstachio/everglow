@@ -119,6 +119,17 @@ describe("AppleSiwaService", () => {
       expect((failure as AppleTokenRevocationError).cause).toBe(cause);
     });
 
+    it("fails without retry, and without calling Apple, when the private key cannot be loaded", async () => {
+      const service = await buildService({ ...configured, "apple.siwaPrivateKey": "not a key" });
+
+      const failure = await service.revokeToken("refresh-abc", "refresh_token").catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(AppleTokenRevocationError);
+      expect((failure as AppleTokenRevocationError).retryable).toBe(false);
+      expect((failure as Error).message).toBe(APPLE_SIWA_ERRORS.CLIENT_SECRET_SIGNING_FAILED());
+      expect((failure as AppleTokenRevocationError).cause).toBeDefined();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it("fails without retry, and without calling Apple, when credentials are missing", async () => {
       const service = await buildService({});
 

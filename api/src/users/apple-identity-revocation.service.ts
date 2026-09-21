@@ -4,6 +4,11 @@ import { AppleSiwaService, AppleTokenRevocationError, AppleTokenTypeHint } from 
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { APPLE_PROVIDER, isAppleProviderSub } from "./users.constants";
 
+/**
+ * What the step did. The saga only cares whether the call threw; the outcome
+ * is returned so tests and any future caller can tell the skip reasons apart
+ * without parsing logs.
+ */
 export type AppleRevocationOutcome =
   | "not_apple"
   | "revoked"

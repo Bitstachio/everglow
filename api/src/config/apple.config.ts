@@ -6,8 +6,9 @@ import { registerAs } from "@nestjs/config";
  *
  * These are the same Team ID, Key ID and .p8 key the Auth0 Apple connection is
  * configured with. `clientId` must be the identifier Auth0 presented to Apple
- * when the user authorised, which for the native iOS flow is the app's bundle
- * identifier (App ID), not the Services ID.
+ * when the user authorised. The mobile app uses Universal Login (a browser
+ * flow), so that is the Services ID on the connection, not the iOS bundle
+ * identifier; the bundle identifier is only right for Auth0's native flow.
  */
 export default registerAs("apple", () => ({
   siwaTeamId: process.env.APPLE_SIWA_TEAM_ID,

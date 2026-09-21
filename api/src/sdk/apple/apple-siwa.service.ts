@@ -60,9 +60,18 @@ export class AppleSiwaService {
       throw new AppleTokenRevocationError(APPLE_SIWA_ERRORS.CREDENTIALS_NOT_CONFIGURED(), false);
     }
 
+    // A key that cannot be loaded never reaches Apple, and no retry fixes it:
+    // fail the same way as a request Apple rejects, so the deletion goes on.
+    let clientSecret: string;
+    try {
+      clientSecret = signAppleClientSecret(credentials);
+    } catch (error) {
+      throw new AppleTokenRevocationError(APPLE_SIWA_ERRORS.CLIENT_SECRET_SIGNING_FAILED(), false, error);
+    }
+
     const body = new URLSearchParams({
       client_id: credentials.clientId,
-      client_secret: signAppleClientSecret(credentials),
+      client_secret: clientSecret,
       token,
       token_type_hint: tokenTypeHint,
     });

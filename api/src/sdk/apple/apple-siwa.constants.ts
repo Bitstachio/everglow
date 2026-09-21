@@ -10,6 +10,8 @@ export const APPLE_SIWA_REQUEST_TIMEOUT_MS = 10_000;
 
 export const APPLE_SIWA_ERRORS = {
   CREDENTIALS_NOT_CONFIGURED: () => "Sign in with Apple revocation credentials are not configured",
+  CLIENT_SECRET_SIGNING_FAILED: () =>
+    "Could not sign the Apple client secret: check APPLE_SIWA_PRIVATE_KEY holds the .p8 contents",
   CLIENT_SECRET_TTL_TOO_LONG: (ttl: number) =>
     `Apple client secret TTL of ${ttl}s exceeds Apple's maximum of ${APPLE_CLIENT_SECRET_MAX_TTL_SECONDS}s`,
   REVOKE_REJECTED: (code: string) => `Apple rejected the token revocation request (${code})`,
