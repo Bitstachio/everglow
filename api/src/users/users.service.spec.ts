@@ -13,6 +13,7 @@ import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { AccountDeletionPrepService } from "./account-deletion-prep.service";
+import { AppleIdentityRevocationService } from "./apple-identity-revocation.service";
 import { hashProviderSub } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -39,6 +40,7 @@ describe("UsersService", () => {
   let prisma: DeepMockProxy<PrismaClient>;
   let auth0Management: DeepMockProxy<Auth0ManagementService>;
   let deletionPrep: { prepareRelatedData: jest.Mock };
+  let appleRevocation: { revokeBeforeAuth0Delete: jest.Mock };
   let photoPurge: { purgeObjects: jest.Mock };
 
   const providerSubHash = hashProviderSub("auth0|abc123");
@@ -100,6 +102,7 @@ describe("UsersService", () => {
         s3Keys: [],
       }),
     };
+    appleRevocation = { revokeBeforeAuth0Delete: jest.fn().mockResolvedValue("not_apple") };
     photoPurge = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
 
@@ -117,6 +120,10 @@ describe("UsersService", () => {
         {
           provide: AccountDeletionPrepService,
           useValue: deletionPrep,
+        },
+        {
+          provide: AppleIdentityRevocationService,
+          useValue: appleRevocation,
         },
         {
           provide: PhotoPurgeService,
@@ -408,6 +415,55 @@ describe("UsersService", () => {
         auth0Management.deleteUser,
         prisma.$transaction,
       );
+    });
+
+    it("revokes the Apple token before the Auth0 user is deleted, on every pass that still has one", async () => {
+      prisma.user.update
+        .mockResolvedValueOnce({ deletionStartedAt } as never)
+        .mockResolvedValueOnce({ auth0DeletedAt } as never);
+      appleRevocation.revokeBeforeAuth0Delete.mockResolvedValue("revoked");
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(userWithDetails);
+
+      await service.completeAccountDeletion(freshDeletionUser());
+
+      expect(appleRevocation.revokeBeforeAuth0Delete).toHaveBeenCalledWith(userId, providerSub);
+      // The token lives on the Auth0 user; once that is gone there is nothing left to revoke.
+      expect(appleRevocation.revokeBeforeAuth0Delete.mock.invocationCallOrder[0]).toBeLessThan(
+        auth0Management.deleteUser.mock.invocationCallOrder[0],
+      );
+      // And nothing irreversible happens before prep has settled the data.
+      expect(deletionPrep.prepareRelatedData.mock.invocationCallOrder[0]).toBeLessThan(
+        appleRevocation.revokeBeforeAuth0Delete.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("skips Apple revocation once Auth0 is already cleared", async () => {
+      const auth0ClearedUser: AccountDeletionUser = {
+        id: userId,
+        providerSub,
+        deletionStartedAt,
+        auth0DeletedAt,
+        deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP,
+      };
+      prisma.user.delete.mockResolvedValue(userWithDetails);
+
+      await service.completeAccountDeletion(auth0ClearedUser);
+
+      expect(appleRevocation.revokeBeforeAuth0Delete).not.toHaveBeenCalled();
+    });
+
+    it("leaves the Auth0 user in place when Apple revocation fails in a retryable way", async () => {
+      prisma.user.update.mockResolvedValueOnce({ deletionStartedAt } as never);
+      const outage = new Error("Apple unreachable");
+      appleRevocation.revokeBeforeAuth0Delete.mockRejectedValue(outage);
+
+      await expect(service.completeAccountDeletion(freshDeletionUser())).rejects.toBe(outage);
+
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+      // Intent stays stamped so the reconciler retries with the token still in Auth0.
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
     });
 
     it("resumes mid-saga: skips re-stamping intent, retries Auth0, then tombstones and deletes", async () => {
