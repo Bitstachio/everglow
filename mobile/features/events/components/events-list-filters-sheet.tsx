@@ -1,7 +1,7 @@
 import { ThemedText } from "@/components/ui/themed-text";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, Modal, Platform, Pressable, View } from "react-native";
 import type { AccessLevel } from "../types";
 import {
@@ -26,6 +26,8 @@ type EventsListFiltersSheetProps = {
 };
 
 const SHEET_SLIDE_DISTANCE = Dimensions.get("window").height * 0.4;
+const OPEN_DURATION_MS = { scrim: 200, sheet: 280 };
+const CLOSE_DURATION_MS = { scrim: 200, sheet: 250 };
 
 export const EventsListFiltersSheet = ({
   visible,
@@ -38,23 +40,63 @@ export const EventsListFiltersSheet = ({
   onApply,
 }: EventsListFiltersSheetProps) => {
   const [activeDateField, setActiveDateField] = useState<DateField | null>(null);
+  // Keep the Modal mounted while the exit animation runs after `visible` becomes false.
+  const [presented, setPresented] = useState(visible);
+  const presentedRef = useRef(visible);
+  const visibleRef = useRef(visible);
+  const animation = useRef<Animated.CompositeAnimation | null>(null);
   const scrimOpacity = useMemo(() => new Animated.Value(0), []);
   const sheetTranslateY = useMemo(() => new Animated.Value(SHEET_SLIDE_DISTANCE), []);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- clear transient picker when parent hides sheet */
-    if (!visible) setActiveDateField(null);
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [visible]);
+    visibleRef.current = visible;
+    animation.current?.stop();
 
-  useEffect(() => {
-    if (!visible) return;
-    scrimOpacity.setValue(0);
-    sheetTranslateY.setValue(SHEET_SLIDE_DISTANCE);
-    Animated.parallel([
-      Animated.timing(scrimOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.timing(sheetTranslateY, { toValue: 0, duration: 280, useNativeDriver: true }),
-    ]).start();
+    if (visible) {
+      presentedRef.current = true;
+      /* eslint-disable react-hooks/set-state-in-effect -- present Modal before open animation */
+      setPresented(true);
+      /* eslint-enable react-hooks/set-state-in-effect */
+      scrimOpacity.setValue(0);
+      sheetTranslateY.setValue(SHEET_SLIDE_DISTANCE);
+      animation.current = Animated.parallel([
+        Animated.timing(scrimOpacity, {
+          toValue: 1,
+          duration: OPEN_DURATION_MS.scrim,
+          useNativeDriver: true,
+        }),
+        Animated.timing(sheetTranslateY, {
+          toValue: 0,
+          duration: OPEN_DURATION_MS.sheet,
+          useNativeDriver: true,
+        }),
+      ]);
+      animation.current.start();
+      return () => animation.current?.stop();
+    }
+
+    if (!presentedRef.current) return;
+
+    animation.current = Animated.parallel([
+      Animated.timing(scrimOpacity, {
+        toValue: 0,
+        duration: CLOSE_DURATION_MS.scrim,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetTranslateY, {
+        toValue: SHEET_SLIDE_DISTANCE,
+        duration: CLOSE_DURATION_MS.sheet,
+        useNativeDriver: true,
+      }),
+    ]);
+    animation.current.start(({ finished }) => {
+      if (!finished || visibleRef.current) return;
+      presentedRef.current = false;
+      setPresented(false);
+      setActiveDateField(null);
+    });
+
+    return () => animation.current?.stop();
   }, [visible, scrimOpacity, sheetTranslateY]);
 
   const handleDateChange = (field: DateField, event: { type: string }, selectedDate?: Date) => {
@@ -69,11 +111,11 @@ export const EventsListFiltersSheet = ({
     <Modal
       testID="events-list-filters-sheet"
       animationType="none"
-      visible={visible}
+      visible={presented}
       transparent
       onRequestClose={onClose}
     >
-      <View className="flex-1 justify-end">
+      <View className="flex-1 justify-end" pointerEvents={visible ? "auto" : "none"}>
         <View className="absolute inset-0">
           <Animated.View style={{ flex: 1, opacity: scrimOpacity }}>
             <Pressable

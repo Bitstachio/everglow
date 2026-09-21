@@ -116,7 +116,7 @@ module.exports = defineConfig([
   {
     files: legacyStyleSheetPaths,
     rules: {
-      "local/no-stylesheet": "on",
+      "local/no-stylesheet": "off",
     },
   },
   ...featureSelfImportConfigs,
