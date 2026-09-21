@@ -107,28 +107,30 @@ describe("PhotoPendingCleanupService", () => {
 
   describe("expired tier", () => {
     it("only considers rows between the expired cutoff and the stale cutoff", async () => {
-      const before = Date.now();
-      stubTiers([], []);
+      const now = new Date("2026-09-21T12:00:00.000Z");
+      jest.useFakeTimers({ now });
+      try {
+        stubTiers([], []);
 
-      await service.cleanupStalePendingPhotos();
+        await service.cleanupStalePendingPhotos();
 
-      const expiredCall = prisma.photo.findMany.mock.calls[1][0] as {
-        where: { status: PhotoStatus; createdAt: { gte: Date; lt: Date } };
-        orderBy: unknown;
-        take: number;
-        select: unknown;
-      };
-      expect(expiredCall.where.status).toBe(PhotoStatus.PENDING);
-      expect(expiredCall.orderBy).toEqual({ createdAt: "asc" });
-      expect(expiredCall.take).toBe(100);
-      expect(expiredCall.select).toEqual({ id: true, s3Key: true, eventId: true });
-
-      const { gte, lt } = expiredCall.where.createdAt;
-      // Lower bound is the stale tier's cutoff (24h); upper bound is URL TTL plus grace.
-      expect(before - gte.getTime()).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000);
-      expect(before - lt.getTime()).toBeGreaterThanOrEqual(EXPIRED_UPLOAD_SLOT_AGE_SECONDS * 1000);
-      expect(Date.now() - lt.getTime()).toBeLessThan(EXPIRED_UPLOAD_SLOT_AGE_SECONDS * 1000 + 5_000);
-      expect(EXPIRED_UPLOAD_SLOT_AGE_SECONDS).toBeGreaterThan(UPLOAD_URL_TTL_SECONDS);
+        expect(prisma.photo.findMany).toHaveBeenNthCalledWith(2, {
+          where: {
+            status: PhotoStatus.PENDING,
+            createdAt: {
+              // Lower bound is the stale tier's cutoff (24h); upper bound is URL TTL plus grace.
+              gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+              lt: new Date(now.getTime() - EXPIRED_UPLOAD_SLOT_AGE_SECONDS * 1000),
+            },
+          },
+          orderBy: { createdAt: "asc" },
+          take: 100,
+          select: { id: true, s3Key: true, eventId: true },
+        });
+        expect(EXPIRED_UPLOAD_SLOT_AGE_SECONDS).toBeGreaterThan(UPLOAD_URL_TTL_SECONDS);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("releases an expired slot whose key holds no object, without touching S3 objects", async () => {
