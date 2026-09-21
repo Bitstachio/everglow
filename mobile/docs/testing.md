@@ -6,11 +6,11 @@ This document covers **unit/component** and **screen-integration** tests in the 
 
 ## Layers at a glance
 
-| Layer              | Where                                      | Naming                        | Runner                   | Timeout / workers                          |
-| ------------------ | ------------------------------------------ | ----------------------------- | ------------------------ | ------------------------------------------ |
-| Unit / component   | Colocated next to the file under test      | `*.test.ts` / `*.test.tsx`    | `pnpm test`              | Jest default 5s; parallel workers          |
-| Screen integration | Colocated next to the screen               | `*.integration.test.tsx`      | `pnpm test:integration`  | 15s; `maxWorkers: 2`                       |
-| E2E (Maestro)      | `.maestro/`                                | Maestro flows                 | `pnpm test:e2e`          | Device / simulator — see [E2E](./e2e.md)   |
+| Layer              | Where                                 | Naming                     | Runner                  | Timeout / workers                        |
+| ------------------ | ------------------------------------- | -------------------------- | ----------------------- | ---------------------------------------- |
+| Unit / component   | Colocated next to the file under test | `*.test.ts` / `*.test.tsx` | `pnpm test`             | Jest default 5s; parallel workers        |
+| Screen integration | Colocated next to the screen          | `*.integration.test.tsx`   | `pnpm test:integration` | 15s; `maxWorkers: 2`                     |
+| E2E (Maestro)      | `.maestro/`                           | Maestro flows              | `pnpm test:e2e`         | Device / simulator — see [E2E](./e2e.md) |
 
 Filename is the gate: future screen-integration suites must be named `*.integration.test.tsx` so `pnpm test` ignores them and `pnpm test:integration` picks them up. Do not use the API’s `*.integration.spec.ts` naming here.
 
