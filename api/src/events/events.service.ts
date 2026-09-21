@@ -11,6 +11,7 @@ import { randomUUID } from "crypto";
 import { AccessLevel, Event, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { ImageUploadService } from "src/images/image-upload.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
@@ -27,6 +28,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly abilityFactory: AbilityFactory,
     private readonly photoPurgeService: PhotoPurgeService,
+    private readonly imageUploads: ImageUploadService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -232,13 +234,12 @@ export class EventsService {
       orderBy: { createdAt: "asc" },
     });
 
-    return accesses
-      .filter((access) => access.user.details)
-      .map((access) => ({
-        userId: access.userId,
-        name: access.user.details!.name,
-        accessLevel: access.accessLevel,
-      }));
+    // Members who have not onboarded have no profile to show. The avatar key
+    // arrives with the details row, so the listing stays at one query;
+    // presigning each URL is local signing work, not a network call.
+    return Promise.all(
+      accesses.filter((access) => access.user.details).map((access) => this.toEventParticipant(eventId, access)),
+    );
   }
 
   async updateUserAccessLevel(
@@ -383,14 +384,14 @@ export class EventsService {
     });
   }
 
-  private toEventParticipant(
+  private async toEventParticipant(
     eventId: string,
     access: {
       userId: string;
       accessLevel: AccessLevel;
-      user: { details: { name: string } | null };
+      user: { details: { name: string; avatarS3Key: string | null } | null };
     },
-  ): EventParticipant {
+  ): Promise<EventParticipant> {
     if (!access.user.details) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, access.userId));
     }
@@ -399,6 +400,7 @@ export class EventsService {
       userId: access.userId,
       name: access.user.details.name,
       accessLevel: access.accessLevel,
+      avatarUrl: await this.imageUploads.getDownloadUrl(access.user.details.avatarS3Key),
     };
   }
 }

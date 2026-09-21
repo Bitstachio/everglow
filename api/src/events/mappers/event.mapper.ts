@@ -27,6 +27,7 @@ export class EventMapper {
       userId: participant.userId,
       name: participant.name,
       accessLevel: participant.accessLevel,
+      avatarUrl: participant.avatarUrl,
     };
   }
 

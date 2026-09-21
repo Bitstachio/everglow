@@ -8,8 +8,12 @@ export const USER_SERVICE_ERRORS = {
   DETAILS_ALREADY_EXIST: (id: string) => `User with ID "${id}" has already completed onboarding`,
   EMAIL_TAKEN: (email: string) => RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(entity, "email", email),
   ONBOARDING_INCOMPLETE: "Onboarding is incomplete. Please complete the user onboarding to continue.",
+  AVATAR_CHANGED_CONCURRENTLY: "The avatar was changed by another request, please retry",
   ACCOUNT_DELETED: "This account has been deleted. Sign in again to start a new one.",
 };
+
+// avatars/{userId}/{uploadId}; see docs/image-uploads.md.
+export const USER_AVATAR_S3_KEY_PREFIX = "avatars/";
 
 /**
  * Auth0 derives the subject for its Apple social connection from Apple's
