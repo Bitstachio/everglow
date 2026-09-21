@@ -45,6 +45,10 @@ export const eventMatchesRole = (event: Event, role: AccessLevel, currentUserId:
   return !isOrganizer;
 };
 
+export type EventsListSortDirection = "asc" | "desc";
+
+export const DEFAULT_EVENTS_LIST_SORT: EventsListSortDirection = "asc";
+
 export const filterEvents = (events: Event[], filters: EventsListFilters, currentUserId?: string): Event[] =>
   events.filter((event) => {
     if (filters.role && currentUserId && !eventMatchesRole(event, filters.role, currentUserId)) {
@@ -55,6 +59,12 @@ export const filterEvents = (events: Event[], filters: EventsListFilters, curren
     if (filters.dateFrom && day < filters.dateFrom) return false;
     if (filters.dateTo && day > filters.dateTo) return false;
     return true;
+  });
+
+export const sortEvents = (events: Event[], direction: EventsListSortDirection): Event[] =>
+  [...events].sort((a, b) => {
+    const delta = a.date.localeCompare(b.date);
+    return direction === "asc" ? delta : -delta;
   });
 
 export const hasActiveEventsListFilters = (filters: EventsListFilters) =>

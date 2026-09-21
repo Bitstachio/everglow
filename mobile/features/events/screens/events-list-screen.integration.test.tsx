@@ -124,3 +124,25 @@ test("filters the list by organizer role from the filters sheet", async () => {
   expect(screen.queryByText("Picnic")).not.toBeOnTheScreen();
   expect(screen.getByText("Filters · On")).toBeOnTheScreen();
 });
+
+test("toggles date sort between ascending and descending", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [
+        buildEvent({ id: "early", title: "Brunch", date: "2026-09-10T12:00:00.000Z" }),
+        buildEvent({ id: "late", title: "Dinner", date: "2026-09-30T09:00:00.000Z" }),
+      ],
+    },
+  });
+  await renderScreen();
+  await screen.findByText("Brunch");
+  expect(screen.getByRole("button", { name: "Sort by date ascending" })).toBeOnTheScreen();
+
+  const openLabels = () =>
+    screen.getAllByRole("button", { name: /Open / }).map((node) => node.props.accessibilityLabel);
+  expect(openLabels()).toEqual(["Open Brunch", "Open Dinner"]);
+
+  await userEvent.setup().press(screen.getByRole("button", { name: "Sort by date ascending" }));
+  expect(screen.getByRole("button", { name: "Sort by date descending" })).toBeOnTheScreen();
+  expect(openLabels()).toEqual(["Open Dinner", "Open Brunch"]);
+});

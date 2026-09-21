@@ -4,6 +4,7 @@ import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
 import { EventsListFiltersButton } from "../components/events-list-filters-button";
 import { EventsListFiltersSheet } from "../components/events-list-filters-sheet";
+import { EventsListSortButton } from "../components/events-list-sort-button";
 import { useEventsListScreen } from "../hooks/use-events-list-screen";
 
 const EventsListScreen = () => {
@@ -17,6 +18,7 @@ const EventsListScreen = () => {
     filtersVisible,
     draftFilters,
     filtersActive,
+    sortDirection,
     onRefresh,
     handleEventShare,
     handleCloseInvitationModal,
@@ -27,6 +29,7 @@ const EventsListScreen = () => {
     handleChangeFilterDateTo,
     handleResetFilters,
     handleApplyFilters,
+    handleToggleSort,
   } = useEventsListScreen();
 
   return (
@@ -37,7 +40,10 @@ const EventsListScreen = () => {
         refreshControl={<RefreshControl testID="events-list-refresh" refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View className="gap-4">
-          <EventsListFiltersButton active={filtersActive} onPress={handleOpenFilters} />
+          <View className="flex-row flex-wrap items-center gap-2">
+            <EventsListFiltersButton active={filtersActive} onPress={handleOpenFilters} />
+            <EventsListSortButton direction={sortDirection} onPress={handleToggleSort} />
+          </View>
           <EventsList
             isLoading={isLoading}
             events={events}

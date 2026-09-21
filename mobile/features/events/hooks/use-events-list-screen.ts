@@ -7,9 +7,12 @@ import { useEventsQuery } from "../api/queries";
 import type { AccessLevel, Event } from "../types";
 import {
   DEFAULT_EVENTS_LIST_FILTERS,
+  DEFAULT_EVENTS_LIST_SORT,
   filterEvents,
   hasActiveEventsListFilters,
+  sortEvents,
   type EventsListFilters,
+  type EventsListSortDirection,
 } from "../utils";
 
 export const useEventsListScreen = () => {
@@ -19,6 +22,7 @@ export const useEventsListScreen = () => {
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<EventsListFilters>(DEFAULT_EVENTS_LIST_FILTERS);
   const [draftFilters, setDraftFilters] = useState<EventsListFilters>(DEFAULT_EVENTS_LIST_FILTERS);
+  const [sortDirection, setSortDirection] = useState<EventsListSortDirection>(DEFAULT_EVENTS_LIST_SORT);
 
   useEffect(() => {
     if (error) {
@@ -34,7 +38,7 @@ export const useEventsListScreen = () => {
   );
 
   return {
-    events: filterEvents(events, appliedFilters, user?.id),
+    events: sortEvents(filterEvents(events, appliedFilters, user?.id), sortDirection),
     isLoading,
     refreshing: isRefetching,
     currentUserId: user?.id,
@@ -43,6 +47,7 @@ export const useEventsListScreen = () => {
     filtersVisible,
     draftFilters,
     filtersActive: hasActiveEventsListFilters(appliedFilters),
+    sortDirection,
     onRefresh: () => {
       if (user?.id) void refetch({ cancelRefetch: false });
     },
@@ -61,5 +66,6 @@ export const useEventsListScreen = () => {
       setAppliedFilters(draftFilters);
       setFiltersVisible(false);
     },
+    handleToggleSort: () => setSortDirection((current) => (current === "asc" ? "desc" : "asc")),
   };
 };

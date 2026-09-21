@@ -5,6 +5,7 @@ import {
   filterEvents,
   formatFilterDay,
   hasActiveEventsListFilters,
+  sortEvents,
 } from "./utils";
 
 test("returns all events when filters are empty", () => {
@@ -34,6 +35,16 @@ test("filters by inclusive date range on the event calendar day", () => {
   expect(
     filterEvents([early, mid, late], { role: null, dateFrom: "2026-09-15", dateTo: "2026-09-25" }, "user-1"),
   ).toEqual([mid]);
+});
+
+test("sorts events by date ascending and descending without mutating input", () => {
+  const early = buildEvent({ id: "early", date: "2026-09-10T12:00:00.000Z" });
+  const mid = buildEvent({ id: "mid", date: "2026-09-20T15:30:00.000Z" });
+  const late = buildEvent({ id: "late", date: "2026-09-30T09:00:00.000Z" });
+  const input = [late, early, mid];
+  expect(sortEvents(input, "asc").map((event) => event.id)).toEqual(["early", "mid", "late"]);
+  expect(sortEvents(input, "desc").map((event) => event.id)).toEqual(["late", "mid", "early"]);
+  expect(input.map((event) => event.id)).toEqual(["late", "early", "mid"]);
 });
 
 test("detects active filters", () => {
