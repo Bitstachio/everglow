@@ -1,7 +1,9 @@
 import { ThemedView } from "@/components/themed-view";
-import { RefreshControl, ScrollView, StyleSheet } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
+import { EventsListFiltersButton } from "../components/events-list-filters-button";
+import { EventsListFiltersSheet } from "../components/events-list-filters-sheet";
 import { useEventsListScreen } from "../hooks/use-events-list-screen";
 
 const EventsListScreen = () => {
@@ -12,9 +14,19 @@ const EventsListScreen = () => {
     currentUserId,
     selectedEvent,
     invitationModalVisible,
+    filtersVisible,
+    draftFilters,
+    filtersActive,
     onRefresh,
     handleEventShare,
     handleCloseInvitationModal,
+    handleOpenFilters,
+    handleCloseFilters,
+    handleChangeFilterRole,
+    handleChangeFilterDateFrom,
+    handleChangeFilterDateTo,
+    handleResetFilters,
+    handleApplyFilters,
   } = useEventsListScreen();
 
   return (
@@ -24,13 +36,27 @@ const EventsListScreen = () => {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl testID="events-list-refresh" refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <EventsList
-          isLoading={isLoading}
-          events={events}
-          onEventShare={handleEventShare}
-          currentUserId={currentUserId}
-        />
+        <View className="gap-4">
+          <EventsListFiltersButton active={filtersActive} onPress={handleOpenFilters} />
+          <EventsList
+            isLoading={isLoading}
+            events={events}
+            onEventShare={handleEventShare}
+            currentUserId={currentUserId}
+          />
+        </View>
       </ScrollView>
+
+      <EventsListFiltersSheet
+        visible={filtersVisible}
+        draft={draftFilters}
+        onClose={handleCloseFilters}
+        onChangeRole={handleChangeFilterRole}
+        onChangeDateFrom={handleChangeFilterDateFrom}
+        onChangeDateTo={handleChangeFilterDateTo}
+        onReset={handleResetFilters}
+        onApply={handleApplyFilters}
+      />
 
       {selectedEvent && (
         <EventInvitationModal

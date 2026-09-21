@@ -103,3 +103,24 @@ test("pull-to-refresh retains current events until the refreshed list arrives", 
   pending.resolve({ data: { data: [buildEvent({ title: "Updated meetup" })] } });
   expect(await screen.findByText("Updated meetup")).toBeOnTheScreen();
 });
+
+test("filters the list by organizer role from the filters sheet", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [buildEvent(), buildEvent({ id: "event-2", title: "Picnic", creatorId: "user-2" })],
+    },
+  });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  expect(screen.getByText("Picnic")).toBeOnTheScreen();
+
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Filters" }));
+  expect(screen.getByText("Filter My Events")).toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Filter by Organizer" }));
+  await user.press(screen.getByRole("button", { name: "Apply filters" }));
+
+  expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
+  expect(screen.queryByText("Picnic")).not.toBeOnTheScreen();
+  expect(screen.getByText("Filters · On")).toBeOnTheScreen();
+});
