@@ -17,12 +17,12 @@ Spell class names out in full. Tailwind’s scanner cannot see interpolated stri
 
 ## File map
 
-| Piece | Location | Role |
-| --- | --- | --- |
-| CSS tokens | `app/global.css` | Registers utilities (`bg-background`, `text-muted`, …) and supplies light/dark values |
-| JS tokens | `theme/tokens.ts` | Same hex values for native chrome that does not take `className` |
-| Navigation theme | `theme/provider.tsx` | Feeds JS tokens into Expo Router / React Navigation |
-| Root wiring | `app/_layout.tsx` | Imports `global.css` and wraps the app in `AppThemeProvider` |
+| Piece            | Location             | Role                                                                                  |
+| ---------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| CSS tokens       | `app/global.css`     | Registers utilities (`bg-background`, `text-muted`, …) and supplies light/dark values |
+| JS tokens        | `theme/tokens.ts`    | Same hex values for native chrome that does not take `className`                      |
+| Navigation theme | `theme/provider.tsx` | Feeds JS tokens into Expo Router / React Navigation                                   |
+| Root wiring      | `app/_layout.tsx`    | Imports `global.css` and wraps the app in `AppThemeProvider`                          |
 
 `metro.config.js` is only `withNativewind(config)`. There is no exclude list and no JS variable provider for NativeWind.
 
@@ -64,13 +64,13 @@ If you change a hex in `global.css`, change the matching key in `theme/tokens.ts
 
 ## Tokens
 
-| Token | Typical class | Role |
-| --- | --- | --- |
-| `background` / `surface` / `elevated` | `bg-background` | Page, card, raised surfaces |
-| `strong` / `foreground` / `muted` / `subtle` | `text-foreground` | Text hierarchy |
-| `accent` / `accent-hover` / `accent-active` / `accent-foreground` | `bg-accent` | Brand and on-accent text |
-| `border` / `border-muted` | `border-border` | Dividers |
-| `danger` / `warning` / `success` | `text-danger` | Status |
+| Token                                                             | Typical class     | Role                        |
+| ----------------------------------------------------------------- | ----------------- | --------------------------- |
+| `background` / `surface` / `elevated`                             | `bg-background`   | Page, card, raised surfaces |
+| `strong` / `foreground` / `muted` / `subtle`                      | `text-foreground` | Text hierarchy              |
+| `accent` / `accent-hover` / `accent-active` / `accent-foreground` | `bg-accent`       | Brand and on-accent text    |
+| `border` / `border-muted`                                         | `border-border`   | Dividers                    |
+| `danger` / `warning` / `success`                                  | `text-danger`     | Status                      |
 
 ## Adding a token
 
