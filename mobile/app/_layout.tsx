@@ -35,19 +35,10 @@ const RootNavigator = () => {
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Protected guard={isAuthenticated && isOnboarded}>
         <Stack.Screen name="events/index" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="account-settings"
-          options={{ title: "Account Settings", headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="events/create"
-          options={{ title: "Create Event", headerBackTitle: "Back" }}
-        />
+        <Stack.Screen name="account-settings" options={{ title: "Account Settings", headerBackTitle: "Back" }} />
+        <Stack.Screen name="events/create" options={{ title: "Create Event", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/[id]" />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal" }}
-        />
+        <Stack.Screen name="modal" options={{ presentation: "modal", title: "Modal" }} />
       </Stack.Protected>
     </Stack>
   );
