@@ -7,6 +7,7 @@ import { AUTH0_MANAGEMENT_ERRORS } from "./auth0-management.constants";
 import { Auth0ManagementService } from "./auth0-management.service";
 
 const mockDeleteUser = jest.fn();
+const mockGetUser = jest.fn();
 
 jest.mock("auth0", () => {
   class MockManagementError extends Error {
@@ -19,7 +20,7 @@ jest.mock("auth0", () => {
   }
   return {
     ManagementClient: jest.fn().mockImplementation(() => ({
-      users: { delete: mockDeleteUser },
+      users: { delete: mockDeleteUser, get: mockGetUser },
     })),
     ManagementError: MockManagementError,
   };
@@ -54,6 +55,7 @@ describe("Auth0ManagementService", () => {
 
   beforeEach(async () => {
     mockDeleteUser.mockReset();
+    mockGetUser.mockReset();
     jest.mocked(ManagementClient).mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -106,6 +108,55 @@ describe("Auth0ManagementService", () => {
     mockDeleteUser.mockRejectedValue(new ManagementError({ message: "boom", statusCode: 500 }));
 
     await expect(service.deleteUser("auth0|abc123")).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  describe("getIdentityProviderTokens", () => {
+    it("returns the tokens of the identity from the requested provider", async () => {
+      mockGetUser.mockResolvedValue({
+        identities: [
+          { provider: "auth0", connection: "Username-Password-Authentication", user_id: "abc" },
+          { provider: "apple", connection: "apple", user_id: "001.abc", access_token: "a-1", refresh_token: "r-1" },
+        ],
+      });
+
+      await expect(service.getIdentityProviderTokens("apple|001.abc", "apple")).resolves.toEqual({
+        accessToken: "a-1",
+        refreshToken: "r-1",
+      });
+      expect(mockGetUser).toHaveBeenCalledWith("apple|001.abc", { fields: "identities", include_fields: true });
+    });
+
+    it("returns empty tokens when the identity has none exposed (missing read:user_idp_tokens)", async () => {
+      mockGetUser.mockResolvedValue({ identities: [{ provider: "apple", connection: "apple", user_id: "001.abc" }] });
+
+      await expect(service.getIdentityProviderTokens("apple|001.abc", "apple")).resolves.toEqual({
+        accessToken: undefined,
+        refreshToken: undefined,
+      });
+    });
+
+    it("returns empty tokens when no identity matches the provider", async () => {
+      mockGetUser.mockResolvedValue({ identities: [{ provider: "auth0", connection: "db", user_id: "abc" }] });
+
+      await expect(service.getIdentityProviderTokens("auth0|abc", "apple")).resolves.toEqual({
+        accessToken: undefined,
+        refreshToken: undefined,
+      });
+    });
+
+    it("returns null when the Auth0 user no longer exists", async () => {
+      mockGetUser.mockRejectedValue(new ManagementError({ message: "not found", statusCode: 404 }));
+
+      await expect(service.getIdentityProviderTokens("apple|001.abc", "apple")).resolves.toBeNull();
+    });
+
+    it("maps unexpected Auth0 errors to InternalServerErrorException", async () => {
+      mockGetUser.mockRejectedValue(new ManagementError({ message: "boom", statusCode: 500 }));
+
+      await expect(service.getIdentityProviderTokens("apple|001.abc", "apple")).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+    });
   });
 
   describe("credentials", () => {

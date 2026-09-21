@@ -11,6 +11,15 @@ export const USER_SERVICE_ERRORS = {
   ACCOUNT_DELETED: "This account has been deleted. Sign in again to start a new one.",
 };
 
+/**
+ * Auth0 derives the subject for its Apple social connection from Apple's
+ * stable user identifier: `apple|001234.abcd…`. The prefix is the provider
+ * name, which is how the API tells an Apple identity from any other without
+ * a second lookup.
+ */
+export const APPLE_PROVIDER = "apple";
+export const isAppleProviderSub = (providerSub: string): boolean => providerSub.startsWith(`${APPLE_PROVIDER}|`);
+
 export const DEFAULT_ACCOUNT_DELETION_RECONCILER_BATCH_SIZE = 50;
 export const DEFAULT_ACCOUNT_DELETION_RECONCILER_STUCK_AFTER_HOURS = 1;
 
