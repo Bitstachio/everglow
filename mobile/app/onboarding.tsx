@@ -35,7 +35,7 @@ export default function OnboardingScreen() {
     if (!isAuthenticated) {
       router.replace("/login");
     } else if (isOnboarded) {
-      router.replace("/(tabs)/gallery");
+      router.replace("/events");
     }
   }, [isAuthenticated, isOnboarded]);
 

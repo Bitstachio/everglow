@@ -81,11 +81,11 @@ Validate the sample's syntax without a device:
 maestro check-syntax .maestro/flows/profile.yaml
 ```
 
-## Sample: Profile tab
+## Sample: Events → Account Settings
 
-`flows/profile.yaml` relaunches the app, waits for authenticated navigation, taps Profile, checks Account Settings, opens the edit form, verifies both fields, and cancels back to the profile. It uses native `testID` selectors for interactions and Maestro's built-in waits rather than fixed sleeps. It does not save profile changes.
+`flows/profile.yaml` relaunches the app, waits for authenticated navigation, taps the Events avatar, checks the Account Settings stub, and uses Back to return to Events. It uses native `testID` selectors for interactions and Maestro's built-in waits rather than fixed sleeps. It does not save profile changes.
 
-The flow deliberately preserves app data with `clearState: false`: it requires an existing authenticated, onboarded session. If it times out waiting for `tab-profile`, check the API connection, sign in again, complete onboarding, and ensure Metro is serving the app. This smoke test does not cover login or onboarding.
+The flow deliberately preserves app data with `clearState: false`: it requires an existing authenticated, onboarded session. If it times out waiting for `events-profile-button`, check the API connection, sign in again, complete onboarding, and ensure Metro is serving the app. This smoke test does not cover login or onboarding.
 
 Add further test YAML files under `flows/`. Keep reusable subflows in a sibling `helpers/` directory and call them with `runFlow` so they are not discovered as standalone tests.
 
