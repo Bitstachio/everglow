@@ -33,7 +33,9 @@ export interface PresignedDownloadInput {
   expiresInSeconds?: number;
 }
 
-export type HeadObjectResult = { exists: true; contentType?: string; sizeBytes?: number } | { exists: false };
+export type HeadObjectResult =
+  | { exists: true; contentType?: string; sizeBytes?: number; lastModified?: Date }
+  | { exists: false };
 
 export interface S3ObjectSummary {
   key: string;
@@ -158,7 +160,12 @@ export class S3Service implements OnModuleDestroy {
   async headObject(key: string): Promise<HeadObjectResult> {
     try {
       const response = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
-      return { exists: true, contentType: response.ContentType, sizeBytes: response.ContentLength };
+      return {
+        exists: true,
+        contentType: response.ContentType,
+        sizeBytes: response.ContentLength,
+        lastModified: response.LastModified,
+      };
     } catch (error) {
       if (error instanceof NotFound) return { exists: false };
       this.logger.error({ err: error as Error, key }, "s3 headObject failed");
