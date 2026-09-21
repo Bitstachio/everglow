@@ -156,13 +156,13 @@ test("toggles date sort between ascending and descending", async () => {
   });
   await renderScreen();
   await screen.findByText("Brunch");
-  expect(screen.getByRole("button", { name: "Oldest to newest" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Date · Earliest" })).toBeOnTheScreen();
 
   const openLabels = () =>
     screen.getAllByRole("button", { name: /Open / }).map((node) => node.props.accessibilityLabel);
   expect(openLabels()).toEqual(["Open Brunch", "Open Dinner"]);
 
-  await userEvent.setup().press(screen.getByRole("button", { name: "Oldest to newest" }));
-  expect(screen.getByRole("button", { name: "Newest to oldest" })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Date · Earliest" }));
+  expect(screen.getByRole("button", { name: "Date · Latest" })).toBeOnTheScreen();
   expect(openLabels()).toEqual(["Open Dinner", "Open Brunch"]);
 });
