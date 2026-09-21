@@ -1,13 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import type { Control } from "react-hook-form";
-import type { JoinEventValues } from "../hooks/use-join-event-form";
+import type { JoinEventValues } from "../types";
 import { H2 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useEffect, useState } from "react";
 import { Modal, View } from "react-native";
-import QRButton from "./qr-button";
-import QRScanner from "./qr-scanner";
+import { QRButton } from "./qr-button";
+import { QRScanner } from "./qr-scanner";
 
 type JoinEventModalProps = {
   visible: boolean;
@@ -18,7 +18,7 @@ type JoinEventModalProps = {
   onScan: (link: string) => void;
 };
 
-const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubmit, onScan }: JoinEventModalProps) => {
+export const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubmit, onScan }: JoinEventModalProps) => {
   const [scannerVisible, setScannerVisible] = useState(false);
 
   // Reset scanner state when modal closes
@@ -78,4 +78,3 @@ const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubmit, onS
   );
 };
 
-export default JoinEventModal;

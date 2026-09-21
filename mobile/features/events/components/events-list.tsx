@@ -3,8 +3,8 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { Href, Link, useRouter } from "expo-router";
 import { Event } from "../types";
-import EventCard from "./event-card";
-import NoEventsBanner from "./no-events-banner";
+import { EventCard } from "./event-card";
+import { NoEventsBanner } from "./no-events-banner";
 
 type EventsListProps = {
   title?: string;
@@ -16,7 +16,7 @@ type EventsListProps = {
 };
 
 // TODO: Implement onPress for EventCard
-const EventsList = ({ title, isLoading, events, onEventShare, currentUserId, seeAllHref }: EventsListProps) => {
+export const EventsList = ({ title, isLoading, events, onEventShare, currentUserId, seeAllHref }: EventsListProps) => {
   const router = useRouter();
 
   return (
@@ -59,4 +59,3 @@ const EventsList = ({ title, isLoading, events, onEventShare, currentUserId, see
     </View>
   );
 };
-export default EventsList;

@@ -185,11 +185,10 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 
 Layer rules target the profile pattern (`components/`, screen hooks, thin routes). Legacy exemptions exist only so old code keeps passing lint until refactor:
 
-| Legacy path                    | ESLint exemption                                                    |
-| ------------------------------ | ------------------------------------------------------------------- |
-| `features/events/**` screens   | Thin-screen rules (listed in `legacyFeatureNames`)                  |
-| `app/events/**`                | Thin-route rules                                                    |
-| `features/events/component/**` | Not covered by `components/` rules (wrong folder name; do not copy) |
+| Legacy path                  | ESLint exemption                                   |
+| ---------------------------- | -------------------------------------------------- |
+| `features/events/**` screens | Thin-screen rules (listed in `legacyFeatureNames`) |
+| `app/events/**`              | Thin-route rules                                   |
 
 Photos/gallery has no `features/` module yet and is not part of this structure.
 

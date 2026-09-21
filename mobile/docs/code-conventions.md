@@ -194,7 +194,7 @@ Summary of what ESLint adds on top of codebase conventions:
 | Screen hooks              | `features/**/hooks/**`      | No SDK, screens, or components; named exports only         |
 | API hooks                 | `features/**/api/**`        | Named exports only                                         |
 
-Legacy exemptions (`features/events/**`, `app/events/**`, `features/events/component/**`) exist so old code keeps passing lint until refactored to match `features/profile/`.
+Legacy exemptions (`features/events/**` screens via `legacyFeatureNames`, `app/events/**`) exist so old code keeps passing lint until refactored to match `features/profile/`.
 
 ## 4. Code review
 

@@ -1,7 +1,7 @@
 import { ThemedView } from "@/components/themed-view";
 import { RefreshControl, ScrollView, StyleSheet } from "react-native";
-import EventInvitationModal from "../component/event-invitation-modal";
-import EventsList from "../component/events-list";
+import { EventInvitationModal } from "../components/event-invitation-modal";
+import { EventsList } from "../components/events-list";
 import { useEventsListScreen } from "../hooks/use-events-list-screen";
 
 const EventsListScreen = () => {

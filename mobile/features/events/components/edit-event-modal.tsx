@@ -16,7 +16,7 @@ type EditEventModalProps = {
   onSave: (data: { title: string; description: string; date: string }) => Promise<void>;
 };
 
-const EditEventModal = ({ visible, event, onClose, onSave }: EditEventModalProps) => {
+export const EditEventModal = ({ visible, event, onClose, onSave }: EditEventModalProps) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -255,4 +255,3 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EditEventModal;

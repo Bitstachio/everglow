@@ -1,7 +1,7 @@
 import { mockColorScheme } from "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { buildEvent } from "../testing/fixtures";
-import EventsList from "./events-list";
+import { EventsList } from "./events-list";
 
 const mockPush = jest.fn();
 jest.mock("expo-router", () => {

@@ -1,7 +1,7 @@
 import { mockCameraPermission, mockRequestPermission, mockColorScheme } from "../testing/native-mocks";
 import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert } from "react-native";
-import QRScanner from "./qr-scanner";
+import { QRScanner } from "./qr-scanner";
 
 beforeEach(() => {
   mockCameraPermission.mockReturnValue({ granted: true });

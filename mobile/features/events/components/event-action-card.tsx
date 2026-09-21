@@ -8,7 +8,7 @@ type EventActionCardProps = {
   onPress: () => void;
 };
 
-const EventActionCard = ({ title, description, onPress }: EventActionCardProps) => {
+export const EventActionCard = ({ title, description, onPress }: EventActionCardProps) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const icon = title === "Join Event" ? "qr-code-outline" : "add-circle-outline";
@@ -83,4 +83,3 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EventActionCard;

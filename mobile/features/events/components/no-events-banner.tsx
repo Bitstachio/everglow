@@ -2,7 +2,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
-const NoEventsBanner = () => {
+export const NoEventsBanner = () => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -78,4 +78,3 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NoEventsBanner;
