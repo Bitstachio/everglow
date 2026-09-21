@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthor
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { RateLimit } from "../common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { DeleteAccountQueryDto } from "./dto/delete-account-query.dto";
@@ -25,6 +26,7 @@ export class UsersController {
   ) {}
 
   @Post("me/onboarding")
+  @RateLimit("sensitive")
   @ApiOperation({ summary: "Complete user onboarding" })
   @ApiWrappedResponse(UserResponseDto, "Onboarded user profile", 201)
   async completeOnboarding(
@@ -59,6 +61,7 @@ export class UsersController {
   }
 
   @Delete("me")
+  @RateLimit("sensitive")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete current user" })
   @ApiNoContentResponse({ description: "User deleted (empty data envelope at runtime)" })

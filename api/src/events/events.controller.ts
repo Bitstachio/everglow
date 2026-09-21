@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthor
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { RateLimit } from "src/common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.decorator";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { EventParticipantResponseDto } from "./dto/event-participant-response.dto";
@@ -50,6 +51,7 @@ export class EventsController {
   }
 
   @Post("join")
+  @RateLimit("sensitive")
   @ApiOperation({ summary: "Join an event via invitation URL" })
   @ApiWrappedResponse(EventResponseDto, "Joined event")
   async join(@CurrentUser() user: AuthenticatedUser, @Body() dto: JoinEventDto): Promise<EventResponseDto> {
@@ -134,6 +136,7 @@ export class EventsController {
   }
 
   @Post(":eventId/regenerate-url")
+  @RateLimit("sensitive")
   @ApiOperation({ summary: "Regenerate the event invitation URL" })
   @ApiWrappedResponse(EventResponseDto, "Event with new invitation URL")
   async regenerateInvitationUrl(

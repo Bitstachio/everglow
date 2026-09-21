@@ -1,5 +1,6 @@
 import { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from "@nestjs/swagger";
+import { documentRateLimitResponses } from "src/common/rate-limit/rate-limit.swagger";
 
 export const API_GLOBAL_PREFIX = "api/v2";
 export const SWAGGER_PATH = "api/docs";
@@ -22,7 +23,7 @@ export function buildSwaggerConfig() {
 }
 
 export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
-  return SwaggerModule.createDocument(app, buildSwaggerConfig());
+  return documentRateLimitResponses(SwaggerModule.createDocument(app, buildSwaggerConfig()));
 }
 
 export function setupSwagger(app: INestApplication): OpenAPIObject {
