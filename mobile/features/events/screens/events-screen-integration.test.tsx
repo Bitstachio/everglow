@@ -68,7 +68,7 @@ test.each(["light", "dark"])("loads and displays the empty Events page in %s mod
   expect(screen.queryByText("No events yet")).not.toBeOnTheScreen();
   pending.resolve({ data: { data: [] } });
   expect(await screen.findByText("No events yet")).toBeOnTheScreen();
-  expect(screen.getByText("Upcoming Events")).toBeOnTheScreen();
+  expect(screen.getByText("My Events")).toBeOnTheScreen();
 });
 
 test("navigates to create and event details from the rendered page", async () => {

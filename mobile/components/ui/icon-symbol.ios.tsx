@@ -1,4 +1,5 @@
-import { SymbolView, SymbolViewProps, SymbolWeight } from "expo-symbols";
+import { SymbolView, SymbolWeight } from "expo-symbols";
+import type { SFSymbol } from "sf-symbols-typescript";
 import { StyleProp, ViewStyle } from "react-native";
 
 export const IconSymbol = ({
@@ -8,7 +9,7 @@ export const IconSymbol = ({
   style,
   weight = "regular",
 }: {
-  name: SymbolViewProps["name"];
+  name: SFSymbol;
   size?: number;
   color: string;
   style?: StyleProp<ViewStyle>;

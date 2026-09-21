@@ -1,7 +1,7 @@
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -57,7 +57,7 @@ const EventDetailScreen = () => {
     }
   };
 
-  const fetchEventDetails = useCallback(async () => {
+  const fetchEventDetails = async () => {
     if (!eventId) return;
     try {
       setIsLoading(true);
@@ -76,13 +76,15 @@ const EventDetailScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [eventId, router]);
+  };
 
   useEffect(() => {
     if (eventId) {
       void fetchEventDetails();
     }
-  }, [eventId, fetchEventDetails]);
+    // Intentionally depends on eventId only; fetchEventDetails closes over the latest id/router.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- React Compiler: avoid useCallback here
+  }, [eventId]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
