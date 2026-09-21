@@ -4,7 +4,7 @@ import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 
 export interface AccountDeletionPrepSummary {
-  /** Events the account organised alone with nobody else in them: deleted, photos included. */
+  /** Events the account organised alone with nobody else in them: deleted, photos and cover included. */
   eventsDeleted: number;
   /** Events the account organised alone with other members: the longest-standing member is now an organizer. */
   eventsHandedOver: number;
@@ -119,6 +119,9 @@ export class AccountDeletionPrepService {
       // still in it, including photos of members who left earlier.
       const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
       s3Keys.push(...photos.map((photo) => photo.s3Key));
+      // Its cover goes to the same purge; the column disappears with the row.
+      const event = await tx.event.findUnique({ where: { id: eventId }, select: { coverS3Key: true } });
+      if (event?.coverS3Key) s3Keys.push(event.coverS3Key);
       // deleteMany, not delete: a concurrent deletion of the last other member
       // may have removed this event already, and that is the outcome we wanted.
       const { count } = await tx.event.deleteMany({ where: { id: eventId } });

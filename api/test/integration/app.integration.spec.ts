@@ -45,7 +45,7 @@ describe("AppController (integration)", () => {
       .getAll()
       .map((source) => source.prefix);
 
-    expect([...prefixes].sort()).toEqual(["avatars/", "photos/"]);
+    expect([...prefixes].sort()).toEqual(["avatars/", "event-covers/", "photos/"]);
   });
 
   it(`GET /${API_GLOBAL_PREFIX} returns Hello World`, async () => {

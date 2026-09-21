@@ -73,6 +73,7 @@ describe("PhotosService", () => {
     date: new Date("2026-08-15T18:00:00.000Z"),
     creatorId: callerId,
     invitationUrl: "invite-token",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };

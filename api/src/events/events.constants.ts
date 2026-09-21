@@ -18,4 +18,8 @@ export const EVENT_SERVICE_ERRORS = {
   LAST_ORGANIZER: (eventId: string) => `Event with ID "${eventId}" must have at least one organizer`,
   CANNOT_MODIFY_OWN_ACCESS: "Cannot change your own access level; use leaveEvent instead",
   CANNOT_REMOVE_SELF: "Use leaveEvent to remove yourself from an event",
+  COVER_CHANGED_CONCURRENTLY: "The event cover was changed by another request, please retry",
 };
+
+// event-covers/{eventId}/{uploadId}; see docs/image-uploads.md.
+export const EVENT_COVER_S3_KEY_PREFIX = "event-covers/";

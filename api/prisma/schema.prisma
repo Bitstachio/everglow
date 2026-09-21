@@ -96,6 +96,10 @@ model Event {
   // manage the event is decided by EventAccess, never by this column.
   creatorId     String?  @db.Uuid
   invitationUrl String   @unique @db.VarChar(100)
+  // S3 key of the cover image (event-covers/{eventId}/{uploadId}); null when
+  // none is set. Unique so the orphan reconciler resolves a page of keys with
+  // one indexed lookup. See docs/image-uploads.md.
+  coverS3Key    String?  @unique @db.VarChar(255)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

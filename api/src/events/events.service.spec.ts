@@ -91,6 +91,7 @@ describe("EventsService", () => {
     date: new Date(createEventDto.date),
     creatorId,
     invitationUrl: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -105,6 +106,7 @@ describe("EventsService", () => {
     date: new Date("2026-09-15T18:00:00.000Z"),
     creatorId: userId,
     invitationUrl: "invite-created",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -116,6 +118,7 @@ describe("EventsService", () => {
     date: new Date("2026-08-01T18:00:00.000Z"),
     creatorId: otherUserId,
     invitationUrl: "invite-access",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -610,6 +613,7 @@ describe("EventsService", () => {
         date: eventCreatedByUser.date,
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
+        coverS3Key: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -831,6 +835,7 @@ describe("EventsService", () => {
         date: eventCreatedByUser.date,
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
+        coverS3Key: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -874,6 +879,36 @@ describe("EventsService", () => {
 
       await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(ForbiddenException);
       await expect(service.delete(eventId, callerId)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe("getUpdatable", () => {
+    it("returns the event without its access rows when the caller is an organizer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+
+      await expect(service.getUpdatable(eventId, callerId)).resolves.toEqual(eventCreatedByUser);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
+    });
+
+    it("throws 404 when the event does not exist, before evaluating access", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+    });
+
+    it.each([
+      ["a participant", () => [participantAccess]],
+      ["a viewer", () => [viewerAccess]],
+      ["not a member", () => []],
+    ])("throws 403 when the caller is %s", async (_label, accesses) => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, accesses()));
+
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
     });
   });
 
@@ -1149,6 +1184,32 @@ describe("EventsService", () => {
       });
       expect(logger.info).toHaveBeenCalledWith(
         { event: "event.deleted", eventId, callerId, photoCount: 2, audit: true },
+        "Event deleted",
+      );
+    });
+
+    it("purges the cover object with the photos, taking its key from the row the delete returned", async () => {
+      const photoKey = `photos/${callerId}/${eventId}/a`;
+      const coverS3Key = `event-covers/${eventId}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
+      // The authorization read saw no cover; one was confirmed before the delete ran.
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.photo.findMany.mockResolvedValue([{ s3Key: photoKey }] as never);
+      prisma.event.delete.mockResolvedValue({ ...eventCreatedByUser, coverS3Key });
+
+      await service.delete(eventId, callerId);
+
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledTimes(1);
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledWith([photoKey, coverS3Key], {
+        event: "event.photos.purged",
+        eventId,
+        callerId,
+      });
+      expect(prisma.event.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        photoPurgeService.purgeObjects.mock.invocationCallOrder[0],
+      );
+      // The cover is not a photo, and its key is never logged.
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.deleted", eventId, callerId, photoCount: 1, audit: true },
         "Event deleted",
       );
     });

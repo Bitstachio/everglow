@@ -14,6 +14,7 @@ describe("EventMapper", () => {
     date: new Date("2026-09-15T18:00:00.000Z"),
     creatorId: "11111111-1111-1111-1111-111111111111",
     invitationUrl: inviteToken,
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -26,8 +27,10 @@ describe("EventMapper", () => {
   };
 
   describe("toResponseDto", () => {
-    it("maps event fields and composes the shareable invitation URL", () => {
-      const result = EventMapper.toResponseDto(event);
+    const coverUrl = "https://s3.example/cover?sig=1";
+
+    it("maps event fields, composes the shareable invitation URL, and carries the presigned cover URL", () => {
+      const result = EventMapper.toResponseDto(event, coverUrl);
 
       expect(result).toEqual({
         id: event.id,
@@ -36,26 +39,29 @@ describe("EventMapper", () => {
         date: event.date,
         creatorId: event.creatorId,
         invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}`,
+        coverUrl,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
       });
     });
 
+    it("reports a null coverUrl for an event without a cover", () => {
+      expect(EventMapper.toResponseDto(event, null).coverUrl).toBeNull();
+    });
+
+    it("never exposes the cover's S3 key", () => {
+      const coverS3Key = `event-covers/${event.id}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
+
+      const result = EventMapper.toResponseDto({ ...event, coverS3Key }, coverUrl);
+
+      expect(JSON.stringify(result)).not.toContain(coverS3Key);
+    });
+
     it("does not expose the raw invite token as the response invitationUrl", () => {
-      const result = EventMapper.toResponseDto(event);
+      const result = EventMapper.toResponseDto(event, null);
 
       expect(result.invitationUrl).not.toBe(inviteToken);
       expect(result.invitationUrl).toContain(inviteToken);
-    });
-  });
-
-  describe("toResponseDtoList", () => {
-    it("maps each event in the list", () => {
-      const result = EventMapper.toResponseDtoList([event, { ...event, id: "77777777-7777-7777-7777-777777777777" }]);
-
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe(event.id);
-      expect(result[1].id).toBe("77777777-7777-7777-7777-777777777777");
     });
   });
 
