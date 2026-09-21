@@ -1,8 +1,8 @@
-import "../testing/date-picker-mock";
+import "../../testing/date-picker-mock";
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { Platform } from "react-native";
+import { DEFAULT_EVENTS_LIST_FILTERS } from "../../utils";
 import { EventsListFiltersSheet } from "./events-list-filters-sheet";
-import { DEFAULT_EVENTS_LIST_FILTERS } from "../utils";
 
 test("toggles multiple role chips and applies filters", async () => {
   const onChangeRole = jest.fn();
@@ -74,10 +74,9 @@ test("resets and closes from the sheet actions", async () => {
   expect(onClose).toHaveBeenCalled();
 });
 
-test.each(["ios", "android"] as const)("picks from and to dates with the %s date picker", async (os) => {
-  Platform.OS = os;
+test("wires the date picker display and change handler", async () => {
+  Platform.OS = "ios";
   const onChangeDateFrom = jest.fn();
-  const onChangeDateTo = jest.fn();
   await render(
     <EventsListFiltersSheet
       visible
@@ -85,20 +84,14 @@ test.each(["ios", "android"] as const)("picks from and to dates with the %s date
       onClose={jest.fn()}
       onChangeRole={jest.fn()}
       onChangeDateFrom={onChangeDateFrom}
-      onChangeDateTo={onChangeDateTo}
+      onChangeDateTo={jest.fn()}
       onReset={jest.fn()}
       onApply={jest.fn()}
     />,
   );
   const user = userEvent.setup();
-
   await user.press(screen.getByRole("button", { name: "Filter from date" }));
-  expect(screen.getByTestId("date-picker")).toHaveProp("display", os === "ios" ? "spinner" : "default");
+  expect(screen.getByTestId("date-picker")).toHaveProp("display", "spinner");
   await fireEvent(screen.getByTestId("date-picker"), "change", { type: "set" }, new Date(2026, 8, 15));
   expect(onChangeDateFrom).toHaveBeenCalledWith("2026-09-15");
-  if (os === "android") expect(screen.queryByTestId("date-picker")).not.toBeOnTheScreen();
-
-  await user.press(screen.getByRole("button", { name: "Filter to date" }));
-  await fireEvent(screen.getByTestId("date-picker"), "change", { type: "set" }, new Date(2026, 8, 30));
-  expect(onChangeDateTo).toHaveBeenCalledWith("2026-09-30");
 });

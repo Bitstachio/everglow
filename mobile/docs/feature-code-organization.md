@@ -140,7 +140,7 @@ File and folder names are kebab-case. Export identifiers keep React conventions 
 | Screen file    | `profile-screen.tsx`       | `ProfileScreen` (default)  |
 | Screen hook    | `use-profile-screen.ts`    | `useProfileScreen` (named) |
 | Component file | `edit-profile-modal.tsx`   | `EditProfileModal` (named) |
-| Colocated UI   | `bottom-sheet/bottom-sheet.tsx` + `use-bottom-sheet-presentation.ts` | `BottomSheet` (named) |
+| Colocated UI   | `bottom-sheet/bottom-sheet.tsx` + `use-bottom-sheet.ts` | `BottomSheet` (named) |
 
 ## Imports
 

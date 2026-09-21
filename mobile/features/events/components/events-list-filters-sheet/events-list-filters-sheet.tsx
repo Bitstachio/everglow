@@ -2,18 +2,10 @@ import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { ThemedText } from "@/components/ui/themed-text";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
-import type { AccessLevel } from "../types";
-import {
-  displayFilterDay,
-  EVENT_ROLE_OPTIONS,
-  formatFilterDay,
-  parseFilterDay,
-  type EventsListFilters,
-} from "../utils";
-
-type DateField = "from" | "to";
+import { Pressable, View } from "react-native";
+import type { AccessLevel } from "../../types";
+import { displayFilterDay, EVENT_ROLE_OPTIONS, type EventsListFilters } from "../../utils";
+import { useEventsListFiltersSheet } from "./use-events-list-filters-sheet";
 
 type EventsListFiltersSheetProps = {
   visible: boolean;
@@ -36,21 +28,14 @@ export const EventsListFiltersSheet = ({
   onReset,
   onApply,
 }: EventsListFiltersSheetProps) => {
-  const [activeDateField, setActiveDateField] = useState<DateField | null>(null);
-
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- clear transient picker when parent hides sheet */
-    if (!visible) setActiveDateField(null);
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [visible]);
-
-  const handleDateChange = (field: DateField, event: { type: string }, selectedDate?: Date) => {
-    if (Platform.OS === "android") setActiveDateField(null);
-    if (event.type !== "set" || !selectedDate) return;
-    const next = formatFilterDay(selectedDate);
-    if (field === "from") onChangeDateFrom(next);
-    else onChangeDateTo(next);
-  };
+  const {
+    activeDateField,
+    toggleDateField,
+    closeDatePicker,
+    handleDateChange,
+    datePickerValue,
+    datePickerDisplay,
+  } = useEventsListFiltersSheet({ visible, draft, onChangeDateFrom, onChangeDateTo });
 
   return (
     <BottomSheet
@@ -66,7 +51,7 @@ export const EventsListFiltersSheet = ({
           accessibilityRole="button"
           accessibilityLabel="Close date picker"
           className="absolute inset-0 z-10"
-          onPress={() => setActiveDateField(null)}
+          onPress={closeDatePicker}
         />
       ) : null}
 
@@ -110,7 +95,7 @@ export const EventsListFiltersSheet = ({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Filter from date"
-              onPress={() => setActiveDateField(activeDateField === "from" ? null : "from")}
+              onPress={() => toggleDateField("from")}
               className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
             >
               <Ionicons name="calendar-outline" size={16} color="#64748B" />
@@ -126,7 +111,7 @@ export const EventsListFiltersSheet = ({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Filter to date"
-              onPress={() => setActiveDateField(activeDateField === "to" ? null : "to")}
+              onPress={() => toggleDateField("to")}
               className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
             >
               <Ionicons name="calendar-outline" size={16} color="#64748B" />
@@ -140,10 +125,10 @@ export const EventsListFiltersSheet = ({
         {activeDateField ? (
           <View className="z-20" pointerEvents="box-none">
             <DateTimePicker
-              value={parseFilterDay(activeDateField === "from" ? draft.dateFrom : draft.dateTo)}
+              value={datePickerValue}
               mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(event, selectedDate) => handleDateChange(activeDateField, event, selectedDate)}
+              display={datePickerDisplay}
+              onChange={handleDateChange}
             />
           </View>
         ) : null}

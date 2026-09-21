@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
 import { EventsListFiltersButton } from "../components/events-list-filters-button";
-import { EventsListFiltersSheet } from "../components/events-list-filters-sheet";
+import { EventsListFiltersSheet } from "../components/events-list-filters-sheet/events-list-filters-sheet";
 import { EventsListSortButton } from "../components/events-list-sort-button";
 import { useEventsListScreen } from "../hooks/use-events-list-screen";
 

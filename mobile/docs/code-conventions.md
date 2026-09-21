@@ -103,8 +103,10 @@ features/profile/components/edit-profile-modal.tsx
 
 // Preferred — folder when colocating a private hook/util with the component
 components/ui/bottom-sheet/bottom-sheet.tsx
-components/ui/bottom-sheet/use-bottom-sheet-presentation.ts
+components/ui/bottom-sheet/use-bottom-sheet.ts
 components/ui/bottom-sheet/bottom-sheet.test.tsx
+features/events/components/events-list-filters-sheet/events-list-filters-sheet.tsx
+features/events/components/events-list-filters-sheet/use-events-list-filters-sheet.ts
 
 // Avoid
 components/ui/button/button.tsx // only the component (+ test) — keep flat
