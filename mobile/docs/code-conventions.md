@@ -84,7 +84,17 @@ Use **kebab-case** for source file and folder names under linted app directories
 
 Keep component (and hook/screen) files **flat** under their layer folder by default. Do not ship an `index.tsx` as the component entry.
 
-Use a **same-named folder** only when the component needs colocated non-test modules (a private hook, util, or subcomponent). A folder that only wraps the component and its test must stay flat.
+### Component logic and hooks
+
+Components stay mostly presentational. Do **not** grow sophisticated logic in the component body (multi-step state, effects that orchestrate UI lifecycle, animation drivers, pickers with platform branching, etc.). Extract that into a hook first:
+
+| Logic ownership | Where it lives | Layout |
+| --------------- | -------------- | ------ |
+| Tied to one component (private presentation/state) | Next to that component | Same-named folder: `component-name/component-name.tsx` + `use-component-name.ts` |
+| Reused across unrelated UI surfaces | `hooks/` | Flat file (e.g. `hooks/use-color-scheme.ts`) |
+| Feature screen / form orchestration | `features/<name>/hooks/` | Flat under `hooks/` (screen and form hooks — not component-private) |
+
+A folder that only wraps the component and its test must stay flat (`local/no-component-folder`). Use a same-named folder when colocating a private hook, util, or subcomponent.
 
 | Kind        | File name                            | Export                                      |
 | ----------- | ------------------------------------ | ------------------------------------------- |
@@ -96,12 +106,12 @@ Use a **same-named folder** only when the component needs colocated non-test mod
 | Shared util | `axios-instance.ts`                  | camelCase named exports                     |
 
 ```ts
-// Preferred — flat when the component is self-contained
+// Preferred — flat when the component is self-contained (JSX + trivial derived UI)
 components/ui/button.tsx
 components/ui/button.test.tsx
 features/profile/components/edit-profile-modal.tsx
 
-// Preferred — folder when colocating a private hook/util with the component
+// Preferred — extract private logic into a colocated hook (same-named folder)
 components/ui/bottom-sheet/bottom-sheet.tsx
 components/ui/bottom-sheet/use-bottom-sheet.ts
 components/ui/bottom-sheet/bottom-sheet.test.tsx
@@ -113,6 +123,7 @@ components/ui/button/button.tsx // only the component (+ test) — keep flat
 components/ui/Button/Button.tsx
 components/ui/button/index.tsx
 components/ui/bottom-sheet/index.tsx
+// Avoid stuffing presentation lifecycle / multi-step state into the component body
 ```
 
 Expo Router keeps its own path conventions in `app/`: `_layout.tsx`, `[id].tsx`, and route groups like `(tabs)/`. Those are allowed; do not rename them to force kebab-case. The flat-file rule does not apply under `app/`.
@@ -170,6 +181,7 @@ ESLint blocks imports of feature `hooks/`, `components/`, and `api/` (legacy `ap
 - Prefer named exports for shared components.
 - Compose primitives instead of duplicating button, input, or text patterns.
 - No feature-specific business logic.
+- Keep bodies presentational; extract non-trivial UI logic into a colocated or shared hook ([Component logic and hooks](#component-logic-and-hooks)).
 
 ### `context/`: app-wide React context
 
@@ -179,8 +191,8 @@ ESLint blocks imports of feature `hooks/`, `components/`, and `api/` (legacy `ap
 ### `hooks/`: app-wide hooks
 
 - Cross-feature hooks (for example, `useColorScheme`).
-- Feature screen hooks belong in `features/<name>/hooks/`, not here.
-- Hooks private to one UI component belong next to that component (same-named folder), not here.
+- Feature screen and form hooks belong in `features/<name>/hooks/`, not here.
+- Hooks private to one UI component belong next to that component (same-named folder), not here. See [Component logic and hooks](#component-logic-and-hooks).
 
 ### `lib/`: shared utilities and API client
 
@@ -234,6 +246,6 @@ When refactoring `events`, gallery, or other pre-profile code:
 
 1. Match `features/profile/` structure and patterns.
 2. Convert `function` declarations to arrow `const` bindings.
-3. Keep file and folder names kebab-case (`local/kebab-case-filename`). Prefer flat component files; use a same-named folder only to colocate a private hook/util (`local/no-component-folder`).
+3. Keep file and folder names kebab-case (`local/kebab-case-filename`). Prefer flat component files; extract non-trivial component logic into a hook and colocate it in a same-named folder when private (`local/no-component-folder`).
 4. Replace `StyleSheet` with NativeWind `className` and remove the path from `legacyStyleSheetPaths` in `eslint.config.js`.
 5. Remove the relevant ESLint legacy exemptions in the same PR.

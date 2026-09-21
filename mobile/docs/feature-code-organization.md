@@ -85,9 +85,17 @@ Feature-specific UI pieces used by one or more screens in the same feature. A co
 - Use shared primitives from `@/components/ui` where possible
 - Export as named exports
 
+Do **not** add sophisticated logic to the component body (presentation lifecycle, multi-step local state + effects, platform-specific orchestration). Extract it into a hook:
+
+- **Component-private** → same-named folder next to the component (`events-list-filters-sheet/use-events-list-filters-sheet.ts`). Import relatively (`./use-…`). Do not put these in `features/<name>/hooks/` (that folder is for screen/form hooks; ESLint also blocks components from importing it).
+- **Reusable across features** → app-wide `hooks/` (for example, `useColorScheme`).
+- **Screen/form orchestration** → `features/<name>/hooks/` and pass results down as props.
+
+Keep the component file flat when it is only JSX plus trivial derived UI. See [Code conventions: Component logic and hooks](./code-conventions.md#component-logic-and-hooks).
+
 Place a component in `components/` when it is specific to this feature. Place it in `@/components/` when it is reused across multiple features.
 
-**Example:** `EditProfileModal` receives its data and handlers from the screen hook via props.
+**Example:** `EditProfileModal` receives its data and handlers from the screen hook via props. `EventsListFiltersSheet` keeps date-picker state in a colocated `useEventsListFiltersSheet` hook.
 
 ### `api/`
 
@@ -132,7 +140,7 @@ Feature hooks may depend on app-wide context. Avoid the reverse: context should 
 
 ## Naming
 
-File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). Prefer flat component files; use a same-named folder only when colocating a private hook, util, or subcomponent (not just a test). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names).
+File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). Prefer flat component files; when a component needs a private hook or util, use a same-named folder and colocate it (not just a test). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names) and [Component logic and hooks](./code-conventions.md#component-logic-and-hooks).
 
 | Item           | File / folder              | Export / symbol            |
 | -------------- | -------------------------- | -------------------------- |
