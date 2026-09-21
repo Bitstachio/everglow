@@ -36,6 +36,8 @@ Before writing or changing RNTL tests, read the package guides under `node_modul
 
 Prefer those docs over stale assumptions, and follow deprecation notices.
 
+Prefer `userEvent.paste` over `userEvent.type` when filling inputs for value-based assertions (submit, trim, validation, retry). Keep `press` as-is. `--runInBand` remains the debug path for worker contention.
+
 ## Scripts
 
 ```sh

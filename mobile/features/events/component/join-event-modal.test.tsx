@@ -30,7 +30,7 @@ test("wires link submission, keyboard submission, cancel, and native dismissal",
   const onClose = jest.fn();
   await render(<ModalProbe onSubmit={onSubmit} onClose={onClose} />);
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Invitation URL or token"), "invite-token");
+  await user.paste(screen.getByLabelText("Invitation URL or token"), "invite-token");
   await user.press(screen.getByText("Join with Link"));
   await fireEvent(screen.getByLabelText("Invitation URL or token"), "submitEditing");
   expect(onSubmit).toHaveBeenCalledTimes(2);
