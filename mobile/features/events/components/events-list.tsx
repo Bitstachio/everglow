@@ -13,10 +13,20 @@ type EventsListProps = {
   onEventShare?: (event: Event) => void;
   currentUserId?: string;
   seeAllHref?: Href;
+  /** When true and the list is empty, show filter-miss copy instead of the first-run empty state. */
+  filtersActive?: boolean;
 };
 
 // TODO: Implement onPress for EventCard
-export const EventsList = ({ title, isLoading, events, onEventShare, currentUserId, seeAllHref }: EventsListProps) => {
+export const EventsList = ({
+  title,
+  isLoading,
+  events,
+  onEventShare,
+  currentUserId,
+  seeAllHref,
+  filtersActive = false,
+}: EventsListProps) => {
   const router = useRouter();
 
   return (
@@ -40,7 +50,7 @@ export const EventsList = ({ title, isLoading, events, onEventShare, currentUser
           <ActivityIndicator accessibilityLabel="Loading events" size="large" color="#3B82F6" />
         </View>
       ) : events.length === 0 ? (
-        <NoEventsBanner />
+        <NoEventsBanner variant={filtersActive ? "no-matches" : "empty"} />
       ) : (
         <View className="gap-4">
           {events.map((event) => {

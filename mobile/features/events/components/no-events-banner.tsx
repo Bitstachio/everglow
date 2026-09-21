@@ -2,9 +2,27 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
-export const NoEventsBanner = () => {
+type NoEventsBannerVariant = "empty" | "no-matches";
+
+type NoEventsBannerProps = {
+  variant?: NoEventsBannerVariant;
+};
+
+const COPY: Record<NoEventsBannerVariant, { title: string; subtitle: string }> = {
+  empty: {
+    title: "No events yet",
+    subtitle: "Events you create or join will appear here",
+  },
+  "no-matches": {
+    title: "No matching events",
+    subtitle: "Try adjusting your filters",
+  },
+};
+
+export const NoEventsBanner = ({ variant = "empty" }: NoEventsBannerProps) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+  const { title, subtitle } = COPY[variant];
 
   return (
     <View style={[styles.container, isDark ? styles.containerDark : styles.containerLight]}>
@@ -12,10 +30,8 @@ export const NoEventsBanner = () => {
         <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
       </View>
       <View style={styles.textContainer}>
-        <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>No events yet</Text>
-        <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
-          Events you create or join will appear here
-        </Text>
+        <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>{title}</Text>
+        <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>{subtitle}</Text>
       </View>
     </View>
   );

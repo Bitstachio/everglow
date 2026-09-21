@@ -49,6 +49,7 @@ const EventsListScreen = () => {
             events={events}
             onEventShare={handleEventShare}
             currentUserId={currentUserId}
+            filtersActive={filtersActive}
           />
         </View>
       </ScrollView>

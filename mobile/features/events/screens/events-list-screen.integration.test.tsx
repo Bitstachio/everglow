@@ -125,6 +125,24 @@ test("filters the list by organizer role from the filters sheet", async () => {
   expect(screen.getByText("Filters · On")).toBeOnTheScreen();
 });
 
+test("shows no-matching empty state when filters exclude every event", async () => {
+  mockFindAll.mockResolvedValue({
+    data: { data: [buildEvent({ creatorId: "user-2" })] },
+  });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Filters" }));
+  await user.press(screen.getByRole("button", { name: "Filter by Organizer" }));
+  await user.press(screen.getByRole("button", { name: "Apply filters" }));
+
+  expect(screen.getByText("No matching events")).toBeOnTheScreen();
+  expect(screen.getByText("Try adjusting your filters")).toBeOnTheScreen();
+  expect(screen.queryByText("No events yet")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Weekend meetup")).not.toBeOnTheScreen();
+});
+
 test("keeps events that match any of multiple selected roles", async () => {
   mockFindAll.mockResolvedValue({
     data: {

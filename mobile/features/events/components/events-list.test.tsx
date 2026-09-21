@@ -39,6 +39,13 @@ test.each(["light", "dark"])("shows empty-state guidance in %s mode", async (the
   expect(screen.queryByLabelText("Loading events")).not.toBeOnTheScreen();
 });
 
+test("shows no-matching copy when filters are active and the list is empty", async () => {
+  await render(<EventsList isLoading={false} events={[]} filtersActive />);
+  expect(screen.getByText("No matching events")).toBeOnTheScreen();
+  expect(screen.getByText("Try adjusting your filters")).toBeOnTheScreen();
+  expect(screen.queryByText("No events yet")).not.toBeOnTheScreen();
+});
+
 test("opens the selected event detail route", async () => {
   await render(
     <EventsList
