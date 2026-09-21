@@ -32,7 +32,7 @@ test.each(["https://events.everglow.app/invite/token", "invite-token"])(
   async (invitation) => {
     await render(<JoinFormProbe />);
     const user = userEvent.setup();
-    await user.type(screen.getByPlaceholderText("Invitation"), `  ${invitation}  `);
+    await user.paste(screen.getByPlaceholderText("Invitation"), `  ${invitation}  `);
     await user.press(screen.getByRole("button", { name: "Join" }));
     await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledWith({ invitationUrl: invitation }));
     expect(mockSuccess).toHaveBeenCalledWith({ id: "event-1" });
@@ -50,7 +50,7 @@ test("retains the invitation and displays API errors for retry", async () => {
   mockMutateAsync.mockRejectedValue(new Error("Invitation expired"));
   await render(<JoinFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Invitation"), "invite-token");
+  await user.paste(screen.getByPlaceholderText("Invitation"), "invite-token");
   await user.press(screen.getByRole("button", { name: "Join" }));
   await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Invitation expired"));
   expect(screen.getByPlaceholderText("Invitation")).toHaveDisplayValue("invite-token");
@@ -108,7 +108,7 @@ test("uses fallback errors and unlocks submission for retry", async () => {
   mockMutateAsync.mockRejectedValueOnce({ unexpected: true });
   await render(<JoinFormProbe />);
   const user = userEvent.setup();
-  await user.type(screen.getByPlaceholderText("Invitation"), "token");
+  await user.paste(screen.getByPlaceholderText("Invitation"), "token");
   await user.press(screen.getByRole("button", { name: "Join" }));
   await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to join event"));
   await user.press(screen.getByRole("button", { name: "Join" }));

@@ -27,7 +27,7 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace(isOnboarded ? "/(tabs)/gallery" : "/onboarding");
+      router.replace(isOnboarded ? "/events" : "/onboarding");
     }
   }, [isAuthenticated, isOnboarded]);
 

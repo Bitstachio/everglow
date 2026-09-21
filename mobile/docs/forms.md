@@ -197,7 +197,7 @@ Read the RNTL guidance in [Testing](./testing.md) before writing form tests (sta
 
 Test forms through the rendered UI:
 
-- Type into fields with `userEvent`, press submit, assert the mutation was called with the expected payload.
+- Fill fields with `userEvent.paste` when the test cares about the resulting value (submit, trim, validation, retry); use `userEvent.type` only for per-keystroke behavior. Press submit, assert the mutation was called with the expected payload.
 - Assert validation messages by their visible text after triggering the invalid state, not by inspecting `formState`.
 - Cover at least one valid submission and one validation failure. Add cases for patch/dirty behavior, hydration, and mutation errors when the form has that logic.
 - Test a Zod schema directly only when it has non-obvious `.refine()` logic worth isolating.
@@ -295,4 +295,4 @@ Everything else here is review-only. Use the [code review checklist](./code-revi
 - [ ] Submit button disabled while `isSubmitting`
 - [ ] Component receives `control` and imports no feature `hooks/` or `api/`
 - [ ] String fields use `FormField` rather than an inline `Controller`
-- [ ] Form tests are `.tsx`, drive a probe (or the real form) with `userEvent`, and mock the feature mutation
+- [ ] Form tests are `.tsx`, drive a probe (or the real form) with `userEvent` (`paste` to fill fields; `type` only for per-keystroke behavior), and mock the feature mutation

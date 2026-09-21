@@ -45,7 +45,7 @@ const renderScreen = async () => {
 };
 const openJoin = async () => userEvent.setup().press(screen.getByRole("button", { name: "Join Event" }));
 const enterInvitation = async (value = "invite-token") =>
-  userEvent.setup().type(screen.getByLabelText("Invitation URL or token"), value);
+  userEvent.setup().paste(screen.getByLabelText("Invitation URL or token"), value);
 
 beforeEach(() => {
   mockUser = { id: "user-1" };
@@ -233,7 +233,7 @@ test("retains cached events after a refresh failure", async () => {
   expect(screen.getByTestId("events-refresh")).toHaveProp("refreshing", false);
 });
 
-test("refreshes on returning to the tab", async () => {
+test("refreshes on returning to Events", async () => {
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent()] } });
   const { rerender } = await renderScreen();
   await screen.findByText("Weekend meetup");
@@ -266,4 +266,11 @@ test("does not display the previous user's events after switching accounts", asy
     data: { data: [buildEvent({ id: "other-event", title: "Other account event", creatorId: "user-2" })] },
   });
   expect(await screen.findByText("Other account event")).toBeOnTheScreen();
+});
+
+test("opens Account Settings from the Events header avatar", async () => {
+  await renderScreen();
+  expect(screen.getByRole("header", { name: "Everglow" })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Account Settings" }));
+  expect(mockPush).toHaveBeenCalledWith("/account-settings");
 });

@@ -174,7 +174,7 @@ const EventDetailScreen = () => {
           try {
             await deleteEvent(eventId);
             Alert.alert("Success", "Event deleted successfully");
-            router.replace("/(tabs)/events");
+            router.replace("/events");
           } catch (error: any) {
             console.error("Failed to delete event:", error);
             Alert.alert("Error", error.response?.data?.message || "Failed to delete event");
@@ -194,7 +194,7 @@ const EventDetailScreen = () => {
           try {
             await leaveEvent(eventId);
             Alert.alert("Success", "You have left the event");
-            router.replace("/(tabs)/events");
+            router.replace("/events");
           } catch (error: any) {
             console.error("Failed to leave event:", error);
             Alert.alert("Error", error.response?.data?.message || "Failed to leave event");

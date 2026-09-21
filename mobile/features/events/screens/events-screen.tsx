@@ -4,7 +4,7 @@ import EventsList from "../component/events-list";
 import JoinEventModal from "../component/join-event-modal";
 import EventInvitationModal from "../component/event-invitation-modal";
 import { useEventsScreen } from "../hooks/use-events-screen";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const EventsScreen = () => {
@@ -16,6 +16,8 @@ const EventsScreen = () => {
     isLoading,
     refreshing,
     currentUserId,
+    profileInitial,
+    handleOpenAccountSettings,
     joinModalVisible,
     selectedEvent,
     invitationModalVisible,
@@ -31,14 +33,27 @@ const EventsScreen = () => {
   } = useEventsScreen();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark ? styles.containerDark : styles.containerLight]}>
+      <View style={[styles.brandHeader, { paddingTop: insets.top + 16 }]}>
+        <Text accessibilityRole="header" style={[styles.wordmark, isDark ? styles.textDark : styles.textLight]}>
+          Everglow
+        </Text>
+        <TouchableOpacity
+          testID="events-profile-button"
+          accessibilityRole="button"
+          accessibilityLabel="Account Settings"
+          onPress={handleOpenAccountSettings}
+          style={styles.profileControl}
+        >
+          <Text style={styles.profileInitial}>{profileInitial}</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView
         style={[styles.scrollView, isDark ? styles.containerDark : styles.containerLight]}
-        contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 16) + 24 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl testID="events-refresh" refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.header}>
-          <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>Events</Text>
           <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
             Discover events, join with QR codes or links, and create your own meetups to share with the community.
           </Text>
@@ -98,10 +113,29 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
   },
-  title: {
-    fontSize: 24,
+  brandHeader: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  wordmark: {
+    fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 8,
+  },
+  profileControl: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileInitial: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   subtitle: {
     fontSize: 16,
