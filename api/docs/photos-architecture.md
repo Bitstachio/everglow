@@ -169,6 +169,7 @@ The order is the reverse of the single-photo delete, on purpose. A manual delete
 | Case                                                            | Mitigation                                                                                                                                                                                    |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Client uploads, never confirms                                  | Row stuck PENDING. List filters to READY. Hourly cleanup deletes rows + S3 objects older than 24h (§10).                                                                                      |
+| Client mints slots and never uploads, or the URL expires first  | Nothing can land on the key once the URL has expired. The hourly sweeper releases such slots about 75 minutes after minting (§10); `DELETE /photos/:photoId` releases one at once.            |
 | Client confirms without uploading                               | `HeadObject` returns 404 → confirm reports MISSING and deletes the row; the quota is released immediately.                                                                                    |
 | Wrong contentType / oversize file                               | `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 rejects the upload. `HeadObject` re-verifies at confirm; a mismatch deletes the object and row.                        |
 | Upload completes but confirm response lost                      | Confirm is idempotent — already-READY photoIds return READY again.                                                                                                                            |
@@ -239,6 +240,7 @@ In order of implementation:
 - [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§11).
 - [x] **Signed upload shape** — `Content-Type` and `Content-Length` are signed into the PUT URL, so S3 refuses a body other than the declared one.
 - [x] **Rejected slots released at confirm** — MISSING deletes the row, MISMATCHED deletes the object and the row; quota returns immediately instead of after the sweep. Confirm is scoped to the caller's own rows, and uploaders can delete their own PENDING rows without event access.
+- [x] **Expired empty slots released early** — the sweeper drops PENDING rows whose URL has expired and whose key holds no object on its next run, instead of at the 24h cutoff (#48).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **Integration tests** — HTTP/controller-level, with auth + CASL (see [Testing](./testing.md)).
 - [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
@@ -318,24 +320,26 @@ The same interleaving happens across two API instances behind a load balancer. U
 - Multi-region deployments without a shared database — there is no cross-region serialization.
 - Cheaper reads — usage is still `SUM(sizeBytes)` on every reservation. If that becomes a hotspot, the follow-up is a denormalized `storageUsedBytes` counter next to the limit on the user row, updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
 
-Because `PENDING` rows count toward usage, an upload slot holds quota from the moment it is minted. Three things release it early: a confirm that reports `MISSING` or `MISMATCHED` (the verdict deletes the slot), a presign failure (the batch is rolled back), or the uploader calling `DELETE /photos/:photoId` with the id from `upload-urls`, which is allowed for their own `PENDING` rows even after they lose event access. Only a slot that is neither confirmed nor deleted waits for §10. Reads still filter to `READY`, so a pending slot never shows up in a list.
+Because `PENDING` rows count toward usage, an upload slot holds quota from the moment it is minted. Three things release it early: a confirm that reports `MISSING` or `MISMATCHED` (the verdict deletes the slot), a presign failure (the batch is rolled back), or the uploader calling `DELETE /photos/:photoId` with the id from `upload-urls`, which is allowed for their own `PENDING` rows even after they lose event access. A slot that is neither confirmed nor deleted waits for §10, which has two cutoffs: once the upload URL has expired, a slot with no object at its key is released on the next hourly run, since nothing can ever land on it; a slot whose object did land keeps its quota until the 24h cutoff, because the uploader may still confirm it. Reads still filter to `READY`, so a pending slot never shows up in a list.
+
+Charging at mint rather than at confirm is deliberate. Not counting pending rows would let a client mint slots past the cap and confirm them later; the reservation in the transaction above is what makes the cap hold. The cost is the window between an abandoned slot and its release, which the expired-slot tier keeps to about an hour and a quarter plus the wait for the next run.
 
 ---
 
 ## 10. Stale PENDING cleanup
 
-Upload slots that are never confirmed leave `PENDING` rows (and may leave partial S3 objects). A background job reclaims them:
+Upload slots that are never confirmed leave `PENDING` rows (and may leave S3 objects). A background job reclaims them in two tiers, run back to back:
 
 - **Service:** `PhotoPendingCleanupService.cleanupStalePendingPhotos()`
 - **Schedule:** hourly via `PhotoPendingCleanupScheduler` (`@nestjs/schedule`)
-- **Cutoff:** `PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS` (default **24h**, must exceed the 1h presigned upload TTL)
-- **Batch:** up to `PHOTO_PENDING_CLEANUP_BATCH_SIZE` rows per run (default **100**)
-- **Order:** S3 `DeleteObject` first, then DB row delete (same as manual delete)
+- **Stale tier:** rows older than `PHOTO_PENDING_CLEANUP_MAX_AGE_HOURS` (default **24h**, must exceed the 1h presigned upload TTL) are deleted whatever S3 holds: `DeleteObject` first, then the row (same order as a manual delete)
+- **Expired tier:** rows younger than that but older than `EXPIRED_UPLOAD_SLOT_AGE_SECONDS` (the 1h URL TTL plus a 15 minute grace, so a PUT that started before expiry has finished streaming) get a `HeadObject`. No object means nothing can ever land on the key, and the row is deleted, guarded on `status = PENDING` so a confirm that verified a late object in the meantime keeps its photo. An object means the uploader may still confirm; the row is kept, re-checked on each run, and falls to the stale tier at 24h
+- **Batch:** up to `PHOTO_PENDING_CLEANUP_BATCH_SIZE` rows per tier per run (default **100**)
 - **Disable:** set `PHOTO_PENDING_CLEANUP_ENABLED=false`
 
-Failed per-photo deletes are logged and retried on the next run; successful deletes are not rolled back.
+Failed per-photo deletes are logged and retried on the next run; successful deletes are not rolled back. Each tier logs its own completion event (`photo.pending_cleanup.completed`, `photo.pending_cleanup.expired_completed`) with counts.
 
-This job is what makes the quota in §9 self-correcting. Without it an abandoned upload holds its bytes against the uploader's cap permanently.
+This job is what makes the quota in §9 self-correcting. Without it an abandoned upload holds its bytes against the uploader's cap permanently; without the expired tier it held them for a day while charging for bytes that never existed. The residual window is the grace plus the wait for the next run, and `DELETE /photos/:photoId` closes it for a client that knows it gave up.
 
 ---
 
