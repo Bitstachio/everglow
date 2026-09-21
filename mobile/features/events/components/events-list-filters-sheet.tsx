@@ -18,7 +18,7 @@ type EventsListFiltersSheetProps = {
   visible: boolean;
   draft: EventsListFilters;
   onClose: () => void;
-  onChangeRole: (role: AccessLevel | null) => void;
+  onChangeRole: (role: AccessLevel) => void;
   onChangeDateFrom: (value: string | null) => void;
   onChangeDateTo: (value: string | null) => void;
   onReset: () => void;
@@ -93,14 +93,14 @@ export const EventsListFiltersSheet = ({
             </ThemedText>
             <View className="flex-row gap-2">
               {EVENT_ROLE_OPTIONS.map(({ value, label }) => {
-                const selected = draft.role === value;
+                const selected = draft.roles.includes(value);
                 return (
                   <Pressable
                     key={value}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     accessibilityLabel={`Filter by ${label}`}
-                    onPress={() => onChangeRole(selected ? null : value)}
+                    onPress={() => onChangeRole(value)}
                     className={`flex-1 items-center rounded-xl px-3 py-3 ${selected ? "bg-border" : "bg-surface"}`}
                   >
                     <ThemedText

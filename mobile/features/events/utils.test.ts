@@ -6,6 +6,7 @@ import {
   formatFilterDay,
   hasActiveEventsListFilters,
   sortEvents,
+  toggleEventsListRole,
 } from "./utils";
 
 test("returns all events when filters are empty", () => {
@@ -16,16 +17,28 @@ test("returns all events when filters are empty", () => {
 test("filters organizers by creator id", () => {
   const mine = buildEvent();
   const theirs = buildEvent({ id: "event-2", creatorId: "user-2", title: "Picnic" });
-  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, role: "ORGANIZER" }, "user-1")).toEqual([mine]);
+  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["ORGANIZER"] }, "user-1")).toEqual([
+    mine,
+  ]);
 });
 
 test("filters non-organizer roles to events the user did not create", () => {
   const mine = buildEvent();
   const theirs = buildEvent({ id: "event-2", creatorId: "user-2", title: "Picnic" });
-  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, role: "PARTICIPANT" }, "user-1")).toEqual([
+  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["PARTICIPANT"] }, "user-1")).toEqual([
     theirs,
   ]);
-  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, role: "VIEWER" }, "user-1")).toEqual([theirs]);
+  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["VIEWER"] }, "user-1")).toEqual([
+    theirs,
+  ]);
+});
+
+test("matches events that satisfy any selected role", () => {
+  const mine = buildEvent();
+  const theirs = buildEvent({ id: "event-2", creatorId: "user-2", title: "Picnic" });
+  expect(
+    filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["ORGANIZER", "PARTICIPANT"] }, "user-1"),
+  ).toEqual([mine, theirs]);
 });
 
 test("filters by inclusive date range on the event calendar day", () => {
@@ -33,7 +46,7 @@ test("filters by inclusive date range on the event calendar day", () => {
   const mid = buildEvent({ id: "mid", date: "2026-09-20T15:30:00.000Z" });
   const late = buildEvent({ id: "late", date: "2026-09-30T09:00:00.000Z" });
   expect(
-    filterEvents([early, mid, late], { role: null, dateFrom: "2026-09-15", dateTo: "2026-09-25" }, "user-1"),
+    filterEvents([early, mid, late], { roles: [], dateFrom: "2026-09-15", dateTo: "2026-09-25" }, "user-1"),
   ).toEqual([mid]);
 });
 
@@ -47,9 +60,15 @@ test("sorts events by date ascending and descending without mutating input", () 
   expect(input.map((event) => event.id)).toEqual(["late", "early", "mid"]);
 });
 
+test("toggles roles for multi-select filters", () => {
+  expect(toggleEventsListRole([], "ORGANIZER")).toEqual(["ORGANIZER"]);
+  expect(toggleEventsListRole(["ORGANIZER"], "PARTICIPANT")).toEqual(["ORGANIZER", "PARTICIPANT"]);
+  expect(toggleEventsListRole(["ORGANIZER", "PARTICIPANT"], "ORGANIZER")).toEqual(["PARTICIPANT"]);
+});
+
 test("detects active filters", () => {
   expect(hasActiveEventsListFilters(DEFAULT_EVENTS_LIST_FILTERS)).toBe(false);
-  expect(hasActiveEventsListFilters({ ...DEFAULT_EVENTS_LIST_FILTERS, role: "ORGANIZER" })).toBe(true);
+  expect(hasActiveEventsListFilters({ ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["ORGANIZER"] })).toBe(true);
   expect(hasActiveEventsListFilters({ ...DEFAULT_EVENTS_LIST_FILTERS, dateFrom: "2026-09-01" })).toBe(true);
 });
 

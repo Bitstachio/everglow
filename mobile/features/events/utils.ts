@@ -1,13 +1,13 @@
 import type { AccessLevel, Event } from "./types";
 
 export type EventsListFilters = {
-  role: AccessLevel | null;
+  roles: AccessLevel[];
   dateFrom: string | null;
   dateTo: string | null;
 };
 
 export const DEFAULT_EVENTS_LIST_FILTERS: EventsListFilters = {
-  role: null,
+  roles: [],
   dateFrom: null,
   dateTo: null,
 };
@@ -45,13 +45,20 @@ export const eventMatchesRole = (event: Event, role: AccessLevel, currentUserId:
   return !isOrganizer;
 };
 
+export const toggleEventsListRole = (roles: AccessLevel[], role: AccessLevel): AccessLevel[] =>
+  roles.includes(role) ? roles.filter((current) => current !== role) : [...roles, role];
+
 export type EventsListSortDirection = "asc" | "desc";
 
 export const DEFAULT_EVENTS_LIST_SORT: EventsListSortDirection = "asc";
 
 export const filterEvents = (events: Event[], filters: EventsListFilters, currentUserId?: string): Event[] =>
   events.filter((event) => {
-    if (filters.role && currentUserId && !eventMatchesRole(event, filters.role, currentUserId)) {
+    if (
+      filters.roles.length > 0 &&
+      currentUserId &&
+      !filters.roles.some((role) => eventMatchesRole(event, role, currentUserId))
+    ) {
       return false;
     }
 
@@ -68,4 +75,4 @@ export const sortEvents = (events: Event[], direction: EventsListSortDirection):
   });
 
 export const hasActiveEventsListFilters = (filters: EventsListFilters) =>
-  filters.role !== null || filters.dateFrom !== null || filters.dateTo !== null;
+  filters.roles.length > 0 || filters.dateFrom !== null || filters.dateTo !== null;

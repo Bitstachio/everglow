@@ -125,6 +125,26 @@ test("filters the list by organizer role from the filters sheet", async () => {
   expect(screen.getByText("Filters · On")).toBeOnTheScreen();
 });
 
+test("keeps events that match any of multiple selected roles", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [buildEvent(), buildEvent({ id: "event-2", title: "Picnic", creatorId: "user-2" })],
+    },
+  });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Filters" }));
+  await user.press(screen.getByRole("button", { name: "Filter by Organizer" }));
+  await user.press(screen.getByRole("button", { name: "Filter by Participant" }));
+  await user.press(screen.getByRole("button", { name: "Apply filters" }));
+
+  expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
+  expect(screen.getByText("Picnic")).toBeOnTheScreen();
+  expect(screen.getByText("Filters · On")).toBeOnTheScreen();
+});
+
 test("toggles date sort between ascending and descending", async () => {
   mockFindAll.mockResolvedValue({
     data: {

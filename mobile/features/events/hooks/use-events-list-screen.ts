@@ -11,6 +11,7 @@ import {
   filterEvents,
   hasActiveEventsListFilters,
   sortEvents,
+  toggleEventsListRole,
   type EventsListFilters,
   type EventsListSortDirection,
 } from "../utils";
@@ -58,7 +59,8 @@ export const useEventsListScreen = () => {
       setFiltersVisible(true);
     },
     handleCloseFilters: () => setFiltersVisible(false),
-    handleChangeFilterRole: (role: AccessLevel | null) => setDraftFilters((current) => ({ ...current, role })),
+    handleChangeFilterRole: (role: AccessLevel) =>
+      setDraftFilters((current) => ({ ...current, roles: toggleEventsListRole(current.roles, role) })),
     handleChangeFilterDateFrom: (value: string | null) => setDraftFilters((current) => ({ ...current, dateFrom: value })),
     handleChangeFilterDateTo: (value: string | null) => setDraftFilters((current) => ({ ...current, dateTo: value })),
     handleResetFilters: () => setDraftFilters(DEFAULT_EVENTS_LIST_FILTERS),

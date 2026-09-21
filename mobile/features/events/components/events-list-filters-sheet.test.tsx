@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 import { EventsListFiltersSheet } from "./events-list-filters-sheet";
 import { DEFAULT_EVENTS_LIST_FILTERS } from "../utils";
 
-test("selects a role chip and applies filters", async () => {
+test("toggles multiple role chips and applies filters", async () => {
   const onChangeRole = jest.fn();
   const onApply = jest.fn();
   await render(
@@ -22,8 +22,34 @@ test("selects a role chip and applies filters", async () => {
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "Filter by Organizer" }));
   expect(onChangeRole).toHaveBeenCalledWith("ORGANIZER");
+  await user.press(screen.getByRole("button", { name: "Filter by Participant" }));
+  expect(onChangeRole).toHaveBeenCalledWith("PARTICIPANT");
   await user.press(screen.getByRole("button", { name: "Apply filters" }));
   expect(onApply).toHaveBeenCalled();
+});
+
+test("shows selected multi-select role chips", async () => {
+  await render(
+    <EventsListFiltersSheet
+      visible
+      draft={{ roles: ["ORGANIZER", "VIEWER"], dateFrom: null, dateTo: null }}
+      onClose={jest.fn()}
+      onChangeRole={jest.fn()}
+      onChangeDateFrom={jest.fn()}
+      onChangeDateTo={jest.fn()}
+      onReset={jest.fn()}
+      onApply={jest.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Filter by Organizer" })).toHaveProp("accessibilityState", {
+    selected: true,
+  });
+  expect(screen.getByRole("button", { name: "Filter by Participant" })).toHaveProp("accessibilityState", {
+    selected: false,
+  });
+  expect(screen.getByRole("button", { name: "Filter by Viewer" })).toHaveProp("accessibilityState", {
+    selected: true,
+  });
 });
 
 test("resets and closes from the sheet actions", async () => {
@@ -32,7 +58,7 @@ test("resets and closes from the sheet actions", async () => {
   await render(
     <EventsListFiltersSheet
       visible
-      draft={{ role: "ORGANIZER", dateFrom: "2026-09-01", dateTo: null }}
+      draft={{ roles: ["ORGANIZER"], dateFrom: "2026-09-01", dateTo: null }}
       onClose={onClose}
       onChangeRole={jest.fn()}
       onChangeDateFrom={jest.fn()}
