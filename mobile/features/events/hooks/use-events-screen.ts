@@ -48,6 +48,8 @@ export const useEventsScreen = () => {
     isLoading,
     refreshing: isRefetching,
     currentUserId: user?.id,
+    profileInitial: user?.details?.name?.trim().charAt(0).toUpperCase() || "U",
+    handleOpenAccountSettings: () => router.push("/account-settings"),
     joinModalVisible,
     selectedEvent,
     invitationModalVisible: selectedEvent !== null,

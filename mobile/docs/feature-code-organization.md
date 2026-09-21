@@ -8,7 +8,7 @@ It does not define how to call the API, build forms, or write TypeScript style. 
 
 **Reference implementation:** `features/profile/` is the only feature module that follows this structure today. Copy that layout when building new features.
 
-**Legacy code:** `features/events/` and photos/gallery code (`app/(tabs)/gallery.tsx`, `lib/photo.ts`, related event screens) predate this structure and will be heavily refactored. Do not use them as examples. ESLint exempts legacy paths where old code would fail; see [ESLint enforcement](#eslint-enforcement).
+**Legacy code:** `features/events/` and photos/gallery code (`lib/photo.ts`, related event screens) predate this structure and will be heavily refactored. Do not use them as examples. ESLint exempts legacy paths where old code would fail; see [ESLint enforcement](#eslint-enforcement).
 
 ```
 mobile/
@@ -32,7 +32,7 @@ mobile/
 ```
 features/profile/
 ├── screens/
-│   └── profile-screen.tsx
+│   └── account-settings-screen.tsx
 ├── hooks/
 │   ├── use-profile-screen.ts
 │   ├── use-edit-profile-form.ts
@@ -108,29 +108,15 @@ Pure helper functions with no React or API dependencies. Add only when logic is 
 Expo Router files in `app/` are thin entry points. They should re-export the feature screen, not contain feature logic.
 
 ```ts
-// app/(tabs)/profile.tsx
-export { default } from "@/features/profile/screens/profile-screen";
+// app/account-settings.tsx
+export { default } from "@/features/profile/screens/account-settings-screen";
 ```
 
 Route-specific params, layouts, and navigation guards can live in `app/`, but screens and business logic belong in `features/`.
 
-## Data flow
+## Account Settings stub
 
-```
-app/(tabs)/profile.tsx
-        │
-        ▼
-screens/profile-screen.tsx          ← layout + composition
-        │
-        ├── hooks/use-profile-screen.ts      ← modal state, screen actions
-        │         │
-        │         ├── hooks/use-edit-profile-form.ts  ← RHF + submit
-        │         ├── api/mutations.ts                ← useMutation hooks
-        │         ├── context/auth                    ← app-wide user state
-        │         └── lib/api/errors                  ← user-facing error messages
-        │
-        └── components/edit-profile-modal.tsx   ← presentational UI (`control`)
-```
+`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen is currently an empty stub; existing profile editing hooks, API helpers, and modal components are retained for the full settings follow-up and are not mounted by this route.
 
 ## Shared folders outside `features/`
 

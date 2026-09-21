@@ -29,7 +29,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const GALLERY_ROUTE = "/(tabs)/gallery" as const;
+const EVENTS_ROUTE = "/events" as const;
 const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
 
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       router.replace(LOGIN_ROUTE);
       return;
     }
-    router.replace(profile.isOnboarded ? GALLERY_ROUTE : ONBOARDING_ROUTE);
+    router.replace(profile.isOnboarded ? EVENTS_ROUTE : ONBOARDING_ROUTE);
   }, []);
 
   const refreshProfile = useCallback(async (): Promise<User | null> => {
@@ -128,7 +128,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
       const profile = await authService.completeOnboarding(data);
       setUser(profile);
-      router.replace(GALLERY_ROUTE);
+      router.replace(EVENTS_ROUTE);
     } catch (err: any) {
       const message = err?.message || "Could not complete onboarding.";
       setError(message);
