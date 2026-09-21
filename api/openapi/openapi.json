@@ -1520,6 +1520,7 @@
           "id",
           "isOnboarded",
           "details",
+          "termsAcceptedAt",
           "createdAt",
           "updatedAt"
         ]
