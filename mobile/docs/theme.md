@@ -15,6 +15,22 @@ Use a token, not a raw palette class (`bg-white`, `text-gray-500`) and not `bg-w
 
 Spell class names out in full. Tailwind’s scanner cannot see interpolated strings, so `` `text-${color}` `` will not generate a utility. `components/ui/themed-text.tsx` uses a literal lookup table for that reason.
 
+## No `StyleSheet`
+
+Do not import or call React Native `StyleSheet` (`StyleSheet.create`, `StyleSheet.absoluteFill`, …). Layout, color, spacing, and typography belong in `className` with tokens from `global.css`.
+
+ESLint enforces this via `local/no-stylesheet`. A short allowlist of pre-NativeWind files is exempt in `eslint.config.js` until those screens are migrated — do not add new paths to that list.
+
+Animated values (opacity, `translateY`, …) may still use a `style` prop when NativeWind cannot drive the animation. Keep that `style` limited to the animated properties and put everything else on `className`.
+
+```tsx
+// Preferred
+<View className="absolute inset-0 bg-scrim" />;
+
+// Avoid
+const styles = StyleSheet.create({ scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "#0000008c" } });
+```
+
 ## File map
 
 | Piece            | Location             | Role                                                                                  |

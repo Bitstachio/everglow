@@ -22,7 +22,7 @@ type EventInvitationModalProps = {
   event: Event | null;
 };
 
-const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalProps) => {
+export const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalProps) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -250,5 +250,3 @@ const styles = StyleSheet.create({
     height: 12,
   },
 });
-
-export default EventInvitationModal;

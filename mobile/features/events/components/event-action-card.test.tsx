@@ -1,6 +1,6 @@
 import { mockColorScheme } from "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
-import EventActionCard from "./event-action-card";
+import { EventActionCard } from "./event-action-card";
 
 test.each(["light", "dark"])("renders and activates actions in %s mode", async (theme) => {
   mockColorScheme.mockReturnValue(theme);

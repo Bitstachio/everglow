@@ -2,7 +2,7 @@ import { mockCameraPermission } from "../testing/native-mocks";
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { useForm } from "react-hook-form";
 import type { ComponentProps } from "react";
-import JoinEventModal from "./join-event-modal";
+import { JoinEventModal } from "./join-event-modal";
 
 const ModalProbe = (props: Partial<Omit<ComponentProps<typeof JoinEventModal>, "control">>) => {
   const { control } = useForm({ defaultValues: { invitationUrl: "" } });

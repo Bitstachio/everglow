@@ -10,7 +10,7 @@ type EventCardProps = {
   onShare?: () => void;
 };
 
-const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
+export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return {
@@ -76,5 +76,3 @@ const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
     </Pressable>
   );
 };
-
-export default EventCard;

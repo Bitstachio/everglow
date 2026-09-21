@@ -2,7 +2,7 @@ import { mockColorScheme } from "../testing/native-mocks";
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert, Clipboard, Share } from "react-native";
 import { buildEvent } from "../testing/fixtures";
-import EventInvitationModal from "./event-invitation-modal";
+import { EventInvitationModal } from "./event-invitation-modal";
 
 beforeEach(() => {
   mockColorScheme.mockReturnValue("light");

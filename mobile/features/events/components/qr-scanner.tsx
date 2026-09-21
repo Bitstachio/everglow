@@ -10,7 +10,7 @@ type QRScannerProps = {
   onScan: (data: string) => void;
 };
 
-const QRScanner = ({ visible, onClose, onScan }: QRScannerProps) => {
+export const QRScanner = ({ visible, onClose, onScan }: QRScannerProps) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const colorScheme = useColorScheme();
@@ -262,5 +262,3 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
-
-export default QRScanner;

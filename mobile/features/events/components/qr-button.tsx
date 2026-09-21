@@ -6,7 +6,7 @@ type QRButtonProps = {
   onPress: () => void;
 };
 
-const QRButton = ({ onPress }: QRButtonProps) => {
+export const QRButton = ({ onPress }: QRButtonProps) => {
   return (
     <Pressable
       className={`
@@ -27,5 +27,3 @@ const QRButton = ({ onPress }: QRButtonProps) => {
     </Pressable>
   );
 };
-
-export default QRButton;

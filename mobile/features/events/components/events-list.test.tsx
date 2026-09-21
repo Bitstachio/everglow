@@ -1,10 +1,23 @@
 import { mockColorScheme } from "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { buildEvent } from "../testing/fixtures";
-import EventsList from "./events-list";
+import { EventsList } from "./events-list";
 
 const mockPush = jest.fn();
-jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock("expo-router", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  return {
+    useRouter: () => ({ push: mockPush }),
+    Link: ({
+      href,
+      children,
+    }: {
+      href: string;
+      children: React.ReactElement<{ onPress?: () => void }>;
+      asChild?: boolean;
+    }) => React.cloneElement(children, { onPress: () => mockPush(href) }),
+  };
+});
 beforeEach(() => {
   mockPush.mockReset();
   mockColorScheme.mockReturnValue("light");
@@ -26,6 +39,13 @@ test.each(["light", "dark"])("shows empty-state guidance in %s mode", async (the
   expect(screen.queryByLabelText("Loading events")).not.toBeOnTheScreen();
 });
 
+test("shows no-matching copy when filters are active and the list is empty", async () => {
+  await render(<EventsList isLoading={false} events={[]} filtersActive />);
+  expect(screen.getByText("No matching events")).toBeOnTheScreen();
+  expect(screen.getByText("Try adjusting your filters")).toBeOnTheScreen();
+  expect(screen.queryByText("No events yet")).not.toBeOnTheScreen();
+});
+
 test("opens the selected event detail route", async () => {
   await render(
     <EventsList
@@ -36,6 +56,24 @@ test("opens the selected event detail route", async () => {
   );
   await userEvent.setup().press(screen.getByRole("button", { name: "Open Picnic" }));
   expect(mockPush).toHaveBeenCalledWith("/events/event-2");
+});
+
+test("opens the events list route from See all", async () => {
+  await render(<EventsList title="My Events" isLoading={false} events={[]} seeAllHref="/events/list" />);
+  await userEvent.setup().press(screen.getByRole("link", { name: "See all events" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/list");
+});
+
+test("hides See all when no href is provided", async () => {
+  await render(<EventsList title="My Events" isLoading={false} events={[]} />);
+  expect(screen.queryByRole("link", { name: "See all events" })).not.toBeOnTheScreen();
+});
+
+test("omits the section header when title and See all are absent", async () => {
+  await render(<EventsList isLoading={false} events={[buildEvent()]} />);
+  expect(screen.queryByText("My Events")).not.toBeOnTheScreen();
+  expect(screen.queryByRole("link", { name: "See all events" })).not.toBeOnTheScreen();
+  expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
 });
 
 test("only the creator can share and sharing does not navigate", async () => {

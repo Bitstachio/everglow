@@ -1,7 +1,7 @@
 import "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { buildEvent } from "../testing/fixtures";
-import EventCard from "./event-card";
+import { EventCard } from "./event-card";
 
 test("renders event details and date/time in the device timezone", async () => {
   const event = buildEvent({ date: new Date(2026, 8, 20, 15, 30).toISOString() });

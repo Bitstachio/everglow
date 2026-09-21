@@ -85,9 +85,17 @@ Feature-specific UI pieces used by one or more screens in the same feature. A co
 - Use shared primitives from `@/components/ui` where possible
 - Export as named exports
 
+Do **not** add sophisticated logic to the component body (presentation lifecycle, multi-step local state + effects, platform-specific orchestration). Extract it into a hook:
+
+- **Component-private** → same-named folder next to the component (`events-list-filters-sheet/use-events-list-filters-sheet.ts`). Import relatively (`./use-…`). Do not put these in `features/<name>/hooks/` (that folder is for screen/form hooks; ESLint also blocks components from importing it).
+- **Reusable across features** → app-wide `hooks/` (for example, `useColorScheme`).
+- **Screen/form orchestration** → `features/<name>/hooks/` and pass results down as props.
+
+Keep the component file flat when it is only JSX plus trivial derived UI. See [Code conventions: Component logic and hooks](./code-conventions.md#component-logic-and-hooks).
+
 Place a component in `components/` when it is specific to this feature. Place it in `@/components/` when it is reused across multiple features.
 
-**Example:** `EditProfileModal` receives its data and handlers from the screen hook via props.
+**Example:** `EditProfileModal` receives its data and handlers from the screen hook via props. `EventsListFiltersSheet` keeps date-picker state in a colocated `useEventsListFiltersSheet` hook.
 
 ### `api/`
 
@@ -120,26 +128,27 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 ## Shared folders outside `features/`
 
-| Location         | Role                                                       |
-| ---------------- | ---------------------------------------------------------- |
-| `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. |
-| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`)        |
-| `context/`       | Global state (for example, `AuthProvider` / `useAuth`)     |
-| `lib/`           | Shared utilities and the API client                        |
-| `providers/`     | App-level providers wired in `app/_layout.tsx`             |
+| Location         | Role                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. Private component hooks colocate in a same-named folder when needed. |
+| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`). Not for hooks owned by a single UI component.                              |
+| `context/`       | Global state (for example, `AuthProvider` / `useAuth`)                                                                          |
+| `lib/`           | Shared utilities and the API client                                                                                             |
+| `providers/`     | App-level providers wired in `app/_layout.tsx`                                                                                  |
 
 Feature hooks may depend on app-wide context. Avoid the reverse: context should not import from `features/`.
 
 ## Naming
 
-File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names).
+File and folder names are kebab-case. Export identifiers keep React conventions (PascalCase components/screens, camelCase hooks). Prefer flat component files; when a component needs a private hook or util, use a same-named folder and colocate it (not just a test). See [Code conventions: File and folder names](./code-conventions.md#file-and-folder-names) and [Component logic and hooks](./code-conventions.md#component-logic-and-hooks).
 
-| Item           | File / folder              | Export / symbol            |
-| -------------- | -------------------------- | -------------------------- |
-| Feature folder | `profile`, `event-invites` | —                          |
-| Screen file    | `profile-screen.tsx`       | `ProfileScreen` (default)  |
-| Screen hook    | `use-profile-screen.ts`    | `useProfileScreen` (named) |
-| Component file | `edit-profile-modal.tsx`   | `EditProfileModal` (named) |
+| Item           | File / folder                                           | Export / symbol            |
+| -------------- | ------------------------------------------------------- | -------------------------- |
+| Feature folder | `profile`, `event-invites`                              | —                          |
+| Screen file    | `profile-screen.tsx`                                    | `ProfileScreen` (default)  |
+| Screen hook    | `use-profile-screen.ts`                                 | `useProfileScreen` (named) |
+| Component file | `edit-profile-modal.tsx`                                | `EditProfileModal` (named) |
+| Colocated UI   | `bottom-sheet/bottom-sheet.tsx` + `use-bottom-sheet.ts` | `BottomSheet` (named)      |
 
 ## Imports
 
@@ -164,12 +173,12 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 
 ### Codebase rules (all linted source)
 
-| Rule                        | Scope                                                                                        | What it enforces                           |
-| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Arrow functions             | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions  |
-| `no-var` / `prefer-const`   | Same                                                                                         | `let`/`const` only; prefer `const`         |
-| `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                       |
-| `local/no-component-folder` | Same (skips `app/`)                                                                          | No same-named or `index` component folders |
+| Rule                        | Scope                                                                                        | What it enforces                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Arrow functions             | `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, `constants/` | No `function` declarations or expressions                                      |
+| `no-var` / `prefer-const`   | Same                                                                                         | `let`/`const` only; prefer `const`                                             |
+| `local/kebab-case-filename` | Same                                                                                         | Kebab-case filenames                                                           |
+| `local/no-component-folder` | Same (skips `app/`)                                                                          | No `index` entries; no same-named folders that only wrap a component (+ tests) |
 
 ### Feature rules (additional)
 
@@ -185,11 +194,10 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 
 Layer rules target the profile pattern (`components/`, screen hooks, thin routes). Legacy exemptions exist only so old code keeps passing lint until refactor:
 
-| Legacy path                    | ESLint exemption                                                    |
-| ------------------------------ | ------------------------------------------------------------------- |
-| `features/events/**` screens   | Thin-screen rules (listed in `legacyFeatureNames`)                  |
-| `app/events/**`                | Thin-route rules                                                    |
-| `features/events/component/**` | Not covered by `components/` rules (wrong folder name; do not copy) |
+| Legacy path                  | ESLint exemption                                   |
+| ---------------------------- | -------------------------------------------------- |
+| `features/events/**` screens | Thin-screen rules (listed in `legacyFeatureNames`) |
+| `app/events/**`              | Thin-route rules                                   |
 
 Photos/gallery has no `features/` module yet and is not part of this structure.
 

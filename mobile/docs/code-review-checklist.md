@@ -22,6 +22,7 @@ ESLint enforces these globally. Still verify in review:
 - [ ] `const` by default; `let` only when reassigned; no `var`
 - [ ] Cross-folder imports use `@/` alias
 - [ ] UI errors use `getErrorMessage`, not raw Axios shapes
+- [ ] No new `StyleSheet` usage — NativeWind `className` + theme tokens ([Theme](./theme.md))
 
 ## Feature structure
 
@@ -36,7 +37,9 @@ ESLint enforces these globally. Still verify in review:
 ## Naming
 
 - [ ] Files and folders use kebab-case (`local/kebab-case-filename`)
-- [ ] Component/hook/screen files are flat — no `Name/Name.tsx` or `name/index.tsx` wrappers (`local/no-component-folder`)
+- [ ] Component/hook/screen files stay flat by default; same-named folders only when colocating a private hook/util (not just a test). No `index.tsx` component entries (`local/no-component-folder`)
+- [ ] Non-trivial component logic is extracted to a hook — not left in the component body ([Component logic and hooks](./code-conventions.md#component-logic-and-hooks))
+- [ ] Component-private hooks colocate in a same-named folder next to the component; general-purpose shared hooks go in `hooks/`; screen/form hooks stay in `features/<name>/hooks/`
 - [ ] Screen hook symbol is `use<ScreenName>` in a kebab-case file (`use-profile-screen.ts` → `useProfileScreen`)
 - [ ] Export identifiers match their role (PascalCase components/screens, camelCase hooks); file names are kebab-case
 - [ ] API key factories and mutation hooks follow [API naming](./api.md#naming)
@@ -72,11 +75,12 @@ ESLint blocks direct `api/`, SDK, React Query, and `Alert` imports. Still check:
 - [ ] User confirmations (`Alert.alert`) and mutation `onError` / `onSuccess` UI feedback live here
 - [ ] Imports types from `../types`, not from `@/lib/api/generated`
 
-## Components (`features/**/components/`)
+## Components (`features/**/components/` and `@/components/ui/`)
 
-ESLint blocks `api/`, hooks, React Query, and SDK imports. Still check:
+ESLint blocks feature `api/`, feature `hooks/`, React Query, and SDK imports from feature components. Still check:
 
-- [ ] Component is presentational: data and callbacks come from props
+- [ ] Component is presentational: data and callbacks come from props (or a colocated private hook for UI-only state)
+- [ ] No sophisticated logic left in the component body — extract to a hook; colocate if component-private, or place in `hooks/` / feature `hooks/` when shared appropriately
 - [ ] No `useEffect` that fetches or mutates data
 - [ ] No calls into `@/lib/event`, `@/lib/photo`, or other service modules (wrap in `api/` first)
 - [ ] Composes `@/components/ui` primitives instead of reimplementing buttons, inputs, etc.
@@ -135,7 +139,7 @@ See [API](./api.md). Spot-check:
 
 - [ ] No hand-edits under `lib/api/generated/` (regenerate with `npm run openapi:generate`)
 - [ ] New endpoints are consumed through feature `api/` wrappers, not ad hoc Axios calls
-- [ ] Global hooks stay in `hooks/`; feature hooks stay in `features/<name>/hooks/`
+- [ ] Global hooks stay in `hooks/`; feature screen/form hooks stay in `features/<name>/hooks/`; component-private hooks colocate with their component in a same-named folder
 
 ## Legacy code (events, photos/gallery)
 
@@ -143,6 +147,7 @@ Legacy areas are exempt from some ESLint rules so existing code keeps passing. T
 
 - [ ] New features match `features/profile/`, not `features/events/` or gallery/`lib/photo` patterns
 - [ ] New code does not introduce `component/` folders, screen logic, or direct `lib/event` / `lib/photo` calls from UI layers
+- [ ] New code does not add paths to `legacyStyleSheetPaths`; migrate StyleSheet call sites toward NativeWind instead
 - [ ] Legacy refactors move toward the profile pattern and remove ESLint exemptions in the same PR
 
 ## Quick review flow
