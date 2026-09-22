@@ -9,7 +9,7 @@ import { View } from "react-native";
 import { QRButton } from "./qr-button";
 import { QRScanner } from "./qr-scanner";
 
-type JoinEventModalProps = {
+type JoinEventSheetProps = {
   visible: boolean;
   onClose: () => void;
   control: Control<JoinEventValues>;
@@ -18,12 +18,12 @@ type JoinEventModalProps = {
   onScan: (link: string) => void;
 };
 
-export const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubmit, onScan }: JoinEventModalProps) => {
+export const JoinEventSheet = ({ visible, onClose, control, isSubmitting, onSubmit, onScan }: JoinEventSheetProps) => {
   const [scannerVisible, setScannerVisible] = useState(false);
 
-  // Reset scanner state when modal closes
+  // Reset scanner state when the sheet closes
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- clear transient scanner when parent hides modal */
+    /* eslint-disable react-hooks/set-state-in-effect -- clear transient scanner when parent hides sheet */
     if (!visible) {
       setScannerVisible(false);
     }
@@ -43,14 +43,14 @@ export const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubm
     if (!isSubmitting) setScannerVisible(true);
   };
 
-  // If scanner is visible, don't show the join modal
+  // If scanner is visible, don't show the join sheet
   if (scannerVisible) {
     return <QRScanner visible={scannerVisible} onClose={() => setScannerVisible(false)} onScan={handleScanSuccess} />;
   }
 
   return (
     <BottomSheet
-      testID="join-event-modal"
+      testID="join-event-sheet"
       visible={visible}
       onClose={handleClose}
       title="Join an Event"
@@ -76,8 +76,6 @@ export const JoinEventModal = ({ visible, onClose, control, isSubmitting, onSubm
         />
         <Button title="Join with Link" onPress={onSubmit} isLoading={isSubmitting} disabled={isSubmitting} />
       </View>
-
-      <Button title="Cancel" onPress={handleClose} variant="outline" disabled={isSubmitting} />
     </BottomSheet>
   );
 };
