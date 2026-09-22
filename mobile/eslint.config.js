@@ -28,8 +28,6 @@ const legacyStyleSheetPaths = [
   "app/signup.tsx",
   "components/parallax-scroll-view.tsx",
   "components/themed-text.tsx",
-  "components/ui/collapsible.tsx",
-  "components/ui/input.tsx",
   "context/auth-context.tsx",
   "features/events/components/create-event-form.tsx",
   "features/events/components/edit-event-modal.tsx",

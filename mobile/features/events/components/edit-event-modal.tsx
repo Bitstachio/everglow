@@ -1,7 +1,6 @@
-import AppTextInput from "@/components/ui/app-text-input";
-import CancelButton from "@/components/ui/cancel-button";
-import PrimaryButton from "@/components/ui/primary-button";
+import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/ui/heading";
+import { Input } from "@/components/ui/input/input";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -101,10 +100,8 @@ export const EditEventModal = ({ visible, event, onClose, onSave }: EditEventMod
             <View style={styles.form}>
               {/* Title Input */}
               <View style={styles.inputContainer}>
-                <ThemedText textColor="muted" className="text-sm font-semibold mb-2">
-                  Event Title
-                </ThemedText>
-                <AppTextInput
+                <Input
+                  label="Event Title"
                   value={title}
                   placeholder="Enter event title"
                   onChangeText={(text) => {
@@ -114,12 +111,9 @@ export const EditEventModal = ({ visible, event, onClose, onSave }: EditEventMod
                 />
               </View>
 
-              {/* Description Input */}
               <View style={styles.inputContainer}>
-                <ThemedText textColor="muted" className="text-sm font-semibold mb-2">
-                  Description
-                </ThemedText>
-                <AppTextInput
+                <Input
+                  label="Description"
                   value={description}
                   placeholder="Enter event description"
                   onChangeText={(text) => {
@@ -131,7 +125,7 @@ export const EditEventModal = ({ visible, event, onClose, onSave }: EditEventMod
 
               {/* Date Picker */}
               <View style={styles.inputContainer}>
-                <ThemedText textColor="muted" className="text-sm font-semibold mb-2">
+                <ThemedText tone="muted" className="text-sm font-semibold mb-2">
                   Date
                 </ThemedText>
                 <TouchableOpacity
@@ -146,7 +140,7 @@ export const EditEventModal = ({ visible, event, onClose, onSave }: EditEventMod
 
               {/* Time Picker */}
               <View style={styles.inputContainer}>
-                <ThemedText textColor="muted" className="text-sm font-semibold mb-2">
+                <ThemedText tone="muted" className="text-sm font-semibold mb-2">
                   Time
                 </ThemedText>
                 <TouchableOpacity
@@ -162,19 +156,16 @@ export const EditEventModal = ({ visible, event, onClose, onSave }: EditEventMod
               {/* Error Message */}
               {error && (
                 <View style={styles.errorContainer}>
-                  <ThemedText className="text-red-500 text-sm">{error}</ThemedText>
+                  <ThemedText tone="danger" className="text-sm">
+                    {error}
+                  </ThemedText>
                 </View>
               )}
             </View>
 
-            {/* Action Buttons */}
             <View style={styles.buttonContainer}>
-              <PrimaryButton
-                text={isLoading ? "Saving..." : "Save Changes"}
-                onPress={handleSave}
-                disabled={isLoading}
-              />
-              <CancelButton onPress={onClose} />
+              <Button title="Save Changes" onPress={handleSave} isLoading={isLoading} disabled={isLoading} />
+              <Button title="Cancel" onPress={onClose} variant="outline" disabled={isLoading} />
             </View>
           </ScrollView>
 

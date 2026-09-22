@@ -1,11 +1,25 @@
 import { ThemedText } from "./themed-text";
+import type { ReactNode } from "react";
 
 type HeadingProps = {
-  children: string;
+  children: ReactNode;
+  className?: string;
 };
 
-export const H1 = ({ children }: HeadingProps) => <ThemedText className="text-2xl font-bold">{children}</ThemedText>;
+export const H1 = ({ children, className = "" }: HeadingProps) => (
+  <ThemedText accessibilityRole="header" tone="strong" className={`text-2xl font-bold ${className}`.trim()}>
+    {children}
+  </ThemedText>
+);
 
-export const H2 = ({ children }: HeadingProps) => <ThemedText className="text-xl font-bold">{children}</ThemedText>;
+export const H2 = ({ children, className = "" }: HeadingProps) => (
+  <ThemedText accessibilityRole="header" tone="strong" className={`text-xl font-bold ${className}`.trim()}>
+    {children}
+  </ThemedText>
+);
 
-export const H3 = ({ children }: HeadingProps) => <ThemedText className="text-lg font-bold">{children}</ThemedText>;
+export const H3 = ({ children, className = "" }: HeadingProps) => (
+  <ThemedText accessibilityRole="header" tone="strong" className={`text-lg font-bold ${className}`.trim()}>
+    {children}
+  </ThemedText>
+);

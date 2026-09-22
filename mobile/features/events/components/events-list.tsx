@@ -37,7 +37,7 @@ export const EventsList = ({
           {seeAllHref ? (
             <Link href={seeAllHref} asChild>
               <Pressable accessibilityRole="link" accessibilityLabel="See all events">
-                <ThemedText className="text-sm font-medium" textColor="muted">
+                <ThemedText className="text-sm font-medium" tone="muted">
                   See all →
                 </ThemedText>
               </Pressable>
