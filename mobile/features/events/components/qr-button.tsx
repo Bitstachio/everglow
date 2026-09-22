@@ -1,4 +1,7 @@
 import { ThemedText } from "@/components/ui/themed-text";
+import { IconSize } from "@/constants/icons";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
 
@@ -7,23 +10,21 @@ type QRButtonProps = {
 };
 
 export const QRButton = ({ onPress }: QRButtonProps) => {
+  const colorScheme = useColorScheme();
+
   return (
     <Pressable
-      className={`
-        flex-row items-center gap-3 p-4 rounded-2xl
-        border border-border bg-surface
-        active:opacity-85
-      `}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel="Scan QR Code"
+      className="min-h-14 flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4 active:opacity-80"
     >
-      <View className="text-foreground">
-        <MaterialCommunityIcons name="camera" size={22} color="currentColor" />
-      </View>
+      <MaterialCommunityIcons name="camera" size={IconSize.md} color={colorTokens[colorScheme].foreground} />
       <View className="flex-1 gap-1">
-        <ThemedText className="font-semibold">Scan QR Code</ThemedText>
-        <ThemedText tone="muted">Opens your camera to scan an event invite</ThemedText>
+        <ThemedText className="text-base font-semibold">Scan QR Code</ThemedText>
+        <ThemedText className="text-sm" tone="muted">
+          Opens your camera to scan an event invite
+        </ThemedText>
       </View>
     </Pressable>
   );

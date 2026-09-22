@@ -1,6 +1,8 @@
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
+import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ThemedText } from "@/components/ui/themed-text";
+import { IconSize } from "@/constants/icons";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -78,34 +80,30 @@ export const EventsListFiltersSheet = ({
           Date Range
         </ThemedText>
         <View className="flex-row gap-3">
-          <View className="flex-1 gap-1">
-            <ThemedText className="text-xs" tone="subtle">
-              From
-            </ThemedText>
+          <View className="flex-1 gap-2">
+            <ThemedText className="text-sm font-medium">From</ThemedText>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Filter from date"
               onPress={() => toggleDateField("from")}
-              className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
+              className="h-12 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4"
             >
-              <Ionicons name="calendar-outline" size={16} color={iconColor} />
-              <ThemedText className="text-sm" tone={draft.dateFrom ? "foreground" : "subtle"}>
+              <Ionicons name="calendar-outline" size={IconSize.xs} color={iconColor} />
+              <ThemedText className="text-base" tone={draft.dateFrom ? "foreground" : "subtle"}>
                 {displayFilterDay(draft.dateFrom)}
               </ThemedText>
             </Pressable>
           </View>
-          <View className="flex-1 gap-1">
-            <ThemedText className="text-xs" tone="subtle">
-              To
-            </ThemedText>
+          <View className="flex-1 gap-2">
+            <ThemedText className="text-sm font-medium">To</ThemedText>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Filter to date"
               onPress={() => toggleDateField("to")}
-              className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
+              className="h-12 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4"
             >
-              <Ionicons name="calendar-outline" size={16} color={iconColor} />
-              <ThemedText className="text-sm" tone={draft.dateTo ? "foreground" : "subtle"}>
+              <Ionicons name="calendar-outline" size={IconSize.xs} color={iconColor} />
+              <ThemedText className="text-base" tone={draft.dateTo ? "foreground" : "subtle"}>
                 {displayFilterDay(draft.dateTo)}
               </ThemedText>
             </Pressable>
@@ -124,25 +122,22 @@ export const EventsListFiltersSheet = ({
         ) : null}
       </View>
 
-      <View className="flex-row gap-3 pt-1">
-        <Pressable
-          accessibilityRole="button"
+      <View className="flex-row gap-3">
+        <Button
+          title="Reset"
           accessibilityLabel="Reset filters"
+          variant="secondary"
           onPress={onReset}
-          className="flex-1 items-center rounded-xl bg-surface px-4 py-3.5"
-        >
-          <ThemedText className="text-base font-medium" tone="muted">
-            Reset
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
+          fullWidth={false}
+          className="flex-1"
+        />
+        <Button
+          title="Apply Filters"
           accessibilityLabel="Apply filters"
           onPress={onApply}
-          className="flex-[1.4] items-center rounded-xl bg-border px-4 py-3.5"
-        >
-          <ThemedText className="text-base font-semibold">Apply Filters</ThemedText>
-        </Pressable>
+          fullWidth={false}
+          className="flex-1"
+        />
       </View>
     </BottomSheet>
   );

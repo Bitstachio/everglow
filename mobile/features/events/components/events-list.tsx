@@ -37,7 +37,12 @@ export const EventsList = ({
           {title ? <H2>{title}</H2> : <View />}
           {seeAllHref ? (
             <Link href={seeAllHref} asChild>
-              <Pressable accessibilityRole="link" accessibilityLabel="See all events">
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="See all events"
+                hitSlop={8}
+                className="min-h-11 justify-center"
+              >
                 <ThemedText className="text-sm font-medium" tone="muted">
                   See all →
                 </ThemedText>
@@ -53,7 +58,7 @@ export const EventsList = ({
       ) : events.length === 0 ? (
         <NoEventsBanner variant={filtersActive ? "no-matches" : "empty"} />
       ) : (
-        <View className="gap-4">
+        <View className="gap-3">
           {events.map((event) => {
             const isCreator = currentUserId != null && event.creatorId === currentUserId;
             return (

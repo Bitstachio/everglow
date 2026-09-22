@@ -1,7 +1,11 @@
 import { H3 } from "@/components/ui/heading";
+import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
+import { IconSize } from "@/constants/icons";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, TouchableOpacity, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Event } from "../types";
 
 type EventCardProps = {
@@ -11,6 +15,10 @@ type EventCardProps = {
 };
 
 export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
+  const colorScheme = useColorScheme();
+  const muted = colorTokens[colorScheme].muted;
+  const accent = colorTokens[colorScheme].accent;
+
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return {
@@ -29,49 +37,44 @@ export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
 
   const { date: formattedDate, time } = formatDateTime(event.date);
 
-  const handleSharePress = (e: any) => {
-    e.stopPropagation();
-    onShare?.();
-  };
-
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open ${event.title}`}
-      key={`joined-${event.id}`}
       onPress={onPress}
-      className="border border-ui-border dark:border-dark-border rounded-3xl p-5 bg-white dark:bg-gray-800 shadow-sm active:opacity-80"
+      className="rounded-2xl border border-border bg-background p-4 active:opacity-80"
     >
       <View className="gap-3">
-        {/* Header with Title and Share Button */}
-        <View className="flex-row justify-between items-start">
-          <View className="flex-1 pr-2">
+        <View className="flex-row items-start justify-between gap-3">
+          <View className="flex-1">
             <H3>{event.title}</H3>
           </View>
-          {onShare && (
-            <TouchableOpacity
-              accessibilityRole="button"
+          {onShare ? (
+            <IconButton
               accessibilityLabel={`Share ${event.title}`}
-              onPress={handleSharePress}
-              className="w-8 h-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30"
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onShare();
+              }}
+              className="bg-surface"
             >
-              <Ionicons name="share-outline" size={18} color="#6366F1" />
-            </TouchableOpacity>
-          )}
+              <Ionicons name="share-outline" size={IconSize.sm} color={accent} />
+            </IconButton>
+          ) : null}
         </View>
 
-        {/* Date & Time */}
         <View className="flex-row items-center gap-2">
-          <Ionicons name="calendar-outline" size={16} color="#6B7280" />
-          <ThemedText className="text-sm text-gray-600 dark:text-gray-400">
+          <Ionicons name="calendar-outline" size={IconSize.xs} color={muted} />
+          <ThemedText className="text-sm" tone="muted">
             {formattedDate} • {time}
           </ThemedText>
         </View>
 
-        {/* Description Preview */}
-        {event.description && (
-          <ThemedText className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{event.description}</ThemedText>
-        )}
+        {event.description ? (
+          <ThemedText className="text-sm line-clamp-2" tone="muted">
+            {event.description}
+          </ThemedText>
+        ) : null}
       </View>
     </Pressable>
   );

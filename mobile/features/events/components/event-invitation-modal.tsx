@@ -1,18 +1,12 @@
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { H3 } from "@/components/ui/heading";
+import { ThemedText } from "@/components/ui/themed-text";
+import { IconSize } from "@/constants/icons";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  Alert,
-  Clipboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, Clipboard, Pressable, Share, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { Event } from "../types";
 
@@ -24,7 +18,6 @@ type EventInvitationModalProps = {
 
 export const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalProps) => {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
 
   if (!event) return null;
 
@@ -46,207 +39,56 @@ export const EventInvitationModal = ({ visible, onClose, event }: EventInvitatio
   };
 
   return (
-    <Modal animationType="slide" visible={visible} transparent>
-      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
-          <View style={styles.header}>
-            <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>Share Event</Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Close invitation"
-              onPress={onClose}
-              style={styles.closeButton}
-            >
-              <Ionicons name="close" size={24} color={isDark ? "#F9FAFB" : "#111827"} />
-            </TouchableOpacity>
-          </View>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Share Event"
+      dismissAccessibilityLabel="Dismiss invitation"
+      closeAccessibilityLabel="Close invitation"
+    >
+      <View className="gap-3 rounded-2xl border border-border bg-surface p-4">
+        <H3>{event.title}</H3>
+        {event.description ? (
+          <ThemedText className="text-sm" tone="muted" numberOfLines={2}>
+            {event.description}
+          </ThemedText>
+        ) : null}
+      </View>
 
-          <View style={[styles.eventInfo, isDark ? styles.eventInfoDark : styles.eventInfoLight]}>
-            <Text style={[styles.eventTitle, isDark ? styles.textDark : styles.textLight]}>{event.title}</Text>
-            {event.description && (
-              <Text
-                style={[styles.eventDescription, isDark ? styles.descriptionDark : styles.descriptionLight]}
-                numberOfLines={2}
-              >
-                {event.description}
-              </Text>
-            )}
-          </View>
-
-          <View style={[styles.qrContainer, isDark ? styles.qrContainerDark : styles.qrContainerLight]}>
-            <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>QR Code</Text>
-            <View style={styles.qrCodeWrapper}>
-              <QRCode
-                value={event.invitationUrl}
-                size={180}
-                backgroundColor={isDark ? "#1F2937" : "#FFFFFF"}
-                color={isDark ? "#F9FAFB" : "#111827"}
-              />
-            </View>
-            <Text style={[styles.qrHint, isDark ? styles.subtitleDark : styles.subtitleLight]}>
-              Scan to join the event
-            </Text>
-          </View>
-
-          <View style={styles.linkSection}>
-            <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>Invitation Link</Text>
-            <TouchableOpacity
-              style={[styles.linkContainer, isDark ? styles.linkContainerDark : styles.linkContainerLight]}
-              onPress={handleCopyLink}
-            >
-              <Text style={[styles.linkText, isDark ? styles.linkTextDark : styles.linkTextLight]} numberOfLines={1}>
-                {event.invitationUrl}
-              </Text>
-              <Ionicons name="copy-outline" size={20} color="#6366F1" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.modalActions}>
-            <Button title="Share Link" onPress={handleShareLink} />
-            <View style={styles.modalButtonSpacing} />
-            <Button title="Close" onPress={onClose} variant="outline" />
-          </View>
+      <View className="items-center gap-3 rounded-2xl border border-border bg-background p-4">
+        <ThemedText className="text-base font-semibold">QR Code</ThemedText>
+        <View className="rounded-2xl bg-background p-4">
+          <QRCode
+            value={event.invitationUrl}
+            size={180}
+            backgroundColor={colorTokens[colorScheme].background}
+            color={colorTokens[colorScheme].strong}
+          />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        <ThemedText className="text-center text-sm" tone="muted">
+          Scan to join the event
+        </ThemedText>
+      </View>
+
+      <View className="gap-2">
+        <ThemedText className="text-base font-semibold">Invitation Link</ThemedText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Copy invitation link"
+          onPress={handleCopyLink}
+          className="min-h-12 flex-row items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3"
+        >
+          <ThemedText className="flex-1 text-sm" tone="accent" numberOfLines={1}>
+            {event.invitationUrl}
+          </ThemedText>
+          <Ionicons name="copy-outline" size={IconSize.sm} color={colorTokens[colorScheme].accent} />
+        </Pressable>
+      </View>
+
+      <View className="gap-3">
+        <Button title="Share Link" onPress={handleShareLink} />
+        <Button title="Close" onPress={onClose} variant="outline" />
+      </View>
+    </BottomSheet>
   );
 };
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: "90%",
-  },
-  modalContentLight: {
-    backgroundColor: "#FFFFFF",
-  },
-  modalContentDark: {
-    backgroundColor: "#1F2937",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  textLight: {
-    color: "#111827",
-  },
-  textDark: {
-    color: "#F9FAFB",
-  },
-  eventInfo: {
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 24,
-    borderWidth: 1,
-  },
-  eventInfoLight: {
-    backgroundColor: "#F9FAFB",
-    borderColor: "#D1D5DB",
-  },
-  eventInfoDark: {
-    backgroundColor: "#111827",
-    borderColor: "#374151",
-  },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  eventDescription: {
-    fontSize: 14,
-  },
-  descriptionLight: {
-    color: "#6B7280",
-  },
-  descriptionDark: {
-    color: "#9CA3AF",
-  },
-  qrContainer: {
-    padding: 20,
-    borderRadius: 8,
-    alignItems: "center",
-    marginBottom: 24,
-    borderWidth: 1,
-  },
-  qrContainerLight: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#D1D5DB",
-  },
-  qrContainerDark: {
-    backgroundColor: "#1F2937",
-    borderColor: "#374151",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  qrCodeWrapper: {
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 12,
-  },
-  qrHint: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  subtitleLight: {
-    color: "#6B7280",
-  },
-  subtitleDark: {
-    color: "#9CA3AF",
-  },
-  linkSection: {
-    marginBottom: 24,
-  },
-  linkContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 12,
-  },
-  linkContainerLight: {
-    backgroundColor: "#F9FAFB",
-    borderColor: "#D1D5DB",
-  },
-  linkContainerDark: {
-    backgroundColor: "#111827",
-    borderColor: "#374151",
-  },
-  linkText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  linkTextLight: {
-    color: "#6366F1",
-  },
-  linkTextDark: {
-    color: "#818CF8",
-  },
-  modalActions: {
-    flexDirection: "column",
-  },
-  modalButtonSpacing: {
-    height: 12,
-  },
-});
