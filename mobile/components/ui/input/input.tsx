@@ -12,14 +12,8 @@ type InputProps = TextInputProps & {
 
 export const Input = ({ label, error, secureTextEntry, editable = true, className = "", ...props }: InputProps) => {
   const colorScheme = useColorScheme();
-  const {
-    showToggle,
-    isDisabled,
-    isSecure,
-    toggleAccessibilityLabel,
-    toggleIconName,
-    onTogglePasswordVisibility,
-  } = useInput({ secureTextEntry, editable });
+  const { showToggle, isDisabled, isSecure, toggleAccessibilityLabel, toggleIconName, onTogglePasswordVisibility } =
+    useInput({ secureTextEntry, editable });
 
   return (
     <View className="w-full gap-2">

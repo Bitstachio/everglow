@@ -34,19 +34,19 @@ Slick, dense, content-first. Think Instagram and WhatsApp, not a marketing landi
 
 All space, padding, and control sizes snap to **4px**. 8px is the default rhythm (two grid units).
 
-| Token | px | NativeWind | Role |
-| ----- | -- | ---------- | ---- |
-| 0     | 0  | `0`        | Reset |
-| 1     | 4  | `1`        | Hairline stack: input to error, icon optical inset |
-| 2     | 8  | `2`        | Label to input, icon to label, chip gap |
-| 3     | 12 | `3`        | Inside a compact card, filter row padding, stacked buttons |
-| 4     | 16 | `4`        | **Default.** Screen gutter, field-to-field, card padding |
-| 5     | 20 | `5`        | Slightly roomy card or sheet inset (use sparingly) |
-| 6     | 24 | `6`        | Section gap, sheet block gap, title to first field |
-| 8     | 32 | `8`        | Major break, empty-state padding |
-| 10    | 40 | `10`       | Rare: hero offset on auth / onboarding |
-| 12    | 48 | `12`       | Control height (`h-12`), large empty-state gap |
-| 16    | 64 | `16`       | Rare: illustration to copy on empty states |
+| Token | px  | NativeWind | Role                                                       |
+| ----- | --- | ---------- | ---------------------------------------------------------- |
+| 0     | 0   | `0`        | Reset                                                      |
+| 1     | 4   | `1`        | Hairline stack: input to error, icon optical inset         |
+| 2     | 8   | `2`        | Label to input, icon to label, chip gap                    |
+| 3     | 12  | `3`        | Inside a compact card, filter row padding, stacked buttons |
+| 4     | 16  | `4`        | **Default.** Screen gutter, field-to-field, card padding   |
+| 5     | 20  | `5`        | Slightly roomy card or sheet inset (use sparingly)         |
+| 6     | 24  | `6`        | Section gap, sheet block gap, title to first field         |
+| 8     | 32  | `8`        | Major break, empty-state padding                           |
+| 10    | 40  | `10`       | Rare: hero offset on auth / onboarding                     |
+| 12    | 48  | `12`       | Control height (`h-12`), large empty-state gap             |
+| 16    | 64  | `16`       | Rare: illustration to copy on empty states                 |
 
 Do not use `0.5` (2px) except to optically center a 1px border or an icon that otherwise looks off. Do not use 7, 9, 11, 13, 14 for padding, margin, or gap. `h-11` (44) is allowed as the minimum tap-target height.
 
@@ -68,9 +68,9 @@ Safe area (system)
 
 Bottom inset depends on chrome:
 
-| Screen kind | Bottom treatment |
-| ----------- | ---------------- |
-| Read-only list, no page CTA | `pb-4` plus home-indicator / tab-bar inset |
+| Screen kind                        | Bottom treatment                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| Read-only list, no page CTA        | `pb-4` plus home-indicator / tab-bar inset                                     |
 | Form or completion with a page CTA | Pinned footer owns the inset ([Pinned bottom actions](#pinned-bottom-actions)) |
 
 - Content is full width of the phone. Do not add `max-w-*` on portrait screens.
@@ -91,15 +91,15 @@ Canonical labeled field (Material-style stack, WhatsApp/Instagram density):
 
 Between siblings:
 
-| Relationship              | Space | Class    |
-| ------------------------- | ----- | -------- |
-| Label to control          | 8     | `gap-2`  |
-| Control to error/helper   | 4     | `gap-1`  |
-| Field to field            | 16    | `gap-4`  |
-| Section title to fields   | 12    | `gap-3`  |
-| Form section to section   | 24    | `gap-6`  |
+| Relationship              | Space | Class                 |
+| ------------------------- | ----- | --------------------- |
+| Label to control          | 8     | `gap-2`               |
+| Control to error/helper   | 4     | `gap-1`               |
+| Field to field            | 16    | `gap-4`               |
+| Section title to fields   | 12    | `gap-3`               |
+| Form section to section   | 24    | `gap-6`               |
 | Last field to in-flow CTA | 24    | `gap-6` (sheets only) |
-| Primary to secondary CTA  | 12    | `gap-3`  |
+| Primary to secondary CTA  | 12    | `gap-3`               |
 
 `Input` owns label, control, and error spacing. Feature forms should wrap fields in `gap-4`, not add extra `mb-*` on each `FormField`.
 
@@ -113,43 +113,43 @@ Placeholder copy uses `text-subtle` (already wired via `placeholderTextColor` on
 
 WhatsApp-style rows, Instagram-style feed cards: dense vertically, 16px from the screen edge.
 
-| Element                    | Value        | Class                          |
-| -------------------------- | ------------ | ------------------------------ |
-| Row horizontal inset       | 16           | `px-4`                         |
-| Row vertical padding       | 12           | `py-3`                         |
-| Min row height (text only) | 48           | `min-h-12`                     |
-| Min row height (with avatar) | 56         | `min-h-14`                     |
-| Avatar to text             | 12           | `gap-3`                        |
-| Title to subtitle          | 4            | `gap-1`                        |
-| Row to row                 | 0 + divider, or 12 | `border-b border-border` or `gap-3` |
-| Card list gap              | 12           | `gap-3`                        |
+| Element                      | Value              | Class                               |
+| ---------------------------- | ------------------ | ----------------------------------- |
+| Row horizontal inset         | 16                 | `px-4`                              |
+| Row vertical padding         | 12                 | `py-3`                              |
+| Min row height (text only)   | 48                 | `min-h-12`                          |
+| Min row height (with avatar) | 56                 | `min-h-14`                          |
+| Avatar to text               | 12                 | `gap-3`                             |
+| Title to subtitle            | 4                  | `gap-1`                             |
+| Row to row                   | 0 + divider, or 12 | `border-b border-border` or `gap-3` |
+| Card list gap                | 12                 | `gap-3`                             |
 
-Prefer a 1px `border-border` divider *or* a gap, not both.
+Prefer a 1px `border-border` divider _or_ a gap, not both.
 
 ### Cards
 
-| Element        | Value | Class         |
-| -------------- | ----- | ------------- |
-| Padding        | 16    | `p-4`         |
-| Internal stack | 12    | `gap-3`       |
-| Corner         | 16    | `rounded-2xl` |
+| Element        | Value | Class                  |
+| -------------- | ----- | ---------------------- |
+| Padding        | 16    | `p-4`                  |
+| Internal stack | 12    | `gap-3`                |
+| Corner         | 16    | `rounded-2xl`          |
 | Stroke         | 1     | `border border-border` |
 
 Do not add a drop shadow by default. Instagram and WhatsApp separate surfaces with stroke and background (`bg-background` vs `bg-surface`), not elevation. If a floating control truly needs a shadow, add a shared token later; do not inline `shadow-*` ad hoc.
 
 ### Sheets and modal panels
 
-| Element              | Value | Class                          |
-| -------------------- | ----- | ------------------------------ |
-| Horizontal inset     | 16    | `px-4`                         |
-| Top (handle)         | 12    | `pt-3`                         |
-| Bottom               | 24 + safe area | `pb-6` plus inset     |
-| Handle               | 4 x 40 | `h-1 w-10 rounded-full`      |
-| Handle to title      | 16    | `gap-4`                        |
-| Title to body        | 16    | `gap-4`                        |
-| Body blocks          | 24    | `gap-6`                        |
-| Top corners          | 24    | `rounded-t-3xl`                |
-| Grab-handle contrast | border token | `bg-border`               |
+| Element              | Value          | Class                   |
+| -------------------- | -------------- | ----------------------- |
+| Horizontal inset     | 16             | `px-4`                  |
+| Top (handle)         | 12             | `pt-3`                  |
+| Bottom               | 24 + safe area | `pb-6` plus inset       |
+| Handle               | 4 x 40         | `h-1 w-10 rounded-full` |
+| Handle to title      | 16             | `gap-4`                 |
+| Title to body        | 16             | `gap-4`                 |
+| Body blocks          | 24             | `gap-6`                 |
+| Top corners          | 24             | `rounded-t-3xl`         |
+| Grab-handle contrast | border token   | `bg-border`             |
 
 Center dialogs (edit profile, confirms) use `p-6` (24) inside a `rounded-2xl` panel, with 16px of overlay margin (`p-4` on the overlay). Keep the panel full width minus that overlay margin; do not cap at a tablet `max-w`. Dialogs are short; keep their actions in-flow at the bottom of the panel, not as a screen-level pinned footer.
 
@@ -173,14 +173,14 @@ Default for Save, Create, Join, Share, Done, and other **page-level** submits. C
 └─────────────────────────┘
 ```
 
-| Element | Value | Class |
-| ------- | ----- | ----- |
-| Footer horizontal inset | 16 | `px-4` |
-| Footer top padding | 12 | `pt-3` |
-| Footer bottom padding | 16 + safe area | `pb-4` plus bottom inset (home indicator). Do not guess `pb-8` / `pb-10` |
-| Button height / radius | 48 / 16 | `h-12 rounded-2xl`, full width |
-| Stacked footer buttons | 12 | `gap-3` |
-| Scroll content above footer | 24 | `pb-6` on the scroll content (breathing room, not a fake footer) |
+| Element                     | Value          | Class                                                                    |
+| --------------------------- | -------------- | ------------------------------------------------------------------------ |
+| Footer horizontal inset     | 16             | `px-4`                                                                   |
+| Footer top padding          | 12             | `pt-3`                                                                   |
+| Footer bottom padding       | 16 + safe area | `pb-4` plus bottom inset (home indicator). Do not guess `pb-8` / `pb-10` |
+| Button height / radius      | 48 / 16        | `h-12 rounded-2xl`, full width                                           |
+| Stacked footer buttons      | 12             | `gap-3`                                                                  |
+| Scroll content above footer | 24             | `pb-6` on the scroll content (breathing room, not a fake footer)         |
 
 Layout structure: a `flex-1` column. The scroll view is `flex-1`. The footer is a sibling **below** the scroll view, not `absolute`/`fixed` over the content. That way fields never hide under the button and you do not have to compute footer height.
 
@@ -192,20 +192,20 @@ Layout structure: a `flex-1` column. The scroll view is `flex-1`. The footer is 
 
 **Keyboard.** The avoiding view wraps scroll + footer together so Save stays visible while typing.
 
-**Completion / success screens.** Hero (icon, title, share link, QR) sits in the scroll region, top or optically upper-middle with `pt-8` above a large icon. Actions still pin. Do not vertically center the hero *and* the buttons as one group.
+**Completion / success screens.** Hero (icon, title, share link, QR) sits in the scroll region, top or optically upper-middle with `pt-8` above a large icon. Actions still pin. Do not vertically center the hero _and_ the buttons as one group.
 
 ### Toolbar chips and compact controls
 
 Filter chips, sort buttons, inline pills:
 
-| Element    | Value | Class                                      |
-| ---------- | ----- | ------------------------------------------ |
-| Height     | 36-44 | `h-9` to `h-11` (pad with `hitSlop` to 44) |
-| Padding    | 12-16 | `px-3` or `px-4` (set height; skip extra `py-*`) |
-| Corner     | 12    | `rounded-xl`                               |
-| Chip gap   | 8     | `gap-2`                                    |
-| Icon gap   | 8     | `gap-2`                                    |
-| Label      | 14    | `text-sm font-medium`                      |
+| Element  | Value | Class                                            |
+| -------- | ----- | ------------------------------------------------ |
+| Height   | 36-44 | `h-9` to `h-11` (pad with `hitSlop` to 44)       |
+| Padding  | 12-16 | `px-3` or `px-4` (set height; skip extra `py-*`) |
+| Corner   | 12    | `rounded-xl`                                     |
+| Chip gap | 8     | `gap-2`                                          |
+| Icon gap | 8     | `gap-2`                                          |
+| Label    | 14    | `text-sm font-medium`                            |
 
 ### Empty states
 
@@ -225,16 +225,16 @@ When Inter is wired, register it as `--font-sans` in `app/global.css` and apply 
 
 Sizes are in density-independent pixels. Line heights are explicit px, not unitless CSS, so NativeWind and React Native agree.
 
-| Role        | Size | Line | Weight    | Class                         | Use |
-| ----------- | ---- | ---- | --------- | ----------------------------- | --- |
-| Caption     | 12   | 16   | 400 / 500 | `text-xs`                     | Timestamps, helper, error, badges |
-| Label / meta| 14   | 20   | 500       | `text-sm font-medium`         | Field labels, chip labels, list meta |
-| Body        | 16   | 24   | 400       | `text-base`                   | Default reading text, input value, empty-state body |
-| Body emphasis | 16 | 24   | 600       | `text-base font-semibold`     | Button labels, list titles |
-| Subtitle (H3) | 18 | 24   | 600       | `text-lg font-semibold`     | Subsection titles, empty-state titles |
-| Title (H2)  | 20   | 28   | 700       | `text-xl font-bold`           | Sheet titles, in-screen section headers |
-| Page title (H1) | 24 | 32 | 700     | `text-2xl font-bold`          | In-content screen titles (no native header) |
-| Display     | 30   | 36   | 700       | `text-3xl font-bold`          | Auth / onboarding hero only |
+| Role            | Size | Line | Weight    | Class                     | Use                                                 |
+| --------------- | ---- | ---- | --------- | ------------------------- | --------------------------------------------------- |
+| Caption         | 12   | 16   | 400 / 500 | `text-xs`                 | Timestamps, helper, error, badges                   |
+| Label / meta    | 14   | 20   | 500       | `text-sm font-medium`     | Field labels, chip labels, list meta                |
+| Body            | 16   | 24   | 400       | `text-base`               | Default reading text, input value, empty-state body |
+| Body emphasis   | 16   | 24   | 600       | `text-base font-semibold` | Button labels, list titles                          |
+| Subtitle (H3)   | 18   | 24   | 600       | `text-lg font-semibold`   | Subsection titles, empty-state titles               |
+| Title (H2)      | 20   | 28   | 700       | `text-xl font-bold`       | Sheet titles, in-screen section headers             |
+| Page title (H1) | 24   | 32   | 700       | `text-2xl font-bold`      | In-content screen titles (no native header)         |
+| Display         | 30   | 36   | 700       | `text-3xl font-bold`      | Auth / onboarding hero only                         |
 
 Do not use `text-4xl` or larger. Do not use `text-[11px]` or `text-[13px]`. If 14 feels large for a timestamp, use `text-xs` (12), not a custom 13.
 
@@ -242,29 +242,29 @@ Letter spacing stays default for 12-18px. `tracking-tight` is allowed only on `t
 
 ### Which component to use
 
-| Need                         | Component / class |
-| ---------------------------- | ----------------- |
-| Page title in the body       | `H1`              |
-| Sheet or section title       | `H2`              |
-| Subsection                   | `H3`              |
-| Native stack header title    | Leave to Expo Router / React Navigation (about 17pt, platform chrome). Do not put `H1` in the header. |
-| Body copy                    | `ThemedText` (default `tone="foreground"`, `text-base`) |
-| Secondary / supporting       | `ThemedText tone="muted"` plus `text-sm` |
-| Placeholder, timestamp       | `tone="subtle"` plus `text-xs` or `text-sm` |
-| Destructive                  | `tone="danger"`   |
-| Button label                 | Owned by `Button` (`text-base font-semibold`) |
-| Field label / error          | Owned by `Input`  |
+| Need                      | Component / class                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Page title in the body    | `H1`                                                                                                  |
+| Sheet or section title    | `H2`                                                                                                  |
+| Subsection                | `H3`                                                                                                  |
+| Native stack header title | Leave to Expo Router / React Navigation (about 17pt, platform chrome). Do not put `H1` in the header. |
+| Body copy                 | `ThemedText` (default `tone="foreground"`, `text-base`)                                               |
+| Secondary / supporting    | `ThemedText tone="muted"` plus `text-sm`                                                              |
+| Placeholder, timestamp    | `tone="subtle"` plus `text-xs` or `text-sm`                                                           |
+| Destructive               | `tone="danger"`                                                                                       |
+| Button label              | Owned by `Button` (`text-base font-semibold`)                                                         |
+| Field label / error       | Owned by `Input`                                                                                      |
 
 Headings use `tone="strong"`. Body uses `foreground`. Do not pick a type size to fake hierarchy when a heading component exists.
 
 ### Weight rules
 
-| Weight | Token           | Use |
-| ------ | --------------- | --- |
-| 400    | `font-normal`   | Body, captions |
+| Weight | Token           | Use                                      |
+| ------ | --------------- | ---------------------------------------- |
+| 400    | `font-normal`   | Body, captions                           |
 | 500    | `font-medium`   | Labels, chips, secondary actions as text |
-| 600    | `font-semibold` | Buttons, H3, list titles |
-| 700    | `font-bold`     | H1, H2, display |
+| 600    | `font-semibold` | Buttons, H3, list titles                 |
+| 700    | `font-bold`     | H1, H2, display                          |
 
 Two nearby sizes should not share the same weight and color. If an H3 and a body line sit together, the H3 is semibold/strong and the body is regular/foreground.
 
@@ -272,13 +272,13 @@ Two nearby sizes should not share the same weight and color. If an H3 and a body
 
 Keep Tailwind's default radius scale. Only these steps are in bounds:
 
-| Token | px | Class         | Use |
-| ----- | -- | ------------- | --- |
-| sm    | 4  | `rounded-sm`  | Avoid in UI chrome |
-| lg    | 8  | `rounded-lg`  | Small chips, nested controls |
-| xl    | 12 | `rounded-xl`  | Filter chips, compact tiles |
-| 2xl   | 16 | `rounded-2xl` | **Default.** Inputs, buttons, cards |
-| 3xl   | 24 | `rounded-3xl` | Sheet top corners, large media tiles |
+| Token | px   | Class          | Use                                        |
+| ----- | ---- | -------------- | ------------------------------------------ |
+| sm    | 4    | `rounded-sm`   | Avoid in UI chrome                         |
+| lg    | 8    | `rounded-lg`   | Small chips, nested controls               |
+| xl    | 12   | `rounded-xl`   | Filter chips, compact tiles                |
+| 2xl   | 16   | `rounded-2xl`  | **Default.** Inputs, buttons, cards        |
+| 3xl   | 24   | `rounded-3xl`  | Sheet top corners, large media tiles       |
 | full  | 9999 | `rounded-full` | Avatars, icon buttons, pills, sheet handle |
 
 Inputs and primary buttons are `rounded-2xl` and 48px tall. That pairing is the product look. Do not mix `rounded-md` (6px) or `rounded-none` on controls. Images that bleed to a card edge may use the card's radius; full-bleed photos in a feed can be square (`rounded-none`) like Instagram posts.
@@ -287,16 +287,16 @@ Inputs and primary buttons are `rounded-2xl` and 48px tall. That pairing is the 
 
 Apple asks for 44pt minimum. Material asks for 48dp. Cross-platform default: **48px for primary controls, 44px absolute minimum.**
 
-| Control            | Size | Class | Notes |
-| ------------------ | ---- | ----- | ----- |
-| Primary / secondary button | 48 | `h-12` | Full width (`w-full`) on screens and sheets |
-| Text input         | 48   | `h-12` | Horizontal padding `px-4` |
-| Icon button (visual) | 36 | `h-9 w-9` | Add `hitSlop={8}` so the hit box is 52 |
-| Close / sheet icon | 36   | `h-9 w-9` | Same hitSlop |
-| Compact chip       | 36-44 | `h-9` / `h-11` | hitSlop if below 44 |
-| List row           | 48-56 | `min-h-12` / `min-h-14` | Tappable row, not only the trailing icon |
-| Avatar sm / md / lg | 32 / 40 / 48 | `h-8 w-8` / `h-10 w-10` / `h-12 w-12` | Always `rounded-full` |
-| Tab bar / stack header | system |  | Do not restyle to this scale |
+| Control                    | Size         | Class                                 | Notes                                       |
+| -------------------------- | ------------ | ------------------------------------- | ------------------------------------------- |
+| Primary / secondary button | 48           | `h-12`                                | Full width (`w-full`) on screens and sheets |
+| Text input                 | 48           | `h-12`                                | Horizontal padding `px-4`                   |
+| Icon button (visual)       | 36           | `h-9 w-9`                             | Add `hitSlop={8}` so the hit box is 52      |
+| Close / sheet icon         | 36           | `h-9 w-9`                             | Same hitSlop                                |
+| Compact chip               | 36-44        | `h-9` / `h-11`                        | hitSlop if below 44                         |
+| List row                   | 48-56        | `min-h-12` / `min-h-14`               | Tappable row, not only the trailing icon    |
+| Avatar sm / md / lg        | 32 / 40 / 48 | `h-8 w-8` / `h-10 w-10` / `h-12 w-12` | Always `rounded-full`                       |
+| Tab bar / stack header     | system       |                                       | Do not restyle to this scale                |
 
 Disabled controls keep layout size and use `opacity-50`. Do not shrink a disabled button.
 
@@ -308,11 +308,11 @@ Icon pixel sizes stay in `constants/icons.ts` (`xs` 16, `sm` 20, `md` 24, `lg` 3
 
 Pairing:
 
-| Next to            | Icon token | Gap    |
-| ------------------ | ---------- | ------ |
-| `text-xs` / `text-sm` | `xs` or `sm` (16/20) | `gap-2` (8) |
-| `text-base` button / row | `sm` or `md` (20/24) | `gap-2` (8) |
-| Empty state        | `lg` (32) or `xl` (48) | `gap-3` (12) |
+| Next to                  | Icon token             | Gap          |
+| ------------------------ | ---------------------- | ------------ |
+| `text-xs` / `text-sm`    | `xs` or `sm` (16/20)   | `gap-2` (8)  |
+| `text-base` button / row | `sm` or `md` (20/24)   | `gap-2` (8)  |
+| Empty state              | `lg` (32) or `xl` (48) | `gap-3` (12) |
 
 Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorTokens[scheme].muted`). Do not hardcode hex.
 
@@ -320,14 +320,14 @@ Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorToke
 
 Use [Theme](./theme.md) tokens. Typical mapping:
 
-| Text role     | Tone        |
-| ------------- | ----------- |
-| Headings      | `strong`    |
-| Body          | `foreground`|
-| Labels        | `foreground`|
-| Helper, meta  | `muted`     |
-| Placeholder, time | `subtle` |
-| Error         | `danger`    |
+| Text role         | Tone                |
+| ----------------- | ------------------- |
+| Headings          | `strong`            |
+| Body              | `foreground`        |
+| Labels            | `foreground`        |
+| Helper, meta      | `muted`             |
+| Placeholder, time | `subtle`            |
+| Error             | `danger`            |
 | On primary button | `accent-foreground` |
 
 Do not introduce a new gray. If contrast fails, change the role (muted vs foreground), not the hex.
@@ -360,24 +360,24 @@ Copy from this list unless a primitive already wraps the choice.
 
 ## Anti-patterns
 
-| Don't | Do instead |
-| ----- | ---------- |
-| `p-5` on every screen because it "looks airy" | `px-4` gutter; add air with `gap-6` between sections |
-| Save/Create in the scroll view under the last field | Pinned footer sibling; leftover space is flex, not `mt-auto` on a lone button inside the scroll view |
-| `absolute bottom-0` footer over scrolling fields | Column: `ScrollView` `flex-1`, then footer |
-| Footer `pb-10` to clear the home indicator | `pb-4` plus the system bottom inset |
-| Footer Cancel plus header Back | Header Back only |
-| `gap-2` between form fields (too tight) | `gap-4` between fields; `gap-2` only for label to input |
-| Extra `mb-2` on a label that `Input` already spaces | Let `Input` / `FormField` own internal rhythm |
-| `text-3xl` for an in-app screen title | `H1` (`text-2xl`) |
-| `font-bold` on body copy | `font-normal` body, weight on headings and buttons |
-| `h-10` primary button | `h-12` |
-| `rounded-md` or `rounded-lg` on inputs | `rounded-2xl` |
-| `shadow-lg` on cards | `border border-border` and surface tokens |
-| `pt-12` to clear the status bar | Safe area inset |
-| `className={`p-${n}`}` | Literal `p-4` |
-| Arbitrary `top-[18px]` to align an icon | Allowed gap + `items-center`; `hitSlop` if the tap target is short |
-| Different padding on iOS vs Android for the same screen | One token; safe area handles the rest |
+| Don't                                                   | Do instead                                                                                           |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `p-5` on every screen because it "looks airy"           | `px-4` gutter; add air with `gap-6` between sections                                                 |
+| Save/Create in the scroll view under the last field     | Pinned footer sibling; leftover space is flex, not `mt-auto` on a lone button inside the scroll view |
+| `absolute bottom-0` footer over scrolling fields        | Column: `ScrollView` `flex-1`, then footer                                                           |
+| Footer `pb-10` to clear the home indicator              | `pb-4` plus the system bottom inset                                                                  |
+| Footer Cancel plus header Back                          | Header Back only                                                                                     |
+| `gap-2` between form fields (too tight)                 | `gap-4` between fields; `gap-2` only for label to input                                              |
+| Extra `mb-2` on a label that `Input` already spaces     | Let `Input` / `FormField` own internal rhythm                                                        |
+| `text-3xl` for an in-app screen title                   | `H1` (`text-2xl`)                                                                                    |
+| `font-bold` on body copy                                | `font-normal` body, weight on headings and buttons                                                   |
+| `h-10` primary button                                   | `h-12`                                                                                               |
+| `rounded-md` or `rounded-lg` on inputs                  | `rounded-2xl`                                                                                        |
+| `shadow-lg` on cards                                    | `border border-border` and surface tokens                                                            |
+| `pt-12` to clear the status bar                         | Safe area inset                                                                                      |
+| `className={`p-${n}`}`                                  | Literal `p-4`                                                                                        |
+| Arbitrary `top-[18px]` to align an icon                 | Allowed gap + `items-center`; `hitSlop` if the tap target is short                                   |
+| Different padding on iOS vs Android for the same screen | One token; safe area handles the rest                                                                |
 
 ## Worked examples
 
@@ -432,7 +432,9 @@ Card:
 ```tsx
 <View className="gap-3 rounded-2xl border border-border bg-background p-4">
   <H3>Event name</H3>
-  <ThemedText tone="muted" className="text-sm">Saturday, 7:00 PM</ThemedText>
+  <ThemedText tone="muted" className="text-sm">
+    Saturday, 7:00 PM
+  </ThemedText>
 </View>
 ```
 
