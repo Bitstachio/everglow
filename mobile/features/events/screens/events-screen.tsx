@@ -2,7 +2,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { EventActionCard } from "../components/event-action-card";
 import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
-import { JoinEventModal } from "../components/join-event-modal";
+import { JoinEventModal } from "../components/join-event-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
