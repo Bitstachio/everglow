@@ -1,125 +1,65 @@
-import React from "react";
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, TouchableOpacityProps } from "react-native";
+import { colorTokens } from "@/theme/tokens";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ActivityIndicator, Pressable, Text, type PressableProps } from "react-native";
 
-interface ButtonProps extends TouchableOpacityProps {
+type ButtonVariant = "primary" | "secondary" | "outline";
+
+type ButtonProps = Omit<PressableProps, "children"> & {
   title: string;
-  variant?: "primary" | "secondary" | "outline";
+  variant?: ButtonVariant;
   isLoading?: boolean;
   fullWidth?: boolean;
-}
+};
+
+const VARIANT_CLASSES: Record<ButtonVariant, string> = {
+  primary: "bg-accent active:bg-accent-active",
+  secondary: "bg-surface active:bg-border",
+  outline: "border border-border bg-transparent active:bg-surface",
+};
+
+const LABEL_CLASSES: Record<ButtonVariant, string> = {
+  primary: "text-accent-foreground",
+  secondary: "text-foreground",
+  outline: "text-foreground",
+};
 
 export const Button = ({
   title,
   variant = "primary",
   isLoading = false,
   fullWidth = true,
-  disabled,
+  disabled = false,
+  className = "",
+  accessibilityLabel,
   ...props
 }: ButtonProps) => {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-
-  const getButtonStyle = () => {
-    const baseStyle = [styles.button, fullWidth && styles.fullWidth];
-
-    if (disabled || isLoading) {
-      return [...baseStyle, styles.buttonDisabled];
-    }
-
-    switch (variant) {
-      case "secondary":
-        return [...baseStyle, isDark ? styles.buttonSecondaryDark : styles.buttonSecondaryLight];
-      case "outline":
-        return [...baseStyle, isDark ? styles.buttonOutlineDark : styles.buttonOutlineLight];
-      default:
-        return [...baseStyle, isDark ? styles.buttonPrimaryDark : styles.buttonPrimaryLight];
-    }
-  };
-
-  const getTextStyle = () => {
-    if (disabled || isLoading) {
-      return [styles.text, styles.textDisabled];
-    }
-
-    switch (variant) {
-      case "secondary":
-        return [styles.text, isDark ? styles.textSecondaryDark : styles.textSecondaryLight];
-      case "outline":
-        return [styles.text, isDark ? styles.textOutlineDark : styles.textOutlineLight];
-      default:
-        return [styles.text, styles.textPrimary];
-    }
-  };
+  const isDisabled = disabled || isLoading;
+  const spinnerColor =
+    variant === "primary" ? colorTokens[colorScheme].accentForeground : colorTokens[colorScheme].accent;
 
   return (
-    <TouchableOpacity style={getButtonStyle()} disabled={disabled || isLoading} {...props}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityState={{ disabled: isDisabled, busy: isLoading }}
+      disabled={isDisabled}
+      className={[
+        "h-12 items-center justify-center rounded-2xl px-5",
+        fullWidth ? "w-full" : "self-start",
+        VARIANT_CLASSES[variant],
+        isDisabled ? "opacity-50" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...props}
+    >
       {isLoading ? (
-        <ActivityIndicator color={variant === "outline" ? "#6366F1" : "#FFF"} />
+        <ActivityIndicator color={spinnerColor} />
       ) : (
-        <Text style={getTextStyle()}>{title}</Text>
+        <Text className={`text-base font-semibold ${LABEL_CLASSES[variant]}`}>{title}</Text>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    height: 48,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  fullWidth: {
-    width: "100%",
-  },
-  buttonPrimaryLight: {
-    backgroundColor: "#6366F1",
-  },
-  buttonPrimaryDark: {
-    backgroundColor: "#4F46E5",
-  },
-  buttonSecondaryLight: {
-    backgroundColor: "#E5E7EB",
-  },
-  buttonSecondaryDark: {
-    backgroundColor: "#374151",
-  },
-  buttonOutlineLight: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#6366F1",
-  },
-  buttonOutlineDark: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#818CF8",
-  },
-  buttonDisabled: {
-    backgroundColor: "#9CA3AF",
-    opacity: 0.5,
-  },
-  text: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  textPrimary: {
-    color: "#FFFFFF",
-  },
-  textSecondaryLight: {
-    color: "#1F2937",
-  },
-  textSecondaryDark: {
-    color: "#F3F4F6",
-  },
-  textOutlineLight: {
-    color: "#6366F1",
-  },
-  textOutlineDark: {
-    color: "#818CF8",
-  },
-  textDisabled: {
-    color: "#D1D5DB",
-  },
-});
