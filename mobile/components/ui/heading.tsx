@@ -19,7 +19,7 @@ export const H2 = ({ children, className = "" }: HeadingProps) => (
 );
 
 export const H3 = ({ children, className = "" }: HeadingProps) => (
-  <ThemedText accessibilityRole="header" tone="strong" className={`text-lg font-bold ${className}`.trim()}>
+  <ThemedText accessibilityRole="header" tone="strong" className={`text-lg font-semibold ${className}`.trim()}>
     {children}
   </ThemedText>
 );

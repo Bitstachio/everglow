@@ -1,4 +1,5 @@
 import "../../testing/date-picker-mock";
+import "../../testing/native-mocks";
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import { DEFAULT_EVENTS_LIST_FILTERS } from "../../utils";

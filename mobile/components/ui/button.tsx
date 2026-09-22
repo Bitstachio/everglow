@@ -45,7 +45,7 @@ export const Button = ({
       accessibilityState={{ disabled: isDisabled, busy: isLoading }}
       disabled={isDisabled}
       className={[
-        "h-12 items-center justify-center rounded-2xl px-5",
+        "h-12 items-center justify-center rounded-2xl px-4",
         fullWidth ? "w-full" : "self-start",
         VARIANT_CLASSES[variant],
         isDisabled ? "opacity-50" : "",
