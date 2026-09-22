@@ -92,6 +92,7 @@ export const useProfileScreen = () => {
     user,
     username,
     handleOpenUsername: () => router.push({ pathname: "/edit-username", params: { username } }),
+    handleOpenDisplayName: () => router.push("/edit-display-name"),
     handleOpenUsage: () => router.push("/usage"),
     isDeleting: deleteProfileMutation.isPending,
     isLoading,

@@ -13,6 +13,7 @@ const AccountSettingsScreen = () => {
     username,
     handleOpenUsername,
     handleOpenUsage,
+    handleOpenDisplayName,
     isLoading,
     isDeleting,
     showEditModal,
@@ -70,7 +71,7 @@ const AccountSettingsScreen = () => {
             title="Display Name"
             description={user.details?.name || "Not set"}
             icon="person-outline"
-            onPress={handleEditProfile}
+            onPress={handleOpenDisplayName}
             disabled={isDeleting}
           />
         </View>

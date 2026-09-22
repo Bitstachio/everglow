@@ -37,6 +37,7 @@ const RootNavigator = () => {
         <Stack.Screen name="events/index" options={{ headerShown: false }} />
         <Stack.Screen name="account-settings" options={{ title: "Account Settings", headerBackTitle: "Back" }} />
         <Stack.Screen name="edit-username" options={{ title: "Edit Username", headerBackTitle: "Back" }} />
+        <Stack.Screen name="edit-display-name" options={{ title: "Edit Profile", headerBackTitle: "Back" }} />
         <Stack.Screen name="usage" options={{ title: "Usage", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/list" options={{ title: "My Events", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/create" options={{ title: "Create Event", headerBackTitle: "Back" }} />
