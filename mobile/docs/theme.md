@@ -2,6 +2,8 @@
 
 Screens and components are styled with NativeWind classes (`className`), the same way a Tailwind web app is. Light and dark come from semantic tokens, not from `dark:` pairs on every element.
 
+Type size, spacing, radius, and tap targets are a separate scale: [UI scale](./ui-scale.md). Use that document for padding, gaps, font sizes, and control dimensions; this document is color and how tokens are wired.
+
 ## Day-to-day usage
 
 ```tsx
