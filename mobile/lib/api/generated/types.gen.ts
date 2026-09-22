@@ -31,6 +31,10 @@ export type CreateUserDetailsDto = {
 
 export type UserStorageResponseDto = {
   /**
+   * Number of completed photo uploads owned by the caller, excluding pending uploads
+   */
+  photosStored: number;
+  /**
    * Bytes currently used by the caller's uploads
    */
   usedBytes: string;

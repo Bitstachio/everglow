@@ -1,12 +1,15 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
+import { router } from "expo-router";
+import type { DeleteAccountPhotoPolicy } from "../types";
 import { useEditProfileForm } from "./use-edit-profile-form";
 
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();
+  const deleting = useRef(false);
   const deleteProfileMutation = useDeleteProfileMutation();
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -37,37 +40,53 @@ export const useProfileScreen = () => {
     setShowEditModal(true);
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert("Delete Account", "Are you sure you want to delete your account? This action cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          // TODO: ask which one the person wants. Until the picker ships, this
-          // sends KEEP: photos stay in the events they were added to with the
-          // uploader removed, which is the outcome that cannot destroy other
-          // members' albums.
-          deleteProfileMutation.mutate("KEEP", {
-            onSuccess: async () => {
+  const confirmDeleteAccount = (photos: DeleteAccountPhotoPolicy) => {
+    Alert.alert(
+      "Permanently delete account?",
+      `${photos === "KEEP" ? "Your photos will remain in shared events without your name." : "Your uploaded photos will be removed from all events."} Events where you are the only member will be deleted. Other events will be handed over to remaining members. This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: async () => {
+            if (deleting.current) return;
+            deleting.current = true;
+            try {
+              await deleteProfileMutation.mutateAsync(photos);
               await logout();
-              Alert.alert("Success", "Account deleted successfully");
-            },
-            onError: (error) => {
-              Alert.alert("Error", getErrorMessage(error, "Failed to delete account"));
-            },
-          });
+            } catch (error) {
+              Alert.alert("Could not delete account", getErrorMessage(error, "Please try again."));
+            } finally {
+              deleting.current = false;
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    if (deleting.current) return;
+    Alert.alert(
+      "What happens to your photos?",
+      "Choose what to do with your uploads in shared events when you delete your account.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Keep shared photos", onPress: () => confirmDeleteAccount("KEEP") },
+        { text: "Delete my photos", style: "destructive", onPress: () => confirmDeleteAccount("DELETE") },
+      ],
+    );
   };
 
   const handleCancelEdit = () => {
-    setShowEditModal(false);
+    if (!form.formState.isSubmitting) setShowEditModal(false);
   };
 
   return {
     user,
+    handleOpenUsage: () => router.push("/usage"),
+    isDeleting: deleteProfileMutation.isPending,
     isLoading,
     showEditModal,
     form,
