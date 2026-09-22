@@ -124,7 +124,7 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 ## Account Settings
 
-`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, a Usage navigation row, security and legal sections, logout, and account deletion. The protected `/usage` route shows account-scoped photo storage, a percentage bar, used/remaining/limit values, and completed photo count. Deletion asks for the photo policy and then confirms the irreversible action. Username and avatar uploads are not supported by the profile API. Password changes and legal destinations remain unavailable until their integrations are configured. Profile email edits do not change the Auth0 sign-in email.
+`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, a Usage navigation row, security and legal sections, logout, and account deletion. The protected `/usage` route shows account-scoped photo storage, a percentage bar, used/remaining/limit values, and a Photos stored row marked unavailable because the existing API does not return a photo count. Deletion asks for the photo policy and then confirms the irreversible action. Username and avatar uploads are not supported by the profile API. Password changes and legal destinations remain unavailable until their integrations are configured. Profile email edits do not change the Auth0 sign-in email.
 
 ## Shared folders outside `features/`
 

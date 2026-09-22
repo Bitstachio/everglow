@@ -4,7 +4,7 @@ import { StorageCard } from "./storage-card";
 test("displays the actual storage quota including an empty account", async () => {
   await render(
     <StorageCard
-      storage={{ usedBytes: "0", limitBytes: "1073741824", remainingBytes: "1073741824", photosStored: 0 }}
+      storage={{ usedBytes: "0", limitBytes: "1073741824", remainingBytes: "1073741824" }}
       isLoading={false}
       isError={false}
       isFetching={false}
@@ -13,7 +13,7 @@ test("displays the actual storage quota including an empty account", async () =>
   );
   expect(screen.getByText("0 B of 1 GB used")).toBeOnTheScreen();
   expect(screen.getByText("Photos stored")).toBeOnTheScreen();
-  expect(screen.getByText("0")).toBeOnTheScreen();
+  expect(screen.getByText("Unavailable")).toBeOnTheScreen();
   expect(screen.getByRole("progressbar")).toHaveAccessibilityValue({ now: 0, min: 0, max: 100 });
 });
 
@@ -21,7 +21,7 @@ test("shows retry on failure without inventing quota values", async () => {
   const retry = jest.fn();
   await render(<StorageCard isLoading={false} isError isFetching={false} onRetry={retry} />);
   expect(screen.getByRole("alert")).toHaveTextContent("Could not refresh your storage usage.");
-  expect(screen.queryByText("0 B used")).not.toBeOnTheScreen();
+  expect(screen.queryByText("0 B of 1 GB used")).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Retry" }));
   expect(retry).toHaveBeenCalledTimes(1);
 });
@@ -33,7 +33,7 @@ test.each([
 ])("bounds the progress bar for %s bytes used out of %s", async (usedBytes, limitBytes, progress) => {
   await render(
     <StorageCard
-      storage={{ usedBytes, limitBytes, remainingBytes: "0", photosStored: 342 }}
+      storage={{ usedBytes, limitBytes, remainingBytes: "0" }}
       isLoading={false}
       isError={false}
       isFetching={false}
@@ -41,5 +41,5 @@ test.each([
     />,
   );
   expect(screen.getByRole("progressbar")).toHaveAccessibilityValue({ now: progress });
-  expect(screen.getByText("342")).toBeOnTheScreen();
+  expect(screen.getByText("Unavailable")).toBeOnTheScreen();
 });

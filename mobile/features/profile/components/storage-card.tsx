@@ -67,10 +67,7 @@ export const StorageCard = ({ storage, isLoading, isError, isFetching, onRetry }
             <StorageDetail label="Storage used" value={formatBytes(storage.usedBytes)} />
             <StorageDetail label="Remaining" value={formatBytes(storage.remainingBytes)} />
             <StorageDetail label="Limit" value={formatBytes(storage.limitBytes)} />
-            <StorageDetail
-              label="Photos stored"
-              value={storage.photosStored == null ? "Unavailable" : storage.photosStored.toLocaleString()}
-            />
+            <StorageDetail label="Photos stored" value="Unavailable" />
           </View>
         </>
       ) : null}
