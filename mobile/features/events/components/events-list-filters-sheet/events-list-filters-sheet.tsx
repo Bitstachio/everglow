@@ -1,4 +1,5 @@
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
+import { Chip } from "@/components/ui/chip";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
@@ -58,26 +59,17 @@ export const EventsListFiltersSheet = ({
           My Role
         </ThemedText>
         <View className="flex-row gap-2">
-          {EVENT_ROLE_OPTIONS.map(({ value, label }) => {
-            const selected = draft.roles.includes(value);
-            return (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Filter by ${label}`}
-                onPress={() => onChangeRole(value)}
-                className={`flex-1 items-center rounded-xl px-3 py-3 ${selected ? "bg-border" : "bg-surface"}`}
-              >
-                <ThemedText
-                  className={`text-sm ${selected ? "font-semibold" : ""}`}
-                  tone={selected ? "foreground" : "muted"}
-                >
-                  {label}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
+          {EVENT_ROLE_OPTIONS.map(({ value, label }) => (
+            <Chip
+              key={value}
+              label={label}
+              variant="soft"
+              selected={draft.roles.includes(value)}
+              accessibilityLabel={`Filter by ${label}`}
+              onPress={() => onChangeRole(value)}
+              className="flex-1"
+            />
+          ))}
         </View>
       </View>
 

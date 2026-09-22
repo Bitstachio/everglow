@@ -1,6 +1,7 @@
 import { H2 } from "@/components/ui/heading";
+import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Href, Link, useRouter } from "expo-router";
 import { Event } from "../types";
 import { EventCard } from "./event-card";
@@ -46,8 +47,8 @@ export const EventsList = ({
         </View>
       ) : null}
       {isLoading ? (
-        <View className="py-12 items-center justify-center">
-          <ActivityIndicator accessibilityLabel="Loading events" size="large" color="#3B82F6" />
+        <View className="items-center justify-center py-12">
+          <Spinner label="Loading events" size="large" />
         </View>
       ) : events.length === 0 ? (
         <NoEventsBanner variant={filtersActive ? "no-matches" : "empty"} />

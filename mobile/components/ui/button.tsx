@@ -1,6 +1,5 @@
-import { colorTokens } from "@/theme/tokens";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { ActivityIndicator, Pressable, Text, type PressableProps } from "react-native";
+import { Spinner } from "@/components/ui/spinner";
+import { Pressable, Text, type PressableProps } from "react-native";
 
 type ButtonVariant = "primary" | "secondary" | "outline";
 
@@ -33,10 +32,7 @@ export const Button = ({
   accessibilityLabel,
   ...props
 }: ButtonProps) => {
-  const colorScheme = useColorScheme();
   const isDisabled = disabled || isLoading;
-  const spinnerColor =
-    variant === "primary" ? colorTokens[colorScheme].accentForeground : colorTokens[colorScheme].accent;
 
   return (
     <Pressable
@@ -56,7 +52,7 @@ export const Button = ({
       {...props}
     >
       {isLoading ? (
-        <ActivityIndicator color={spinnerColor} />
+        <Spinner tone={variant === "primary" ? "accentForeground" : "accent"} label="Loading" />
       ) : (
         <Text className={`text-base font-semibold ${LABEL_CLASSES[variant]}`}>{title}</Text>
       )}

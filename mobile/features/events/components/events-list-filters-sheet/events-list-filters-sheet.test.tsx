@@ -44,12 +44,15 @@ test("shows selected multi-select role chips", async () => {
   );
   expect(screen.getByRole("button", { name: "Filter by Organizer" })).toHaveProp("accessibilityState", {
     selected: true,
+    disabled: false,
   });
   expect(screen.getByRole("button", { name: "Filter by Participant" })).toHaveProp("accessibilityState", {
     selected: false,
+    disabled: false,
   });
   expect(screen.getByRole("button", { name: "Filter by Viewer" })).toHaveProp("accessibilityState", {
     selected: true,
+    disabled: false,
   });
 });
 

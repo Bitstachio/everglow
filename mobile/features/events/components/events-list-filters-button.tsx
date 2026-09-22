@@ -1,24 +1,25 @@
 import { AppIcon } from "@/components/ui/app-icon";
-import { ThemedText } from "@/components/ui/themed-text";
+import { Chip } from "@/components/ui/chip";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { Funnel } from "lucide-react-native";
-import { Pressable, View } from "react-native";
 
 type EventsListFiltersButtonProps = {
   onPress: () => void;
   active?: boolean;
 };
 
-export const EventsListFiltersButton = ({ onPress, active = false }: EventsListFiltersButtonProps) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityLabel="Filters"
-    accessibilityState={{ selected: active }}
-    onPress={onPress}
-    className={`self-start rounded-xl border px-4 py-2.5 ${active ? "border-strong bg-surface" : "border-border bg-background"}`}
-  >
-    <View className="flex-row items-center gap-2">
-      <AppIcon icon={Funnel} size="sm" color="#64748B" />
-      <ThemedText className="text-sm font-medium">{active ? "Filters · On" : "Filters"}</ThemedText>
-    </View>
-  </Pressable>
-);
+export const EventsListFiltersButton = ({ onPress, active = false }: EventsListFiltersButtonProps) => {
+  const colorScheme = useColorScheme();
+
+  return (
+    <Chip
+      label={active ? "Filters · On" : "Filters"}
+      accessibilityLabel="Filters"
+      selected={active}
+      onPress={onPress}
+      className="self-start"
+      icon={<AppIcon icon={Funnel} size="sm" color={colorTokens[colorScheme].muted} />}
+    />
+  );
+};

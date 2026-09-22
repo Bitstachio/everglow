@@ -1,4 +1,5 @@
 import { H2 } from "@/components/ui/heading";
+import { IconButton } from "@/components/ui/icon-button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
@@ -45,10 +46,7 @@ export const BottomSheet = ({
         </View>
 
         <Animated.View style={{ transform: [{ translateY: sheetTranslateY }] }}>
-          <View
-            className="rounded-t-3xl bg-background px-4 pt-3"
-            style={{ paddingBottom: 24 + insets.bottom }}
-          >
+          <View className="rounded-t-3xl bg-background px-4 pt-3" style={{ paddingBottom: 24 + insets.bottom }}>
             <View className="gap-4">
               <View className="items-center">
                 <View className="h-1 w-10 rounded-full bg-border" />
@@ -57,15 +55,9 @@ export const BottomSheet = ({
               {title ? (
                 <View className="flex-row items-center justify-between gap-3">
                   <H2 className="flex-1">{title}</H2>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={closeAccessibilityLabel}
-                    onPress={onClose}
-                    hitSlop={8}
-                    className="h-9 w-9 items-center justify-center rounded-full bg-surface"
-                  >
+                  <IconButton accessibilityLabel={closeAccessibilityLabel} onPress={onClose} className="bg-surface">
                     <Ionicons name="close" size={18} color={colorTokens[colorScheme].muted} />
-                  </Pressable>
+                  </IconButton>
                 </View>
               ) : null}
 
