@@ -14,18 +14,26 @@ export const IconButton = ({
   className = "",
   hitSlop = 8,
   ...props
-}: IconButtonProps) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={accessibilityLabel}
-    accessibilityState={{ disabled }}
-    disabled={disabled}
-    hitSlop={hitSlop}
-    className={["h-9 w-9 items-center justify-center rounded-full active:bg-surface", disabled ? "opacity-50" : "", className]
-      .filter(Boolean)
-      .join(" ")}
-    {...props}
-  >
-    {children}
-  </Pressable>
-);
+}: IconButtonProps) => {
+  const isDisabled = disabled ?? false;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: isDisabled }}
+      disabled={isDisabled}
+      hitSlop={hitSlop}
+      className={[
+        "h-9 w-9 items-center justify-center rounded-full active:bg-surface",
+        isDisabled ? "opacity-50" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...props}
+    >
+      {children}
+    </Pressable>
+  );
+};

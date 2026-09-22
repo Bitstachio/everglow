@@ -38,6 +38,7 @@ export const Chip = ({
   accessibilityHint,
   ...props
 }: ChipProps) => {
+  const isDisabled = disabled ?? false;
   const surface = selected ? VARIANT_CLASSES[variant].selected : VARIANT_CLASSES[variant].idle;
   const labelTone = selected ? "foreground" : variant === "soft" ? "muted" : "foreground";
   const labelWeight = selected && variant === "soft" ? "font-semibold" : "font-medium";
@@ -47,14 +48,14 @@ export const Chip = ({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ selected, disabled }}
-      disabled={disabled}
+      accessibilityState={{ selected, disabled: isDisabled }}
+      disabled={isDisabled}
       hitSlop={4}
       className={[
         "h-11 flex-row items-center justify-center gap-2 rounded-xl",
         variant === "soft" ? "px-3" : "px-4",
         surface,
-        disabled ? "opacity-50" : "",
+        isDisabled ? "opacity-50" : "",
         className,
       ]
         .filter(Boolean)
