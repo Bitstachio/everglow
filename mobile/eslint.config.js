@@ -26,8 +26,6 @@ const legacyStyleSheetPaths = [
   "app/login.tsx",
   "app/onboarding.tsx",
   "app/signup.tsx",
-  "components/parallax-scroll-view.tsx",
-  "components/themed-text.tsx",
   "context/auth-context.tsx",
   "features/events/screens/events-list-screen.tsx",
   "features/events/screens/events-screen.tsx",

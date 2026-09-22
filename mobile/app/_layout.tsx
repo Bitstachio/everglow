@@ -39,7 +39,6 @@ const RootNavigator = () => {
         <Stack.Screen name="events/list" options={{ title: "My Events", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/create" options={{ title: "Create Event", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/[id]" />
-        <Stack.Screen name="modal" options={{ presentation: "modal", title: "Modal" }} />
       </Stack.Protected>
     </Stack>
   );
