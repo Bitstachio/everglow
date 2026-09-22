@@ -2,5 +2,6 @@ import { usersControllerFindMeQueryKey } from "@/lib/api/generated/@tanstack/rea
 
 export const profileKeys = {
   all: ["profile"] as const,
+  storage: (userId: string | undefined) => ["profile", "storage", userId] as const,
   me: () => usersControllerFindMeQueryKey(),
 };

@@ -17,6 +17,14 @@ Use a token, not a raw palette class (`bg-white`, `text-gray-500`) and not `bg-w
 
 Spell class names out in full. Tailwind’s scanner cannot see interpolated strings, so `` `text-${color}` `` will not generate a utility. `components/ui/themed-text.tsx` uses a literal lookup table for that reason.
 
+## Safe-area views
+
+Import `SafeAreaView` from `@/components/ui/safe-area-view` when using `className`.
+NativeWind v5 automatically adapts core React Native components, but the installed
+`react-native-safe-area-context` integration only adapts its provider. Its native
+`SafeAreaView` needs the shared `styled` wrapper to map `className` to `style`.
+Without it, layout classes such as `flex-1` are ignored and a screen can collapse.
+
 ## No `StyleSheet`
 
 Do not import or call React Native `StyleSheet` (`StyleSheet.create`, `StyleSheet.absoluteFill`, …). Layout, color, spacing, and typography belong in `className` with tokens from `global.css`.
