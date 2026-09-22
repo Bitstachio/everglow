@@ -1,17 +1,20 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
+import { router, useLocalSearchParams } from "expo-router";
 import { useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
-import { router } from "expo-router";
 import type { DeleteAccountPhotoPolicy } from "../types";
 import { useEditProfileForm } from "./use-edit-profile-form";
+
+const firstParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();
   const deleting = useRef(false);
   const deleteProfileMutation = useDeleteProfileMutation();
   const [showEditModal, setShowEditModal] = useState(false);
+  const params = useLocalSearchParams<{ username?: string | string[] }>();
 
   const { form, onSubmit } = useEditProfileForm({
     user,
@@ -83,8 +86,12 @@ export const useProfileScreen = () => {
     if (!form.formState.isSubmitting) setShowEditModal(false);
   };
 
+  const username = firstParam(params.username) ?? user?.details?.email.split("@")[0] ?? "Not set";
+
   return {
     user,
+    username,
+    handleOpenUsername: () => router.push({ pathname: "/edit-username", params: { username } }),
     handleOpenUsage: () => router.push("/usage"),
     isDeleting: deleteProfileMutation.isPending,
     isLoading,

@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { H2, H3 } from "@/components/ui/heading";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -11,6 +10,8 @@ import { useProfileScreen } from "../hooks/use-profile-screen";
 const AccountSettingsScreen = () => {
   const {
     user,
+    username,
+    handleOpenUsername,
     handleOpenUsage,
     isLoading,
     isDeleting,
@@ -54,7 +55,24 @@ const AccountSettingsScreen = () => {
               {user.details?.email || "No email added"}
             </ThemedText>
           </View>
-          <Button title="Edit Profile" variant="outline" onPress={handleEditProfile} disabled={isDeleting} />
+        </View>
+
+        <View className="overflow-hidden rounded-2xl border border-border bg-surface">
+          <SettingsRow
+            title="Username"
+            description={username}
+            icon="at-outline"
+            onPress={handleOpenUsername}
+            disabled={isDeleting}
+          />
+          <View className="h-px bg-border" />
+          <SettingsRow
+            title="Display Name"
+            description={user.details?.name || "Not set"}
+            icon="person-outline"
+            onPress={handleEditProfile}
+            disabled={isDeleting}
+          />
         </View>
 
         <View className="overflow-hidden rounded-2xl border border-border bg-surface">
