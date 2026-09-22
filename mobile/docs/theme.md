@@ -2,6 +2,8 @@
 
 Screens and components are styled with NativeWind classes (`className`), the same way a Tailwind web app is. Light and dark come from semantic tokens, not from `dark:` pairs on every element.
 
+Type size, spacing, radius, and tap targets are a separate scale: [UI scale](./ui-scale.md). Use that document for padding, gaps, font sizes, and control dimensions; this document is color and how tokens are wired.
+
 ## Day-to-day usage
 
 ```tsx
@@ -96,4 +98,6 @@ If you change a hex in `global.css`, change the matching key in `theme/tokens.ts
 
 ## Out of scope (migrate later)
 
-Shared UI under `components/ui/` still uses the old palette class names (`bg-brand-primary`, `border-ui-border`, `text-text-main`, …). `tailwind.config.ts` remains only as the `textColors` export for `themed-text`; it is not the Tailwind theme. New UI should use `global.css` tokens via `className`, and `theme/tokens.ts` only for native chrome / color props. Expo starter leftovers (`constants/theme.ts`, template `button` / `input`) are the same story.
+Legacy Expo starter files outside `components/ui/` (`constants/theme.ts`,
+`components/themed-text.tsx`, some feature screens) still use StyleSheet or old
+palette class names. Migrate those when touching the screen; do not extend them.

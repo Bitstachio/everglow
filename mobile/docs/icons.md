@@ -26,7 +26,7 @@ Size tokens live in `constants/icons.ts` (`xs`–`xl`). Prefer a token; use a nu
 - Custom SVGs → `AppIcon`. Do not render the imported SVG with raw `width` / `height`.
 - Author SVGs with `currentColor` for fill/stroke so `color` on `AppIcon` tints them.
 - Keep icons on a consistent `viewBox` (typically `0 0 24 24`).
-- Ionicons, Material icons, and `IconSymbol` are separate. Do not route them through `AppIcon`.
+- Ionicons and Material icons are separate. Do not route them through `AppIcon`.
 
 ## Related files
 

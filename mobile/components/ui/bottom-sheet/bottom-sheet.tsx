@@ -1,7 +1,11 @@
-import { ThemedText } from "@/components/ui/themed-text";
+import { H2 } from "@/components/ui/heading";
+import { IconButton } from "@/components/ui/icon-button";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { type ReactNode } from "react";
 import { Animated, Modal, Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomSheetPresentation } from "./use-bottom-sheet";
 
 type BottomSheetProps = {
@@ -23,6 +27,8 @@ export const BottomSheet = ({
   dismissAccessibilityLabel = "Dismiss",
   closeAccessibilityLabel = "Close",
 }: BottomSheetProps) => {
+  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
   const { presented, scrimOpacity, sheetTranslateY, pointerEvents } = useBottomSheetPresentation(visible);
 
   return (
@@ -40,26 +46,23 @@ export const BottomSheet = ({
         </View>
 
         <Animated.View style={{ transform: [{ translateY: sheetTranslateY }] }}>
-          <View className="rounded-t-3xl bg-background px-6 pb-8 pt-3 gap-6">
-            <View className="items-center">
-              <View className="h-1 w-10 rounded-full bg-border" />
-            </View>
-
-            {title ? (
-              <View className="flex-row items-center justify-between">
-                <ThemedText className="text-xl font-bold">{title}</ThemedText>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={closeAccessibilityLabel}
-                  onPress={onClose}
-                  className="h-9 w-9 items-center justify-center rounded-full bg-surface"
-                >
-                  <Ionicons name="close" size={18} color="#64748B" />
-                </Pressable>
+          <View className="rounded-t-3xl bg-background px-4 pt-3" style={{ paddingBottom: 24 + insets.bottom }}>
+            <View className="gap-4">
+              <View className="items-center">
+                <View className="h-1 w-10 rounded-full bg-border" />
               </View>
-            ) : null}
 
-            {children}
+              {title ? (
+                <View className="flex-row items-center justify-between gap-3">
+                  <H2 className="flex-1">{title}</H2>
+                  <IconButton accessibilityLabel={closeAccessibilityLabel} onPress={onClose} className="bg-surface">
+                    <Ionicons name="close" size={18} color={colorTokens[colorScheme].muted} />
+                  </IconButton>
+                </View>
+              ) : null}
+
+              <View className="gap-6">{children}</View>
+            </View>
           </View>
         </Animated.View>
       </View>

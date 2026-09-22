@@ -1,9 +1,9 @@
+import { Spinner } from "@/components/ui/spinner";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -297,7 +297,7 @@ const EventDetailScreen = () => {
       <>
         <Stack.Screen options={{ title: "Event Details", headerBackTitle: "Back" }} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <Spinner size="large" label="Loading event" />
         </View>
       </>
     );
@@ -362,7 +362,7 @@ const EventDetailScreen = () => {
               <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>Event Photos</Text>
               <TouchableOpacity onPress={handleUploadImage} style={styles.uploadButton} disabled={isUploadingPhoto}>
                 {isUploadingPhoto ? (
-                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <Spinner label="Uploading photo" />
                 ) : (
                   <>
                     <Ionicons name="add-circle" size={24} color="#3B82F6" />

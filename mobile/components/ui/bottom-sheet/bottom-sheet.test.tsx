@@ -1,19 +1,29 @@
 import { ThemedText } from "@/components/ui/themed-text";
 import { render, screen, userEvent } from "@testing-library/react-native";
+import type { ReactElement } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BottomSheet } from "./bottom-sheet";
 
+const initialMetrics = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 0, left: 0, right: 0, bottom: 0 },
+};
+
+const renderSheet = (ui: ReactElement) =>
+  render(<SafeAreaProvider initialMetrics={initialMetrics}>{ui}</SafeAreaProvider>);
+
 test("renders title and children when visible", async () => {
-  await render(
+  await renderSheet(
     <BottomSheet visible onClose={jest.fn()} title="Sheet title">
       <ThemedText>Sheet body</ThemedText>
     </BottomSheet>,
   );
-  expect(screen.getByText("Sheet title")).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "Sheet title" })).toBeOnTheScreen();
   expect(screen.getByText("Sheet body")).toBeOnTheScreen();
 });
 
 test("hides content when not visible", async () => {
-  await render(
+  await renderSheet(
     <BottomSheet visible={false} onClose={jest.fn()} title="Sheet title">
       <ThemedText>Sheet body</ThemedText>
     </BottomSheet>,
@@ -24,7 +34,7 @@ test("hides content when not visible", async () => {
 
 test("calls onClose from scrim and close button", async () => {
   const onClose = jest.fn();
-  await render(
+  await renderSheet(
     <BottomSheet
       visible
       onClose={onClose}

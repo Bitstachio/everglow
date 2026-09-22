@@ -1,4 +1,5 @@
 import "../../testing/date-picker-mock";
+import "../../testing/native-mocks";
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import { DEFAULT_EVENTS_LIST_FILTERS } from "../../utils";
@@ -43,12 +44,15 @@ test("shows selected multi-select role chips", async () => {
   );
   expect(screen.getByRole("button", { name: "Filter by Organizer" })).toHaveProp("accessibilityState", {
     selected: true,
+    disabled: false,
   });
   expect(screen.getByRole("button", { name: "Filter by Participant" })).toHaveProp("accessibilityState", {
     selected: false,
+    disabled: false,
   });
   expect(screen.getByRole("button", { name: "Filter by Viewer" })).toHaveProp("accessibilityState", {
     selected: true,
+    disabled: false,
   });
 });
 

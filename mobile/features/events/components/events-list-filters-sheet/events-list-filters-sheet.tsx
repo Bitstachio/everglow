@@ -1,5 +1,10 @@
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { ThemedText } from "@/components/ui/themed-text";
+import { IconSize } from "@/constants/icons";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
@@ -28,6 +33,8 @@ export const EventsListFiltersSheet = ({
   onReset,
   onApply,
 }: EventsListFiltersSheetProps) => {
+  const colorScheme = useColorScheme();
+  const iconColor = colorTokens[colorScheme].muted;
   const { activeDateField, toggleDateField, closeDatePicker, handleDateChange, datePickerValue, datePickerDisplay } =
     useEventsListFiltersSheet({ visible, draft, onChangeDateFrom, onChangeDateTo });
 
@@ -50,66 +57,53 @@ export const EventsListFiltersSheet = ({
       ) : null}
 
       <View className="gap-3">
-        <ThemedText className="text-sm font-medium" textColor="muted">
+        <ThemedText className="text-sm font-medium" tone="muted">
           My Role
         </ThemedText>
         <View className="flex-row gap-2">
-          {EVENT_ROLE_OPTIONS.map(({ value, label }) => {
-            const selected = draft.roles.includes(value);
-            return (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Filter by ${label}`}
-                onPress={() => onChangeRole(value)}
-                className={`flex-1 items-center rounded-xl px-3 py-3 ${selected ? "bg-border" : "bg-surface"}`}
-              >
-                <ThemedText
-                  className={`text-sm ${selected ? "font-semibold" : ""}`}
-                  textColor={selected ? "main" : "muted"}
-                >
-                  {label}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
+          {EVENT_ROLE_OPTIONS.map(({ value, label }) => (
+            <Chip
+              key={value}
+              label={label}
+              variant="soft"
+              selected={draft.roles.includes(value)}
+              accessibilityLabel={`Filter by ${label}`}
+              onPress={() => onChangeRole(value)}
+              className="flex-1"
+            />
+          ))}
         </View>
       </View>
 
       <View className="gap-3">
-        <ThemedText className="text-sm font-medium" textColor="muted">
+        <ThemedText className="text-sm font-medium" tone="muted">
           Date Range
         </ThemedText>
         <View className="flex-row gap-3">
-          <View className="flex-1 gap-1">
-            <ThemedText className="text-xs" textColor="subtle">
-              From
-            </ThemedText>
+          <View className="flex-1 gap-2">
+            <ThemedText className="text-sm font-medium">From</ThemedText>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Filter from date"
               onPress={() => toggleDateField("from")}
-              className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
+              className="h-12 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4"
             >
-              <Ionicons name="calendar-outline" size={16} color="#64748B" />
-              <ThemedText className="text-sm" textColor={draft.dateFrom ? "main" : "subtle"}>
+              <Ionicons name="calendar-outline" size={IconSize.xs} color={iconColor} />
+              <ThemedText className="text-base" tone={draft.dateFrom ? "foreground" : "subtle"}>
                 {displayFilterDay(draft.dateFrom)}
               </ThemedText>
             </Pressable>
           </View>
-          <View className="flex-1 gap-1">
-            <ThemedText className="text-xs" textColor="subtle">
-              To
-            </ThemedText>
+          <View className="flex-1 gap-2">
+            <ThemedText className="text-sm font-medium">To</ThemedText>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Filter to date"
               onPress={() => toggleDateField("to")}
-              className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-3"
+              className="h-12 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4"
             >
-              <Ionicons name="calendar-outline" size={16} color="#64748B" />
-              <ThemedText className="text-sm" textColor={draft.dateTo ? "main" : "subtle"}>
+              <Ionicons name="calendar-outline" size={IconSize.xs} color={iconColor} />
+              <ThemedText className="text-base" tone={draft.dateTo ? "foreground" : "subtle"}>
                 {displayFilterDay(draft.dateTo)}
               </ThemedText>
             </Pressable>
@@ -128,25 +122,22 @@ export const EventsListFiltersSheet = ({
         ) : null}
       </View>
 
-      <View className="flex-row gap-3 pt-1">
-        <Pressable
-          accessibilityRole="button"
+      <View className="flex-row gap-3">
+        <Button
+          title="Reset"
           accessibilityLabel="Reset filters"
+          variant="secondary"
           onPress={onReset}
-          className="flex-1 items-center rounded-xl bg-surface px-4 py-3.5"
-        >
-          <ThemedText className="text-base font-medium" textColor="muted">
-            Reset
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
+          fullWidth={false}
+          className="flex-1"
+        />
+        <Button
+          title="Apply Filters"
           accessibilityLabel="Apply filters"
           onPress={onApply}
-          className="flex-[1.4] items-center rounded-xl bg-border px-4 py-3.5"
-        >
-          <ThemedText className="text-base font-semibold">Apply Filters</ThemedText>
-        </Pressable>
+          fullWidth={false}
+          className="flex-1"
+        />
       </View>
     </BottomSheet>
   );

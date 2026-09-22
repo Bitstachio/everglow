@@ -1,6 +1,9 @@
+import { ThemedText } from "@/components/ui/themed-text";
+import { IconSize } from "@/constants/icons";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 type EventActionCardProps = {
   title: string;
@@ -10,75 +13,25 @@ type EventActionCardProps = {
 
 export const EventActionCard = ({ title, description, onPress }: EventActionCardProps) => {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const icon = title === "Join Event" ? "qr-code-outline" : "add-circle-outline";
 
   return (
-    <TouchableOpacity
+    <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}
       onPress={onPress}
-      activeOpacity={0.8}
+      className="flex-1 gap-3 rounded-2xl border border-border bg-background p-4 active:opacity-80"
     >
-      <View style={[styles.iconContainer, isDark ? styles.iconContainerDark : styles.iconContainerLight]}>
-        <Ionicons name={icon as any} size={24} color="#6366F1" />
+      <View className="h-12 w-12 items-center justify-center rounded-full bg-surface">
+        <Ionicons name={icon} size={IconSize.md} color={colorTokens[colorScheme].accent} />
       </View>
 
-      <View>
-        <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>{title}</Text>
-        <Text style={[styles.description, isDark ? styles.descriptionDark : styles.descriptionLight]}>
+      <View className="gap-1">
+        <ThemedText className="text-base font-semibold">{title}</ThemedText>
+        <ThemedText className="text-sm" tone="muted">
           {description}
-        </Text>
+        </ThemedText>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    gap: 12,
-  },
-  cardLight: {
-    backgroundColor: "#FFFFFF",
-  },
-  cardDark: {
-    backgroundColor: "#1F2937",
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconContainerLight: {
-    backgroundColor: "#EEF2FF",
-  },
-  iconContainerDark: {
-    backgroundColor: "rgba(99, 102, 241, 0.2)",
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  description: {
-    fontSize: 14,
-  },
-  descriptionLight: {
-    color: "#6B7280",
-  },
-  descriptionDark: {
-    color: "#9CA3AF",
-  },
-  textLight: {
-    color: "#111827",
-  },
-  textDark: {
-    color: "#F9FAFB",
-  },
-});
