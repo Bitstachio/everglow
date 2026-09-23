@@ -1,5 +1,35 @@
 import type { AccessLevel, Event } from "./types";
 
+export const formatEventDateTime = (dateString: string) => {
+  const date = new Date(dateString);
+  return {
+    date: date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }),
+  };
+};
+
+export const getAccessLevelLabel = (accessLevel: AccessLevel) => {
+  switch (accessLevel) {
+    case "ORGANIZER":
+      return "Organizer";
+    case "PARTICIPANT":
+      return "Participant";
+    case "VIEWER":
+      return "Viewer";
+    default:
+      return accessLevel;
+  }
+};
+
 export type EventsListFilters = {
   roles: AccessLevel[];
   dateFrom: string | null;
