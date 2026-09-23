@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { AccountDeletionPhotoPolicy } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -189,7 +190,7 @@ export class UsersService {
 
     // S3 last and best effort: the rows are already gone, so what is left at
     // stake is storage cost, which the photo orphan reconciler also covers.
-    await this.photoPurge.purgeObjects(s3Keys, { event: "user.account.photos_purged", userId: id });
+    await this.photoPurge.purgeObjects(s3Keys, { event: ALERT_EVENTS.ACCOUNT_PHOTOS_PURGED, userId: id });
   }
 
   /**

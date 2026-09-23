@@ -79,6 +79,8 @@ Feature-owned **unit** specs stay colocated. Shared integration fixtures live in
 
 When a suite needs an extra override (e.g. mock `S3Service`), pass a `configureModule` callback into `createTestApp`.
 
+Rate limiting is switched off for the whole suite in `jest-integration.setup.ts` (`RATE_LIMIT_ENABLED=false`), so no suite needs to think about it; `rate-limit.integration.spec.ts` opts back in. See [rate limiting](./rate-limiting.md#testing).
+
 ---
 
 ## Choosing a layer

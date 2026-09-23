@@ -1,7 +1,9 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
+import rateLimitConfig, { type RateLimitConfig } from "./config/rate-limit.config";
 import { API_GLOBAL_PREFIX } from "./swagger/swagger.config";
 
 /**
@@ -26,4 +28,10 @@ export function configureApp(app: INestApplication): void {
   );
 
   app.setGlobalPrefix(API_GLOBAL_PREFIX);
+
+  // Decides what `req.ip` means, and therefore whose bucket an IP-keyed rate
+  // limit charges. Off by default: trusting X-Forwarded-For with no proxy in
+  // front lets any caller pick their own address. See docs/rate-limiting.md.
+  const { trustProxy } = app.get<RateLimitConfig>(rateLimitConfig.KEY);
+  (app as NestExpressApplication).set("trust proxy", trustProxy);
 }

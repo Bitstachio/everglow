@@ -7,11 +7,13 @@ import { AppService } from "./app.service";
 import { AuthModule } from "./auth/auth.module";
 import { CaslModule } from "./casl/casl.module";
 import { buildLoggerConfig } from "./common/logging/logging.config";
+import { RateLimitModule } from "./common/rate-limit/rate-limit.module";
 import appleConfig from "./config/apple.config";
 import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
 import encryptionConfig from "./config/encryption.config";
 import photosConfig from "./config/photos.config";
+import rateLimitConfig from "./config/rate-limit.config";
 import usersConfig from "./config/users.config";
 import { EventsModule } from "./events/events.module";
 import { ModerationModule } from "./moderation/moderation.module";
@@ -26,10 +28,11 @@ import { UsersModule } from "./users/users.module";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appleConfig, auth0Config, awsConfig, encryptionConfig, photosConfig, usersConfig],
+      load: [appleConfig, auth0Config, awsConfig, encryptionConfig, photosConfig, rateLimitConfig, usersConfig],
       envFilePath: ".env",
     }),
     ScheduleModule.forRoot(),
+    RateLimitModule,
     AuthModule,
     UsersModule,
     CaslModule,

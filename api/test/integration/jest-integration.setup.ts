@@ -7,6 +7,10 @@ process.env.AWS_REGION ??= "us-east-1";
 process.env.AWS_S3_BUCKET ??= "integration-bucket";
 process.env.AWS_ACCESS_KEY_ID ??= "integration-access-key";
 process.env.AWS_SECRET_ACCESS_KEY ??= "integration-secret-key";
+// The one switch that keeps rate limiting out of every other suite. Assigned
+// rather than defaulted so a developer's shell or .env cannot turn it back on.
+// rate-limit.integration.spec.ts opts back in by overriding the config provider.
+process.env.RATE_LIMIT_ENABLED = "false";
 
 jest.mock("jwks-rsa", () => ({
   passportJwtSecret: jest.fn().mockReturnValue(jest.fn()),
