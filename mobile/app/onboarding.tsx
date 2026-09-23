@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Ale
 import { router } from "expo-router";
 import { useAuth0 } from "react-native-auth0";
 import { useAuth } from "@/context/auth-context";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input/input";
 import { Button } from "@/components/ui/button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
