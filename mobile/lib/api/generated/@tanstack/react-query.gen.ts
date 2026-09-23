@@ -45,10 +45,13 @@ import {
 import type {
   AppControllerGetHelloData,
   BlocksControllerBlockData,
+  BlocksControllerBlockError,
   BlocksControllerBlockResponse,
   BlocksControllerListData,
+  BlocksControllerListError,
   BlocksControllerListResponse,
   BlocksControllerUnblockData,
+  BlocksControllerUnblockError,
   BlocksControllerUnblockResponse,
   EventsControllerCreateData,
   EventsControllerCreateError,
@@ -99,12 +102,16 @@ import type {
   PhotosControllerRemoveError,
   PhotosControllerRemoveResponse,
   ReportsControllerListReportsData,
+  ReportsControllerListReportsError,
   ReportsControllerListReportsResponse,
   ReportsControllerReportMemberData,
+  ReportsControllerReportMemberError,
   ReportsControllerReportMemberResponse,
   ReportsControllerReportPhotoData,
+  ReportsControllerReportPhotoError,
   ReportsControllerReportPhotoResponse,
   ReportsControllerResolveReportData,
+  ReportsControllerResolveReportError,
   ReportsControllerResolveReportResponse,
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingError,
@@ -524,12 +531,12 @@ export const reportsControllerReportPhotoMutation = (
   options?: Partial<Options<ReportsControllerReportPhotoData>>,
 ): UseMutationOptions<
   ReportsControllerReportPhotoResponse,
-  AxiosError<DefaultError>,
+  AxiosError<ReportsControllerReportPhotoError>,
   Options<ReportsControllerReportPhotoData>
 > => {
   const mutationOptions: UseMutationOptions<
     ReportsControllerReportPhotoResponse,
-    AxiosError<DefaultError>,
+    AxiosError<ReportsControllerReportPhotoError>,
     Options<ReportsControllerReportPhotoData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -553,12 +560,12 @@ export const reportsControllerReportMemberMutation = (
   options?: Partial<Options<ReportsControllerReportMemberData>>,
 ): UseMutationOptions<
   ReportsControllerReportMemberResponse,
-  AxiosError<DefaultError>,
+  AxiosError<ReportsControllerReportMemberError>,
   Options<ReportsControllerReportMemberData>
 > => {
   const mutationOptions: UseMutationOptions<
     ReportsControllerReportMemberResponse,
-    AxiosError<DefaultError>,
+    AxiosError<ReportsControllerReportMemberError>,
     Options<ReportsControllerReportMemberData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -582,7 +589,7 @@ export const reportsControllerListReportsQueryKey = (options: Options<ReportsCon
 export const reportsControllerListReportsOptions = (options: Options<ReportsControllerListReportsData>) =>
   queryOptions<
     ReportsControllerListReportsResponse,
-    AxiosError<DefaultError>,
+    AxiosError<ReportsControllerListReportsError>,
     ReportsControllerListReportsResponse,
     ReturnType<typeof reportsControllerListReportsQueryKey>
   >({
@@ -608,7 +615,7 @@ export const reportsControllerListReportsInfiniteQueryKey = (
 export const reportsControllerListReportsInfiniteOptions = (options: Options<ReportsControllerListReportsData>) => {
   const opts = infiniteQueryOptions<
     ReportsControllerListReportsResponse,
-    AxiosError<DefaultError>,
+    AxiosError<ReportsControllerListReportsError>,
     InfiniteData<ReportsControllerListReportsResponse>,
     QueryKey<Options<ReportsControllerListReportsData>>,
     string | Pick<QueryKey<Options<ReportsControllerListReportsData>>[0], "body" | "headers" | "path" | "query">
@@ -652,12 +659,12 @@ export const reportsControllerResolveReportMutation = (
   options?: Partial<Options<ReportsControllerResolveReportData>>,
 ): UseMutationOptions<
   ReportsControllerResolveReportResponse,
-  AxiosError<DefaultError>,
+  AxiosError<ReportsControllerResolveReportError>,
   Options<ReportsControllerResolveReportData>
 > => {
   const mutationOptions: UseMutationOptions<
     ReportsControllerResolveReportResponse,
-    AxiosError<DefaultError>,
+    AxiosError<ReportsControllerResolveReportError>,
     Options<ReportsControllerResolveReportData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -681,7 +688,7 @@ export const blocksControllerListQueryKey = (options?: Options<BlocksControllerL
 export const blocksControllerListOptions = (options?: Options<BlocksControllerListData>) =>
   queryOptions<
     BlocksControllerListResponse,
-    AxiosError<DefaultError>,
+    AxiosError<BlocksControllerListError>,
     BlocksControllerListResponse,
     ReturnType<typeof blocksControllerListQueryKey>
   >({
@@ -704,12 +711,12 @@ export const blocksControllerUnblockMutation = (
   options?: Partial<Options<BlocksControllerUnblockData>>,
 ): UseMutationOptions<
   BlocksControllerUnblockResponse,
-  AxiosError<DefaultError>,
+  AxiosError<BlocksControllerUnblockError>,
   Options<BlocksControllerUnblockData>
 > => {
   const mutationOptions: UseMutationOptions<
     BlocksControllerUnblockResponse,
-    AxiosError<DefaultError>,
+    AxiosError<BlocksControllerUnblockError>,
     Options<BlocksControllerUnblockData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -731,10 +738,14 @@ export const blocksControllerUnblockMutation = (
  */
 export const blocksControllerBlockMutation = (
   options?: Partial<Options<BlocksControllerBlockData>>,
-): UseMutationOptions<BlocksControllerBlockResponse, AxiosError<DefaultError>, Options<BlocksControllerBlockData>> => {
+): UseMutationOptions<
+  BlocksControllerBlockResponse,
+  AxiosError<BlocksControllerBlockError>,
+  Options<BlocksControllerBlockData>
+> => {
   const mutationOptions: UseMutationOptions<
     BlocksControllerBlockResponse,
-    AxiosError<DefaultError>,
+    AxiosError<BlocksControllerBlockError>,
     Options<BlocksControllerBlockData>
   > = {
     mutationFn: async (fnOptions) => {

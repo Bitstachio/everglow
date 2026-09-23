@@ -666,7 +666,21 @@ export type ReportsControllerReportPhotoErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type ReportsControllerReportPhotoError =
+  ReportsControllerReportPhotoErrors[keyof ReportsControllerReportPhotoErrors];
 
 export type ReportsControllerReportPhotoResponses = {
   /**
@@ -696,7 +710,21 @@ export type ReportsControllerReportMemberErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type ReportsControllerReportMemberError =
+  ReportsControllerReportMemberErrors[keyof ReportsControllerReportMemberErrors];
 
 export type ReportsControllerReportMemberResponses = {
   /**
@@ -735,7 +763,21 @@ export type ReportsControllerListReportsErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type ReportsControllerListReportsError =
+  ReportsControllerListReportsErrors[keyof ReportsControllerListReportsErrors];
 
 export type ReportsControllerListReportsResponses = {
   /**
@@ -764,7 +806,21 @@ export type ReportsControllerResolveReportErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type ReportsControllerResolveReportError =
+  ReportsControllerResolveReportErrors[keyof ReportsControllerResolveReportErrors];
 
 export type ReportsControllerResolveReportResponses = {
   /**
@@ -791,7 +847,20 @@ export type BlocksControllerListErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type BlocksControllerListError = BlocksControllerListErrors[keyof BlocksControllerListErrors];
 
 export type BlocksControllerListResponses = {
   /**
@@ -819,7 +888,20 @@ export type BlocksControllerUnblockErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type BlocksControllerUnblockError = BlocksControllerUnblockErrors[keyof BlocksControllerUnblockErrors];
 
 export type BlocksControllerUnblockResponses = {
   /**
@@ -844,7 +926,20 @@ export type BlocksControllerBlockErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type BlocksControllerBlockError = BlocksControllerBlockErrors[keyof BlocksControllerBlockErrors];
 
 export type BlocksControllerBlockResponses = {
   /**
