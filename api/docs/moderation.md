@@ -211,7 +211,7 @@ A repeat that returns an existing report logs nothing, so each report is announc
 
 Guideline 1.2 also wants users to agree to terms that forbid objectionable content. `POST /users/me/onboarding` accepts an optional `acceptedTerms: true`; when present, `User.termsAcceptedAt` is set, and `GET /users/me` returns it (null otherwise). Any value other than `true` is a 400.
 
-The field is optional only so the current mobile onboarding keeps working. It should become required once the app sends it. For the same reason `termsAcceptedAt` is documented as optional in the OpenAPI schema although the API always returns it: a newly required response field breaks the typed fixtures of a client generated from the spec. Tighten both together.
+The request field is optional only so the current mobile onboarding keeps working; it should become required once the app sends it. The response field `termsAcceptedAt` is already required and nullable in the OpenAPI schema, since the API always returns it.
 
 ---
 
