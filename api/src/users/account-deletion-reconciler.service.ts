@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PinoLogger } from "nestjs-pino";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { UsersService } from "./users.service";
 
@@ -74,7 +75,7 @@ export class AccountDeletionReconcilerService {
         result.stuck += 1;
         this.logger.warn(
           {
-            event: "user.account.deletion_stuck",
+            event: ALERT_EVENTS.ACCOUNT_DELETION_STUCK,
             userId: user.id,
             deletionStartedAt: user.deletionStartedAt,
             auth0DeletedAt: user.auth0DeletedAt,
@@ -116,7 +117,7 @@ export class AccountDeletionReconcilerService {
           result.abandoned += 1;
           this.logger.error(
             {
-              event: "user.account.deletion_abandoned",
+              event: ALERT_EVENTS.ACCOUNT_DELETION_ABANDONED,
               userId: user.id,
               deletionStartedAt: user.deletionStartedAt,
               auth0DeletedAt: user.auth0DeletedAt,
