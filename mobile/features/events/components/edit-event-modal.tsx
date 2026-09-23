@@ -1,12 +1,10 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { colorTokens } from "@/theme/tokens";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar, Clock } from "lucide-react-native";
 import { Controller, type Control } from "react-hook-form";
 import { useState } from "react";
 import { Platform, Pressable, View } from "react-native";
@@ -22,8 +20,6 @@ type EditEventModalProps = {
 };
 
 export const EditEventModal = ({ visible, control, isSubmitting, error, onSubmit, onClose }: EditEventModalProps) => {
-  const colorScheme = useColorScheme();
-  const muted = colorTokens[colorScheme].muted;
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -96,7 +92,7 @@ export const EditEventModal = ({ visible, control, isSubmitting, error, onSubmit
                       .filter(Boolean)
                       .join(" ")}
                   >
-                    <Ionicons name="calendar-outline" size={IconSize.sm} color={muted} />
+                    <AppIcon icon={Calendar} size="sm" className="text-muted" />
                     <ThemedText className="text-base">{formatDate(date)}</ThemedText>
                   </Pressable>
                 </View>
@@ -118,7 +114,7 @@ export const EditEventModal = ({ visible, control, isSubmitting, error, onSubmit
                       .filter(Boolean)
                       .join(" ")}
                   >
-                    <Ionicons name="time-outline" size={IconSize.sm} color={muted} />
+                    <AppIcon icon={Clock} size="sm" className="text-muted" />
                     <ThemedText className="text-base">{formatTime(date)}</ThemedText>
                   </Pressable>
                 </View>

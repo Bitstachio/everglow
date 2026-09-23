@@ -1,12 +1,12 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { H1, H2, H3 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar, CircleCheck, Clock, Copy } from "lucide-react-native";
 import { Controller, type Control } from "react-hook-form";
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
@@ -40,7 +40,6 @@ export const CreateEventForm = ({
 }: CreateEventFormProps) => {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const muted = colorTokens[colorScheme].muted;
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -69,7 +68,7 @@ export const CreateEventForm = ({
         >
           <View className="items-center gap-3">
             <View className="h-16 w-16 items-center justify-center rounded-full bg-surface">
-              <Ionicons name="checkmark-circle" size={IconSize.xl} color={colorTokens[colorScheme].success} />
+              <AppIcon icon={CircleCheck} size="xl" className="text-success" />
             </View>
             <H2>Event Created Successfully!</H2>
             <ThemedText className="text-center text-sm" tone="muted">
@@ -112,7 +111,7 @@ export const CreateEventForm = ({
               <ThemedText className="flex-1 text-sm" tone="accent" numberOfLines={1}>
                 {createdEvent.invitationUrl}
               </ThemedText>
-              <Ionicons name="copy-outline" size={IconSize.sm} color={colorTokens[colorScheme].accent} />
+              <AppIcon icon={Copy} size="sm" className="text-accent" />
             </Pressable>
           </View>
         </ScrollView>
@@ -193,7 +192,7 @@ export const CreateEventForm = ({
                         .filter(Boolean)
                         .join(" ")}
                     >
-                      <Ionicons name="calendar-outline" size={IconSize.sm} color={muted} />
+                      <AppIcon icon={Calendar} size="sm" className="text-muted" />
                       <ThemedText className="text-base">{formatDate(date)}</ThemedText>
                     </Pressable>
 
@@ -212,7 +211,7 @@ export const CreateEventForm = ({
                         .filter(Boolean)
                         .join(" ")}
                     >
-                      <Ionicons name="time-outline" size={IconSize.sm} color={muted} />
+                      <AppIcon icon={Clock} size="sm" className="text-muted" />
                       <ThemedText className="text-base">{formatTime(date)}</ThemedText>
                     </Pressable>
                   </View>

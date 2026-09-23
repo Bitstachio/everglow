@@ -1,11 +1,11 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { H3 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
-import { Ionicons } from "@expo/vector-icons";
+import { Copy } from "lucide-react-native";
 import { Alert, Clipboard, Pressable, Share, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { Event } from "../types";
@@ -81,7 +81,7 @@ export const EventInvitationModal = ({ visible, onClose, event }: EventInvitatio
           <ThemedText className="flex-1 text-sm" tone="accent" numberOfLines={1}>
             {event.invitationUrl}
           </ThemedText>
-          <Ionicons name="copy-outline" size={IconSize.sm} color={colorTokens[colorScheme].accent} />
+          <AppIcon icon={Copy} size="sm" className="text-accent" />
         </Pressable>
       </View>
 

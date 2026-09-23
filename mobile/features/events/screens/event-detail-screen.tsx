@@ -1,13 +1,13 @@
 import { ThemedView } from "@/components/themed-view";
+import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
-import { Ionicons } from "@expo/vector-icons";
+import { ChevronRight, Pencil } from "lucide-react-native";
 import { Stack } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,7 +20,6 @@ import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 const EventDetailScreen = () => {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const accent = colorTokens[colorScheme].accent;
   const {
     event,
     photos,
@@ -67,7 +66,7 @@ const EventDetailScreen = () => {
           headerRight: () =>
             isAdmin ? (
               <IconButton accessibilityLabel="Edit event" onPress={handleOpenEdit}>
-                <Ionicons name="pencil" size={IconSize.sm} color={accent} />
+                <AppIcon icon={Pencil} size="sm" className="text-accent" />
               </IconButton>
             ) : null,
         }}
@@ -110,7 +109,7 @@ const EventDetailScreen = () => {
               <ThemedText className="text-sm font-medium" tone="accent">
                 View All ({participants.length})
               </ThemedText>
-              <Ionicons name="chevron-forward" size={IconSize.xs} color={accent} />
+              <AppIcon icon={ChevronRight} size="xs" className="text-accent" />
             </Pressable>
           </View>
         ) : null}

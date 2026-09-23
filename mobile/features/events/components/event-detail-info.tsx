@@ -1,9 +1,7 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { H2 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { colorTokens } from "@/theme/tokens";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar } from "lucide-react-native";
 import { View } from "react-native";
 import type { Event } from "../types";
 import { formatEventDateTime } from "../utils";
@@ -13,8 +11,6 @@ type EventDetailInfoProps = {
 };
 
 export const EventDetailInfo = ({ event }: EventDetailInfoProps) => {
-  const colorScheme = useColorScheme();
-  const accent = colorTokens[colorScheme].accent;
   const { date, time } = formatEventDateTime(event.date);
 
   return (
@@ -22,7 +18,7 @@ export const EventDetailInfo = ({ event }: EventDetailInfoProps) => {
       <H2>{event.title}</H2>
 
       <View className="flex-row items-start gap-3">
-        <Ionicons name="calendar-outline" size={IconSize.sm} color={accent} />
+        <AppIcon icon={Calendar} size="sm" className="text-accent" />
         <View className="flex-1 gap-1">
           <ThemedText className="text-xs font-medium uppercase" tone="muted">
             Date & Time

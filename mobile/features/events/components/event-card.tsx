@@ -1,10 +1,8 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { H3 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { colorTokens } from "@/theme/tokens";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar, Share2 } from "lucide-react-native";
 import { Pressable, View } from "react-native";
 import { Event } from "../types";
 
@@ -15,10 +13,6 @@ type EventCardProps = {
 };
 
 export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
-  const colorScheme = useColorScheme();
-  const muted = colorTokens[colorScheme].muted;
-  const accent = colorTokens[colorScheme].accent;
-
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return {
@@ -58,13 +52,13 @@ export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
               }}
               className="bg-surface"
             >
-              <Ionicons name="share-outline" size={IconSize.sm} color={accent} />
+              <AppIcon icon={Share2} size="sm" className="text-accent" />
             </IconButton>
           ) : null}
         </View>
 
         <View className="flex-row items-center gap-2">
-          <Ionicons name="calendar-outline" size={IconSize.xs} color={muted} />
+          <AppIcon icon={Calendar} size="xs" className="text-muted" />
           <ThemedText className="text-sm" tone="muted">
             {formattedDate} • {time}
           </ThemedText>
