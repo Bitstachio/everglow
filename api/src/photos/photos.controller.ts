@@ -15,6 +15,7 @@ import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthor
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { RateLimit } from "src/common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.decorator";
 import { ConfirmPhotoResultDto } from "./dto/confirm-photo-result.dto";
 import { ConfirmUploadsDto } from "./dto/confirm-uploads.dto";
@@ -35,6 +36,7 @@ export class PhotosController {
   constructor(private readonly photosService: PhotosService) {}
 
   @Post("events/:eventId/photos/upload-urls")
+  @RateLimit("uploads")
   @ApiOperation({ summary: "Mint presigned upload URLs for a batch of photos" })
   @ApiWrappedResponse(UploadSlotResponseDto, "Upload slots with presigned S3 PUT URLs", 201)
   async createUploadUrls(

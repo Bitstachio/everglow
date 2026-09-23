@@ -1,4 +1,4 @@
-import type { Event } from "../types";
+import type { Event, EventParticipantResponseDto, Photo } from "../types";
 
 export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   id: "event-1",
@@ -10,6 +10,26 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   coverUrl: null,
   createdAt: "2026-09-01T12:00:00.000Z",
   updatedAt: "2026-09-01T12:00:00.000Z",
+  ...overrides,
+});
+
+export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
+  id: "photo-1",
+  eventId: "event-1",
+  addedById: "user-1",
+  url: "https://cdn.example.com/photo-1.jpg",
+  contentType: "image/jpeg",
+  createdAt: "2026-09-01T12:00:00.000Z",
+  ...overrides,
+});
+
+export const buildParticipant = (
+  overrides: Partial<EventParticipantResponseDto> = {},
+): EventParticipantResponseDto => ({
+  userId: "user-1",
+  name: "Ada Lovelace",
+  accessLevel: "ORGANIZER",
+  avatarUrl: null,
   ...overrides,
 });
 

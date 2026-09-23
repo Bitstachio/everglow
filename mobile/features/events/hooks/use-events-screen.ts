@@ -11,7 +11,7 @@ export const useEventsScreen = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { data: events = [], isLoading, isRefetching, error, errorUpdatedAt, refetch } = useEventsQuery(user?.id);
-  const [joinModalVisible, setJoinModalVisible] = useState(false);
+  const [joinSheetVisible, setJoinSheetVisible] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   useEffect(() => {
@@ -32,9 +32,9 @@ export const useEventsScreen = () => {
   };
 
   const { form, onSubmit, onScan } = useJoinEventForm({
-    visible: joinModalVisible,
+    visible: joinSheetVisible,
     onSuccess: (result) => {
-      setJoinModalVisible(false);
+      setJoinSheetVisible(false);
       const wasAlreadyJoined = events.some((event) => event.id === result.id);
       Alert.alert(
         wasAlreadyJoined ? "Already Joined" : "Success",
@@ -50,16 +50,16 @@ export const useEventsScreen = () => {
     currentUserId: user?.id,
     profileInitial: user?.details?.name?.trim().charAt(0).toUpperCase() || "U",
     handleOpenAccountSettings: () => router.push("/account-settings"),
-    joinModalVisible,
+    joinSheetVisible,
     selectedEvent,
     invitationModalVisible: selectedEvent !== null,
     onRefresh,
     form,
     onSubmit,
     handleJoinViaLink: onScan,
-    handleOpenJoinModal: () => setJoinModalVisible(true),
-    handleCloseJoinModal: () => {
-      if (!form.formState.isSubmitting) setJoinModalVisible(false);
+    handleOpenJoinSheet: () => setJoinSheetVisible(true),
+    handleCloseJoinSheet: () => {
+      if (!form.formState.isSubmitting) setJoinSheetVisible(false);
     },
     handleCreateEvent: () => router.push("/events/create"),
     handleEventShare: (event: Event) => setSelectedEvent(event),

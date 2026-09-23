@@ -1,15 +1,26 @@
-import { textColors } from "@/tailwind.config";
-import { ReactNode } from "react";
-import { Text } from "react-native";
+import { type ReactNode } from "react";
+import { Text, type TextProps } from "react-native";
 
-export type TextColorType = keyof typeof textColors;
+export type TextTone = "strong" | "foreground" | "muted" | "subtle" | "accent" | "danger";
 
-type ThemedTextProps = {
+type ThemedTextProps = Omit<TextProps, "children"> & {
   children: ReactNode;
   className?: string;
-  textColor?: TextColorType;
+  /** Semantic text color from theme tokens. Default: foreground. */
+  tone?: TextTone;
 };
 
-export const ThemedText = ({ children, className = "", textColor = "main" }: ThemedTextProps) => (
-  <Text className={`text-text-${textColor} dark:text-dark-text-${textColor} ${className}`}>{children}</Text>
+const TONE_CLASSES: Record<TextTone, string> = {
+  strong: "text-strong",
+  foreground: "text-foreground",
+  muted: "text-muted",
+  subtle: "text-subtle",
+  accent: "text-accent",
+  danger: "text-danger",
+};
+
+export const ThemedText = ({ children, className = "", tone = "foreground", ...props }: ThemedTextProps) => (
+  <Text className={`${TONE_CLASSES[tone]} ${className}`.trim()} {...props}>
+    {children}
+  </Text>
 );

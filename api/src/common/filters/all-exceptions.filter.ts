@@ -1,13 +1,23 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
 import { Request } from "express";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 
 export type ErrorResponse = {
   message?: string;
+  /** Stable machine-readable code, present when the thrown HttpException carries one. */
+  code?: string;
   meta: {
     timestamp: string;
     path: string;
   };
+};
+
+const errorCodeOf = (exception: HttpException): string | undefined => {
+  const response = exception.getResponse();
+  if (typeof response !== "object" || !("code" in response)) return undefined;
+
+  return typeof response.code === "string" ? response.code : undefined;
 };
 
 @Catch()
@@ -23,20 +33,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | undefined;
+    let code: string | undefined;
 
     // Only expose message for HttpException (user-defined errors)
     // Unhandled errors are logged server-side but not exposed to clients for security
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       message = exception.message;
+      code = errorCodeOf(exception);
     } else if (exception instanceof Error) {
-      this.logger.error({ event: "request.unhandled_error", err: exception }, "Unhandled exception");
+      this.logger.error({ event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, err: exception }, "Unhandled exception");
     } else {
-      this.logger.error({ event: "request.unhandled_error", thrown: exception }, "Unhandled non-Error exception");
+      this.logger.error(
+        { event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, thrown: exception },
+        "Unhandled non-Error exception",
+      );
     }
 
     const responseBody: ErrorResponse = {
       ...(message && { message }),
+      ...(code && { code }),
       meta: {
         timestamp: new Date().toISOString(),
         path: httpAdapter.getRequestUrl(ctx.getRequest<Request>()) as string,

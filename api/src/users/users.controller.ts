@@ -18,6 +18,7 @@ import { ConfirmImageUploadDto } from "src/images/dto/confirm-image-upload.dto";
 import { CreateImageUploadDto } from "src/images/dto/create-image-upload.dto";
 import { ImageUploadResponseDto } from "src/images/dto/image-upload-response.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { RateLimit } from "../common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { DeleteAccountQueryDto } from "./dto/delete-account-query.dto";
@@ -43,6 +44,7 @@ export class UsersController {
   ) {}
 
   @Post("me/onboarding")
+  @RateLimit("sensitive")
   @ApiOperation({ summary: "Complete user onboarding" })
   @ApiWrappedResponse(UserResponseDto, "Onboarded user profile", 201)
   async completeOnboarding(
@@ -77,6 +79,7 @@ export class UsersController {
   }
 
   @Post("me/avatar/upload-url")
+  @RateLimit("uploads")
   @ApiOperation({ summary: "Mint a presigned upload URL for the current user's avatar" })
   @ApiWrappedResponse(ImageUploadResponseDto, "Upload id with a presigned S3 PUT URL", 201)
   async createAvatarUploadUrl(
@@ -105,6 +108,7 @@ export class UsersController {
   }
 
   @Delete("me")
+  @RateLimit("sensitive")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete current user" })
   @ApiNoContentResponse({ description: "User deleted (empty data envelope at runtime)" })

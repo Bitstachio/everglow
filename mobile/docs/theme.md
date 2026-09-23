@@ -2,6 +2,8 @@
 
 Screens and components are styled with NativeWind classes (`className`), the same way a Tailwind web app is. Light and dark come from semantic tokens, not from `dark:` pairs on every element.
 
+Type size, spacing, radius, and tap targets are a separate scale: [UI scale](./ui-scale.md). Use that document for padding, gaps, font sizes, and control dimensions; this document is color and how tokens are wired.
+
 ## Day-to-day usage
 
 ```tsx
@@ -14,6 +16,30 @@ Screens and components are styled with NativeWind classes (`className`), the sam
 Use a token, not a raw palette class (`bg-white`, `text-gray-500`) and not `bg-white dark:bg-slate-950`. The token already flips with the system appearance.
 
 Spell class names out in full. Tailwind’s scanner cannot see interpolated strings, so `` `text-${color}` `` will not generate a utility. `components/ui/themed-text.tsx` uses a literal lookup table for that reason.
+
+## Safe-area views
+
+Import `SafeAreaView` from `@/components/ui/safe-area-view` when using `className`.
+NativeWind v5 automatically adapts core React Native components, but the installed
+`react-native-safe-area-context` integration only adapts its provider. Its native
+`SafeAreaView` needs the shared `styled` wrapper to map `className` to `style`.
+Without it, layout classes such as `flex-1` are ignored and a screen can collapse.
+
+## No `StyleSheet`
+
+Do not import or call React Native `StyleSheet` (`StyleSheet.create`, `StyleSheet.absoluteFill`, …). Layout, color, spacing, and typography belong in `className` with tokens from `global.css`.
+
+ESLint enforces this via `local/no-stylesheet`. A short allowlist of pre-NativeWind files is exempt in `eslint.config.js` until those screens are migrated — do not add new paths to that list.
+
+Animated values (opacity, `translateY`, …) may still use a `style` prop when NativeWind cannot drive the animation. Keep that `style` limited to the animated properties and put everything else on `className`.
+
+```tsx
+// Preferred
+<View className="absolute inset-0 bg-scrim" />;
+
+// Avoid
+const styles = StyleSheet.create({ scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "#0000008c" } });
+```
 
 ## File map
 
@@ -80,4 +106,6 @@ If you change a hex in `global.css`, change the matching key in `theme/tokens.ts
 
 ## Out of scope (migrate later)
 
-Shared UI under `components/ui/` still uses the old palette class names (`bg-brand-primary`, `border-ui-border`, `text-text-main`, …). `tailwind.config.ts` remains only as the `textColors` export for `themed-text`; it is not the Tailwind theme. New UI should use `global.css` tokens via `className`, and `theme/tokens.ts` only for native chrome / color props. Expo starter leftovers (`constants/theme.ts`, template `button` / `input`) are the same story.
+Legacy Expo starter files outside `components/ui/` (`constants/theme.ts`,
+`components/themed-text.tsx`, some feature screens) still use StyleSheet or old
+palette class names. Migrate those when touching the screen; do not extend them.

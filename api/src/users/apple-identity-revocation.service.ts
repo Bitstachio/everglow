@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { AppleSiwaService, AppleTokenRevocationError, AppleTokenTypeHint } from "src/sdk/apple/apple-siwa.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { APPLE_PROVIDER, isAppleProviderSub } from "./users.constants";
@@ -46,7 +47,7 @@ export class AppleIdentityRevocationService {
 
     if (!this.appleSiwa.isRevocationConfigured()) {
       this.logger.error(
-        { event: "user.account.apple_revocation_skipped", userId, reason: "unconfigured", audit: true },
+        { event: ALERT_EVENTS.APPLE_REVOCATION_SKIPPED, userId, reason: "unconfigured", audit: true },
         "Apple user deleted without revoking their Sign in with Apple token: APPLE_SIWA_* is not configured",
       );
       return "skipped_unconfigured";
@@ -57,7 +58,7 @@ export class AppleIdentityRevocationService {
       // Auth0 already deleted the user (a resumed saga). The token went with it;
       // nothing is left to revoke on our side.
       this.logger.warn(
-        { event: "user.account.apple_revocation_skipped", userId, reason: "identity_gone", audit: true },
+        { event: ALERT_EVENTS.APPLE_REVOCATION_SKIPPED, userId, reason: "identity_gone", audit: true },
         "Auth0 user already gone before Apple token revocation; nothing left to revoke",
       );
       return "skipped_identity_gone";
@@ -66,7 +67,7 @@ export class AppleIdentityRevocationService {
     const selected = selectToken(tokens);
     if (!selected) {
       this.logger.error(
-        { event: "user.account.apple_revocation_skipped", userId, reason: "no_token", audit: true },
+        { event: ALERT_EVENTS.APPLE_REVOCATION_SKIPPED, userId, reason: "no_token", audit: true },
         "Auth0 returned no Apple token for this user: check the management client has read:user_idp_tokens " +
           "and the Apple connection stores tokens",
       );
@@ -78,7 +79,7 @@ export class AppleIdentityRevocationService {
     } catch (error) {
       if (error instanceof AppleTokenRevocationError && !error.retryable) {
         this.logger.error(
-          { err: error, event: "user.account.apple_revocation_failed", userId, retryable: false, audit: true },
+          { err: error, event: ALERT_EVENTS.APPLE_REVOCATION_FAILED, userId, retryable: false, audit: true },
           "Apple refused the token revocation; continuing account deletion, the person must revoke manually",
         );
         return "failed";

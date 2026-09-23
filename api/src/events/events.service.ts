@@ -11,6 +11,7 @@ import { randomUUID } from "crypto";
 import { AccessLevel, Event, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { ImageUploadService } from "src/images/image-upload.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -362,7 +363,7 @@ export class EventsService {
     );
 
     await this.photoPurgeService.purgeObjects(coverKey ? [...photoKeys, coverKey] : photoKeys, {
-      event: "event.photos.purged",
+      event: ALERT_EVENTS.EVENT_PHOTOS_PURGED,
       eventId,
       callerId,
     });

@@ -7,7 +7,6 @@ export const mockRequestPermission = jest.fn();
 export const mockCameraPermission = jest.fn((): { granted: boolean } | null => ({ granted: true }));
 
 jest.mock("@/hooks/use-color-scheme", () => ({ useColorScheme: () => mockColorScheme() }));
-jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null, MaterialCommunityIcons: () => null }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));

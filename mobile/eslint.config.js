@@ -20,6 +20,16 @@ const legacyFeatureNames = [];
 // App routes exempt from thin-route rules while legacy event screens live outside features/.
 const legacyAppRoutePaths = ["app/events/**"];
 
+// Pre-NativeWind StyleSheet usage. Turn off local/no-stylesheet only for these until migrated.
+const legacyStyleSheetPaths = [
+  "app/login.tsx",
+  "app/onboarding.tsx",
+  "app/signup.tsx",
+  "context/auth-context.tsx",
+  "features/events/screens/events-list-screen.tsx",
+  "features/events/screens/events-screen.tsx",
+];
+
 const lintedSourceGlobs = [
   "app/**/*.{ts,tsx}",
   "components/**/*.{ts,tsx}",
@@ -53,8 +63,10 @@ const codebaseConventionRules = {
   ],
   // Filenames only (not directories) so Expo Router `(groups)` stay valid.
   "local/kebab-case-filename": "error",
-  // Blocks Button/Button.tsx and button/button.tsx (and index.tsx wrappers). Skips app/.
+  // Flat by default; same-named folders only when colocating a hook/util (not just a test). No index.tsx. Skips app/.
   "local/no-component-folder": "error",
+  // Prefer NativeWind className over StyleSheet.create. See docs/theme.md.
+  "local/no-stylesheet": "error",
 };
 
 // A feature references its own files relatively, so renaming or extracting the folder never
@@ -87,6 +99,12 @@ module.exports = defineConfig([
       local: localPlugin,
     },
     rules: codebaseConventionRules,
+  },
+  {
+    files: legacyStyleSheetPaths,
+    rules: {
+      "local/no-stylesheet": "off",
+    },
   },
   ...featureSelfImportConfigs,
   {

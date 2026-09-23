@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { jitteredLinearBackoffMs, sleep } from "src/common/utils/async.utils";
 import { isRecordNotFound, isSerializationFailure } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -98,7 +99,7 @@ export class PhotoStorageService {
         const willRetry = attempt < STORAGE_RESERVATION_MAX_ATTEMPTS;
         this.logger.warn(
           {
-            event: "photo.storage.reservation_conflict",
+            event: ALERT_EVENTS.STORAGE_RESERVATION_CONFLICT,
             userId,
             attempt,
             maxAttempts: STORAGE_RESERVATION_MAX_ATTEMPTS,
