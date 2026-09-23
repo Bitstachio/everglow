@@ -124,7 +124,7 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 ## Account Settings
 
-`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, a Usage navigation row, security and legal sections, logout, and account deletion. The protected `/usage` route shows account-scoped photo storage, a percentage bar, used/remaining/limit values, and a Photos stored row marked unavailable because the existing API does not return a photo count. Deletion asks for the photo policy and then confirms the irreversible action. Username and avatar uploads are not supported by the profile API. Password changes and legal destinations remain unavailable until their integrations are configured. Profile email edits do not change the Auth0 sign-in email.
+`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, a Usage navigation row, security and legal sections, logout, and account deletion. The protected `/usage` route shows account-scoped photo storage, a percentage bar, used/remaining/limit values, and a Photos stored row marked unavailable because the existing API does not return a photo count. Deletion asks for the photo policy and then confirms the irreversible action. Username and avatar uploads are not supported by the profile API. Password changes remain unavailable until that integration is configured; the Privacy Policy and Terms of Use rows open their own read-only routes. Profile email edits do not change the Auth0 sign-in email.
 
 ## Shared folders outside `features/`
 
@@ -216,3 +216,12 @@ form validates and trims the name, submits only `name` through the existing
 profile mutation, and returns to the previous screen after success. Save
 stays pinned above the safe area; failures keep the draft available for
 retry. The email action continues to use the existing profile modal.
+
+## Legal pages
+
+The About rows open the protected `/privacy-policy` and `/terms-of-use`
+routes. Both screens are read-only: they render the shared `LegalDocument`
+component with copy from `legal-content.ts`, so the two pages stay visually
+identical and only their text differs. There is no API call and no screen
+hook; when the policies move to a server, replace the constants with a
+feature query and keep the component as-is.

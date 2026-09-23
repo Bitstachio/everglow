@@ -104,3 +104,12 @@ test("opens the display name editor", async () => {
   result.current.handleOpenDisplayName();
   expect(mockPush).toHaveBeenCalledWith("/edit-display-name");
 });
+
+test.each([
+  ["handleOpenPrivacyPolicy", "/privacy-policy"],
+  ["handleOpenTermsOfUse", "/terms-of-use"],
+] as const)("opens the dedicated legal page via %s", async (handler, path) => {
+  const { result } = await renderHook(() => useProfileScreen());
+  result.current[handler]();
+  expect(mockPush).toHaveBeenCalledWith(path);
+});

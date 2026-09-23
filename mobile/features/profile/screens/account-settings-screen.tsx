@@ -14,6 +14,8 @@ const AccountSettingsScreen = () => {
     handleOpenUsername,
     handleOpenUsage,
     handleOpenDisplayName,
+    handleOpenPrivacyPolicy,
+    handleOpenTermsOfUse,
     isLoading,
     isDeleting,
     showEditModal,
@@ -109,12 +111,19 @@ const AccountSettingsScreen = () => {
           <View className="overflow-hidden rounded-2xl border border-border bg-surface">
             <SettingsRow
               title="Privacy Policy"
-              description="Not available yet"
+              description="How we handle your data"
               icon="shield-checkmark-outline"
-              disabled
+              onPress={handleOpenPrivacyPolicy}
+              disabled={isDeleting}
             />
             <View className="h-px bg-border" />
-            <SettingsRow title="Terms of Use" description="Not available yet" icon="document-text-outline" disabled />
+            <SettingsRow
+              title="Terms of Use"
+              description="The rules for using Everglow"
+              icon="document-text-outline"
+              onPress={handleOpenTermsOfUse}
+              disabled={isDeleting}
+            />
           </View>
         </View>
         <View className="overflow-hidden rounded-2xl border border-border bg-surface">
