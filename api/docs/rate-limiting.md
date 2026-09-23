@@ -37,11 +37,11 @@ Declared once in `RATE_LIMIT_TIER_DEFAULTS`. Each is overridable per environment
 `RATE_LIMIT_<TIER>_LIMIT` and `RATE_LIMIT_<TIER>_TTL_SECONDS`; an invalid or non-positive value falls back to the
 default (`parseIntegerEnv`, same convention as the other config files).
 
-| Tier        | Default      | Keyed by                           | Bucket spans | Applied to                                                                                                   |
-| ----------- | ------------ | ---------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------ |
-| `default`   | 1000 / 60 s  | client IP                          | all routes   | Every route, automatically (global guard). `GET /api/v2` is exempt.                                          |
-| `sensitive` | 10 / 60 s    | user id (IP if the route has none) | one route    | `POST /events/join`, `POST /events/:eventId/regenerate-url`, `POST /users/me/onboarding`, `DELETE /users/me` |
-| `uploads`   | 30 / 60 s    | user id (IP if the route has none) | one route    | `POST /events/:eventId/photos/upload-urls` (up to 20 slots per request, so 600 slots a minute)               |
+| Tier        | Default     | Keyed by                           | Bucket spans | Applied to                                                                                                                                                                                                                                                                                               |
+| ----------- | ----------- | ---------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default`   | 1000 / 60 s | client IP                          | all routes   | Every route, automatically (global guard). `GET /api/v2` is exempt.                                                                                                                                                                                                                                      |
+| `sensitive` | 10 / 60 s   | user id (IP if the route has none) | one route    | `POST /events/join`, `POST /events/:eventId/regenerate-url`, `POST /users/me/onboarding`, `DELETE /users/me`, `POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId` |
+| `uploads`   | 30 / 60 s   | user id (IP if the route has none) | one route    | `POST /events/:eventId/photos/upload-urls` (up to 20 slots per request, so 600 slots a minute)                                                                                                                                                                                                           |
 
 Semantics: a caller may make `limit` requests per window. The request that exceeds it starts a block lasting one
 window (`Retry-After` counts it down); requests during a block are rejected and not counted. Every request that
@@ -130,12 +130,12 @@ thousands. The memory behind that de-duplication is bounded (10 000 buckets, exp
 IP keying is only as good as `req.ip`. `configureApp` passes `TRUST_PROXY` to Express's
 [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html) setting:
 
-| `TRUST_PROXY`            | Meaning                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------- |
-| unset / `false`          | **Default.** `X-Forwarded-For` is ignored; `req.ip` is the socket address.                        |
-| a number, e.g. `1`       | Trust that many proxy hops in front of the app. The usual setting behind one load balancer.       |
-| an address list          | e.g. `loopback, 10.0.0.0/8`. Trust only those proxies. An unparseable list fails at boot.         |
-| `true`                   | Trust every hop. Only safe if the app is unreachable except through a proxy that overwrites XFF.  |
+| `TRUST_PROXY`      | Meaning                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| unset / `false`    | **Default.** `X-Forwarded-For` is ignored; `req.ip` is the socket address.                       |
+| a number, e.g. `1` | Trust that many proxy hops in front of the app. The usual setting behind one load balancer.      |
+| an address list    | e.g. `loopback, 10.0.0.0/8`. Trust only those proxies. An unparseable list fails at boot.        |
+| `true`             | Trust every hop. Only safe if the app is unreachable except through a proxy that overwrites XFF. |
 
 Both wrong settings fail badly, which is why it is explicit rather than hardcoded. Off behind a proxy: every
 client shares the proxy's address and the whole user base shares one `default` bucket. On with nothing in front:
@@ -168,6 +168,7 @@ de-duplication is also per process, so N instances may each log a blocked bucket
 
   It covers the 429 envelope and `Retry-After`, per-user keying, the pre-auth IP tier, the skip path, and
   `TRUST_PROXY` on and off.
+
 - **Unit tests** build the guards directly with a fake `ThrottlerStorage`
   (`rate-limit.guard.spec.ts`): tier resolution, user vs IP keying, per-route buckets, skip, disabled. Config
   parsing, the rejection logger, the OpenAPI documenter, and the filter's `code` passthrough have their own specs.

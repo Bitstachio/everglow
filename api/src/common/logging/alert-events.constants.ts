@@ -22,6 +22,8 @@ export const ALERT_EVENTS = {
   UPLOAD_SLOTS_PRESIGN_FAILED: "photo.upload_slots.presign_failed",
   UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",
 
+  REPORT_ESCALATED: "report.escalated",
+
   // Scheduler heartbeats and failures, emitted by runScheduledJob.
   ACCOUNT_DELETION_RECONCILE_RUN_COMPLETED: "user.account.deletion_reconcile.run_completed",
   ACCOUNT_DELETION_RECONCILE_RUN_FAILED: "user.account.deletion_reconcile.run_failed",

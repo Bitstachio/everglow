@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthor
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { RateLimit } from "src/common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.decorator";
 import { BlocksService } from "./blocks.service";
 import { BlockedUserListResponseDto } from "./dto/blocked-user-list-response.dto";
@@ -25,6 +26,7 @@ export class BlocksController {
   }
 
   @Put(":userId")
+  @RateLimit("sensitive")
   @ApiOperation({
     summary: "Block a user",
     description:
@@ -40,6 +42,7 @@ export class BlocksController {
   }
 
   @Delete(":userId")
+  @RateLimit("sensitive")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Unblock a user" })
   @ApiNoContentResponse({ description: "User is not blocked any more (empty data envelope at runtime)" })

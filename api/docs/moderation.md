@@ -186,7 +186,7 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 
 ## 5. Escalation to the platform owner
 
-Organizers moderate their own events, but the platform owner has to be able to act when they do not, or when they are the problem. There is no admin endpoint yet (§7), so escalation is **log-based**: alerting keys off stable event names.
+Organizers moderate their own events, but the platform owner has to be able to act when they do not, or when they are the problem. There is no admin endpoint yet (§8), so escalation is **log-based**: alerting keys off stable event names.
 
 | Event              | Level  | When                          | Fields                                                                                            |
 | ------------------ | ------ | ----------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -195,7 +195,7 @@ Organizers moderate their own events, but the platform owner has to be able to a
 | `report.resolved`  | `info` | an organizer's verdict        | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `resolution`, `audit` |
 | `user.block.created`, `user.block.removed` | `info` | the block list changed | `callerId`, `blockedUserId`, `audit`                                                 |
 
-**Page a human on `report.escalated`.** `escalationReasons` holds one or more of:
+**`report.escalated` is the alert** (a ticket, see [alerting.md §3](./alerting.md#3-events-to-alert-on)); the other three are audit records. `escalationReasons` holds one or more of:
 
 | Reason                   | Meaning                                                                                                      |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------ |
@@ -215,10 +215,15 @@ The field is optional only so the current mobile onboarding keeps working. It sh
 
 ---
 
-## 7. Out of scope
+## 7. Rate limiting
+
+The five mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId`) carry `@RateLimit("sensitive")`: 10 a minute per user, on top of the global default. The two list endpoints stay on the global default. See [rate-limiting.md](./rate-limiting.md).
+
+---
+
+## 8. Out of scope
 
 - **An admin dashboard or admin endpoint.** The platform owner works from the logs and the database for now.
-- **Rate limiting.** Shared infrastructure is being built separately; the two report `POST`s and `PUT /users/me/blocks/:userId` should get its sensitive tier.
 - **Notifications** to organizers about new reports, or to reporters about the outcome.
 - **Resolving every report on a target in one call.** Each report is resolved on its own.
 - **Automatic removal.** No number of reports deletes a photo or removes a member; hiding is the strongest automatic effect.

@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { RateLimit } from "src/common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.decorator";
 import { CreateReportDto } from "./dto/create-report.dto";
 import { ListReportsQueryDto } from "./dto/list-reports-query.dto";
@@ -21,6 +22,7 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post("photos/:photoId/reports")
+  @RateLimit("sensitive")
   @ApiOperation({
     summary: "Report a photo",
     description:
@@ -37,6 +39,7 @@ export class ReportsController {
   }
 
   @Post("events/:eventId/participants/:targetUserId/reports")
+  @RateLimit("sensitive")
   @ApiOperation({
     summary: "Report a member of an event",
     description:
@@ -65,6 +68,7 @@ export class ReportsController {
   }
 
   @Patch("reports/:reportId")
+  @RateLimit("sensitive")
   @ApiOperation({
     summary: "Resolve a report (organizers only)",
     description: "Not available to the organizer the report is about. Resolving never deletes anything by itself.",

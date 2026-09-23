@@ -13,6 +13,7 @@ import {
 } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
@@ -263,8 +264,11 @@ export class ReportsService {
 
     const escalationReasons = await this.escalationReasonsFor(created, context);
     if (escalationReasons.length > 0) {
-      // The event log-based alerting pages a human on (docs/moderation.md).
-      this.logger.warn({ event: "report.escalated", ...fields, escalationReasons }, "Report needs platform attention");
+      // The event the platform owner's alert rule keys off (docs/alerting.md §3).
+      this.logger.warn(
+        { event: ALERT_EVENTS.REPORT_ESCALATED, ...fields, escalationReasons },
+        "Report needs platform attention",
+      );
     }
 
     return created;
