@@ -31,7 +31,7 @@ export const useEventsListScreen = () => {
     }
   }, [error, errorUpdatedAt]);
 
-  // Legacy detail pages do not invalidate queries yet. Refresh when returning.
+  // Detail mutations invalidate list caches; still refresh on focus for peer updates.
   useFocusEffect(
     useCallback(() => {
       if (user?.id) void refetch({ cancelRefetch: false });

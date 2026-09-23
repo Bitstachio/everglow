@@ -3,11 +3,27 @@ import {
   DEFAULT_EVENTS_LIST_FILTERS,
   displayFilterDay,
   filterEvents,
+  formatEventDateTime,
   formatFilterDay,
+  getAccessLevelLabel,
   hasActiveEventsListFilters,
   sortEvents,
   toggleEventsListRole,
 } from "./utils";
+
+test("formats event date and time for detail display", () => {
+  const { date, time } = formatEventDateTime("2026-09-20T15:30:00.000Z");
+  expect(date.length).toBeGreaterThan(0);
+  expect(time.length).toBeGreaterThan(0);
+});
+
+test.each([
+  ["ORGANIZER", "Organizer"],
+  ["PARTICIPANT", "Participant"],
+  ["VIEWER", "Viewer"],
+] as const)("labels access level %s", (level, label) => {
+  expect(getAccessLevelLabel(level)).toBe(label);
+});
 
 test("returns all events when filters are empty", () => {
   const events = [buildEvent(), buildEvent({ id: "event-2", creatorId: "user-2" })];

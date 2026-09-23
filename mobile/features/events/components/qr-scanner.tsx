@@ -1,12 +1,10 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { colorTokens } from "@/theme/tokens";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { CameraOff, X } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Modal, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,7 +18,6 @@ type QRScannerProps = {
 export const QRScanner = ({ visible, onClose, onScan }: QRScannerProps) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
@@ -53,7 +50,7 @@ export const QRScanner = ({ visible, onClose, onScan }: QRScannerProps) => {
         <View className="flex-1 items-center justify-center bg-scrim p-4">
           <View className="w-full gap-4 rounded-2xl bg-background p-6">
             <View className="items-center gap-4">
-              <MaterialCommunityIcons name="camera-off" size={IconSize.xl} color={colorTokens[colorScheme].muted} />
+              <AppIcon icon={CameraOff} size="xl" className="text-muted" />
               <H2 className="text-center">Camera Access Required</H2>
               <ThemedText className="text-center text-base" tone="muted">
                 We need access to your camera to scan QR codes for event invitations.
@@ -83,7 +80,7 @@ export const QRScanner = ({ visible, onClose, onScan }: QRScannerProps) => {
           <View className="flex-1">
             <View className="px-6 pb-6" style={{ paddingTop: Math.max(insets.top, 24) }}>
               <IconButton accessibilityLabel="Close scanner" onPress={onClose} className="bg-scrim">
-                <MaterialCommunityIcons name="close" size={IconSize.md} color="#FFFFFF" />
+                <AppIcon icon={X} size="md" className="text-white" />
               </IconButton>
             </View>
 

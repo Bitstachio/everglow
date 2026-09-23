@@ -1,12 +1,10 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ThemedText } from "@/components/ui/themed-text";
-import { IconSize } from "@/constants/icons";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { colorTokens } from "@/theme/tokens";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar } from "lucide-react-native";
 import { Pressable, View } from "react-native";
 import type { AccessLevel } from "../../types";
 import { displayFilterDay, EVENT_ROLE_OPTIONS, type EventsListFilters } from "../../utils";
@@ -33,8 +31,6 @@ export const EventsListFiltersSheet = ({
   onReset,
   onApply,
 }: EventsListFiltersSheetProps) => {
-  const colorScheme = useColorScheme();
-  const iconColor = colorTokens[colorScheme].muted;
   const { activeDateField, toggleDateField, closeDatePicker, handleDateChange, datePickerValue, datePickerDisplay } =
     useEventsListFiltersSheet({ visible, draft, onChangeDateFrom, onChangeDateTo });
 
@@ -88,7 +84,7 @@ export const EventsListFiltersSheet = ({
               onPress={() => toggleDateField("from")}
               className="h-12 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4"
             >
-              <Ionicons name="calendar-outline" size={IconSize.xs} color={iconColor} />
+              <AppIcon icon={Calendar} size="xs" className="text-muted" />
               <ThemedText className="text-base" tone={draft.dateFrom ? "foreground" : "subtle"}>
                 {displayFilterDay(draft.dateFrom)}
               </ThemedText>
@@ -102,7 +98,7 @@ export const EventsListFiltersSheet = ({
               onPress={() => toggleDateField("to")}
               className="h-12 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4"
             >
-              <Ionicons name="calendar-outline" size={IconSize.xs} color={iconColor} />
+              <AppIcon icon={Calendar} size="xs" className="text-muted" />
               <ThemedText className="text-base" tone={draft.dateTo ? "foreground" : "subtle"}>
                 {displayFilterDay(draft.dateTo)}
               </ThemedText>

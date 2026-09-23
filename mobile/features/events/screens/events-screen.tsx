@@ -4,6 +4,7 @@ import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
 import { JoinEventSheet } from "../components/join-event-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
+import { CirclePlus, QrCode } from "lucide-react-native";
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -60,8 +61,18 @@ const EventsScreen = () => {
         </View>
 
         <View style={styles.actionCards}>
-          <EventActionCard title="Join Event" description="Scan QR or paste link" onPress={handleOpenJoinSheet} />
-          <EventActionCard title="Create Event" description="Host your own meetup" onPress={handleCreateEvent} />
+          <EventActionCard
+            title="Join Event"
+            description="Scan QR or paste link"
+            icon={QrCode}
+            onPress={handleOpenJoinSheet}
+          />
+          <EventActionCard
+            title="Create Event"
+            description="Host your own meetup"
+            icon={CirclePlus}
+            onPress={handleCreateEvent}
+          />
         </View>
 
         <EventsList
