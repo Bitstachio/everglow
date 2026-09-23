@@ -1,4 +1,6 @@
 import { ArgumentsHost, Logger, NotFoundException } from "@nestjs/common";
+import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "../rate-limit/rate-limit.constants";
+import { RateLimitExceededException } from "../rate-limit/rate-limit.exception";
 import { HttpAdapterHost } from "@nestjs/core";
 import { AllExceptionsFilter, ErrorResponse } from "./all-exceptions.filter";
 
@@ -49,6 +51,25 @@ describe("AllExceptionsFilter", () => {
     expect(statusCode).toBe(404);
     expect(body.message).toBe("User not found");
     expect(body.meta.path).toBe(path);
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("omits the code when the HttpException carries none", () => {
+    filter.catch(new NotFoundException("User not found"), host);
+
+    expect(replyArgs().body).not.toHaveProperty("code");
+  });
+
+  it("surfaces a machine-readable code and nothing else from a coded HttpException", () => {
+    filter.catch(new RateLimitExceededException(), host);
+
+    const { body, statusCode } = replyArgs();
+    expect(statusCode).toBe(429);
+    expect(body).toEqual({
+      message: RATE_LIMIT_EXCEEDED_MESSAGE,
+      code: RATE_LIMIT_EXCEEDED_CODE,
+      meta: { timestamp: expect.any(String) as string, path },
+    });
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
