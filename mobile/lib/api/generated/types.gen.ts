@@ -62,6 +62,10 @@ export type ImageUploadResponseDto = {
    * Presigned S3 PUT URL the client uploads bytes to
    */
   uploadUrl: string;
+  /**
+   * When uploadUrl stops being accepted; request a new one after this
+   */
+  expiresAt: string;
 };
 
 export type CreateImageUploadDto = {
@@ -82,6 +86,10 @@ export type UploadSlotResponseDto = {
    * Presigned S3 PUT URL the client uploads bytes to
    */
   uploadUrl: string;
+  /**
+   * When uploadUrl stops being accepted; mint a new slot after this
+   */
+  expiresAt: string;
 };
 
 export type UploadFileDto = {
