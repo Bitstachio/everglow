@@ -41,52 +41,76 @@ import {
 import type {
   AppControllerGetHelloData,
   EventsControllerCreateData,
+  EventsControllerCreateError,
   EventsControllerCreateResponse,
   EventsControllerFindAllData,
+  EventsControllerFindAllError,
   EventsControllerFindAllResponse,
   EventsControllerFindOneData,
+  EventsControllerFindOneError,
   EventsControllerFindOneResponse,
   EventsControllerGetParticipantsData,
+  EventsControllerGetParticipantsError,
   EventsControllerGetParticipantsResponse,
   EventsControllerJoinData,
+  EventsControllerJoinError,
   EventsControllerJoinResponse,
   EventsControllerLeaveData,
+  EventsControllerLeaveError,
   EventsControllerLeaveResponse,
   EventsControllerRegenerateInvitationUrlData,
+  EventsControllerRegenerateInvitationUrlError,
   EventsControllerRegenerateInvitationUrlResponse,
   EventsControllerRemoveData,
+  EventsControllerRemoveError,
   EventsControllerRemoveParticipantData,
+  EventsControllerRemoveParticipantError,
   EventsControllerRemoveParticipantResponse,
   EventsControllerRemoveResponse,
   EventsControllerUpdateData,
+  EventsControllerUpdateError,
   EventsControllerUpdateParticipantAccessData,
+  EventsControllerUpdateParticipantAccessError,
   EventsControllerUpdateParticipantAccessResponse,
   EventsControllerUpdateResponse,
   PhotosControllerConfirmUploadsData,
+  PhotosControllerConfirmUploadsError,
   PhotosControllerConfirmUploadsResponse,
   PhotosControllerCreateUploadUrlsData,
+  PhotosControllerCreateUploadUrlsError,
   PhotosControllerCreateUploadUrlsResponse,
   PhotosControllerFindOneData,
+  PhotosControllerFindOneError,
   PhotosControllerFindOneResponse,
   PhotosControllerListPhotosData,
+  PhotosControllerListPhotosError,
   PhotosControllerListPhotosResponse,
   PhotosControllerRemoveData,
+  PhotosControllerRemoveError,
   PhotosControllerRemoveResponse,
   UsersControllerCompleteOnboardingData,
+  UsersControllerCompleteOnboardingError,
   UsersControllerCompleteOnboardingResponse,
   UsersControllerConfirmAvatarUploadData,
+  UsersControllerConfirmAvatarUploadError,
   UsersControllerConfirmAvatarUploadResponse,
   UsersControllerCreateAvatarUploadUrlData,
+  UsersControllerCreateAvatarUploadUrlError,
   UsersControllerCreateAvatarUploadUrlResponse,
   UsersControllerFindMeData,
+  UsersControllerFindMeError,
   UsersControllerFindMeResponse,
   UsersControllerGetMyStorageData,
+  UsersControllerGetMyStorageError,
   UsersControllerGetMyStorageResponse,
   UsersControllerRemoveAvatarData,
+  UsersControllerRemoveAvatarError,
   UsersControllerRemoveAvatarResponse,
   UsersControllerRemoveMeData,
+  UsersControllerRemoveMeError,
   UsersControllerRemoveMeResponse,
   UsersControllerUpdateMeData,
+  UsersControllerUpdateMeError,
   UsersControllerUpdateMeResponse,
 } from "../types.gen";
 
@@ -153,12 +177,12 @@ export const usersControllerCompleteOnboardingMutation = (
   options?: Partial<Options<UsersControllerCompleteOnboardingData>>,
 ): UseMutationOptions<
   UsersControllerCompleteOnboardingResponse,
-  AxiosError<DefaultError>,
+  AxiosError<UsersControllerCompleteOnboardingError>,
   Options<UsersControllerCompleteOnboardingData>
 > => {
   const mutationOptions: UseMutationOptions<
     UsersControllerCompleteOnboardingResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerCompleteOnboardingError>,
     Options<UsersControllerCompleteOnboardingData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -180,12 +204,12 @@ export const usersControllerRemoveMeMutation = (
   options?: Partial<Options<UsersControllerRemoveMeData>>,
 ): UseMutationOptions<
   UsersControllerRemoveMeResponse,
-  AxiosError<DefaultError>,
+  AxiosError<UsersControllerRemoveMeError>,
   Options<UsersControllerRemoveMeData>
 > => {
   const mutationOptions: UseMutationOptions<
     UsersControllerRemoveMeResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerRemoveMeError>,
     Options<UsersControllerRemoveMeData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -209,7 +233,7 @@ export const usersControllerFindMeQueryKey = (options?: Options<UsersControllerF
 export const usersControllerFindMeOptions = (options?: Options<UsersControllerFindMeData>) =>
   queryOptions<
     UsersControllerFindMeResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerFindMeError>,
     UsersControllerFindMeResponse,
     ReturnType<typeof usersControllerFindMeQueryKey>
   >({
@@ -232,12 +256,12 @@ export const usersControllerUpdateMeMutation = (
   options?: Partial<Options<UsersControllerUpdateMeData>>,
 ): UseMutationOptions<
   UsersControllerUpdateMeResponse,
-  AxiosError<DefaultError>,
+  AxiosError<UsersControllerUpdateMeError>,
   Options<UsersControllerUpdateMeData>
 > => {
   const mutationOptions: UseMutationOptions<
     UsersControllerUpdateMeResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerUpdateMeError>,
     Options<UsersControllerUpdateMeData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -261,7 +285,7 @@ export const usersControllerGetMyStorageQueryKey = (options?: Options<UsersContr
 export const usersControllerGetMyStorageOptions = (options?: Options<UsersControllerGetMyStorageData>) =>
   queryOptions<
     UsersControllerGetMyStorageResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerGetMyStorageError>,
     UsersControllerGetMyStorageResponse,
     ReturnType<typeof usersControllerGetMyStorageQueryKey>
   >({
@@ -284,12 +308,12 @@ export const usersControllerCreateAvatarUploadUrlMutation = (
   options?: Partial<Options<UsersControllerCreateAvatarUploadUrlData>>,
 ): UseMutationOptions<
   UsersControllerCreateAvatarUploadUrlResponse,
-  AxiosError<DefaultError>,
+  AxiosError<UsersControllerCreateAvatarUploadUrlError>,
   Options<UsersControllerCreateAvatarUploadUrlData>
 > => {
   const mutationOptions: UseMutationOptions<
     UsersControllerCreateAvatarUploadUrlResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerCreateAvatarUploadUrlError>,
     Options<UsersControllerCreateAvatarUploadUrlData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -311,12 +335,12 @@ export const usersControllerRemoveAvatarMutation = (
   options?: Partial<Options<UsersControllerRemoveAvatarData>>,
 ): UseMutationOptions<
   UsersControllerRemoveAvatarResponse,
-  AxiosError<DefaultError>,
+  AxiosError<UsersControllerRemoveAvatarError>,
   Options<UsersControllerRemoveAvatarData>
 > => {
   const mutationOptions: UseMutationOptions<
     UsersControllerRemoveAvatarResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerRemoveAvatarError>,
     Options<UsersControllerRemoveAvatarData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -338,12 +362,12 @@ export const usersControllerConfirmAvatarUploadMutation = (
   options?: Partial<Options<UsersControllerConfirmAvatarUploadData>>,
 ): UseMutationOptions<
   UsersControllerConfirmAvatarUploadResponse,
-  AxiosError<DefaultError>,
+  AxiosError<UsersControllerConfirmAvatarUploadError>,
   Options<UsersControllerConfirmAvatarUploadData>
 > => {
   const mutationOptions: UseMutationOptions<
     UsersControllerConfirmAvatarUploadResponse,
-    AxiosError<DefaultError>,
+    AxiosError<UsersControllerConfirmAvatarUploadError>,
     Options<UsersControllerConfirmAvatarUploadData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -365,12 +389,12 @@ export const photosControllerCreateUploadUrlsMutation = (
   options?: Partial<Options<PhotosControllerCreateUploadUrlsData>>,
 ): UseMutationOptions<
   PhotosControllerCreateUploadUrlsResponse,
-  AxiosError<DefaultError>,
+  AxiosError<PhotosControllerCreateUploadUrlsError>,
   Options<PhotosControllerCreateUploadUrlsData>
 > => {
   const mutationOptions: UseMutationOptions<
     PhotosControllerCreateUploadUrlsResponse,
-    AxiosError<DefaultError>,
+    AxiosError<PhotosControllerCreateUploadUrlsError>,
     Options<PhotosControllerCreateUploadUrlsData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -392,12 +416,12 @@ export const photosControllerConfirmUploadsMutation = (
   options?: Partial<Options<PhotosControllerConfirmUploadsData>>,
 ): UseMutationOptions<
   PhotosControllerConfirmUploadsResponse,
-  AxiosError<DefaultError>,
+  AxiosError<PhotosControllerConfirmUploadsError>,
   Options<PhotosControllerConfirmUploadsData>
 > => {
   const mutationOptions: UseMutationOptions<
     PhotosControllerConfirmUploadsResponse,
-    AxiosError<DefaultError>,
+    AxiosError<PhotosControllerConfirmUploadsError>,
     Options<PhotosControllerConfirmUploadsData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -421,7 +445,7 @@ export const photosControllerListPhotosQueryKey = (options: Options<PhotosContro
 export const photosControllerListPhotosOptions = (options: Options<PhotosControllerListPhotosData>) =>
   queryOptions<
     PhotosControllerListPhotosResponse,
-    AxiosError<DefaultError>,
+    AxiosError<PhotosControllerListPhotosError>,
     PhotosControllerListPhotosResponse,
     ReturnType<typeof photosControllerListPhotosQueryKey>
   >({
@@ -479,7 +503,7 @@ export const photosControllerListPhotosInfiniteQueryKey = (
 export const photosControllerListPhotosInfiniteOptions = (options: Options<PhotosControllerListPhotosData>) => {
   const opts = infiniteQueryOptions<
     PhotosControllerListPhotosResponse,
-    AxiosError<DefaultError>,
+    AxiosError<PhotosControllerListPhotosError>,
     InfiniteData<PhotosControllerListPhotosResponse>,
     QueryKey<Options<PhotosControllerListPhotosData>>,
     string | Pick<QueryKey<Options<PhotosControllerListPhotosData>>[0], "body" | "headers" | "path" | "query">
@@ -518,12 +542,12 @@ export const photosControllerRemoveMutation = (
   options?: Partial<Options<PhotosControllerRemoveData>>,
 ): UseMutationOptions<
   PhotosControllerRemoveResponse,
-  AxiosError<DefaultError>,
+  AxiosError<PhotosControllerRemoveError>,
   Options<PhotosControllerRemoveData>
 > => {
   const mutationOptions: UseMutationOptions<
     PhotosControllerRemoveResponse,
-    AxiosError<DefaultError>,
+    AxiosError<PhotosControllerRemoveError>,
     Options<PhotosControllerRemoveData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -547,7 +571,7 @@ export const photosControllerFindOneQueryKey = (options: Options<PhotosControlle
 export const photosControllerFindOneOptions = (options: Options<PhotosControllerFindOneData>) =>
   queryOptions<
     PhotosControllerFindOneResponse,
-    AxiosError<DefaultError>,
+    AxiosError<PhotosControllerFindOneError>,
     PhotosControllerFindOneResponse,
     ReturnType<typeof photosControllerFindOneQueryKey>
   >({
@@ -572,7 +596,7 @@ export const eventsControllerFindAllQueryKey = (options?: Options<EventsControll
 export const eventsControllerFindAllOptions = (options?: Options<EventsControllerFindAllData>) =>
   queryOptions<
     EventsControllerFindAllResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerFindAllError>,
     EventsControllerFindAllResponse,
     ReturnType<typeof eventsControllerFindAllQueryKey>
   >({
@@ -595,12 +619,12 @@ export const eventsControllerCreateMutation = (
   options?: Partial<Options<EventsControllerCreateData>>,
 ): UseMutationOptions<
   EventsControllerCreateResponse,
-  AxiosError<DefaultError>,
+  AxiosError<EventsControllerCreateError>,
   Options<EventsControllerCreateData>
 > => {
   const mutationOptions: UseMutationOptions<
     EventsControllerCreateResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerCreateError>,
     Options<EventsControllerCreateData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -620,10 +644,14 @@ export const eventsControllerCreateMutation = (
  */
 export const eventsControllerJoinMutation = (
   options?: Partial<Options<EventsControllerJoinData>>,
-): UseMutationOptions<EventsControllerJoinResponse, AxiosError<DefaultError>, Options<EventsControllerJoinData>> => {
+): UseMutationOptions<
+  EventsControllerJoinResponse,
+  AxiosError<EventsControllerJoinError>,
+  Options<EventsControllerJoinData>
+> => {
   const mutationOptions: UseMutationOptions<
     EventsControllerJoinResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerJoinError>,
     Options<EventsControllerJoinData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -645,12 +673,12 @@ export const eventsControllerRemoveMutation = (
   options?: Partial<Options<EventsControllerRemoveData>>,
 ): UseMutationOptions<
   EventsControllerRemoveResponse,
-  AxiosError<DefaultError>,
+  AxiosError<EventsControllerRemoveError>,
   Options<EventsControllerRemoveData>
 > => {
   const mutationOptions: UseMutationOptions<
     EventsControllerRemoveResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerRemoveError>,
     Options<EventsControllerRemoveData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -674,7 +702,7 @@ export const eventsControllerFindOneQueryKey = (options: Options<EventsControlle
 export const eventsControllerFindOneOptions = (options: Options<EventsControllerFindOneData>) =>
   queryOptions<
     EventsControllerFindOneResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerFindOneError>,
     EventsControllerFindOneResponse,
     ReturnType<typeof eventsControllerFindOneQueryKey>
   >({
@@ -697,12 +725,12 @@ export const eventsControllerUpdateMutation = (
   options?: Partial<Options<EventsControllerUpdateData>>,
 ): UseMutationOptions<
   EventsControllerUpdateResponse,
-  AxiosError<DefaultError>,
+  AxiosError<EventsControllerUpdateError>,
   Options<EventsControllerUpdateData>
 > => {
   const mutationOptions: UseMutationOptions<
     EventsControllerUpdateResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerUpdateError>,
     Options<EventsControllerUpdateData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -722,10 +750,14 @@ export const eventsControllerUpdateMutation = (
  */
 export const eventsControllerLeaveMutation = (
   options?: Partial<Options<EventsControllerLeaveData>>,
-): UseMutationOptions<EventsControllerLeaveResponse, AxiosError<DefaultError>, Options<EventsControllerLeaveData>> => {
+): UseMutationOptions<
+  EventsControllerLeaveResponse,
+  AxiosError<EventsControllerLeaveError>,
+  Options<EventsControllerLeaveData>
+> => {
   const mutationOptions: UseMutationOptions<
     EventsControllerLeaveResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerLeaveError>,
     Options<EventsControllerLeaveData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -749,7 +781,7 @@ export const eventsControllerGetParticipantsQueryKey = (options: Options<EventsC
 export const eventsControllerGetParticipantsOptions = (options: Options<EventsControllerGetParticipantsData>) =>
   queryOptions<
     EventsControllerGetParticipantsResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerGetParticipantsError>,
     EventsControllerGetParticipantsResponse,
     ReturnType<typeof eventsControllerGetParticipantsQueryKey>
   >({
@@ -772,12 +804,12 @@ export const eventsControllerUpdateParticipantAccessMutation = (
   options?: Partial<Options<EventsControllerUpdateParticipantAccessData>>,
 ): UseMutationOptions<
   EventsControllerUpdateParticipantAccessResponse,
-  AxiosError<DefaultError>,
+  AxiosError<EventsControllerUpdateParticipantAccessError>,
   Options<EventsControllerUpdateParticipantAccessData>
 > => {
   const mutationOptions: UseMutationOptions<
     EventsControllerUpdateParticipantAccessResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerUpdateParticipantAccessError>,
     Options<EventsControllerUpdateParticipantAccessData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -799,12 +831,12 @@ export const eventsControllerRemoveParticipantMutation = (
   options?: Partial<Options<EventsControllerRemoveParticipantData>>,
 ): UseMutationOptions<
   EventsControllerRemoveParticipantResponse,
-  AxiosError<DefaultError>,
+  AxiosError<EventsControllerRemoveParticipantError>,
   Options<EventsControllerRemoveParticipantData>
 > => {
   const mutationOptions: UseMutationOptions<
     EventsControllerRemoveParticipantResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerRemoveParticipantError>,
     Options<EventsControllerRemoveParticipantData>
   > = {
     mutationFn: async (fnOptions) => {
@@ -826,12 +858,12 @@ export const eventsControllerRegenerateInvitationUrlMutation = (
   options?: Partial<Options<EventsControllerRegenerateInvitationUrlData>>,
 ): UseMutationOptions<
   EventsControllerRegenerateInvitationUrlResponse,
-  AxiosError<DefaultError>,
+  AxiosError<EventsControllerRegenerateInvitationUrlError>,
   Options<EventsControllerRegenerateInvitationUrlData>
 > => {
   const mutationOptions: UseMutationOptions<
     EventsControllerRegenerateInvitationUrlResponse,
-    AxiosError<DefaultError>,
+    AxiosError<EventsControllerRegenerateInvitationUrlError>,
     Options<EventsControllerRegenerateInvitationUrlData>
   > = {
     mutationFn: async (fnOptions) => {

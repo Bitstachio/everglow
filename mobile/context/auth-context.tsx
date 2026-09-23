@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { Spinner } from "@/components/ui/spinner";
 import { router } from "expo-router";
-import { ActivityIndicator, View, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { authService, OnboardingData, User } from "@/lib/auth";
 import { setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import {
@@ -172,7 +173,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   if (!isInitialized) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <Spinner size="large" label="Loading" />
       </View>
     );
   }

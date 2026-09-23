@@ -1,4 +1,4 @@
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input/input";
 import { Controller, type Control, type FieldPathByValue, type FieldValues } from "react-hook-form";
 import type { TextInputProps } from "react-native";
 

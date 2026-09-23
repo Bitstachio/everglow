@@ -121,6 +121,14 @@ Keep field names consistent so logs are queryable across domains:
 The human message (second arg) is for humans skimming; the structured fields are what machines query. Don't
 string-interpolate ids into the message when a field will do.
 
+### Events that alerts depend on
+
+Some events are what alert rules match on; [`alerting.md`](./alerting.md) lists them with their conditions. Those
+names live in [`src/common/logging/alert-events.constants.ts`](../src/common/logging/alert-events.constants.ts) and
+are logged through the constant (`event: ALERT_EVENTS.ACCOUNT_DELETION_ABANDONED`), with a test pinning the
+strings. Every other event stays a plain string literal. A new `@Cron` handler runs through
+[`runScheduledJob`](../src/common/scheduling/run-scheduled-job.ts), which logs its heartbeat and failure events.
+
 ---
 
 ## 6. Where to place logs (layer guide)
@@ -175,3 +183,5 @@ import { PinoLogger } from "nestjs-pino";
       already do.
 - [ ] Don't log inside hot loops or per-row; aggregate or use metrics.
 - [ ] Provide a `PinoLogger` stub in the service's unit test.
+- [ ] If someone should be alerted on an event, register it in `ALERT_EVENTS` and add it to
+      [`alerting.md`](./alerting.md).

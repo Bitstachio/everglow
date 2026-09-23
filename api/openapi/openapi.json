@@ -54,6 +54,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -96,6 +99,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -146,6 +152,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -181,6 +190,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -223,6 +235,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -275,6 +290,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -327,6 +345,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -348,6 +369,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -409,6 +433,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -470,6 +497,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -542,6 +572,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -593,6 +626,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -623,6 +659,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -675,6 +714,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -715,6 +757,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -767,6 +812,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -818,6 +866,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -877,6 +928,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -907,6 +961,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -939,6 +996,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -990,6 +1050,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -1059,6 +1122,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -1099,6 +1165,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -1150,6 +1219,9 @@
           },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -1672,6 +1744,44 @@
         "required": [
           "accessLevel"
         ]
+      }
+    },
+    "responses": {
+      "TooManyRequests": {
+        "description": "Rate limit exceeded; retry after the number of seconds in the Retry-After header",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before retrying",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "meta"
+              ],
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Too many requests, please try again later"
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Stable machine-readable error code, when the error has one",
+                  "example": "RATE_LIMIT_EXCEEDED"
+                },
+                "meta": {
+                  "$ref": "#/components/schemas/ResponseMetaDto"
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

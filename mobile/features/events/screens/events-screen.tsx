@@ -1,9 +1,10 @@
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import EventActionCard from "../component/event-action-card";
-import EventsList from "../component/events-list";
-import JoinEventModal from "../component/join-event-modal";
-import EventInvitationModal from "../component/event-invitation-modal";
+import { EventActionCard } from "../components/event-action-card";
+import { EventInvitationModal } from "../components/event-invitation-modal";
+import { EventsList } from "../components/events-list";
+import { JoinEventSheet } from "../components/join-event-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
+import { CirclePlus, QrCode } from "lucide-react-native";
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,15 +19,15 @@ const EventsScreen = () => {
     currentUserId,
     profileInitial,
     handleOpenAccountSettings,
-    joinModalVisible,
+    joinSheetVisible,
     selectedEvent,
     invitationModalVisible,
     onRefresh,
     handleJoinViaLink,
     form,
     onSubmit,
-    handleOpenJoinModal,
-    handleCloseJoinModal,
+    handleOpenJoinSheet,
+    handleCloseJoinSheet,
     handleCreateEvent,
     handleEventShare,
     handleCloseInvitationModal,
@@ -60,8 +61,18 @@ const EventsScreen = () => {
         </View>
 
         <View style={styles.actionCards}>
-          <EventActionCard title="Join Event" description="Scan QR or paste link" onPress={handleOpenJoinModal} />
-          <EventActionCard title="Create Event" description="Host your own meetup" onPress={handleCreateEvent} />
+          <EventActionCard
+            title="Join Event"
+            description="Scan QR or paste link"
+            icon={QrCode}
+            onPress={handleOpenJoinSheet}
+          />
+          <EventActionCard
+            title="Create Event"
+            description="Host your own meetup"
+            icon={CirclePlus}
+            onPress={handleCreateEvent}
+          />
         </View>
 
         <EventsList
@@ -70,12 +81,13 @@ const EventsScreen = () => {
           events={events}
           onEventShare={handleEventShare}
           currentUserId={currentUserId}
+          seeAllHref="/events/list"
         />
       </ScrollView>
 
-      <JoinEventModal
-        visible={joinModalVisible}
-        onClose={handleCloseJoinModal}
+      <JoinEventSheet
+        visible={joinSheetVisible}
+        onClose={handleCloseJoinSheet}
         control={form.control}
         isSubmitting={form.formState.isSubmitting}
         onSubmit={onSubmit}

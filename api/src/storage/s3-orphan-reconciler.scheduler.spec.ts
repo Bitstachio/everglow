@@ -36,10 +36,20 @@ describe("S3OrphanReconcilerScheduler", () => {
     scheduler = module.get(S3OrphanReconcilerScheduler);
   });
 
-  it("runs the reconciler when enabled", async () => {
+  it("runs the reconciler when enabled and logs a heartbeat with its counts", async () => {
     await scheduler.handleReconcile();
 
     expect(reconcilerService.reconcileOrphanedObjects).toHaveBeenCalledTimes(1);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "storage.orphan_reconcile.run_completed",
+        durationMs: expect.any(Number) as number,
+        scanned: 0,
+        failed: 0,
+        completed: true,
+      }),
+      expect.any(String),
+    );
   });
 
   it("does nothing when disabled", async () => {
@@ -48,6 +58,7 @@ describe("S3OrphanReconcilerScheduler", () => {
     await scheduler.handleReconcile();
 
     expect(reconcilerService.reconcileOrphanedObjects).not.toHaveBeenCalled();
+    expect(logger.info).not.toHaveBeenCalled();
   });
 
   it("logs a failed run instead of throwing out of the cron tick", async () => {

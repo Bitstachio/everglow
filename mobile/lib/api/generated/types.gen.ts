@@ -199,7 +199,21 @@ export type UsersControllerCompleteOnboardingErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerCompleteOnboardingError =
+  UsersControllerCompleteOnboardingErrors[keyof UsersControllerCompleteOnboardingErrors];
 
 export type UsersControllerCompleteOnboardingResponses = {
   /**
@@ -231,7 +245,20 @@ export type UsersControllerRemoveMeErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerRemoveMeError = UsersControllerRemoveMeErrors[keyof UsersControllerRemoveMeErrors];
 
 export type UsersControllerRemoveMeResponses = {
   /**
@@ -254,7 +281,20 @@ export type UsersControllerFindMeErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerFindMeError = UsersControllerFindMeErrors[keyof UsersControllerFindMeErrors];
 
 export type UsersControllerFindMeResponses = {
   /**
@@ -280,7 +320,20 @@ export type UsersControllerUpdateMeErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerUpdateMeError = UsersControllerUpdateMeErrors[keyof UsersControllerUpdateMeErrors];
 
 export type UsersControllerUpdateMeResponses = {
   /**
@@ -306,7 +359,21 @@ export type UsersControllerGetMyStorageErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerGetMyStorageError =
+  UsersControllerGetMyStorageErrors[keyof UsersControllerGetMyStorageErrors];
 
 export type UsersControllerGetMyStorageResponses = {
   /**
@@ -333,7 +400,21 @@ export type UsersControllerCreateAvatarUploadUrlErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerCreateAvatarUploadUrlError =
+  UsersControllerCreateAvatarUploadUrlErrors[keyof UsersControllerCreateAvatarUploadUrlErrors];
 
 export type UsersControllerCreateAvatarUploadUrlResponses = {
   /**
@@ -360,7 +441,21 @@ export type UsersControllerRemoveAvatarErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerRemoveAvatarError =
+  UsersControllerRemoveAvatarErrors[keyof UsersControllerRemoveAvatarErrors];
 
 export type UsersControllerRemoveAvatarResponses = {
   /**
@@ -384,7 +479,21 @@ export type UsersControllerConfirmAvatarUploadErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type UsersControllerConfirmAvatarUploadError =
+  UsersControllerConfirmAvatarUploadErrors[keyof UsersControllerConfirmAvatarUploadErrors];
 
 export type UsersControllerConfirmAvatarUploadResponses = {
   /**
@@ -413,7 +522,21 @@ export type PhotosControllerCreateUploadUrlsErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type PhotosControllerCreateUploadUrlsError =
+  PhotosControllerCreateUploadUrlsErrors[keyof PhotosControllerCreateUploadUrlsErrors];
 
 export type PhotosControllerCreateUploadUrlsResponses = {
   /**
@@ -442,7 +565,21 @@ export type PhotosControllerConfirmUploadsErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type PhotosControllerConfirmUploadsError =
+  PhotosControllerConfirmUploadsErrors[keyof PhotosControllerConfirmUploadsErrors];
 
 export type PhotosControllerConfirmUploadsResponses = {
   /**
@@ -477,7 +614,20 @@ export type PhotosControllerListPhotosErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type PhotosControllerListPhotosError = PhotosControllerListPhotosErrors[keyof PhotosControllerListPhotosErrors];
 
 export type PhotosControllerListPhotosResponses = {
   /**
@@ -506,7 +656,20 @@ export type PhotosControllerRemoveErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type PhotosControllerRemoveError = PhotosControllerRemoveErrors[keyof PhotosControllerRemoveErrors];
 
 export type PhotosControllerRemoveResponses = {
   /**
@@ -531,7 +694,20 @@ export type PhotosControllerFindOneErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type PhotosControllerFindOneError = PhotosControllerFindOneErrors[keyof PhotosControllerFindOneErrors];
 
 export type PhotosControllerFindOneResponses = {
   /**
@@ -557,7 +733,20 @@ export type EventsControllerFindAllErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerFindAllError = EventsControllerFindAllErrors[keyof EventsControllerFindAllErrors];
 
 export type EventsControllerFindAllResponses = {
   /**
@@ -583,7 +772,20 @@ export type EventsControllerCreateErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerCreateError = EventsControllerCreateErrors[keyof EventsControllerCreateErrors];
 
 export type EventsControllerCreateResponses = {
   /**
@@ -609,7 +811,20 @@ export type EventsControllerJoinErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerJoinError = EventsControllerJoinErrors[keyof EventsControllerJoinErrors];
 
 export type EventsControllerJoinResponses = {
   /**
@@ -637,7 +852,20 @@ export type EventsControllerRemoveErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerRemoveError = EventsControllerRemoveErrors[keyof EventsControllerRemoveErrors];
 
 export type EventsControllerRemoveResponses = {
   /**
@@ -662,7 +890,20 @@ export type EventsControllerFindOneErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerFindOneError = EventsControllerFindOneErrors[keyof EventsControllerFindOneErrors];
 
 export type EventsControllerFindOneResponses = {
   /**
@@ -690,7 +931,20 @@ export type EventsControllerUpdateErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerUpdateError = EventsControllerUpdateErrors[keyof EventsControllerUpdateErrors];
 
 export type EventsControllerUpdateResponses = {
   /**
@@ -718,7 +972,20 @@ export type EventsControllerLeaveErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerLeaveError = EventsControllerLeaveErrors[keyof EventsControllerLeaveErrors];
 
 export type EventsControllerLeaveResponses = {
   /**
@@ -743,7 +1010,21 @@ export type EventsControllerGetParticipantsErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerGetParticipantsError =
+  EventsControllerGetParticipantsErrors[keyof EventsControllerGetParticipantsErrors];
 
 export type EventsControllerGetParticipantsResponses = {
   /**
@@ -773,7 +1054,21 @@ export type EventsControllerUpdateParticipantAccessErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerUpdateParticipantAccessError =
+  EventsControllerUpdateParticipantAccessErrors[keyof EventsControllerUpdateParticipantAccessErrors];
 
 export type EventsControllerUpdateParticipantAccessResponses = {
   /**
@@ -803,7 +1098,21 @@ export type EventsControllerRemoveParticipantErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerRemoveParticipantError =
+  EventsControllerRemoveParticipantErrors[keyof EventsControllerRemoveParticipantErrors];
 
 export type EventsControllerRemoveParticipantResponses = {
   /**
@@ -829,7 +1138,21 @@ export type EventsControllerRegenerateInvitationUrlErrors = {
    * Missing or invalid access token
    */
   401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
 };
+
+export type EventsControllerRegenerateInvitationUrlError =
+  EventsControllerRegenerateInvitationUrlErrors[keyof EventsControllerRegenerateInvitationUrlErrors];
 
 export type EventsControllerRegenerateInvitationUrlResponses = {
   /**

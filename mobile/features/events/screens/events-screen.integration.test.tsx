@@ -20,16 +20,27 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
-jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush }),
-  useFocusEffect: (callback: () => void) => {
-    const { useEffect } = jest.requireActual<typeof import("react")>("react");
-    const focused = mockFocused;
-    useEffect(() => {
-      if (focused) return callback();
-    }, [callback, focused]);
-  },
-}));
+jest.mock("expo-router", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  return {
+    useRouter: () => ({ push: mockPush }),
+    useFocusEffect: (callback: () => void) => {
+      const { useEffect } = jest.requireActual<typeof import("react")>("react");
+      const focused = mockFocused;
+      useEffect(() => {
+        if (focused) return callback();
+      }, [callback, focused]);
+    },
+    Link: ({
+      href,
+      children,
+    }: {
+      href: string;
+      children: React.ReactElement<{ onPress?: () => void }>;
+      asChild?: boolean;
+    }) => React.cloneElement(children, { onPress: () => mockPush(href) }),
+  };
+});
 
 const renderScreen = async () => {
   const client = new QueryClient({
@@ -121,17 +132,17 @@ test("preserves failed invitations and permits retry", async () => {
   expect(mockJoin).toHaveBeenCalledTimes(2);
 });
 
-test("keeps the modal open and blocks duplicate submission and dismissal while pending", async () => {
+test("keeps the sheet open and blocks duplicate submission and dismissal while pending", async () => {
   const pending = deferred<unknown>();
   mockJoin.mockReturnValue(pending.promise);
   await renderScreen();
   await openJoin();
   await enterInvitation();
   await userEvent.setup().press(screen.getByText("Join with Link"));
-  expect(screen.getByText("Cancel")).toBeDisabled();
   expect(screen.getByLabelText("Invitation URL or token")).toHaveProp("editable", false);
   await fireEvent(screen.getByLabelText("Invitation URL or token"), "submitEditing");
-  await fireEvent(screen.getByTestId("join-event-modal"), "requestClose");
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close join event" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Dismiss join event" }));
   await userEvent.setup().press(screen.getByText("Scan QR Code"));
   expect(screen.getByText("Join an Event")).toBeOnTheScreen();
   expect(screen.queryByTestId("camera")).not.toBeOnTheScreen();
@@ -168,14 +179,14 @@ test("joins via the real scanner and form workflow", async () => {
   await waitFor(() => expect(screen.queryByText("Join an Event")).not.toBeOnTheScreen());
 });
 
-test("cancel clears input and validation before reopening", async () => {
+test("closing the sheet clears input and validation before reopening", async () => {
   await renderScreen();
   await openJoin();
   await enterInvitation("   ");
   await userEvent.setup().press(screen.getByText("Join with Link"));
   await screen.findByText("Please paste the invitation URL or invite token.");
-  await userEvent.setup().press(screen.getByText("Cancel"));
-  expect(screen.queryByText("Join an Event")).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close join event" }));
+  await waitFor(() => expect(screen.queryByText("Join an Event")).not.toBeOnTheScreen());
   await openJoin();
   expect(screen.getByLabelText("Invitation URL or token")).toHaveDisplayValue("");
   expect(screen.queryByText("Please paste the invitation URL or invite token.")).not.toBeOnTheScreen();
@@ -273,4 +284,10 @@ test("opens Account Settings from the Events header avatar", async () => {
   expect(screen.getByRole("header", { name: "Everglow" })).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Account Settings" }));
   expect(mockPush).toHaveBeenCalledWith("/account-settings");
+});
+
+test("opens the My Events list from See all", async () => {
+  await renderScreen();
+  await userEvent.setup().press(screen.getByRole("link", { name: "See all events" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/list");
 });

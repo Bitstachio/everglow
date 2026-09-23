@@ -7,5 +7,6 @@ module.exports = {
   maxWorkers: 2,
   moduleNameMapper: {
     "\\.svg": "<rootDir>/__mocks__/svgMock.js",
+    "^lucide-react-native$": "<rootDir>/__mocks__/lucide-react-native.js",
   },
 };

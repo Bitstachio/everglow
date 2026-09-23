@@ -1,32 +1,31 @@
-# Custom SVG icons
+# Icons
 
-Custom icons are `.svg` files turned into React components at build time. Use `AppIcon` so size and color stay consistent.
+UI icons go through `AppIcon`. Prefer Lucide (`lucide-react-native`) for the shared set; use custom `.svg` files in `assets/icons/` when you need something Lucide does not have.
 
 ## How it works
 
-`react-native-svg-transformer` runs in Metro. When you import a `.svg`, SVGR converts it into a `react-native-svg` component. You do not import SVGR yourself.
-
-Put shared icons in `assets/icons/`.
+- **Lucide:** import a named icon from `lucide-react-native` and pass it to `AppIcon`.
+- **Custom SVGs:** `react-native-svg-transformer` turns `assets/icons/*.svg` into components at build time. Author them with `currentColor` fill/stroke.
 
 ## Usage
 
 ```tsx
-import Calendar from "@/assets/icons/calendar.svg";
 import { AppIcon } from "@/components/ui/app-icon";
+import { Calendar } from "lucide-react-native";
 
-<AppIcon icon={Calendar} />
-<AppIcon icon={Calendar} size="sm" color="#6366F1" />
-<AppIcon icon={Calendar} size={28} color={color} />
+<AppIcon icon={Calendar} className="text-muted" />
+<AppIcon icon={Calendar} size="sm" className="text-accent" />
 ```
 
-Size tokens live in `constants/icons.ts` (`xs`–`xl`). Prefer a token; use a number only when you need something outside that scale (e.g. tab bar).
+Size tokens live in `constants/icons.ts` (`xs`–`xl`). Prefer a token; use a number only when you need something outside that scale.
+
+Tint with NativeWind `text-*` classes and the default `color="currentColor"`. Do not pull hex from `colorTokens` / `useColorScheme` just to color an icon. Pass an explicit `color` only when NativeWind cannot express the tint (rare).
 
 ## Rules
 
-- Custom SVGs → `AppIcon`. Do not render the imported SVG with raw `width` / `height`.
-- Author SVGs with `currentColor` for fill/stroke so `color` on `AppIcon` tints them.
-- Keep icons on a consistent `viewBox` (typically `0 0 24 24`).
-- Ionicons, Material icons, and `IconSymbol` are separate. Do not route them through `AppIcon`.
+- Route Lucide and custom SVGs through `AppIcon`. Do not render them with raw `width` / `height` / `size`.
+- Keep custom SVGs on a consistent `viewBox` (typically `0 0 24 24`).
+- Do not add new `@expo/vector-icons` (Ionicons / Material) call sites. Migrate existing ones when you touch a file.
 
 ## Related files
 

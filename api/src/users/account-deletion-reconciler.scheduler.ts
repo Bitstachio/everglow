@@ -2,6 +2,8 @@ import { Injectable, OnApplicationBootstrap } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PinoLogger } from "nestjs-pino";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { runScheduledJob } from "src/common/scheduling/run-scheduled-job";
 import { AccountDeletionReconcilerService } from "./account-deletion-reconciler.service";
 
 @Injectable()
@@ -21,10 +23,10 @@ export class AccountDeletionReconcilerScheduler implements OnApplicationBootstra
    * notice here than from a support ticket.
    */
   onApplicationBootstrap(): void {
-    if (this.configService.get<boolean>("users.accountDeletionReconcilerEnabled")) return;
+    if (this.isEnabled()) return;
 
     this.logger.warn(
-      { event: "user.account.deletion_reconciler.disabled" },
+      { event: ALERT_EVENTS.ACCOUNT_DELETION_RECONCILER_DISABLED },
       "Account deletion reconciler is disabled: a deletion that fails part way will not be finished automatically. " +
         "Set ACCOUNT_DELETION_RECONCILER_ENABLED=true wherever this database owns the Auth0 tenant.",
     );
@@ -32,15 +34,16 @@ export class AccountDeletionReconcilerScheduler implements OnApplicationBootstra
 
   @Cron(CronExpression.EVERY_HOUR)
   async handleReconcile(): Promise<void> {
-    if (!this.configService.get<boolean>("users.accountDeletionReconcilerEnabled")) return;
+    await runScheduledJob(this.logger, {
+      name: "Account deletion reconcile",
+      enabled: this.isEnabled(),
+      completedEvent: ALERT_EVENTS.ACCOUNT_DELETION_RECONCILE_RUN_COMPLETED,
+      failedEvent: ALERT_EVENTS.ACCOUNT_DELETION_RECONCILE_RUN_FAILED,
+      run: () => this.reconcilerService.reconcilePendingDeletions(),
+    });
+  }
 
-    try {
-      await this.reconcilerService.reconcilePendingDeletions();
-    } catch (error) {
-      this.logger.error(
-        { err: error as Error, event: "user.account.deletion_reconcile.run_failed" },
-        "Account deletion reconcile run failed",
-      );
-    }
+  private isEnabled(): boolean | undefined {
+    return this.configService.get<boolean>("users.accountDeletionReconcilerEnabled");
   }
 }
