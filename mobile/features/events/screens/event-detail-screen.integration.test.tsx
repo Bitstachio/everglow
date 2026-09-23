@@ -48,7 +48,7 @@ jest.mock("@/lib/photo", () => ({
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => {
-  const React = require("react") as typeof import("react");
+  const React = jest.requireActual<typeof import("react")>("react");
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
   return {
     Stack: {
