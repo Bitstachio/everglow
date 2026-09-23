@@ -310,8 +310,12 @@ describe("UsersController (integration)", () => {
 
         const response = await request(httpServer).post(uploadUrlPath).set(authHeader()).send(payload).expect(201);
 
-        const body = response.body as WrappedResponse<{ uploadId: string; uploadUrl: string }>;
-        expect(body.data).toEqual({ uploadId: expect.any(String) as string, uploadUrl: AVATAR_UPLOAD_URL });
+        const body = response.body as WrappedResponse<{ uploadId: string; uploadUrl: string; expiresAt: string }>;
+        expect(body.data).toEqual({
+          uploadId: expect.any(String) as string,
+          uploadUrl: AVATAR_UPLOAD_URL,
+          expiresAt: expect.any(String) as string,
+        });
         expect(body.meta.path).toBe(uploadUrlPath);
         expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith(
           expect.objectContaining({

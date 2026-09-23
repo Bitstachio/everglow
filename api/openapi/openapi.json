@@ -1572,11 +1572,17 @@
             "type": "string",
             "maxLength": 2048,
             "description": "Presigned S3 PUT URL the client uploads bytes to"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When uploadUrl stops being accepted; request a new one after this"
           }
         },
         "required": [
           "uploadId",
-          "uploadUrl"
+          "uploadUrl",
+          "expiresAt"
         ]
       },
       "CreateImageUploadDto": {
@@ -1627,11 +1633,17 @@
             "type": "string",
             "maxLength": 2048,
             "description": "Presigned S3 PUT URL the client uploads bytes to"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When uploadUrl stops being accepted; mint a new slot after this"
           }
         },
         "required": [
           "photoId",
-          "uploadUrl"
+          "uploadUrl",
+          "expiresAt"
         ]
       },
       "UploadFileDto": {

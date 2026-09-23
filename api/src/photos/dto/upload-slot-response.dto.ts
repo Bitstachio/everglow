@@ -7,4 +7,7 @@ export class UploadSlotResponseDto {
 
   @ApiProperty({ maxLength: STRING_LIMITS.LONG, description: "Presigned S3 PUT URL the client uploads bytes to" })
   uploadUrl: string;
+
+  @ApiProperty({ description: "When uploadUrl stops being accepted; mint a new slot after this" })
+  expiresAt: Date;
 }
