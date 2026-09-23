@@ -28,7 +28,6 @@ const legacyStyleSheetPaths = [
   "context/auth-context.tsx",
   "features/events/screens/events-list-screen.tsx",
   "features/events/screens/events-screen.tsx",
-  "features/profile/components/edit-profile-modal.tsx",
 ];
 
 const lintedSourceGlobs = [
