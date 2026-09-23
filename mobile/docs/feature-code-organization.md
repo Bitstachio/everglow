@@ -208,3 +208,11 @@ Lint cannot cover identifier naming quality or how thin a screen really is. Use 
 ## Migrating legacy code
 
 When refactoring `events`, gallery, or other pre-profile code, match `features/profile/` and remove the relevant ESLint exemptions (`legacyFeatureNames`, `legacyAppRoutePaths`) in the same PR.
+
+## Display name editing
+
+The Display Name row opens the protected `/edit-display-name` route. Its
+form validates and trims the name, submits only `name` through the existing
+profile mutation, and returns to the previous screen after success. Save
+stays pinned above the safe area; failures keep the draft available for
+retry. The email action continues to use the existing profile modal.

@@ -98,3 +98,9 @@ test("opens the dedicated username page", async () => {
   result.current.handleOpenUsername();
   expect(mockPush).toHaveBeenCalledWith({ pathname: "/edit-username", params: { username: "Not set" } });
 });
+
+test("opens the display name editor", async () => {
+  const { result } = await renderHook(() => useProfileScreen());
+  result.current.handleOpenDisplayName();
+  expect(mockPush).toHaveBeenCalledWith("/edit-display-name");
+});
