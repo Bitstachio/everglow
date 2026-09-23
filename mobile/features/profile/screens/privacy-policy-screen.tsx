@@ -4,11 +4,7 @@ import { LEGAL_LAST_UPDATED, PRIVACY_POLICY_INTRO, PRIVACY_POLICY_SECTIONS } fro
 
 const PrivacyPolicyScreen = () => (
   <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
-    <LegalDocument
-      intro={PRIVACY_POLICY_INTRO}
-      lastUpdated={LEGAL_LAST_UPDATED}
-      sections={PRIVACY_POLICY_SECTIONS}
-    />
+    <LegalDocument intro={PRIVACY_POLICY_INTRO} lastUpdated={LEGAL_LAST_UPDATED} sections={PRIVACY_POLICY_SECTIONS} />
   </SafeAreaView>
 );
 
