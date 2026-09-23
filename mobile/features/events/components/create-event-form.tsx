@@ -1,12 +1,17 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
-import { Controller, type Control } from "react-hook-form";
+import { H1, H2, H3 } from "@/components/ui/heading";
+import { ThemedText } from "@/components/ui/themed-text";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar, CircleCheck, Clock, Copy } from "lucide-react-native";
+import { Controller, type Control } from "react-hook-form";
 import { useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, Pressable, ScrollView, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { CreateEventValues, EventResponseDto } from "../types";
 
@@ -34,113 +39,119 @@ export const CreateEventForm = ({
   handleDone,
 }: CreateEventFormProps) => {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", {
       weekday: "short",
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-  };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
     });
-  };
 
   if (createdEvent) {
     return (
-      <ScrollView style={[styles.container, isDark ? styles.containerDark : styles.containerLight]}>
-        <View style={styles.content}>
-          <View style={styles.successHeader}>
-            <View style={[styles.successIcon, isDark ? styles.successIconDark : styles.successIconLight]}>
-              <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+      <View className="flex-1 bg-background">
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-6 px-4 pb-6 pt-8"
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="items-center gap-3">
+            <View className="h-16 w-16 items-center justify-center rounded-full bg-surface">
+              <AppIcon icon={CircleCheck} size="xl" className="text-success" />
             </View>
-            <Text style={[styles.successTitle, isDark ? styles.textDark : styles.textLight]}>
-              Event Created Successfully!
-            </Text>
-            <Text style={[styles.successSubtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
+            <H2>Event Created Successfully!</H2>
+            <ThemedText className="text-center text-sm" tone="muted">
               Share this event with your attendees
-            </Text>
+            </ThemedText>
           </View>
 
-          <View style={[styles.summaryCard, isDark ? styles.summaryCardDark : styles.summaryCardLight]}>
-            <Text style={[styles.eventTitle, isDark ? styles.textDark : styles.textLight]}>{createdEvent.title}</Text>
-            <Text style={[styles.eventDescription, isDark ? styles.descriptionDark : styles.descriptionLight]}>
-              {createdEvent.description}
-            </Text>
+          <View className="gap-2 rounded-2xl border border-border bg-surface p-4">
+            <H3>{createdEvent.title}</H3>
+            {createdEvent.description ? (
+              <ThemedText className="text-sm" tone="muted">
+                {createdEvent.description}
+              </ThemedText>
+            ) : null}
           </View>
 
-          <View style={[styles.qrContainer, isDark ? styles.qrContainerDark : styles.qrContainerLight]}>
-            <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>QR Code</Text>
-            <View style={styles.qrCodeWrapper}>
+          <View className="items-center gap-3 rounded-2xl border border-border bg-background p-4">
+            <ThemedText className="text-base font-semibold">QR Code</ThemedText>
+            <View className="rounded-2xl bg-background p-4">
               <QRCode
                 value={createdEvent.invitationUrl}
                 size={200}
-                backgroundColor={isDark ? "#1F2937" : "#FFFFFF"}
-                color={isDark ? "#F9FAFB" : "#111827"}
+                backgroundColor={colorTokens[colorScheme].background}
+                color={colorTokens[colorScheme].strong}
               />
             </View>
-            <Text style={[styles.qrHint, isDark ? styles.subtitleDark : styles.subtitleLight]}>
+            <ThemedText className="text-center text-sm" tone="muted">
               Attendees can scan this QR code to join
-            </Text>
+            </ThemedText>
           </View>
 
-          <View style={styles.linkSection}>
-            <Text style={[styles.sectionTitle, isDark ? styles.textDark : styles.textLight]}>Invitation Link</Text>
-            <TouchableOpacity
-              style={[styles.linkContainer, isDark ? styles.linkContainerDark : styles.linkContainerLight]}
+          <View className="gap-2">
+            <ThemedText className="text-base font-semibold">Invitation Link</ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copy invitation link"
               onPress={handleCopyLink}
+              className="min-h-12 flex-row items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3"
             >
-              <Text style={[styles.linkText, isDark ? styles.linkTextDark : styles.linkTextLight]} numberOfLines={1}>
+              <ThemedText className="flex-1 text-sm" tone="accent" numberOfLines={1}>
                 {createdEvent.invitationUrl}
-              </Text>
-              <Ionicons name="copy-outline" size={20} color="#6366F1" />
-            </TouchableOpacity>
+              </ThemedText>
+              <AppIcon icon={Copy} size="sm" className="text-accent" />
+            </Pressable>
           </View>
+        </ScrollView>
 
-          <View style={styles.actionButtons}>
-            <Button title="Share Link" onPress={handleShareLink} />
-            <View style={styles.buttonSpacing} />
-            <Button title="Create Another Event" onPress={handleCreateAnother} variant="outline" />
-            <View style={styles.buttonSpacing} />
-            <Button title="Done" onPress={handleDone} variant="outline" />
-          </View>
+        <View className="gap-3 px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
+          <Button title="Share Link" onPress={handleShareLink} />
+          <Button title="Create Another Event" onPress={handleCreateAnother} variant="outline" />
+          <Button title="Done" onPress={handleDone} variant="outline" />
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, isDark ? styles.containerDark : styles.containerLight]}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>Create an Event</Text>
-          <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
+    <View className="flex-1 bg-background">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-6 px-4 pb-6 pt-4"
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="gap-2">
+          <H1>Create an Event</H1>
+          <ThemedText className="text-sm" tone="muted">
             Fill in the details below to create your event and get a shareable invitation link.
-          </Text>
+          </ThemedText>
         </View>
 
-        <View style={styles.form}>
-          {/* Overlay to close pickers when clicking outside */}
-          {(showDatePicker || showTimePicker) && (
+        <View className="gap-4">
+          {showDatePicker || showTimePicker ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close date and time picker"
-              style={styles.pickerOverlay}
+              className="absolute inset-0 z-10"
               onPress={() => {
                 setShowDatePicker(false);
                 setShowTimePicker(false);
               }}
             />
-          )}
+          ) : null}
+
           <FormField
             control={control}
             name="title"
@@ -163,46 +174,50 @@ export const CreateEventForm = ({
             render={({ field, fieldState }) => {
               const date = field.value;
               return (
-                <>
-                  <View style={styles.inputContainer}>
-                    <Text style={[styles.label, isDark ? styles.labelDark : styles.labelLight]}>Date & Time</Text>
-                    <View style={styles.dateTimeContainer}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Choose date"
-                        disabled={isSubmitting}
-                        onPress={() => {
-                          setShowTimePicker(false);
-                          setShowDatePicker(true);
-                        }}
-                        style={[styles.dateTimeButton, isDark ? styles.dateTimeButtonDark : styles.dateTimeButtonLight]}
-                      >
-                        <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                        <Text style={[styles.dateTimeText, isDark ? styles.textDark : styles.textLight]}>
-                          {formatDate(date)}
-                        </Text>
-                      </Pressable>
+                <View className="gap-2">
+                  <ThemedText className="text-sm font-medium">Date & Time</ThemedText>
+                  <View className="flex-row gap-3">
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Choose date"
+                      disabled={isSubmitting}
+                      onPress={() => {
+                        setShowTimePicker(false);
+                        setShowDatePicker(true);
+                      }}
+                      className={[
+                        "h-12 flex-1 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4",
+                        isSubmitting ? "opacity-50" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <AppIcon icon={Calendar} size="sm" className="text-muted" />
+                      <ThemedText className="text-base">{formatDate(date)}</ThemedText>
+                    </Pressable>
 
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Choose time"
-                        disabled={isSubmitting}
-                        onPress={() => {
-                          setShowDatePicker(false);
-                          setShowTimePicker(true);
-                        }}
-                        style={[styles.dateTimeButton, isDark ? styles.dateTimeButtonDark : styles.dateTimeButtonLight]}
-                      >
-                        <Ionicons name="time-outline" size={20} color="#6B7280" />
-                        <Text style={[styles.dateTimeText, isDark ? styles.textDark : styles.textLight]}>
-                          {formatTime(date)}
-                        </Text>
-                      </Pressable>
-                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Choose time"
+                      disabled={isSubmitting}
+                      onPress={() => {
+                        setShowDatePicker(false);
+                        setShowTimePicker(true);
+                      }}
+                      className={[
+                        "h-12 flex-1 flex-row items-center gap-2 rounded-2xl border border-border bg-background px-4",
+                        isSubmitting ? "opacity-50" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <AppIcon icon={Clock} size="sm" className="text-muted" />
+                      <ThemedText className="text-base">{formatTime(date)}</ThemedText>
+                    </Pressable>
                   </View>
 
-                  {showDatePicker && (
-                    <View style={styles.pickerWrapper} pointerEvents="box-none">
+                  {showDatePicker ? (
+                    <View className="z-20" pointerEvents="box-none">
                       <DateTimePicker
                         value={date}
                         mode="date"
@@ -223,10 +238,10 @@ export const CreateEventForm = ({
                         minimumDate={new Date()}
                       />
                     </View>
-                  )}
+                  ) : null}
 
-                  {showTimePicker && (
-                    <View style={styles.pickerWrapper} pointerEvents="box-none">
+                  {showTimePicker ? (
+                    <View className="z-20" pointerEvents="box-none">
                       <DateTimePicker
                         value={date}
                         mode="time"
@@ -242,21 +257,29 @@ export const CreateEventForm = ({
                         }}
                       />
                     </View>
-                  )}
+                  ) : null}
 
-                  {fieldState.error && <Text style={styles.errorText}>{fieldState.error.message}</Text>}
-                </>
+                  {fieldState.error ? (
+                    <ThemedText accessibilityRole="alert" tone="danger" className="text-xs">
+                      {fieldState.error.message}
+                    </ThemedText>
+                  ) : null}
+                </View>
               );
             }}
           />
         </View>
 
-        {error && (
-          <View style={[styles.errorContainer, isDark ? styles.errorContainerDark : styles.errorContainerLight]}>
-            <Text style={styles.errorText}>{error}</Text>
+        {error ? (
+          <View className="rounded-2xl border border-danger bg-surface p-4">
+            <ThemedText accessibilityRole="alert" tone="danger" className="text-sm">
+              {error}
+            </ThemedText>
           </View>
-        )}
+        ) : null}
+      </ScrollView>
 
+      <View className="px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
         <Button
           title="Create Event"
           onPress={() => {
@@ -268,238 +291,6 @@ export const CreateEventForm = ({
           disabled={isSubmitting}
         />
       </View>
-    </ScrollView>
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  pickerOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.01)",
-    zIndex: 10,
-  },
-  pickerWrapper: {
-    zIndex: 20,
-  },
-  container: {
-    flex: 1,
-  },
-  containerLight: {
-    backgroundColor: "#F9FAFB",
-  },
-  containerDark: {
-    backgroundColor: "#111827",
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-  },
-  header: {
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-  },
-  subtitleLight: {
-    color: "#6B7280",
-  },
-  subtitleDark: {
-    color: "#9CA3AF",
-  },
-  textLight: {
-    color: "#111827",
-  },
-  textDark: {
-    color: "#F9FAFB",
-  },
-  form: {
-    marginBottom: 24,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  labelLight: {
-    color: "#374151",
-  },
-  labelDark: {
-    color: "#E5E7EB",
-  },
-  dateTimeContainer: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  dateTimeButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    height: 48,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  dateTimeButtonLight: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#D1D5DB",
-  },
-  dateTimeButtonDark: {
-    backgroundColor: "#1F2937",
-    borderColor: "#374151",
-  },
-  dateTimeText: {
-    fontSize: 16,
-  },
-  errorContainer: {
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 24,
-    borderWidth: 1,
-  },
-  errorContainerLight: {
-    backgroundColor: "#FEF2F2",
-    borderColor: "#FCA5A5",
-  },
-  errorContainerDark: {
-    backgroundColor: "#7F1D1D",
-    borderColor: "#991B1B",
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 14,
-  },
-  successHeader: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  successIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  successIconLight: {
-    backgroundColor: "#D1FAE5",
-  },
-  successIconDark: {
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  successSubtitle: {
-    fontSize: 16,
-    textAlign: "center",
-  },
-  summaryCard: {
-    padding: 20,
-    borderRadius: 8,
-    marginBottom: 24,
-    borderWidth: 1,
-  },
-  summaryCardLight: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#D1D5DB",
-  },
-  summaryCardDark: {
-    backgroundColor: "#1F2937",
-    borderColor: "#374151",
-  },
-  eventTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  eventDescription: {
-    fontSize: 16,
-  },
-  descriptionLight: {
-    color: "#6B7280",
-  },
-  descriptionDark: {
-    color: "#9CA3AF",
-  },
-  qrContainer: {
-    padding: 24,
-    borderRadius: 8,
-    alignItems: "center",
-    marginBottom: 24,
-    borderWidth: 1,
-  },
-  qrContainerLight: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#D1D5DB",
-  },
-  qrContainerDark: {
-    backgroundColor: "#1F2937",
-    borderColor: "#374151",
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  qrCodeWrapper: {
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 12,
-  },
-  qrHint: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  linkSection: {
-    marginBottom: 24,
-  },
-  linkContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 12,
-  },
-  linkContainerLight: {
-    backgroundColor: "#F9FAFB",
-    borderColor: "#D1D5DB",
-  },
-  linkContainerDark: {
-    backgroundColor: "#111827",
-    borderColor: "#374151",
-  },
-  linkText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  linkTextLight: {
-    color: "#6366F1",
-  },
-  linkTextDark: {
-    color: "#818CF8",
-  },
-  actionButtons: {
-    marginTop: 8,
-  },
-  buttonSpacing: {
-    height: 12,
-  },
-});

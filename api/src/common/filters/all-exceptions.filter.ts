@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
 import { Request } from "express";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 
 export type ErrorResponse = {
   message?: string;
@@ -41,9 +42,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
       code = errorCodeOf(exception);
     } else if (exception instanceof Error) {
-      this.logger.error({ event: "request.unhandled_error", err: exception }, "Unhandled exception");
+      this.logger.error({ event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, err: exception }, "Unhandled exception");
     } else {
-      this.logger.error({ event: "request.unhandled_error", thrown: exception }, "Unhandled non-Error exception");
+      this.logger.error(
+        { event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, thrown: exception },
+        "Unhandled non-Error exception",
+      );
     }
 
     const responseBody: ErrorResponse = {

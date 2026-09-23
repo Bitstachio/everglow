@@ -24,7 +24,6 @@ const EditProfileModalProbe = ({
   return (
     <EditProfileModal
       visible={visible}
-      isDark={false}
       isSubmitting={isSubmitting}
       isDirty={isDirty}
       control={control}

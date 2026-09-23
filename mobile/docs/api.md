@@ -57,7 +57,7 @@ Use `profileKeys.all` for broad invalidation and `profileKeys.me()` for a specif
 
 Add this file when a screen fetches data with React Query instead of reading it from context or local state. Use generated `*Options` helpers from `@/lib/api/generated/@tanstack/react-query.gen` where possible, and reference keys from `keys.ts`.
 
-Profile does not have a `queries.ts` file because the current user is provided by `useAuth`. Use queries when the feature owns its own fetch lifecycle.
+Profile reads the current user from `useAuth` and fetches photo storage through `api/queries.ts`, with an account-specific query key. Use queries when the feature owns its own fetch lifecycle.
 
 ### `mutations.ts`
 
