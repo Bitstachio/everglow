@@ -10,13 +10,7 @@ import {
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { deletePhoto, uploadPhoto } from "@/lib/photo";
 import { eventsKeys } from "./keys";
-import type {
-  CreateEventDto,
-  EventResponseDto,
-  JoinEventDto,
-  PhotoResponseDto,
-  UpdateEventDto,
-} from "../types";
+import type { CreateEventDto, EventResponseDto, JoinEventDto, PhotoResponseDto, UpdateEventDto } from "../types";
 
 const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClient>, eventId?: string) => {
   await queryClient.invalidateQueries({ queryKey: eventsKeys.all });

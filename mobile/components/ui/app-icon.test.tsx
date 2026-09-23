@@ -5,20 +5,14 @@ import { View } from "react-native";
 import { AppIcon } from "./app-icon";
 
 const MockSvg = ({ width, height, color, className }: SvgProps & { className?: string }) => (
-  <View
-    testID="mock-svg"
-    accessibilityLabel={`${width}x${height}:${String(color)}:${className ?? ""}`}
-  />
+  <View testID="mock-svg" accessibilityLabel={`${width}x${height}:${String(color)}:${className ?? ""}`} />
 );
 
 describe("AppIcon", () => {
   it("defaults to the md token and currentColor", async () => {
     const { getByTestId } = await render(<AppIcon icon={MockSvg} />);
 
-    expect(getByTestId("mock-svg")).toHaveProp(
-      "accessibilityLabel",
-      `${IconSize.md}x${IconSize.md}:currentColor:`,
-    );
+    expect(getByTestId("mock-svg")).toHaveProp("accessibilityLabel", `${IconSize.md}x${IconSize.md}:currentColor:`);
   });
 
   it("resolves named sizes and forwards NativeWind class names", async () => {

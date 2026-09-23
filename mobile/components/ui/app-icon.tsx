@@ -17,13 +17,7 @@ type AppIconProps = Omit<IconComponentProps, "width" | "height" | "size"> & {
  * Prefer NativeWind `className="text-*"` with the default `color="currentColor"`
  * instead of reading hex from `colorTokens`.
  */
-export const AppIcon = ({
-  icon: Icon,
-  size = "md",
-  color = "currentColor",
-  className,
-  ...props
-}: AppIconProps) => {
+export const AppIcon = ({ icon: Icon, size = "md", color = "currentColor", className, ...props }: AppIconProps) => {
   const px = typeof size === "number" ? size : IconSize[size];
 
   return <Icon width={px} height={px} size={px} color={color} className={className} {...props} />;
