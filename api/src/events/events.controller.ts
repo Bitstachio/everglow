@@ -155,6 +155,7 @@ export class EventsController {
   }
 
   @Post(":eventId/cover/upload-url")
+  @RateLimit("uploads")
   @ApiOperation({ summary: "Mint a presigned upload URL for the event cover image" })
   @ApiWrappedResponse(ImageUploadResponseDto, "Upload id with a presigned S3 PUT URL", 201)
   async createCoverUploadUrl(
