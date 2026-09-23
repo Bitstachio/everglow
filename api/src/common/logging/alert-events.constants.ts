@@ -8,6 +8,7 @@
  */
 export const ALERT_EVENTS = {
   REQUEST_UNHANDLED_ERROR: "request.unhandled_error",
+  RATE_LIMIT_EXCEEDED: "rate_limit.exceeded",
 
   ACCOUNT_DELETION_ABANDONED: "user.account.deletion_abandoned",
   ACCOUNT_DELETION_STUCK: "user.account.deletion_stuck",

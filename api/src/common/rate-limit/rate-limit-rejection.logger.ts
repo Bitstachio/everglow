@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
+import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { RateLimitTierName } from "./rate-limit.constants";
 
 export type RateLimitRejection = {
@@ -38,7 +39,14 @@ export class RateLimitRejectionLogger {
     this.loggedUntil.set(bucketKey, now + retryAfterSeconds * 1000);
 
     this.logger.warn(
-      { event: "rate_limit.exceeded", tier, route, keyedBy: userId ? "user" : "ip", userId, retryAfterSeconds },
+      {
+        event: ALERT_EVENTS.RATE_LIMIT_EXCEEDED,
+        tier,
+        route,
+        keyedBy: userId ? "user" : "ip",
+        userId,
+        retryAfterSeconds,
+      },
       "Rate limit exceeded",
     );
   }
