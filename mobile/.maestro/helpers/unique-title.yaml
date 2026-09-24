@@ -1,0 +1,4 @@
+appId: ${APP_ID}
+---
+# Sets output.title to a run-unique event title so flows never collide with existing data.
+- evalScript: ${output.title = (PREFIX || 'E2E') + ' ' + Date.now()}

@@ -1,0 +1,14 @@
+appId: ${APP_ID}
+---
+# Pops the current stack screen with the platform's native back affordance.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: ".*Back.*"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back

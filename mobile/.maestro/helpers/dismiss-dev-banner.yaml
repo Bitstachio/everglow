@@ -1,0 +1,14 @@
+appId: ${APP_ID}
+---
+# Debug builds show a LogBox warning banner over the bottom of the screen that
+# swallows taps on bottom-anchored buttons. Tapping it dismisses it; release builds never show it.
+- runFlow:
+    when:
+      visible: ".*Open debugger to view warnings.*"
+    commands:
+      - tapOn: ".*Open debugger to view warnings.*"
+      - extendedWaitUntil:
+          notVisible: ".*Open debugger to view warnings.*"
+          timeout: 5000
+      - waitForAnimationToEnd:
+          timeout: 2000

@@ -1,0 +1,103 @@
+appId: ${APP_ID}
+name: Event Details shows info and members, edits the event, and deletes it after confirmation
+tags:
+  - events
+  - event-detail
+---
+# Prerequisite: sign in and complete onboarding on this device first.
+- runFlow: ../helpers/launch-home.yaml
+- runFlow: ../helpers/unique-title.yaml
+- runFlow:
+    file: ../helpers/create-event.yaml
+    env:
+      TITLE: ${output.title}
+      DESCRIPTION: "Detail flow description"
+
+# Done returns to Events home.
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000
+- runFlow:
+    file: ../helpers/open-event.yaml
+    env:
+      TITLE: ${output.title}
+
+# Organizer view of the event.
+- assertVisible: "DATE & TIME"
+- assertVisible: "DESCRIPTION"
+- assertVisible: "Detail flow description"
+- assertVisible: "Event Photos"
+- assertVisible: "Add photo"
+- assertVisible: "No photos yet"
+- assertVisible: "Members"
+- assertVisible: "Edit event"
+- assertVisible: "Delete Event"
+- assertNotVisible: "Leave Event"
+
+# Pull to refresh reloads without leaving the screen.
+- swipe:
+    direction: DOWN
+- extendedWaitUntil:
+    visible: ${output.title}
+    timeout: 10000
+
+# Members sheet lists the creator as the only, non-removable organizer.
+- tapOn: "View all members, 1"
+- extendedWaitUntil:
+    visible: "Event Members"
+    timeout: 5000
+- assertVisible: "ORGANIZER|Organizer"
+- assertNotVisible: "Remove .*"
+- tapOn: "Close event members"
+- extendedWaitUntil:
+    notVisible: "Event Members"
+    timeout: 5000
+
+# Edit sheet: Cancel discards, empty title is rejected, a valid title saves.
+- evalScript: ${output.editedTitle = output.title + ' edited'}
+- tapOn: "Edit event"
+- extendedWaitUntil:
+    visible: "Edit Event"
+    timeout: 5000
+- assertVisible: "Save Changes"
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible: "Save Changes"
+    timeout: 5000
+
+- tapOn: "Edit event"
+- extendedWaitUntil:
+    visible: "Save Changes"
+    timeout: 5000
+- tapOn:
+    text: ${output.title}
+    below: "Event Title"
+- eraseText: 120
+# The sheet does not avoid the keyboard; Return dismisses it so Save is reachable.
+# (hideKeyboard can land on the scrim and close the sheet.)
+- pressKey: Enter
+- tapOn: "Save Changes"
+- assertVisible: "Event title is required."
+- tapOn:
+    text: "Enter event title"
+- inputText: ${output.editedTitle}
+- pressKey: Enter
+- tapOn: "Save Changes"
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Event updated successfully"
+- extendedWaitUntil:
+    visible: ${output.editedTitle}
+    timeout: 10000
+
+# Delete: Cancel keeps the event, confirming removes it and returns home.
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Delete Event"
+- tapOn: "Cancel"
+- assertVisible: ${output.editedTitle}
+- runFlow: ../helpers/delete-open-event.yaml
+- assertNotVisible: "Open ${output.editedTitle}"

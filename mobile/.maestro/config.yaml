@@ -1,3 +1,6 @@
 # Only discover test flows; keep helpers and generated artifacts out of the suite.
 flows:
   - "flows/**"
+# Camera flows need a physical device; run them by file path instead.
+excludeTags:
+  - camera

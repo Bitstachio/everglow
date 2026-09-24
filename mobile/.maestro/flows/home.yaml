@@ -1,0 +1,44 @@
+appId: ${APP_ID}
+name: Events home shows actions and My Events, links to the full list, and refreshes
+tags:
+  - smoke
+  - events
+---
+# Prerequisite: sign in and complete onboarding on this device first.
+- runFlow: ../helpers/launch-home.yaml
+- assertVisible: "Everglow"
+- assertVisible: "Discover events, join with QR codes or links, and create your own meetups to share with the community."
+- assertVisible: "Join Event"
+- assertVisible: "Create Event"
+- assertVisible: "My Events"
+
+# Pull to refresh keeps the screen usable.
+- swipe:
+    direction: DOWN
+- extendedWaitUntil:
+    visible: "My Events"
+    timeout: 10000
+
+# See all opens the full list; Back returns home.
+- tapOn: "See all events"
+- extendedWaitUntil:
+    visible: "Filters"
+    timeout: 10000
+- assertVisible: "My Events"
+- assertVisible: "Date · Earliest"
+- runFlow: ../helpers/go-back.yaml
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000
+
+# Create Event opens the form; Back returns home without creating anything.
+- tapOn: "Create Event"
+- extendedWaitUntil:
+    visible: "Create an Event"
+    timeout: 10000
+- runFlow: ../helpers/go-back.yaml
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000

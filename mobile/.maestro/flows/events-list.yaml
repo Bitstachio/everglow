@@ -1,0 +1,147 @@
+appId: ${APP_ID}
+name: My Events list sorts by date and filters by role through the filter sheet
+tags:
+  - events
+  - events-list
+---
+# Prerequisite: sign in and complete onboarding on this device first.
+- runFlow: ../helpers/launch-home.yaml
+- runFlow: ../helpers/unique-title.yaml
+- runFlow:
+    file: ../helpers/create-event.yaml
+    env:
+      TITLE: ${output.title}
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000
+
+- tapOn: "See all events"
+- extendedWaitUntil:
+    visible: "Filters"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Open ${output.title}"
+    direction: DOWN
+    timeout: 20000
+
+# Sort toggles between earliest and latest first.
+- scrollUntilVisible:
+    element: "Filters"
+    direction: UP
+    timeout: 20000
+- tapOn: "Date · Earliest"
+- assertVisible: "Date · Latest"
+- tapOn: "Date · Latest"
+- assertVisible: "Date · Earliest"
+
+# Filter sheet: role chips toggle and the date picker opens and closes.
+- tapOn: "Filters"
+- extendedWaitUntil:
+    visible: "Filter My Events"
+    timeout: 5000
+- assertVisible: "My Role"
+- assertVisible: "Date Range"
+- assertVisible:
+    text: "Filter by Organizer"
+    selected: false
+- tapOn: "Filter by Organizer"
+- assertVisible:
+    text: "Filter by Organizer"
+    selected: true
+- tapOn: "Filter from date"
+- assertVisible: "Close date picker"
+# Tapping the same field again toggles the picker closed.
+- tapOn: "Filter from date"
+- assertNotVisible: "Close date picker"
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# Organizer filter keeps the organizer's own event.
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Apply filters"
+- extendedWaitUntil:
+    notVisible: "Filter My Events"
+    timeout: 5000
+- assertVisible:
+    text: "Filters"
+    selected: true
+- scrollUntilVisible:
+    element: "Open ${output.title}"
+    direction: DOWN
+    timeout: 20000
+
+# Participant-only filter hides it.
+- scrollUntilVisible:
+    element: "Filters"
+    direction: UP
+    timeout: 20000
+- tapOn: "Filters"
+- extendedWaitUntil:
+    visible: "Filter My Events"
+    timeout: 5000
+- assertVisible:
+    text: "Filter by Organizer"
+    selected: true
+- tapOn: "Filter by Organizer"
+- tapOn: "Filter by Participant"
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Apply filters"
+- extendedWaitUntil:
+    notVisible: "Filter My Events"
+    timeout: 5000
+- repeat:
+    times: 6
+    commands:
+      - swipe:
+          direction: UP
+- assertNotVisible: "Open ${output.title}"
+
+# Reset clears the draft; closing without applying keeps the applied filters.
+- scrollUntilVisible:
+    element: "Filters"
+    direction: UP
+    timeout: 20000
+- tapOn: "Filters"
+- extendedWaitUntil:
+    visible: "Filter My Events"
+    timeout: 5000
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Reset filters"
+- assertVisible:
+    text: "Filter by Participant"
+    selected: false
+- tapOn: "Close filters"
+- extendedWaitUntil:
+    notVisible: "Filter My Events"
+    timeout: 5000
+- assertVisible:
+    text: "Filters"
+    selected: true
+
+# Reset and apply restores the full list.
+- tapOn: "Filters"
+- extendedWaitUntil:
+    visible: "Filter My Events"
+    timeout: 5000
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Reset filters"
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Apply filters"
+- extendedWaitUntil:
+    notVisible: "Filter My Events"
+    timeout: 5000
+- assertVisible:
+    text: "Filters"
+    selected: false
+
+# Pull to refresh, then open the event from the list and clean up.
+- swipe:
+    direction: DOWN
+- runFlow:
+    file: ../helpers/open-event.yaml
+    env:
+      TITLE: ${output.title}
+- runFlow: ../helpers/delete-open-event.yaml

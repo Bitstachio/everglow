@@ -1,0 +1,83 @@
+appId: ${APP_ID}
+name: Organizer uploads, downloads, and deletes an event photo
+tags:
+  - events
+  - photos
+---
+# Prerequisites: signed-in, onboarded session, and an API whose photo storage accepts uploads.
+- addMedia:
+    - ../assets/e2e-photo.jpg
+- runFlow: ../helpers/launch-home.yaml
+- runFlow: ../helpers/unique-title.yaml
+- runFlow:
+    file: ../helpers/create-event.yaml
+    env:
+      TITLE: ${output.title}
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000
+- runFlow:
+    file: ../helpers/open-event.yaml
+    env:
+      TITLE: ${output.title}
+- assertVisible: "No photos yet"
+
+# Upload: pick the newest library photo (the fixture added above).
+- tapOn: "Add photo"
+- runFlow: ../helpers/allow-permission.yaml
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          visible: "Photo, .*"
+          timeout: 10000
+      - tapOn:
+          text: "Photo, .*"
+          index: 0
+      # allowsEditing shows a crop step before returning to the app.
+      - extendedWaitUntil:
+          visible: "Choose"
+          timeout: 10000
+      - tapOn: "Choose"
+# The picker steps above are iOS-specific; the Android photo picker is not scripted yet.
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Photo uploaded successfully!"
+- assertNotVisible: "No photos yet"
+- assertVisible: "Event photo .*"
+
+# Download saves the photo to the device library.
+- tapOn: "Download photo .*"
+- runFlow: ../helpers/allow-permission.yaml
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Photo downloaded successfully!"
+
+# Delete: Cancel keeps it, confirming removes it.
+- tapOn: "Delete photo .*"
+- extendedWaitUntil:
+    visible: "Are you sure you want to delete this photo?"
+    timeout: 5000
+- tapOn: "Cancel"
+- assertVisible: "Event photo .*"
+- tapOn: "Delete photo .*"
+- extendedWaitUntil:
+    visible: "Are you sure you want to delete this photo?"
+    timeout: 5000
+- tapOn: "Delete"
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Photo deleted successfully"
+- extendedWaitUntil:
+    visible: "No photos yet"
+    timeout: 10000
+
+# Clean up.
+- runFlow: ../helpers/delete-open-event.yaml

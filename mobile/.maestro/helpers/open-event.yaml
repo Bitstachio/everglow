@@ -1,0 +1,12 @@
+appId: ${APP_ID}
+---
+# From a screen listing events, scrolls to the event titled TITLE and opens its details.
+- scrollUntilVisible:
+    element: "Open ${TITLE}"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Open ${TITLE}"
+- extendedWaitUntil:
+    visible: "Event Details"
+    timeout: 15000
+- assertVisible: ${TITLE}

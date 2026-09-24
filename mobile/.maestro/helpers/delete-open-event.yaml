@@ -1,0 +1,25 @@
+appId: ${APP_ID}
+---
+# On an organizer's Event Details screen, deletes the event and leaves the details screen.
+- runFlow: dismiss-dev-banner.yaml
+- tapOn: "Delete Event"
+- extendedWaitUntil:
+    visible: "Are you sure you want to delete this event? This action cannot be undone."
+    timeout: 5000
+- tapOn: "Delete"
+# Known app race: the detail query can refetch the deleted event and raise a
+# "not found" error alert alongside (or instead of) the success alert.
+- extendedWaitUntil:
+    visible: "Event deleted successfully|Event with ID .* not found"
+    timeout: 15000
+- repeat:
+    times: 3
+    while:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+# Delete replaces the route with Events home, but the same race can also pop the
+# stack, so callers may land on Events home or My Events. Only require leaving details.
+- extendedWaitUntil:
+    notVisible: "Delete Event"
+    timeout: 15000

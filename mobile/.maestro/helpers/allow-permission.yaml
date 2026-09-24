@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+---
+# Accepts an iOS/Android runtime permission prompt if one is showing; no-op once granted.
+- runFlow:
+    when:
+      visible: "Allow Full Access|Allow|While using the app|Allow all"
+    commands:
+      - tapOn: "Allow Full Access|Allow|While using the app|Allow all"

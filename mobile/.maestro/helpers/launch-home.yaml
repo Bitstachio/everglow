@@ -1,0 +1,10 @@
+appId: ${APP_ID}
+---
+# Relaunch into an existing authenticated, onboarded session and wait for Events.
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 30000
+- runFlow: dismiss-dev-banner.yaml

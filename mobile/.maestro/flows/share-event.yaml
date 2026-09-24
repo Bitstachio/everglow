@@ -1,0 +1,99 @@
+appId: ${APP_ID}
+name: Organizer shares an event from Events home via QR, copied link, and the share sheet
+tags:
+  - events
+  - share-event
+---
+# Prerequisite: sign in and complete onboarding on this device first.
+- runFlow: ../helpers/launch-home.yaml
+- runFlow: ../helpers/unique-title.yaml
+- runFlow:
+    file: ../helpers/create-event.yaml
+    env:
+      TITLE: ${output.title}
+      DESCRIPTION: "Share flow description"
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000
+
+# Creator-owned cards expose a share action that opens the invitation sheet.
+- scrollUntilVisible:
+    element: "Share ${output.title}"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Share ${output.title}"
+- extendedWaitUntil:
+    visible: "Share Event"
+    timeout: 5000
+- assertVisible: "Share flow description"
+- assertVisible: "QR Code"
+- assertVisible: "Scan to join the event"
+- assertVisible: "Invitation Link"
+
+- tapOn: "Copy invitation link"
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Copied!"
+
+# Close and the header X both dismiss the sheet.
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Close"
+- extendedWaitUntil:
+    notVisible: "Share Event"
+    timeout: 5000
+- tapOn: "Share ${output.title}"
+- extendedWaitUntil:
+    visible: "Share Event"
+    timeout: 5000
+- tapOn: "Close invitation"
+- extendedWaitUntil:
+    notVisible: "Share Event"
+    timeout: 5000
+
+# Share Link hands off to the native share sheet and returns to the invitation.
+- tapOn: "Share ${output.title}"
+- extendedWaitUntil:
+    visible: "Share Event"
+    timeout: 5000
+- tapOn: "Share Link"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      # The system share sheet renders out of process, so it is absent from the
+      # view hierarchy. Give it time to present, then swipe it away.
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - swipe:
+          start: "50%, 55%"
+          end: "50%, 98%"
+          duration: 400
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    visible: "Share Event"
+    timeout: 5000
+# A share sheet that presented late may absorb the first tap.
+- repeat:
+    times: 3
+    while:
+      visible: "Share Event"
+    commands:
+      - tapOn: "Close invitation"
+      - waitForAnimationToEnd:
+          timeout: 2000
+- assertNotVisible: "Share Event"
+
+# Clean up.
+- runFlow:
+    file: ../helpers/open-event.yaml
+    env:
+      TITLE: ${output.title}
+- runFlow: ../helpers/delete-open-event.yaml

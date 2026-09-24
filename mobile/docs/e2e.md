@@ -6,7 +6,7 @@ This document covers end-to-end testing for the Everglow mobile app: what we use
 
 **Tool:** [Maestro](https://maestro.dev/) — a separate CLI (not an npm dependency). Flows are YAML under `.maestro/`; `config.yaml` controls discovery.
 
-**Sample flow:** `.maestro/flows/profile.yaml` — Profile tab opens and dismisses the edit form.
+**Flows:** see [Coverage](#coverage). Profile / Account Settings is only smoke-tested until that area is finished.
 
 ## Layout
 
@@ -15,6 +15,7 @@ This document covers end-to-end testing for the Everglow mobile app: what we use
 | `.maestro/config.yaml` | Flow discovery (`flows/**`)                            |
 | `.maestro/flows/`      | Runnable YAML tests                                    |
 | `.maestro/helpers/`    | Optional reusable subflows (`runFlow`); not standalone |
+| `.maestro/assets/`     | Fixture media (photo used by the photos flow)          |
 | `.maestro/results/`    | Generated reports and debug output (gitignored)        |
 
 Keep the Maestro workspace under `mobile/` because it targets this Expo app (bundle IDs, `testID`s, native builds). Needing a running API does not move the suite to the monorepo root.
@@ -75,11 +76,50 @@ maestro --device <device-id> test -e APP_ID=com.anonymous.everglow-mobile .maest
 
 The package scripts write JUnit output to `.maestro/results/report.xml` and diagnostic artifacts to `.maestro/results/`. Generated results are ignored by Git and Prettier. Each run replaces the JUnit report; copy it elsewhere before another run if needed.
 
-Validate the sample's syntax without a device:
+Validate a flow's syntax without a device:
 
 ```sh
-maestro check-syntax .maestro/flows/profile.yaml
+maestro check-syntax .maestro/flows/create-event.yaml
 ```
+
+## Coverage
+
+Every flow creates its own event with a run-unique title (`E2E <timestamp>`) and deletes it at the end, so runs do not depend on existing account data or collide with each other. A failed run can leave an `E2E …` event behind; delete it from My Events.
+
+| Flow                | Tags                 | Covers                                                                                                                   |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `home.yaml`         | smoke, events        | Events home content, pull to refresh, See all → My Events, Create Event → Back                                           |
+| `create-event.yaml` | events, create-event | Required-title validation, date/time pickers open and close, create with description, confirmation, Copy, Create another |
+| `event-detail.yaml` | events, event-detail | Done, organizer details, refresh, members sheet, edit cancel / validation / save, delete cancel / confirm                |
+| `share-event.yaml`  | events, share-event  | Share action on a card, invitation sheet, Copy, Close / X, native share sheet handoff                                    |
+| `join-event.yaml`   | events, join-event   | Join sheet, empty validation, invalid invite error, field reset on close, pasting a real invite link                     |
+| `events-list.yaml`  | events, events-list  | Sort toggle, filter sheet role chips, date picker, organizer / participant filters, reset, close vs apply                |
+| `event-photos.yaml` | events, photos       | Upload from the photo library, download, delete cancel / confirm (iOS picker only)                                       |
+| `qr-scanner.yaml`   | camera, join-event   | Scanner or permission prompt opens and closes; excluded by default, run by path on a physical device                     |
+| `profile.yaml`      | smoke, profile       | Events avatar → Account Settings → Back                                                                                  |
+
+Not covered: login, signup, and onboarding (Auth0 hosted login; the suite assumes an existing session), leaving an event and removing members (need a second account), and scanning a real QR code.
+
+Helpers in `helpers/`:
+
+| Helper                    | Role                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| `launch-home.yaml`        | Relaunch with the saved session and wait for Events home                        |
+| `unique-title.yaml`       | Set `output.title` to a run-unique event title                                  |
+| `create-event.yaml`       | Create an event (`TITLE`, optional `DESCRIPTION`) and wait for the confirmation |
+| `open-event.yaml`         | Scroll to and open the event titled `TITLE`                                     |
+| `delete-open-event.yaml`  | Delete the open event and leave the details screen                              |
+| `dismiss-alert.yaml`      | Wait for the native alert titled `TITLE` and tap OK                             |
+| `dismiss-dev-banner.yaml` | Dismiss the debug LogBox banner that covers bottom-anchored buttons             |
+| `allow-permission.yaml`   | Accept a runtime permission prompt if one is showing                            |
+| `go-back.yaml`            | Native back on iOS or Android                                                   |
+
+Device notes:
+
+- The photos flow needs an API whose storage accepts uploads; it adds `assets/e2e-photo.jpg` to the device library with `addMedia`.
+- The iOS share sheet runs out of process and is not in Maestro's view hierarchy, so the flow only checks that the app returns to the invitation after the sheet is swiped away.
+- Maestro's `pasteText` only pastes text Maestro copied itself, so the join flow pastes the app-copied invite link through the native long-press Paste menu.
+- Bottom sheets do not avoid the keyboard; flows press Return instead of `hideKeyboard`, which can tap the scrim and close the sheet.
 
 ## Sample: Events → Account Settings
 

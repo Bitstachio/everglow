@@ -1,0 +1,89 @@
+appId: ${APP_ID}
+name: Join Event validates input, rejects an invalid invite, and resolves a pasted invite link
+tags:
+  - events
+  - join-event
+---
+# Prerequisite: sign in and complete onboarding on this device first.
+- runFlow: ../helpers/launch-home.yaml
+- runFlow: ../helpers/unique-title.yaml
+
+# Create an event and put its invite link on the device clipboard.
+- runFlow:
+    file: ../helpers/create-event.yaml
+    env:
+      TITLE: ${output.title}
+- tapOn: "Copy invitation link"
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Copied!"
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000
+
+# The sheet offers QR scanning and link entry.
+- tapOn: "Join Event"
+- extendedWaitUntil:
+    visible: "Join an Event"
+    timeout: 5000
+- assertVisible: "Choose how you would like to join the event shared with you."
+- assertVisible: "Scan QR Code"
+- assertVisible: "Or paste the invite link"
+
+# Empty input is rejected client-side.
+- tapOn: "Join with Link"
+- assertVisible: "Please paste the invitation URL or invite token."
+
+# An unknown invite token surfaces the API error. Return submits: the sheet does
+# not avoid the keyboard, which covers the Join button.
+- tapOn: "Invitation URL or token"
+- inputText: "e2e-invalid-invite-token"
+- pressKey: Enter
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Error"
+- assertVisible: "Join an Event"
+
+# Closing resets the field.
+- tapOn: "Close join event"
+- extendedWaitUntil:
+    notVisible: "Join an Event"
+    timeout: 5000
+- tapOn: "Join Event"
+- extendedWaitUntil:
+    visible: "Join an Event"
+    timeout: 5000
+- assertNotVisible: "e2e-invalid-invite-token"
+
+# Pasting the creator's own invite resolves the event and reports the existing membership.
+# Uses the native Paste menu because Maestro's pasteText only sees text Maestro copied.
+- tapOn: "Invitation URL or token"
+- longPressOn: "Invitation URL or token"
+- tapOn: "Paste"
+- tapOn: "Join with Link"
+- extendedWaitUntil:
+    visible: ".*already.*"
+    timeout: 15000
+- tapOn: "OK"
+- waitForAnimationToEnd:
+    timeout: 2000
+- runFlow:
+    when:
+      visible: "Join an Event"
+    commands:
+      - tapOn: "Close join event"
+- extendedWaitUntil:
+    notVisible: "Join an Event"
+    timeout: 5000
+
+# Clean up.
+- runFlow:
+    file: ../helpers/open-event.yaml
+    env:
+      TITLE: ${output.title}
+- runFlow: ../helpers/delete-open-event.yaml

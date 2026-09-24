@@ -1,0 +1,79 @@
+appId: ${APP_ID}
+name: Create Event validates, publishes an event, and supports Copy and Create another
+tags:
+  - events
+  - create-event
+---
+# Prerequisite: sign in and complete onboarding on this device first.
+- runFlow: ../helpers/launch-home.yaml
+- runFlow: ../helpers/unique-title.yaml
+
+# Empty title is rejected client-side.
+- tapOn: "Create Event"
+- extendedWaitUntil:
+    visible: "Create an Event"
+    timeout: 10000
+- assertVisible: "Event Title"
+- assertVisible: "Description (optional)"
+- assertVisible: "Date & Time"
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn:
+    text: "Create Event"
+    below: "Choose time"
+- assertVisible: "Event title is required."
+
+# Date and time pickers open and close from their controls.
+- tapOn: "Choose date"
+- tapOn: "Close date and time picker"
+- tapOn: "Choose time"
+- tapOn: "Close date and time picker"
+- assertNotVisible: "Close date and time picker"
+
+# Valid submission shows the confirmation for the new event.
+- tapOn: "Enter event name"
+- inputText: ${output.title}
+- assertNotVisible: "Event title is required."
+- tapOn: "What's this event about?"
+- inputText: "Created by Maestro"
+- hideKeyboard
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn:
+    text: "Create Event"
+    below: "Choose time"
+- extendedWaitUntil:
+    visible: "Your event is live"
+    timeout: 15000
+- assertVisible: ${output.title}
+- assertVisible: "Point a camera at the code to join"
+- assertVisible:
+    id: "qr-slot"
+
+# Copy puts the invitation link on the clipboard.
+- tapOn: "Copy invitation link"
+- runFlow:
+    file: ../helpers/dismiss-alert.yaml
+    env:
+      TITLE: "Copied!"
+
+# Create another returns to an empty form.
+- runFlow: ../helpers/dismiss-dev-banner.yaml
+- tapOn: "Create another"
+- extendedWaitUntil:
+    visible: "Create an Event"
+    timeout: 5000
+- assertVisible: "Enter event name"
+- assertNotVisible: ${output.title}
+
+# Back to Events: the new event is listed, then clean it up.
+- runFlow: ../helpers/go-back.yaml
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 10000
+- runFlow:
+    file: ../helpers/open-event.yaml
+    env:
+      TITLE: ${output.title}
+- assertVisible: "Created by Maestro"
+- runFlow: ../helpers/delete-open-event.yaml
+- assertNotVisible: "Open ${output.title}"

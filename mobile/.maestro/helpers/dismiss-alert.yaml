@@ -1,0 +1,13 @@
+appId: ${APP_ID}
+---
+# Asserts a native alert with TITLE is shown, then taps OK.
+- extendedWaitUntil:
+    visible: ${TITLE}
+    timeout: 15000
+- tapOn: "OK"
+# Wait out the alert's dismiss animation so the next tap reaches the screen underneath.
+- extendedWaitUntil:
+    notVisible: ${TITLE}
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 2000

@@ -1,0 +1,37 @@
+appId: ${APP_ID}
+name: Join Event opens the QR scanner (or its permission prompt) and closes it
+tags:
+  - camera
+  - join-event
+---
+# Excluded from the default suite (see config.yaml): simulators have no camera, and
+# expo-camera renders nothing there, including the scanner's Close control.
+# Run it on a physical device by path: maestro test -e APP_ID=<id> .maestro/flows/qr-scanner.yaml
+- runFlow: ../helpers/launch-home.yaml
+- tapOn: "Join Event"
+- extendedWaitUntil:
+    visible: "Join an Event"
+    timeout: 5000
+- tapOn: "Scan QR Code"
+- runFlow: ../helpers/allow-permission.yaml
+
+# Without permission the app explains why and offers Cancel.
+- runFlow:
+    when:
+      visible: "Camera Access Required"
+    commands:
+      - assertVisible: "Grant Permission"
+      - tapOn: "Cancel"
+
+# With permission the scanner shows its framing hint and a Close control.
+- runFlow:
+    when:
+      visible: "Close scanner"
+    commands:
+      - assertVisible: "Position the QR code within the frame"
+      - tapOn: "Close scanner"
+
+- extendedWaitUntil:
+    notVisible: "Close scanner|Camera Access Required"
+    timeout: 5000
+- assertVisible: "Join Event"
