@@ -116,9 +116,9 @@ test.each(["light", "dark"])("shows the returned event, link and QR in %s mode",
   mockColorScheme.mockReturnValue(theme);
   const event = buildEvent();
   await render(<FormProbe createdEvent={event} />);
-  expect(screen.getByText("Event Created Successfully!")).toBeOnTheScreen();
+  expect(screen.getByText("Your event is live")).toBeOnTheScreen();
   expect(screen.getByText(event.title)).toBeOnTheScreen();
-  expect(screen.getByText(event.description!)).toBeOnTheScreen();
+  await fireEvent(screen.getByTestId("qr-slot"), "layout", { nativeEvent: { layout: { width: 320, height: 240 } } });
   expect(screen.getByLabelText(`QR code: ${event.invitationUrl}`)).toBeOnTheScreen();
   expect(screen.queryByPlaceholderText("Enter event name")).not.toBeOnTheScreen();
 });
@@ -133,9 +133,9 @@ test("supports missing descriptions and dispatches each success action", async (
     <FormProbe createdEvent={event} {...{ handleCopyLink, handleShareLink, handleCreateAnother, handleDone }} />,
   );
   const user = userEvent.setup();
-  await user.press(screen.getByText(event.invitationUrl));
-  await user.press(screen.getByText("Share Link"));
-  await user.press(screen.getByText("Create Another Event"));
+  await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
+  await user.press(screen.getByText("Share event"));
+  await user.press(screen.getByText("Create another"));
   await user.press(screen.getByText("Done"));
   for (const callback of [handleCopyLink, handleShareLink, handleCreateAnother, handleDone])
     expect(callback).toHaveBeenCalledTimes(1);
