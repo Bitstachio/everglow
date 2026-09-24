@@ -68,7 +68,7 @@ test.each(["ios", "android"] as const)(
     await user.press(screen.getByRole("button", { name: "Choose time" }));
     await fireEvent(screen.getByTestId("time-picker"), "change", { type: "set" }, new Date(2030, 0, 1, 9, 45));
     await user.press(screen.getByText("Create Event"));
-    expect(await screen.findByText("Event Created Successfully!")).toBeOnTheScreen();
+    expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
     const expectedDate = new Date(initial);
     expectedDate.setFullYear(2031, 1, 10);
     expectedDate.setHours(9, 45);
@@ -77,6 +77,7 @@ test.each(["ios", "android"] as const)(
       throwOnError: true,
     });
     expect(screen.getByText(buildEvent().title)).toBeOnTheScreen();
+    await fireEvent(screen.getByTestId("qr-slot"), "layout", { nativeEvent: { layout: { width: 320, height: 240 } } });
     expect(screen.getByLabelText(`QR code: ${buildEvent().invitationUrl}`)).toBeOnTheScreen();
     expect(client.getQueryState(eventsKeys.list("user-1"))?.isInvalidated).toBe(true);
     expect(client.getQueryState(eventsKeys.list("user-2"))?.isInvalidated).toBe(true);
@@ -93,7 +94,7 @@ test.each(["light", "dark"])(
     expect(await screen.findByText("Event title is required.")).toBeOnTheScreen();
     expect(mockCreate).not.toHaveBeenCalled();
     await submit();
-    expect(await screen.findByText("Event Created Successfully!")).toBeOnTheScreen();
+    expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
     expect(mockCreate).toHaveBeenCalledWith({
       body: { title: "Meetup", date: expect.any(String) },
       throwOnError: true,
@@ -120,7 +121,7 @@ test("keeps entered values after failure, preserves caches, and permits retry", 
   expect(screen.getByPlaceholderText("What's this event about?")).toHaveDisplayValue("Bring friends");
   expect(client.getQueryState(eventsKeys.list("user-1"))?.isInvalidated).toBe(false);
   await userEvent.setup().press(screen.getByText("Create Event"));
-  expect(await screen.findByText("Event Created Successfully!")).toBeOnTheScreen();
+  expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
   expect(mockCreate).toHaveBeenCalledTimes(2);
   expect(screen.queryByText("Network unavailable")).not.toBeOnTheScreen();
 });
@@ -141,18 +142,18 @@ test("locks editing and picker controls until creation completes", async () => {
   }
   expect(mockCreate).toHaveBeenCalledTimes(1);
   pending.resolve({ data: { data: buildEvent() } });
-  expect(await screen.findByText("Event Created Successfully!")).toBeOnTheScreen();
+  expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
 });
 
 test("copies and shares the server-returned invitation and Done returns to the previous page", async () => {
   await renderScreen();
   await submit();
-  await screen.findByText("Event Created Successfully!");
+  await screen.findByText("Your event is live");
   const user = userEvent.setup();
-  await user.press(screen.getByText(buildEvent().invitationUrl));
+  await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
   expect(Clipboard.setString).toHaveBeenCalledWith(buildEvent().invitationUrl);
   expect(Alert.alert).toHaveBeenCalledWith("Copied!", "Invitation link copied to clipboard");
-  await user.press(screen.getByText("Share Link"));
+  await user.press(screen.getByText("Share event"));
   expect(Share.share).toHaveBeenCalledWith({
     message: `Join "${buildEvent().title}" via ${buildEvent().invitationUrl}`,
   });
@@ -167,15 +168,15 @@ test.each([new Error("Share unavailable"), "unknown failure"])(
     jest.mocked(Share.share).mockRejectedValue(error);
     await renderScreen();
     await submit();
-    await screen.findByText("Event Created Successfully!");
-    await userEvent.setup().press(screen.getByText("Share Link"));
+    await screen.findByText("Your event is live");
+    await userEvent.setup().press(screen.getByText("Share event"));
     await waitFor(() =>
       expect(Alert.alert).toHaveBeenCalledWith(
         "Error",
         error instanceof Error ? error.message : "Failed to share invitation",
       ),
     );
-    expect(screen.getByText("Event Created Successfully!")).toBeOnTheScreen();
+    expect(screen.getByText("Your event is live")).toBeOnTheScreen();
     expect(mockBack).not.toHaveBeenCalled();
   },
 );
@@ -184,21 +185,21 @@ test("dismisses native sharing without treating it as an error", async () => {
   jest.mocked(Share.share).mockResolvedValue({ action: Share.dismissedAction });
   await renderScreen();
   await submit();
-  await screen.findByText("Event Created Successfully!");
-  await userEvent.setup().press(screen.getByText("Share Link"));
+  await screen.findByText("Your event is live");
+  await userEvent.setup().press(screen.getByText("Share event"));
   expect(Alert.alert).not.toHaveBeenCalled();
-  expect(screen.getByText("Event Created Successfully!")).toBeOnTheScreen();
+  expect(screen.getByText("Your event is live")).toBeOnTheScreen();
 });
 
 test("Create Another resets the form and replaces the invitation after the next creation", async () => {
   await renderScreen();
   await submit();
-  await screen.findByText("Event Created Successfully!");
+  await screen.findByText("Your event is live");
   const user = userEvent.setup();
-  await user.press(screen.getByText("Create Another Event"));
+  await user.press(screen.getByText("Create another"));
   expect(screen.getByPlaceholderText("Enter event name")).toHaveDisplayValue("");
   expect(screen.getByPlaceholderText("What's this event about?")).toHaveDisplayValue("");
-  expect(screen.queryByText(buildEvent().invitationUrl)).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Copy invitation link" })).not.toBeOnTheScreen();
   const next = buildEvent({
     id: "second",
     title: "Picnic",
@@ -207,8 +208,8 @@ test("Create Another resets the form and replaces the invitation after the next 
   });
   mockCreate.mockResolvedValue({ data: { data: next } });
   await submit("Picnic");
-  expect(await screen.findByText("Event Created Successfully!")).toBeOnTheScreen();
-  await user.press(screen.getByText(next.invitationUrl));
+  expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
   expect(Clipboard.setString).toHaveBeenLastCalledWith(next.invitationUrl);
   expect(screen.getByText("Picnic")).toBeOnTheScreen();
   expect(mockCreate).toHaveBeenCalledTimes(2);
