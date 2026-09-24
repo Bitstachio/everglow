@@ -14,8 +14,7 @@ export const AUTH0_CUSTOM_SCHEME = "everglowmobile";
 // Return URL for openAuthSessionAsync. List on Allowed Callback URLs. Not sent
 // as Auth0 ticket result_url (New Universal Login forbids that with client_id).
 export const PASSWORD_CHANGE_RESULT_URL =
-  process.env.EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL ??
-  `${AUTH0_CUSTOM_SCHEME}://password-change/result`;
+  process.env.EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL ?? `${AUTH0_CUSTOM_SCHEME}://password-change/result`;
 
 // `offline_access` is required for the credentials manager to obtain a refresh
 // token and silently renew the access token after it expires.

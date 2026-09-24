@@ -7,7 +7,12 @@ import {
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { profileKeys } from "./keys";
-import type { DeleteAccountPhotoPolicy, PasswordChangeTicketResponseDto, UpdateUserDto, UserResponseDto } from "../types";
+import type {
+  DeleteAccountPhotoPolicy,
+  PasswordChangeTicketResponseDto,
+  UpdateUserDto,
+  UserResponseDto,
+} from "../types";
 
 export const useUpdateProfileMutation = () => {
   const { updateUser } = useAuth();

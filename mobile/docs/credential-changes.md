@@ -97,30 +97,30 @@ cd api && npm run auth0:sync-theme
 
 That script reads `colorTokens.light`, PATCHes the default theme, updates tenant branding colors, and merges Everglow copy onto the `reset-password` prompt. Re-run it when light tokens change. Do not pick a nearby hex by hand.
 
-| App token (`global.css`) | Light value | Auth0 theme field |
-| --- | --- | --- |
-| `background` | `#ffffff` | `page_background.background_color`, `colors.input_background` |
-| `surface` | `#f8fafc` | `colors.widget_background` |
-| `strong` | `#0f172a` | `colors.header` |
-| `foreground` | `#1e293b` | `colors.body_text`, `colors.input_filled_text`, `colors.secondary_button_label` |
-| `muted` | `#64748b` | `colors.input_labels_placeholders`, `colors.icons` |
-| `accent` | `#4f46e5` | `colors.primary_button`, `colors.base_focus_color`, `colors.links_focused_components` |
-| `accent-hover` | `#4338ca` | `colors.base_hover_color` |
-| `accent-foreground` | `#ffffff` | `colors.primary_button_label` |
-| `border` | `#e2e8f0` | `colors.widget_border`, `colors.input_border`, `colors.secondary_button_border` |
-| `danger` | `#dc2626` | `colors.error` |
-| `success` | `#16a34a` | `colors.success` |
+| App token (`global.css`) | Light value | Auth0 theme field                                                                     |
+| ------------------------ | ----------- | ------------------------------------------------------------------------------------- |
+| `background`             | `#ffffff`   | `page_background.background_color`, `colors.input_background`                         |
+| `surface`                | `#f8fafc`   | `colors.widget_background`                                                            |
+| `strong`                 | `#0f172a`   | `colors.header`                                                                       |
+| `foreground`             | `#1e293b`   | `colors.body_text`, `colors.input_filled_text`, `colors.secondary_button_label`       |
+| `muted`                  | `#64748b`   | `colors.input_labels_placeholders`, `colors.icons`                                    |
+| `accent`                 | `#4f46e5`   | `colors.primary_button`, `colors.base_focus_color`, `colors.links_focused_components` |
+| `accent-hover`           | `#4338ca`   | `colors.base_hover_color`                                                             |
+| `accent-foreground`      | `#ffffff`   | `colors.primary_button_label`                                                         |
+| `border`                 | `#e2e8f0`   | `colors.widget_border`, `colors.input_border`, `colors.secondary_button_border`       |
+| `danger`                 | `#dc2626`   | `colors.error`                                                                        |
+| `success`                | `#16a34a`   | `colors.success`                                                                      |
 
 That mapping matches the app's cards: a `background` page, a `surface` card, a `border` outline, accent buttons with white labels. See [Theme](./theme.md).
 
 Shape comes from [UI scale](./ui-scale.md). Controls are 16px radius (`rounded-2xl`), not Auth0's default 3px.
 
-| App | Auth0 |
-| --- | --- |
+| App                          | Auth0                                                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
 | 16px control and card radius | `borders.button_border_radius`, `borders.input_border_radius`, `borders.widget_corner_radius` = `16` |
-| Rounded controls | `borders.buttons_style` and `borders.inputs_style` = `rounded` |
-| 1px card and input border | `borders.widget_border_weight` and `borders.input_border_weight` = `1` |
-| 16px body text | `fonts.reference_text_size` = `16` |
+| Rounded controls             | `borders.buttons_style` and `borders.inputs_style` = `rounded`                                       |
+| 1px card and input border    | `borders.widget_border_weight` and `borders.input_border_weight` = `1`                               |
+| 16px body text               | `fonts.reference_text_size` = `16`                                                                   |
 
 Type is Inter, the UI face in the UI scale doc. Point `fonts.font_url` at an Inter file (woff). The app may still be on the system sans until `expo-font` loads Inter; the hosted page cannot use that system face, so it should load Inter directly and meet the app when the app does too.
 

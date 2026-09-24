@@ -1,10 +1,6 @@
 import { getErrorMessage } from "@/lib/api/errors";
 import { isDatabaseIdentity } from "@/lib/auth0-identity";
-import {
-  clearLocalCredentials,
-  openPasswordChangeTicket,
-  sessionStillValid,
-} from "@/lib/auth0";
+import { clearLocalCredentials, openPasswordChangeTicket, sessionStillValid } from "@/lib/auth0";
 import { useAuth0 } from "react-native-auth0";
 import { useRef, useState } from "react";
 import { Alert } from "react-native";

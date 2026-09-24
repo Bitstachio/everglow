@@ -81,9 +81,7 @@ export class UsersController {
   })
   @ApiWrappedResponse(PasswordChangeTicketResponseDto, "Password-change ticket URL")
   @ApiForbiddenResponse({ description: "Caller is not a database identity" })
-  async createPasswordChangeTicket(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<PasswordChangeTicketResponseDto> {
+  async createPasswordChangeTicket(@CurrentUser() user: AuthenticatedUser): Promise<PasswordChangeTicketResponseDto> {
     return this.credentialsService.createPasswordChangeTicket(user.id, user.sub);
   }
 

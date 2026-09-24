@@ -17,10 +17,7 @@ export class CredentialsService {
    * Returns an Auth0-hosted password-change URL for the caller's database
    * identity. Social identities are rejected: they have no password in Auth0.
    */
-  async createPasswordChangeTicket(
-    userId: string,
-    providerSub: string,
-  ): Promise<PasswordChangeTicketResponseDto> {
+  async createPasswordChangeTicket(userId: string, providerSub: string): Promise<PasswordChangeTicketResponseDto> {
     if (!isAuth0DatabaseProviderSub(providerSub)) {
       throw new ForbiddenException(CREDENTIALS_SERVICE_ERRORS.PASSWORD_CHANGE_NOT_AVAILABLE);
     }

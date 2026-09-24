@@ -11,8 +11,7 @@ import type { ColorTokenName } from "./tokens";
 type LightColorTokens = Record<ColorTokenName, string>;
 
 /** Public Inter woff used by the hosted Universal Login page. */
-export const AUTH0_INTER_FONT_URL =
-  "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.5/latin-400-normal.woff";
+export const AUTH0_INTER_FONT_URL = "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.5/latin-400-normal.woff";
 
 export type Auth0UniversalLoginTheme = {
   borders: {
