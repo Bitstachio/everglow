@@ -1,9 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
-import { usersControllerRemoveMe, usersControllerUpdateMe } from "@/lib/api/generated";
+import {
+  usersControllerCreatePasswordChangeTicket,
+  usersControllerRemoveMe,
+  usersControllerUpdateMe,
+} from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { profileKeys } from "./keys";
-import type { DeleteAccountPhotoPolicy, UpdateUserDto, UserResponseDto } from "../types";
+import type { DeleteAccountPhotoPolicy, PasswordChangeTicketResponseDto, UpdateUserDto, UserResponseDto } from "../types";
 
 export const useUpdateProfileMutation = () => {
   const { updateUser } = useAuth();
@@ -33,6 +37,15 @@ export const useDeleteProfileMutation = () => {
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: profileKeys.all });
+    },
+  });
+};
+
+export const useCreatePasswordChangeTicketMutation = () => {
+  return useMutation<PasswordChangeTicketResponseDto, Error, void>({
+    mutationFn: async () => {
+      const { data } = await usersControllerCreatePasswordChangeTicket({ throwOnError: true });
+      return unwrapEnvelope(data);
     },
   });
 };

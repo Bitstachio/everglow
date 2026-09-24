@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
 import type { DeleteAccountPhotoPolicy } from "../types";
+import { useChangePassword } from "./use-change-password";
 import { useEditProfileForm } from "./use-edit-profile-form";
 
 const firstParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
@@ -15,6 +16,7 @@ export const useProfileScreen = () => {
   const deleteProfileMutation = useDeleteProfileMutation();
   const [showEditModal, setShowEditModal] = useState(false);
   const params = useLocalSearchParams<{ username?: string | string[] }>();
+  const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
 
   const { form, onSubmit } = useEditProfileForm({
     user,
@@ -96,6 +98,9 @@ export const useProfileScreen = () => {
     handleOpenUsage: () => router.push("/usage"),
     handleOpenPrivacyPolicy: () => router.push("/privacy-policy"),
     handleOpenTermsOfUse: () => router.push("/terms-of-use"),
+    canChangePassword,
+    isChangingPassword,
+    handleChangePassword,
     isDeleting: deleteProfileMutation.isPending,
     isLoading,
     showEditModal,

@@ -91,6 +91,14 @@ Apply this on Auth0's default Universal Login theme (`GET /api/v2/branding/theme
 
 Also set the tenant branding `colors.primary` to the accent and `colors.page_background` to the page background, so a Classic leftover does not diverge. The theme is what Universal Login actually paints.
 
+The mapping is implemented in `theme/auth0-universal-login.ts` and applied with:
+
+```sh
+cd api && npm run auth0:sync-theme
+```
+
+That script reads `colorTokens.light`, PATCHes the default theme, updates tenant branding colors, and merges Everglow copy onto the `reset-password` prompt. Re-run it when light tokens change. Do not pick a nearby hex by hand.
+
 | App token (`global.css`) | Light value | Auth0 theme field |
 | --- | --- | --- |
 | `background` | `#ffffff` | `page_background.background_color`, `colors.input_background` |

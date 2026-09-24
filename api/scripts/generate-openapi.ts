@@ -3,6 +3,8 @@ process.env.AUTH0_DOMAIN ??= "openapi-generate.auth0.com";
 process.env.AUTH0_AUDIENCE ??= "https://openapi-generate-api";
 process.env.AUTH0_MANAGEMENT_CLIENT_ID ??= "openapi-generate-mgmt-client-id";
 process.env.AUTH0_MANAGEMENT_CLIENT_SECRET ??= "openapi-generate-mgmt-client-secret";
+process.env.AUTH0_NATIVE_CLIENT_ID ??= "openapi-generate-native-client-id";
+process.env.AUTH0_PASSWORD_CHANGE_RESULT_URL ??= "everglowmobile://password-change/result";
 // Never connected during generation; only needs to satisfy ConfigService.getOrThrow
 process.env.DATABASE_URL ??= "postgresql://openapi:openapi@localhost:5432/openapi-generate";
 process.env.AWS_REGION ??= "us-east-1";

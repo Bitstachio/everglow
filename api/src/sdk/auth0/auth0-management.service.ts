@@ -10,6 +10,10 @@ export interface IdentityProviderTokens {
   refreshToken?: string;
 }
 
+export type PasswordChangeTicket = {
+  ticketUrl: string;
+};
+
 @Injectable()
 export class Auth0ManagementService {
   private client?: ManagementClient;
@@ -23,10 +27,9 @@ export class Auth0ManagementService {
 
   /**
    * Built on first use rather than at boot. Management credentials are needed
-   * by account deletion alone, and throwing in the constructor takes the whole
-   * API down when they are absent; this way a missing secret fails the one
-   * endpoint that needs it, loudly, and the saga's durable marker means the
-   * deletion resumes once the credentials are in place.
+   * by account deletion and password-change tickets; throwing in the constructor
+   * would take the whole API down when they are absent. Missing secrets fail the
+   * endpoints that need them instead.
    */
   private getClient(): ManagementClient {
     if (this.client) return this.client;
@@ -71,6 +74,42 @@ export class Auth0ManagementService {
 
       this.logger.error({ err: error as Error, providerSub }, "auth0 deleteUser failed");
       throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.DELETE_USER_FAILED(providerSub));
+    }
+  }
+
+  /**
+   * Mints a one-time Auth0 password-change ticket URL for a database identity.
+   * The caller must have already verified the person (bearer JWT) and that the
+   * subject is an `auth0|…` database user. The password is typed on Auth0's
+   * page; it never reaches this API.
+   */
+  async createPasswordChangeTicket(providerSub: string): Promise<PasswordChangeTicket> {
+    const nativeClientId = this.configService.get<string>("auth0.nativeClientId");
+    const resultUrl = this.configService.get<string>("auth0.passwordChangeResultUrl");
+    if (!nativeClientId || !resultUrl) {
+      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_NOT_CONFIGURED());
+    }
+
+    const client = this.getClient();
+    try {
+      const response = await client.tickets.changePassword({
+        user_id: providerSub,
+        client_id: nativeClientId,
+        result_url: resultUrl,
+        mark_email_as_verified: false,
+        includeEmailInRedirect: false,
+      });
+
+      if (!response.ticket) {
+        throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED(providerSub));
+      }
+
+      return { ticketUrl: response.ticket };
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) throw error;
+
+      this.logger.error({ err: error as Error, providerSub }, "auth0 createPasswordChangeTicket failed");
+      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED(providerSub));
     }
   }
 }

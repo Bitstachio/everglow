@@ -13,11 +13,14 @@ import { router } from "expo-router";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ForgotPasswordModal } from "@/features/auth/components/forgot-password-modal";
+import { useForgotPassword } from "@/features/auth/hooks/use-forgot-password";
 
 export default function LoginScreen() {
   const { login, isLoading, error, clearError, isAuthenticated, isOnboarded } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+  const forgotPassword = useForgotPassword();
 
   useEffect(() => {
     return () => {
@@ -56,6 +59,15 @@ export default function LoginScreen() {
           )}
           <View style={styles.form}>
             <Button title="Log In" onPress={handleLogin} isLoading={isLoading} disabled={isLoading} />
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Forgot password"
+              onPress={forgotPassword.openForgotPassword}
+              disabled={isLoading || forgotPassword.isSubmitting}
+              style={styles.forgotPassword}
+            >
+              <Text style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}>Forgot password?</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.footer}>
             <Text style={[styles.footerText, isDark ? styles.footerTextDark : styles.footerTextLight]}>
@@ -67,6 +79,15 @@ export default function LoginScreen() {
           </View>
         </View>
       </ScrollView>
+      <ForgotPasswordModal
+        visible={forgotPassword.visible}
+        email={forgotPassword.email}
+        error={forgotPassword.error}
+        isSubmitting={forgotPassword.isSubmitting}
+        onChangeEmail={forgotPassword.setEmail}
+        onSubmit={forgotPassword.submitForgotPassword}
+        onCancel={forgotPassword.closeForgotPassword}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -128,6 +149,10 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 24,
+    gap: 16,
+  },
+  forgotPassword: {
+    alignSelf: "center",
   },
   footer: {
     flexDirection: "row",

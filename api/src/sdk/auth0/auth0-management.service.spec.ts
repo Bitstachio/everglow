@@ -8,6 +8,7 @@ import { Auth0ManagementService } from "./auth0-management.service";
 
 const mockDeleteUser = jest.fn();
 const mockGetUser = jest.fn();
+const mockChangePassword = jest.fn();
 
 jest.mock("auth0", () => {
   class MockManagementError extends Error {
@@ -21,6 +22,7 @@ jest.mock("auth0", () => {
   return {
     ManagementClient: jest.fn().mockImplementation(() => ({
       users: { delete: mockDeleteUser, get: mockGetUser },
+      tickets: { changePassword: mockChangePassword },
     })),
     ManagementError: MockManagementError,
   };
@@ -56,6 +58,7 @@ describe("Auth0ManagementService", () => {
   beforeEach(async () => {
     mockDeleteUser.mockReset();
     mockGetUser.mockReset();
+    mockChangePassword.mockReset();
     jest.mocked(ManagementClient).mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -71,6 +74,8 @@ describe("Auth0ManagementService", () => {
             get: jest.fn((key: string) => {
               if (key === "auth0.managementClientId") return "mgmt-client-id";
               if (key === "auth0.managementClientSecret") return "mgmt-client-secret";
+              if (key === "auth0.nativeClientId") return "native-client-id";
+              if (key === "auth0.passwordChangeResultUrl") return "everglowmobile://password-change/result";
               return undefined;
             }),
           },
@@ -160,8 +165,8 @@ describe("Auth0ManagementService", () => {
   });
 
   describe("credentials", () => {
-    // Account deletion is the only caller, so a missing secret must fail that
-    // one endpoint rather than stop the whole API from starting.
+    // Account deletion and password-change tickets share the management client;
+    // a missing secret must fail those endpoints rather than stop the API from starting.
     it("constructs without management credentials and does not build a client", async () => {
       jest.mocked(ManagementClient).mockClear();
 
@@ -186,6 +191,54 @@ describe("Auth0ManagementService", () => {
       await service.deleteUser("auth0|def456");
 
       expect(ManagementClient).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("createPasswordChangeTicket", () => {
+    it("requests a ticket with the native client id and result URL", async () => {
+      mockChangePassword.mockResolvedValue({ ticket: "https://auth0.example/ticket" });
+
+      await expect(service.createPasswordChangeTicket("auth0|abc123")).resolves.toEqual({
+        ticketUrl: "https://auth0.example/ticket",
+      });
+      expect(mockChangePassword).toHaveBeenCalledWith({
+        user_id: "auth0|abc123",
+        client_id: "native-client-id",
+        result_url: "everglowmobile://password-change/result",
+        mark_email_as_verified: false,
+        includeEmailInRedirect: false,
+      });
+    });
+
+    it("fails when the native client id or result URL is missing", async () => {
+      const unconfigured = await buildService({
+        "auth0.managementClientId": "mgmt-client-id",
+        "auth0.managementClientSecret": "mgmt-client-secret",
+      });
+
+      await expect(unconfigured.createPasswordChangeTicket("auth0|abc123")).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+      await expect(unconfigured.createPasswordChangeTicket("auth0|abc123")).rejects.toThrow(
+        AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_NOT_CONFIGURED(),
+      );
+      expect(mockChangePassword).not.toHaveBeenCalled();
+    });
+
+    it("fails when Auth0 returns no ticket URL", async () => {
+      mockChangePassword.mockResolvedValue({});
+
+      await expect(service.createPasswordChangeTicket("auth0|abc123")).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+    });
+
+    it("maps Auth0 errors to InternalServerErrorException", async () => {
+      mockChangePassword.mockRejectedValue(new ManagementError({ message: "boom", statusCode: 500 }));
+
+      await expect(service.createPasswordChangeTicket("auth0|abc123")).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
     });
   });
 });
