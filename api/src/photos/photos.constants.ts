@@ -1,4 +1,5 @@
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { S3_KEY_UUID_SEGMENT } from "src/storage/storage.constants";
 
 const photoEntity = "Photo";
 
@@ -41,27 +42,15 @@ export const PHOTO_S3_KEY_PREFIX = "photos/";
 export const buildPhotoS3Key = (userId: string, eventId: string, photoId: string): string =>
   `${PHOTO_S3_KEY_PREFIX}${userId}/${eventId}/${photoId}`;
 
-const UUID_SEGMENT = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-
 // The current photos/{userId}/{eventId}/{photoId} layout plus the pre-#38
 // photos/{eventId}/{photoId} layout, whose rows still reference their old keys.
 const PHOTO_S3_KEY_PATTERNS = [
-  new RegExp(`^${PHOTO_S3_KEY_PREFIX}${UUID_SEGMENT}/${UUID_SEGMENT}/${UUID_SEGMENT}$`, "i"),
-  new RegExp(`^${PHOTO_S3_KEY_PREFIX}${UUID_SEGMENT}/${UUID_SEGMENT}$`, "i"),
+  new RegExp(`^${PHOTO_S3_KEY_PREFIX}${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}$`, "i"),
+  new RegExp(`^${PHOTO_S3_KEY_PREFIX}${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}$`, "i"),
 ];
 
 /** True for keys the API could have minted; anything else under the prefix is not ours to touch. */
 export const isPhotoS3Key = (key: string): boolean => PHOTO_S3_KEY_PATTERNS.some((pattern) => pattern.test(key));
-
-// The orphan reconciler deletes at most this many objects per run. It bounds
-// the blast radius of a bad run more than the work: the prefix is walked end
-// to end regardless, and whatever is left waits for the next run.
-export const DEFAULT_ORPHAN_RECONCILER_BATCH_SIZE = 100;
-
-// Objects younger than this are never considered orphans, so an upload that
-// finished moments ago is safe even if its row is somehow not visible yet.
-// Matches the stale-PENDING cleanup age.
-export const DEFAULT_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS = 24;
 
 export const FREE_TIER_STORAGE_LIMIT_BYTES = 5n * 1024n * 1024n * 1024n; // 5 GiB
 

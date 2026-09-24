@@ -2,6 +2,7 @@ import { INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Server } from "http";
 import request from "supertest";
+import { OrphanSourceRegistry } from "src/storage/orphan-source.registry";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { createTestApp } from "./helpers/create-test-app";
 
@@ -26,6 +27,25 @@ describe("AppController (integration)", () => {
     expect(configService.get("photos.pendingCleanupMaxAgeHours")).toEqual(expect.any(Number));
     expect(configService.get("photos.pendingCleanupBatchSize")).toEqual(expect.any(Number));
     expect(configService.get("photos.pendingCleanupEnabled")).toEqual(expect.any(Boolean));
+  });
+
+  it("registers the storage config namespace the orphan reconciler depends on", () => {
+    const configService = app.get(ConfigService);
+
+    expect(configService.get("storage.orphanReconcilerEnabled")).toBe(false);
+    expect(configService.get("storage.orphanReconcilerBatchSize")).toEqual(expect.any(Number));
+    expect(configService.get("storage.orphanReconcilerMinObjectAgeHours")).toEqual(expect.any(Number));
+  });
+
+  // Sources register themselves from onModuleInit; a module that forgets to
+  // import StorageModule or to provide its source would leave a prefix unswept.
+  it("registers every owned S3 prefix with the orphan reconciler", () => {
+    const prefixes = app
+      .get(OrphanSourceRegistry, { strict: false })
+      .getAll()
+      .map((source) => source.prefix);
+
+    expect([...prefixes].sort()).toEqual(["avatars/", "photos/"]);
   });
 
   it(`GET /${API_GLOBAL_PREFIX} returns Hello World`, async () => {

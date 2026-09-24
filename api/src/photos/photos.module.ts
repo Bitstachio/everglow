@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { CaslModule } from "src/casl/casl.module";
-import { PhotoOrphanReconcilerScheduler } from "./photo-orphan-reconciler.scheduler";
-import { PhotoOrphanReconcilerService } from "./photo-orphan-reconciler.service";
+import { StorageModule } from "src/storage/storage.module";
+import { PhotoOrphanSource } from "./photo-orphan-source";
 import { PhotoPendingCleanupScheduler } from "./photo-pending-cleanup.scheduler";
 import { PhotoPendingCleanupService } from "./photo-pending-cleanup.service";
 import { PhotoPurgeService } from "./photo-purge.service";
@@ -10,7 +10,7 @@ import { PhotosController } from "./photos.controller";
 import { PhotosService } from "./photos.service";
 
 @Module({
-  imports: [CaslModule],
+  imports: [CaslModule, StorageModule],
   controllers: [PhotosController],
   providers: [
     PhotosService,
@@ -18,8 +18,7 @@ import { PhotosService } from "./photos.service";
     PhotoPurgeService,
     PhotoPendingCleanupService,
     PhotoPendingCleanupScheduler,
-    PhotoOrphanReconcilerService,
-    PhotoOrphanReconcilerScheduler,
+    PhotoOrphanSource,
   ],
   exports: [PhotosService, PhotoStorageService, PhotoPurgeService],
 })

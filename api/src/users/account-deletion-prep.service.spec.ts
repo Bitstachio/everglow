@@ -21,6 +21,7 @@ describe("AccountDeletionPrepService", () => {
     photosKept: 0,
     photosDeleted: 0,
     uploadsDiscarded: 0,
+    avatarQueued: false,
   };
 
   beforeEach(async () => {
@@ -32,6 +33,7 @@ describe("AccountDeletionPrepService", () => {
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
+    prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key: null } as never);
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -189,6 +191,49 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
       expect(result.summary).toMatchObject({ photosKept: 0, photosDeleted: 1, uploadsDiscarded: 2 });
       expect(result.s3Keys).toEqual(expect.arrayContaining(["photos/u/e/ready-1", "photos/u/e/pending-1"]));
+    });
+  });
+
+  describe("avatar", () => {
+    const avatarS3Key = `avatars/${userId}/99999999-9999-9999-9999-999999999999`;
+
+    it("queues the avatar object for the purge and leaves the row to the cascade", async () => {
+      prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key } as never);
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(prisma.userDetails.findUnique).toHaveBeenCalledWith({
+        where: { userId },
+        select: { avatarS3Key: true },
+      });
+      expect(result).toEqual({ summary: { ...emptySummary, avatarQueued: true }, s3Keys: [avatarS3Key] });
+      expect(prisma.userDetails.update).not.toHaveBeenCalled();
+      expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("queues it whatever the photo policy: an avatar is never shared content", async () => {
+      prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key } as never);
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.DELETE);
+
+      expect(result.s3Keys).toEqual([avatarS3Key]);
+    });
+
+    it("finds the same key again on a resumed saga", async () => {
+      prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key } as never);
+
+      const first = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+      const second = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(second.s3Keys).toEqual(first.s3Keys);
+    });
+
+    it("queues nothing for an account that never onboarded", async () => {
+      prisma.userDetails.findUnique.mockResolvedValue(null);
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(result).toEqual({ summary: emptySummary, s3Keys: [] });
     });
   });
 

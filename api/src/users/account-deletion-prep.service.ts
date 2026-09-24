@@ -14,6 +14,8 @@ export interface AccountDeletionPrepSummary {
   photosDeleted: number;
   /** PENDING upload slots discarded. */
   uploadsDiscarded: number;
+  /** Whether the profile had an avatar whose object is queued for the purge. */
+  avatarQueued: boolean;
 }
 
 export interface AccountDeletionPrepResult {
@@ -151,8 +153,22 @@ export class AccountDeletionPrepService {
       photosKept = count;
     }
 
+    // 4. The avatar. Its column cascades with the user row, so only the object
+    //    needs collecting; the row is left alone, which keeps a resumed saga
+    //    finding the same key again.
+    const profile = await tx.userDetails.findUnique({ where: { userId }, select: { avatarS3Key: true } });
+    const avatarS3Key = profile?.avatarS3Key ?? null;
+    if (avatarS3Key) s3Keys.push(avatarS3Key);
+
     return {
-      summary: { eventsDeleted, eventsHandedOver, photosKept, photosDeleted, uploadsDiscarded: pending.length },
+      summary: {
+        eventsDeleted,
+        eventsHandedOver,
+        photosKept,
+        photosDeleted,
+        uploadsDiscarded: pending.length,
+        avatarQueued: avatarS3Key !== null,
+      },
       s3Keys,
     };
   }

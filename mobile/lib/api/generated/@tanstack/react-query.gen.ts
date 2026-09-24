@@ -30,9 +30,12 @@ import {
   photosControllerListPhotos,
   photosControllerRemove,
   usersControllerCompleteOnboarding,
+  usersControllerConfirmAvatarUpload,
+  usersControllerCreateAvatarUploadUrl,
   usersControllerCreatePasswordChangeTicket,
   usersControllerFindMe,
   usersControllerGetMyStorage,
+  usersControllerRemoveAvatar,
   usersControllerRemoveMe,
   usersControllerUpdateMe,
 } from "../sdk.gen";
@@ -89,6 +92,12 @@ import type {
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingError,
   UsersControllerCompleteOnboardingResponse,
+  UsersControllerConfirmAvatarUploadData,
+  UsersControllerConfirmAvatarUploadError,
+  UsersControllerConfirmAvatarUploadResponse,
+  UsersControllerCreateAvatarUploadUrlData,
+  UsersControllerCreateAvatarUploadUrlError,
+  UsersControllerCreateAvatarUploadUrlResponse,
   UsersControllerCreatePasswordChangeTicketData,
   UsersControllerCreatePasswordChangeTicketError,
   UsersControllerCreatePasswordChangeTicketResponse,
@@ -98,6 +107,9 @@ import type {
   UsersControllerGetMyStorageData,
   UsersControllerGetMyStorageError,
   UsersControllerGetMyStorageResponse,
+  UsersControllerRemoveAvatarData,
+  UsersControllerRemoveAvatarError,
+  UsersControllerRemoveAvatarResponse,
   UsersControllerRemoveMeData,
   UsersControllerRemoveMeError,
   UsersControllerRemoveMeResponse,
@@ -292,6 +304,87 @@ export const usersControllerGetMyStorageOptions = (options?: Options<UsersContro
     },
     queryKey: usersControllerGetMyStorageQueryKey(options),
   });
+
+/**
+ * Mint a presigned upload URL for the current user's avatar
+ */
+export const usersControllerCreateAvatarUploadUrlMutation = (
+  options?: Partial<Options<UsersControllerCreateAvatarUploadUrlData>>,
+): UseMutationOptions<
+  UsersControllerCreateAvatarUploadUrlResponse,
+  AxiosError<UsersControllerCreateAvatarUploadUrlError>,
+  Options<UsersControllerCreateAvatarUploadUrlData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerCreateAvatarUploadUrlResponse,
+    AxiosError<UsersControllerCreateAvatarUploadUrlError>,
+    Options<UsersControllerCreateAvatarUploadUrlData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerCreateAvatarUploadUrl({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Remove the current user's avatar
+ */
+export const usersControllerRemoveAvatarMutation = (
+  options?: Partial<Options<UsersControllerRemoveAvatarData>>,
+): UseMutationOptions<
+  UsersControllerRemoveAvatarResponse,
+  AxiosError<UsersControllerRemoveAvatarError>,
+  Options<UsersControllerRemoveAvatarData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerRemoveAvatarResponse,
+    AxiosError<UsersControllerRemoveAvatarError>,
+    Options<UsersControllerRemoveAvatarData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerRemoveAvatar({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Confirm an uploaded avatar and set it on the current user
+ */
+export const usersControllerConfirmAvatarUploadMutation = (
+  options?: Partial<Options<UsersControllerConfirmAvatarUploadData>>,
+): UseMutationOptions<
+  UsersControllerConfirmAvatarUploadResponse,
+  AxiosError<UsersControllerConfirmAvatarUploadError>,
+  Options<UsersControllerConfirmAvatarUploadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerConfirmAvatarUploadResponse,
+    AxiosError<UsersControllerConfirmAvatarUploadError>,
+    Options<UsersControllerConfirmAvatarUploadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerConfirmAvatarUpload({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 /**
  * Create a password-change ticket

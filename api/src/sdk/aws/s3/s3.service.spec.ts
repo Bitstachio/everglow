@@ -206,12 +206,17 @@ describe("S3Service", () => {
 
   describe("headObject", () => {
     it("returns metadata when the object exists", async () => {
-      sendSpy.mockResolvedValueOnce({ ContentType: "image/jpeg", ContentLength: 1234 } as never);
+      const lastModified = new Date("2026-09-01T00:00:00.000Z");
+      sendSpy.mockResolvedValueOnce({
+        ContentType: "image/jpeg",
+        ContentLength: 1234,
+        LastModified: lastModified,
+      } as never);
 
       const result = await service.headObject("a/b.jpg");
 
       expect(sendSpy).toHaveBeenCalledWith(expect.any(HeadObjectCommand));
-      expect(result).toEqual({ exists: true, contentType: "image/jpeg", sizeBytes: 1234 });
+      expect(result).toEqual({ exists: true, contentType: "image/jpeg", sizeBytes: 1234, lastModified });
     });
 
     it("returns exists false when the object is missing", async () => {

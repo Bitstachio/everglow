@@ -28,6 +28,7 @@ export const buildParticipant = (
   userId: "user-1",
   name: "Ada Lovelace",
   accessLevel: "ORGANIZER",
+  avatarUrl: null,
   ...overrides,
 });
 
