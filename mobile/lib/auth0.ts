@@ -1,4 +1,7 @@
 import Auth0 from "react-native-auth0";
+import * as WebBrowser from "expo-web-browser";
+
+export { isDatabaseIdentity } from "./auth0-identity";
 
 const AUTH0_DOMAIN = process.env.EXPO_PUBLIC_AUTH0_DOMAIN ?? "";
 const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID ?? "";
@@ -7,6 +10,11 @@ const AUTH0_AUDIENCE = process.env.EXPO_PUBLIC_AUTH0_AUDIENCE ?? "";
 // Must match the `customScheme` configured in the react-native-auth0 Expo
 // config plugin (see app.config.ts) and the app `scheme` in app.json.
 export const AUTH0_CUSTOM_SCHEME = "everglowmobile";
+
+// Return URL for openAuthSessionAsync. List on Allowed Callback URLs. Not sent
+// as Auth0 ticket result_url (New Universal Login forbids that with client_id).
+export const PASSWORD_CHANGE_RESULT_URL =
+  process.env.EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL ?? `${AUTH0_CUSTOM_SCHEME}://password-change/result`;
 
 // `offline_access` is required for the credentials manager to obtain a refresh
 // token and silently renew the access token after it expires.
@@ -81,5 +89,30 @@ export const clearLocalCredentials = async (): Promise<void> => {
     await auth0.credentialsManager.clearCredentials();
   } catch {
     // No credentials to clear.
+  }
+};
+
+/**
+ * Open an Auth0 password-change ticket in the system auth browser
+ * (ASWebAuthenticationSession / Chrome Custom Tabs) — the same class Universal
+ * Login uses. Not a WebView.
+ */
+export const openPasswordChangeTicket = async (ticketUrl: string): Promise<WebBrowser.WebBrowserAuthSessionResult> => {
+  return WebBrowser.openAuthSessionAsync(ticketUrl, PASSWORD_CHANGE_RESULT_URL);
+};
+
+/**
+ * After a password change the refresh token is often revoked. Returns false when
+ * the local session can no longer be refreshed; callers should clear credentials
+ * and send the user to login.
+ */
+export const sessionStillValid = async (): Promise<boolean> => {
+  try {
+    const hasValid = await auth0.credentialsManager.hasValidCredentials();
+    if (!hasValid) return false;
+    await auth0.credentialsManager.getCredentials();
+    return true;
+  } catch {
+    return false;
   }
 };

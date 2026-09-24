@@ -5,6 +5,7 @@ import { AccountDeletionPrepService } from "./account-deletion-prep.service";
 import { AccountDeletionReconcilerScheduler } from "./account-deletion-reconciler.scheduler";
 import { AccountDeletionReconcilerService } from "./account-deletion-reconciler.service";
 import { AppleIdentityRevocationService } from "./apple-identity-revocation.service";
+import { CredentialsService } from "./credentials.service";
 import { UserAvatarOrphanSource } from "./user-avatar-orphan-source";
 import { UserAvatarService } from "./user-avatar.service";
 import { UsersController } from "./users.controller";
@@ -17,6 +18,7 @@ import { UsersService } from "./users.service";
     UsersService,
     UserAvatarService,
     UserAvatarOrphanSource,
+    CredentialsService,
     AccountDeletionPrepService,
     AppleIdentityRevocationService,
     AccountDeletionReconcilerService,

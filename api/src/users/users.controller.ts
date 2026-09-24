@@ -11,7 +11,14 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { ConfirmImageUploadDto } from "src/images/dto/confirm-image-upload.dto";
@@ -20,8 +27,10 @@ import { ImageUploadResponseDto } from "src/images/dto/image-upload-response.dto
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RateLimit } from "../common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
+import { CredentialsService } from "./credentials.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { DeleteAccountQueryDto } from "./dto/delete-account-query.dto";
+import { PasswordChangeTicketResponseDto } from "./dto/password-change-ticket-response.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { UserStorageResponseDto } from "./dto/user-storage-response.dto";
@@ -40,6 +49,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly userAvatarService: UserAvatarService,
+    private readonly credentialsService: CredentialsService,
     private readonly photoStorageService: PhotoStorageService,
   ) {}
 
@@ -105,6 +115,21 @@ export class UsersController {
   @ApiNoContentResponse({ description: "Avatar removed (empty data envelope at runtime)" })
   async removeAvatar(@CurrentUser() user: AuthenticatedUser): Promise<void> {
     return this.userAvatarService.remove(user.id);
+  }
+
+  @Post("me/password-change-ticket")
+  @HttpCode(HttpStatus.OK)
+  @RateLimit("sensitive")
+  @ApiOperation({
+    summary: "Create a password-change ticket",
+    description:
+      "Returns an Auth0-hosted URL where the caller sets a new password. " +
+      "Only database (auth0|…) identities are eligible. The API never accepts a password.",
+  })
+  @ApiWrappedResponse(PasswordChangeTicketResponseDto, "Password-change ticket URL")
+  @ApiForbiddenResponse({ description: "Caller is not a database identity" })
+  async createPasswordChangeTicket(@CurrentUser() user: AuthenticatedUser): Promise<PasswordChangeTicketResponseDto> {
+    return this.credentialsService.createPasswordChangeTicket(user.id, user.sub);
   }
 
   @Delete("me")

@@ -16,6 +16,9 @@ const AccountSettingsScreen = () => {
     handleOpenDisplayName,
     handleOpenPrivacyPolicy,
     handleOpenTermsOfUse,
+    canChangePassword,
+    isChangingPassword,
+    handleChangePassword,
     isLoading,
     isDeleting,
     showEditModal,
@@ -97,13 +100,18 @@ const AccountSettingsScreen = () => {
               onPress={handleEditProfile}
               disabled={isDeleting}
             />
-            <View className="h-px bg-border" />
-            <SettingsRow
-              title="Change Password"
-              description="Password changes are not available in the app yet."
-              icon="lock-closed-outline"
-              disabled
-            />
+            {canChangePassword ? (
+              <>
+                <View className="h-px bg-border" />
+                <SettingsRow
+                  title={isChangingPassword ? "Opening password page…" : "Change Password"}
+                  description="Update your sign-in password"
+                  icon="lock-closed-outline"
+                  onPress={handleChangePassword}
+                  disabled={isDeleting || isChangingPassword}
+                />
+              </>
+            ) : null}
           </View>
         </View>
         <View className="gap-3">

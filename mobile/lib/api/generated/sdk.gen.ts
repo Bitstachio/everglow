@@ -71,6 +71,9 @@ import type {
   UsersControllerCreateAvatarUploadUrlData,
   UsersControllerCreateAvatarUploadUrlErrors,
   UsersControllerCreateAvatarUploadUrlResponses,
+  UsersControllerCreatePasswordChangeTicketData,
+  UsersControllerCreatePasswordChangeTicketErrors,
+  UsersControllerCreatePasswordChangeTicketResponses,
   UsersControllerFindMeData,
   UsersControllerFindMeErrors,
   UsersControllerFindMeResponses,
@@ -243,6 +246,28 @@ export const usersControllerConfirmAvatarUpload = <ThrowOnError extends boolean 
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * Create a password-change ticket
+ *
+ * Returns an Auth0-hosted URL where the caller sets a new password. Only database (auth0|…) identities are eligible. The API never accepts a password.
+ */
+export const usersControllerCreatePasswordChangeTicket = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerCreatePasswordChangeTicketData, ThrowOnError>,
+): RequestResult<
+  UsersControllerCreatePasswordChangeTicketResponses,
+  UsersControllerCreatePasswordChangeTicketErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).post<
+    UsersControllerCreatePasswordChangeTicketResponses,
+    UsersControllerCreatePasswordChangeTicketErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/password-change-ticket",
+    ...options,
   });
 
 /**

@@ -76,6 +76,13 @@ export type ConfirmImageUploadDto = {
   uploadId: string;
 };
 
+export type PasswordChangeTicketResponseDto = {
+  /**
+   * Auth0-hosted password change URL. Open in the system browser; do not embed in a WebView.
+   */
+  ticketUrl: string;
+};
+
 export type UploadSlotResponseDto = {
   photoId: string;
   /**
@@ -511,6 +518,51 @@ export type UsersControllerConfirmAvatarUploadResponses = {
 
 export type UsersControllerConfirmAvatarUploadResponse =
   UsersControllerConfirmAvatarUploadResponses[keyof UsersControllerConfirmAvatarUploadResponses];
+
+export type UsersControllerCreatePasswordChangeTicketData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/password-change-ticket";
+};
+
+export type UsersControllerCreatePasswordChangeTicketErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Caller is not a database identity
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCreatePasswordChangeTicketError =
+  UsersControllerCreatePasswordChangeTicketErrors[keyof UsersControllerCreatePasswordChangeTicketErrors];
+
+export type UsersControllerCreatePasswordChangeTicketResponses = {
+  /**
+   * Password-change ticket URL
+   */
+  200: {
+    data: PasswordChangeTicketResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCreatePasswordChangeTicketResponse =
+  UsersControllerCreatePasswordChangeTicketResponses[keyof UsersControllerCreatePasswordChangeTicketResponses];
 
 export type PhotosControllerCreateUploadUrlsData = {
   body: CreateUploadUrlsDto;
