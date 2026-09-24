@@ -12,7 +12,7 @@ import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS } from "src/users/users.
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
-import { authHeader } from "./helpers/auth.fixtures";
+import { authHeader, TEST_APPLE_ACCESS_TOKEN } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
   TEST_NOW,
@@ -943,6 +943,41 @@ describe("UsersController (integration)", () => {
       expect(result).toEqual(active);
       expect(prisma.deletedProviderSub.findUnique).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /users/me/password-change-ticket", () => {
+    const path = `${USERS_BASE_PATH}/me/password-change-ticket`;
+
+    it("returns 200 with the Auth0 ticket URL for a database identity", async () => {
+      auth0Management.createPasswordChangeTicket.mockResolvedValue({
+        ticketUrl: "https://auth0.example/u/reset-verify?ticket=abc",
+      });
+
+      const response = await request(httpServer).post(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<{ ticketUrl: string }>;
+      expect(body.data).toEqual({ ticketUrl: "https://auth0.example/u/reset-verify?ticket=abc" });
+      expect(auth0Management.createPasswordChangeTicket).toHaveBeenCalledWith(TEST_PROVIDER_SUB);
+    });
+
+    it("returns 403 for a social identity without calling Auth0", async () => {
+      const response = await request(httpServer).post(path).set(authHeader(TEST_APPLE_ACCESS_TOKEN)).expect(403);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toEqual(expect.any(String));
+      expect(auth0Management.createPasswordChangeTicket).not.toHaveBeenCalled();
+    });
+
+    it("returns 401 without a bearer token", async () => {
+      await request(httpServer).post(path).expect(401);
+      expect(auth0Management.createPasswordChangeTicket).not.toHaveBeenCalled();
+    });
+
+    it("returns 500 when Auth0 ticket minting fails", async () => {
+      auth0Management.createPasswordChangeTicket.mockRejectedValue(new InternalServerErrorException("ticket failed"));
+
+      await request(httpServer).post(path).set(authHeader()).expect(500);
     });
   });
 });

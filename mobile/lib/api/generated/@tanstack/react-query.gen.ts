@@ -35,6 +35,7 @@ import {
   usersControllerCompleteOnboarding,
   usersControllerConfirmAvatarUpload,
   usersControllerCreateAvatarUploadUrl,
+  usersControllerCreatePasswordChangeTicket,
   usersControllerFindMe,
   usersControllerGetMyStorage,
   usersControllerRemoveAvatar,
@@ -109,6 +110,9 @@ import type {
   UsersControllerCreateAvatarUploadUrlData,
   UsersControllerCreateAvatarUploadUrlError,
   UsersControllerCreateAvatarUploadUrlResponse,
+  UsersControllerCreatePasswordChangeTicketData,
+  UsersControllerCreatePasswordChangeTicketError,
+  UsersControllerCreatePasswordChangeTicketResponse,
   UsersControllerFindMeData,
   UsersControllerFindMeError,
   UsersControllerFindMeResponse,
@@ -384,6 +388,35 @@ export const usersControllerConfirmAvatarUploadMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await usersControllerConfirmAvatarUpload({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Create a password-change ticket
+ *
+ * Returns an Auth0-hosted URL where the caller sets a new password. Only database (auth0|…) identities are eligible. The API never accepts a password.
+ */
+export const usersControllerCreatePasswordChangeTicketMutation = (
+  options?: Partial<Options<UsersControllerCreatePasswordChangeTicketData>>,
+): UseMutationOptions<
+  UsersControllerCreatePasswordChangeTicketResponse,
+  AxiosError<UsersControllerCreatePasswordChangeTicketError>,
+  Options<UsersControllerCreatePasswordChangeTicketData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerCreatePasswordChangeTicketResponse,
+    AxiosError<UsersControllerCreatePasswordChangeTicketError>,
+    Options<UsersControllerCreatePasswordChangeTicketData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerCreatePasswordChangeTicket({
         ...options,
         ...fnOptions,
         throwOnError: true,
