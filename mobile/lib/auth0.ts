@@ -11,10 +11,6 @@ const AUTH0_AUDIENCE = process.env.EXPO_PUBLIC_AUTH0_AUDIENCE ?? "";
 // config plugin (see app.config.ts) and the app `scheme` in app.json.
 export const AUTH0_CUSTOM_SCHEME = "everglowmobile";
 
-// Database connection name for Auth0 Username-Password. Used by forgot-password
-// (signed-out reset). Tenant-specific — never hardcode a guess in a screen.
-export const AUTH0_DB_CONNECTION = process.env.EXPO_PUBLIC_AUTH0_DB_CONNECTION ?? "";
-
 // Return URL for openAuthSessionAsync. List on Allowed Callback URLs. Not sent
 // as Auth0 ticket result_url (New Universal Login forbids that with client_id).
 export const PASSWORD_CHANGE_RESULT_URL =
@@ -32,8 +28,6 @@ export const auth0 = new Auth0({ domain: AUTH0_DOMAIN, clientId: AUTH0_CLIENT_ID
 export const isAuth0Configured = (): boolean => {
   return Boolean(AUTH0_DOMAIN && AUTH0_CLIENT_ID && AUTH0_AUDIENCE);
 };
-
-export const isAuth0DbConnectionConfigured = (): boolean => Boolean(AUTH0_DB_CONNECTION);
 
 export const isUserCancellation = (error: unknown): boolean => {
   const err = error as { code?: string; name?: string; message?: string } | undefined;
@@ -122,18 +116,4 @@ export const sessionStillValid = async (): Promise<boolean> => {
   } catch {
     return false;
   }
-};
-
-/**
- * Signed-out forgot password. Auth0 emails a reset link; the API is not involved.
- * Requires EXPO_PUBLIC_AUTH0_DB_CONNECTION.
- */
-export const requestPasswordReset = async (email: string): Promise<void> => {
-  if (!isAuth0Configured()) {
-    throw new Error("Auth0 is not configured.");
-  }
-  if (!isAuth0DbConnectionConfigured()) {
-    throw new Error("Auth0 database connection is not configured.");
-  }
-  await auth0.auth.resetPassword({ email: email.trim(), connection: AUTH0_DB_CONNECTION });
 };

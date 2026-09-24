@@ -16,7 +16,7 @@ The app does not store a password, and it does not treat a sign-in email as prof
 
 ```text
 Password (signed in)     app → API (ticket only) → Auth0 page collects the password
-Password (signed out)    app → Auth0 Authentication API → Auth0 page collects the password
+Password (signed out)    Auth0 Universal Login "Forgot password?" (opened by Log In)
 Email                    app → API → Auth0 Management API
 ```
 
@@ -46,17 +46,15 @@ A password change often kills the refresh token. When the browser returns, if `g
 
 ### 2.2 Signed out
 
-Forgot password, on the login screen. Nobody is authenticated, so the API cannot know who they are.
+Forgot password is Auth0 Universal Login’s own link. Log In opens that hosted page; the app does not add a second forgot-password form on the home screen.
 
-The app calls `auth0.auth.resetPassword` with the email and the database connection name. That hits Auth0's public `POST /dbconnections/change_password`. Auth0 emails a link. The link opens the same hosted page as the ticket. The API is not on this path.
-
-The connection name is tenant configuration. Read it from config. Do not hardcode a guess in the screen.
+The hosted link emails a reset URL that opens the same password page as the signed-in ticket. The API is not on this path.
 
 ### 2.3 Do not build an in-app password form
 
 A screen with Current password, New password, and Confirm password cannot submit those values to Auth0.
 
-The public Authentication API does not accept a new password. `resetPassword` only sends the email. The only call that accepts a new password is the Management API, and a native app is not allowed to hold that credential. Sending the fields to the API instead means the server sees the password. We do not do that.
+The public Authentication API does not accept a new password. The only call that accepts a new password is the Management API, and a native app is not allowed to hold that credential. Sending the fields to the API instead means the server sees the password. We do not do that.
 
 Checking the current password first would mean the legacy Resource Owner Password grant, then a Management API update. That grant is off once MFA or bot detection is on, and it still puts the password on the API. Do not enable it.
 
