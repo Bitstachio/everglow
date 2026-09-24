@@ -15,8 +15,8 @@ export const AUTH0_CUSTOM_SCHEME = "everglowmobile";
 // (signed-out reset). Tenant-specific — never hardcode a guess in a screen.
 export const AUTH0_DB_CONNECTION = process.env.EXPO_PUBLIC_AUTH0_DB_CONNECTION ?? "";
 
-// Must match AUTH0_PASSWORD_CHANGE_RESULT_URL on the API and be listed on the
-// Auth0 application's Allowed Callback URLs.
+// Return URL for openAuthSessionAsync. List on Allowed Callback URLs. Not sent
+// as Auth0 ticket result_url (New Universal Login forbids that with client_id).
 export const PASSWORD_CHANGE_RESULT_URL =
   process.env.EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL ??
   `${AUTH0_CUSTOM_SCHEME}://password-change/result`;

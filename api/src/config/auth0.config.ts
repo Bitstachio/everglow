@@ -14,12 +14,8 @@ export default registerAs("auth0", () => {
     managementClientId: process.env.AUTH0_MANAGEMENT_CLIENT_ID,
     managementClientSecret: process.env.AUTH0_MANAGEMENT_CLIENT_SECRET,
     // Native app client id (same value as EXPO_PUBLIC_AUTH0_CLIENT_ID). Passed on
-    // password-change tickets so New Universal Login can show the app and route
-    // back through the configured result URL.
+    // password-change tickets so New Universal Login brands the page and can
+    // offer "Back to app" via the application's Application Login URI.
     nativeClientId: process.env.AUTH0_NATIVE_CLIENT_ID,
-    // Custom-scheme URL the hosted password page redirects to after success.
-    // Must be on the Auth0 application's Allowed Callback URLs list and must
-    // match the return URL the mobile app passes to openAuthSessionAsync.
-    passwordChangeResultUrl: process.env.AUTH0_PASSWORD_CHANGE_RESULT_URL,
   };
 });

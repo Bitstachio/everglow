@@ -35,10 +35,10 @@ There is one password form, and it is Auth0's. There are two ways to open it.
 Settings → Change Password. The user is already authenticated, so do not ask them to retype an email and do not wait for a message.
 
 1. The app calls the API with the bearer token it already uses.
-2. The API confirms the caller is `auth0|…` and asks Auth0 for a password-change ticket (`POST /api/v2/tickets/password-change`) for that user.
+2. The API confirms the caller is `auth0|…` and asks Auth0 for a password-change ticket (`POST /api/v2/tickets/password-change`) for that user, passing only the native `client_id`. Do not send `result_url` with `client_id` — New Universal Login returns 400 (`result_url cannot be used together with client_id`).
 3. The API returns the ticket URL and nothing else.
 4. The app opens the URL in the system browser, the same class of browser Universal Login already uses (`webAuth.authorize` in `lib/auth0.ts`). Not a WebView.
-5. The user types the new password on Auth0's page. On success the ticket redirects to a `result_url` on the `everglowmobile` scheme already registered for Universal Login. That URL has to be on the Auth0 application's allowed callback list.
+5. The user types the new password on Auth0's page. After success they dismiss the browser (or tap "Back to app" if the Native application's Application Login URI is set — Auth0 requires `https` for that field). The app then revalidates the local session.
 
 The ticket is the authorization. Auth0 does not ask for the current password. That is intentional: the session proved who they are, and the password never lands in the app or the API.
 

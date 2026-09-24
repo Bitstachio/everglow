@@ -82,11 +82,14 @@ export class Auth0ManagementService {
    * The caller must have already verified the person (bearer JWT) and that the
    * subject is an `auth0|…` database user. The password is typed on Auth0's
    * page; it never reaches this API.
+   *
+   * New Universal Login rejects `result_url` when `client_id` is set. We pass
+   * only `client_id` so Auth0 brands the page and can offer "Back to app" via
+   * the application's Application Login URI. Do not add `result_url` here.
    */
   async createPasswordChangeTicket(providerSub: string): Promise<PasswordChangeTicket> {
     const nativeClientId = this.configService.get<string>("auth0.nativeClientId");
-    const resultUrl = this.configService.get<string>("auth0.passwordChangeResultUrl");
-    if (!nativeClientId || !resultUrl) {
+    if (!nativeClientId) {
       throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_NOT_CONFIGURED());
     }
 
@@ -95,13 +98,11 @@ export class Auth0ManagementService {
       const response = await client.tickets.changePassword({
         user_id: providerSub,
         client_id: nativeClientId,
-        result_url: resultUrl,
         mark_email_as_verified: false,
-        includeEmailInRedirect: false,
       });
 
       if (!response.ticket) {
-        throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED(providerSub));
+        throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED());
       }
 
       return { ticketUrl: response.ticket };
@@ -109,7 +110,7 @@ export class Auth0ManagementService {
       if (error instanceof InternalServerErrorException) throw error;
 
       this.logger.error({ err: error as Error, providerSub }, "auth0 createPasswordChangeTicket failed");
-      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED(providerSub));
+      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED());
     }
   }
 }

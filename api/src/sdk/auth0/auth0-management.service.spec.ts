@@ -75,7 +75,6 @@ describe("Auth0ManagementService", () => {
               if (key === "auth0.managementClientId") return "mgmt-client-id";
               if (key === "auth0.managementClientSecret") return "mgmt-client-secret";
               if (key === "auth0.nativeClientId") return "native-client-id";
-              if (key === "auth0.passwordChangeResultUrl") return "everglowmobile://password-change/result";
               return undefined;
             }),
           },
@@ -195,7 +194,7 @@ describe("Auth0ManagementService", () => {
   });
 
   describe("createPasswordChangeTicket", () => {
-    it("requests a ticket with the native client id and result URL", async () => {
+    it("requests a ticket with the native client id", async () => {
       mockChangePassword.mockResolvedValue({ ticket: "https://auth0.example/ticket" });
 
       await expect(service.createPasswordChangeTicket("auth0|abc123")).resolves.toEqual({
@@ -204,13 +203,11 @@ describe("Auth0ManagementService", () => {
       expect(mockChangePassword).toHaveBeenCalledWith({
         user_id: "auth0|abc123",
         client_id: "native-client-id",
-        result_url: "everglowmobile://password-change/result",
         mark_email_as_verified: false,
-        includeEmailInRedirect: false,
       });
     });
 
-    it("fails when the native client id or result URL is missing", async () => {
+    it("fails when the native client id is missing", async () => {
       const unconfigured = await buildService({
         "auth0.managementClientId": "mgmt-client-id",
         "auth0.managementClientSecret": "mgmt-client-secret",
@@ -233,11 +230,14 @@ describe("Auth0ManagementService", () => {
       );
     });
 
-    it("maps Auth0 errors to InternalServerErrorException", async () => {
+    it("maps Auth0 errors to a client-safe InternalServerErrorException", async () => {
       mockChangePassword.mockRejectedValue(new ManagementError({ message: "boom", statusCode: 500 }));
 
       await expect(service.createPasswordChangeTicket("auth0|abc123")).rejects.toBeInstanceOf(
         InternalServerErrorException,
+      );
+      await expect(service.createPasswordChangeTicket("auth0|abc123")).rejects.toThrow(
+        AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED(),
       );
     });
   });
