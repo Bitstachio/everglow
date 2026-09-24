@@ -30,6 +30,7 @@ import {
   photosControllerListPhotos,
   photosControllerRemove,
   usersControllerCompleteOnboarding,
+  usersControllerCreatePasswordChangeTicket,
   usersControllerFindMe,
   usersControllerGetMyStorage,
   usersControllerRemoveMe,
@@ -88,6 +89,9 @@ import type {
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingError,
   UsersControllerCompleteOnboardingResponse,
+  UsersControllerCreatePasswordChangeTicketData,
+  UsersControllerCreatePasswordChangeTicketError,
+  UsersControllerCreatePasswordChangeTicketResponse,
   UsersControllerFindMeData,
   UsersControllerFindMeError,
   UsersControllerFindMeResponse,
@@ -288,6 +292,35 @@ export const usersControllerGetMyStorageOptions = (options?: Options<UsersContro
     },
     queryKey: usersControllerGetMyStorageQueryKey(options),
   });
+
+/**
+ * Create a password-change ticket
+ *
+ * Returns an Auth0-hosted URL where the caller sets a new password. Only database (auth0|…) identities are eligible. The API never accepts a password.
+ */
+export const usersControllerCreatePasswordChangeTicketMutation = (
+  options?: Partial<Options<UsersControllerCreatePasswordChangeTicketData>>,
+): UseMutationOptions<
+  UsersControllerCreatePasswordChangeTicketResponse,
+  AxiosError<UsersControllerCreatePasswordChangeTicketError>,
+  Options<UsersControllerCreatePasswordChangeTicketData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerCreatePasswordChangeTicketResponse,
+    AxiosError<UsersControllerCreatePasswordChangeTicketError>,
+    Options<UsersControllerCreatePasswordChangeTicketData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerCreatePasswordChangeTicket({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 /**
  * Mint presigned upload URLs for a batch of photos

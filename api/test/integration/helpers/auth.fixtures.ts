@@ -9,10 +9,15 @@ export const TEST_TARGET_USER_ID = "44444444-4444-4444-4444-444444444444";
 export const TEST_TARGET_PROVIDER_SUB = "auth0|e2e-target-user";
 export const TEST_TARGET_ACCESS_TOKEN = "e2e-target-user-token";
 
+export const TEST_APPLE_USER_ID = "66666666-6666-6666-6666-666666666666";
+export const TEST_APPLE_PROVIDER_SUB = "apple|001.e2e-apple-user";
+export const TEST_APPLE_ACCESS_TOKEN = "e2e-apple-user-token";
+
 const AUTH_USERS_BY_TOKEN: Record<string, AuthenticatedUser> = {
   [TEST_ACCESS_TOKEN]: { id: TEST_USER_ID, sub: TEST_PROVIDER_SUB },
   [TEST_OTHER_ACCESS_TOKEN]: { id: TEST_OTHER_USER_ID, sub: TEST_OTHER_PROVIDER_SUB },
   [TEST_TARGET_ACCESS_TOKEN]: { id: TEST_TARGET_USER_ID, sub: TEST_TARGET_PROVIDER_SUB },
+  [TEST_APPLE_ACCESS_TOKEN]: { id: TEST_APPLE_USER_ID, sub: TEST_APPLE_PROVIDER_SUB },
 };
 
 export const resolveAuthenticatedUser = (token: string): AuthenticatedUser =>

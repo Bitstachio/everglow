@@ -16,6 +16,13 @@ jest.mock("@/context/auth-context", () => ({
 jest.mock("../api/mutations", () => ({
   useDeleteProfileMutation: () => ({ mutateAsync: mockDelete, isPending: false }),
 }));
+jest.mock("./use-change-password", () => ({
+  useChangePassword: () => ({
+    canChangePassword: true,
+    isChangingPassword: false,
+    handleChangePassword: jest.fn(),
+  }),
+}));
 jest.mock("./use-edit-profile-form", () => ({
   useEditProfileForm: () => ({ form: { reset: jest.fn(), formState: { isSubmitting: false } }, onSubmit: jest.fn() }),
 }));

@@ -251,6 +251,55 @@
         ]
       }
     },
+    "/api/v2/users/me/password-change-ticket": {
+      "post": {
+        "description": "Returns an Auth0-hosted URL where the caller sets a new password. Only database (auth0|…) identities are eligible. The API never accepts a password.",
+        "operationId": "UsersController_createPasswordChangeTicket",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Password-change ticket URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PasswordChangeTicketResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "Caller is not a database identity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a password-change ticket",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/events/{eventId}/photos/upload-urls": {
       "post": {
         "operationId": "PhotosController_createUploadUrls",
@@ -1257,6 +1306,19 @@
             "maxLength": 255
           }
         }
+      },
+      "PasswordChangeTicketResponseDto": {
+        "type": "object",
+        "properties": {
+          "ticketUrl": {
+            "type": "string",
+            "description": "Auth0-hosted password change URL. Open in the system browser; do not embed in a WebView.",
+            "example": "https://your-tenant.us.auth0.com/u/reset-verify?ticket=…"
+          }
+        },
+        "required": [
+          "ticketUrl"
+        ]
       },
       "UploadSlotResponseDto": {
         "type": "object",
