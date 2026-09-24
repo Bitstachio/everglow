@@ -1,19 +1,17 @@
 import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
-import { H1, H2, H3 } from "@/components/ui/heading";
+import { H1 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { colorTokens } from "@/theme/tokens";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Calendar, CircleCheck, Clock, Copy } from "lucide-react-native";
+import { Calendar, Clock } from "lucide-react-native";
 import { Controller, type Control } from "react-hook-form";
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
-import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { CreateEventValues, EventResponseDto } from "../types";
+import { EventCreatedConfirmation } from "./event-created-confirmation";
 
 type CreateEventFormProps = {
   control: Control<CreateEventValues>;
@@ -38,7 +36,6 @@ export const CreateEventForm = ({
   handleCreateAnother,
   handleDone,
 }: CreateEventFormProps) => {
-  const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -60,68 +57,13 @@ export const CreateEventForm = ({
 
   if (createdEvent) {
     return (
-      <View className="flex-1 bg-background">
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-6 px-4 pb-6 pt-8"
-          keyboardShouldPersistTaps="handled"
-        >
-          <View className="items-center gap-3">
-            <View className="h-16 w-16 items-center justify-center rounded-full bg-surface">
-              <AppIcon icon={CircleCheck} size="xl" className="text-success" />
-            </View>
-            <H2>Event Created Successfully!</H2>
-            <ThemedText className="text-center text-sm" tone="muted">
-              Share this event with your attendees
-            </ThemedText>
-          </View>
-
-          <View className="gap-2 rounded-2xl border border-border bg-surface p-4">
-            <H3>{createdEvent.title}</H3>
-            {createdEvent.description ? (
-              <ThemedText className="text-sm" tone="muted">
-                {createdEvent.description}
-              </ThemedText>
-            ) : null}
-          </View>
-
-          <View className="items-center gap-3 rounded-2xl border border-border bg-background p-4">
-            <ThemedText className="text-base font-semibold">QR Code</ThemedText>
-            <View className="rounded-2xl bg-background p-4">
-              <QRCode
-                value={createdEvent.invitationUrl}
-                size={200}
-                backgroundColor={colorTokens[colorScheme].background}
-                color={colorTokens[colorScheme].strong}
-              />
-            </View>
-            <ThemedText className="text-center text-sm" tone="muted">
-              Attendees can scan this QR code to join
-            </ThemedText>
-          </View>
-
-          <View className="gap-2">
-            <ThemedText className="text-base font-semibold">Invitation Link</ThemedText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Copy invitation link"
-              onPress={handleCopyLink}
-              className="min-h-12 flex-row items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3"
-            >
-              <ThemedText className="flex-1 text-sm" tone="accent" numberOfLines={1}>
-                {createdEvent.invitationUrl}
-              </ThemedText>
-              <AppIcon icon={Copy} size="sm" className="text-accent" />
-            </Pressable>
-          </View>
-        </ScrollView>
-
-        <View className="gap-3 px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
-          <Button title="Share Link" onPress={handleShareLink} />
-          <Button title="Create Another Event" onPress={handleCreateAnother} variant="outline" />
-          <Button title="Done" onPress={handleDone} variant="outline" />
-        </View>
-      </View>
+      <EventCreatedConfirmation
+        event={createdEvent}
+        onCopyLink={handleCopyLink}
+        onShare={handleShareLink}
+        onCreateAnother={handleCreateAnother}
+        onDone={handleDone}
+      />
     );
   }
 
