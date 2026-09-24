@@ -43,6 +43,15 @@ export const buildImageS3KeyPattern = (prefix: string): RegExp => {
   return new RegExp(`^${escapedPrefix}${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}$`, "i");
 };
 
+/** Stable machine-readable codes for image upload failures, surfaced as `code` in the error envelope. */
+export const IMAGE_UPLOAD_ERROR_CODES = {
+  UNSUPPORTED_CONTENT_TYPE: "IMAGE_UNSUPPORTED_CONTENT_TYPE",
+  INVALID_SIZE: "IMAGE_INVALID_SIZE",
+  UPLOAD_NOT_FOUND: "IMAGE_UPLOAD_NOT_FOUND",
+  UPLOAD_EXPIRED: "IMAGE_UPLOAD_EXPIRED",
+  UPLOAD_REJECTED: "IMAGE_UPLOAD_REJECTED",
+} as const;
+
 export const IMAGE_UPLOAD_ERRORS = {
   UNSUPPORTED_CONTENT_TYPE: (contentType: string) =>
     `Image content type "${contentType}" is not supported; use one of ${ALLOWED_IMAGE_CONTENT_TYPES.join(", ")}`,

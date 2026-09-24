@@ -12,6 +12,7 @@ import {
   buildImageS3Key,
   IMAGE_DOWNLOAD_URL_TTL_SECONDS,
   IMAGE_UPLOAD_CONFIRM_WINDOW_SECONDS,
+  IMAGE_UPLOAD_ERROR_CODES,
   IMAGE_UPLOAD_ERRORS,
   IMAGE_UPLOAD_URL_TTL_SECONDS,
   MAX_IMAGE_SIZE_BYTES,
@@ -79,6 +80,29 @@ describe("ImageUploadService", () => {
         contentType: "image/png",
         contentLength: 4096,
         expiresInSeconds: IMAGE_UPLOAD_URL_TTL_SECONDS,
+      });
+    });
+
+    it("returns when the URL stops being accepted, computed before signing", async () => {
+      jest.useFakeTimers({ now: new Date("2026-09-23T12:00:00.000Z") });
+      try {
+        const result = await service.createUpload(target, { contentType: "image/png", sizeBytes: 4096 });
+
+        expect(result.expiresAt).toEqual(new Date(Date.now() + IMAGE_UPLOAD_URL_TTL_SECONDS * 1000));
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("carries a stable code on a rejected content type", async () => {
+      const failure = await service
+        .createUpload(target, { contentType: "image/gif", sizeBytes: 1024 })
+        .catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(BadRequestException);
+      expect((failure as BadRequestException).getResponse()).toEqual({
+        code: IMAGE_UPLOAD_ERROR_CODES.UNSUPPORTED_CONTENT_TYPE,
+        message: IMAGE_UPLOAD_ERRORS.UNSUPPORTED_CONTENT_TYPE("image/gif"),
       });
     });
 

@@ -7,4 +7,7 @@ export class ImageUploadResponseDto {
 
   @ApiProperty({ maxLength: STRING_LIMITS.LONG, description: "Presigned S3 PUT URL the client uploads bytes to" })
   uploadUrl: string;
+
+  @ApiProperty({ description: "When uploadUrl stops being accepted; request a new one after this" })
+  expiresAt: Date;
 }

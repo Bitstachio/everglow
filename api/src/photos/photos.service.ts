@@ -8,7 +8,7 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
-import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
@@ -28,6 +28,8 @@ import {
 export interface UploadSlot {
   photoId: string;
   uploadUrl: string;
+  /** When `uploadUrl` stops being accepted; the client mints a new slot after this. */
+  expiresAt: Date;
 }
 
 export interface ConfirmResult {
@@ -94,9 +96,11 @@ export class PhotosService {
     // open across S3 calls, and a rejected batch mints no URLs. The URL binds
     // the declared type and size, so S3 refuses a body that differs from them.
     try {
+      const expiresAt = presignedUrlExpiresAt(UPLOAD_URL_TTL_SECONDS);
       return await Promise.all(
         rows.map(async (row) => ({
           photoId: row.id,
+          expiresAt,
           uploadUrl: await this.s3Service.getPresignedUploadUrl({
             key: row.s3Key,
             contentType: row.contentType,

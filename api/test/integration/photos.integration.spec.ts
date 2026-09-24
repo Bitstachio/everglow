@@ -49,7 +49,7 @@ type ErrorResponse = {
   meta: { timestamp: string; path: string };
 };
 
-type UploadSlotBody = { photoId: string; uploadUrl: string };
+type UploadSlotBody = { photoId: string; uploadUrl: string; expiresAt: string };
 type ConfirmResultBody = { photoId: string; status: string };
 type PhotoBody = {
   id: string;

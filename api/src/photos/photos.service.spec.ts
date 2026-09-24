@@ -232,7 +232,11 @@ describe("PhotosService", () => {
 
         expect(slots).toHaveLength(files.length);
         for (const [index, slot] of slots.entries()) {
-          expect(slot).toEqual({ photoId: rows[index].id, uploadUrl: "https://signed-put" });
+          expect(slot).toEqual({
+            photoId: rows[index].id,
+            uploadUrl: "https://signed-put",
+            expiresAt: expect.any(Date) as Date,
+          });
         }
         expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith({
           key: rows[0].s3Key,

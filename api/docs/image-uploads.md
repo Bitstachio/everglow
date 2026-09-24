@@ -2,25 +2,31 @@
 
 A user has one avatar; an event has one cover. These are **single display images that belong to a row**, which is a different problem from event photos ([photos-architecture.md](./photos-architecture.md)): one image, replaced in place, small, no quota, no list. The mechanics are shared and know nothing about users or events; a feature supplies a prefix, an owner id, and the column the key lives in.
 
-Like photos, the API never proxies image bytes. Clients upload to and download from S3 with short-lived presigned URLs.
+Like photos, the API never proxies image bytes. Clients upload to and download from S3 with short-lived presigned URLs. The protocol the three upload kinds share, and how they differ, is in [uploads.md](./uploads.md).
 
 ---
 
 ## 1. The shared module (`src/images`)
 
-| Piece                                               | Role                                                                                              |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `ImageUploadService`                                | Mint an upload, confirm it into a slot, remove a slot's image, presign a download URL             |
-| `ImageOrphanSource`                                 | Base class that registers an image prefix with the S3 orphan reconciler (§6)                      |
-| `images.constants.ts`                               | Allowed types, max size, TTLs, the confirm window, the key builder and key pattern                |
-| `CreateImageUploadDto`, `ConfirmImageUploadDto`, `ImageUploadResponseDto` | Request/response bodies every image endpoint reuses                         |
-| `ImagesModule`                                      | Exports `ImageUploadService` and re-exports `StorageModule`, so one import is enough              |
+| Piece                                                                     | Role                                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `ImageUploadService`                                                      | Mint an upload, confirm it into a slot, remove a slot's image, presign a download URL |
+| `ImageOrphanSource`                                                       | Base class that registers an image prefix with the S3 orphan reconciler (§6)          |
+| `images.constants.ts`                                                     | Allowed types, max size, TTLs, the confirm window, the key builder and key pattern    |
+| `CreateImageUploadDto`, `ConfirmImageUploadDto`, `ImageUploadResponseDto` | Request/response bodies every image endpoint reuses                                   |
+| `ImagesModule`                                                            | Exports `ImageUploadService` and re-exports `StorageModule`, so one import is enough  |
 
 It reuses `S3Service` for every S3 call and owns no table. The row is the feature's business, reached through two small interfaces:
 
 ```ts
-interface ImageUploadTarget { prefix: string; ownerId: string }            // where the image lives
-interface ImageSlot { currentKey: string | null; save(key: string | null): Promise<void> } // the column
+interface ImageUploadTarget {
+  prefix: string;
+  ownerId: string;
+} // where the image lives
+interface ImageSlot {
+  currentKey: string | null;
+  save(key: string | null): Promise<void>;
+} // the column
 ```
 
 ### Limits
@@ -62,8 +68,8 @@ Photos insert a `PENDING` row before minting a URL, because they reserve quota. 
 
 The same order, for the same reason, as a manual photo delete ([photos-architecture.md §5](./photos-architecture.md#5-delete)): the request is user-driven, so it can be retried, and the order is chosen so that **every failure leaves a state the same request repairs**.
 
-| Failure                                   | State left behind                                   | Repair                                                                 |
-| ----------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------- |
+| Failure                                   | State left behind                                   | Repair                                                                     |
+| ----------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
 | Deleting the old object fails             | Row and old image untouched; request fails with 500 | Retry. On a replace the new object is still in S3, waiting to be confirmed |
 | Row write fails after the old object went | Row references a deleted object until the retry     | Retry: `DeleteObject` on a missing key is a no-op, then the row is written |
 
@@ -75,13 +81,13 @@ Deleting the owning row cannot be retried once the row is gone, so it follows th
 
 ### What leaves an orphan
 
-| Case                                                            | Reclaimed by                                                     |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Upload minted and PUT, never confirmed                          | Orphan reconciler, once older than its minimum age (§6)          |
+| Case                                                              | Reclaimed by                                                         |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Upload minted and PUT, never confirmed                            | Orphan reconciler, once older than its minimum age (§6)              |
 | Upload rejected at confirm, and the discard `DeleteObject` failed | Orphan reconciler; logged as `image.upload_rejected.object_retained` |
-| Two confirms race; the loser gets 409 and does not retry        | Orphan reconciler (the loser's object was never referenced)      |
-| Account-deletion or event-deletion purge failed                 | Orphan reconciler                                                |
-| Minted, never PUT                                               | Nothing to reclaim: no row and no object exist                   |
+| Two confirms race; the loser gets 409 and does not retry          | Orphan reconciler (the loser's object was never referenced)          |
+| Account-deletion or event-deletion purge failed                   | Orphan reconciler                                                    |
+| Minted, never PUT                                                 | Nothing to reclaim: no row and no object exist                       |
 
 ---
 
@@ -89,11 +95,11 @@ Deleting the owning row cannot be retried once the row is gone, so it follows th
 
 `UserDetails.avatarS3Key` (nullable, unique). It lives on `UserDetails` rather than `User` because `User` is the identity and saga record while `UserDetails` is the profile (name, email) the avatar is shown with; it cascades with the profile; and every place that displays an avatar already loads `details`, so exposing it costs no extra query. The consequence is that **an avatar can only be set after onboarding** (422 before).
 
-| Endpoint                            | Success                                   | Errors                                                                                                          |
-| ----------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `POST /users/me/avatar/upload-url`  | **201** `{ uploadId, uploadUrl }`         | 400 invalid type/size · 401 · 422 onboarding incomplete                                                         |
+| Endpoint                              | Success                                      | Errors                                                                                                                     |
+| ------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `POST /users/me/avatar/upload-url`    | **201** `{ uploadId, uploadUrl }`            | 400 invalid type/size · 401 · 422 onboarding incomplete                                                                    |
 | `PUT /users/me/avatar` `{ uploadId }` | **200** the user profile (`UserResponseDto`) | 400 · 401 · 404 nothing uploaded · 409 avatar changed concurrently · 422 onboarding incomplete, or upload expired/rejected |
-| `DELETE /users/me/avatar`           | **204** (also when there is no avatar)    | 401 · 422 onboarding incomplete                                                                                 |
+| `DELETE /users/me/avatar`             | **204** (also when there is no avatar)       | 401 · 422 onboarding incomplete                                                                                            |
 
 `PUT` because confirming is idempotent and sets the one avatar resource; the mint mirrors the photos `upload-urls` route.
 
@@ -109,11 +115,11 @@ Deleting the owning row cannot be retried once the row is gone, so it follows th
 
 `Event.coverS3Key` (nullable, unique), keys under `event-covers/{eventId}/{uploadId}`. The second consumer, and the same shape as the avatar: `EventCoverService` holds the target, the slot, and the audit lines, and everything else is the shared module.
 
-| Endpoint                                   | Success                                  | Errors                                                                                                   |
-| ------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `POST /events/:eventId/cover/upload-url`   | **201** `{ uploadId, uploadUrl }`        | 400 invalid type/size · 401 · 403 · 404 no such event                                                    |
-| `PUT /events/:eventId/cover` `{ uploadId }` | **200** the event (`EventResponseDto`)   | 400 · 401 · 403 · 404 no such event, or nothing uploaded · 409 cover changed concurrently · 422 upload expired/rejected |
-| `DELETE /events/:eventId/cover`            | **204** (also when there is no cover)    | 401 · 403 · 404 no such event                                                                            |
+| Endpoint                                    | Success                                | Errors                                                                                                                  |
+| ------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `POST /events/:eventId/cover/upload-url`    | **201** `{ uploadId, uploadUrl }`      | 400 invalid type/size · 401 · 403 · 404 no such event                                                                   |
+| `PUT /events/:eventId/cover` `{ uploadId }` | **200** the event (`EventResponseDto`) | 400 · 401 · 403 · 404 no such event, or nothing uploaded · 409 cover changed concurrently · 422 upload expired/rejected |
+| `DELETE /events/:eventId/cover`             | **204** (also when there is no cover)  | 401 · 403 · 404 no such event                                                                                           |
 
 - **Authorization.** Whoever may update the event may manage its cover: the existing CASL `update` ability on `Event`, which organizers hold. All three routes go through `EventsService.getUpdatable`, the same check `PATCH /events/:eventId` makes, so the answers match the other event routes: 404 for a missing event, 403 for a participant, a viewer, or someone who is not a member at all. The key's owner id is the id of the event that check was made against, never anything from the body.
 - **Reads.** `coverUrl` on every `EventResponseDto` (create, list, join, single read, update, regenerate-url, `PUT .../cover`): a presigned GET URL or `null`. The key is a column of the row each of those already loads, so the events list stays at its two queries (the caller lookup behind the ability, and the list); the controller presigns one URL per row. The S3 key itself is never returned.
@@ -152,18 +158,25 @@ What the event cover (§5) did, as the recipe for the next one:
    ```ts
    @Injectable()
    export class EventCoverOrphanSource extends ImageOrphanSource {
-     constructor(registry: OrphanSourceRegistry, private readonly prisma: PrismaService) {
+     constructor(
+       registry: OrphanSourceRegistry,
+       private readonly prisma: PrismaService,
+     ) {
        super(EVENT_COVER_S3_KEY_PREFIX, registry);
      }
 
      async findReferencedKeys(keys: string[]): Promise<string[]> {
-       const rows = await this.prisma.event.findMany({ where: { coverS3Key: { in: keys } }, select: { coverS3Key: true } });
+       const rows = await this.prisma.event.findMany({
+         where: { coverS3Key: { in: keys } },
+         select: { coverS3Key: true },
+       });
        return rows.flatMap((row) => (row.coverS3Key ? [row.coverS3Key] : []));
      }
    }
    ```
 
    and add the new prefix to the expectation in `test/integration/app.integration.spec.ts`, which asserts the prefixes registered at boot.
+
 8. **Deletion of the owning row:** collect the key before the row goes and purge it after the commit, next to the keys that path already purges (`PhotoPurgeService.purgeObjects`).
 
 No infrastructure change is needed: the IAM policy, CORS rule, and lifecycle rule in `infra/main.tf` all cover the whole bucket.
