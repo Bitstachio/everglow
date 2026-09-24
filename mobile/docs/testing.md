@@ -47,7 +47,9 @@ pnpm test:coverage     # unit + coverage
 pnpm test:integration  # screen-integration only (15s, maxWorkers: 2)
 ```
 
-CI runs `pnpm test --maxWorkers=2`, then `pnpm test:integration`. See `.github/workflows/ci.yml`. Maestro is not in CI.
+CI runs `pnpm test --maxWorkers=2 --coverage`, then `pnpm test:integration --coverage`, and posts one sticky "Mobile test coverage" comment on the PR with a column per suite. See `.github/workflows/ci.yml`. Maestro is not in CI.
+
+Both suites measure the same files, set once in `jest.coverage.js`: the app's own source under `app`, `components`, `constants`, `context`, `features`, `hooks`, `lib`, `providers` and `theme`, excluding tests, `testing/` fixtures and the generated API client. Reports land in `coverage/unit` and `coverage/integration`.
 
 Unit hang detection stays at Jest’s default 5s (`jest.config.js`). Screen-integration uses 15s in `jest.integration.config.js`. If a unit test times out under load, re-run with `--runInBand` rather than raising the unit timeout:
 

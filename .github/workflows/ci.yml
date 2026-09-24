@@ -98,13 +98,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: bash scripts/post-coverage-comment.sh
+        run: >-
+          bash ../.github/scripts/post-coverage-comment.sh
+          everglow-api-coverage
+          "API unit-test coverage"
+          "Unit suite only; controllers are exercised by the integration suite."
+          "Unit=coverage/coverage-summary.json"
 
   mobile:
     name: Mobile
     needs: changes
     if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # coverage comment
     defaults:
       run:
         working-directory: mobile
@@ -134,10 +142,26 @@ jobs:
       - wait-all:
 
       # Sequential: RNTL suites starve if they share a 2-core runner with tsc/lint
+      # Coverage settings live in jest.coverage.js; collecting them adds no
+      # measurable time to either suite.
       - name: Unit tests
-        run: pnpm test --maxWorkers=2
+        run: pnpm test --maxWorkers=2 --coverage
       - name: Integration tests
-        run: pnpm test:integration
+        run: pnpm test:integration --coverage
+
+      # Last step: only reached when the whole job is green.
+      - name: Post coverage comment on PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: >-
+          bash ../.github/scripts/post-coverage-comment.sh
+          everglow-mobile-coverage
+          "Mobile test coverage"
+          "Same source files measured by each suite; screens are mostly exercised by the integration suite. Excludes the generated API client."
+          "Unit=coverage/unit/coverage-summary.json"
+          "Integration=coverage/integration/coverage-summary.json"
 
   ci-success:
     name: CI
