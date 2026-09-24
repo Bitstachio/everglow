@@ -226,7 +226,7 @@ Two things fix it, and both are needed.
 | `Event.creatorId`    | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                           |
 | `Photo.addedById`    | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota. |
 
-**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos and the avatar alike), which are purged best effort after the row is gone.
+**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos, the covers of deleted events, and the avatar alike), which are purged best effort after the row is gone.
 
 **Accounts already being deleted do not count as cover.** Both organizer rules ignore members whose own `deletionStartedAt` is set. Without that, two members of one event leaving at the same time can strand it:
 
@@ -248,7 +248,7 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 | Identity, profile (`UserDetails`)             | Deleted. No name or email survives.                                           |
 | Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.      |
 | Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                          |
-| Events organised alone, nobody else in them   | Deleted, with every photo still in them.                                      |
+| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                  |
 | Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                |
 | Events with another organizer                 | Untouched; only the membership goes.                                          |
 | `Event.creatorId` on surviving events         | Null.                                                                         |
@@ -281,7 +281,7 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Organises an event with another organizer      | Membership removed; event untouched                                                                      |
 | Only organizer, other members are participants | Longest-standing participant promoted                                                                    |
 | Only organizer, other members are only viewers | Longest-standing viewer promoted                                                                         |
-| Only member of the event                       | Event deleted with all its photos; S3 purged after commit                                                |
+| Only member of the event                       | Event deleted with all its photos and its cover; S3 purged after commit                                  |
 | Created an event it later left                 | `creatorId` set to null; nothing else                                                                    |
 | Uploaded photos, `?photos=KEEP`                | Kept, `addedById` null; organizers can still delete them                                                 |
 | Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit                                                        |

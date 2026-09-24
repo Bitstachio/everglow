@@ -118,6 +118,32 @@ describe("AccountDeletionPrepService", () => {
       expect(result.s3Keys).toEqual(expect.arrayContaining(["photos/solo/a", "photos/solo/b"]));
     });
 
+    it("collects the cover key of an event it deletes, next to its photo keys", async () => {
+      const coverS3Key = `event-covers/${soloEventId}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
+      prisma.event.findUnique.mockResolvedValue({ coverS3Key } as never);
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      // Only the event that is going away is asked for its cover, and before the row goes.
+      expect(prisma.event.findUnique).toHaveBeenCalledTimes(1);
+      expect(prisma.event.findUnique).toHaveBeenCalledWith({
+        where: { id: soloEventId },
+        select: { coverS3Key: true },
+      });
+      expect(prisma.event.findUnique.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.event.deleteMany.mock.invocationCallOrder[0],
+      );
+      expect(result.s3Keys).toEqual(["photos/solo/a", "photos/solo/b", coverS3Key]);
+    });
+
+    it("collects no cover key for a deleted event that has none", async () => {
+      prisma.event.findUnique.mockResolvedValue({ coverS3Key: null } as never);
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(result.s3Keys).toEqual(["photos/solo/a", "photos/solo/b"]);
+    });
+
     it("counts an event as deleted only when the row was actually still there", async () => {
       // A concurrent deletion of the last other member may have removed it first.
       prisma.event.deleteMany.mockResolvedValue({ count: 0 });

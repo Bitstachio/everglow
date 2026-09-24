@@ -135,18 +135,31 @@ export class EventsService {
     return event;
   }
 
-  async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
-    const event = await this.prisma.event.findUnique({
+  /**
+   * The event, once the caller is known to be allowed to update it (its
+   * organizers). Everything that manages an event goes through here, so a
+   * missing event is 404 and a caller without the ability is 403 everywhere.
+   */
+  async getUpdatable(eventId: string, callerId: string): Promise<Event> {
+    const loaded = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: eventWithCallerAccessInclude(callerId),
     });
 
-    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, event))) {
+    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
     }
+
+    const { eventAccesses, ...event } = loaded;
+    void eventAccesses;
+    return event;
+  }
+
+  async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
+    await this.getUpdatable(eventId, callerId);
 
     const updated = await this.prisma.event.update({
       where: { id: eventId },
@@ -163,17 +176,7 @@ export class EventsService {
   }
 
   async regenerateInvitationUrl(eventId: string, callerId: string): Promise<Event> {
-    const loaded = await this.prisma.event.findUnique({
-      where: { id: eventId },
-      include: eventWithCallerAccessInclude(callerId),
-    });
-
-    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
-
-    const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
-    }
+    await this.getUpdatable(eventId, callerId);
 
     const invitationUrl = randomUUID();
     const updated = await this.prisma.event.update({
@@ -249,17 +252,7 @@ export class EventsService {
     targetUserId: string,
     accessLevel: AccessLevel,
   ): Promise<EventParticipant> {
-    const loaded = await this.prisma.event.findUnique({
-      where: { id: eventId },
-      include: eventWithCallerAccessInclude(callerId),
-    });
-
-    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
-
-    const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
-    }
+    await this.getUpdatable(eventId, callerId);
 
     if (callerId === targetUserId) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_MODIFY_OWN_ACCESS);
@@ -306,17 +299,7 @@ export class EventsService {
   }
 
   async removeUserFromEvent(eventId: string, callerId: string, targetUserId: string): Promise<void> {
-    const loaded = await this.prisma.event.findUnique({
-      where: { id: eventId },
-      include: eventWithCallerAccessInclude(callerId),
-    });
-
-    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
-
-    const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
-    }
+    await this.getUpdatable(eventId, callerId);
 
     if (callerId === targetUserId) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF);
@@ -365,18 +348,25 @@ export class EventsService {
     // gone no member can see a photo whose object is missing and the
     // uploaders' quota is already released; the objects are then purged
     // best effort after the commit, never inside a database transaction.
-    const s3Keys = await this.prisma.$transaction(async (tx) => {
+    //
+    // The cover key comes from the row the delete itself returns, not from the
+    // read above, so a cover confirmed in between is still purged.
+    const { photoKeys, coverKey } = await this.prisma.$transaction(async (tx) => {
       const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
-      await tx.event.delete({ where: { id: eventId } });
-      return photos.map((photo) => photo.s3Key);
+      const deleted = await tx.event.delete({ where: { id: eventId } });
+      return { photoKeys: photos.map((photo) => photo.s3Key), coverKey: deleted.coverS3Key };
     });
 
     this.logger.info(
-      { event: "event.deleted", eventId, callerId, photoCount: s3Keys.length, audit: true },
+      { event: "event.deleted", eventId, callerId, photoCount: photoKeys.length, audit: true },
       "Event deleted",
     );
 
-    await this.photoPurgeService.purgeObjects(s3Keys, { event: ALERT_EVENTS.EVENT_PHOTOS_PURGED, eventId, callerId });
+    await this.photoPurgeService.purgeObjects(coverKey ? [...photoKeys, coverKey] : photoKeys, {
+      event: ALERT_EVENTS.EVENT_PHOTOS_PURGED,
+      eventId,
+      callerId,
+    });
   }
 
   private async countOrganizers(eventId: string): Promise<number> {

@@ -2,9 +2,10 @@ import { INestApplication } from "@nestjs/common";
 import { AccessLevel, Event, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
-import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
+import { EVENT_COVER_S3_KEY_PREFIX, EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { buildInvitationUrl } from "src/events/events.invitation";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "src/events/events.types";
+import { buildImageS3Key, IMAGE_UPLOAD_ERRORS, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
@@ -33,6 +34,10 @@ import {
 import { TEST_USER_ID, buildUserWithDetails, buildUserWithoutDetails } from "./helpers/users.fixtures";
 
 const EVENTS_BASE_PATH = `/${API_GLOBAL_PREFIX}/events`;
+const COVER_UPLOAD_URL = "https://s3.example/cover-put?sig=1";
+const COVER_URL = "https://s3.example/cover-get?sig=1";
+const COVER_UPLOAD_ID = "9f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f";
+const COVER_S3_KEY = buildImageS3Key(EVENT_COVER_S3_KEY_PREFIX, TEST_EVENT_ID, COVER_UPLOAD_ID);
 
 type WrappedResponse<T> = {
   data: T;
@@ -57,6 +62,7 @@ type EventResponseBody = {
   date: string;
   creatorId: string;
   invitationUrl: string;
+  coverUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -73,7 +79,13 @@ describe("EventsController (integration)", () => {
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;
 
-  const s3Service = { deleteObjects: jest.fn(), getPresignedDownloadUrl: jest.fn() };
+  const s3Service = {
+    deleteObjects: jest.fn(),
+    deleteObject: jest.fn(),
+    headObject: jest.fn(),
+    getPresignedUploadUrl: jest.fn(),
+    getPresignedDownloadUrl: jest.fn(),
+  };
 
   beforeAll(async () => {
     const context = await createTestApp((builder) => builder.overrideProvider(S3Service).useValue(s3Service));
@@ -92,9 +104,11 @@ describe("EventsController (integration)", () => {
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     prisma.photo.findMany.mockResolvedValue([]);
-    s3Service.deleteObjects.mockReset();
-    s3Service.getPresignedDownloadUrl.mockReset();
+    Object.values(s3Service).forEach((mock) => mock.mockReset());
     s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [] });
+    s3Service.deleteObject.mockResolvedValue(undefined);
+    s3Service.getPresignedUploadUrl.mockResolvedValue(COVER_UPLOAD_URL);
+    s3Service.getPresignedDownloadUrl.mockResolvedValue(COVER_URL);
   });
 
   describe("POST /events", () => {
@@ -403,6 +417,18 @@ describe("EventsController (integration)", () => {
       );
     });
 
+    it("returns 204 and purges the event's cover object along with its photos", async () => {
+      const photoKey = `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/a`;
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.photo.findMany.mockResolvedValue([{ s3Key: photoKey }] as never);
+      prisma.event.delete.mockResolvedValue(buildEvent({ coverS3Key: COVER_S3_KEY }));
+
+      await request(httpServer).delete(path()).set(authHeader()).expect(204);
+
+      expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith([photoKey, COVER_S3_KEY]);
+    });
+
     it("returns 204 even when the S3 purge fails, leaving the objects to the reconciler", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.photo.findMany.mockResolvedValue([{ s3Key: `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/a` }] as never);
@@ -635,6 +661,236 @@ describe("EventsController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+    });
+  });
+
+  describe("cover", () => {
+    const uploadUrlPath = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/cover/upload-url`;
+    const coverPath = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/cover`;
+
+    const organizedEvent = (coverS3Key: string | null) =>
+      eventWithCallerAccess(buildEvent({ coverS3Key }), [buildOrganizerAccess()]);
+
+    const uploadedObject = (contentType = "image/jpeg") => ({
+      exists: true,
+      contentType,
+      sizeBytes: 2048,
+      lastModified: new Date(),
+    });
+
+    // Every cover route authorizes like PATCH /events/:eventId: 404 for a
+    // missing event, 403 for anyone who may not update it, member or not.
+    const itAuthorizesLikeAnEventUpdate = (send: (headers: Record<string, string>) => request.Test) => {
+      const expectNothingTouched = () => {
+        expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+        expect(s3Service.headObject).not.toHaveBeenCalled();
+        expect(s3Service.deleteObject).not.toHaveBeenCalled();
+        expect(prisma.event.updateMany).not.toHaveBeenCalled();
+      };
+
+      it("returns 401 when the access token is missing", async () => {
+        await send({}).expect(401);
+
+        expectNothingTouched();
+      });
+
+      it("returns 403 when the caller is a member but not an organizer", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+
+        const response = await send(authHeader()).expect(403);
+
+        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+        expectNothingTouched();
+      });
+
+      it("returns the same 403 when the caller is not a member at all", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), []));
+
+        const response = await send(authHeader(TEST_OTHER_ACCESS_TOKEN)).expect(403);
+
+        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+        expectNothingTouched();
+      });
+
+      it("returns 404 when the event does not exist", async () => {
+        prisma.event.findUnique.mockResolvedValue(null);
+
+        const response = await send(authHeader()).expect(404);
+
+        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+        expectNothingTouched();
+      });
+    };
+
+    describe("coverUrl on event reads", () => {
+      it("returns a presigned coverUrl on the single read and never the S3 key", async () => {
+        const event = buildEvent({ coverS3Key: COVER_S3_KEY });
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildViewerAccess()]));
+
+        const response = await request(httpServer)
+          .get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`)
+          .set(authHeader())
+          .expect(200);
+
+        const body = response.body as WrappedResponse<EventResponseBody>;
+        expect(body.data).toEqual(expectedEventResponse(event, COVER_URL));
+        expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith(expect.objectContaining({ key: COVER_S3_KEY }));
+        expect(JSON.stringify(response.body)).not.toContain("coverS3Key");
+      });
+
+      it("returns a coverUrl per listed event from the one list query", async () => {
+        const events = [buildEvent({ coverS3Key: COVER_S3_KEY }), buildOtherUserEvent()];
+        prisma.event.findMany.mockResolvedValue(events);
+
+        const response = await request(httpServer).get(EVENTS_BASE_PATH).set(authHeader()).expect(200);
+
+        const body = response.body as WrappedResponse<EventResponseBody[]>;
+        expect(body.data).toEqual([expectedEventResponse(events[0], COVER_URL), expectedEventResponse(events[1])]);
+        // The caller lookup for the ability plus the list itself: covers add no query, per row or otherwise.
+        expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+        expect(prisma.event.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.event.findUnique).not.toHaveBeenCalled();
+        expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("POST /events/:eventId/cover/upload-url", () => {
+      const payload = { contentType: "image/jpeg", sizeBytes: 2048 };
+
+      it("returns 201 with an upload id and a presigned URL under the event's own prefix", async () => {
+        prisma.event.findUnique.mockResolvedValue(organizedEvent(null));
+
+        const response = await request(httpServer).post(uploadUrlPath()).set(authHeader()).send(payload).expect(201);
+
+        const body = response.body as WrappedResponse<{ uploadId: string; uploadUrl: string }>;
+        expect(body.data).toEqual({ uploadId: expect.any(String) as string, uploadUrl: COVER_UPLOAD_URL });
+        expect(body.meta.path).toBe(uploadUrlPath());
+        expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith(
+          expect.objectContaining({
+            key: buildImageS3Key(EVENT_COVER_S3_KEY_PREFIX, TEST_EVENT_ID, body.data.uploadId),
+            contentType: "image/jpeg",
+            contentLength: 2048,
+          }),
+        );
+        expect(prisma.event.updateMany).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["an unsupported content type", { ...payload, contentType: "image/heic" }],
+        ["an oversize image", { ...payload, sizeBytes: MAX_IMAGE_SIZE_BYTES + 1 }],
+        ["a client-supplied key", { ...payload, key: "event-covers/another-event/x" }],
+      ])("returns 400 for %s", async (_label, body) => {
+        await request(httpServer).post(uploadUrlPath()).set(authHeader()).send(body).expect(400);
+
+        expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 when eventId is not a valid UUID", async () => {
+        await request(httpServer).post(uploadUrlPath("not-a-uuid")).set(authHeader()).send(payload).expect(400);
+      });
+
+      describe("authorization", () => {
+        itAuthorizesLikeAnEventUpdate((headers) =>
+          request(httpServer).post(uploadUrlPath()).set(headers).send(payload),
+        );
+      });
+    });
+
+    describe("PUT /events/:eventId/cover", () => {
+      const payload = { uploadId: COVER_UPLOAD_ID };
+
+      it("returns 200 with the event carrying the new coverUrl", async () => {
+        const confirmed = buildEvent({ coverS3Key: COVER_S3_KEY });
+        prisma.event.findUnique
+          .mockResolvedValueOnce(organizedEvent(null))
+          .mockResolvedValueOnce(eventWithCallerAccess(confirmed, [buildOrganizerAccess()]));
+        prisma.event.updateMany.mockResolvedValue({ count: 1 });
+        s3Service.headObject.mockResolvedValue(uploadedObject());
+
+        const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(200);
+
+        const body = response.body as WrappedResponse<EventResponseBody>;
+        expect(body.data).toEqual(expectedEventResponse(confirmed, COVER_URL));
+        expect(body.meta.path).toBe(coverPath());
+        expect(s3Service.headObject).toHaveBeenCalledWith(COVER_S3_KEY);
+        expect(prisma.event.updateMany).toHaveBeenCalledWith({
+          where: { id: TEST_EVENT_ID, coverS3Key: null },
+          data: { coverS3Key: COVER_S3_KEY },
+        });
+      });
+
+      it("returns 404 when nothing was uploaded for that id", async () => {
+        prisma.event.findUnique.mockResolvedValue(organizedEvent(null));
+        s3Service.headObject.mockResolvedValue({ exists: false });
+
+        const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(404);
+
+        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(COVER_UPLOAD_ID));
+        expect(prisma.event.updateMany).not.toHaveBeenCalled();
+      });
+
+      it("returns 409 when another organizer changed the cover first", async () => {
+        prisma.event.findUnique.mockResolvedValue(organizedEvent(null));
+        prisma.event.updateMany.mockResolvedValue({ count: 0 });
+        s3Service.headObject.mockResolvedValue(uploadedObject());
+
+        const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(409);
+
+        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.COVER_CHANGED_CONCURRENTLY);
+      });
+
+      it("returns 422 and discards an object of a disallowed type", async () => {
+        prisma.event.findUnique.mockResolvedValue(organizedEvent(null));
+        s3Service.headObject.mockResolvedValue(uploadedObject("image/gif"));
+
+        const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(422);
+
+        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(COVER_UPLOAD_ID));
+        expect(s3Service.deleteObject).toHaveBeenCalledWith(COVER_S3_KEY);
+        expect(prisma.event.updateMany).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["a non-UUID upload id", { uploadId: "../another-event" }],
+        ["a client-supplied key", { uploadId: COVER_UPLOAD_ID, key: "event-covers/another-event/x" }],
+        ["an empty body", {}],
+      ])("returns 400 for %s", async (_label, body) => {
+        await request(httpServer).put(coverPath()).set(authHeader()).send(body).expect(400);
+
+        expect(s3Service.headObject).not.toHaveBeenCalled();
+      });
+
+      describe("authorization", () => {
+        itAuthorizesLikeAnEventUpdate((headers) => request(httpServer).put(coverPath()).set(headers).send(payload));
+      });
+    });
+
+    describe("DELETE /events/:eventId/cover", () => {
+      it("returns 204 after deleting the object and clearing the column", async () => {
+        prisma.event.findUnique.mockResolvedValue(organizedEvent(COVER_S3_KEY));
+        prisma.event.updateMany.mockResolvedValue({ count: 1 });
+
+        await request(httpServer).delete(coverPath()).set(authHeader()).expect(204);
+
+        expect(s3Service.deleteObject).toHaveBeenCalledWith(COVER_S3_KEY);
+        expect(prisma.event.updateMany).toHaveBeenCalledWith({
+          where: { id: TEST_EVENT_ID, coverS3Key: COVER_S3_KEY },
+          data: { coverS3Key: null },
+        });
+      });
+
+      it("returns 204 when there is no cover to remove", async () => {
+        prisma.event.findUnique.mockResolvedValue(organizedEvent(null));
+
+        await request(httpServer).delete(coverPath()).set(authHeader()).expect(204);
+
+        expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      });
+
+      describe("authorization", () => {
+        itAuthorizesLikeAnEventUpdate((headers) => request(httpServer).delete(coverPath()).set(headers));
+      });
     });
   });
 

@@ -155,9 +155,9 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 
 ### Event delete
 
-`DELETE /events/:eventId` takes every photo of the event with it, objects included:
+`DELETE /events/:eventId` takes every photo of the event with it, objects included, and the event's cover image ([image-uploads.md §5](./image-uploads.md#5-event-covers-srcevents)):
 
-1. In one transaction: read the `s3Key` of every `Photo` row of the event, then delete the event (`onDelete: Cascade` removes the rows).
+1. In one transaction: read the `s3Key` of every `Photo` row of the event, then delete the event (`onDelete: Cascade` removes the rows). The deleted row carries the cover key, which joins the list.
 2. After the commit: `PhotoPurgeService.purgeObjects()` deletes the objects with S3 `DeleteObjects`, 1000 keys per request (`S3Service.deleteObjects`).
 
 The order is the reverse of the single-photo delete, on purpose. A manual delete is retried by the user, so it keeps the row when S3 fails. An event delete cannot be retried once the event is gone, and with the rows removed first no member can ever see a photo whose object is missing, and every uploader's quota is released immediately. What is at stake after the commit is only storage cost: a purge that fails, in part or as a whole, is logged at `error` with the counts and leaves orphans, which is exactly what the daily reconciler (§11) reclaims. The purge never fails the request. The same holds for a slot minted between the key read and the commit: its row is cascaded, its object (if the upload still lands) is an orphan.
@@ -347,7 +347,7 @@ This job is what makes the quota in §9 self-correcting. Without it an abandoned
 
 The database is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete whose post-commit purge failed or raced an in-flight upload (§5), an account delete whose purge failed, a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
 
-The job is not specific to photos. It lives in `src/storage` and walks a registry of owned prefixes (`OrphanSourceRegistry`); `photos/` is the source `PhotoOrphanSource` registers, and single-image prefixes such as `avatars/` register theirs ([image-uploads.md §5](./image-uploads.md#5-orphan-reconciler)). What follows describes the shared job and the photos source.
+The job is not specific to photos. It lives in `src/storage` and walks a registry of owned prefixes (`OrphanSourceRegistry`); `photos/` is the source `PhotoOrphanSource` registers, and single-image prefixes such as `avatars/` and `event-covers/` register theirs ([image-uploads.md §6](./image-uploads.md#6-orphan-reconciler)). What follows describes the shared job and the photos source.
 
 - **Service:** `S3OrphanReconcilerService.reconcileOrphanedObjects()`
 - **Schedule:** daily at 03:00 via `S3OrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists every registered prefix end to end, which is not worth doing hourly, and orphans cost money rather than correctness.
