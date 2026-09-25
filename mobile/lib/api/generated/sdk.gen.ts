@@ -71,6 +71,18 @@ import type {
   PhotosControllerRemoveData,
   PhotosControllerRemoveErrors,
   PhotosControllerRemoveResponses,
+  ReportsControllerListReportsData,
+  ReportsControllerListReportsErrors,
+  ReportsControllerListReportsResponses,
+  ReportsControllerReportMemberData,
+  ReportsControllerReportMemberErrors,
+  ReportsControllerReportMemberResponses,
+  ReportsControllerReportPhotoData,
+  ReportsControllerReportPhotoErrors,
+  ReportsControllerReportPhotoResponses,
+  ReportsControllerResolveReportData,
+  ReportsControllerResolveReportErrors,
+  ReportsControllerResolveReportResponses,
   UsersControllerCheckUsernameAvailabilityData,
   UsersControllerCheckUsernameAvailabilityErrors,
   UsersControllerCheckUsernameAvailabilityResponses,
@@ -375,6 +387,88 @@ export const photosControllerFindOne = <ThrowOnError extends boolean = false>(
     responseType: "json",
     url: "/api/v2/photos/{photoId}",
     ...options,
+  });
+
+/**
+ * Report a photo
+ *
+ * Any member of the photo's event. The photo is hidden from the reporter at once. Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned.
+ */
+export const reportsControllerReportPhoto = <ThrowOnError extends boolean = false>(
+  options: Options<ReportsControllerReportPhotoData, ThrowOnError>,
+): RequestResult<ReportsControllerReportPhotoResponses, ReportsControllerReportPhotoErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ReportsControllerReportPhotoResponses,
+    ReportsControllerReportPhotoErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/photos/{photoId}/reports",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Report a member of an event
+ *
+ * Any member of the event, about any other member. Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned.
+ */
+export const reportsControllerReportMember = <ThrowOnError extends boolean = false>(
+  options: Options<ReportsControllerReportMemberData, ThrowOnError>,
+): RequestResult<ReportsControllerReportMemberResponses, ReportsControllerReportMemberErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ReportsControllerReportMemberResponses,
+    ReportsControllerReportMemberErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/participants/{targetUserId}/reports",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * List an event's reports (organizers only, cursor-paginated)
+ */
+export const reportsControllerListReports = <ThrowOnError extends boolean = false>(
+  options: Options<ReportsControllerListReportsData, ThrowOnError>,
+): RequestResult<ReportsControllerListReportsResponses, ReportsControllerListReportsErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    ReportsControllerListReportsResponses,
+    ReportsControllerListReportsErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/reports",
+    ...options,
+  });
+
+/**
+ * Resolve a report (organizers only)
+ *
+ * Not available to the organizer the report is about. Resolving never deletes anything by itself.
+ */
+export const reportsControllerResolveReport = <ThrowOnError extends boolean = false>(
+  options: Options<ReportsControllerResolveReportData, ThrowOnError>,
+): RequestResult<ReportsControllerResolveReportResponses, ReportsControllerResolveReportErrors, ThrowOnError> =>
+  (options.client ?? client).patch<
+    ReportsControllerResolveReportResponses,
+    ReportsControllerResolveReportErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/reports/{reportId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });
 
 /**

@@ -35,6 +35,10 @@ import {
   photosControllerFindOne,
   photosControllerListPhotos,
   photosControllerRemove,
+  reportsControllerListReports,
+  reportsControllerReportMember,
+  reportsControllerReportPhoto,
+  reportsControllerResolveReport,
   usersControllerCheckUsernameAvailability,
   usersControllerCompleteOnboarding,
   usersControllerConfirmAvatarUpload,
@@ -114,6 +118,18 @@ import type {
   PhotosControllerRemoveData,
   PhotosControllerRemoveError,
   PhotosControllerRemoveResponse,
+  ReportsControllerListReportsData,
+  ReportsControllerListReportsError,
+  ReportsControllerListReportsResponse,
+  ReportsControllerReportMemberData,
+  ReportsControllerReportMemberError,
+  ReportsControllerReportMemberResponse,
+  ReportsControllerReportPhotoData,
+  ReportsControllerReportPhotoError,
+  ReportsControllerReportPhotoResponse,
+  ReportsControllerResolveReportData,
+  ReportsControllerResolveReportError,
+  ReportsControllerResolveReportResponse,
   UsersControllerCheckUsernameAvailabilityData,
   UsersControllerCheckUsernameAvailabilityError,
   UsersControllerCheckUsernameAvailabilityResponse,
@@ -675,6 +691,163 @@ export const photosControllerFindOneOptions = (options: Options<PhotosController
     },
     queryKey: photosControllerFindOneQueryKey(options),
   });
+
+/**
+ * Report a photo
+ *
+ * Any member of the photo's event. The photo is hidden from the reporter at once. Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned.
+ */
+export const reportsControllerReportPhotoMutation = (
+  options?: Partial<Options<ReportsControllerReportPhotoData>>,
+): UseMutationOptions<
+  ReportsControllerReportPhotoResponse,
+  AxiosError<ReportsControllerReportPhotoError>,
+  Options<ReportsControllerReportPhotoData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportsControllerReportPhotoResponse,
+    AxiosError<ReportsControllerReportPhotoError>,
+    Options<ReportsControllerReportPhotoData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reportsControllerReportPhoto({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Report a member of an event
+ *
+ * Any member of the event, about any other member. Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned.
+ */
+export const reportsControllerReportMemberMutation = (
+  options?: Partial<Options<ReportsControllerReportMemberData>>,
+): UseMutationOptions<
+  ReportsControllerReportMemberResponse,
+  AxiosError<ReportsControllerReportMemberError>,
+  Options<ReportsControllerReportMemberData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportsControllerReportMemberResponse,
+    AxiosError<ReportsControllerReportMemberError>,
+    Options<ReportsControllerReportMemberData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reportsControllerReportMember({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const reportsControllerListReportsQueryKey = (options: Options<ReportsControllerListReportsData>) =>
+  createQueryKey("reportsControllerListReports", options);
+
+/**
+ * List an event's reports (organizers only, cursor-paginated)
+ */
+export const reportsControllerListReportsOptions = (options: Options<ReportsControllerListReportsData>) =>
+  queryOptions<
+    ReportsControllerListReportsResponse,
+    AxiosError<ReportsControllerListReportsError>,
+    ReportsControllerListReportsResponse,
+    ReturnType<typeof reportsControllerListReportsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await reportsControllerListReports({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: reportsControllerListReportsQueryKey(options),
+  });
+
+export const reportsControllerListReportsInfiniteQueryKey = (
+  options: Options<ReportsControllerListReportsData>,
+): QueryKey<Options<ReportsControllerListReportsData>> => createQueryKey("reportsControllerListReports", options, true);
+
+/**
+ * List an event's reports (organizers only, cursor-paginated)
+ */
+export const reportsControllerListReportsInfiniteOptions = (options: Options<ReportsControllerListReportsData>) => {
+  const opts = infiniteQueryOptions<
+    ReportsControllerListReportsResponse,
+    AxiosError<ReportsControllerListReportsError>,
+    InfiniteData<ReportsControllerListReportsResponse>,
+    QueryKey<Options<ReportsControllerListReportsData>>,
+    string | Pick<QueryKey<Options<ReportsControllerListReportsData>>[0], "body" | "headers" | "path" | "query">
+  >(
+    // @ts-ignore
+    {
+      queryFn: async ({ pageParam, queryKey, signal }) => {
+        // @ts-ignore
+        const page: Pick<
+          QueryKey<Options<ReportsControllerListReportsData>>[0],
+          "body" | "headers" | "path" | "query"
+        > =
+          typeof pageParam === "object"
+            ? pageParam
+            : {
+                query: {
+                  cursor: pageParam,
+                },
+              };
+        const params = createInfiniteParams(queryKey, page);
+        const { data } = await reportsControllerListReports({
+          ...options,
+          ...params,
+          signal,
+          throwOnError: true,
+        });
+        return data;
+      },
+      queryKey: reportsControllerListReportsInfiniteQueryKey(options),
+    },
+  );
+  return opts as Omit<typeof opts, "initialData">;
+};
+
+/**
+ * Resolve a report (organizers only)
+ *
+ * Not available to the organizer the report is about. Resolving never deletes anything by itself.
+ */
+export const reportsControllerResolveReportMutation = (
+  options?: Partial<Options<ReportsControllerResolveReportData>>,
+): UseMutationOptions<
+  ReportsControllerResolveReportResponse,
+  AxiosError<ReportsControllerResolveReportError>,
+  Options<ReportsControllerResolveReportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportsControllerResolveReportResponse,
+    AxiosError<ReportsControllerResolveReportError>,
+    Options<ReportsControllerResolveReportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reportsControllerResolveReport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 export const blocksControllerListQueryKey = (options?: Options<BlocksControllerListData>) =>
   createQueryKey("blocksControllerList", options);
