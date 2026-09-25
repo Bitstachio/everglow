@@ -1,25 +1,28 @@
-import { usersControllerCheckUsernameAvailability } from "@/lib/api/generated";
-import { unwrapEnvelope } from "@/lib/api/envelope";
-import { ApiError, getErrorCode } from "@/lib/api/errors";
-import { useEffect, useRef, useState } from "react";
+import { getErrorCode, isApiError } from "@/lib/api/errors";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { checkUsernameAvailability } from "../api/queries";
 import {
   isUsernameFormatValid,
   normalizeUsername,
   usernameAvailabilityMessage,
   type UsernameAvailabilityReason,
+  type UsernameAvailabilityState,
 } from "../lib/username";
 
 export const USERNAME_AVAILABILITY_DEBOUNCE_MS = 300;
 
-export type UsernameAvailabilityStatus = "idle" | "checking" | "available" | "unavailable" | "paused";
+export type { UsernameAvailabilityState, UsernameAvailabilityStatus } from "../lib/username";
 
-export type UsernameAvailabilityState = {
-  status: UsernameAvailabilityStatus;
+type UseUsernameAvailabilityOptions = {
+  /** When the candidate matches this (normalized), skip the network check. */
+  currentUsername?: string;
+  debounceMs?: number;
+};
+
+type RemoteResult = {
   username: string;
+  available: boolean;
   reason: UsernameAvailabilityReason | null;
-  message: string | null;
-  /** True when the candidate may be submitted (own username or API said available). */
-  canSubmit: boolean;
 };
 
 const idleState = (username = ""): UsernameAvailabilityState => ({
@@ -30,10 +33,33 @@ const idleState = (username = ""): UsernameAvailabilityState => ({
   canSubmit: false,
 });
 
-type UseUsernameAvailabilityOptions = {
-  /** When the candidate matches this (normalized), skip the network check. */
-  currentUsername?: string;
-  debounceMs?: number;
+const deriveLocalState = (rawUsername: string, currentUsername?: string): UsernameAvailabilityState | null => {
+  const normalized = normalizeUsername(rawUsername);
+  const owned = currentUsername ? normalizeUsername(currentUsername) : "";
+
+  if (!normalized) return idleState();
+
+  if (owned && normalized === owned) {
+    return {
+      status: "available",
+      username: normalized,
+      reason: null,
+      message: null,
+      canSubmit: true,
+    };
+  }
+
+  if (!isUsernameFormatValid(normalized)) {
+    return {
+      status: "unavailable",
+      username: normalized,
+      reason: "INVALID_FORMAT",
+      message: usernameAvailabilityMessage("INVALID_FORMAT"),
+      canSubmit: false,
+    };
+  }
+
+  return null;
 };
 
 /**
@@ -45,112 +71,48 @@ export const useUsernameAvailability = (
   rawUsername: string,
   { currentUsername, debounceMs = USERNAME_AVAILABILITY_DEBOUNCE_MS }: UseUsernameAvailabilityOptions = {},
 ): UsernameAvailabilityState => {
-  const [state, setState] = useState<UsernameAvailabilityState>(idleState);
-  const pausedUntilRef = useRef(0);
-  const [pauseEpoch, setPauseEpoch] = useState(0);
+  const normalized = normalizeUsername(rawUsername);
+  const localState = useMemo(() => deriveLocalState(rawUsername, currentUsername), [rawUsername, currentUsername]);
+  const [remote, setRemote] = useState<RemoteResult | null>(null);
+  const [pausedUntil, setPausedUntil] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
-    const normalized = normalizeUsername(rawUsername);
-    const owned = currentUsername ? normalizeUsername(currentUsername) : "";
-
-    if (!normalized) {
-      setState(idleState());
-      return;
-    }
-
-    if (owned && normalized === owned) {
-      setState({
-        status: "available",
-        username: normalized,
-        reason: null,
-        message: null,
-        canSubmit: true,
-      });
-      return;
-    }
-
-    if (!isUsernameFormatValid(normalized)) {
-      setState({
-        status: "unavailable",
-        username: normalized,
-        reason: "INVALID_FORMAT",
-        message: usernameAvailabilityMessage("INVALID_FORMAT"),
-        canSubmit: false,
-      });
-      return;
-    }
+    if (localState) return;
 
     const now = Date.now();
-    if (now < pausedUntilRef.current) {
-      const remainingMs = pausedUntilRef.current - now;
-      setState({
-        status: "paused",
-        username: normalized,
-        reason: null,
-        message: "Too many checks. Try again in a moment.",
-        canSubmit: false,
-      });
-      const wake = setTimeout(() => setPauseEpoch((value) => value + 1), remainingMs);
+    if (now < pausedUntil) {
+      const wake = setTimeout(() => setClock(Date.now()), pausedUntil - now);
       return () => clearTimeout(wake);
     }
 
-    setState({
-      status: "checking",
-      username: normalized,
-      reason: null,
-      message: "Checking availability…",
-      canSubmit: false,
-    });
-
+    const requestId = ++requestIdRef.current;
     const controller = new AbortController();
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const { data } = await usersControllerCheckUsernameAvailability({
-            query: { username: normalized },
-            signal: controller.signal,
-            throwOnError: true,
-          });
-          const result = unwrapEnvelope(data);
-          const reason = (result.reason ?? null) as UsernameAvailabilityReason | null;
-          if (result.available) {
-            setState({
-              status: "available",
-              username: result.username,
-              reason: null,
-              message: "Username is available",
-              canSubmit: true,
-            });
-            return;
-          }
-          setState({
-            status: "unavailable",
+          const result = await checkUsernameAvailability(normalized, controller.signal);
+          if (requestId !== requestIdRef.current) return;
+          setRemote({
             username: result.username,
-            reason,
-            message: usernameAvailabilityMessage(reason) ?? "This username is unavailable",
-            canSubmit: false,
+            available: result.available,
+            reason: (result.reason ?? null) as UsernameAvailabilityReason | null,
           });
         } catch (error) {
-          if (controller.signal.aborted) return;
+          if (controller.signal.aborted || requestId !== requestIdRef.current) return;
           if (getErrorCode(error) === "RATE_LIMIT_EXCEEDED") {
-            const retryAfterSeconds = error instanceof ApiError ? (error.retryAfterSeconds ?? 60) : 60;
-            pausedUntilRef.current = Date.now() + retryAfterSeconds * 1000;
-            setState({
-              status: "paused",
-              username: normalized,
-              reason: null,
-              message: "Too many checks. Try again in a moment.",
-              canSubmit: false,
-            });
-            setPauseEpoch((value) => value + 1);
+            const retryAfterSeconds = isApiError(error) ? (error.retryAfterSeconds ?? 60) : 60;
+            const until = Date.now() + retryAfterSeconds * 1000;
+            setPausedUntil(until);
+            setClock(Date.now());
+            setRemote(null);
             return;
           }
-          setState({
-            status: "unavailable",
+          setRemote({
             username: normalized,
+            available: false,
             reason: null,
-            message: "Could not check availability. Please try again.",
-            canSubmit: false,
           });
         }
       })();
@@ -160,7 +122,53 @@ export const useUsernameAvailability = (
       clearTimeout(timer);
       controller.abort();
     };
-  }, [rawUsername, currentUsername, debounceMs, pauseEpoch]);
+  }, [localState, normalized, debounceMs, pausedUntil, clock]);
 
-  return state;
+  if (localState) return localState;
+
+  if (clock < pausedUntil) {
+    return {
+      status: "paused",
+      username: normalized,
+      reason: null,
+      message: "Too many checks. Try again in a moment.",
+      canSubmit: false,
+    };
+  }
+
+  if (remote && remote.username === normalized) {
+    if (remote.available) {
+      return {
+        status: "available",
+        username: remote.username,
+        reason: null,
+        message: "Username is available",
+        canSubmit: true,
+      };
+    }
+    if (remote.reason) {
+      return {
+        status: "unavailable",
+        username: remote.username,
+        reason: remote.reason,
+        message: usernameAvailabilityMessage(remote.reason) ?? "This username is unavailable",
+        canSubmit: false,
+      };
+    }
+    return {
+      status: "unavailable",
+      username: remote.username,
+      reason: null,
+      message: "Could not check availability. Please try again.",
+      canSubmit: false,
+    };
+  }
+
+  return {
+    status: "checking",
+    username: normalized,
+    reason: null,
+    message: "Checking availability…",
+    canSubmit: false,
+  };
 };

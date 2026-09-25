@@ -1,4 +1,4 @@
-import { ApiError, getErrorCode, getErrorMessage, toApiError } from "./errors";
+import { createApiError, getErrorCode, getErrorMessage, isApiError, toApiError } from "./errors";
 
 describe("toApiError", () => {
   it("hides 5xx response bodies from the UI", () => {
@@ -9,7 +9,7 @@ describe("toApiError", () => {
       },
     });
 
-    expect(error).toBeInstanceOf(ApiError);
+    expect(isApiError(error)).toBe(true);
     expect(error.message).toBe("Something went wrong. Please try again.");
     expect(error.status).toBe(500);
   });
@@ -50,5 +50,13 @@ describe("getErrorMessage", () => {
   it("returns the Error message or the fallback", () => {
     expect(getErrorMessage(new Error("Offline"), "Please try again.")).toBe("Offline");
     expect(getErrorMessage("nope", "Please try again.")).toBe("Please try again.");
+  });
+});
+
+describe("createApiError", () => {
+  it("builds a named ApiError", () => {
+    const error = createApiError("taken", { status: 409, code: "USERNAME_TAKEN" });
+    expect(isApiError(error)).toBe(true);
+    expect(error.status).toBe(409);
   });
 });

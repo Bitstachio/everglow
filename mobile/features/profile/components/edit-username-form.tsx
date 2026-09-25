@@ -4,7 +4,7 @@ import { ThemedText } from "@/components/ui/themed-text";
 import type { Control } from "react-hook-form";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { UsernameAvailabilityState } from "../hooks/use-username-availability";
+import type { UsernameAvailabilityState } from "../lib/username";
 
 type EditUsernameFormProps = {
   control: Control<{ username: string }>;

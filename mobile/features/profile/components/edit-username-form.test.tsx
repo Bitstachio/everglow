@@ -1,7 +1,7 @@
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { useForm } from "react-hook-form";
 import { EditUsernameForm } from "./edit-username-form";
-import type { UsernameAvailabilityState } from "../hooks/use-username-availability";
+import type { UsernameAvailabilityState } from "../lib/username";
 
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 12, left: 0 }),
