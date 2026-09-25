@@ -100,18 +100,12 @@ export const useEventDetailScreen = () => {
       const fileType = uriParts[uriParts.length - 1] || "jpg";
       const fileName = `event_photo_${Date.now()}.${fileType}`;
       const mimeType = `image/${fileType}`;
-      const sizeBytes = asset.fileSize ?? 0;
-
-      if (sizeBytes <= 0) {
-        throw new Error("Could not determine file size for upload");
-      }
 
       await uploadPhotoMutation.mutateAsync({
         eventId,
         uri: asset.uri,
         fileName,
         mimeType,
-        sizeBytes,
       });
       Alert.alert("Success", "Photo uploaded successfully!");
     } catch (error) {

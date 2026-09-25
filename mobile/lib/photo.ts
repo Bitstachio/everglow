@@ -48,12 +48,21 @@ export const uploadPhoto = async (
   fileUri: string,
   _fileName: string,
   fileType: string,
-  sizeBytes: number,
 ): Promise<PhotoResponseDto> => {
   const contentType = normalizeContentType(fileType);
+
+  // The upload URL is signed for an exact Content-Length, so the size must be
+  // that of the bytes we send. The picker's fileSize can describe the original
+  // photo rather than the cropped, re-encoded file, which S3 rejects with 403.
+  const fileResponse = await fetch(fileUri);
+  const blob = await fileResponse.blob();
+  if (blob.size <= 0) {
+    throw new Error("Could not determine file size for upload");
+  }
+
   const { data: slotsBody } = await photosControllerCreateUploadUrls({
     path: { eventId },
-    body: { files: [{ contentType, sizeBytes }] },
+    body: { files: [{ contentType, sizeBytes: blob.size }] },
     throwOnError: true,
   });
 
@@ -64,11 +73,14 @@ export const uploadPhoto = async (
     throw new Error("No upload slot returned from the API");
   }
 
-  const fileResponse = await fetch(fileUri);
-  const blob = await fileResponse.blob();
+  // React Native sends a Blob body with the blob's own type as Content-Type,
+  // overriding the header below. A blob read from a file:// URI has an empty
+  // type, so S3 sees "content-type:" and rejects the signed URL with 403.
+  // slice() gives a typed view of the same bytes without copying them.
+  const typedBlob = blob.slice(0, blob.size, contentType);
 
   const uploadResponse = await fetch(slot.uploadUrl, {
-    body: blob,
+    body: typedBlob,
     headers: { "Content-Type": contentType },
     method: "PUT",
   });
