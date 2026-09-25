@@ -220,13 +220,13 @@ Two things fix it, and both are needed.
 
 **Schema.** The relations now say what should happen on their own:
 
-| Relation             | On delete | Why                                                                                                      |
-| -------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
-| `EventAccess.userId` | `Cascade` | A membership has no meaning without its member.                                                          |
-| `Event.creatorId`    | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                           |
-| `Photo.addedById`    | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota. |
+| Relation                                                            | On delete | Why                                                                                                                                                                      |
+| ------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EventAccess.userId`                                                | `Cascade` | A membership has no meaning without its member.                                                                                                                          |
+| `Event.creatorId`                                                   | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                                                                                           |
+| `Photo.addedById`                                                   | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota.                                                                 |
 | `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence that belongs to the event; it outlives whoever filed it, was named in it, or resolved it ([moderation.md](./moderation.md#what-happens-on-delete)). |
-| `UserBlock.blockerId`, `UserBlock.blockedId` | `Cascade` | A block means nothing once either account is gone. |
+| `UserBlock.blockerId`, `UserBlock.blockedId`                        | `Cascade` | A block means nothing once either account is gone.                                                                                                                       |
 
 **`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos, the covers of deleted events, and the avatar alike), which are purged best effort after the row is gone. Reports and blocks need no step here: their relations above settle them on their own.
 
@@ -245,20 +245,20 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 
 ## 6a. What happens to the account's data
 
-| Data                                          | On deletion                                                                   |
-| --------------------------------------------- | ----------------------------------------------------------------------------- |
-| Identity, profile (`UserDetails`)             | Deleted. No name or username survives.                                        |
-| Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.      |
-| Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                          |
-| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                  |
-| Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                |
-| Events with another organizer                 | Untouched; only the membership goes.                                          |
-| `Event.creatorId` on surviving events         | Null.                                                                         |
-| Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere. |
-| Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                             |
-| Storage quota, purchased limit                | Gone with the row. Kept photos count toward nobody's quota.                   |
+| Data                                          | On deletion                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------ |
+| Identity, profile (`UserDetails`)             | Deleted. No name or username survives.                                         |
+| Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.       |
+| Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                           |
+| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                   |
+| Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                 |
+| Events with another organizer                 | Untouched; only the membership goes.                                           |
+| `Event.creatorId` on surviving events         | Null.                                                                          |
+| Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere.   |
+| Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                              |
+| Storage quota, purchased limit                | Gone with the row. Kept photos count toward nobody's quota.                    |
 | Reports filed, received or resolved           | Kept in their event with the account's id nulled; they go when the event does. |
-| Blocks, in either direction                   | Deleted by cascade.                                                           |
+| Blocks, in either direction                   | Deleted by cascade.                                                            |
 
 ### The photo choice is required, and KEEP is the one to offer
 
@@ -266,7 +266,7 @@ WhatsApp leaves the media you sent with the people you sent it to, and Telegram 
 
 Privacy still wins when the person asks: `?photos=DELETE` removes their uploads everywhere. Either way the _link_ between person and photo is gone, which is the part that is their personal data. The choice is stored on the row with the intent, so a resumed saga honours what the user actually chose rather than a default.
 
-So `?photos=` is **required**, with no server-side default. Both outcomes are irreversible and they are opposites: one leaves a stranger's binaries in an album, the other destroys other people's wedding photos. A client that forgets the parameter is a bug, and the only answer that cannot be the wrong one is a 400 — deletion is retriable, a wiped album is not. The app therefore has to ask, which is also what the App Store disclosure needs: the person is told that KEEP leaves their photos in the event and only the link to them is removed. `ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK` (KEEP) is not that default; it is what a *resumed* saga uses if its row somehow carries no choice, because the reconciler has nobody left to ask.
+So `?photos=` is **required**, with no server-side default. Both outcomes are irreversible and they are opposites: one leaves a stranger's binaries in an album, the other destroys other people's wedding photos. A client that forgets the parameter is a bug, and the only answer that cannot be the wrong one is a 400 — deletion is retriable, a wiped album is not. The app therefore has to ask, which is also what the App Store disclosure needs: the person is told that KEEP leaves their photos in the event and only the link to them is removed. `ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK` (KEEP) is not that default; it is what a _resumed_ saga uses if its row somehow carries no choice, because the reconciler has nobody left to ask.
 
 ### Events are handed over, not orphaned
 
@@ -280,33 +280,33 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 
 ## 6b. Edge cases
 
-| Case                                           | Handling                                                                                                 |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Organises an event with another organizer      | Membership removed; event untouched                                                                      |
-| Only organizer, other members are participants | Longest-standing participant promoted                                                                    |
-| Only organizer, other members are only viewers | Longest-standing viewer promoted                                                                         |
-| Only member of the event                       | Event deleted with all its photos and its cover; S3 purged after commit                                  |
-| Created an event it later left                 | `creatorId` set to null; nothing else                                                                    |
-| Uploaded photos, `?photos=KEEP`                | Kept, `addedById` null; organizers can still delete them                                                 |
-| Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit                                                        |
-| Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the S3 orphan reconciler         |
+| Case                                           | Handling                                                                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Organises an event with another organizer      | Membership removed; event untouched                                                                                    |
+| Only organizer, other members are participants | Longest-standing participant promoted                                                                                  |
+| Only organizer, other members are only viewers | Longest-standing viewer promoted                                                                                       |
+| Only member of the event                       | Event deleted with all its photos and its cover; S3 purged after commit                                                |
+| Created an event it later left                 | `creatorId` set to null; nothing else                                                                                  |
+| Uploaded photos, `?photos=KEEP`                | Kept, `addedById` null; organizers can still delete them                                                               |
+| Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit; their OPEN reports closed as `ACTIONED` first (`reportsClosed`)     |
+| Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the S3 orphan reconciler                       |
 | Has an avatar                                  | Key collected in prep, column left to the cascade, object purged after commit ([image-uploads.md](./image-uploads.md)) |
-| Avatar uploaded but never confirmed            | No row ever referenced it; an orphan for the S3 orphan reconciler                                        |
-| Prep fails                                     | 500, Auth0 untouched, login intact, retryable                                                            |
-| Auth0 fails after intent                       | 500, row and flag kept; reconciler retries, 404 counts as success                                        |
-| Database delete fails after Auth0              | Row kept and flagged; reconciler finishes it                                                             |
-| S3 purge fails                                 | Logged with counts; S3 orphan reconciler reclaims; request still 204                                     |
-| Any request with a pre-deletion token          | Generic 401; client signs out                                                                            |
-| Same person signs in again later               | New account, new id, free tier (see authentication.md §6)                                                |
-| Deletion abandoned after the attempt budget    | Reported once as `user.account.deletion_abandoned`; the row awaits a person (§4 runbook)                 |
-| Two members of one event deleting at once      | Neither counts the other as cover; the event is handed to a member who is staying, or deleted if none is |
-| Two co-organizers deleting at once             | The first to run prep hands over to a staying member; the second then sees real cover and skips          |
-| Successor is promoted after their own prep ran | Cannot happen: a member mid-deletion is never chosen as successor                                        |
-| Event already deleted by a concurrent deletion | `deleteMany` makes it a no-op, and the run is not counted as a deletion                                  |
-| Account with a raised storage limit            | Limit gone with the row; refunds are billing's concern                                                   |
-| Account never onboarded                        | Same flow; only the row to remove                                                                        |
-| Missing `?photos=`                             | 400, nothing deleted; the choice is required                                                             |
-| Unknown `?photos=` value                       | 400, nothing deleted                                                                                     |
+| Avatar uploaded but never confirmed            | No row ever referenced it; an orphan for the S3 orphan reconciler                                                      |
+| Prep fails                                     | 500, Auth0 untouched, login intact, retryable                                                                          |
+| Auth0 fails after intent                       | 500, row and flag kept; reconciler retries, 404 counts as success                                                      |
+| Database delete fails after Auth0              | Row kept and flagged; reconciler finishes it                                                                           |
+| S3 purge fails                                 | Logged with counts; S3 orphan reconciler reclaims; request still 204                                                   |
+| Any request with a pre-deletion token          | Generic 401; client signs out                                                                                          |
+| Same person signs in again later               | New account, new id, free tier (see authentication.md §6)                                                              |
+| Deletion abandoned after the attempt budget    | Reported once as `user.account.deletion_abandoned`; the row awaits a person (§4 runbook)                               |
+| Two members of one event deleting at once      | Neither counts the other as cover; the event is handed to a member who is staying, or deleted if none is               |
+| Two co-organizers deleting at once             | The first to run prep hands over to a staying member; the second then sees real cover and skips                        |
+| Successor is promoted after their own prep ran | Cannot happen: a member mid-deletion is never chosen as successor                                                      |
+| Event already deleted by a concurrent deletion | `deleteMany` makes it a no-op, and the run is not counted as a deletion                                                |
+| Account with a raised storage limit            | Limit gone with the row; refunds are billing's concern                                                                 |
+| Account never onboarded                        | Same flow; only the row to remove                                                                                      |
+| Missing `?photos=`                             | 400, nothing deleted; the choice is required                                                                           |
+| Unknown `?photos=` value                       | 400, nothing deleted                                                                                                   |
 
 ---
 

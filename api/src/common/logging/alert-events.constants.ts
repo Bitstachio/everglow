@@ -22,6 +22,9 @@ export const ALERT_EVENTS = {
   UPLOAD_SLOTS_PRESIGN_FAILED: "photo.upload_slots.presign_failed",
   UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",
 
+  REPORT_ESCALATED: "report.escalated",
+  REPORT_STALE: "report.stale",
+
   // Scheduler heartbeats and failures, emitted by runScheduledJob.
   ACCOUNT_DELETION_RECONCILE_RUN_COMPLETED: "user.account.deletion_reconcile.run_completed",
   ACCOUNT_DELETION_RECONCILE_RUN_FAILED: "user.account.deletion_reconcile.run_failed",
@@ -29,6 +32,8 @@ export const ALERT_EVENTS = {
   PHOTO_PENDING_CLEANUP_RUN_FAILED: "photo.pending_cleanup.run_failed",
   S3_ORPHAN_RECONCILE_RUN_COMPLETED: "storage.orphan_reconcile.run_completed",
   S3_ORPHAN_RECONCILE_RUN_FAILED: "storage.orphan_reconcile.run_failed",
+  STALE_REPORT_CHECK_RUN_COMPLETED: "report.stale_check.run_completed",
+  STALE_REPORT_CHECK_RUN_FAILED: "report.stale_check.run_failed",
 } as const;
 
 export type AlertEvent = (typeof ALERT_EVENTS)[keyof typeof ALERT_EVENTS];

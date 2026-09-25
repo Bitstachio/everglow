@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
-import { AccessLevel, Prisma } from "generated/prisma/client";
+import { AccessLevel, Prisma, ReportStatus } from "generated/prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
+import { SEVERE_REPORT_REASONS, reportHideThreshold } from "./moderation.constants";
 import { EventForPhotoVisibility } from "./moderation.types";
 
 /**
@@ -16,15 +17,30 @@ export class PhotoVisibilityService {
   /**
    * A `Photo` filter to AND into a query scoped to `event`. Organizers get an
    * empty filter: they moderate, so they see everything. Everyone else loses
-   * photos of anyone they blocked or who blocked them.
    *
-   * No extra query: the rule is a subquery inside the photo query itself.
+   * 1. photos they have an OPEN report on,
+   * 2. photos with an OPEN report for a severe reason (nudity, violence),
+   * 3. photos whose OPEN reports reached the event's hide threshold,
+   * 4. photos of anyone they blocked or who blocked them.
+   *
+   * Costs one grouped query per call, never one per photo; 1, 2 and 4 are
+   * subqueries inside the photo query itself.
    */
-  whereVisibleTo(callerId: string, event: EventForPhotoVisibility): Prisma.PhotoWhereInput {
+  async whereVisibleTo(callerId: string, event: EventForPhotoVisibility): Promise<Prisma.PhotoWhereInput> {
     if (event.eventAccesses.some((access) => access.accessLevel === AccessLevel.ORGANIZER)) return {};
+
+    const overThreshold = await this.prisma.report.groupBy({
+      by: ["photoId"],
+      where: { eventId: event.id, status: ReportStatus.OPEN, photoId: { not: null } },
+      having: { photoId: { _count: { gte: reportHideThreshold(event._count.eventAccesses) } } },
+    });
+    const hiddenPhotoIds = overThreshold.flatMap(({ photoId }) => (photoId ? [photoId] : []));
 
     return {
       AND: [
+        { reports: { none: { reporterId: callerId, status: ReportStatus.OPEN } } },
+        { reports: { none: { status: ReportStatus.OPEN, reason: { in: [...SEVERE_REPORT_REASONS] } } } },
+        { id: { notIn: hiddenPhotoIds } },
         {
           // A photo whose uploader is gone (addedById null) matches no block.
           NOT: {
@@ -45,7 +61,7 @@ export class PhotoVisibilityService {
   /** Whether one photo of `event` passes `whereVisibleTo` for the caller. */
   async isVisibleTo(photoId: string, callerId: string, event: EventForPhotoVisibility): Promise<boolean> {
     const visible = await this.prisma.photo.count({
-      where: { AND: [{ id: photoId }, this.whereVisibleTo(callerId, event)] },
+      where: { AND: [{ id: photoId }, await this.whereVisibleTo(callerId, event)] },
     });
 
     return visible > 0;

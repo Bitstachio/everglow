@@ -20,6 +20,7 @@ describe("AccountDeletionPrepService", () => {
     eventsHandedOver: 0,
     photosKept: 0,
     photosDeleted: 0,
+    reportsClosed: 0,
     uploadsDiscarded: 0,
     avatarQueued: false,
   };
@@ -178,7 +179,8 @@ describe("AccountDeletionPrepService", () => {
 
   describe("photos", () => {
     const pending = [{ s3Key: "photos/u/e/pending-1" }, { s3Key: "photos/u/e/pending-2" }];
-    const ready = [{ s3Key: "photos/u/e/ready-1" }];
+    const readyPhotoId = "99999999-9999-9999-9999-999999999999";
+    const ready = [{ id: readyPhotoId, s3Key: "photos/u/e/ready-1" }];
 
     beforeEach(() => {
       prisma.photo.findMany.mockImplementation(((args: { where: { status?: PhotoStatus } }) =>
@@ -188,6 +190,7 @@ describe("AccountDeletionPrepService", () => {
           count: args.where.status === PhotoStatus.PENDING ? pending.length : ready.length,
         })) as never);
       prisma.photo.updateMany.mockResolvedValue({ count: ready.length });
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
     });
 
     it("always discards uploads in flight and collects their keys", async () => {
@@ -208,6 +211,8 @@ describe("AccountDeletionPrepService", () => {
       expect(result.summary).toMatchObject({ photosKept: 1, photosDeleted: 0 });
       // A kept photo's object must not be purged.
       expect(result.s3Keys).not.toContain("photos/u/e/ready-1");
+      // The kept photo is still there to judge, so its reports stay open.
+      expect(prisma.report.updateMany).not.toHaveBeenCalled();
     });
 
     it("removes uploaded photos everywhere when asked to", async () => {
@@ -217,6 +222,21 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
       expect(result.summary).toMatchObject({ photosKept: 0, photosDeleted: 1, uploadsDiscarded: 2 });
       expect(result.s3Keys).toEqual(expect.arrayContaining(["photos/u/e/ready-1", "photos/u/e/pending-1"]));
+    });
+
+    it("closes the OPEN reports on the photos it removes, before removing them", async () => {
+      prisma.report.updateMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.DELETE);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: { photoId: { in: [readyPhotoId] }, status: "OPEN" },
+        data: { status: "ACTIONED", resolvedById: userId, resolvedAt: expect.any(Date) as unknown },
+      });
+      expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.photo.deleteMany.mock.invocationCallOrder.at(-1)!,
+      );
+      expect(result.summary.reportsClosed).toBe(2);
     });
   });
 

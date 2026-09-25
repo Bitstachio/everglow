@@ -169,6 +169,63 @@ export type PhotoListResponseDto = {
   nextCursor: string | null;
 };
 
+export type ReportTargetType = "PHOTO" | "MEMBER";
+
+export type ReportReason = "SPAM" | "NUDITY_OR_SEXUAL" | "HARASSMENT" | "VIOLENCE" | "OTHER";
+
+export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED";
+
+export type ReportResponseDto = {
+  id: string;
+  eventId: string;
+  targetType: ReportTargetType;
+  /**
+   * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
+   */
+  photoId: string | null;
+  /**
+   * The reported member, or the uploader of the reported photo. Null once that account has been deleted, or when the photo had no uploader left.
+   */
+  reportedUserId: string | null;
+  reason: ReportReason;
+  note: string | null;
+  status: ReportStatus;
+  /**
+   * The organizer who resolved the report. Null while OPEN, and once that account has been deleted.
+   */
+  resolvedById: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+};
+
+export type CreateReportDto = {
+  reason: ReportReason;
+  /**
+   * Optional context for the organizers, in the reporter's own words.
+   */
+  note?: string;
+};
+
+export type ReportListResponseDto = {
+  items: Array<ReportResponseDto>;
+  /**
+   * Opaque cursor for the next page; pass it as ?cursor=. Null on the last page.
+   */
+  nextCursor: string | null;
+};
+
+/**
+ * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
+ */
+export type ReportResolutionAction = "REMOVE_PHOTO" | "REMOVE_MEMBER" | "DISMISS";
+
+export type ResolveReportDto = {
+  /**
+   * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
+   */
+  action: ReportResolutionAction;
+};
+
 export type BlockedUserResponseDto = {
   userId: string;
   /**
@@ -878,6 +935,189 @@ export type PhotosControllerFindOneResponses = {
 };
 
 export type PhotosControllerFindOneResponse = PhotosControllerFindOneResponses[keyof PhotosControllerFindOneResponses];
+
+export type ReportsControllerReportPhotoData = {
+  body: CreateReportDto;
+  path: {
+    photoId: string;
+  };
+  query?: never;
+  url: "/api/v2/photos/{photoId}/reports";
+};
+
+export type ReportsControllerReportPhotoErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportPhotoError =
+  ReportsControllerReportPhotoErrors[keyof ReportsControllerReportPhotoErrors];
+
+export type ReportsControllerReportPhotoResponses = {
+  /**
+   * The caller's open report on the photo
+   */
+  201: {
+    data: ReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportPhotoResponse =
+  ReportsControllerReportPhotoResponses[keyof ReportsControllerReportPhotoResponses];
+
+export type ReportsControllerReportMemberData = {
+  body: CreateReportDto;
+  path: {
+    eventId: string;
+    targetUserId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/participants/{targetUserId}/reports";
+};
+
+export type ReportsControllerReportMemberErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportMemberError =
+  ReportsControllerReportMemberErrors[keyof ReportsControllerReportMemberErrors];
+
+export type ReportsControllerReportMemberResponses = {
+  /**
+   * The caller's open report on the member
+   */
+  201: {
+    data: ReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportMemberResponse =
+  ReportsControllerReportMemberResponses[keyof ReportsControllerReportMemberResponses];
+
+export type ReportsControllerListReportsData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: {
+    /**
+     * Opaque cursor: the nextCursor value from the previous page. Omit for the first page.
+     */
+    cursor?: string;
+    limit?: number;
+    /**
+     * Omit for every status.
+     */
+    status?: ReportStatus;
+  };
+  url: "/api/v2/events/{eventId}/reports";
+};
+
+export type ReportsControllerListReportsErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerListReportsError =
+  ReportsControllerListReportsErrors[keyof ReportsControllerListReportsErrors];
+
+export type ReportsControllerListReportsResponses = {
+  /**
+   * Reports, newest first
+   */
+  200: {
+    data: ReportListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerListReportsResponse =
+  ReportsControllerListReportsResponses[keyof ReportsControllerListReportsResponses];
+
+export type ReportsControllerResolveReportData = {
+  body: ResolveReportDto;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/reports/{reportId}";
+};
+
+export type ReportsControllerResolveReportErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerResolveReportError =
+  ReportsControllerResolveReportErrors[keyof ReportsControllerResolveReportErrors];
+
+export type ReportsControllerResolveReportResponses = {
+  /**
+   * Resolved report
+   */
+  200: {
+    data: ReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerResolveReportResponse =
+  ReportsControllerResolveReportResponses[keyof ReportsControllerResolveReportResponses];
 
 export type BlocksControllerListData = {
   body?: never;

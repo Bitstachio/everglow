@@ -12,6 +12,7 @@ import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } f
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
+import { TEST_PHOTO_ID } from "./helpers/photos.fixtures";
 import { authHeader, TEST_APPLE_ACCESS_TOKEN } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
@@ -859,8 +860,9 @@ describe("UsersController (integration)", () => {
         Promise.resolve(
           args.where.status === PhotoStatus.PENDING
             ? [{ s3Key: "photos/u/e/pending" }]
-            : [{ s3Key: "photos/u/e/ready" }],
+            : [{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/ready" }],
         )) as never);
+      prisma.report.updateMany.mockResolvedValue({ count: 1 });
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
@@ -872,6 +874,10 @@ describe("UsersController (integration)", () => {
 
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { addedById: TEST_USER_ID } });
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      // The deleted photos' OPEN reports are closed, not left waiting for a verdict.
+      expect(prisma.report.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { photoId: { in: [TEST_PHOTO_ID] }, status: "OPEN" } }),
+      );
       // Objects go only once the rows are gone.
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/pending", "photos/u/e/ready"]);
       expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(

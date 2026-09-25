@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { AccessLevel, AccountDeletionPhotoPolicy, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
 
 export interface AccountDeletionPrepSummary {
@@ -12,6 +13,8 @@ export interface AccountDeletionPrepSummary {
   photosKept: number;
   /** READY photos removed from surviving events. */
   photosDeleted: number;
+  /** OPEN reports on those photos, closed as ACTIONED because the photo is gone. */
+  reportsClosed: number;
   /** PENDING upload slots discarded. */
   uploadsDiscarded: number;
   /** Whether the profile had an avatar whose object is queued for the purge. */
@@ -142,9 +145,15 @@ export class AccountDeletionPrepService {
     // 3. READY photos in the events that outlive the account.
     let photosKept = 0;
     let photosDeleted = 0;
+    let reportsClosed = 0;
     if (photoPolicy === AccountDeletionPhotoPolicy.DELETE) {
-      const ready = await tx.photo.findMany({ where: { addedById: userId }, select: { s3Key: true } });
+      const ready = await tx.photo.findMany({ where: { addedById: userId }, select: { id: true, s3Key: true } });
       if (ready.length > 0) {
+        reportsClosed = await closeReportsOnDeletedPhotos(
+          tx,
+          ready.map((photo) => photo.id),
+          userId,
+        );
         await tx.photo.deleteMany({ where: { addedById: userId } });
         s3Keys.push(...ready.map((photo) => photo.s3Key));
       }
@@ -169,6 +178,7 @@ export class AccountDeletionPrepService {
         eventsHandedOver,
         photosKept,
         photosDeleted,
+        reportsClosed,
         uploadsDiscarded: pending.length,
         avatarQueued: avatarS3Key !== null,
       },

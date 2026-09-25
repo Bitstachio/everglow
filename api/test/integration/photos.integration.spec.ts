@@ -79,6 +79,7 @@ describe("PhotosController (integration)", () => {
   const eventWithAccess = (access: ReturnType<typeof buildOrganizerAccess>[]) => ({
     ...buildEvent(),
     eventAccesses: access,
+    _count: { eventAccesses: 5 },
   });
 
   const photoWithAccess = (
@@ -104,7 +105,8 @@ describe("PhotosController (integration)", () => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
-    // Moderation default: a photo read one by one is visible.
+    // Moderation defaults: no photo is over the report threshold, and a photo read one by one is visible.
+    prisma.report.groupBy.mockResolvedValue([]);
     prisma.photo.count.mockResolvedValue(1);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => fn(prisma));
@@ -428,14 +430,17 @@ describe("PhotosController (integration)", () => {
       await request(httpServer).get(photosListPath()).query({ limit: 0 }).set(authHeader()).expect(400);
     });
 
-    it("returns 200 without the photos that blocks hide from a member", async () => {
+    it("returns 200 without the photos that reports or blocks hide from a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+      prisma.report.groupBy.mockResolvedValue([{ photoId: TEST_OTHER_PHOTO_ID }] as never);
       prisma.photo.findMany.mockResolvedValue([]);
 
       await request(httpServer).get(photosListPath()).set(authHeader()).expect(200);
 
       const [args] = prisma.photo.findMany.mock.calls[0];
       const filters = JSON.stringify(args?.where);
+      expect(filters).toContain(JSON.stringify({ reports: { none: { reporterId: TEST_USER_ID, status: "OPEN" } } }));
+      expect(filters).toContain(JSON.stringify({ id: { notIn: [TEST_OTHER_PHOTO_ID] } }));
       expect(filters).toContain(JSON.stringify({ blocksReceived: { some: { blockerId: TEST_USER_ID } } }));
       expect(filters).toContain(JSON.stringify({ blocksInitiated: { some: { blockedId: TEST_USER_ID } } }));
     });
@@ -448,6 +453,7 @@ describe("PhotosController (integration)", () => {
 
       const [args] = prisma.photo.findMany.mock.calls[0];
       expect(JSON.stringify(args?.where)).not.toContain("blocksReceived");
+      expect(prisma.report.groupBy).not.toHaveBeenCalled();
     });
 
     it("returns 401 when the access token is missing", async () => {
@@ -484,7 +490,7 @@ describe("PhotosController (integration)", () => {
       expect(body.data).toMatchObject(expectedPhotoResponse(photo, TEST_SIGNED_GET_URL));
     });
 
-    it("returns 404 when a block hides the photo from the caller", async () => {
+    it("returns 404 when reports or blocks hide the photo from the caller", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildViewerAccess()]) as never);
       prisma.photo.count.mockResolvedValue(0);
 
@@ -526,12 +532,22 @@ describe("PhotosController (integration)", () => {
   });
 
   describe("DELETE /photos/:photoId", () => {
+    beforeEach(() => {
+      prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    });
+
     it("returns 204 when an organizer deletes another member's photo", async () => {
       const photo = photoWithAccess([buildOrganizerAccess()], { addedById: TEST_OTHER_USER_ID });
       prisma.photo.findUnique.mockResolvedValue(photo as never);
       prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+      // Its OPEN reports close with it.
+      expect(prisma.report.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { photoId: { in: [photo.id] }, status: "OPEN" } }),
+      );
 
       expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });

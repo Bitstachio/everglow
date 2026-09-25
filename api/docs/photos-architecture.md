@@ -64,10 +64,11 @@ We create the row _before_ the upload happens (so we have a `photoId` to sign ag
 
 `GET /events/:eventId/photos?cursor=<opaque>&limit=50`
 
-- **Cursor-based pagination** (not offset). The cursor is the `createdAt` + `id` of the last photo returned, base64url-encoded and opaque to clients (`src/common/pagination/keyset-cursor.ts`, shared by every keyset-paginated list). Cheaper than `OFFSET N` at large N, and stable when new photos are added mid-scroll.
+- **Cursor-based pagination** (not offset). The cursor is the `createdAt` + `id` of the last photo returned, base64url-encoded and opaque to clients (`src/common/pagination/keyset-cursor.ts`, shared with the report list). Cheaper than `OFFSET N` at large N, and stable when new photos are added mid-scroll.
 - **Applied as a keyset `WHERE`**, not as Prisma's `cursor: { id }`. Prisma resolves the cursor row's sort values at query time, so once that photo is deleted the next page comes back empty and the client thinks the list ended; `(createdAt, id) < (cursorCreatedAt, cursorId)` does not need the row to exist and hits the `(eventId, status, createdAt)` index directly.
 - **Malformed cursor** (anything but a `nextCursor` this API produced) → **400** `Invalid cursor`, never an empty page.
 - **Filters to `status = READY`** automatically. Pending/failed photos are invisible.
+- **Filters out photos hidden by moderation**: ones the caller reported, ones whose open reports reached the event's threshold, and ones of a blocked uploader (either direction). Organizers of the event see everything. The rules and the shared `PhotoVisibilityService` filter are in [moderation.md](./moderation.md#3-hiding-reported-photos).
 - **Default sort:** newest first (`createdAt DESC, id DESC`).
 
 ### Response
@@ -100,6 +101,7 @@ We don't store image dimensions. Apple-Photos-style uniform square grid lets the
 `GET /photos/:photoId`
 
 - Returns single photo metadata + presigned GET URL (TTL ~15min).
+- Applies the same moderation filter as the list: a photo that is hidden from the caller there is a **404** here ([moderation.md](./moderation.md#the-shared-filter)).
 - Same URL pattern as the grid — there's only one stored object per photo. Mobile decides display size; S3 always returns the original.
 
 ### Why not a "download original" vs "view" distinction
