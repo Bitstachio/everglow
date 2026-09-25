@@ -6,6 +6,7 @@ import {
   EVENT_COVER_S3_KEY_PREFIX,
   EVENT_SERVICE_ERRORS,
   ORGANIZER_BLOCKED_BY_CALLER_CODE,
+  REMOVED_FROM_EVENT_CODE,
 } from "src/events/events.constants";
 import { buildInvitationUrl } from "src/events/events.invitation";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "src/events/events.types";
@@ -35,6 +36,7 @@ import {
   expectedEventResponse,
   updateEventPayload,
 } from "./helpers/events.fixtures";
+import { TEST_PHOTO_ID } from "./helpers/photos.fixtures";
 import { TEST_USER_ID, buildUserWithDetails, buildUserWithoutDetails } from "./helpers/users.fixtures";
 
 const EVENTS_BASE_PATH = `/${API_GLOBAL_PREFIX}/events`;
@@ -307,6 +309,31 @@ describe("EventsController (integration)", () => {
       expect(response.body).toMatchObject({
         code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
         message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER("Jane Doe"),
+      });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 with REMOVED_FROM_EVENT when an organizer removed the caller", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      prisma.event.findUnique.mockResolvedValue(buildEvent());
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+      prisma.eventBan.findUnique.mockResolvedValue({
+        id: "99999999-9999-4999-8999-999999999999",
+        eventId: TEST_EVENT_ID,
+        userId: TEST_OTHER_USER_ID,
+        bannedById: TEST_USER_ID,
+        createdAt: new Date(),
+      });
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        code: REMOVED_FROM_EVENT_CODE,
+        message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
       });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -656,16 +683,46 @@ describe("EventsController (integration)", () => {
     const path = (targetUserId = TEST_TARGET_USER_ID) =>
       `${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants/${targetUserId}`;
 
-    it("returns 204 when an organizer removes a participant", async () => {
+    const setupRemove = () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
-      prisma.eventAccess.delete.mockResolvedValue(buildTargetParticipantAccess());
+      prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+    };
+
+    it("returns 204, removes the participant, bans them, and keeps their photos by default", async () => {
+      setupRemove();
 
       await request(httpServer).delete(path()).set(authHeader()).expect(204);
 
-      expect(prisma.eventAccess.delete).toHaveBeenCalledWith({
-        where: { userId_eventId: { userId: TEST_TARGET_USER_ID, eventId: TEST_EVENT_ID } },
+      expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({
+        where: { eventId: TEST_EVENT_ID, userId: TEST_TARGET_USER_ID },
       });
+      expect(prisma.eventBan.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: { eventId: TEST_EVENT_ID, userId: TEST_TARGET_USER_ID, bannedById: TEST_USER_ID },
+        }),
+      );
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
+
+    it("with ?photos=DELETE, deletes the participant's photos in the event and purges their objects", async () => {
+      setupRemove();
+      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p" }] as never);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      s3Service.deleteObjects.mockResolvedValue({ deleted: ["photos/u/e/p"], failed: [] });
+
+      await request(httpServer).delete(path()).query({ photos: "DELETE" }).set(authHeader()).expect(204);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_PHOTO_ID] } } });
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/p"]);
+    });
+
+    it("returns 400 for an unknown photos value", async () => {
+      await request(httpServer).delete(path()).query({ photos: "SOMETIMES" }).set(authHeader()).expect(400);
+
+      expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
     });
 
     it("returns 403 when the caller tries to remove themselves", async () => {
@@ -686,6 +743,70 @@ describe("EventsController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(TEST_EVENT_ID));
+    });
+  });
+
+  describe("GET /events/:eventId/bans", () => {
+    const path = `${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/bans`;
+
+    it("returns 200 with the bans, newest first, for an organizer", async () => {
+      const bannedAt = new Date("2026-06-10T12:00:00.000Z");
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.eventBan.findMany.mockResolvedValue([
+        {
+          id: "99999999-9999-4999-8999-999999999999",
+          eventId: TEST_EVENT_ID,
+          userId: TEST_TARGET_USER_ID,
+          bannedById: TEST_USER_ID,
+          createdAt: bannedAt,
+          user: { details: { name: "Sam", username: "sam" } },
+        },
+      ] as never);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<{ items: unknown[] }>;
+      expect(body.data.items).toEqual([
+        { userId: TEST_TARGET_USER_ID, name: "Sam", username: "sam", bannedAt: bannedAt.toISOString() },
+      ]);
+    });
+
+    it("returns 403 for a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+
+      await request(httpServer).get(path).set(authHeader()).expect(403);
+
+      expect(prisma.eventBan.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("DELETE /events/:eventId/bans/:userId", () => {
+    const path = `${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/bans/${TEST_TARGET_USER_ID}`;
+
+    it("returns 204 and lifts the ban for an organizer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.eventBan.deleteMany.mockResolvedValue({ count: 1 });
+
+      await request(httpServer).delete(path).set(authHeader()).expect(204);
+
+      expect(prisma.eventBan.deleteMany).toHaveBeenCalledWith({
+        where: { eventId: TEST_EVENT_ID, userId: TEST_TARGET_USER_ID },
+      });
+    });
+
+    it("returns 204 when there was no ban", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.eventBan.deleteMany.mockResolvedValue({ count: 0 });
+
+      await request(httpServer).delete(path).set(authHeader()).expect(204);
+    });
+
+    it("returns 403 for a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+
+      await request(httpServer).delete(path).set(authHeader()).expect(403);
+
+      expect(prisma.eventBan.deleteMany).not.toHaveBeenCalled();
     });
   });
 

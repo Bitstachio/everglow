@@ -23,6 +23,8 @@ import {
   eventsControllerGetParticipants,
   eventsControllerJoin,
   eventsControllerLeave,
+  eventsControllerLiftBan,
+  eventsControllerListBans,
   eventsControllerRegenerateInvitationUrl,
   eventsControllerRemove,
   eventsControllerRemoveCover,
@@ -85,6 +87,12 @@ import type {
   EventsControllerLeaveData,
   EventsControllerLeaveError,
   EventsControllerLeaveResponse,
+  EventsControllerLiftBanData,
+  EventsControllerLiftBanError,
+  EventsControllerLiftBanResponse,
+  EventsControllerListBansData,
+  EventsControllerListBansError,
+  EventsControllerListBansResponse,
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlError,
   EventsControllerRegenerateInvitationUrlResponse,
@@ -1169,6 +1177,8 @@ export const eventsControllerUpdateParticipantAccessMutation = (
 
 /**
  * Remove a member from an event
+ *
+ * Organizers only. Also bans them from rejoining through the invitation link until the ban is lifted.
  */
 export const eventsControllerRemoveParticipantMutation = (
   options?: Partial<Options<EventsControllerRemoveParticipantData>>,
@@ -1184,6 +1194,60 @@ export const eventsControllerRemoveParticipantMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await eventsControllerRemoveParticipant({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const eventsControllerListBansQueryKey = (options: Options<EventsControllerListBansData>) =>
+  createQueryKey("eventsControllerListBans", options);
+
+/**
+ * List members banned from rejoining (organizers only)
+ */
+export const eventsControllerListBansOptions = (options: Options<EventsControllerListBansData>) =>
+  queryOptions<
+    EventsControllerListBansResponse,
+    AxiosError<EventsControllerListBansError>,
+    EventsControllerListBansResponse,
+    ReturnType<typeof eventsControllerListBansQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await eventsControllerListBans({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: eventsControllerListBansQueryKey(options),
+  });
+
+/**
+ * Lift a ban (organizers only)
+ *
+ * Idempotent. The person is not re-added; they can rejoin through the invitation link.
+ */
+export const eventsControllerLiftBanMutation = (
+  options?: Partial<Options<EventsControllerLiftBanData>>,
+): UseMutationOptions<
+  EventsControllerLiftBanResponse,
+  AxiosError<EventsControllerLiftBanError>,
+  Options<EventsControllerLiftBanData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    EventsControllerLiftBanResponse,
+    AxiosError<EventsControllerLiftBanError>,
+    Options<EventsControllerLiftBanData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await eventsControllerLiftBan({
         ...options,
         ...fnOptions,
         throwOnError: true,

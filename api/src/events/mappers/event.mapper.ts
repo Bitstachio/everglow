@@ -1,8 +1,10 @@
 import { Event } from "generated/prisma/client";
+import { EventBanListResponseDto } from "../dto/event-ban-list-response.dto";
+import { EventBanResponseDto } from "../dto/event-ban-response.dto";
 import { EventParticipantResponseDto } from "../dto/event-participant-response.dto";
 import { EventResponseDto } from "../dto/event-response.dto";
 import { buildInvitationUrl } from "../events.invitation";
-import { EventParticipant } from "../events.types";
+import { EventBanWithUser, EventParticipant } from "../events.types";
 
 export class EventMapper {
   /** `coverUrl` is presigned by the caller; the mapper never sees S3, and the key is never returned. */
@@ -33,5 +35,18 @@ export class EventMapper {
 
   static toParticipantResponseDtoList(participants: EventParticipant[]): EventParticipantResponseDto[] {
     return participants.map((participant) => EventMapper.toParticipantResponseDto(participant));
+  }
+
+  static toBanResponseDto(ban: EventBanWithUser): EventBanResponseDto {
+    return {
+      userId: ban.userId,
+      name: ban.user.details?.name ?? null,
+      username: ban.user.details?.username ?? null,
+      bannedAt: ban.createdAt,
+    };
+  }
+
+  static toBanListResponseDto(bans: EventBanWithUser[]): EventBanListResponseDto {
+    return { items: bans.map((ban) => EventMapper.toBanResponseDto(ban)) };
   }
 }

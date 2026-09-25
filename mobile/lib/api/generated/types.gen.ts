@@ -215,15 +215,24 @@ export type ReportListResponseDto = {
 };
 
 /**
- * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
+ * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
  */
 export type ReportResolutionAction = "REMOVE_PHOTO" | "REMOVE_MEMBER" | "DISMISS";
 
+/**
+ * REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.
+ */
+export type RemovedMemberPhotos = "KEEP" | "DELETE";
+
 export type ResolveReportDto = {
   /**
-   * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
+   * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
    */
   action: ReportResolutionAction;
+  /**
+   * REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.
+   */
+  photos?: RemovedMemberPhotos;
 };
 
 export type BlockedUserResponseDto = {
@@ -298,6 +307,32 @@ export type EventParticipantResponseDto = {
 
 export type UpdateParticipantAccessDto = {
   accessLevel: AccessLevel;
+};
+
+export type EventBanResponseDto = {
+  /**
+   * The banned member
+   */
+  userId: string;
+  /**
+   * Null when the account has no profile.
+   */
+  name: string | null;
+  /**
+   * Public handle; null when the account has no profile.
+   */
+  username: string | null;
+  /**
+   * When an organizer removed them
+   */
+  bannedAt: string;
+};
+
+export type EventBanListResponseDto = {
+  /**
+   * Newest first
+   */
+  items: Array<EventBanResponseDto>;
 };
 
 export type AppControllerGetHelloData = {
@@ -1605,7 +1640,12 @@ export type EventsControllerRemoveParticipantData = {
     eventId: string;
     targetUserId: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is banned from rejoining through the invitation link until an organizer lifts the ban.
+     */
+    photos?: RemovedMemberPhotos;
+  };
   url: "/api/v2/events/{eventId}/participants/{targetUserId}";
 };
 
@@ -1639,6 +1679,87 @@ export type EventsControllerRemoveParticipantResponses = {
 
 export type EventsControllerRemoveParticipantResponse =
   EventsControllerRemoveParticipantResponses[keyof EventsControllerRemoveParticipantResponses];
+
+export type EventsControllerListBansData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/bans";
+};
+
+export type EventsControllerListBansErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerListBansError = EventsControllerListBansErrors[keyof EventsControllerListBansErrors];
+
+export type EventsControllerListBansResponses = {
+  /**
+   * Banned members, newest first
+   */
+  200: {
+    data: EventBanListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerListBansResponse =
+  EventsControllerListBansResponses[keyof EventsControllerListBansResponses];
+
+export type EventsControllerLiftBanData = {
+  body?: never;
+  path: {
+    eventId: string;
+    userId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/bans/{userId}";
+};
+
+export type EventsControllerLiftBanErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerLiftBanError = EventsControllerLiftBanErrors[keyof EventsControllerLiftBanErrors];
+
+export type EventsControllerLiftBanResponses = {
+  /**
+   * Ban lifted, or there was none (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type EventsControllerLiftBanResponse = EventsControllerLiftBanResponses[keyof EventsControllerLiftBanResponses];
 
 export type EventsControllerRegenerateInvitationUrlData = {
   body?: never;

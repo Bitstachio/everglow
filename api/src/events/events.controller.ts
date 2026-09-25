@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
@@ -23,9 +24,11 @@ import { ConfirmImageUploadDto } from "src/images/dto/confirm-image-upload.dto";
 import { CreateImageUploadDto } from "src/images/dto/create-image-upload.dto";
 import { ImageUploadResponseDto } from "src/images/dto/image-upload-response.dto";
 import { CreateEventDto } from "./dto/create-event.dto";
+import { EventBanListResponseDto } from "./dto/event-ban-list-response.dto";
 import { EventParticipantResponseDto } from "./dto/event-participant-response.dto";
 import { EventResponseDto } from "./dto/event-response.dto";
 import { JoinEventDto } from "./dto/join-event.dto";
+import { RemoveParticipantQueryDto } from "./dto/remove-participant-query.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { UpdateParticipantAccessDto } from "./dto/update-participant-access.dto";
 import { EventCoverService } from "./event-cover.service";
@@ -133,14 +136,44 @@ export class EventsController {
 
   @Delete(":eventId/participants/:targetUserId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Remove a member from an event" })
+  @ApiOperation({
+    summary: "Remove a member from an event",
+    description: "Organizers only. Also bans them from rejoining through the invitation link until the ban is lifted.",
+  })
   @ApiNoContentResponse({ description: "Member removed (empty data envelope at runtime)" })
   async removeParticipant(
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
     @Param("targetUserId", ParseUUIDPipe) targetUserId: string,
+    @Query() query: RemoveParticipantQueryDto,
   ): Promise<void> {
-    return this.eventsService.removeUserFromEvent(eventId, user.id, targetUserId);
+    return this.eventsService.removeUserFromEvent(eventId, user.id, targetUserId, query.photos);
+  }
+
+  @Get(":eventId/bans")
+  @ApiOperation({ summary: "List members banned from rejoining (organizers only)" })
+  @ApiWrappedResponse(EventBanListResponseDto, "Banned members, newest first")
+  async listBans(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+  ): Promise<EventBanListResponseDto> {
+    return EventMapper.toBanListResponseDto(await this.eventsService.listBans(eventId, user.id));
+  }
+
+  @Delete(":eventId/bans/:userId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RateLimit("sensitive")
+  @ApiOperation({
+    summary: "Lift a ban (organizers only)",
+    description: "Idempotent. The person is not re-added; they can rejoin through the invitation link.",
+  })
+  @ApiNoContentResponse({ description: "Ban lifted, or there was none (empty data envelope at runtime)" })
+  async liftBan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+    @Param("userId", ParseUUIDPipe) userId: string,
+  ): Promise<void> {
+    return this.eventsService.liftBan(eventId, user.id, userId);
   }
 
   @Post(":eventId/regenerate-url")

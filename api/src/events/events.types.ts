@@ -29,3 +29,7 @@ export const eventAccessWithUserInclude = (callerId: string) =>
 export type EventAccessWithUser = Prisma.EventAccessGetPayload<{
   include: ReturnType<typeof eventAccessWithUserInclude>;
 }>;
+
+export const eventBanWithUserInclude = { user: { include: userWithDetailsInclude } } as const;
+
+export type EventBanWithUser = Prisma.EventBanGetPayload<{ include: typeof eventBanWithUserInclude }>;

@@ -38,6 +38,12 @@ import type {
   EventsControllerLeaveData,
   EventsControllerLeaveErrors,
   EventsControllerLeaveResponses,
+  EventsControllerLiftBanData,
+  EventsControllerLiftBanErrors,
+  EventsControllerLiftBanResponses,
+  EventsControllerListBansData,
+  EventsControllerListBansErrors,
+  EventsControllerListBansResponses,
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlErrors,
   EventsControllerRegenerateInvitationUrlResponses,
@@ -644,6 +650,8 @@ export const eventsControllerUpdateParticipantAccess = <ThrowOnError extends boo
 
 /**
  * Remove a member from an event
+ *
+ * Organizers only. Also bans them from rejoining through the invitation link until the ban is lifted.
  */
 export const eventsControllerRemoveParticipant = <ThrowOnError extends boolean = false>(
   options: Options<EventsControllerRemoveParticipantData, ThrowOnError>,
@@ -653,6 +661,31 @@ export const eventsControllerRemoveParticipant = <ThrowOnError extends boolean =
     EventsControllerRemoveParticipantErrors,
     ThrowOnError
   >({ url: "/api/v2/events/{eventId}/participants/{targetUserId}", ...options });
+
+/**
+ * List members banned from rejoining (organizers only)
+ */
+export const eventsControllerListBans = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerListBansData, ThrowOnError>,
+): RequestResult<EventsControllerListBansResponses, EventsControllerListBansErrors, ThrowOnError> =>
+  (options.client ?? client).get<EventsControllerListBansResponses, EventsControllerListBansErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/bans",
+    ...options,
+  });
+
+/**
+ * Lift a ban (organizers only)
+ *
+ * Idempotent. The person is not re-added; they can rejoin through the invitation link.
+ */
+export const eventsControllerLiftBan = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerLiftBanData, ThrowOnError>,
+): RequestResult<EventsControllerLiftBanResponses, EventsControllerLiftBanErrors, ThrowOnError> =>
+  (options.client ?? client).delete<EventsControllerLiftBanResponses, EventsControllerLiftBanErrors, ThrowOnError>({
+    url: "/api/v2/events/{eventId}/bans/{userId}",
+    ...options,
+  });
 
 /**
  * Regenerate the event invitation URL

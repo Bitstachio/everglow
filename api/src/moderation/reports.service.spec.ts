@@ -24,6 +24,7 @@ import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { FREE_TIER_STORAGE_LIMIT_BYTES, PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
+import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { REPORT_SERVICE_ERRORS, STALE_REPORT_AFTER_HOURS } from "./moderation.constants";
@@ -35,6 +36,7 @@ describe("ReportsService", () => {
   let prisma: DeepMockProxy<PrismaClient>;
   let photoVisibilityService: { isVisibleTo: jest.Mock };
   let s3Service: { deleteObject: jest.Mock };
+  let photoPurgeService: { purgeObjects: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
@@ -139,6 +141,7 @@ describe("ReportsService", () => {
     prisma = mockDeep<PrismaClient>();
     photoVisibilityService = { isVisibleTo: jest.fn().mockResolvedValue(true) };
     s3Service = { deleteObject: jest.fn().mockResolvedValue(undefined) };
+    photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -148,6 +151,7 @@ describe("ReportsService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: PhotoVisibilityService, useValue: photoVisibilityService },
         { provide: S3Service, useValue: s3Service },
+        { provide: PhotoPurgeService, useValue: photoPurgeService },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -753,6 +757,61 @@ describe("ReportsService", () => {
         expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       });
 
+      it("bans the removed member from rejoining the event", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.MEMBER, photoId: null }));
+
+        await service.resolveReport(reportId, callerId, "REMOVE_MEMBER");
+
+        expect(prisma.eventBan.upsert).toHaveBeenCalledWith({
+          where: { eventId_userId: { eventId, userId: uploaderId } },
+          create: { eventId, userId: uploaderId, bannedById: callerId },
+          update: {},
+        });
+      });
+
+      it("keeps the member's other photos unless the organizer asks to delete them", async () => {
+        setup();
+
+        await service.resolveReport(reportId, callerId, "REMOVE_MEMBER");
+
+        // Only the reported photo goes; nothing else is looked up.
+        expect(prisma.photo.findMany).not.toHaveBeenCalled();
+        expect(prisma.photo.deleteMany).toHaveBeenCalledTimes(1);
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ memberPhotos: "KEEP", memberPhotosDeleted: 0 }),
+          "Report resolved",
+        );
+      });
+
+      it("with photos=DELETE, deletes the member's other photos in the event and purges them after the commit", async () => {
+        setup();
+        prisma.photo.findMany.mockResolvedValue([
+          { id: "dddddddd-dddd-dddd-dddd-dddddddddddd", s3Key: "photos/d" },
+        ] as never);
+        prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+
+        await service.resolveReport(reportId, callerId, "REMOVE_MEMBER", "DELETE");
+
+        // The reported photo is deleted on its own path, so it is left out here.
+        expect(prisma.photo.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { eventId, addedById: uploaderId, id: { notIn: [photoId] } } }),
+        );
+        expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+          where: { id: { in: ["dddddddd-dddd-dddd-dddd-dddddddddddd"] } },
+        });
+        expect(photoPurgeService.purgeObjects).toHaveBeenCalledWith(["photos/d"], {
+          event: "event.member.photos_purged",
+          eventId,
+          callerId,
+          targetUserId: uploaderId,
+          reportId,
+        });
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ memberPhotos: "DELETE", memberPhotosDeleted: 1 }),
+          "Report resolved",
+        );
+      });
+
       it("answers 422 when the reported account no longer exists", async () => {
         setup(
           reportFor(AccessLevel.ORGANIZER, {
@@ -815,6 +874,13 @@ describe("ReportsService", () => {
         expect(prisma.report.updateMany).not.toHaveBeenCalled();
         expect(logger.info).toHaveBeenCalledWith(expect.objectContaining({ closedReports: 1 }), "Report resolved");
       });
+    });
+
+    it.each(["REMOVE_PHOTO", "DISMISS"] as const)("rejects photos with %s, which removes no member", async (action) => {
+      await expect(service.resolveReport(reportId, callerId, action, "DELETE")).rejects.toThrow(
+        new BadRequestException(REPORT_SERVICE_ERRORS.PHOTOS_ONLY_WITH_REMOVE_MEMBER),
+      );
+      expect(prisma.report.findUnique).not.toHaveBeenCalled();
     });
 
     it("throws NotFoundException when the report does not exist", async () => {

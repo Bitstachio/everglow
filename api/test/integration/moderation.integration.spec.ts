@@ -61,7 +61,7 @@ describe("Moderation (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;
-  const s3Service = { deleteObject: jest.fn() };
+  const s3Service = { deleteObject: jest.fn(), deleteObjects: jest.fn() };
 
   type Access = ReturnType<typeof buildOrganizerAccess>;
 
@@ -100,6 +100,7 @@ describe("Moderation (integration)", () => {
     prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     s3Service.deleteObject.mockReset().mockResolvedValue(undefined);
+    s3Service.deleteObjects.mockReset().mockResolvedValue({ deleted: [], failed: [] });
   });
 
   describe("POST /photos/:photoId/reports", () => {
@@ -374,6 +375,37 @@ describe("Moderation (integration)", () => {
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
     });
 
+    it("REMOVE_MEMBER bans the member from rejoining the event", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()], { targetType: ReportTargetType.MEMBER, photoId: null }));
+
+      await patch({ action: "REMOVE_MEMBER" }).expect(200);
+
+      expect(prisma.eventBan.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: { eventId: TEST_EVENT_ID, userId: TEST_TARGET_USER_ID, bannedById: TEST_USER_ID },
+        }),
+      );
+    });
+
+    it("REMOVE_MEMBER with photos=DELETE deletes the member's other photos and purges their objects", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()], { targetType: ReportTargetType.MEMBER, photoId: null }));
+      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p" }] as never);
+      s3Service.deleteObjects.mockResolvedValue({ deleted: ["photos/u/e/p"], failed: [] });
+
+      await patch({ action: "REMOVE_MEMBER", photos: "DELETE" }).expect(200);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_PHOTO_ID] } } });
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/p"]);
+    });
+
+    it("returns 400 for photos with any action other than REMOVE_MEMBER", async () => {
+      const response = await patch({ action: "DISMISS", photos: "DELETE" }).expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(REPORT_SERVICE_ERRORS.PHOTOS_ONLY_WITH_REMOVE_MEMBER);
+      expect(prisma.report.findUnique).not.toHaveBeenCalled();
+    });
+
     it("DISMISS returns 200, resolves the report as DISMISSED, and removes nothing", async () => {
       setup(reportWithAccess([buildOrganizerAccess()]), ReportStatus.DISMISSED);
 
@@ -386,11 +418,14 @@ describe("Moderation (integration)", () => {
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
     });
 
-    it.each([{ action: "DELETE" }, { status: "DISMISSED" }, {}])("returns 400 for the body %j", async (body) => {
-      await patch(body).expect(400);
+    it.each([{ action: "DELETE" }, { status: "DISMISSED" }, {}, { action: "REMOVE_MEMBER", photos: "SOME" }])(
+      "returns 400 for the body %j",
+      async (body) => {
+        await patch(body).expect(400);
 
-      expect(prisma.report.findUnique).not.toHaveBeenCalled();
-    });
+        expect(prisma.report.findUnique).not.toHaveBeenCalled();
+      },
+    );
 
     it("returns 400 for REMOVE_PHOTO on a report about a member", async () => {
       setup(reportWithAccess([buildOrganizerAccess()], { targetType: ReportTargetType.MEMBER, photoId: null }));

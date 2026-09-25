@@ -23,8 +23,14 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
+import {
+  REMOVED_MEMBER_PHOTOS,
+  type RemovedMemberPhotos,
+  removeMemberInTransaction,
+} from "src/events/event-membership";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { eventWithCallerAccessInclude } from "src/events/events.types";
+import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
@@ -69,6 +75,7 @@ export class ReportsService {
     private readonly abilityFactory: AbilityFactory,
     private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly s3Service: S3Service,
+    private readonly photoPurgeService: PhotoPurgeService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -176,7 +183,16 @@ export class ReportsService {
    * a report"). Every action closes all OPEN reports on the same target, so one
    * decision settles what several members reported.
    */
-  async resolveReport(reportId: string, callerId: string, action: ReportResolutionAction): Promise<Report> {
+  async resolveReport(
+    reportId: string,
+    callerId: string,
+    action: ReportResolutionAction,
+    memberPhotos?: RemovedMemberPhotos,
+  ): Promise<Report> {
+    if (memberPhotos && action !== REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER) {
+      throw new BadRequestException(REPORT_SERVICE_ERRORS.PHOTOS_ONLY_WITH_REMOVE_MEMBER);
+    }
+
     const loaded = await this.prisma.report.findUnique({
       where: { id: reportId },
       include: { event: { include: eventWithCallerAccessInclude(callerId) } },
@@ -202,7 +218,7 @@ export class ReportsService {
     const resolution = { status: RESOLUTION_STATUS[action], resolvedById: callerId, resolvedAt: new Date() };
     const sameTarget = this.sameTargetWhere(loaded, action);
 
-    const { resolved, closedReports } = await this.prisma.$transaction(async (tx) => {
+    const { resolved, closedReports, removedMember } = await this.prisma.$transaction(async (tx) => {
       // Guarded on OPEN so that, of two organizers acting at once, one wins and
       // the other is told, instead of both removing things.
       const [acted] = await tx.report.updateManyAndReturn({
@@ -221,14 +237,31 @@ export class ReportsService {
       // Rows first, inside the transaction; the photo's object goes after the
       // commit (below), as in an event delete.
       if (photo) await tx.photo.deleteMany({ where: { id: photo.id } });
-      if (removedMemberId) {
-        await tx.eventAccess.deleteMany({ where: { eventId: loaded.eventId, userId: removedMemberId } });
-      }
+      // The same removal as the participant endpoint: membership, ban, and
+      // with DELETE the member's other photos in the event.
+      const member = removedMemberId
+        ? await removeMemberInTransaction(tx, {
+            eventId: loaded.eventId,
+            userId: removedMemberId,
+            removedById: callerId,
+            photos: memberPhotos ?? REMOVED_MEMBER_PHOTOS.KEEP,
+            excludePhotoIds: photo ? [photo.id] : [],
+          })
+        : null;
 
-      return { resolved: acted, closedReports: others.count + 1 };
+      return { resolved: acted, closedReports: others.count + 1, removedMember: member };
     });
 
     if (photo) await this.deletePhotoObject(photo, reportId);
+    if (removedMember) {
+      await this.photoPurgeService.purgeObjects(removedMember.photoKeys, {
+        event: ALERT_EVENTS.EVENT_MEMBER_PHOTOS_PURGED,
+        eventId: resolved.eventId,
+        callerId,
+        targetUserId: removedMemberId,
+        reportId,
+      });
+    }
 
     this.logger.info(
       {
@@ -244,6 +277,8 @@ export class ReportsService {
         closedReports,
         removedPhotoId: photo?.id ?? null,
         removedMemberId,
+        memberPhotos: removedMemberId ? (memberPhotos ?? REMOVED_MEMBER_PHOTOS.KEEP) : null,
+        memberPhotosDeleted: removedMember?.photosDeleted ?? 0,
         audit: true,
       },
       "Report resolved",

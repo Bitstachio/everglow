@@ -113,11 +113,11 @@ Rules:
 - **Organizers see who uploaded a reported photo, never who reported it.** `reportedUserId` is the uploader (or the reported member); there is no reporter field.
 - **Resolving is an action, not a label.** The organizer says what to do, and the API does it and records the verdict in one transaction:
 
-  | `action`        | What it does                                                                               | Every OPEN report on the target becomes |
-  | --------------- | ------------------------------------------------------------------------------------------ | --------------------------------------- |
-  | `REMOVE_PHOTO`  | Deletes the reported photo. Photo reports only; on a member report it is a 400.            | `ACTIONED`                              |
-  | `REMOVE_MEMBER` | Removes the reported member from the event, and for a photo report deletes that photo too. | `ACTIONED`                              |
-  | `DISMISS`       | Nothing. The content stays, and a photo hidden by its reports is back.                     | `DISMISSED`                             |
+  | `action`        | What it does                                                                                                                                                                                | Every OPEN report on the target becomes |
+  | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+  | `REMOVE_PHOTO`  | Deletes the reported photo. Photo reports only; on a member report it is a 400.                                                                                                             | `ACTIONED`                              |
+  | `REMOVE_MEMBER` | Removes the reported member from the event and bans them from rejoining (§4), and for a photo report deletes that photo too. `photos: DELETE` also deletes their other photos in the event. | `ACTIONED`                              |
+  | `DISMISS`       | Nothing. The content stays, and a photo hidden by its reports is back.                                                                                                                      | `DISMISSED`                             |
 
   "The target" is the photo for a photo report, the member for a member report, and for `REMOVE_MEMBER` everything reported about that member in the event, photos included. One verdict closes them all, so a photo reported by five people is one decision, not five. A report whose target has since been deleted closes just itself.
 
@@ -198,16 +198,38 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 
 ### Joining an event across a block
 
-`POST /events/join` checks blocks between the joiner and the event's **organizers** (any organizer, not only the creator), in both directions, in one query:
+`POST /events/join` first refuses anyone an organizer removed (see [Removing a member](#removing-a-member-and-bans) below), then checks blocks between the joiner and the event's **organizers** (any organizer, not only the creator), in both directions, in one query:
 
 | Situation                                            | Result                                                                                                                                                                                                                  |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An organizer removed the joiner                      | **403** with `code: REMOVED_FROM_EVENT` and "You were removed from this event by an organizer." They already know, so saying so reveals nothing. Checked before blocks, so they are not told about a block instead      |
 | An organizer blocked the joiner                      | **404**, the same `Event with invitation URL "…" not found` as a link that does not exist. The block is never revealed to the person blocked                                                                            |
 | The joiner blocked an organizer                      | **403** with `code: ORGANIZER_BLOCKED_BY_CALLER` and "This event is organized by … you blocked. Unblock them to join." The joiner made the block, so explaining it reveals nothing, and the client can offer to unblock |
 | Both blocked each other                              | 404, as in the first row                                                                                                                                                                                                |
 | The joiner and an ordinary member blocked each other | Joins normally; the photo filter keeps the two apart                                                                                                                                                                    |
 
 Existing memberships are not changed when a block happens later; an organizer who wants a blocked member out uses remove-member.
+
+### Removing a member and bans
+
+An organizer removes a member either with `DELETE /events/:eventId/participants/:targetUserId` or with `REMOVE_MEMBER` while resolving a report. Both run the same routine (`removeMemberInTransaction`), in one transaction:
+
+1. The membership is deleted.
+2. An `EventBan` row is recorded (event, member, the organizer who removed them). Removing someone again keeps the first record.
+3. The organizer chooses what happens to the member's photos in that event:
+
+   | `photos`         | Effect                                                                                                                                                                |
+   | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `KEEP` (default) | They stay in the event, still credited to the member                                                                                                                  |
+   | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`) |
+
+   It is a query parameter on the participant route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
+
+**A ban is per event.** It only stops rejoining through the invitation link; nothing else about the account changes. Leaving an event on your own records no ban, so you can come back.
+
+**Organizers manage bans.** `GET /events/:eventId/bans` lists them newest first with each member's name and username. `DELETE /events/:eventId/bans/:userId` lifts one; it is idempotent, and the person is not re-added but can rejoin through the link.
+
+A ban cascades with the event and with the banned account, and `bannedById` becomes null when the removing organizer's account is deleted.
 
 - Reports and blocks are independent. A blocked user can still be reported, and reporting does not block.
 
@@ -248,7 +270,7 @@ The request field is optional only so the current mobile onboarding keeps workin
 
 ## 7. Rate limiting
 
-The five mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId`) carry `@RateLimit("sensitive")`: 10 a minute per user, on top of the global default. The two list endpoints stay on the global default. See [rate-limiting.md](./rate-limiting.md).
+The six mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId`, `DELETE /events/:eventId/bans/:userId`) carry `@RateLimit("sensitive")`: 10 a minute per user, on top of the global default. The two list endpoints stay on the global default. See [rate-limiting.md](./rate-limiting.md).
 
 ---
 
