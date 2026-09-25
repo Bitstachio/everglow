@@ -15,13 +15,13 @@ The issue is the record of why the work happened. The PR is how it was done. Eve
 - **Workspace / team**: `Everglow` (issue keys look like `EV-12`).
 - **Projects**: put the issue in the project it belongs to, or none if nothing fits.
 
-| Project | Holds |
-| --- | --- |
-| Media pipeline | Uploads, thumbnails, delivery, photo and image screens |
+| Project          | Holds                                                          |
+| ---------------- | -------------------------------------------------------------- |
+| Media pipeline   | Uploads, thumbnails, delivery, photo and image screens         |
 | Launch readiness | Hosting, deploys, monitoring, alerting, App Store requirements |
-| Trust & safety | Reporting, blocking, terms, escalation tooling |
-| Monetization | Paid storage |
-| Notifications | Push notifications |
+| Trust & safety   | Reporting, blocking, terms, escalation tooling                 |
+| Monetization     | Paid storage                                                   |
+| Notifications    | Push notifications                                             |
 
 - **Status**: `Backlog` for planned work nobody is starting yet; `Todo` when it is next up.
 - **Assignee**: leave unassigned unless the owner says otherwise. Mobile work belongs to the mobile team.
@@ -32,16 +32,16 @@ Before filing, search Linear for an existing issue on the same topic. Update or 
 
 Every issue gets **exactly one Type** and **exactly one Area**.
 
-| Group | Label | Use when |
-| --- | --- | --- |
-| Type | Feature | New capability users or clients can see or call |
-| Type | Improvement | An existing capability gets faster, safer, clearer, or cheaper |
-| Type | Bug | Something that worked, or was specified to work, does not |
-| Type | Chore | No user-facing change: upgrades, docs, refactors, tests |
-| Area | API | Only `api/` changes |
-| Area | Mobile | Only `mobile/` changes, against the existing API contract |
-| Area | API + Mobile | Both sides change. Split into sub-issues (see below) |
-| Area | Infra | Hosting, CI, AWS, Auth0 or Apple tenant, monitoring |
+| Group | Label        | Use when                                                       |
+| ----- | ------------ | -------------------------------------------------------------- |
+| Type  | Feature      | New capability users or clients can see or call                |
+| Type  | Improvement  | An existing capability gets faster, safer, clearer, or cheaper |
+| Type  | Bug          | Something that worked, or was specified to work, does not      |
+| Type  | Chore        | No user-facing change: upgrades, docs, refactors, tests        |
+| Area  | API          | Only `api/` changes                                            |
+| Area  | Mobile       | Only `mobile/` changes, against the existing API contract      |
+| Area  | API + Mobile | Both sides change. Split into sub-issues (see below)           |
+| Area  | Infra        | Hosting, CI, AWS, Auth0 or Apple tenant, monitoring            |
 
 Add **Contract change** whenever the work changes `api/openapi/openapi.json`. That work must ship with a regenerated `mobile/lib/api/generated` client, and the mobile team must be told.
 
