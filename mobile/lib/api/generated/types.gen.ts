@@ -19,6 +19,10 @@ export type UserResponseDto = {
   id: string;
   isOnboarded: boolean;
   details: UserDetailsResponseDto | null;
+  /**
+   * When the user accepted the terms of use; null if they have not been asked yet.
+   */
+  termsAcceptedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -34,6 +38,10 @@ export type CreateUserDetailsDto = {
    * Public handle. Trimmed and lowercased before validation.
    */
   username: string;
+  /**
+   * The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Only `true` is valid; when sent, the acceptance time is recorded as termsAcceptedAt.
+   */
+  acceptedTerms?: boolean;
 };
 
 export type UsernameAvailabilityResponseDto = {
