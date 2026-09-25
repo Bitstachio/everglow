@@ -9,7 +9,7 @@ This is not the squash commit message. When the PR is merged, a separate extende
 - **Full diff against the base branch**: `git diff <base>...HEAD`. Describe the whole branch, not the last commit.
 - **Commits**: `git log <base>..HEAD --oneline`, as a guide to what happened, not as the structure of the body.
 - **Sibling PRs**: read the two or three most recent PRs in the same area (`gh pr list --state merged`). If the PR continues a series a teammate started, match that teammate's style instead of this template.
-- **Linear**: the issue this PR implements. Every PR should have one; if it does not, file it first per [linear-issue-generator.md](./linear-issue-generator.md).
+- **Linear**: the issue this PR implements. Every PR has one. If the task came without an issue, create it before opening the PR, per [linear-issue-generator.md](./linear-issue-generator.md).
 
 # Title
 
@@ -95,12 +95,14 @@ A checkbox per command or check. **Tick a box only for something you actually ra
 
 Run API commands from `api/` and mobile commands from `mobile/` with pnpm 11.25.0.
 
-## Linear line (required when an issue exists)
+## Linear line (required)
 
-Last line, outside any section. Use markdown links, because the repository has no autolink for `EV-` keys:
+Last line, outside any section. Use markdown links, because the repository has no autolink for `EV-` keys, and use Linear's magic words so its GitHub integration can link and close the issue once connected:
 
 - `Closes [EV-N](url).` for the issue this PR completes
 - `Part of [EV-M](url).` for a parent that stays open (for example, the mobile half is still to do)
+
+The link has to go both ways. Also add the PR to the issue as a link attachment, so it appears in the issue's resources; the PR body line alone does not do that until the Linear GitHub integration is connected. See "Keeping the issue in sync" in [linear-issue-generator.md](./linear-issue-generator.md).
 
 # Rules
 
@@ -118,7 +120,7 @@ Before posting, check:
 - Summary, Why and Test plan exist; every other section present has real content.
 - Every ticked box was actually run on the final state; CI is unticked unless green.
 - A contract change is called out in Notes together with the mobile client regeneration.
-- The Linear line links the right issues with markdown links.
+- The Linear line links the right issues with markdown links, and the issue has the PR attached.
 - There is no AI attribution.
 
 # Example
