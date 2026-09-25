@@ -103,7 +103,7 @@ test("opens the dedicated Usage page", async () => {
 test("opens the dedicated username page", async () => {
   const { result } = await renderHook(() => useProfileScreen());
   result.current.handleOpenUsername();
-  expect(mockPush).toHaveBeenCalledWith({ pathname: "/edit-username", params: { username: "Not set" } });
+  expect(mockPush).toHaveBeenCalledWith("/edit-username");
 });
 
 test("opens the display name editor", async () => {

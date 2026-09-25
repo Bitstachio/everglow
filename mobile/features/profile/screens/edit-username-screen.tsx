@@ -4,7 +4,7 @@ import { EditUsernameForm } from "../components/edit-username-form";
 import { useEditUsernameScreen } from "../hooks/use-edit-username-screen";
 
 const EditUsernameScreen = () => {
-  const { form, onSubmit } = useEditUsernameScreen();
+  const { form, onSubmit, availability } = useEditUsernameScreen();
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={["left", "right"]}>
@@ -13,6 +13,8 @@ const EditUsernameScreen = () => {
           control={form.control}
           isDirty={form.formState.isDirty}
           isSubmitting={form.formState.isSubmitting}
+          availability={availability}
+          error={form.formState.errors.root?.server?.message}
           onSubmit={onSubmit}
         />
       </KeyboardAvoidingView>
