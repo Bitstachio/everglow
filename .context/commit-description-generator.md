@@ -21,7 +21,7 @@ After squash merge, feature-branch commits are discarded. The PR title plus this
 - **PR title**: use the existing pull request title as the subject. If none exists yet, write the title with [pr-description-generator.md](./pr-description-generator.md) first; do not invent a parallel subject in this file.
 - **Full Branch Diff**: Analyze the entire branch relative to its merge base, not just the latest commit. Use `git diff main...HEAD` (substitute the appropriate base branch).
 - **Commit Sequence (guide only)**: Use `git log main..HEAD --oneline` to see what will be squashed. Guide only; do not structure the body as one bullet per commit.
-- **Commit History Reference**: Review recent MERGE commits on the main branch for tone and structure of the *body* (how they describe net effect). Match that style. Do not rewrite or replace the PR title.
+- **Commit History Reference**: Review recent MERGE commits on the main branch for tone and structure of the _body_ (how they describe net effect). Match that style. Do not rewrite or replace the PR title.
 
 # Generation Rules & Constraints
 
