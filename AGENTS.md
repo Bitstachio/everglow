@@ -5,8 +5,8 @@ Shared process docs live in [`.context/`](.context/). Read the matching file in 
 | When you… | Read and follow |
 | --- | --- |
 | Create, search, update, or link a Linear issue | [`.context/linear-issue-generator.md`](.context/linear-issue-generator.md) |
-| Write a PR title/body or run `gh pr create` | [`.context/pr-description-generator.md`](.context/pr-description-generator.md) |
-| Write the squash-merge commit message | [`.context/commit-description-generator.md`](.context/commit-description-generator.md) |
+| Write a PR title/body or run `gh pr create` (title = Conventional Commits subject) | [`.context/pr-description-generator.md`](.context/pr-description-generator.md) |
+| Write the squash-merge commit **body** (under the PR title; no new subject line) | [`.context/commit-description-generator.md`](.context/commit-description-generator.md) |
 
 ## Non-negotiables
 
