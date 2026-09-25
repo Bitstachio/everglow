@@ -5,6 +5,15 @@ import { client } from "./client.gen";
 import type {
   AppControllerGetHelloData,
   AppControllerGetHelloResponses,
+  BlocksControllerBlockData,
+  BlocksControllerBlockErrors,
+  BlocksControllerBlockResponses,
+  BlocksControllerListData,
+  BlocksControllerListErrors,
+  BlocksControllerListResponses,
+  BlocksControllerUnblockData,
+  BlocksControllerUnblockErrors,
+  BlocksControllerUnblockResponses,
   EventsControllerConfirmCoverUploadData,
   EventsControllerConfirmCoverUploadErrors,
   EventsControllerConfirmCoverUploadResponses,
@@ -365,6 +374,43 @@ export const photosControllerFindOne = <ThrowOnError extends boolean = false>(
   (options.client ?? client).get<PhotosControllerFindOneResponses, PhotosControllerFindOneErrors, ThrowOnError>({
     responseType: "json",
     url: "/api/v2/photos/{photoId}",
+    ...options,
+  });
+
+/**
+ * List the users the caller has blocked
+ */
+export const blocksControllerList = <ThrowOnError extends boolean = false>(
+  options?: Options<BlocksControllerListData, ThrowOnError>,
+): RequestResult<BlocksControllerListResponses, BlocksControllerListErrors, ThrowOnError> =>
+  (options?.client ?? client).get<BlocksControllerListResponses, BlocksControllerListErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/users/me/blocks",
+    ...options,
+  });
+
+/**
+ * Unblock a user
+ */
+export const blocksControllerUnblock = <ThrowOnError extends boolean = false>(
+  options: Options<BlocksControllerUnblockData, ThrowOnError>,
+): RequestResult<BlocksControllerUnblockResponses, BlocksControllerUnblockErrors, ThrowOnError> =>
+  (options.client ?? client).delete<BlocksControllerUnblockResponses, BlocksControllerUnblockErrors, ThrowOnError>({
+    url: "/api/v2/users/me/blocks/{userId}",
+    ...options,
+  });
+
+/**
+ * Block a user
+ *
+ * Only someone the caller shares an event with; anyone else is a 404. Silent: the blocked user is never told. Idempotent: blocking an already blocked user returns the existing block.
+ */
+export const blocksControllerBlock = <ThrowOnError extends boolean = false>(
+  options: Options<BlocksControllerBlockData, ThrowOnError>,
+): RequestResult<BlocksControllerBlockResponses, BlocksControllerBlockErrors, ThrowOnError> =>
+  (options.client ?? client).put<BlocksControllerBlockResponses, BlocksControllerBlockErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/users/me/blocks/{userId}",
     ...options,
   });
 
