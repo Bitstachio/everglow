@@ -119,7 +119,8 @@ The link has to go both ways. Also add **each** PR to the issue as a link attach
 
 # Rules
 
-- No AI attribution anywhere: no "Generated with", no "Co-Authored-By", no tool names.
+- No AI attribution anywhere: no "Generated with", "Created by", "Written by", or similar footers naming Cursor, Claude, Copilot, ChatGPT, or any other tool or model. Do not put tool or model names in the body as authorship. Different teammates (and the same person across revisions) may use different tools on one PR; leave no stamps.
+- No `Co-Authored-By` (or any other git trailer) for an agent or tool in commit messages that land on the branch. Human `Co-authored-by` only when a real person collaborated.
 - Write for a reviewer who knows the codebase but not this branch. State facts; do not narrate how you worked.
 - One idea per bullet. No nested bullets deeper than one level.
 - Keep the body in sync with the branch. When a later push changes what the PR does, edit the Summary, Notes and Test plan instead of appending "update:" lines.
@@ -134,7 +135,7 @@ Before posting, check:
 - Every ticked box was actually run on the final state; CI is unticked unless green.
 - A contract change is called out in Notes together with the mobile client regeneration.
 - The Linear line links the right issues with markdown links, and the issue has the PR attached.
-- There is no AI attribution.
+- There is no AI attribution: no tool/model footers, no agent `Co-authored-by`.
 
 # Example
 

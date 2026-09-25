@@ -38,6 +38,7 @@ After squash merge, feature-branch commits are discarded. The PR title plus this
    - Where the branch contains back-and-forth (e.g. a bug introduced then fixed on the same branch), describe only the final state.
    - Bullet points should represent logical units of the feature (e.g. "Add X," "Refactor Y to support X," "Update tests for X"), not a 1:1 mapping to individual commits.
    - Do not include Test plan, Screenshots, Linear magic words, stacking notes, or other review-only PR content.
+   - No AI attribution: no "Generated with" / "Created by" footers, no tool or model names as authorship, and no `Co-authored-by:` (or other trailers) for Cursor, Claude, Copilot, or any agent. Human co-authors only when a real person collaborated. Same rule as [AGENTS.md](../AGENTS.md) and the PR guide.
 4. **Style Alignment:**
    - Match the main branch merge-commit bodies for tone, vocabulary, and structure (paragraph then bullets, emphasis on why vs what, project jargon).
 
@@ -48,6 +49,7 @@ Before emitting the answer, silently audit your draft:
 - Confirm there is **no** Conventional Commits subject line in the output.
 - Walk every body line and confirm each is ≤ 72 characters. If any line is longer, break it at a word boundary and re-check.
 - Confirm the body describes the final net state of the branch, not chronological back-and-forth.
+- Confirm there is no AI attribution and no agent `Co-authored-by` trailer in the body.
 - Confirm the whole body is wrapped in one fenced code block.
   Only output the final, verified body.
 

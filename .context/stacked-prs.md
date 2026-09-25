@@ -76,7 +76,7 @@ Optional for Copilot-style agents: `gh skill install github/gh-stack`. Cursor ag
    EOF
    )"
    ```
-   Bottom PR targets `main`. Upper PRs keep the stacked first line (`Stacked on #N; …`) from that guide. Attach every PR on the Linear issue.
+   Bottom PR targets `main`. Upper PRs keep the stacked first line (`Stacked on #N; …`) from that guide. Attach every PR on the Linear issue. Strip any tool footer or agent co-author line the CLI or editor may have inserted.
 7. After a lower PR merges, `gh stack sync --prune` (or rebase/push), retarget as needed, and update the stacked line on remaining PR bodies.
 
 ## Recovering a classic chain
