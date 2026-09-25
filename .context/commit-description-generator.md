@@ -12,6 +12,15 @@ You write the **extended squash commit body**: the paragraph and bullets that si
 
 The PR body reviewers read while the PR is open is a different Markdown document (Summary, Why, Test plan, Linear line). Do not recreate those sections here.
 
+# Branch commits (while the PR is open)
+
+Feature-branch commits are discarded on squash. Their subjects are for collaborators reading the PR, not for `main` history.
+
+- Do **not** use Conventional Commits on branch commits (`feat:`, `fix:`, `docs:`, scopes, etc.). That format is reserved for the PR title.
+- Prefer a short plain imperative subject that names the change (`require username on onboarding`, `strip Cursor co-author trailer`).
+- Optional body: one or two sentences on why, still with no AI attribution or agent trailers.
+- Do not treat the branch log as the story of the change; the squash body below is that story.
+
 # Why this message matters
 
 After squash merge, feature-branch commits are discarded. The PR title plus this body are what remain on `main`. Write the body as one feature or fix in its final state, not as a changelog of incremental commits.

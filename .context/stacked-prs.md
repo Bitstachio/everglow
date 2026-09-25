@@ -62,7 +62,7 @@ Optional for Copilot-style agents: `gh skill install github/gh-stack`. Cursor ag
    ```bash
    gh stack add <next-branch>
    ```
-   Use `gh stack add -Am "message"` only when that matches the repo commit rules; otherwise stage and `git commit` as usual on the current stack branch.
+   Use `gh stack add -Am "message"` only when that matches the repo commit rules; otherwise stage and `git commit` as usual on the current stack branch. Branch commit subjects are plain imperative prose, not Conventional Commits (see [commit-description-generator.md](./commit-description-generator.md)); the PR title carries the type/scope.
 4. Keep the stack linear: `gh stack rebase` after trunk moves; resolve conflicts, then continue. Prefer `gh stack sync` to fetch, rebase, and push when catching up.
 5. Open the GitHub Stack and PRs in one step:
    ```bash

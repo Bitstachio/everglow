@@ -16,6 +16,8 @@ This is not the squash commit **body**. When the PR is merged, a separate extend
 
 This line is the permanent Conventional Commits subject on `main` after squash. Write it once here; do not invent a second subject in the commit-description generator.
 
+**Branch commits are not Conventional Commits.** While the PR is open, `git commit` subjects are temporary and will be discarded on squash. Do not prefix them with `feat:`, `fix:`, `docs:`, `chore:`, or a `(scope)`. Use a short plain imperative sentence (for example `drop email from profile DTOs`, `fix prettier in users integration tests`). The type/scope discipline lives only in this PR title.
+
 Rules:
 
 - Prefix with a Conventional Commits type: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `style`, or `revert`.
