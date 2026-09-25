@@ -8,7 +8,7 @@ Before you start work on any task, make sure it has a Linear issue. **If the per
 
 This holds for work that arrives any way: a chat request, a review comment, a bug you found while doing something else, a follow-up you are leaving for later. Follow-ups you will not do now go in as their own issues in `Backlog` and are linked from the work that produced them.
 
-The issue is the record of why the work happened. The PR is how it was done. Every PR links to its issue and every issue links to its PR (see "Keeping the issue in sync").
+The issue is the record of why the work happened. The PR is how a reviewable slice was done. **One issue may have several PRs** (especially a stack—see [stacked-prs.md](./stacked-prs.md)). Every PR links to its issue and every issue links to each of its PRs (see "Keeping the issue in sync").
 
 # Where issues go
 
@@ -142,9 +142,9 @@ When the Area is `API + Mobile`, file a parent issue with the Feature template, 
 Update Linear at each step, not only at the end:
 
 1. **Work starts**: move the issue to `In Progress`.
-2. **PR opened**: add the PR to the issue as a link attachment titled `PR #N: <PR title>`, and put the Linear line at the end of the PR body (see [pr-description-generator.md](./pr-description-generator.md)). Both directions are needed: the attachment makes the PR show under the issue's resources, and the PR line lets reviewers open the issue.
-3. **PR changes shape** (retargeted, rebased with conflicts, scope changed): edit the issue description if it is now wrong, and add a short comment saying what changed.
-4. **PR merged**: move the issue to `Done`, tick its acceptance criteria, and comment with the merge commit, for example "Merged to main as `1b643ad` in PR #78."
+2. **PR opened**: add **each** PR to the issue as a link attachment titled `PR #N: <PR title>`, and put the Linear line at the end of the PR body (see [pr-description-generator.md](./pr-description-generator.md)). Both directions are needed: the attachment makes the PR show under the issue's resources, and the PR line lets reviewers open the issue. For a stack, attach every layer as it opens.
+3. **PR changes shape** (retargeted, rebased with conflicts, scope changed, stack reordered): edit the issue description if it is now wrong, and add a short comment saying what changed.
+4. **Issue complete**: when the PR that `Closes` the issue merges (or the last stacked layer does), move the issue to `Done`, tick its acceptance criteria, and comment with the merge commit, for example "Merged to main as `1b643ad` in PR #78." Intermediate stack merges stay `In Progress` with a short comment.
 5. **Parents**: a parent stays `In Progress` until every sub-issue is done. When one half ships, tick it on the parent and comment on the issues it unblocks.
 
 Once the Linear GitHub integration is connected, Linear attaches PRs and closes issues on merge by itself from the `Closes EV-N` line. Until then, do steps 2 and 4 by hand.

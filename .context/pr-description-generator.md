@@ -6,10 +6,11 @@ This is not the squash commit **body**. When the PR is merged, a separate extend
 
 # Inputs
 
-- **Full diff against the base branch**: `git diff <base>...HEAD`. Describe the whole branch, not the last commit.
+- **Full diff against the base branch**: `git diff <base>...HEAD`. Describe the whole branch, not the last commit. For a stack layer, `base` is the parent branch (or `main` for the bottom), not the whole feature.
 - **Commits**: `git log <base>..HEAD --oneline`, as a guide to what happened, not as the structure of the body.
 - **Sibling PRs**: read the two or three most recent PRs in the same area (`gh pr list --state merged`). If the PR continues a series a teammate started, match that teammate's style instead of this template.
-- **Linear**: the issue this PR implements. Every PR has one. If the task came without an issue, create it before opening the PR, per [linear-issue-generator.md](./linear-issue-generator.md).
+- **Stack**: if this work is more than one reviewable unit, follow [stacked-prs.md](./stacked-prs.md) **before** opening PRs. Use `gh stack` so GitHub gets a Stack object; do not open standalone PRs and link them later in the UI.
+- **Linear**: the issue this PR implements. Every PR has one. One issue may have several PRs. If the task came without an issue, create it before opening the PR, per [linear-issue-generator.md](./linear-issue-generator.md).
 
 # Title (required)
 
@@ -59,9 +60,11 @@ Stacked on #N; retarget to main once that merges.
 Closes [EV-N](https://linear.app/mehrshadfb/issue/EV-N). Part of [EV-M](https://linear.app/mehrshadfb/issue/EV-M).
 ```
 
-## Stacked line (only for stacked PRs)
+## Stacked line (required for every PR above the bottom of a stack)
 
 First line, plain text, before any heading: which PR this is based on and what happens when it merges. Update it after the base merges ("Was stacked on #N, which is now merged; retargeted to main.").
+
+Create the stack with `gh stack submit` (see [stacked-prs.md](./stacked-prs.md)). The stacked line in the body is for humans reading the PR; the GitHub Stack object is what navigates the chain in the product UI.
 
 ## Summary (required)
 
@@ -108,10 +111,11 @@ Run API commands from `api/` and mobile commands from `mobile/` with pnpm 11.25.
 
 Last line, outside any section. Use markdown links, because the repository has no autolink for `EV-` keys, and use Linear's magic words so its GitHub integration can link and close the issue once connected:
 
-- `Closes [EV-N](url).` for the issue this PR completes
+- `Part of [EV-N](url).` on every intermediate stack layer (and whenever this PR alone does not finish the issue)
+- `Closes [EV-N](url).` only on the PR that completes the issue (often the top of the stack, or a single PR when there is no stack)
 - `Part of [EV-M](url).` for a parent that stays open (for example, the mobile half is still to do)
 
-The link has to go both ways. Also add the PR to the issue as a link attachment, so it appears in the issue's resources; the PR body line alone does not do that until the Linear GitHub integration is connected. See "Keeping the issue in sync" in [linear-issue-generator.md](./linear-issue-generator.md).
+The link has to go both ways. Also add **each** PR to the issue as a link attachment, so they all appear in the issue's resources; the PR body line alone does not do that until the Linear GitHub integration is connected. See "Keeping the issue in sync" in [linear-issue-generator.md](./linear-issue-generator.md).
 
 # Rules
 

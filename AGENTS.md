@@ -5,13 +5,15 @@ Shared process docs live in [`.context/`](.context/). Read the matching file in 
 | When you…                                                                          | Read and follow                                                                        |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Create, search, update, or link a Linear issue                                     | [`.context/linear-issue-generator.md`](.context/linear-issue-generator.md)             |
-| Write a PR title/body or run `gh pr create` (title = Conventional Commits subject) | [`.context/pr-description-generator.md`](.context/pr-description-generator.md)         |
+| Split work into reviewable PRs or open more than one PR for an issue               | [`.context/stacked-prs.md`](.context/stacked-prs.md)                                   |
+| Write a PR title/body or run `gh pr create` / `gh stack submit` (title = subject)  | [`.context/pr-description-generator.md`](.context/pr-description-generator.md)         |
 | Write the squash-merge commit **body** (under the PR title; no new subject line)   | [`.context/commit-description-generator.md`](.context/commit-description-generator.md) |
 
 ## Non-negotiables
 
 - Work is tracked in **Linear** (team Everglow, keys `EV-N`), not GitHub Issues. If a task has no issue, search first, then create one and tell the requester the key.
-- Every PR links its issue with a closing magic word and markdown URL (`Closes [EV-N](…)`), and the PR is attached on the Linear issue.
+- **Issues are not PRs.** One `EV-N` may ship as several pull requests when that is clearer to review. Every PR still links its issue (`Part of` or `Closes [EV-N](…)`), and each PR is attached on the Linear issue.
+- Prefer **stacked PRs** for large or multi-layer AI-generated changes so each diff is a coherent unit a developer can understand. Create stacks with `gh stack` from the start (see [`.context/stacked-prs.md`](.context/stacked-prs.md)); do not open independent PRs and assemble the stack later on the GitHub website.
 - No AI attribution in issues, PR bodies, or commit messages.
 
 ## Cursor
