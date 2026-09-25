@@ -10,6 +10,17 @@ export const USERNAME_FORMAT_MESSAGE = "Use lowercase letters, numbers, periods,
 
 export type UsernameAvailabilityReason = "INVALID_FORMAT" | "TAKEN" | "RESERVED";
 
+export type UsernameAvailabilityStatus = "idle" | "checking" | "available" | "unavailable" | "paused";
+
+export type UsernameAvailabilityState = {
+  status: UsernameAvailabilityStatus;
+  username: string;
+  reason: UsernameAvailabilityReason | null;
+  message: string | null;
+  /** True when the candidate may be submitted (own username or API said available). */
+  canSubmit: boolean;
+};
+
 /** Trim and lowercase. Does not validate format. */
 export const normalizeUsername = (raw: string): string => raw.trim().toLowerCase();
 

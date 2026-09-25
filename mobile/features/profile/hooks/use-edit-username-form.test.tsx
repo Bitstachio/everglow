@@ -3,7 +3,7 @@ import { FormField } from "@/components/ui/form-field";
 import { ThemedText } from "@/components/ui/themed-text";
 import { act, render, screen, userEvent } from "@testing-library/react-native";
 import { View } from "react-native";
-import { ApiError } from "@/lib/api/errors";
+import { createApiError } from "@/lib/api/errors";
 import { useEditUsernameForm } from "./use-edit-username-form";
 
 const mockSave = jest.fn();
@@ -89,7 +89,7 @@ test("rejects unsupported username characters", async () => {
 });
 
 test("shows taken when save loses a uniqueness race", async () => {
-  mockSave.mockRejectedValueOnce(new ApiError("Username already exists", { status: 409, code: "USERNAME_TAKEN" }));
+  mockSave.mockRejectedValueOnce(createApiError("Username already exists", { status: 409, code: "USERNAME_TAKEN" }));
   const onSuccess = jest.fn();
   await render(<EditUsernameFormProbe onSuccess={onSuccess} />);
 

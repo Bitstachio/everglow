@@ -1,18 +1,16 @@
 import { act, renderHook, waitFor } from "@testing-library/react-native";
-import { ApiError } from "@/lib/api/errors";
+import { createApiError } from "@/lib/api/errors";
 import { useUsernameAvailability } from "./use-username-availability";
 
 const mockCheck = jest.fn();
-jest.mock("@/lib/api/generated", () => ({
-  usersControllerCheckUsernameAvailability: (...args: unknown[]) => mockCheck(...args),
+jest.mock("../api/queries", () => ({
+  checkUsernameAvailability: (...args: unknown[]) => mockCheck(...args),
 }));
 
 beforeEach(() => {
   jest.clearAllMocks();
   jest.useFakeTimers();
-  mockCheck.mockResolvedValue({
-    data: { data: { username: "ada.lovelace", available: true, reason: null }, meta: {} },
-  });
+  mockCheck.mockResolvedValue({ username: "ada.lovelace", available: true, reason: null });
 });
 
 afterEach(() => {
@@ -49,15 +47,11 @@ test("debounces and reports an available username", async () => {
 
   await waitFor(() => expect(result.current.status).toBe("available"));
   expect(result.current.canSubmit).toBe(true);
-  expect(mockCheck).toHaveBeenCalledWith(
-    expect.objectContaining({ query: { username: "ada.lovelace" }, throwOnError: true }),
-  );
+  expect(mockCheck).toHaveBeenCalledWith("ada.lovelace", expect.any(AbortSignal));
 });
 
 test("reports taken usernames from the API", async () => {
-  mockCheck.mockResolvedValue({
-    data: { data: { username: "taken.name", available: false, reason: "TAKEN" }, meta: {} },
-  });
+  mockCheck.mockResolvedValue({ username: "taken.name", available: false, reason: "TAKEN" });
   const { result } = await renderHook(() => useUsernameAvailability("taken.name"));
 
   await act(async () => {
@@ -69,7 +63,7 @@ test("reports taken usernames from the API", async () => {
 
 test("pauses after RATE_LIMIT_EXCEEDED until Retry-After elapses", async () => {
   mockCheck.mockRejectedValueOnce(
-    new ApiError("Too many requests", { status: 429, code: "RATE_LIMIT_EXCEEDED", retryAfterSeconds: 2 }),
+    createApiError("Too many requests", { status: 429, code: "RATE_LIMIT_EXCEEDED", retryAfterSeconds: 2 }),
   );
   const { result } = await renderHook(() => useUsernameAvailability("ada.lovelace"));
 
@@ -79,9 +73,7 @@ test("pauses after RATE_LIMIT_EXCEEDED until Retry-After elapses", async () => {
   await waitFor(() => expect(result.current.status).toBe("paused"));
   expect(result.current.canSubmit).toBe(false);
 
-  mockCheck.mockResolvedValue({
-    data: { data: { username: "ada.lovelace", available: true, reason: null }, meta: {} },
-  });
+  mockCheck.mockResolvedValue({ username: "ada.lovelace", available: true, reason: null });
   await act(async () => {
     jest.advanceTimersByTime(2000);
   });
