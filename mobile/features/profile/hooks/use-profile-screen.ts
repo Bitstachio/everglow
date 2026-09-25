@@ -1,27 +1,17 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
 import type { DeleteAccountPhotoPolicy } from "../types";
 import { useChangePassword } from "./use-change-password";
-import { useEditProfileForm } from "./use-edit-profile-form";
 
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();
   const deleting = useRef(false);
   const deleteProfileMutation = useDeleteProfileMutation();
-  const [showEditModal, setShowEditModal] = useState(false);
   const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
-
-  const { form, onSubmit } = useEditProfileForm({
-    user,
-    onSuccess: () => {
-      setShowEditModal(false);
-      Alert.alert("Success", "Profile updated successfully");
-    },
-  });
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -32,14 +22,6 @@ export const useProfileScreen = () => {
         onPress: logout,
       },
     ]);
-  };
-
-  const handleEditProfile = () => {
-    form.reset({
-      name: user?.details?.name ?? "",
-      email: user?.details?.email ?? "",
-    });
-    setShowEditModal(true);
   };
 
   const confirmDeleteAccount = (photos: DeleteAccountPhotoPolicy) => {
@@ -81,10 +63,6 @@ export const useProfileScreen = () => {
     );
   };
 
-  const handleCancelEdit = () => {
-    if (!form.formState.isSubmitting) setShowEditModal(false);
-  };
-
   const username = user?.details?.username ?? "Not set";
 
   return {
@@ -100,12 +78,7 @@ export const useProfileScreen = () => {
     handleChangePassword,
     isDeleting: deleteProfileMutation.isPending,
     isLoading,
-    showEditModal,
-    form,
-    onSubmit,
     handleLogout,
-    handleEditProfile,
     handleDeleteAccount,
-    handleCancelEdit,
   };
 };

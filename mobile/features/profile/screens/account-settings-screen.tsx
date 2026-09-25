@@ -3,7 +3,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
-import { EditProfileModal } from "../components/edit-profile-modal";
 import { SettingsRow } from "../components/settings-row";
 import { useProfileScreen } from "../hooks/use-profile-screen";
 
@@ -21,13 +20,8 @@ const AccountSettingsScreen = () => {
     handleChangePassword,
     isLoading,
     isDeleting,
-    showEditModal,
-    form,
-    onSubmit,
     handleLogout,
-    handleEditProfile,
     handleDeleteAccount,
-    handleCancelEdit,
   } = useProfileScreen();
   if (isLoading)
     return (
@@ -58,7 +52,7 @@ const AccountSettingsScreen = () => {
           <View className="items-center gap-1">
             <H2>{user.details?.name || "Your profile"}</H2>
             <ThemedText tone="muted" className="text-sm">
-              {user.details?.email || "No email added"}
+              {username !== "Not set" ? `@${username}` : "No username set"}
             </ThemedText>
           </View>
         </View>
@@ -90,30 +84,20 @@ const AccountSettingsScreen = () => {
             disabled={isDeleting}
           />
         </View>
-        <View className="gap-3">
-          <H3>Security</H3>
-          <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-            <SettingsRow
-              title="Change Email Address"
-              description="Update your profile email"
-              icon="mail-outline"
-              onPress={handleEditProfile}
-              disabled={isDeleting}
-            />
-            {canChangePassword ? (
-              <>
-                <View className="h-px bg-border" />
-                <SettingsRow
-                  title={isChangingPassword ? "Opening password page…" : "Change Password"}
-                  description="Update your sign-in password"
-                  icon="lock-closed-outline"
-                  onPress={handleChangePassword}
-                  disabled={isDeleting || isChangingPassword}
-                />
-              </>
-            ) : null}
+        {canChangePassword ? (
+          <View className="gap-3">
+            <H3>Security</H3>
+            <View className="overflow-hidden rounded-2xl border border-border bg-surface">
+              <SettingsRow
+                title={isChangingPassword ? "Opening password page…" : "Change Password"}
+                description="Update your sign-in password"
+                icon="lock-closed-outline"
+                onPress={handleChangePassword}
+                disabled={isDeleting || isChangingPassword}
+              />
+            </View>
           </View>
-        </View>
+        ) : null}
         <View className="gap-3">
           <H3>About</H3>
           <View className="overflow-hidden rounded-2xl border border-border bg-surface">
@@ -151,14 +135,6 @@ const AccountSettingsScreen = () => {
           </View>
         </View>
       </ScrollView>
-      <EditProfileModal
-        visible={showEditModal}
-        control={form.control}
-        isSubmitting={form.formState.isSubmitting}
-        isDirty={form.formState.isDirty}
-        onSubmit={onSubmit}
-        onCancel={handleCancelEdit}
-      />
     </SafeAreaView>
   );
 };

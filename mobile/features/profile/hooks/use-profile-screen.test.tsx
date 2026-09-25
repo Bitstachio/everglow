@@ -5,13 +5,16 @@ import { useProfileScreen } from "./use-profile-screen";
 const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
   router: { push: (path: string) => mockPush(path) },
-  useLocalSearchParams: () => ({}),
 }));
 
 const mockLogout = jest.fn();
 const mockDelete = jest.fn();
 jest.mock("@/context/auth-context", () => ({
-  useAuth: () => ({ user: { id: "user-1" }, logout: mockLogout, isLoading: false }),
+  useAuth: () => ({
+    user: { id: "user-1", details: { username: "ada", name: "Ada" } },
+    logout: mockLogout,
+    isLoading: false,
+  }),
 }));
 jest.mock("../api/mutations", () => ({
   useDeleteProfileMutation: () => ({ mutateAsync: mockDelete, isPending: false }),
@@ -22,9 +25,6 @@ jest.mock("./use-change-password", () => ({
     isChangingPassword: false,
     handleChangePassword: jest.fn(),
   }),
-}));
-jest.mock("./use-edit-profile-form", () => ({
-  useEditProfileForm: () => ({ form: { reset: jest.fn(), formState: { isSubmitting: false } }, onSubmit: jest.fn() }),
 }));
 
 const alert = jest.spyOn(Alert, "alert");
@@ -119,4 +119,9 @@ test.each([
   const { result } = await renderHook(() => useProfileScreen());
   result.current[handler]();
   expect(mockPush).toHaveBeenCalledWith(path);
+});
+
+test("exposes the profile username for the settings header", async () => {
+  const { result } = await renderHook(() => useProfileScreen());
+  expect(result.current.username).toBe("ada");
 });

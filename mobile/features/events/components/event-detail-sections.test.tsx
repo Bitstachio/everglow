@@ -86,15 +86,22 @@ test("members sheet lists roles and allows removing non-organizers", async () =>
       visible
       participants={[
         buildParticipant(),
-        buildParticipant({ userId: "user-2", name: "Grace Hopper", accessLevel: "PARTICIPANT" }),
+        buildParticipant({
+          userId: "user-2",
+          name: "Grace Hopper",
+          username: "grace",
+          accessLevel: "PARTICIPANT",
+        }),
       ]}
       onClose={jest.fn()}
       onRemove={onRemove}
     />,
   );
   expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
+  expect(screen.getByText("@ada")).toBeOnTheScreen();
   expect(screen.getByText(getAccessLevelLabel("ORGANIZER"))).toBeOnTheScreen();
   expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
+  expect(screen.getByText("@grace")).toBeOnTheScreen();
   expect(screen.queryByLabelText("Remove Ada Lovelace")).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByLabelText("Remove Grace Hopper"));
   expect(onRemove).toHaveBeenCalledWith("user-2");
