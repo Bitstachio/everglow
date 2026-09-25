@@ -21,7 +21,7 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { UsernameAvailabilityResponseDto } from "./dto/username-availability-response.dto";
 import { ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK, USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } from "./users.constants";
 import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
-import { normalizeUsername, usernameFormatReason, deriveUsernameBaseFromEmail, usernameWithSuffix } from "./username";
+import { normalizeUsername, usernameFormatReason } from "./username";
 
 /** Fields the account-deletion saga needs; callers may pass a lean select. */
 export type AccountDeletionUser = Pick<
@@ -47,15 +47,7 @@ export class UsersService {
 
     if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
 
-    if (!dto.username && !dto.email) {
-      throw new BadRequestException("Username or email is required to complete onboarding");
-    }
-
-    const username = dto.username
-      ? this.requireWritableUsername(dto.username)
-      : await this.allocateUniqueUsername(deriveUsernameBaseFromEmail(dto.email!));
-
-    if (dto.email) await this.assertEmailIsUnique(dto.email);
+    const username = this.requireWritableUsername(dto.username);
 
     try {
       const updated = await this.prisma.user.update({
@@ -64,7 +56,6 @@ export class UsersService {
           details: {
             create: {
               username,
-              email: dto.email ?? null,
               name: dto.name,
             },
           },
@@ -103,8 +94,6 @@ export class UsersService {
 
   async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
     await this.getOnboardedById(id);
-
-    if (dto.email) await this.assertEmailIsUnique(dto.email, id);
 
     const data: UpdateUserDto = { ...dto };
     if (dto.username !== undefined) {
@@ -373,32 +362,11 @@ export class UsersService {
     return username;
   }
 
-  /** Find an unused handle starting from `base`, matching the backfill collision rule. */
-  private async allocateUniqueUsername(base: string): Promise<string> {
-    for (let suffix = 1; suffix < 10_000; suffix++) {
-      const candidate = usernameWithSuffix(base, suffix);
-      const taken = await this.prisma.userDetails.count({ where: { username: candidate } });
-      if (taken === 0) return candidate;
-    }
-    throw new ConflictException({
-      code: USERNAME_TAKEN_CODE,
-      message: USER_SERVICE_ERRORS.USERNAME_TAKEN(base),
-    });
-  }
-
   private rethrowUsernameTaken(error: unknown, username: string): void {
     if (!isUniqueConstraintViolation(error)) return;
     throw new ConflictException({
       code: USERNAME_TAKEN_CODE,
       message: USER_SERVICE_ERRORS.USERNAME_TAKEN(username),
     });
-  }
-
-  private async assertEmailIsUnique(email: string, excludeUserId?: string): Promise<void> {
-    const taken = await this.prisma.userDetails.count({
-      where: { email, NOT: { userId: excludeUserId } },
-    });
-
-    if (taken > 0) throw new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(email));
   }
 }

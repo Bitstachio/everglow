@@ -1529,12 +1529,6 @@
             "example": "jane.doe",
             "maxLength": 30
           },
-          "email": {
-            "type": "string",
-            "nullable": true,
-            "example": "user@example.com",
-            "description": "Optional profile email while it remains on the row; null when unset. Being removed in EV-21 phase 3."
-          },
           "name": {
             "type": "string",
             "example": "Jane Doe"
@@ -1556,7 +1550,6 @@
         },
         "required": [
           "username",
-          "email",
           "name",
           "avatarUrl",
           "createdAt",
@@ -1628,17 +1621,12 @@
             "example": "jane.doe",
             "minLength": 3,
             "maxLength": 30,
-            "description": "Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part."
-          },
-          "email": {
-            "type": "string",
-            "example": "user@example.com",
-            "maxLength": 255,
-            "description": "Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email."
+            "description": "Public handle. Trimmed and lowercased before validation."
           }
         },
         "required": [
-          "name"
+          "name",
+          "username"
         ]
       },
       "UsernameAvailabilityResponseDto": {
@@ -1709,13 +1697,7 @@
             "example": "jane.doe",
             "minLength": 3,
             "maxLength": 30,
-            "description": "Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part."
-          },
-          "email": {
-            "type": "string",
-            "example": "user@example.com",
-            "maxLength": 255,
-            "description": "Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email."
+            "description": "Public handle. Trimmed and lowercased before validation."
           }
         }
       },

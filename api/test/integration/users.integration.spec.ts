@@ -114,7 +114,6 @@ describe("UsersController (integration)", () => {
       const onboardedUser = buildUserWithDetails();
 
       prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
-      prisma.userDetails.count.mockResolvedValue(0);
       prisma.user.update.mockResolvedValue(onboardedUser);
 
       const response = await request(httpServer).post(path).set(authHeader()).send(payload).expect(201);
@@ -122,7 +121,7 @@ describe("UsersController (integration)", () => {
       const body = response.body as WrappedResponse<{
         id: string;
         isOnboarded: boolean;
-        details: { email: string; name: string; createdAt: string; updatedAt: string };
+        details: { username: string; name: string; createdAt: string; updatedAt: string };
         createdAt: string;
         updatedAt: string;
       }>;
@@ -132,10 +131,10 @@ describe("UsersController (integration)", () => {
         isOnboarded: true,
         details: {
           username: payload.username,
-          email: payload.email,
           name: payload.name,
         },
       });
+      expect(body.data.details).not.toHaveProperty("email");
       expect(body.meta.path).toBe(path);
       expect(body.meta.timestamp).toEqual(expect.any(String));
 
@@ -145,7 +144,6 @@ describe("UsersController (integration)", () => {
           details: {
             create: {
               username: payload.username,
-              email: payload.email,
               name: payload.name,
             },
           },
@@ -154,27 +152,12 @@ describe("UsersController (integration)", () => {
       });
     });
 
-    it("returns 201 when onboarding omits email", async () => {
-      const payload = createUserDetailsPayload();
-      delete (payload as { email?: string }).email;
-      const onboardedUser = buildUserWithDetails({
-        details: { ...buildUserWithDetails().details!, email: null },
-      });
+    it("returns 400 when username is omitted", async () => {
+      const response = await request(httpServer).post(path).set(authHeader()).send({ name: "Jane Doe" }).expect(400);
 
-      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
-      prisma.user.update.mockResolvedValue(onboardedUser);
-
-      const response = await request(httpServer).post(path).set(authHeader()).send(payload).expect(201);
-
-      const body = response.body as WrappedResponse<{
-        details: { username: string; email: string | null; name: string };
-      }>;
-      expect(body.data.details).toMatchObject({
-        username: payload.username,
-        email: null,
-        name: payload.name,
-      });
-      expect(prisma.userDetails.count).not.toHaveBeenCalled();
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBeDefined();
+      expect(body.meta.path).toBe(path);
     });
 
     it("returns 400 when the username is reserved", async () => {
@@ -192,7 +175,6 @@ describe("UsersController (integration)", () => {
 
     it("returns 409 with USERNAME_TAKEN when username create races", async () => {
       prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
-      prisma.userDetails.count.mockResolvedValue(0);
       prisma.user.update.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
           code: "P2002",
@@ -206,7 +188,7 @@ describe("UsersController (integration)", () => {
       const body = response.body as ErrorResponse;
       expect(body).toMatchObject({
         code: USERNAME_TAKEN_CODE,
-        message: USER_SERVICE_ERRORS.USERNAME_TAKEN(payload.username!),
+        message: USER_SERVICE_ERRORS.USERNAME_TAKEN(payload.username),
       });
     });
 
@@ -214,7 +196,22 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer)
         .post(path)
         .set(authHeader())
-        .send({ name: "", email: "not-an-email" })
+        .send({ name: "", username: "ab" })
+        .expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBeDefined();
+      expect(body.meta.path).toBe(path);
+    });
+
+    it("returns 400 when email is sent as an unknown property", async () => {
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader())
+        .send({
+          ...createUserDetailsPayload(),
+          email: "jane@example.com",
+        })
         .expect(400);
 
       const body = response.body as ErrorResponse;
@@ -256,18 +253,6 @@ describe("UsersController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(TEST_USER_ID));
-      expect(body.meta.path).toBe(path);
-    });
-
-    it("returns 409 when the email is already taken", async () => {
-      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
-      prisma.userDetails.count.mockResolvedValue(1);
-
-      const payload = createUserDetailsPayload({ email: "taken@example.com" });
-      const response = await request(httpServer).post(path).set(authHeader()).send(payload).expect(409);
-
-      const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.EMAIL_TAKEN(payload.email!));
       expect(body.meta.path).toBe(path);
     });
   });
@@ -365,7 +350,7 @@ describe("UsersController (integration)", () => {
       const body = response.body as WrappedResponse<{
         id: string;
         isOnboarded: boolean;
-        details: { email: string; name: string } | null;
+        details: { username: string; name: string } | null;
       }>;
 
       expect(body.data).toMatchObject({
@@ -373,10 +358,10 @@ describe("UsersController (integration)", () => {
         isOnboarded: true,
         details: {
           username: user.details!.username,
-          email: user.details!.email,
           name: user.details!.name,
         },
       });
+      expect(body.data.details).not.toHaveProperty("email");
       expect(body.meta.path).toBe(path);
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
@@ -701,10 +686,18 @@ describe("UsersController (integration)", () => {
     });
 
     it("returns 400 when the payload contains invalid values", async () => {
+      const response = await request(httpServer).patch(path).set(authHeader()).send({ username: "ab" }).expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBeDefined();
+      expect(body.meta.path).toBe(path);
+    });
+
+    it("returns 400 when email is sent as an unknown property", async () => {
       const response = await request(httpServer)
         .patch(path)
         .set(authHeader())
-        .send({ email: "invalid-email" })
+        .send({ email: "jane@example.com" })
         .expect(400);
 
       const body = response.body as ErrorResponse;
@@ -749,18 +742,6 @@ describe("UsersController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
-      expect(body.meta.path).toBe(path);
-    });
-
-    it("returns 409 when the new email is already taken", async () => {
-      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.userDetails.count.mockResolvedValue(1);
-
-      const payload = updateUserPayload({ email: "taken@example.com" });
-      const response = await request(httpServer).patch(path).set(authHeader()).send(payload).expect(409);
-
-      const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.EMAIL_TAKEN(payload.email!));
       expect(body.meta.path).toBe(path);
     });
   });
