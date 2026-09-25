@@ -59,7 +59,6 @@ describe("PhotosService", () => {
       id: "33333333-3333-3333-3333-333333333333",
       userId: callerId,
       username: "caller",
-      email: "caller@example.com",
       name: "Caller",
       avatarS3Key: null,
       createdAt: now,

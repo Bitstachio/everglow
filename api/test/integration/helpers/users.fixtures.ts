@@ -48,7 +48,6 @@ export const buildUserWithDetails = (overrides: Partial<UserWithDetails> = {}): 
     id: TEST_DETAILS_ID,
     userId: TEST_USER_ID,
     username: "jane.doe",
-    email: "jane@example.com",
     name: "Jane Doe",
     avatarS3Key: null,
     createdAt: TEST_NOW,
