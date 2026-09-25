@@ -13,7 +13,8 @@ export const useOnboardingScreen = () => {
 
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
-  const [formErrors, setFormErrors] = useState({ name: "", username: "" });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [formErrors, setFormErrors] = useState({ name: "", username: "", terms: "" });
   const availability = useUsernameAvailability(username);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export const useOnboardingScreen = () => {
   }, [isAuthenticated, isOnboarded]);
 
   const validateForm = () => {
-    const errors = { name: "", username: "" };
+    const errors = { name: "", username: "", terms: "" };
     let isValid = true;
     const normalizedUsername = normalizeUsername(username);
 
@@ -58,6 +59,11 @@ export const useOnboardingScreen = () => {
       isValid = false;
     }
 
+    if (!acceptedTerms) {
+      errors.terms = "Please accept the Terms of Use to continue";
+      isValid = false;
+    }
+
     setFormErrors(errors);
     return isValid;
   };
@@ -70,7 +76,7 @@ export const useOnboardingScreen = () => {
     const normalizedUsername = normalizeUsername(username);
 
     try {
-      await completeOnboarding({ name: name.trim(), username: normalizedUsername });
+      await completeOnboarding({ name: name.trim(), username: normalizedUsername, acceptedTerms: true });
     } catch (err: unknown) {
       if (getErrorCode(err) === "USERNAME_TAKEN") {
         setFormErrors((prev) => ({
@@ -93,7 +99,7 @@ export const useOnboardingScreen = () => {
   const usernameFieldError =
     formErrors.username ||
     (availability.status === "unavailable" || availability.status === "paused" ? (availability.message ?? "") : "");
-  const canContinue = !isLoading && availability.canSubmit && name.trim().length >= 2;
+  const canContinue = !isLoading && availability.canSubmit && name.trim().length >= 2 && acceptedTerms;
 
   return {
     name,
@@ -101,6 +107,7 @@ export const useOnboardingScreen = () => {
     formErrors,
     error,
     isLoading,
+    acceptedTerms,
     availability,
     usernameFieldError,
     canContinue,
@@ -114,6 +121,12 @@ export const useOnboardingScreen = () => {
       if (formErrors.username) setFormErrors({ ...formErrors, username: "" });
       if (error) clearError();
     },
+    toggleAcceptedTerms: () => {
+      setAcceptedTerms((accepted) => !accepted);
+      if (formErrors.terms) setFormErrors({ ...formErrors, terms: "" });
+    },
+    openTermsOfUse: () => router.push("/terms-of-use"),
+    openPrivacyPolicy: () => router.push("/privacy-policy"),
     handleSubmit,
   };
 };

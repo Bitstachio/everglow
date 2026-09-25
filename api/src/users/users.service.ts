@@ -53,7 +53,8 @@ export class UsersService {
       const updated = await this.prisma.user.update({
         where: { id },
         data: {
-          ...(dto.acceptedTerms && { termsAcceptedAt: new Date() }),
+          // The DTO only lets acceptedTerms: true through.
+          termsAcceptedAt: new Date(),
           details: {
             create: {
               username,

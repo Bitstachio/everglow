@@ -2161,12 +2161,13 @@
           "acceptedTerms": {
             "type": "boolean",
             "example": true,
-            "description": "The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Only `true` is valid; when sent, the acceptance time is recorded as termsAcceptedAt."
+            "description": "The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Required, and only `true` is valid; the acceptance time is recorded as termsAcceptedAt."
           }
         },
         "required": [
           "name",
-          "username"
+          "username",
+          "acceptedTerms"
         ]
       },
       "UsernameAvailabilityResponseDto": {

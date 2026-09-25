@@ -1,6 +1,6 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
-import { Equals, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import { Equals, IsNotEmpty, IsString, Matches, MaxLength, MinLength } from "class-validator";
 import { STRING_LIMITS } from "src/common/constants/schema.constants";
 import { USERNAME_PATTERN } from "../users.constants";
 
@@ -27,16 +27,15 @@ export class CreateUserDetailsDto {
   })
   username: string;
 
-  // Optional only until the mobile onboarding sends it; then it becomes
-  // required. Omitting it onboards the account with termsAcceptedAt null.
-  @ApiPropertyOptional({
+  // App Store guideline 1.2: nobody joins without agreeing to terms that
+  // forbid objectionable content. See docs/moderation.md §6.
+  @ApiProperty({
     type: Boolean,
     example: true,
     description:
       "The user accepted the terms of use, which forbid objectionable content and abusive behaviour. " +
-      "Only `true` is valid; when sent, the acceptance time is recorded as termsAcceptedAt.",
+      "Required, and only `true` is valid; the acceptance time is recorded as termsAcceptedAt.",
   })
-  @IsOptional()
   @Equals(true)
-  acceptedTerms?: true;
+  acceptedTerms: true;
 }

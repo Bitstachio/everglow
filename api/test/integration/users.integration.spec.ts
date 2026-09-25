@@ -142,6 +142,7 @@ describe("UsersController (integration)", () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: TEST_USER_ID },
         data: {
+          termsAcceptedAt: expect.any(Date) as unknown,
           details: {
             create: {
               username: payload.username,
@@ -193,18 +194,13 @@ describe("UsersController (integration)", () => {
       });
     });
 
-    it("returns 201 with termsAcceptedAt null for a client that does not send acceptedTerms yet", async () => {
-      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
-      prisma.user.update.mockResolvedValue(buildUserWithDetails());
+    it("returns 400 and onboards nobody when acceptedTerms is omitted", async () => {
+      const { acceptedTerms, ...withoutTerms } = createUserDetailsPayload();
+      void acceptedTerms;
 
-      const response = await request(httpServer)
-        .post(path)
-        .set(authHeader())
-        .send(createUserDetailsPayload())
-        .expect(201);
+      await request(httpServer).post(path).set(authHeader()).send(withoutTerms).expect(400);
 
-      const body = response.body as WrappedResponse<{ termsAcceptedAt: string | null }>;
-      expect(body.data.termsAcceptedAt).toBeNull();
+      expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
     it("returns 201 and records the acceptance time when acceptedTerms is true", async () => {
@@ -214,7 +210,7 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer)
         .post(path)
         .set(authHeader())
-        .send({ ...createUserDetailsPayload(), acceptedTerms: true })
+        .send(createUserDetailsPayload())
         .expect(201);
 
       const body = response.body as WrappedResponse<{ termsAcceptedAt: string | null }>;

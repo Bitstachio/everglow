@@ -5,10 +5,11 @@ import OnboardingScreen from "./onboarding-screen";
 const mockCompleteOnboarding = jest.fn();
 const mockClearError = jest.fn();
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 const mockAlert = jest.fn();
 
 jest.mock("expo-router", () => ({
-  router: { replace: (href: unknown) => mockReplace(href) },
+  router: { replace: (href: unknown) => mockReplace(href), push: (href: unknown) => mockPush(href) },
 }));
 
 jest.mock("react-native-auth0", () => ({
@@ -59,16 +60,54 @@ test("prefills name from Auth0 and does not prefill email as username", async ()
   expect(screen.queryByLabelText("Email")).not.toBeOnTheScreen();
 });
 
-test("submits name and username without email", async () => {
+const acceptTerms = (user: ReturnType<typeof userEvent.setup>) =>
+  user.press(screen.getByRole("checkbox", { name: "I agree to the Terms of Use and Privacy Policy" }));
+
+test("submits name, username and the terms acceptance, without email", async () => {
   const user = userEvent.setup();
   await render(<OnboardingScreen />);
 
   await user.paste(screen.getByLabelText("Username"), "ada.lovelace");
+  await acceptTerms(user);
   await user.press(screen.getByRole("button", { name: "Continue" }));
 
   await waitFor(() =>
-    expect(mockCompleteOnboarding).toHaveBeenCalledWith({ name: "Ada Lovelace", username: "ada.lovelace" }),
+    expect(mockCompleteOnboarding).toHaveBeenCalledWith({
+      name: "Ada Lovelace",
+      username: "ada.lovelace",
+      acceptedTerms: true,
+    }),
   );
+});
+
+test("keeps Continue disabled until the terms are accepted, and again when unticked", async () => {
+  const user = userEvent.setup();
+  await render(<OnboardingScreen />);
+  await user.paste(screen.getByLabelText("Username"), "ada.lovelace");
+
+  const checkbox = screen.getByRole("checkbox", { name: "I agree to the Terms of Use and Privacy Policy" });
+  expect(checkbox).not.toBeChecked();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+
+  await acceptTerms(user);
+  expect(checkbox).toBeChecked();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+
+  await acceptTerms(user);
+  expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+  expect(mockCompleteOnboarding).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["Terms of Use", "/terms-of-use"],
+  ["Privacy Policy", "/privacy-policy"],
+])("opens the %s from the consent text", async (label, route) => {
+  const user = userEvent.setup();
+  await render(<OnboardingScreen />);
+
+  await user.press(screen.getByRole("link", { name: label }));
+
+  expect(mockPush).toHaveBeenCalledWith(route);
 });
 
 test("keeps Continue disabled until the username is available", async () => {
@@ -93,6 +132,7 @@ test("shows taken when onboarding loses a uniqueness race", async () => {
   await render(<OnboardingScreen />);
 
   await user.paste(screen.getByLabelText("Username"), "ada.lovelace");
+  await acceptTerms(user);
   await user.press(screen.getByRole("button", { name: "Continue" }));
 
   expect(await screen.findByText("This username is taken")).toBeOnTheScreen();

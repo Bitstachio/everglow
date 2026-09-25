@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Pressable, ScrollView } from "react-native";
 import { Input } from "@/components/ui/input/input";
 import { Button } from "@/components/ui/button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -11,11 +11,15 @@ const OnboardingScreen = () => {
     formErrors,
     error,
     isLoading,
+    acceptedTerms,
     availability,
     usernameFieldError,
     canContinue,
     setName,
     setUsername,
+    toggleAcceptedTerms,
+    openTermsOfUse,
+    openPrivacyPolicy,
     handleSubmit,
   } = useOnboardingScreen();
   const colorScheme = useColorScheme();
@@ -65,6 +69,42 @@ const OnboardingScreen = () => {
                 {availability.message}
               </Text>
             ) : null}
+            <View style={styles.consentRow}>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: acceptedTerms }}
+                accessibilityLabel="I agree to the Terms of Use and Privacy Policy"
+                onPress={toggleAcceptedTerms}
+                hitSlop={8}
+                style={[
+                  styles.checkbox,
+                  isDark ? styles.checkboxDark : styles.checkboxLight,
+                  acceptedTerms && (isDark ? styles.checkboxCheckedDark : styles.checkboxCheckedLight),
+                ]}
+              >
+                {acceptedTerms ? <Text style={styles.checkmark}>✓</Text> : null}
+              </Pressable>
+              <Text style={[styles.consentText, isDark ? styles.subtitleDark : styles.subtitleLight]}>
+                I agree to the{" "}
+                <Text
+                  accessibilityRole="link"
+                  onPress={openTermsOfUse}
+                  style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}
+                >
+                  Terms of Use
+                </Text>{" "}
+                and{" "}
+                <Text
+                  accessibilityRole="link"
+                  onPress={openPrivacyPolicy}
+                  style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}
+                >
+                  Privacy Policy
+                </Text>
+                , including no objectionable content or abusive behaviour.
+              </Text>
+            </View>
+            {formErrors.terms ? <Text style={styles.consentError}>{formErrors.terms}</Text> : null}
             <Button title="Continue" onPress={handleSubmit} isLoading={isLoading} disabled={!canContinue} />
           </View>
         </View>
@@ -143,5 +183,59 @@ const styles = StyleSheet.create({
   },
   availabilityHintDark: {
     color: "#9CA3AF",
+  },
+  consentRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginTop: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  checkboxLight: {
+    borderColor: "#9CA3AF",
+  },
+  checkboxDark: {
+    borderColor: "#6B7280",
+  },
+  checkboxCheckedLight: {
+    backgroundColor: "#4F46E5",
+    borderColor: "#4F46E5",
+  },
+  checkboxCheckedDark: {
+    backgroundColor: "#818CF8",
+    borderColor: "#818CF8",
+  },
+  checkmark: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  consentText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  link: {
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  linkLight: {
+    color: "#4F46E5",
+  },
+  linkDark: {
+    color: "#818CF8",
+  },
+  consentError: {
+    color: "#DC2626",
+    fontSize: 14,
+    marginTop: -4,
   },
 });

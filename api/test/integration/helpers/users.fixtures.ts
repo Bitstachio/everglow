@@ -12,6 +12,7 @@ export const TEST_NOW = new Date("2026-06-10T12:00:00.000Z");
 export const createUserDetailsPayload = (overrides: Partial<CreateUserDetailsDto> = {}): CreateUserDetailsDto => ({
   name: "Jane Doe",
   username: "jane.doe",
+  acceptedTerms: true,
   ...overrides,
 });
 
