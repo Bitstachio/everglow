@@ -1574,6 +1574,12 @@
               }
             ]
           },
+          "termsAcceptedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the user accepted the terms of use; null if they have not been asked yet."
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -1587,6 +1593,7 @@
           "id",
           "isOnboarded",
           "details",
+          "termsAcceptedAt",
           "createdAt",
           "updatedAt"
         ]
@@ -1622,6 +1629,11 @@
             "minLength": 3,
             "maxLength": 30,
             "description": "Public handle. Trimmed and lowercased before validation."
+          },
+          "acceptedTerms": {
+            "type": "boolean",
+            "example": true,
+            "description": "The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Only `true` is valid; when sent, the acceptance time is recorded as termsAcceptedAt."
           }
         },
         "required": [

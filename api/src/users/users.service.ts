@@ -53,6 +53,7 @@ export class UsersService {
       const updated = await this.prisma.user.update({
         where: { id },
         data: {
+          ...(dto.acceptedTerms && { termsAcceptedAt: new Date() }),
           details: {
             create: {
               username,
@@ -63,7 +64,10 @@ export class UsersService {
         include: userWithDetailsInclude,
       });
 
-      this.logger.info({ event: "user.onboarding.completed", userId: id }, "User completed onboarding");
+      this.logger.info(
+        { event: "user.onboarding.completed", userId: id, termsAccepted: !!updated.termsAcceptedAt },
+        "User completed onboarding",
+      );
 
       return updated;
     } catch (error) {

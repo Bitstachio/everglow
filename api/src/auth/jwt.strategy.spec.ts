@@ -47,6 +47,7 @@ describe("JwtStrategy", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,

@@ -28,6 +28,7 @@ export const buildUserWithoutDetails = (overrides: Partial<UserWithDetails> = {}
   auth0DeletedAt: null,
   deletionPhotoPolicy: null,
   deletionAttempts: 0,
+  termsAcceptedAt: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   details: null,
@@ -42,6 +43,7 @@ export const buildUserWithDetails = (overrides: Partial<UserWithDetails> = {}): 
   auth0DeletedAt: null,
   deletionPhotoPolicy: null,
   deletionAttempts: 0,
+  termsAcceptedAt: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   details: {

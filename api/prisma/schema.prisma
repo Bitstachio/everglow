@@ -29,6 +29,28 @@ enum AccountDeletionPhotoPolicy {
   DELETE
 }
 
+/// What a report points at. Stored rather than derived from which foreign key
+/// is set, because both keys are SET NULL: once the photo or the account is
+/// gone, this is what still says what kind of thing was reported.
+enum ReportTargetType {
+  PHOTO
+  MEMBER
+}
+
+enum ReportReason {
+  SPAM
+  NUDITY_OR_SEXUAL
+  HARASSMENT
+  VIOLENCE
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
 model User {
   id                  String                      @id @default(uuid()) @db.Uuid
   providerSub         String                      @unique @db.VarChar(255)
@@ -47,13 +69,23 @@ model User {
   // Failed reconciler passes. Bounded so a permanently stuck row is reported
   // once instead of alerting every hour forever.
   deletionAttempts    Int                         @default(0)
+  // When the account accepted the terms of use (App Store guideline 1.2).
+  // Null for accounts onboarded before the client sent `acceptedTerms`.
+  termsAcceptedAt     DateTime?
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
 
-  details       UserDetails?
-  createdEvents Event[]       @relation("CreatedEvents")
-  eventAccesses EventAccess[]
-  photos        Photo[]
+  details         UserDetails?
+  createdEvents   Event[]       @relation("CreatedEvents")
+  eventAccesses   EventAccess[]
+  photos          Photo[]
+  // Moderation (see docs/moderation.md). Every relation below is SET NULL or
+  // CASCADE, so none of them can block the account-deletion saga.
+  reportsFiled    Report[]      @relation("ReportsFiled")
+  reportsReceived Report[]      @relation("ReportsReceived")
+  reportsResolved Report[]      @relation("ReportsResolved")
+  blocksInitiated UserBlock[]   @relation("BlocksInitiated")
+  blocksReceived  UserBlock[]   @relation("BlocksReceived")
 
   // Reconciler looks up users mid-deletion; only those rows are indexed.
   @@index([deletionStartedAt], where: { deletionStartedAt: { not: null } })
@@ -108,6 +140,7 @@ model Event {
   creator       User?         @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: SetNull)
   photos        Photo[]
   eventAccesses EventAccess[]
+  reports       Report[]
 
   @@index([creatorId])
 }
@@ -141,10 +174,78 @@ model Photo {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  addedBy User? @relation(fields: [addedById], references: [id], onDelete: SetNull)
-  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  addedBy User?    @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reports Report[]
 
   @@index([eventId, status, createdAt])
   @@index([addedById])
   @@index([status, createdAt])
+}
+
+// A member's report of a photo or of another member (see docs/moderation.md).
+// The migration adds CHECK constraints Prisma cannot express: a MEMBER report
+// never carries a photoId, reporter and reported user differ, and the
+// resolution columns agree with the status.
+model Report {
+  id             String           @id @default(uuid()) @db.Uuid
+  eventId        String           @db.Uuid
+  // Null once the reporter's account is deleted: the report stays as evidence.
+  reporterId     String?          @db.Uuid
+  targetType     ReportTargetType
+  // Set for PHOTO reports; null again once that photo is deleted.
+  photoId        String?          @db.Uuid
+  // The reported member, or the uploader of the reported photo. Null once that
+  // account is deleted, or when the photo had already lost its uploader.
+  reportedUserId String?          @db.Uuid
+  reason         ReportReason
+  note           String?          @db.VarChar(500)
+  status         ReportStatus     @default(OPEN)
+  resolvedById   String?          @db.Uuid
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Reports are an event's moderation queue and go with it. Everything else is
+  // SET NULL: deleting a photo, a reporter, a reported account or a resolver
+  // never fails on a report, and never erases one either.
+  event        Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reporter     User?  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: SetNull)
+  photo        Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  reportedUser User?  @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  resolvedBy   User?  @relation("ReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  // One OPEN report per reporter and target, enforced by the database so two
+  // concurrent submissions cannot both insert. Resolved reports are outside
+  // the indexes, which is what lets a target be reported again later. The
+  // photo index needs no targetType predicate (MEMBER reports have a null
+  // photoId, and nulls never collide), which also lets it answer "which photos
+  // has the caller an open report on?" in the photo read paths. The member
+  // index does: PHOTO reports carry the uploader in reportedUserId too.
+  @@unique([reporterId, photoId], where: { status: "OPEN" })
+  @@unique([reporterId, eventId, reportedUserId], where: { status: "OPEN", targetType: "MEMBER" })
+  // Organizer queue (status filter, newest first) and the per-event lookup of
+  // photos whose open reports reached the hide threshold.
+  @@index([eventId, status, createdAt])
+  // Foreign keys the SET NULL actions have to find.
+  @@index([photoId])
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([resolvedById])
+}
+
+// "blocker does not want to see blocked". Directional in storage, symmetric in
+// effect (see docs/moderation.md). The migration adds a CHECK that the two ids
+// differ. Both sides cascade: a block means nothing once either account is gone.
+model UserBlock {
+  id        String   @id @default(uuid()) @db.Uuid
+  blockerId String   @db.Uuid
+  blockedId String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlocksInitiated", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
 }
