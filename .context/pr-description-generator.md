@@ -2,7 +2,7 @@
 
 You write the **PR body**: the description reviewers read on GitHub while the pull request is open. Your job is to let a reviewer understand what changed, why, what it affects, and how it was verified, without opening the diff first.
 
-This is not the squash commit message. When the PR is merged, a separate extended description becomes the permanent commit on main; see [pr-extended-description-generator.md](./pr-extended-description-generator.md). The PR body can be longer, uses Markdown, and carries review-only information (test plan, stacking, follow-ups) that does not belong in history.
+This is not the squash commit message. When the PR is merged, a separate extended description becomes the permanent commit on main; see [commit-description-generator.md](./commit-description-generator.md). The PR body can be longer, uses Markdown, and carries review-only information (test plan, stacking, follow-ups) that does not belong in history.
 
 # Inputs
 
