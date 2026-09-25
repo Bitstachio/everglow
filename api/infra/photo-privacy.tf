@@ -200,11 +200,14 @@ resource "aws_sns_topic_policy" "security_alerts" {
   })
 }
 
-# AWS emails a confirmation link first; alerts arrive only after it is clicked.
+# AWS emails each address a confirmation link first; alerts arrive only after
+# it is clicked.
 resource "aws_sns_topic_subscription" "security_alerts_email" {
+  for_each = var.alert_emails
+
   topic_arn = aws_sns_topic.security_alerts.arn
   protocol  = "email"
-  endpoint  = var.alert_email
+  endpoint  = each.value
 }
 
 # Someone other than the API read, or tried to read, a photo. Denied attempts

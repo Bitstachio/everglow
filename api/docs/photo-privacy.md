@@ -43,9 +43,9 @@ Production, before launch (EV-37):
 
 ```sh
 cd api/infra
-cp terraform.tfvars.example terraform.tfvars   # set alert_email; the repo is public, keep it out of git
+cp terraform.tfvars.example terraform.tfvars   # set alert_emails; the repo is public, keep it out of git
 terraform plan
 terraform apply
 ```
 
-AWS then emails a confirmation link to `alert_email`. Alerts arrive only after it is clicked. CloudTrail delivers events a few minutes after they happen, so an alert can take up to about 15 minutes.
+AWS then emails a confirmation link to each address in `alert_emails`. Alerts arrive only after it is clicked. CloudTrail delivers events a few minutes after they happen, so an alert can take up to about 15 minutes.

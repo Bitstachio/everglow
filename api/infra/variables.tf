@@ -1,6 +1,6 @@
-variable "alert_email" {
-  description = "Where security alerts are emailed. Set it in terraform.tfvars (gitignored); this repository is public."
-  type        = string
+variable "alert_emails" {
+  description = "Addresses security alerts are emailed to. Set them in terraform.tfvars (gitignored); this repository is public."
+  type        = set(string)
 }
 
 variable "allow_human_photo_reads" {
