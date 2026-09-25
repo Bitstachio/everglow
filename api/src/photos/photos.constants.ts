@@ -33,10 +33,6 @@ export const UPLOAD_COMPLETION_GRACE_SECONDS = 15 * 60;
 // an object and may still be confirmed.
 export const EXPIRED_UPLOAD_SLOT_AGE_SECONDS = UPLOAD_URL_TTL_SECONDS + UPLOAD_COMPLETION_GRACE_SECONDS;
 
-export const DEFAULT_PHOTO_PAGE_SIZE = 50;
-
-export const MAX_PHOTO_PAGE_SIZE = 100;
-
 export const PHOTO_S3_KEY_PREFIX = "photos/";
 
 export const buildPhotoS3Key = (userId: string, eventId: string, photoId: string): string =>
@@ -101,5 +97,4 @@ export const PHOTO_SERVICE_ERRORS = {
   INVALID_STORAGE_INCREMENT: (value: string) =>
     `Storage limit increase must be a positive whole number of bytes, received "${value}"`,
   STORAGE_RESERVATION_CONFLICT: "Storage reservation conflicted with a concurrent upload, please retry",
-  INVALID_CURSOR: "Invalid cursor; pass the nextCursor value returned by the previous page",
 };

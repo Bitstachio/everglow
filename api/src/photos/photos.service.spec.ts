@@ -10,11 +10,11 @@ import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
-import { encodePhotoCursor } from "./photos.cursor";
 import {
   buildPhotoS3Key,
   FREE_TIER_STORAGE_LIMIT_BYTES,
@@ -559,7 +559,7 @@ describe("PhotosService", () => {
 
       expect(page.items).toHaveLength(2);
       // The cursor is the keyset of the last item on the page, not its id.
-      expect(page.nextCursor).toBe(encodePhotoCursor(photos[1]));
+      expect(page.nextCursor).toBe(encodeKeysetCursor(photos[1]));
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(2);
     });
 
@@ -569,7 +569,7 @@ describe("PhotosService", () => {
       prisma.photo.findMany.mockResolvedValue([]);
       const last = { createdAt: new Date("2026-06-10T12:00:00.500Z"), id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee" };
 
-      await service.listPhotos(eventId, callerId, { cursor: encodePhotoCursor(last), limit: 10 });
+      await service.listPhotos(eventId, callerId, { cursor: encodeKeysetCursor(last), limit: 10 });
 
       expect(prisma.photo.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
