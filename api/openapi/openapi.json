@@ -1666,6 +1666,7 @@
     },
     "/api/v2/events/{eventId}/participants/{targetUserId}": {
       "delete": {
+        "description": "Organizers only. Also bans them from rejoining through the invitation link until the ban is lifted.",
         "operationId": "EventsController_removeParticipant",
         "parameters": [
           {
@@ -1682,6 +1683,15 @@
             "in": "path",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "photos",
+            "required": false,
+            "in": "query",
+            "description": "What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is banned from rejoining through the invitation link until an organizer lifts the ban.",
+            "schema": {
+              "$ref": "#/components/schemas/RemovedMemberPhotos"
             }
           }
         ],
@@ -1702,6 +1712,104 @@
           }
         ],
         "summary": "Remove a member from an event",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/bans": {
+      "get": {
+        "operationId": "EventsController_listBans",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Banned members, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventBanListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List members banned from rejoining (organizers only)",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/bans/{userId}": {
+      "delete": {
+        "description": "Idempotent. The person is not re-added; they can rejoin through the invitation link.",
+        "operationId": "EventsController_liftBan",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Ban lifted, or there was none (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Lift a ban (organizers only)",
         "tags": [
           "events"
         ]
@@ -2531,16 +2639,33 @@
           "REMOVE_MEMBER",
           "DISMISS"
         ],
-        "description": "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target."
+        "description": "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target."
+      },
+      "RemovedMemberPhotos": {
+        "type": "string",
+        "enum": [
+          "KEEP",
+          "DELETE"
+        ],
+        "description": "REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed."
       },
       "ResolveReportDto": {
         "type": "object",
         "properties": {
           "action": {
-            "description": "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.",
+            "description": "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ReportResolutionAction"
+              }
+            ]
+          },
+          "photos": {
+            "default": "KEEP",
+            "description": "REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RemovedMemberPhotos"
               }
             ]
           }
@@ -2732,6 +2857,52 @@
         },
         "required": [
           "accessLevel"
+        ]
+      },
+      "EventBanResponseDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The banned member"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null when the account has no profile."
+          },
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "description": "Public handle; null when the account has no profile."
+          },
+          "bannedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When an organizer removed them"
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "username",
+          "bannedAt"
+        ]
+      },
+      "EventBanListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Newest first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventBanResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       }
     },

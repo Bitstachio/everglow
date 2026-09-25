@@ -19,12 +19,15 @@ import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
+import { REMOVED_MEMBER_PHOTOS, RemovedMemberPhotos, removeMemberInTransaction } from "./event-membership";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE } from "./events.constants";
+import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE, REMOVED_FROM_EVENT_CODE } from "./events.constants";
 import {
   EventAccessWithUser,
+  EventBanWithUser,
   EventParticipant,
   eventAccessWithUserInclude,
+  eventBanWithUserInclude,
   eventWithCallerAccessInclude,
 } from "./events.types";
 
@@ -105,6 +108,15 @@ export class EventsService {
       where: { userId_eventId: { userId: callerId, eventId: event.id } },
     });
     if (existing) throw new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(event.id));
+
+    // Removed by an organizer: said plainly, since they already know. Checked
+    // before blocks so a removed member is not told about a block instead.
+    const ban = await this.prisma.eventBan.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId: callerId } },
+    });
+    if (ban) {
+      throw new ForbiddenException({ code: REMOVED_FROM_EVENT_CODE, message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT });
+    }
 
     await this.assertNoBlockWithOrganizers(event.id, invitationUrl, callerId);
 
@@ -338,7 +350,17 @@ export class EventsService {
     return this.toEventParticipant(eventId, updated);
   }
 
-  async removeUserFromEvent(eventId: string, callerId: string, targetUserId: string): Promise<void> {
+  /**
+   * Removing a member bans them from rejoining through the invitation link
+   * until an organizer lifts it. With DELETE their photos in the event go too;
+   * rows in the transaction, objects after it.
+   */
+  async removeUserFromEvent(
+    eventId: string,
+    callerId: string,
+    targetUserId: string,
+    photos: RemovedMemberPhotos = REMOVED_MEMBER_PHOTOS.KEEP,
+  ): Promise<void> {
     await this.getUpdatable(eventId, callerId);
 
     if (callerId === targetUserId) {
@@ -359,14 +381,56 @@ export class EventsService {
       }
     }
 
-    await this.prisma.eventAccess.delete({
-      where: { userId_eventId: { userId: targetUserId, eventId } },
-    });
+    const removed = await this.prisma.$transaction((tx) =>
+      removeMemberInTransaction(tx, { eventId, userId: targetUserId, removedById: callerId, photos }),
+    );
 
     this.logger.info(
-      { event: "event.member.removed", eventId, callerId, targetUserId, audit: true },
+      {
+        event: "event.member.removed",
+        eventId,
+        callerId,
+        targetUserId,
+        photos,
+        photosDeleted: removed.photosDeleted,
+        reportsClosed: removed.reportsClosed,
+        banned: true,
+        audit: true,
+      },
       "Event member removed",
     );
+
+    await this.photoPurgeService.purgeObjects(removed.photoKeys, {
+      event: ALERT_EVENTS.EVENT_MEMBER_PHOTOS_PURGED,
+      eventId,
+      callerId,
+      targetUserId,
+    });
+  }
+
+  /** Organizers only, newest first. */
+  async listBans(eventId: string, callerId: string): Promise<EventBanWithUser[]> {
+    await this.getUpdatable(eventId, callerId);
+
+    return this.prisma.eventBan.findMany({
+      where: { eventId },
+      include: eventBanWithUserInclude,
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  /**
+   * Organizers only. Idempotent: lifting a ban that does not exist is the
+   * outcome asked for. The person is not re-added; they can rejoin through
+   * the link.
+   */
+  async liftBan(eventId: string, callerId: string, userId: string): Promise<void> {
+    await this.getUpdatable(eventId, callerId);
+
+    const { count } = await this.prisma.eventBan.deleteMany({ where: { eventId, userId } });
+    if (count > 0) {
+      this.logger.info({ event: "event.ban.lifted", eventId, callerId, userId, audit: true }, "Event ban lifted");
+    }
   }
 
   async delete(eventId: string, callerId: string): Promise<void> {

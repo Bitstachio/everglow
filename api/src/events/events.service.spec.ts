@@ -13,7 +13,7 @@ import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE } from "./events.constants";
+import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE, REMOVED_FROM_EVENT_CODE } from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
@@ -710,6 +710,24 @@ describe("EventsService", () => {
         new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(eventId)),
       );
 
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses a member an organizer removed, saying so plainly, before looking at blocks", async () => {
+      setupSuccessfulJoin();
+      prisma.eventBan.findUnique.mockResolvedValue({ id: "ban-id", eventId, userId: callerId } as never);
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(prisma.eventBan.findUnique).toHaveBeenCalledWith({
+        where: { eventId_userId: { eventId, userId: callerId } },
+      });
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toEqual({
+        code: REMOVED_FROM_EVENT_CODE,
+        message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
+      });
+      expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -2072,7 +2090,69 @@ describe("EventsService", () => {
     });
   });
 
+  describe("listBans", () => {
+    it("lists the event's bans newest first, with each member's profile", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventBan.findMany.mockResolvedValue([]);
+
+      await expect(service.listBans(eventId, callerId)).resolves.toEqual([]);
+
+      expect(prisma.eventBan.findMany).toHaveBeenCalledWith({
+        where: { eventId },
+        include: { user: { include: userWithDetailsInclude } },
+        orderBy: { createdAt: "desc" },
+      });
+    });
+
+    it("is for organizers only", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.listBans(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.eventBan.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("liftBan", () => {
+    it("deletes the ban and audits it", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventBan.deleteMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.liftBan(eventId, callerId, targetUserId)).resolves.toBeUndefined();
+
+      expect(prisma.eventBan.deleteMany).toHaveBeenCalledWith({ where: { eventId, userId: targetUserId } });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.ban.lifted", eventId, callerId, userId: targetUserId, audit: true },
+        "Event ban lifted",
+      );
+    });
+
+    it("is idempotent: lifting a ban that is not there succeeds and logs nothing", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventBan.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.liftBan(eventId, callerId, targetUserId)).resolves.toBeUndefined();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it("is for organizers only", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+
+      await expect(service.liftBan(eventId, callerId, targetUserId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.eventBan.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe("removeUserFromEvent", () => {
+    beforeEach(() => {
+      // Removal runs in one interactive transaction, against the same mock client.
+      prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+      prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+    });
+
     const setupOrganizerRemove = (targetAccess: EventAccess = targetParticipantAccess) => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
       prisma.eventAccess.findUnique.mockResolvedValue(targetAccess);
@@ -2080,22 +2160,82 @@ describe("EventsService", () => {
 
     it("removes a participant when the caller is an organizer", async () => {
       setupOrganizerRemove();
-      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
 
       await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).resolves.toBeUndefined();
 
-      expect(prisma.eventAccess.delete).toHaveBeenCalledWith({
-        where: { userId_eventId: { userId: targetUserId, eventId } },
-      });
+      expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({ where: { eventId, userId: targetUserId } });
       expect(logger.info).toHaveBeenCalledWith(
-        { event: "event.member.removed", eventId, callerId, targetUserId, audit: true },
+        {
+          event: "event.member.removed",
+          eventId,
+          callerId,
+          targetUserId,
+          photos: "KEEP",
+          photosDeleted: 0,
+          reportsClosed: 0,
+          banned: true,
+          audit: true,
+        },
+        "Event member removed",
+      );
+    });
+
+    it("bans the removed member from rejoining, recording who removed them", async () => {
+      setupOrganizerRemove();
+
+      await service.removeUserFromEvent(eventId, callerId, targetUserId);
+
+      expect(prisma.eventBan.upsert).toHaveBeenCalledWith({
+        where: { eventId_userId: { eventId, userId: targetUserId } },
+        create: { eventId, userId: targetUserId, bannedById: callerId },
+        update: {},
+      });
+    });
+
+    it("keeps the member's photos by default", async () => {
+      setupOrganizerRemove();
+
+      await service.removeUserFromEvent(eventId, callerId, targetUserId);
+
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledWith([], expect.anything());
+    });
+
+    it("with DELETE, deletes the member's photos in the event and purges their objects after the commit", async () => {
+      setupOrganizerRemove();
+      const uploaded = [
+        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a" },
+        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b" },
+      ];
+      prisma.photo.findMany.mockResolvedValue(uploaded as never);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 2 });
+      prisma.report.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.removeUserFromEvent(eventId, callerId, targetUserId, "DELETE");
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { eventId, addedById: targetUserId, id: { notIn: [] } } }),
+      );
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: uploaded.map((photo) => photo.id) } },
+      });
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledWith(["photos/a", "photos/b"], {
+        event: "event.member.photos_purged",
+        eventId,
+        callerId,
+        targetUserId,
+      });
+      expect(photoPurgeService.purgeObjects.mock.invocationCallOrder[0]).toBeGreaterThan(
+        prisma.$transaction.mock.invocationCallOrder[0],
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ photos: "DELETE", photosDeleted: 2, reportsClosed: 1 }),
         "Event member removed",
       );
     });
 
     it("removes a viewer when the caller is an organizer", async () => {
       setupOrganizerRemove({ ...targetParticipantAccess, accessLevel: AccessLevel.VIEWER });
-      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
 
       await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).resolves.toBeUndefined();
     });
@@ -2103,7 +2243,6 @@ describe("EventsService", () => {
     it("removes an organizer when another organizer remains", async () => {
       setupOrganizerRemove({ ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER });
       prisma.eventAccess.count.mockResolvedValue(2);
-      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
 
       await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).resolves.toBeUndefined();
     });
@@ -2121,11 +2260,10 @@ describe("EventsService", () => {
         ...targetParticipantAccess,
         eventId: eventWithAccessOnly.id,
       });
-      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
 
       await service.removeUserFromEvent(eventWithAccessOnly.id, callerId, targetUserId);
 
-      expect(prisma.eventAccess.delete).toHaveBeenCalled();
+      expect(prisma.eventAccess.deleteMany).toHaveBeenCalled();
     });
 
     it("blocks removing the last organizer", async () => {
@@ -2136,7 +2274,7 @@ describe("EventsService", () => {
         new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId)),
       );
 
-      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
     });
 
     it("blocks self-removal via removeUserFromEvent", async () => {
@@ -2146,16 +2284,15 @@ describe("EventsService", () => {
         new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF),
       );
 
-      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
     });
 
     it("deletes only the target user event access row", async () => {
       setupOrganizerRemove();
-      prisma.eventAccess.delete.mockResolvedValue(targetParticipantAccess);
 
       await service.removeUserFromEvent(eventId, callerId, targetUserId);
 
-      expect(prisma.eventAccess.delete).toHaveBeenCalledTimes(1);
+      expect(prisma.eventAccess.deleteMany).toHaveBeenCalledTimes(1);
       expect(prisma.event.delete).not.toHaveBeenCalled();
     });
 
@@ -2185,7 +2322,7 @@ describe("EventsService", () => {
     it("re-throws unexpected database errors when deleting event access", async () => {
       setupOrganizerRemove();
       const prismaError = new Error("Database connection lost");
-      prisma.eventAccess.delete.mockRejectedValue(prismaError);
+      prisma.eventAccess.deleteMany.mockRejectedValue(prismaError);
 
       await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(prismaError);
 

@@ -79,6 +79,8 @@ export class ReportsController {
     @Param("reportId", ParseUUIDPipe) reportId: string,
     @Body() dto: ResolveReportDto,
   ): Promise<ReportResponseDto> {
-    return ReportMapper.toResponseDto(await this.reportsService.resolveReport(reportId, user.id, dto.action));
+    return ReportMapper.toResponseDto(
+      await this.reportsService.resolveReport(reportId, user.id, dto.action, dto.photos),
+    );
   }
 }

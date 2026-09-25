@@ -21,10 +21,14 @@ export const EVENT_SERVICE_ERRORS = {
   COVER_CHANGED_CONCURRENTLY: "The event cover was changed by another request, please retry",
   ORGANIZER_BLOCKED_BY_CALLER: (organizerName: string | null) =>
     `This event is organized by ${organizerName ?? "someone"} you blocked. Unblock them to join.`,
+  REMOVED_FROM_EVENT: "You were removed from this event by an organizer.",
 };
 
 // The joiner blocked an organizer of the event they are joining; see docs/moderation.md.
 export const ORGANIZER_BLOCKED_BY_CALLER_CODE = "ORGANIZER_BLOCKED_BY_CALLER";
+
+// An organizer removed the joiner, which bans them until an organizer lifts it; see docs/moderation.md.
+export const REMOVED_FROM_EVENT_CODE = "REMOVED_FROM_EVENT";
 
 // event-covers/{eventId}/{uploadId}; see docs/image-uploads.md.
 export const EVENT_COVER_S3_KEY_PREFIX = "event-covers/";

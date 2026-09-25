@@ -18,6 +18,7 @@ export const ALERT_EVENTS = {
 
   ACCOUNT_PHOTOS_PURGED: "user.account.photos_purged",
   EVENT_PHOTOS_PURGED: "event.photos.purged",
+  EVENT_MEMBER_PHOTOS_PURGED: "event.member.photos_purged",
   STORAGE_RESERVATION_CONFLICT: "photo.storage.reservation_conflict",
   UPLOAD_SLOTS_PRESIGN_FAILED: "photo.upload_slots.presign_failed",
   UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",

@@ -86,6 +86,8 @@ model User {
   reportsResolved Report[]      @relation("ReportsResolved")
   blocksInitiated UserBlock[]   @relation("BlocksInitiated")
   blocksReceived  UserBlock[]   @relation("BlocksReceived")
+  eventBans       EventBan[]    @relation("EventBansReceived")
+  eventBansIssued EventBan[]    @relation("EventBansIssued")
 
   // Reconciler looks up users mid-deletion; only those rows are indexed.
   @@index([deletionStartedAt], where: { deletionStartedAt: { not: null } })
@@ -105,12 +107,12 @@ model DeletedProviderSub {
 }
 
 model UserDetails {
-  id     String @id @default(uuid()) @db.Uuid
-  userId String @unique @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
   // Public handle. Required after backfill; unique and stored lowercase.
   // See EV-21.
-  username String  @unique @db.VarChar(30)
-  name     String  @db.VarChar(255)
+  username    String   @unique @db.VarChar(30)
+  name        String   @db.VarChar(255)
   // S3 key of the profile avatar (avatars/{userId}/{uploadId}); null when none
   // is set. Unique so the orphan reconciler resolves a page of keys with one
   // indexed lookup. See docs/image-uploads.md.
@@ -141,6 +143,7 @@ model Event {
   photos        Photo[]
   eventAccesses EventAccess[]
   reports       Report[]
+  bans          EventBan[]
 
   @@index([creatorId])
 }
@@ -248,4 +251,29 @@ model UserBlock {
 
   @@unique([blockerId, blockedId])
   @@index([blockedId])
+}
+
+// A member an organizer removed from an event: joining it again through the
+// invitation link is refused until an organizer lifts the ban. Leaving on
+// your own records nothing. See docs/moderation.md.
+model EventBan {
+  id         String   @id @default(uuid()) @db.Uuid
+  eventId    String   @db.Uuid
+  userId     String   @db.Uuid
+  // The organizer who removed them; null once that account is deleted.
+  bannedById String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  // A ban belongs to the event and to the banned account, and goes with
+  // either; the organizer who issued it is attribution only.
+  event    Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user     User  @relation("EventBansReceived", fields: [userId], references: [id], onDelete: Cascade)
+  bannedBy User? @relation("EventBansIssued", fields: [bannedById], references: [id], onDelete: SetNull)
+
+  // The join check and "ban again is a no-op" both look up this pair; the
+  // organizer's list is the same index read by eventId.
+  @@unique([eventId, userId])
+  // Foreign keys the cascade and SET NULL actions have to find.
+  @@index([userId])
+  @@index([bannedById])
 }

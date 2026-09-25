@@ -70,6 +70,7 @@ export const REPORT_SERVICE_ERRORS = {
   ALREADY_RESOLVED: (reportId: string) => `Report with ID "${reportId}" has already been resolved`,
   CREATE_CONFLICT: "Report conflicted with a concurrent change, please retry",
   REMOVE_PHOTO_NOT_A_PHOTO_REPORT: "REMOVE_PHOTO only applies to a report about a photo",
+  PHOTOS_ONLY_WITH_REMOVE_MEMBER: "photos only applies to REMOVE_MEMBER",
   REPORTED_PHOTO_GONE: "The reported photo no longer exists; dismiss the report instead",
   REPORTED_MEMBER_GONE: "The reported account no longer exists; dismiss the report instead",
 };
