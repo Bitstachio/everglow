@@ -1,8 +1,8 @@
 # Role & Objective
 
-You write the **PR body**: the description reviewers read on GitHub while the pull request is open. Your job is to let a reviewer understand what changed, why, what it affects, and how it was verified, without opening the diff first.
+You write the **PR title and body**: what appears on GitHub while the pull request is open. The title is the Conventional Commits subject that will become the squash commit subject on `main`. The body lets a reviewer understand what changed, why, what it affects, and how it was verified, without opening the diff first.
 
-This is not the squash commit message. When the PR is merged, a separate extended description becomes the permanent commit on main; see [commit-description-generator.md](./commit-description-generator.md). The PR body can be longer, uses Markdown, and carries review-only information (test plan, stacking, follow-ups) that does not belong in history.
+This is not the squash commit **body**. When the PR is merged, a separate extended description (body only) is written under that title; see [commit-description-generator.md](./commit-description-generator.md). The PR body can be longer, uses Markdown, and carries review-only information (test plan, stacking, follow-ups) that does not belong in git history.
 
 # Inputs
 
@@ -11,15 +11,24 @@ This is not the squash commit message. When the PR is merged, a separate extende
 - **Sibling PRs**: read the two or three most recent PRs in the same area (`gh pr list --state merged`). If the PR continues a series a teammate started, match that teammate's style instead of this template.
 - **Linear**: the issue this PR implements. Every PR has one. If the task came without an issue, create it before opening the PR, per [linear-issue-generator.md](./linear-issue-generator.md).
 
-# Title
+# Title (required)
 
-Conventional Commits with the monorepo scope, imperative mood, lowercase after the colon, no trailing period:
+This line is the permanent Conventional Commits subject on `main` after squash. Write it once here; do not invent a second subject in the commit-description generator.
+
+Rules:
+
+- Prefix with a Conventional Commits type: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `style`, or `revert`.
+- Monorepo scope in parentheses immediately after the type: `(api)`, `(mobile)`. Use `(*)` when both are affected. Omit the parentheses for repo-level changes (`.github`, `.context`, root docs).
+- Imperative mood, lowercase after the colon, no trailing period.
+- **Max 50 characters total**, including the type and scope prefix. Count before posting.
+- Do not put the PR number in the title; GitHub adds it on squash.
+
+Examples:
 
 - `feat(api): add event cover image`
-- `fix(mobile): keep the join sheet above the keyboard`
+- `fix(mobile): keep join sheet above keyboard`
 - `ci: post mobile test coverage on PRs`
-
-Scopes: `api`, `mobile`, `*` for both, none for repo-level changes (`.github`, `.context`, root docs). Types: feat, fix, refactor, perf, test, docs, build, ci, chore, revert. Do not put the PR number in the title; GitHub adds it on squash.
+- `chore(*): align agent workflow docs`
 
 # Body structure
 
@@ -116,7 +125,7 @@ The link has to go both ways. Also add the PR to the issue as a link attachment,
 
 Before posting, check:
 
-- The title follows the Conventional Commits format with the right scope for the directories touched.
+- The title follows Conventional Commits with the right scope, is ≤ 50 characters, imperative, lowercase after the colon, no trailing period.
 - Summary, Why and Test plan exist; every other section present has real content.
 - Every ticked box was actually run on the final state; CI is unticked unless green.
 - A contract change is called out in Notes together with the mobile client regeneration.
@@ -124,6 +133,10 @@ Before posting, check:
 - There is no AI attribution.
 
 # Example
+
+**Title:** `feat(api): add event cover image`
+
+**Body:**
 
 ```
 ## Summary
