@@ -9,7 +9,6 @@ export class UserMapper {
       details: user.details
         ? {
             username: user.details.username,
-            email: user.details.email,
             name: user.details.name,
             avatarUrl,
             createdAt: user.details.createdAt,

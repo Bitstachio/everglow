@@ -20,28 +20,3 @@ export const usernameFormatReason = (username: string): Exclude<UsernameAvailabi
   if (isReservedUsername(username)) return "RESERVED";
   return null;
 };
-
-/**
- * Build a username base from an email local part (same rules as the backfill migration).
- * Callers must still resolve uniqueness collisions.
- */
-export const deriveUsernameBaseFromEmail = (email: string): string => {
-  let base = normalizeUsername(email.split("@")[0] ?? "").replace(/[^a-z0-9._]/g, "");
-
-  if (!base) base = "usr";
-  else if (base.length < 3) base = base.padEnd(3, "x");
-  else if (base.length > STRING_LIMITS.USERNAME) base = base.slice(0, STRING_LIMITS.USERNAME);
-
-  if (isReservedUsername(base)) {
-    base = `${base.slice(0, STRING_LIMITS.USERNAME - 1)}1`;
-  }
-
-  return base;
-};
-
-/** Append a numeric suffix so `base` + suffix fits in USERNAME max length. */
-export const usernameWithSuffix = (base: string, suffix: number): string => {
-  if (suffix <= 1) return base.slice(0, STRING_LIMITS.USERNAME);
-  const suffixText = String(suffix);
-  return `${base.slice(0, Math.max(1, STRING_LIMITS.USERNAME - suffixText.length))}${suffixText}`;
-};

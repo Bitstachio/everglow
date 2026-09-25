@@ -51,7 +51,6 @@ describe("UserMapper", () => {
         isOnboarded: true,
         details: {
           username: "jane",
-          email: "jane@example.com",
           name: "Jane Doe",
           avatarUrl: null,
           createdAt: now,

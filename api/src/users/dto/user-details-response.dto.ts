@@ -5,14 +5,6 @@ export class UserDetailsResponseDto {
   @ApiProperty({ example: "jane.doe", maxLength: STRING_LIMITS.USERNAME })
   username: string;
 
-  @ApiProperty({
-    type: String,
-    nullable: true,
-    example: "user@example.com",
-    description: "Optional profile email while it remains on the row; null when unset. Being removed in EV-21 phase 3.",
-  })
-  email: string | null;
-
   @ApiProperty({ example: "Jane Doe" })
   name: string;
 
