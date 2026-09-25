@@ -6,10 +6,6 @@ export type ClientOptions = {
 
 export type UserDetailsResponseDto = {
   username: string;
-  /**
-   * Optional profile email while it remains on the row; null when unset. Being removed in EV-21 phase 3.
-   */
-  email: string | null;
   name: string;
   /**
    * Short-lived presigned URL of the profile avatar; null when none is set
@@ -35,13 +31,9 @@ export type ResponseMetaDto = {
 export type CreateUserDetailsDto = {
   name: string;
   /**
-   * Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part.
+   * Public handle. Trimmed and lowercased before validation.
    */
-  username?: string;
-  /**
-   * Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email.
-   */
-  email?: string;
+  username: string;
 };
 
 export type UsernameAvailabilityResponseDto = {
@@ -74,13 +66,9 @@ export type UserStorageResponseDto = {
 export type UpdateUserDto = {
   name?: string;
   /**
-   * Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part.
+   * Public handle. Trimmed and lowercased before validation.
    */
   username?: string;
-  /**
-   * Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email.
-   */
-  email?: string;
 };
 
 export type ImageUploadResponseDto = {
