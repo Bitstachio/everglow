@@ -1,45 +1,62 @@
 import { renderHook } from "@testing-library/react-native";
 import { useEditUsernameScreen } from "./use-edit-username-screen";
 
-const mockDismissTo = jest.fn();
+const mockBack = jest.fn();
+const mockReplace = jest.fn();
+const mockCanGoBack = jest.fn(() => true);
 const mockUseEditUsernameForm = jest.fn();
-let completeEdit: ((username: string) => void) | undefined;
+let completeEdit: (() => void) | undefined;
 
 jest.mock("@/context/auth-context", () => ({
-  useAuth: () => ({ user: { details: { email: "ada@example.com" } } }),
+  useAuth: () => ({ user: { details: { username: "ada.lovelace" } } }),
 }));
 
 jest.mock("expo-router", () => ({
-  router: { dismissTo: (href: unknown) => mockDismissTo(href) },
-  useLocalSearchParams: () => ({ username: "current.username" }),
+  router: {
+    back: () => mockBack(),
+    replace: (href: unknown) => mockReplace(href),
+    canGoBack: () => mockCanGoBack(),
+  },
 }));
 
 jest.mock("./use-edit-username-form", () => ({
-  useEditUsernameForm: (params: { initialUsername: string; onSuccess: (username: string) => void }) => {
+  useEditUsernameForm: (params: { initialUsername: string; onSuccess: () => void }) => {
     mockUseEditUsernameForm(params.initialUsername);
     completeEdit = params.onSuccess;
-    return { form: { control: {} }, onSubmit: jest.fn() };
+    return {
+      form: { control: {}, formState: { isDirty: false, isSubmitting: false, errors: {} } },
+      onSubmit: jest.fn(),
+      availability: { status: "available", canSubmit: true, message: null, reason: null, username: "ada.lovelace" },
+    };
   },
 }));
 
 beforeEach(() => {
   jest.clearAllMocks();
   completeEdit = undefined;
+  mockCanGoBack.mockReturnValue(true);
 });
 
-test("seeds the form from the username route parameter", async () => {
+test("seeds the form from details.username", async () => {
   await renderHook(() => useEditUsernameScreen());
 
-  expect(mockUseEditUsernameForm).toHaveBeenCalledWith("current.username");
+  expect(mockUseEditUsernameForm).toHaveBeenCalledWith("ada.lovelace");
 });
 
-test("returns the saved username to account settings", async () => {
+test("goes back after a successful save", async () => {
   await renderHook(() => useEditUsernameScreen());
 
-  completeEdit?.("new.username");
+  completeEdit?.();
 
-  expect(mockDismissTo).toHaveBeenCalledWith({
-    pathname: "/account-settings",
-    params: { username: "new.username" },
-  });
+  expect(mockBack).toHaveBeenCalledTimes(1);
+  expect(mockReplace).not.toHaveBeenCalled();
+});
+
+test("replaces to account settings when there is nowhere to go back", async () => {
+  mockCanGoBack.mockReturnValue(false);
+  await renderHook(() => useEditUsernameScreen());
+
+  completeEdit?.();
+
+  expect(mockReplace).toHaveBeenCalledWith("/account-settings");
 });

@@ -204,7 +204,7 @@ export const useEventDetailScreen = () => {
 
     Alert.alert(
       "Remove Member",
-      `Are you sure you want to remove ${participant?.name || "this member"} from the event?`,
+      `Are you sure you want to remove ${participant?.username ? `@${participant.username}` : participant?.name || "this member"} from the event?`,
       [
         { text: "Cancel", style: "cancel" },
         {

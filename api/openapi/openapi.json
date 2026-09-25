@@ -70,6 +70,63 @@
         ]
       }
     },
+    "/api/v2/users/username-availability": {
+      "get": {
+        "operationId": "UsersController_checkUsernameAvailability",
+        "parameters": [
+          {
+            "name": "username",
+            "required": true,
+            "in": "query",
+            "description": "Candidate username. Normalized (trim + lowercase) in the response.",
+            "schema": {
+              "maxLength": 30,
+              "example": "jane.doe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Username availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UsernameAvailabilityResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Check whether a username is available",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/users/me": {
       "get": {
         "operationId": "UsersController_findMe",
@@ -1887,9 +1944,10 @@
       "UserDetailsResponseDto": {
         "type": "object",
         "properties": {
-          "email": {
+          "username": {
             "type": "string",
-            "example": "user@example.com"
+            "example": "jane.doe",
+            "maxLength": 30
           },
           "name": {
             "type": "string",
@@ -1911,7 +1969,7 @@
           }
         },
         "required": [
-          "email",
+          "username",
           "name",
           "avatarUrl",
           "createdAt",
@@ -1985,10 +2043,12 @@
             "example": "Jane Doe",
             "maxLength": 255
           },
-          "email": {
+          "username": {
             "type": "string",
-            "example": "user@example.com",
-            "maxLength": 255
+            "example": "jane.doe",
+            "minLength": 3,
+            "maxLength": 30,
+            "description": "Public handle. Trimmed and lowercased before validation."
           },
           "acceptedTerms": {
             "type": "boolean",
@@ -1998,7 +2058,37 @@
         },
         "required": [
           "name",
-          "email"
+          "username"
+        ]
+      },
+      "UsernameAvailabilityResponseDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "jane.doe",
+            "maxLength": 30,
+            "description": "Normalized candidate (trimmed and lowercased)"
+          },
+          "available": {
+            "type": "boolean",
+            "example": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "INVALID_FORMAT",
+              "TAKEN",
+              "RESERVED"
+            ],
+            "description": "Why the username is unavailable; null when available"
+          }
+        },
+        "required": [
+          "username",
+          "available",
+          "reason"
         ]
       },
       "UserStorageResponseDto": {
@@ -2034,10 +2124,12 @@
             "example": "Jane Doe",
             "maxLength": 255
           },
-          "email": {
+          "username": {
             "type": "string",
-            "example": "user@example.com",
-            "maxLength": 255
+            "example": "jane.doe",
+            "minLength": 3,
+            "maxLength": 30,
+            "description": "Public handle. Trimmed and lowercased before validation."
           }
         }
       },
@@ -2468,6 +2560,11 @@
             "nullable": true,
             "description": "Null when the blocked account has no profile."
           },
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "description": "Public handle; null when the blocked account has no profile."
+          },
           "blockedAt": {
             "format": "date-time",
             "type": "string"
@@ -2476,6 +2573,7 @@
         "required": [
           "userId",
           "name",
+          "username",
           "blockedAt"
         ]
       },
@@ -2585,6 +2683,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "username": {
+            "type": "string",
+            "example": "jane.doe",
+            "maxLength": 30
+          },
           "name": {
             "type": "string"
           },
@@ -2608,6 +2711,7 @@
         },
         "required": [
           "userId",
+          "username",
           "name",
           "accessLevel",
           "avatarUrl",

@@ -387,6 +387,7 @@ export class EventsService {
 
     return {
       userId: access.userId,
+      username: access.user.details.username,
       name: access.user.details.name,
       accessLevel: access.accessLevel,
       avatarUrl: await this.imageUploads.getDownloadUrl(access.user.details.avatarS3Key),

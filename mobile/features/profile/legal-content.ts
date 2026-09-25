@@ -8,7 +8,7 @@ export const PRIVACY_POLICY_INTRO =
 export const PRIVACY_POLICY_SECTIONS: LegalSection[] = [
   {
     heading: "Information we collect",
-    body: "We collect the account details you provide — your display name, username, and email address — along with the photos you upload and the events you create or join. Your sign-in credentials are handled by our authentication provider and are never stored by Everglow.",
+    body: "We collect the account details you provide — your display name and username — along with the photos you upload and the events you create or join. Your sign-in credentials are handled by our authentication provider and are never stored by Everglow.",
   },
   {
     heading: "How we use your information",

@@ -78,7 +78,7 @@ describe("EventsService", () => {
     details: {
       id: "22222222-2222-2222-2222-222222222222",
       userId: creatorId,
-      email: "jane@example.com",
+      username: "jane",
       name: "Jane Doe",
       avatarS3Key: null,
       createdAt: now,
@@ -139,7 +139,7 @@ describe("EventsService", () => {
     details: {
       id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
       userId: otherUserId,
-      email: "other@example.com",
+      username: "other",
       name: "Other User",
       avatarS3Key: null,
       createdAt: now,
@@ -198,7 +198,7 @@ describe("EventsService", () => {
     details: {
       id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
       userId: targetUserId,
-      email: "target@example.com",
+      username: "target",
       name: "Target User",
       avatarS3Key: null,
       createdAt: now,
@@ -217,6 +217,7 @@ describe("EventsService", () => {
 
   const participantWithDetails = {
     userId: targetUserId,
+    username: "target",
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: null,
@@ -1651,6 +1652,7 @@ describe("EventsService", () => {
       expect(result).toEqual([
         {
           userId: callerId,
+          username: "jane",
           name: "Jane Doe",
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
@@ -1687,6 +1689,7 @@ describe("EventsService", () => {
       expect(result).toEqual([
         {
           userId: callerId,
+          username: "jane",
           name: "Jane Doe",
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,

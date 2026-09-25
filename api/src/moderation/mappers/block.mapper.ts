@@ -7,6 +7,7 @@ export class BlockMapper {
     return {
       userId: block.blockedId,
       name: block.blocked.details?.name ?? null,
+      username: block.blocked.details?.username ?? null,
       blockedAt: block.createdAt,
     };
   }

@@ -29,10 +29,11 @@ describe("rateLimitConfig", () => {
       expect(rateLimitConfig().tiers).toEqual(RATE_LIMIT_TIER_DEFAULTS);
     });
 
-    it("orders the defaults: the global ceiling is looser than uploads, which is looser than sensitive", () => {
-      const { default: global, uploads, sensitive } = rateLimitConfig().tiers;
+    it("orders the defaults: the global ceiling is looser than lookup, then uploads, then sensitive", () => {
+      const { default: global, lookup, uploads, sensitive } = rateLimitConfig().tiers;
 
-      expect(global.limit / global.ttlSeconds).toBeGreaterThan(uploads.limit / uploads.ttlSeconds);
+      expect(global.limit / global.ttlSeconds).toBeGreaterThan(lookup.limit / lookup.ttlSeconds);
+      expect(lookup.limit / lookup.ttlSeconds).toBeGreaterThan(uploads.limit / uploads.ttlSeconds);
       expect(uploads.limit / uploads.ttlSeconds).toBeGreaterThan(sensitive.limit / sensitive.ttlSeconds);
     });
 

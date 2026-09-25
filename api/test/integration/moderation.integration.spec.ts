@@ -55,7 +55,7 @@ type ErrorResponse = {
 
 type ReportBody = ReturnType<typeof expectedReportResponse>;
 type ReportListBody = { items: ReportBody[]; nextCursor: string | null };
-type BlockedUserBody = { userId: string; name: string | null; blockedAt: string };
+type BlockedUserBody = { userId: string; name: string | null; username: string | null; blockedAt: string };
 
 describe("Moderation (integration)", () => {
   let app: INestApplication;
@@ -429,6 +429,7 @@ describe("Moderation (integration)", () => {
       expect(body.data).toEqual({
         userId: TEST_TARGET_USER_ID,
         name: "Target User",
+        username: "target",
         blockedAt: TEST_NOW.toISOString(),
       });
       expect(prisma.userBlock.createMany).toHaveBeenCalledWith({
@@ -477,7 +478,7 @@ describe("Moderation (integration)", () => {
 
       const body = response.body as WrappedResponse<{ items: BlockedUserBody[] }>;
       expect(body.data.items).toEqual([
-        { userId: TEST_TARGET_USER_ID, name: "Target User", blockedAt: TEST_NOW.toISOString() },
+        { userId: TEST_TARGET_USER_ID, name: "Target User", username: "target", blockedAt: TEST_NOW.toISOString() },
       ]);
       expect(prisma.userBlock.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { blockerId: TEST_USER_ID } }),

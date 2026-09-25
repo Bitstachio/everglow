@@ -110,7 +110,7 @@ export const buildOtherUserWithDetails = (overrides: Partial<UserWithDetails> = 
     details: {
       id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
       userId: TEST_OTHER_USER_ID,
-      email: "other@example.com",
+      username: "other",
       name: "Other User",
       avatarS3Key: null,
       createdAt: TEST_NOW,
@@ -126,7 +126,7 @@ export const buildTargetUserWithDetails = (overrides: Partial<UserWithDetails> =
     details: {
       id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
       userId: TEST_TARGET_USER_ID,
-      email: "target@example.com",
+      username: "target",
       name: "Target User",
       avatarS3Key: null,
       createdAt: TEST_NOW,

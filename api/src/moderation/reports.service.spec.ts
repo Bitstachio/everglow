@@ -55,7 +55,7 @@ describe("ReportsService", () => {
     details: {
       id: "33333333-3333-3333-3333-333333333333",
       userId: callerId,
-      email: "caller@example.com",
+      username: "caller",
       name: "Caller",
       avatarS3Key: null,
       createdAt: now,

@@ -105,10 +105,12 @@ model DeletedProviderSub {
 }
 
 model UserDetails {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @unique @db.Uuid
-  email       String   @unique @db.VarChar(255)
-  name        String   @db.VarChar(255)
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @db.Uuid
+  // Public handle. Required after backfill; unique and stored lowercase.
+  // See EV-21.
+  username String  @unique @db.VarChar(30)
+  name     String  @db.VarChar(255)
   // S3 key of the profile avatar (avatars/{userId}/{uploadId}); null when none
   // is set. Unique so the orphan reconciler resolves a page of keys with one
   // indexed lookup. See docs/image-uploads.md.

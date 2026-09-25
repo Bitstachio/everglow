@@ -35,7 +35,7 @@ describe("UserMapper", () => {
     details: {
       id: "22222222-2222-2222-2222-222222222222",
       userId,
-      email: "jane@example.com",
+      username: "jane",
       name: "Jane Doe",
       avatarS3Key: null,
       createdAt: now,
@@ -51,7 +51,7 @@ describe("UserMapper", () => {
         id: userId,
         isOnboarded: true,
         details: {
-          email: "jane@example.com",
+          username: "jane",
           name: "Jane Doe",
           avatarUrl: null,
           createdAt: now,

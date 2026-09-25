@@ -7,6 +7,13 @@ export class BlockedUserResponseDto {
   @ApiProperty({ type: String, nullable: true, description: "Null when the blocked account has no profile." })
   name: string | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "Public handle; null when the blocked account has no profile.",
+  })
+  username: string | null;
+
   @ApiProperty()
   blockedAt: Date;
 }

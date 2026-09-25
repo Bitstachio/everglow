@@ -83,6 +83,9 @@ import type {
   ReportsControllerResolveReportData,
   ReportsControllerResolveReportErrors,
   ReportsControllerResolveReportResponses,
+  UsersControllerCheckUsernameAvailabilityData,
+  UsersControllerCheckUsernameAvailabilityErrors,
+  UsersControllerCheckUsernameAvailabilityResponses,
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingErrors,
   UsersControllerCompleteOnboardingResponses,
@@ -156,6 +159,26 @@ export const usersControllerCompleteOnboarding = <ThrowOnError extends boolean =
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * Check whether a username is available
+ */
+export const usersControllerCheckUsernameAvailability = <ThrowOnError extends boolean = false>(
+  options: Options<UsersControllerCheckUsernameAvailabilityData, ThrowOnError>,
+): RequestResult<
+  UsersControllerCheckUsernameAvailabilityResponses,
+  UsersControllerCheckUsernameAvailabilityErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    UsersControllerCheckUsernameAvailabilityResponses,
+    UsersControllerCheckUsernameAvailabilityErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/username-availability",
+    ...options,
   });
 
 /**

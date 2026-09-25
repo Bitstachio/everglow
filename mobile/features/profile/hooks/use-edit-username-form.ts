@@ -1,35 +1,76 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { getErrorCode, getErrorMessage, isApiError } from "@/lib/api/errors";
+import { useEffect, useRef } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { useUpdateProfileMutation } from "../api/mutations";
+import {
+  editUsernameSchema,
+  normalizeUsername,
+  usernameAvailabilityMessage,
+  type EditUsernameValues,
+} from "../lib/username";
+import { useUsernameAvailability } from "./use-username-availability";
 
-const editUsernameSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, "Username must be at least 3 characters")
-    .max(30, "Username must be 30 characters or fewer")
-    .regex(/^[a-z0-9._]+$/, "Use lowercase letters, numbers, periods, or underscores"),
-});
-
-export type EditUsernameValues = z.infer<typeof editUsernameSchema>;
+export type { EditUsernameValues };
 
 type UseEditUsernameFormParams = {
   initialUsername: string;
-  onSuccess: (username: string) => void;
+  onSuccess: () => void;
 };
 
 export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsernameFormParams) => {
+  const mutation = useUpdateProfileMutation();
+  const submitting = useRef(false);
   const form = useForm<EditUsernameValues>({
     resolver: zodResolver(editUsernameSchema),
     defaultValues: { username: initialUsername },
     mode: "onTouched",
   });
+  const { reset, control } = form;
+  const username = useWatch({ control, name: "username" });
+  const availability = useUsernameAvailability(username ?? "", { currentUsername: initialUsername });
 
-  const onSubmit = form.handleSubmit(({ username }) => {
-    const normalizedUsername = username.trim();
-    form.reset({ username: normalizedUsername });
-    onSuccess(normalizedUsername);
-  });
+  useEffect(() => {
+    reset({ username: initialUsername }, { keepDirtyValues: true });
+  }, [initialUsername, reset]);
 
-  return { form, onSubmit };
+  const onSubmit = () =>
+    form.handleSubmit(async ({ username: raw }) => {
+      if (submitting.current) return;
+      const username = normalizeUsername(raw);
+      if (username === normalizeUsername(initialUsername)) {
+        reset({ username });
+        return;
+      }
+      if (!availability.canSubmit) return;
+
+      submitting.current = true;
+      form.clearErrors("root");
+      form.clearErrors("username");
+      try {
+        await mutation.mutateAsync({ username });
+        reset({ username });
+        onSuccess();
+      } catch (error) {
+        if (getErrorCode(error) === "USERNAME_TAKEN") {
+          form.setError("username", {
+            message: usernameAvailabilityMessage("TAKEN") ?? "This username is taken",
+          });
+          return;
+        }
+        if (isApiError(error) && error.status === 400) {
+          form.setError("username", {
+            message: getErrorMessage(error, usernameAvailabilityMessage("INVALID_FORMAT") ?? "Invalid username"),
+          });
+          return;
+        }
+        form.setError("root.server", {
+          message: getErrorMessage(error, "Could not update your username. Please try again."),
+        });
+      } finally {
+        submitting.current = false;
+      }
+    })();
+
+  return { form, onSubmit, availability };
 };

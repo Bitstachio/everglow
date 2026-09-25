@@ -1,30 +1,17 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
-import { router, useLocalSearchParams } from "expo-router";
-import { useRef, useState } from "react";
+import { router } from "expo-router";
+import { useRef } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
 import type { DeleteAccountPhotoPolicy } from "../types";
 import { useChangePassword } from "./use-change-password";
-import { useEditProfileForm } from "./use-edit-profile-form";
-
-const firstParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();
   const deleting = useRef(false);
   const deleteProfileMutation = useDeleteProfileMutation();
-  const [showEditModal, setShowEditModal] = useState(false);
-  const params = useLocalSearchParams<{ username?: string | string[] }>();
   const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
-
-  const { form, onSubmit } = useEditProfileForm({
-    user,
-    onSuccess: () => {
-      setShowEditModal(false);
-      Alert.alert("Success", "Profile updated successfully");
-    },
-  });
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -35,14 +22,6 @@ export const useProfileScreen = () => {
         onPress: logout,
       },
     ]);
-  };
-
-  const handleEditProfile = () => {
-    form.reset({
-      name: user?.details?.name ?? "",
-      email: user?.details?.email ?? "",
-    });
-    setShowEditModal(true);
   };
 
   const confirmDeleteAccount = (photos: DeleteAccountPhotoPolicy) => {
@@ -84,16 +63,12 @@ export const useProfileScreen = () => {
     );
   };
 
-  const handleCancelEdit = () => {
-    if (!form.formState.isSubmitting) setShowEditModal(false);
-  };
-
-  const username = firstParam(params.username) ?? user?.details?.email.split("@")[0] ?? "Not set";
+  const username = user?.details?.username ?? "Not set";
 
   return {
     user,
     username,
-    handleOpenUsername: () => router.push({ pathname: "/edit-username", params: { username } }),
+    handleOpenUsername: () => router.push("/edit-username"),
     handleOpenDisplayName: () => router.push("/edit-display-name"),
     handleOpenUsage: () => router.push("/usage"),
     handleOpenPrivacyPolicy: () => router.push("/privacy-policy"),
@@ -103,12 +78,7 @@ export const useProfileScreen = () => {
     handleChangePassword,
     isDeleting: deleteProfileMutation.isPending,
     isLoading,
-    showEditModal,
-    form,
-    onSubmit,
     handleLogout,
-    handleEditProfile,
     handleDeleteAccount,
-    handleCancelEdit,
   };
 };

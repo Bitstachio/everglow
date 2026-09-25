@@ -21,6 +21,7 @@ describe("EventMapper", () => {
 
   const participant: EventParticipant = {
     userId: "44444444-4444-4444-4444-444444444444",
+    username: "target.user",
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: "https://s3.example/avatar?sig=1",
@@ -72,6 +73,7 @@ describe("EventMapper", () => {
 
       expect(result).toEqual({
         userId: participant.userId,
+        username: participant.username,
         name: participant.name,
         accessLevel: participant.accessLevel,
         avatarUrl: participant.avatarUrl,

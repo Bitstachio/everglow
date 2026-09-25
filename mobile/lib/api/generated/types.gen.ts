@@ -5,7 +5,7 @@ export type ClientOptions = {
 };
 
 export type UserDetailsResponseDto = {
-  email: string;
+  username: string;
   name: string;
   /**
    * Short-lived presigned URL of the profile avatar; null when none is set
@@ -34,11 +34,26 @@ export type ResponseMetaDto = {
 
 export type CreateUserDetailsDto = {
   name: string;
-  email: string;
+  /**
+   * Public handle. Trimmed and lowercased before validation.
+   */
+  username: string;
   /**
    * The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Only `true` is valid; when sent, the acceptance time is recorded as termsAcceptedAt.
    */
   acceptedTerms?: boolean;
+};
+
+export type UsernameAvailabilityResponseDto = {
+  /**
+   * Normalized candidate (trimmed and lowercased)
+   */
+  username: string;
+  available: boolean;
+  /**
+   * Why the username is unavailable; null when available
+   */
+  reason: "INVALID_FORMAT" | "TAKEN" | "RESERVED";
 };
 
 export type UserStorageResponseDto = {
@@ -58,7 +73,10 @@ export type UserStorageResponseDto = {
 
 export type UpdateUserDto = {
   name?: string;
-  email?: string;
+  /**
+   * Public handle. Trimmed and lowercased before validation.
+   */
+  username?: string;
 };
 
 export type ImageUploadResponseDto = {
@@ -214,6 +232,10 @@ export type BlockedUserResponseDto = {
    * Null when the blocked account has no profile.
    */
   name: string | null;
+  /**
+   * Public handle; null when the blocked account has no profile.
+   */
+  username: string | null;
   blockedAt: string;
 };
 
@@ -261,6 +283,7 @@ export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
 
 export type EventParticipantResponseDto = {
   userId: string;
+  username: string;
   name: string;
   accessLevel: AccessLevel;
   /**
@@ -328,6 +351,52 @@ export type UsersControllerCompleteOnboardingResponses = {
 
 export type UsersControllerCompleteOnboardingResponse =
   UsersControllerCompleteOnboardingResponses[keyof UsersControllerCompleteOnboardingResponses];
+
+export type UsersControllerCheckUsernameAvailabilityData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Candidate username. Normalized (trim + lowercase) in the response.
+     */
+    username: string;
+  };
+  url: "/api/v2/users/username-availability";
+};
+
+export type UsersControllerCheckUsernameAvailabilityErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCheckUsernameAvailabilityError =
+  UsersControllerCheckUsernameAvailabilityErrors[keyof UsersControllerCheckUsernameAvailabilityErrors];
+
+export type UsersControllerCheckUsernameAvailabilityResponses = {
+  /**
+   * Username availability
+   */
+  200: {
+    data: UsernameAvailabilityResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCheckUsernameAvailabilityResponse =
+  UsersControllerCheckUsernameAvailabilityResponses[keyof UsersControllerCheckUsernameAvailabilityResponses];
 
 export type UsersControllerRemoveMeData = {
   body?: never;

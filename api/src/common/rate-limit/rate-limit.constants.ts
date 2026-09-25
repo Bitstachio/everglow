@@ -28,6 +28,9 @@ export const RATE_LIMIT_TIER_DEFAULTS = {
   // Upload-slot minting. One request mints up to MAX_UPLOAD_BATCH_SIZE slots,
   // so this still allows hundreds of photos a minute.
   uploads: { limit: 30, ttlSeconds: 60 },
+  // Typing-time lookups (username availability). Generous per user so a
+  // debounced keystroke stream is not mistaken for abuse; `sensitive` would.
+  lookup: { limit: 120, ttlSeconds: 60 },
 } as const satisfies Record<string, RateLimitTierSettings>;
 
 export type RateLimitTierName = keyof typeof RATE_LIMIT_TIER_DEFAULTS;

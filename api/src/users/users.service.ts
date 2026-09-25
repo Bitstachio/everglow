@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -17,8 +18,10 @@ import { AppleIdentityRevocationService } from "./apple-identity-revocation.serv
 import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK, USER_SERVICE_ERRORS } from "./users.constants";
+import { UsernameAvailabilityResponseDto } from "./dto/username-availability-response.dto";
+import { ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK, USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } from "./users.constants";
 import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
+import { normalizeUsername, usernameFormatReason } from "./username";
 
 /** Fields the account-deletion saga needs; callers may pass a lean select. */
 export type AccountDeletionUser = Pick<
@@ -44,28 +47,33 @@ export class UsersService {
 
     if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
 
-    await this.assertEmailIsUnique(dto.email);
+    const username = this.requireWritableUsername(dto.username);
 
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: {
-        ...(dto.acceptedTerms && { termsAcceptedAt: new Date() }),
-        details: {
-          create: {
-            email: dto.email,
-            name: dto.name,
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id },
+        data: {
+          ...(dto.acceptedTerms && { termsAcceptedAt: new Date() }),
+          details: {
+            create: {
+              username,
+              name: dto.name,
+            },
           },
         },
-      },
-      include: userWithDetailsInclude,
-    });
+        include: userWithDetailsInclude,
+      });
 
-    this.logger.info(
-      { event: "user.onboarding.completed", userId: id, termsAccepted: !!updated.termsAcceptedAt },
-      "User completed onboarding",
-    );
+      this.logger.info(
+        { event: "user.onboarding.completed", userId: id, termsAccepted: !!updated.termsAcceptedAt },
+        "User completed onboarding",
+      );
 
-    return updated;
+      return updated;
+    } catch (error) {
+      this.rethrowUsernameTaken(error, username);
+      throw error;
+    }
   }
 
   async getById(id: string): Promise<UserWithDetails> {
@@ -91,21 +99,53 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
     await this.getOnboardedById(id);
 
-    if (dto.email) await this.assertEmailIsUnique(dto.email, id);
+    const data: UpdateUserDto = { ...dto };
+    if (dto.username !== undefined) {
+      data.username = this.requireWritableUsername(dto.username);
+    }
 
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: {
-        details: {
-          update: dto,
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id },
+        data: {
+          details: {
+            update: data,
+          },
         },
-      },
-      include: userWithDetailsInclude,
+        include: userWithDetailsInclude,
+      });
+
+      this.logger.info({ event: "user.profile.updated", userId: id, fields: Object.keys(dto) }, "User profile updated");
+
+      return updated;
+    } catch (error) {
+      if (data.username) this.rethrowUsernameTaken(error, data.username);
+      throw error;
+    }
+  }
+
+  /**
+   * Advisory check for the edit-username / onboarding fields. The caller's own
+   * current username reports as available. Uniqueness on write is still enforced
+   * by the database (see USERNAME_TAKEN).
+   */
+  async checkUsernameAvailability(callerId: string, raw: string): Promise<UsernameAvailabilityResponseDto> {
+    const username = normalizeUsername(raw);
+    const formatReason = usernameFormatReason(username);
+    if (formatReason) {
+      return { username, available: false, reason: formatReason };
+    }
+
+    const taken = await this.prisma.userDetails.findFirst({
+      where: { username, NOT: { userId: callerId } },
+      select: { userId: true },
     });
 
-    this.logger.info({ event: "user.profile.updated", userId: id, fields: Object.keys(dto) }, "User profile updated");
+    if (taken) {
+      return { username, available: false, reason: "TAKEN" };
+    }
 
-    return updated;
+    return { username, available: true, reason: null };
   }
 
   async remove(id: string, photoPolicy: AccountDeletionPhotoPolicy): Promise<void> {
@@ -174,6 +214,7 @@ export class UsersService {
 
     // Tombstone before (or with) the hard delete so an in-flight JWT cannot JIT
     // recreate this providerSub. Upsert keeps reconciler retries idempotent.
+    // Username frees immediately with the cascaded UserDetails row (EV-30 cool-down later).
     const providerSubHash = hashProviderSub(providerSub);
     await this.prisma.$transaction(async (tx) => {
       await tx.deletedProviderSub.upsert({
@@ -312,11 +353,24 @@ export class UsersService {
     throw new UnauthorizedException();
   }
 
-  private async assertEmailIsUnique(email: string, excludeUserId?: string): Promise<void> {
-    const taken = await this.prisma.userDetails.count({
-      where: { email, NOT: { userId: excludeUserId } },
-    });
+  /** Format is already validated by the DTO; reserved names are rejected here. */
+  private requireWritableUsername(raw: string): string {
+    const username = normalizeUsername(raw);
+    const reason = usernameFormatReason(username);
+    if (reason === "INVALID_FORMAT") {
+      throw new BadRequestException(`Username "${username}" is not a valid format`);
+    }
+    if (reason === "RESERVED") {
+      throw new BadRequestException(USER_SERVICE_ERRORS.USERNAME_RESERVED(username));
+    }
+    return username;
+  }
 
-    if (taken > 0) throw new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(email));
+  private rethrowUsernameTaken(error: unknown, username: string): void {
+    if (!isUniqueConstraintViolation(error)) return;
+    throw new ConflictException({
+      code: USERNAME_TAKEN_CODE,
+      message: USER_SERVICE_ERRORS.USERNAME_TAKEN(username),
+    });
   }
 }

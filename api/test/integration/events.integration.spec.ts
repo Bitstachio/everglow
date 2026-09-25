@@ -514,6 +514,7 @@ describe("EventsController (integration)", () => {
       expect(body.data).toEqual([
         {
           userId: TEST_USER_ID,
+          username: "jane.doe",
           name: "Jane Doe",
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
@@ -521,6 +522,7 @@ describe("EventsController (integration)", () => {
         },
         {
           userId: TEST_TARGET_USER_ID,
+          username: "target",
           name: "Target User",
           accessLevel: AccessLevel.PARTICIPANT,
           avatarUrl: "https://s3.example/avatar?sig=1",
@@ -572,6 +574,7 @@ describe("EventsController (integration)", () => {
       const body = response.body as WrappedResponse<ParticipantResponseBody>;
       expect(body.data).toEqual({
         userId: TEST_TARGET_USER_ID,
+        username: "target",
         name: "Target User",
         accessLevel: AccessLevel.ORGANIZER,
         avatarUrl: null,

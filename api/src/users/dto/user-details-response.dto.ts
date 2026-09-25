@@ -2,8 +2,8 @@ import { ApiProperty } from "@nestjs/swagger";
 import { STRING_LIMITS } from "src/common/constants/schema.constants";
 
 export class UserDetailsResponseDto {
-  @ApiProperty({ example: "user@example.com" })
-  email: string;
+  @ApiProperty({ example: "jane.doe", maxLength: STRING_LIMITS.USERNAME })
+  username: string;
 
   @ApiProperty({ example: "Jane Doe" })
   name: string;

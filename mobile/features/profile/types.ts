@@ -6,6 +6,7 @@ export type {
   UpdateUserDto,
   UserDetailsResponseDto,
   UserResponseDto,
+  UsernameAvailabilityResponseDto,
 } from "@/lib/api/generated";
 
 export type DeleteAccountPhotoPolicy = UsersControllerRemoveMeData["query"]["photos"];

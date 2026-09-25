@@ -25,7 +25,7 @@ describe("BlockMapper", () => {
       details: {
         id: "33333333-3333-3333-3333-333333333333",
         userId: blockedId,
-        email: "blocked@example.com",
+        username: "blocked",
         name: "Blocked User",
         avatarS3Key: null,
         createdAt: now,
@@ -34,12 +34,19 @@ describe("BlockMapper", () => {
     },
   };
 
-  it("maps a block to the blocked user's id and name, and nothing else about them", () => {
-    expect(BlockMapper.toResponseDto(block)).toEqual({ userId: blockedId, name: "Blocked User", blockedAt: now });
+  it("maps a block to the blocked user's id, name and username, and nothing else about them", () => {
+    expect(BlockMapper.toResponseDto(block)).toEqual({
+      userId: blockedId,
+      name: "Blocked User",
+      username: "blocked",
+      blockedAt: now,
+    });
   });
 
-  it("maps a blocked account without a profile to a null name", () => {
-    expect(BlockMapper.toResponseDto({ ...block, blocked: { ...block.blocked, details: null } }).name).toBeNull();
+  it("maps a blocked account without a profile to a null name and username", () => {
+    const result = BlockMapper.toResponseDto({ ...block, blocked: { ...block.blocked, details: null } });
+    expect(result.name).toBeNull();
+    expect(result.username).toBeNull();
   });
 
   it("wraps the list in items", () => {

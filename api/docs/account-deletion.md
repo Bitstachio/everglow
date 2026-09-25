@@ -247,7 +247,7 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 
 | Data                                          | On deletion                                                                   |
 | --------------------------------------------- | ----------------------------------------------------------------------------- |
-| Identity, profile (`UserDetails`)             | Deleted. No name or email survives.                                           |
+| Identity, profile (`UserDetails`)             | Deleted. No name or username survives.                                        |
 | Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.      |
 | Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                          |
 | Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                  |

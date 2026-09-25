@@ -39,6 +39,7 @@ import {
   reportsControllerReportMember,
   reportsControllerReportPhoto,
   reportsControllerResolveReport,
+  usersControllerCheckUsernameAvailability,
   usersControllerCompleteOnboarding,
   usersControllerConfirmAvatarUpload,
   usersControllerCreateAvatarUploadUrl,
@@ -129,6 +130,9 @@ import type {
   ReportsControllerResolveReportData,
   ReportsControllerResolveReportError,
   ReportsControllerResolveReportResponse,
+  UsersControllerCheckUsernameAvailabilityData,
+  UsersControllerCheckUsernameAvailabilityError,
+  UsersControllerCheckUsernameAvailabilityResponse,
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingError,
   UsersControllerCompleteOnboardingResponse,
@@ -240,6 +244,34 @@ export const usersControllerCompleteOnboardingMutation = (
   };
   return mutationOptions;
 };
+
+export const usersControllerCheckUsernameAvailabilityQueryKey = (
+  options: Options<UsersControllerCheckUsernameAvailabilityData>,
+) => createQueryKey("usersControllerCheckUsernameAvailability", options);
+
+/**
+ * Check whether a username is available
+ */
+export const usersControllerCheckUsernameAvailabilityOptions = (
+  options: Options<UsersControllerCheckUsernameAvailabilityData>,
+) =>
+  queryOptions<
+    UsersControllerCheckUsernameAvailabilityResponse,
+    AxiosError<UsersControllerCheckUsernameAvailabilityError>,
+    UsersControllerCheckUsernameAvailabilityResponse,
+    ReturnType<typeof usersControllerCheckUsernameAvailabilityQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await usersControllerCheckUsernameAvailability({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: usersControllerCheckUsernameAvailabilityQueryKey(options),
+  });
 
 /**
  * Delete current user

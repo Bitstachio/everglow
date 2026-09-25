@@ -6,11 +6,21 @@ const entity = "User";
 export const USER_SERVICE_ERRORS = {
   NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(entity, "ID", id),
   DETAILS_ALREADY_EXIST: (id: string) => `User with ID "${id}" has already completed onboarding`,
-  EMAIL_TAKEN: (email: string) => RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(entity, "email", email),
+  USERNAME_TAKEN: (username: string) => RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(entity, "username", username),
+  USERNAME_RESERVED: (username: string) => `Username "${username}" is reserved`,
   ONBOARDING_INCOMPLETE: "Onboarding is incomplete. Please complete the user onboarding to continue.",
   AVATAR_CHANGED_CONCURRENTLY: "The avatar was changed by another request, please retry",
   ACCOUNT_DELETED: "This account has been deleted. Sign in again to start a new one.",
 };
+
+/** Coded 409 when a username write loses a uniqueness race (or is already taken). */
+export const USERNAME_TAKEN_CODE = "USERNAME_TAKEN";
+
+/** Matches mobile `use-edit-username-form.ts`: lowercase letters, digits, `.`, `_`. */
+export const USERNAME_PATTERN = /^[a-z0-9._]+$/;
+
+/** Brand and system handles nobody may claim. */
+export const RESERVED_USERNAMES = new Set(["admin", "everglow", "support", "api"]);
 
 // avatars/{userId}/{uploadId}; see docs/image-uploads.md.
 export const USER_AVATAR_S3_KEY_PREFIX = "avatars/";
