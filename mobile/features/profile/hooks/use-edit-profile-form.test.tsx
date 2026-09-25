@@ -17,6 +17,7 @@ const userProfile: UserResponseDto = {
   id: "user-1",
   isOnboarded: true,
   details: {
+    username: "ada",
     name: "Ada",
     email: "ada@example.com",
     avatarUrl: null,

@@ -34,6 +34,8 @@ import { PasswordChangeTicketResponseDto } from "./dto/password-change-ticket-re
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { UserStorageResponseDto } from "./dto/user-storage-response.dto";
+import { UsernameAvailabilityQueryDto } from "./dto/username-availability-query.dto";
+import { UsernameAvailabilityResponseDto } from "./dto/username-availability-response.dto";
 import { UserMapper } from "./mappers/user.mapper";
 import { UserAvatarService } from "./user-avatar.service";
 import { UsersService } from "./users.service";
@@ -62,6 +64,17 @@ export class UsersController {
     @Body() dto: CreateUserDetailsDto,
   ): Promise<UserResponseDto> {
     return this.toResponseDto(await this.usersService.createDetails(user.id, dto));
+  }
+
+  @Get("username-availability")
+  @RateLimit("lookup")
+  @ApiOperation({ summary: "Check whether a username is available" })
+  @ApiWrappedResponse(UsernameAvailabilityResponseDto, "Username availability")
+  async checkUsernameAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: UsernameAvailabilityQueryDto,
+  ): Promise<UsernameAvailabilityResponseDto> {
+    return this.usersService.checkUsernameAvailability(user.id, query.username);
   }
 
   @Get("me")

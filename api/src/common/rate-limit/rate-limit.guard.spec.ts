@@ -97,6 +97,7 @@ describe("rate limit guards", () => {
         default: { limit: 100, ttlSeconds: 60 },
         sensitive: { limit: 2, ttlSeconds: 30 },
         uploads: { limit: 5, ttlSeconds: 10 },
+        lookup: { limit: 20, ttlSeconds: 10 },
       },
     };
   });

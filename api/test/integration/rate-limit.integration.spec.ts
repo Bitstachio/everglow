@@ -22,6 +22,7 @@ const buildConfig = (overrides: Partial<RateLimitConfig> = {}): RateLimitConfig 
     default: { limit: DEFAULT_LIMIT, ttlSeconds: TTL_SECONDS },
     sensitive: { limit: SENSITIVE_LIMIT, ttlSeconds: TTL_SECONDS },
     uploads: { limit: SENSITIVE_LIMIT, ttlSeconds: TTL_SECONDS },
+    lookup: { limit: SENSITIVE_LIMIT, ttlSeconds: TTL_SECONDS },
   },
   ...overrides,
 });

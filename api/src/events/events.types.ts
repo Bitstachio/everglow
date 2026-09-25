@@ -10,6 +10,7 @@ export type EventWithCallerAccessInclude = ReturnType<typeof eventWithCallerAcce
 
 export type EventParticipant = {
   userId: string;
+  username: string;
   name: string;
   accessLevel: AccessLevel;
   /** Short-lived presigned URL of the member's avatar; null when they have none. */

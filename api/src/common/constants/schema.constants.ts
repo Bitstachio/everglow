@@ -3,6 +3,8 @@
  * These constants ensure consistency across the Prisma schema and DTOs.
  */
 export const STRING_LIMITS = {
+  // Public username handle (UserDetails.username)
+  USERNAME: 30,
   // Concise metadata, codes, and identifiers
   STRICT: 50,
   // Display titles for events and similar named resources (matches Prisma VarChar(100))

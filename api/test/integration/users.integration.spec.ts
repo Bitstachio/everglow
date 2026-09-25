@@ -1,5 +1,5 @@
 import { INestApplication, InternalServerErrorException, UnauthorizedException } from "@nestjs/common";
-import { AccountDeletionPhotoPolicy, PhotoStatus, PrismaClient } from "generated/prisma/client";
+import { AccountDeletionPhotoPolicy, PhotoStatus, Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockDeep, mockReset } from "jest-mock-extended";
 import { buildImageS3Key, IMAGE_UPLOAD_ERRORS, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
@@ -8,7 +8,7 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { hashProviderSub } from "src/users/deleted-provider-sub";
-import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS } from "src/users/users.constants";
+import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } from "src/users/users.constants";
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
@@ -41,6 +41,7 @@ type WrappedResponse<T> = {
 
 type ErrorResponse = {
   message?: string;
+  code?: string;
   meta: {
     timestamp: string;
     path: string;
@@ -130,6 +131,7 @@ describe("UsersController (integration)", () => {
         id: TEST_USER_ID,
         isOnboarded: true,
         details: {
+          username: payload.username,
           email: payload.email,
           name: payload.name,
         },
@@ -142,12 +144,69 @@ describe("UsersController (integration)", () => {
         data: {
           details: {
             create: {
+              username: payload.username,
               email: payload.email,
               name: payload.name,
             },
           },
         },
         include: userWithDetailsInclude,
+      });
+    });
+
+    it("returns 201 when onboarding omits email", async () => {
+      const payload = createUserDetailsPayload();
+      delete (payload as { email?: string }).email;
+      const onboardedUser = buildUserWithDetails({
+        details: { ...buildUserWithDetails().details!, email: null },
+      });
+
+      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+      prisma.user.update.mockResolvedValue(onboardedUser);
+
+      const response = await request(httpServer).post(path).set(authHeader()).send(payload).expect(201);
+
+      const body = response.body as WrappedResponse<{
+        details: { username: string; email: string | null; name: string };
+      }>;
+      expect(body.data.details).toMatchObject({
+        username: payload.username,
+        email: null,
+        name: payload.name,
+      });
+      expect(prisma.userDetails.count).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when the username is reserved", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader())
+        .send(createUserDetailsPayload({ username: "admin" }))
+        .expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(USER_SERVICE_ERRORS.USERNAME_RESERVED("admin"));
+    });
+
+    it("returns 409 with USERNAME_TAKEN when username create races", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+      prisma.userDetails.count.mockResolvedValue(0);
+      prisma.user.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+          code: "P2002",
+          clientVersion: "7.8.0",
+        }),
+      );
+
+      const payload = createUserDetailsPayload();
+      const response = await request(httpServer).post(path).set(authHeader()).send(payload).expect(409);
+
+      const body = response.body as ErrorResponse;
+      expect(body).toMatchObject({
+        code: USERNAME_TAKEN_CODE,
+        message: USER_SERVICE_ERRORS.USERNAME_TAKEN(payload.username!),
       });
     });
 
@@ -208,8 +267,89 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer).post(path).set(authHeader()).send(payload).expect(409);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.EMAIL_TAKEN(payload.email));
+      expect(body.message).toBe(USER_SERVICE_ERRORS.EMAIL_TAKEN(payload.email!));
       expect(body.meta.path).toBe(path);
+    });
+  });
+
+  describe("GET /users/username-availability", () => {
+    const path = `${USERS_BASE_PATH}/username-availability`;
+
+    it("returns available for a free username", async () => {
+      prisma.userDetails.findFirst.mockResolvedValue(null);
+
+      const response = await request(httpServer)
+        .get(path)
+        .query({ username: "Jane.Doe" })
+        .set(authHeader())
+        .expect(200);
+
+      const body = response.body as WrappedResponse<{
+        username: string;
+        available: boolean;
+        reason: string | null;
+      }>;
+      expect(body.data).toEqual({
+        username: "jane.doe",
+        available: true,
+        reason: null,
+      });
+    });
+
+    it("returns INVALID_FORMAT for a short username", async () => {
+      const response = await request(httpServer).get(path).query({ username: "ab" }).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<{
+        username: string;
+        available: boolean;
+        reason: string | null;
+      }>;
+      expect(body.data).toEqual({
+        username: "ab",
+        available: false,
+        reason: "INVALID_FORMAT",
+      });
+      expect(prisma.userDetails.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("returns RESERVED for a reserved username", async () => {
+      const response = await request(httpServer).get(path).query({ username: "support" }).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<{
+        username: string;
+        available: boolean;
+        reason: string | null;
+      }>;
+      expect(body.data).toEqual({
+        username: "support",
+        available: false,
+        reason: "RESERVED",
+      });
+    });
+
+    it("returns TAKEN when another user holds the username", async () => {
+      prisma.userDetails.findFirst.mockResolvedValue({ userId: "other-user" } as never);
+
+      const response = await request(httpServer)
+        .get(path)
+        .query({ username: "taken.name" })
+        .set(authHeader())
+        .expect(200);
+
+      const body = response.body as WrappedResponse<{
+        username: string;
+        available: boolean;
+        reason: string | null;
+      }>;
+      expect(body.data).toEqual({
+        username: "taken.name",
+        available: false,
+        reason: "TAKEN",
+      });
+    });
+
+    it("returns 401 when the access token is missing", async () => {
+      await request(httpServer).get(path).query({ username: "jane.doe" }).expect(401);
     });
   });
 
@@ -232,6 +372,7 @@ describe("UsersController (integration)", () => {
         id: TEST_USER_ID,
         isOnboarded: true,
         details: {
+          username: user.details!.username,
           email: user.details!.email,
           name: user.details!.name,
         },

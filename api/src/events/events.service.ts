@@ -380,7 +380,7 @@ export class EventsService {
     access: {
       userId: string;
       accessLevel: AccessLevel;
-      user: { details: { name: string; avatarS3Key: string | null } | null };
+      user: { details: { username: string; name: string; avatarS3Key: string | null } | null };
     },
   ): Promise<EventParticipant> {
     if (!access.user.details) {
@@ -389,6 +389,7 @@ export class EventsService {
 
     return {
       userId: access.userId,
+      username: access.user.details.username,
       name: access.user.details.name,
       accessLevel: access.accessLevel,
       avatarUrl: await this.imageUploads.getDownloadUrl(access.user.details.avatarS3Key),

@@ -5,7 +5,11 @@ export type ClientOptions = {
 };
 
 export type UserDetailsResponseDto = {
-  email: string;
+  username: string;
+  /**
+   * Optional profile email while it remains on the row; null when unset. Being removed in EV-21 phase 3.
+   */
+  email: string | null;
   name: string;
   /**
    * Short-lived presigned URL of the profile avatar; null when none is set
@@ -30,7 +34,26 @@ export type ResponseMetaDto = {
 
 export type CreateUserDetailsDto = {
   name: string;
-  email: string;
+  /**
+   * Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part.
+   */
+  username?: string;
+  /**
+   * Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email.
+   */
+  email?: string;
+};
+
+export type UsernameAvailabilityResponseDto = {
+  /**
+   * Normalized candidate (trimmed and lowercased)
+   */
+  username: string;
+  available: boolean;
+  /**
+   * Why the username is unavailable; null when available
+   */
+  reason: "INVALID_FORMAT" | "TAKEN" | "RESERVED";
 };
 
 export type UserStorageResponseDto = {
@@ -50,6 +73,13 @@ export type UserStorageResponseDto = {
 
 export type UpdateUserDto = {
   name?: string;
+  /**
+   * Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part.
+   */
+  username?: string;
+  /**
+   * Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email.
+   */
   email?: string;
 };
 
@@ -183,6 +213,7 @@ export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
 
 export type EventParticipantResponseDto = {
   userId: string;
+  username: string;
   name: string;
   accessLevel: AccessLevel;
   /**
@@ -246,6 +277,52 @@ export type UsersControllerCompleteOnboardingResponses = {
 
 export type UsersControllerCompleteOnboardingResponse =
   UsersControllerCompleteOnboardingResponses[keyof UsersControllerCompleteOnboardingResponses];
+
+export type UsersControllerCheckUsernameAvailabilityData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Candidate username. Normalized (trim + lowercase) in the response.
+     */
+    username: string;
+  };
+  url: "/api/v2/users/username-availability";
+};
+
+export type UsersControllerCheckUsernameAvailabilityErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCheckUsernameAvailabilityError =
+  UsersControllerCheckUsernameAvailabilityErrors[keyof UsersControllerCheckUsernameAvailabilityErrors];
+
+export type UsersControllerCheckUsernameAvailabilityResponses = {
+  /**
+   * Username availability
+   */
+  200: {
+    data: UsernameAvailabilityResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCheckUsernameAvailabilityResponse =
+  UsersControllerCheckUsernameAvailabilityResponses[keyof UsersControllerCheckUsernameAvailabilityResponses];
 
 export type UsersControllerRemoveMeData = {
   body?: never;

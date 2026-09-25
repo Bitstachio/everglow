@@ -27,6 +27,7 @@ export const buildParticipant = (
   overrides: Partial<EventParticipantResponseDto> = {},
 ): EventParticipantResponseDto => ({
   userId: "user-1",
+  username: "ada",
   name: "Ada Lovelace",
   accessLevel: "ORGANIZER",
   avatarUrl: null,

@@ -70,6 +70,63 @@
         ]
       }
     },
+    "/api/v2/users/username-availability": {
+      "get": {
+        "operationId": "UsersController_checkUsernameAvailability",
+        "parameters": [
+          {
+            "name": "username",
+            "required": true,
+            "in": "query",
+            "description": "Candidate username. Normalized (trim + lowercase) in the response.",
+            "schema": {
+              "maxLength": 30,
+              "example": "jane.doe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Username availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UsernameAvailabilityResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Check whether a username is available",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/users/me": {
       "get": {
         "operationId": "UsersController_findMe",
@@ -1467,9 +1524,16 @@
       "UserDetailsResponseDto": {
         "type": "object",
         "properties": {
+          "username": {
+            "type": "string",
+            "example": "jane.doe",
+            "maxLength": 30
+          },
           "email": {
             "type": "string",
-            "example": "user@example.com"
+            "nullable": true,
+            "example": "user@example.com",
+            "description": "Optional profile email while it remains on the row; null when unset. Being removed in EV-21 phase 3."
           },
           "name": {
             "type": "string",
@@ -1491,6 +1555,7 @@
           }
         },
         "required": [
+          "username",
           "email",
           "name",
           "avatarUrl",
@@ -1558,15 +1623,52 @@
             "example": "Jane Doe",
             "maxLength": 255
           },
+          "username": {
+            "type": "string",
+            "example": "jane.doe",
+            "minLength": 3,
+            "maxLength": 30,
+            "description": "Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part."
+          },
           "email": {
             "type": "string",
             "example": "user@example.com",
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email."
           }
         },
         "required": [
-          "name",
-          "email"
+          "name"
+        ]
+      },
+      "UsernameAvailabilityResponseDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "jane.doe",
+            "maxLength": 30,
+            "description": "Normalized candidate (trimmed and lowercased)"
+          },
+          "available": {
+            "type": "boolean",
+            "example": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "INVALID_FORMAT",
+              "TAKEN",
+              "RESERVED"
+            ],
+            "description": "Why the username is unavailable; null when available"
+          }
+        },
+        "required": [
+          "username",
+          "available",
+          "reason"
         ]
       },
       "UserStorageResponseDto": {
@@ -1602,10 +1704,18 @@
             "example": "Jane Doe",
             "maxLength": 255
           },
+          "username": {
+            "type": "string",
+            "example": "jane.doe",
+            "minLength": 3,
+            "maxLength": 30,
+            "description": "Public handle. Trimmed and lowercased before validation. Optional while installed apps still onboard with email only; when omitted the API derives one from the email local part."
+          },
           "email": {
             "type": "string",
             "example": "user@example.com",
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Optional once clients send username. Still accepted for installed apps; Auth0 holds the login email."
           }
         }
       },
@@ -1948,6 +2058,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "username": {
+            "type": "string",
+            "example": "jane.doe",
+            "maxLength": 30
+          },
           "name": {
             "type": "string"
           },
@@ -1967,6 +2082,7 @@
         },
         "required": [
           "userId",
+          "username",
           "name",
           "accessLevel",
           "avatarUrl"
