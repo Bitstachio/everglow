@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ApiError, getErrorCode, getErrorMessage } from "@/lib/api/errors";
+import { getErrorCode, getErrorMessage, isApiError } from "@/lib/api/errors";
 import { useEffect, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useUpdateProfileMutation } from "../api/mutations";
 import {
   editUsernameSchema,
@@ -26,8 +26,8 @@ export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsern
     defaultValues: { username: initialUsername },
     mode: "onTouched",
   });
-  const { reset, watch } = form;
-  const username = watch("username");
+  const { reset, control } = form;
+  const username = useWatch({ control, name: "username" });
   const availability = useUsernameAvailability(username ?? "", { currentUsername: initialUsername });
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsern
           });
           return;
         }
-        if (error instanceof ApiError && error.status === 400) {
+        if (isApiError(error) && error.status === 400) {
           form.setError("username", {
             message: getErrorMessage(error, usernameAvailabilityMessage("INVALID_FORMAT") ?? "Invalid username"),
           });

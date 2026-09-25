@@ -10,6 +10,12 @@ type ApiErrorShape = {
   message?: string;
 };
 
+export type ApiError = Error & {
+  status?: number;
+  code?: string;
+  retryAfterSeconds?: number;
+};
+
 const messageFromResponse = (data: ApiErrorShape["response"]): string | undefined => {
   const raw = data?.data?.message ?? data?.data?.error;
   if (raw == null) return undefined;
@@ -32,24 +38,19 @@ const parseRetryAfterSeconds = (headers: Record<string, unknown> | undefined): n
 };
 
 /** Transport/API failure with optional status, machine code, and Retry-After. */
-export class ApiError extends Error {
-  readonly status?: number;
-  readonly code?: string;
-  readonly retryAfterSeconds?: number;
+export const createApiError = (
+  message: string,
+  options?: { status?: number; code?: string; retryAfterSeconds?: number; cause?: unknown },
+): ApiError => {
+  const error = new Error(message, options?.cause !== undefined ? { cause: options.cause } : undefined) as ApiError;
+  error.name = "ApiError";
+  error.status = options?.status;
+  error.code = options?.code;
+  error.retryAfterSeconds = options?.retryAfterSeconds;
+  return error;
+};
 
-  constructor(
-    message: string,
-    options?: { status?: number; code?: string; retryAfterSeconds?: number; cause?: unknown },
-  ) {
-    super(message, options?.cause !== undefined ? { cause: options.cause } : undefined);
-    this.name = "ApiError";
-    this.status = options?.status;
-    this.code = options?.code;
-    this.retryAfterSeconds = options?.retryAfterSeconds;
-  }
-}
-
-export const isApiError = (error: unknown): error is ApiError => error instanceof ApiError;
+export const isApiError = (error: unknown): error is ApiError => error instanceof Error && error.name === "ApiError";
 
 export const getErrorCode = (error: unknown): string | undefined => (isApiError(error) ? error.code : undefined);
 
@@ -68,26 +69,26 @@ export const toApiError = (error: unknown): ApiError => {
     const retryAfterSeconds = parseRetryAfterSeconds(err.response.headers);
 
     if (status >= 500) {
-      return new ApiError(CLIENT_SAFE_SERVER_ERROR, { status, code, retryAfterSeconds, cause: error });
+      return createApiError(CLIENT_SAFE_SERVER_ERROR, { status, code, retryAfterSeconds, cause: error });
     }
 
     const message = messageFromResponse(err.response) || "An error occurred";
-    return new ApiError(message, { status, code, retryAfterSeconds, cause: error });
+    return createApiError(message, { status, code, retryAfterSeconds, cause: error });
   }
 
   if (err.request) {
-    return new ApiError("Network error. Please check your connection.", { cause: error });
+    return createApiError("Network error. Please check your connection.", { cause: error });
   }
 
-  if (error instanceof ApiError) {
+  if (isApiError(error)) {
     return error;
   }
 
   if (error instanceof Error) {
-    return new ApiError(error.message, { cause: error });
+    return createApiError(error.message, { cause: error });
   }
 
-  return new ApiError(err.message || "An unexpected error occurred", { cause: error });
+  return createApiError(err.message || "An unexpected error occurred", { cause: error });
 };
 
 export const getErrorMessage = (error: unknown, fallback = "An unexpected error occurred"): string =>
