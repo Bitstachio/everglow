@@ -59,7 +59,6 @@ describe("UserAvatarService", () => {
       id: "22222222-2222-2222-2222-222222222222",
       userId,
       username: "jane",
-      email: "jane@example.com",
       name: "Jane Doe",
       avatarS3Key,
       createdAt: now,

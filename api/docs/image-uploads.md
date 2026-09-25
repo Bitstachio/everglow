@@ -93,7 +93,7 @@ Deleting the owning row cannot be retried once the row is gone, so it follows th
 
 ## 4. Avatars (`src/users`)
 
-`UserDetails.avatarS3Key` (nullable, unique). It lives on `UserDetails` rather than `User` because `User` is the identity and saga record while `UserDetails` is the profile (name, email) the avatar is shown with; it cascades with the profile; and every place that displays an avatar already loads `details`, so exposing it costs no extra query. The consequence is that **an avatar can only be set after onboarding** (422 before).
+`UserDetails.avatarS3Key` (nullable, unique). It lives on `UserDetails` rather than `User` because `User` is the identity and saga record while `UserDetails` is the profile (name, username) the avatar is shown with; it cascades with the profile; and every place that displays an avatar already loads `details`, so exposing it costs no extra query. The consequence is that **an avatar can only be set after onboarding** (422 before).
 
 | Endpoint                              | Success                                      | Errors                                                                                                                     |
 | ------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |

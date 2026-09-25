@@ -200,7 +200,7 @@ Apple login goes through the Auth0 **Apple social connection**; the API never ta
 
 Auth0 derives the subject from Apple's stable per-team user identifier, so the `sub` (and our `providerSub`) looks like `apple|001234.abcdef0123456789abcdef.0123`. Nothing else about the token differs: same issuer, audience and signing keys. JIT provisioning (§4) creates the `User` row on first request exactly as for any other connection, and `isAppleProviderSub` in `users.constants.ts` is the only place the prefix is inspected.
 
-The access token carries no email or name. Onboarding stays the client's job: `POST /users/me/onboarding` receives the email the person chooses to give us. With **Hide My Email**, that may be an `@privaterelay.appleid.com` address. It is a valid, unique address for that person and app, so nothing on the API needs to know it is a relay; `UserDetails.email` stores it like any other. It cascades away with the `User` row on deletion, so a later re-signup that produces a different relay address cannot collide with it.
+The access token carries no email or name. Onboarding stays the client's job: `POST /users/me/onboarding` receives the display name and public `username` the person chooses. Login email (including Apple **Hide My Email** relay addresses) stays in Auth0 only; the API does not store a profile email.
 
 ### 10.2 Re-signup after delete
 

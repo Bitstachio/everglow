@@ -54,7 +54,7 @@ Rules:
   id** (`userId`) instead. "Which principal did this?" must be answerable without turning logs into a copy of the
   user directory.
 - **Log keys, not values, when describing changes.** See `update()` in `UsersService`: it logs
-  `fields: Object.keys(dto)` (e.g. `["email","name"]`), never the new values.
+  `fields: Object.keys(dto)` (e.g. `["username","name"]`), never the new values.
 - If you add a new sensitive field anywhere in the app, add it to `REDACT_PATHS`.
 
 ---
@@ -66,13 +66,13 @@ and `info` in production (override with `LOG_LEVEL`).
 
 | Level     | Use for                                                                            | Example in this app                                  |
 | --------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **debug** | Fine-grained troubleshooting detail. Off by default in prod.                       | "checking email uniqueness", branch taken            |
+| **debug** | Fine-grained troubleshooting detail. Off by default in prod.                       | "checking username uniqueness", branch taken         |
 | **info**  | Healthy, expected business state transitions worth a permanent record.             | `user.onboarding.completed`, `user.provisioned`      |
 | **warn**  | Unexpected-but-handled: retry succeeded, deprecated path, degraded dependency.     | downstream slow but within threshold                 |
 | **error** | An operation failed and could not complete; invariant violated.                    | dependency unavailable with no fallback              |
 | **fatal** | Process cannot continue safely (rare; usually precedes exit).                      | missing required config at boot                      |
 
-Critical: **expected client errors are NOT `error`.** A `404` (user not found), `409` (email taken / already
+Critical: **expected client errors are NOT `error`.** A `404` (user not found), `409` (username taken / already
 onboarded), or `422` (onboarding incomplete) is a predictable outcome of normal client behaviour. We **throw the
 HTTP exception and do not log it**; ingress already records it as a `warn`. Logging these at `error` is the
 fastest way to train the team to ignore alerts.
