@@ -1,11 +1,11 @@
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
-import { Alert } from "react-native";
-import { ApiError } from "@/lib/api/errors";
-import OnboardingScreen from "./onboarding";
+import { createApiError } from "@/lib/api/errors";
+import OnboardingScreen from "./onboarding-screen";
 
 const mockCompleteOnboarding = jest.fn();
 const mockClearError = jest.fn();
 const mockReplace = jest.fn();
+const mockAlert = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { replace: (href: unknown) => mockReplace(href) },
@@ -30,14 +30,17 @@ jest.mock("@/context/auth-context", () => ({
   }),
 }));
 
+jest.mock("react-native/Libraries/Alert/Alert", () => ({
+  alert: (...args: unknown[]) => mockAlert(...args),
+}));
+
 const mockAvailability = jest.fn();
-jest.mock("@/features/profile/hooks/use-username-availability", () => ({
+jest.mock("../hooks/use-username-availability", () => ({
   useUsernameAvailability: (...args: unknown[]) => mockAvailability(...args),
 }));
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.spyOn(Alert, "alert").mockImplementation(() => {});
   mockCompleteOnboarding.mockResolvedValue(undefined);
   mockAvailability.mockReturnValue({
     status: "available",
@@ -84,7 +87,7 @@ test("keeps Continue disabled until the username is available", async () => {
 
 test("shows taken when onboarding loses a uniqueness race", async () => {
   mockCompleteOnboarding.mockRejectedValueOnce(
-    new ApiError("Username already exists", { status: 409, code: "USERNAME_TAKEN" }),
+    createApiError("Username already exists", { status: 409, code: "USERNAME_TAKEN" }),
   );
   const user = userEvent.setup();
   await render(<OnboardingScreen />);
@@ -93,5 +96,5 @@ test("shows taken when onboarding loses a uniqueness race", async () => {
   await user.press(screen.getByRole("button", { name: "Continue" }));
 
   expect(await screen.findByText("This username is taken")).toBeOnTheScreen();
-  expect(Alert.alert).not.toHaveBeenCalled();
+  expect(mockAlert).not.toHaveBeenCalled();
 });
