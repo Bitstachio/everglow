@@ -9,6 +9,8 @@ import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
+import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
+import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
@@ -46,6 +48,7 @@ export class PhotosService {
     private readonly abilityFactory: AbilityFactory,
     private readonly s3Service: S3Service,
     private readonly photoStorageService: PhotoStorageService,
+    private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -55,7 +58,7 @@ export class PhotosService {
   private async findEventForCaller(eventId: string, callerId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      include: { eventAccesses: { where: { userId: callerId } } },
+      include: eventForPhotoVisibilityInclude(callerId),
     });
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
     return event;
@@ -269,6 +272,8 @@ export class PhotosService {
         AND: [
           { eventId, status: PhotoStatus.READY },
           accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
+          // Photos of blocked uploaders drop out here (docs/moderation.md).
+          this.photoVisibilityService.whereVisibleTo(callerId, event),
           ...afterCursor,
         ],
       },
@@ -294,7 +299,7 @@ export class PhotosService {
   async findOne(photoId: string, callerId: string): Promise<PhotoWithUrl> {
     const photo = await this.prisma.photo.findUnique({
       where: { id: photoId },
-      include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
+      include: { event: { include: eventForPhotoVisibilityInclude(callerId) } },
     });
     // Unverified photos are invisible, same as in the event photo list.
     if (!photo || photo.status !== PhotoStatus.READY) {
@@ -304,6 +309,11 @@ export class PhotosService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(PHOTO_ACTIONS.READ, subject(PHOTO_SUBJECT, photo))) {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.READ_FORBIDDEN(photoId));
+    }
+
+    // Same filter as the list, so a photo missing there is a 404 here too.
+    if (!(await this.photoVisibilityService.isVisibleTo(photoId, callerId, photo.event))) {
+      throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
     }
 
     const { event, ...rest } = photo;

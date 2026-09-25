@@ -72,6 +72,7 @@ type ParticipantResponseBody = {
   name: string;
   accessLevel: AccessLevel;
   avatarUrl: string | null;
+  isBlockedByCaller: boolean;
 };
 
 describe("EventsController (integration)", () => {
@@ -495,10 +496,13 @@ describe("EventsController (integration)", () => {
       const organizerRow = buildEventAccessWithUser(buildOrganizerAccess(), buildUserWithDetails());
       const target = buildTargetUserWithDetails();
       const avatarS3Key = `avatars/${TEST_TARGET_USER_ID}/99999999-9999-9999-9999-999999999999`;
-      const targetRow = buildEventAccessWithUser(buildTargetParticipantAccess(), {
-        ...target,
-        details: { ...target.details!, avatarS3Key },
-      });
+      const targetRow = buildEventAccessWithUser(
+        buildTargetParticipantAccess(),
+        { ...target, details: { ...target.details!, avatarS3Key } },
+        {
+          blockedByCaller: true,
+        },
+      );
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
       s3Service.getPresignedDownloadUrl.mockResolvedValue("https://s3.example/avatar?sig=1");
@@ -506,6 +510,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).get(path()).set(authHeader()).expect(200);
 
       const body = response.body as WrappedResponse<ParticipantResponseBody[]>;
+      // The flag marks who the caller blocked; nothing in the row says who blocked the caller.
       expect(body.data).toEqual([
         {
           userId: TEST_USER_ID,
@@ -513,6 +518,7 @@ describe("EventsController (integration)", () => {
           name: "Jane Doe",
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
+          isBlockedByCaller: false,
         },
         {
           userId: TEST_TARGET_USER_ID,
@@ -520,6 +526,7 @@ describe("EventsController (integration)", () => {
           name: "Target User",
           accessLevel: AccessLevel.PARTICIPANT,
           avatarUrl: "https://s3.example/avatar?sig=1",
+          isBlockedByCaller: true,
         },
       ]);
       // One presign for the one member with an avatar, and the key never leaves the API.
@@ -528,7 +535,7 @@ describe("EventsController (integration)", () => {
       expect(JSON.stringify(body.data)).not.toContain("avatarS3Key");
       expect(prisma.eventAccess.findMany).toHaveBeenCalledWith({
         where: { eventId: TEST_EVENT_ID },
-        include: eventAccessWithUserInclude,
+        include: eventAccessWithUserInclude(TEST_USER_ID),
         orderBy: { createdAt: "asc" },
       });
     });
@@ -571,6 +578,7 @@ describe("EventsController (integration)", () => {
         name: "Target User",
         accessLevel: AccessLevel.ORGANIZER,
         avatarUrl: null,
+        isBlockedByCaller: false,
       });
     });
 

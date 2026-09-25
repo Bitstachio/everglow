@@ -25,6 +25,7 @@ describe("EventMapper", () => {
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: "https://s3.example/avatar?sig=1",
+    isBlockedByCaller: true,
   };
 
   describe("toResponseDto", () => {
@@ -76,6 +77,7 @@ describe("EventMapper", () => {
         name: participant.name,
         accessLevel: participant.accessLevel,
         avatarUrl: participant.avatarUrl,
+        isBlockedByCaller: true,
       });
     });
   });

@@ -27,6 +27,7 @@ export class EventMapper {
       name: participant.name,
       accessLevel: participant.accessLevel,
       avatarUrl: participant.avatarUrl,
+      isBlockedByCaller: participant.isBlockedByCaller,
     };
   }
 

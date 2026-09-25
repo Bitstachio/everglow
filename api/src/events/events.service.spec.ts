@@ -221,16 +221,18 @@ describe("EventsService", () => {
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: null,
+    isBlockedByCaller: false,
   };
 
-  const eventAccessWithUser = (access: EventAccess, user: UserWithDetails) => ({
+  // `blocksReceived` is what the include returns: the caller's block on that user, if any.
+  const eventAccessWithUser = (access: EventAccess, user: UserWithDetails, blockedByCaller = false) => ({
     ...access,
-    user,
+    user: { ...user, blocksReceived: blockedByCaller ? [{ id: "b10cb10c-b10c-4b10-8b10-b10cb10cb10c" }] : [] },
   });
 
-  const participantsLookup = (lookupEventId: string) => ({
+  const participantsLookup = (lookupEventId: string, lookupCallerId: string) => ({
     where: { eventId: lookupEventId },
-    include: eventAccessWithUserInclude,
+    include: eventAccessWithUserInclude(lookupCallerId),
     orderBy: { createdAt: "asc" as const },
   });
 
@@ -1646,9 +1648,16 @@ describe("EventsService", () => {
 
       const result = await service.getEventParticipants(eventId, callerId);
 
-      expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(participantsLookup(eventId));
+      expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(participantsLookup(eventId, callerId));
       expect(result).toEqual([
-        { userId: callerId, username: "jane", name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
+        {
+          userId: callerId,
+          username: "jane",
+          name: "Jane Doe",
+          accessLevel: AccessLevel.ORGANIZER,
+          avatarUrl: null,
+          isBlockedByCaller: false,
+        },
         participantWithDetails,
       ]);
     });
@@ -1678,7 +1687,14 @@ describe("EventsService", () => {
       const result = await service.getEventParticipants(eventId, callerId);
 
       expect(result).toEqual([
-        { userId: callerId, username: "jane", name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
+        {
+          userId: callerId,
+          username: "jane",
+          name: "Jane Doe",
+          accessLevel: AccessLevel.ORGANIZER,
+          avatarUrl: null,
+          isBlockedByCaller: false,
+        },
       ]);
     });
 
@@ -1742,14 +1758,33 @@ describe("EventsService", () => {
 
       const result = await service.getEventParticipants(eventId, callerId);
 
-      expect(result[0]).toEqual({
-        userId: targetUserId,
-        username: "target",
-        name: "Target User",
-        accessLevel: AccessLevel.PARTICIPANT,
-        avatarUrl: null,
-      });
+      expect(result[0]).toEqual(participantWithDetails);
       expect(result[0]).not.toHaveProperty("providerSub");
+    });
+
+    it("marks the members the caller has blocked, from the block rows the same query returned", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([
+        organizerRow,
+        eventAccessWithUser(targetParticipantAccess, targetUserWithDetails, true),
+      ]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result.map((participant) => participant.isBlockedByCaller)).toEqual([false, true]);
+      expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
+    });
+
+    it("only ever asks for blocks the caller made, never for blocks against the caller", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([]);
+
+      await service.getEventParticipants(eventId, callerId);
+
+      const [args] = prisma.eventAccess.findMany.mock.calls[0];
+      expect(args?.include?.user).toEqual({
+        include: { details: true, blocksReceived: { where: { blockerId: callerId }, select: { id: true } } },
+      });
     });
 
     it("throws when the event does not exist", async () => {
@@ -1800,15 +1835,9 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.update).toHaveBeenCalledWith({
         where: { userId_eventId: { userId: targetUserId, eventId } },
         data: { accessLevel: AccessLevel.ORGANIZER },
-        include: eventAccessWithUserInclude,
+        include: eventAccessWithUserInclude(callerId),
       });
-      expect(result).toEqual({
-        userId: targetUserId,
-        username: "target",
-        name: "Target User",
-        accessLevel: AccessLevel.ORGANIZER,
-        avatarUrl: null,
-      });
+      expect(result).toEqual({ ...participantWithDetails, accessLevel: AccessLevel.ORGANIZER });
       expect(logger.info).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "event.access_level.updated",

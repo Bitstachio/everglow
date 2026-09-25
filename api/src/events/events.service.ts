@@ -21,7 +21,12 @@ import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_SERVICE_ERRORS } from "./events.constants";
-import { EventParticipant, eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
+import {
+  EventAccessWithUser,
+  EventParticipant,
+  eventAccessWithUserInclude,
+  eventWithCallerAccessInclude,
+} from "./events.types";
 
 @Injectable()
 export class EventsService {
@@ -234,7 +239,7 @@ export class EventsService {
 
     const accesses = await this.prisma.eventAccess.findMany({
       where: { eventId },
-      include: eventAccessWithUserInclude,
+      include: eventAccessWithUserInclude(callerId),
       orderBy: { createdAt: "asc" },
     });
 
@@ -260,7 +265,7 @@ export class EventsService {
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
-      include: eventAccessWithUserInclude,
+      include: eventAccessWithUserInclude(callerId),
     });
     if (!targetAccess) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId));
@@ -280,7 +285,7 @@ export class EventsService {
     const updated = await this.prisma.eventAccess.update({
       where: { userId_eventId: { userId: targetUserId, eventId } },
       data: { accessLevel },
-      include: eventAccessWithUserInclude,
+      include: eventAccessWithUserInclude(callerId),
     });
 
     this.logger.info(
@@ -375,14 +380,7 @@ export class EventsService {
     });
   }
 
-  private async toEventParticipant(
-    eventId: string,
-    access: {
-      userId: string;
-      accessLevel: AccessLevel;
-      user: { details: { username: string; name: string; avatarS3Key: string | null } | null };
-    },
-  ): Promise<EventParticipant> {
+  private async toEventParticipant(eventId: string, access: EventAccessWithUser): Promise<EventParticipant> {
     if (!access.user.details) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, access.userId));
     }
@@ -393,6 +391,7 @@ export class EventsService {
       name: access.user.details.name,
       accessLevel: access.accessLevel,
       avatarUrl: await this.imageUploads.getDownloadUrl(access.user.details.avatarS3Key),
+      isBlockedByCaller: access.user.blocksReceived.length > 0,
     };
   }
 }
