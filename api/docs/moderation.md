@@ -169,9 +169,9 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 
 | Endpoint                           | Result                                           |
 | ---------------------------------- | ------------------------------------------------ |
-| `PUT /users/me/blocks/:userId`     | 200, `{ userId, name, blockedAt }`               |
+| `PUT /users/me/blocks/:userId`     | 200, `{ userId, name, username, blockedAt }`               |
 | `DELETE /users/me/blocks/:userId`  | 204                                              |
-| `GET /users/me/blocks`             | 200, `{ items: [{ userId, name, blockedAt }] }`  |
+| `GET /users/me/blocks`             | 200, `{ items: [{ userId, name, username, blockedAt }] }`  |
 
 - **Only someone you share an event with.** Anyone else gets the same 404 as a user id that does not exist, so the endpoint cannot be used to find out which ids are real. Blocking yourself is a 403.
 - **Both writes are idempotent.** Blocking twice returns the existing block (`ON CONFLICT DO NOTHING` on the unique pair, so two requests at once leave one row); unblocking someone who is not blocked is a 204.
@@ -179,7 +179,21 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 - **Symmetric in effect.** Photos uploaded by someone I blocked are gone from my list and single reads in every event, and mine are gone from theirs. A photo whose uploader's account was deleted (`addedById` null) matches no block.
 - **Organizers are exempt in the events they organize.** They see every photo there, whoever blocked whom, because they have to moderate. The same person in an event they do not organize is filtered like anyone else.
 - **Nobody is removed from anything.** Both users stay members, both can upload, and third parties see the photos of both. Removing a member is an organizer's decision, not a side effect of a block.
+- **Both still see each other in the members list.** Hiding membership would confuse organizers and would leak anyway through member counts and other members' photos. The row is marked instead (next point), which is how Discord and WhatsApp treat blocked people in shared groups.
 - **The participants list marks who I blocked.** Each row of `GET /events/:eventId/participants` has `isBlockedByCaller`, so the client can offer to unblock. It is loaded in the same query as the roster, and only ever from `blocksReceived WHERE blockerId = caller`: nothing in the API reveals who has blocked the caller.
+### Joining an event across a block
+
+`POST /events/join` checks blocks between the joiner and the event's **organizers** (any organizer, not only the creator), in both directions, in one query:
+
+| Situation | Result |
+| --- | --- |
+| An organizer blocked the joiner | **404**, the same `Event with invitation URL "…" not found` as a link that does not exist. The block is never revealed to the person blocked |
+| The joiner blocked an organizer | **403** with `code: ORGANIZER_BLOCKED_BY_CALLER` and "This event is organized by … you blocked. Unblock them to join." The joiner made the block, so explaining it reveals nothing, and the client can offer to unblock |
+| Both blocked each other | 404, as in the first row |
+| The joiner and an ordinary member blocked each other | Joins normally; the photo filter keeps the two apart |
+
+Existing memberships are not changed when a block happens later; an organizer who wants a blocked member out uses remove-member.
+
 - Reports and blocks are independent. A blocked user can still be reported, and reporting does not block.
 
 ---

@@ -12,6 +12,9 @@ import type { AxiosError } from "axios";
 import { client } from "../client.gen";
 import {
   appControllerGetHello,
+  blocksControllerBlock,
+  blocksControllerList,
+  blocksControllerUnblock,
   eventsControllerConfirmCoverUpload,
   eventsControllerCreate,
   eventsControllerCreateCoverUploadUrl,
@@ -45,6 +48,15 @@ import {
 } from "../sdk.gen";
 import type {
   AppControllerGetHelloData,
+  BlocksControllerBlockData,
+  BlocksControllerBlockError,
+  BlocksControllerBlockResponse,
+  BlocksControllerListData,
+  BlocksControllerListError,
+  BlocksControllerListResponse,
+  BlocksControllerUnblockData,
+  BlocksControllerUnblockError,
+  BlocksControllerUnblockResponse,
   EventsControllerConfirmCoverUploadData,
   EventsControllerConfirmCoverUploadError,
   EventsControllerConfirmCoverUploadResponse,
@@ -663,6 +675,87 @@ export const photosControllerFindOneOptions = (options: Options<PhotosController
     },
     queryKey: photosControllerFindOneQueryKey(options),
   });
+
+export const blocksControllerListQueryKey = (options?: Options<BlocksControllerListData>) =>
+  createQueryKey("blocksControllerList", options);
+
+/**
+ * List the users the caller has blocked
+ */
+export const blocksControllerListOptions = (options?: Options<BlocksControllerListData>) =>
+  queryOptions<
+    BlocksControllerListResponse,
+    AxiosError<BlocksControllerListError>,
+    BlocksControllerListResponse,
+    ReturnType<typeof blocksControllerListQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await blocksControllerList({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: blocksControllerListQueryKey(options),
+  });
+
+/**
+ * Unblock a user
+ */
+export const blocksControllerUnblockMutation = (
+  options?: Partial<Options<BlocksControllerUnblockData>>,
+): UseMutationOptions<
+  BlocksControllerUnblockResponse,
+  AxiosError<BlocksControllerUnblockError>,
+  Options<BlocksControllerUnblockData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    BlocksControllerUnblockResponse,
+    AxiosError<BlocksControllerUnblockError>,
+    Options<BlocksControllerUnblockData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await blocksControllerUnblock({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Block a user
+ *
+ * Only someone the caller shares an event with; anyone else is a 404. Silent: the blocked user is never told. Idempotent: blocking an already blocked user returns the existing block.
+ */
+export const blocksControllerBlockMutation = (
+  options?: Partial<Options<BlocksControllerBlockData>>,
+): UseMutationOptions<
+  BlocksControllerBlockResponse,
+  AxiosError<BlocksControllerBlockError>,
+  Options<BlocksControllerBlockData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    BlocksControllerBlockResponse,
+    AxiosError<BlocksControllerBlockError>,
+    Options<BlocksControllerBlockData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await blocksControllerBlock({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 export const eventsControllerFindAllQueryKey = (options?: Options<EventsControllerFindAllData>) =>
   createQueryKey("eventsControllerFindAll", options);

@@ -781,6 +781,139 @@
         ]
       }
     },
+    "/api/v2/users/me/blocks": {
+      "get": {
+        "operationId": "BlocksController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Blocked users, most recent first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BlockedUserListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the users the caller has blocked",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/api/v2/users/me/blocks/{userId}": {
+      "put": {
+        "description": "Only someone the caller shares an event with; anyone else is a 404. Silent: the blocked user is never told. Idempotent: blocking an already blocked user returns the existing block.",
+        "operationId": "BlocksController_block",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The blocked user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BlockedUserResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Block a user",
+        "tags": [
+          "moderation"
+        ]
+      },
+      "delete": {
+        "operationId": "BlocksController_unblock",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User is not blocked any more (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Unblock a user",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
     "/api/v2/events": {
       "post": {
         "operationId": "EventsController_create",
@@ -1960,6 +2093,49 @@
           "nextCursor"
         ]
       },
+      "BlockedUserResponseDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null when the blocked account has no profile."
+          },
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "description": "Public handle; null when the blocked account has no profile."
+          },
+          "blockedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "username",
+          "blockedAt"
+        ]
+      },
+      "BlockedUserListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockedUserResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "EventResponseDto": {
         "type": "object",
         "properties": {
@@ -2072,6 +2248,10 @@
             "nullable": true,
             "maxLength": 2048,
             "description": "Short-lived presigned URL of the member's avatar; null when none is set"
+          },
+          "isBlockedByCaller": {
+            "type": "boolean",
+            "description": "Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed."
           }
         },
         "required": [
@@ -2079,7 +2259,8 @@
           "username",
           "name",
           "accessLevel",
-          "avatarUrl"
+          "avatarUrl",
+          "isBlockedByCaller"
         ]
       },
       "UpdateParticipantAccessDto": {

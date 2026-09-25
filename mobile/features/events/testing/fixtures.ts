@@ -31,6 +31,7 @@ export const buildParticipant = (
   name: "Ada Lovelace",
   accessLevel: "ORGANIZER",
   avatarUrl: null,
+  isBlockedByCaller: false,
   ...overrides,
 });
 

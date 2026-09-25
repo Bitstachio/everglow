@@ -169,6 +169,23 @@ export type PhotoListResponseDto = {
   nextCursor: string | null;
 };
 
+export type BlockedUserResponseDto = {
+  userId: string;
+  /**
+   * Null when the blocked account has no profile.
+   */
+  name: string | null;
+  /**
+   * Public handle; null when the blocked account has no profile.
+   */
+  username: string | null;
+  blockedAt: string;
+};
+
+export type BlockedUserListResponseDto = {
+  items: Array<BlockedUserResponseDto>;
+};
+
 export type EventResponseDto = {
   id: string;
   title: string;
@@ -216,6 +233,10 @@ export type EventParticipantResponseDto = {
    * Short-lived presigned URL of the member's avatar; null when none is set
    */
   avatarUrl: string | null;
+  /**
+   * Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed.
+   */
+  isBlockedByCaller: boolean;
 };
 
 export type UpdateParticipantAccessDto = {
@@ -857,6 +878,124 @@ export type PhotosControllerFindOneResponses = {
 };
 
 export type PhotosControllerFindOneResponse = PhotosControllerFindOneResponses[keyof PhotosControllerFindOneResponses];
+
+export type BlocksControllerListData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/blocks";
+};
+
+export type BlocksControllerListErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type BlocksControllerListError = BlocksControllerListErrors[keyof BlocksControllerListErrors];
+
+export type BlocksControllerListResponses = {
+  /**
+   * Blocked users, most recent first
+   */
+  200: {
+    data: BlockedUserListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type BlocksControllerListResponse = BlocksControllerListResponses[keyof BlocksControllerListResponses];
+
+export type BlocksControllerUnblockData = {
+  body?: never;
+  path: {
+    userId: string;
+  };
+  query?: never;
+  url: "/api/v2/users/me/blocks/{userId}";
+};
+
+export type BlocksControllerUnblockErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type BlocksControllerUnblockError = BlocksControllerUnblockErrors[keyof BlocksControllerUnblockErrors];
+
+export type BlocksControllerUnblockResponses = {
+  /**
+   * User is not blocked any more (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type BlocksControllerUnblockResponse = BlocksControllerUnblockResponses[keyof BlocksControllerUnblockResponses];
+
+export type BlocksControllerBlockData = {
+  body?: never;
+  path: {
+    userId: string;
+  };
+  query?: never;
+  url: "/api/v2/users/me/blocks/{userId}";
+};
+
+export type BlocksControllerBlockErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type BlocksControllerBlockError = BlocksControllerBlockErrors[keyof BlocksControllerBlockErrors];
+
+export type BlocksControllerBlockResponses = {
+  /**
+   * The blocked user
+   */
+  200: {
+    data: BlockedUserResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type BlocksControllerBlockResponse = BlocksControllerBlockResponses[keyof BlocksControllerBlockResponses];
 
 export type EventsControllerFindAllData = {
   body?: never;

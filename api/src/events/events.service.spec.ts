@@ -13,7 +13,7 @@ import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_SERVICE_ERRORS } from "./events.constants";
+import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE } from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
@@ -221,16 +221,18 @@ describe("EventsService", () => {
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: null,
+    isBlockedByCaller: false,
   };
 
-  const eventAccessWithUser = (access: EventAccess, user: UserWithDetails) => ({
+  // `blocksReceived` is what the include returns: the caller's block on that user, if any.
+  const eventAccessWithUser = (access: EventAccess, user: UserWithDetails, blockedByCaller = false) => ({
     ...access,
-    user,
+    user: { ...user, blocksReceived: blockedByCaller ? [{ id: "b10cb10c-b10c-4b10-8b10-b10cb10cb10c" }] : [] },
   });
 
-  const participantsLookup = (lookupEventId: string) => ({
+  const participantsLookup = (lookupEventId: string, lookupCallerId: string) => ({
     where: { eventId: lookupEventId },
-    include: eventAccessWithUserInclude,
+    include: eventAccessWithUserInclude(lookupCallerId),
     orderBy: { createdAt: "asc" as const },
   });
 
@@ -265,6 +267,8 @@ describe("EventsService", () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    // No blocks unless a test says otherwise.
+    prisma.userBlock.findMany.mockResolvedValue([]);
     logger = {
       setContext: jest.fn(),
       info: jest.fn(),
@@ -707,6 +711,61 @@ describe("EventsService", () => {
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("answers with the unknown-link 404 when an organizer of the event blocked the caller", async () => {
+      setupSuccessfulJoin();
+      prisma.userBlock.findMany.mockResolvedValue([{ blockerId: "organizer-id", blocked: { details: null } }] as never);
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
+      );
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("tells the caller why when they blocked an organizer of the event", async () => {
+      setupSuccessfulJoin();
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blocked: { details: { name: "Sam" } } },
+      ] as never);
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toEqual({
+        code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
+        message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER("Sam"),
+      });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("keeps the organizer's block hidden when the two have blocked each other", async () => {
+      setupSuccessfulJoin();
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blocked: { details: { name: "Sam" } } },
+        { blockerId: "organizer-id", blocked: { details: null } },
+      ] as never);
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("checks blocks only against the event's organizers, in both directions, in one query", async () => {
+      setupSuccessfulJoin();
+
+      await service.joinByInvitationUrl(callerId, invitationUrl);
+
+      const organizerOfThisEvent = { eventAccesses: { some: { eventId, accessLevel: AccessLevel.ORGANIZER } } };
+      expect(prisma.userBlock.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.userBlock.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { blockedId: callerId, blocker: organizerOfThisEvent },
+              { blockerId: callerId, blocked: organizerOfThisEvent },
+            ],
+          },
+        }),
+      );
     });
 
     it("throws when the creator attempts to join via their own invitation link", async () => {
@@ -1646,9 +1705,16 @@ describe("EventsService", () => {
 
       const result = await service.getEventParticipants(eventId, callerId);
 
-      expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(participantsLookup(eventId));
+      expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(participantsLookup(eventId, callerId));
       expect(result).toEqual([
-        { userId: callerId, username: "jane", name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
+        {
+          userId: callerId,
+          username: "jane",
+          name: "Jane Doe",
+          accessLevel: AccessLevel.ORGANIZER,
+          avatarUrl: null,
+          isBlockedByCaller: false,
+        },
         participantWithDetails,
       ]);
     });
@@ -1678,7 +1744,14 @@ describe("EventsService", () => {
       const result = await service.getEventParticipants(eventId, callerId);
 
       expect(result).toEqual([
-        { userId: callerId, username: "jane", name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
+        {
+          userId: callerId,
+          username: "jane",
+          name: "Jane Doe",
+          accessLevel: AccessLevel.ORGANIZER,
+          avatarUrl: null,
+          isBlockedByCaller: false,
+        },
       ]);
     });
 
@@ -1742,14 +1815,33 @@ describe("EventsService", () => {
 
       const result = await service.getEventParticipants(eventId, callerId);
 
-      expect(result[0]).toEqual({
-        userId: targetUserId,
-        username: "target",
-        name: "Target User",
-        accessLevel: AccessLevel.PARTICIPANT,
-        avatarUrl: null,
-      });
+      expect(result[0]).toEqual(participantWithDetails);
       expect(result[0]).not.toHaveProperty("providerSub");
+    });
+
+    it("marks the members the caller has blocked, from the block rows the same query returned", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([
+        organizerRow,
+        eventAccessWithUser(targetParticipantAccess, targetUserWithDetails, true),
+      ]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result.map((participant) => participant.isBlockedByCaller)).toEqual([false, true]);
+      expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
+    });
+
+    it("only ever asks for blocks the caller made, never for blocks against the caller", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([]);
+
+      await service.getEventParticipants(eventId, callerId);
+
+      const [args] = prisma.eventAccess.findMany.mock.calls[0];
+      expect(args?.include?.user).toEqual({
+        include: { details: true, blocksReceived: { where: { blockerId: callerId }, select: { id: true } } },
+      });
     });
 
     it("throws when the event does not exist", async () => {
@@ -1800,15 +1892,9 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.update).toHaveBeenCalledWith({
         where: { userId_eventId: { userId: targetUserId, eventId } },
         data: { accessLevel: AccessLevel.ORGANIZER },
-        include: eventAccessWithUserInclude,
+        include: eventAccessWithUserInclude(callerId),
       });
-      expect(result).toEqual({
-        userId: targetUserId,
-        username: "target",
-        name: "Target User",
-        accessLevel: AccessLevel.ORGANIZER,
-        avatarUrl: null,
-      });
+      expect(result).toEqual({ ...participantWithDetails, accessLevel: AccessLevel.ORGANIZER });
       expect(logger.info).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "event.access_level.updated",

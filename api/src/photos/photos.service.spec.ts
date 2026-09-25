@@ -11,6 +11,7 @@ import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
+import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
@@ -34,6 +35,7 @@ describe("PhotosService", () => {
     deleteObject: jest.Mock;
   };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
+  let photoVisibilityService: { whereVisibleTo: jest.Mock; isVisibleTo: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
@@ -93,6 +95,9 @@ describe("PhotosService", () => {
     eventAccesses: access,
   });
 
+  // Stands in for whatever PhotoVisibilityService decides; its rules have their own spec.
+  const visibilityWhere = { id: { notIn: ["hidden-photo"] } };
+
   const files: UploadFileDto[] = [
     { contentType: "image/jpeg", sizeBytes: 1024 },
     { contentType: "image/png", sizeBytes: 2048 },
@@ -120,6 +125,10 @@ describe("PhotosService", () => {
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
+    photoVisibilityService = {
+      whereVisibleTo: jest.fn().mockReturnValue(visibilityWhere),
+      isVisibleTo: jest.fn().mockResolvedValue(true),
+    };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -129,6 +138,7 @@ describe("PhotosService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: S3Service, useValue: s3Service },
         { provide: PhotoStorageService, useValue: photoStorageService },
+        { provide: PhotoVisibilityService, useValue: photoVisibilityService },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -543,11 +553,22 @@ describe("PhotosService", () => {
 
       expect(prisma.photo.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { AND: [{ eventId, status: "READY" }, expect.anything()] },
+          where: { AND: [{ eventId, status: "READY" }, expect.anything(), visibilityWhere] },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 51,
         }),
       );
+    });
+
+    it("narrows the page to the photos visible to the caller in that event", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      const loadedEvent = eventWithAccess([callerAccess("VIEWER")]);
+      prisma.event.findUnique.mockResolvedValue(loadedEvent as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+
+      await service.listPhotos(eventId, callerId, {});
+
+      expect(photoVisibilityService.whereVisibleTo).toHaveBeenCalledWith(callerId, loadedEvent);
     });
 
     it("returns a nextCursor when more photos exist and trims the page to the limit", async () => {
@@ -578,6 +599,7 @@ describe("PhotosService", () => {
             AND: [
               { eventId, status: "READY" },
               expect.anything(),
+              visibilityWhere,
               { OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
             ],
           },
@@ -613,7 +635,7 @@ describe("PhotosService", () => {
 
     const photoWithEvent = (access: EventAccess[], overrides: Partial<Photo> = {}) => ({
       ...buildPhoto(photoId, { status: "READY", ...overrides }),
-      event: { ...event, eventAccesses: access },
+      event: eventWithAccess(access),
     });
 
     it("throws NotFoundException when the photo does not exist", async () => {
@@ -621,6 +643,26 @@ describe("PhotosService", () => {
       prisma.photo.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(photoId, callerId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws NotFoundException, as the list would omit it, when the photo is not visible to the caller", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      const photo = photoWithEvent([callerAccess("VIEWER")]);
+      prisma.photo.findUnique.mockResolvedValue(photo as never);
+      photoVisibilityService.isVisibleTo.mockResolvedValue(false);
+
+      await expect(service.findOne(photoId, callerId)).rejects.toThrow(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+      expect(photoVisibilityService.isVisibleTo).toHaveBeenCalledWith(photoId, callerId, photo.event);
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    });
+
+    it("answers a non-member with 403 before visibility is even considered", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([]) as never);
+      photoVisibilityService.isVisibleTo.mockResolvedValue(false);
+
+      await expect(service.findOne(photoId, callerId)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(photoVisibilityService.isVisibleTo).not.toHaveBeenCalled();
     });
 
     it("throws NotFoundException for photos that are not READY", async () => {
