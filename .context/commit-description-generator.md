@@ -22,10 +22,10 @@ This message becomes the PERMANENT commit on the main branch history after the b
      reflects the net change: feat, fix, chore, refactor, docs, test,
      perf, build, ci, style, or revert.
    - This is a monorepo. Include the affected scope in parentheses
-     immediately after the keyword: (api), (mobile), etc. If multiple
-     scopes are affected, use (_). If no specific scope applies, omit
-     the parentheses entirely. Examples: feat(api): ...,
-     fix(mobile): ..., chore(_): ..., docs: ...
+     immediately after the keyword: `(api)`, `(mobile)`, etc. If
+     multiple scopes are affected, use `(*)`. If no specific scope
+     applies, omit the parentheses entirely. Examples: `feat(api): ...`,
+     `fix(mobile): ...`, `chore(*): ...`, `docs: ...`
    - Write a concise, imperative-mood summary line, including the
      keyword and scope prefix (max 50 characters total).
    - Leave a blank line after the summary line.
