@@ -28,7 +28,7 @@ Each one is itself alerted.
 In dev:
 
 - **The API's key is shared with the mobile developers** (`docs/local-setup.md`). Anyone with it can read photos, and to AWS they look like the API, so no alert fires. This is acceptable for test photos. In production the API's credentials never leave the server.
-- **`allow_human_photo_reads = true`** in `terraform.tfvars` lifts the read block for debugging. Applying it changes the bucket policy, which raises an alert.
+- **`allow_human_photo_reads = true`** in `terraform.tfvars` lifts the read block for debugging. Applying it changes the bucket policy, which raises an alert. It only opens photos from before the KMS key: newer ones stay unreadable to people, because only the API may decrypt them. To see one of your own test photos, open it in the app.
 - **Files can still be listed, and the bucket policy is not locked,** so Terraform can keep changing it.
 - **Photos uploaded before the KMS key existed** keep S3-managed encryption. The bucket policy still blocks reading them.
 
@@ -38,6 +38,7 @@ Production, before launch (EV-37):
 - The bucket policy is also locked against edits, except by a break-glass role.
 - Logs go to a separate account, with Object Lock so nobody can delete them.
 - Photos are viewed for moderation only through the Admin dashboard, and every view is audited.
+- For the rare legitimate need outside the dashboard, such as a legal request or an incident, a break-glass role may read and decrypt photos. Assuming it needs MFA, it can be scoped to one object and a short session, and every use fires the existing alerts. A short written process says who approves it and where the reason is recorded.
 
 ## Applying
 
