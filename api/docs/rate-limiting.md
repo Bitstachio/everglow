@@ -42,6 +42,7 @@ default (`parseIntegerEnv`, same convention as the other config files).
 | `default`   | 1000 / 60 s | client IP                          | all routes   | Every route, automatically (global guard). `GET /api/v2` is exempt.                                                                                   |
 | `sensitive` | 10 / 60 s   | user id (IP if the route has none) | one route    | `POST /events/join`, `POST /events/:eventId/regenerate-url`, `POST /users/me/onboarding`, `DELETE /users/me`                                          |
 | `uploads`   | 30 / 60 s   | user id (IP if the route has none) | one route    | `POST /events/:eventId/photos/upload-urls` (up to 20 slots per request), `POST /users/me/avatar/upload-url`, `POST /events/:eventId/cover/upload-url` |
+| `lookup`    | 120 / 60 s  | user id (IP if the route has none) | one route    | `GET /users/username-availability` (debounced while typing; `sensitive` would throttle normal use)                                                    |
 
 Semantics: a caller may make `limit` requests per window. The request that exceeds it starts a block lasting one
 window (`Retry-After` counts it down); requests during a block are rejected and not counted. Every request that

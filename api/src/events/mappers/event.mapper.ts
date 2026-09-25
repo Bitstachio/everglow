@@ -23,6 +23,7 @@ export class EventMapper {
   static toParticipantResponseDto(participant: EventParticipant): EventParticipantResponseDto {
     return {
       userId: participant.userId,
+      username: participant.username,
       name: participant.name,
       accessLevel: participant.accessLevel,
       avatarUrl: participant.avatarUrl,

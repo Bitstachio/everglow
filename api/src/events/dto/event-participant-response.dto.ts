@@ -6,6 +6,9 @@ export class EventParticipantResponseDto {
   @ApiProperty({ format: "uuid" })
   userId: string;
 
+  @ApiProperty({ example: "jane.doe", maxLength: STRING_LIMITS.USERNAME })
+  username: string;
+
   @ApiProperty()
   name: string;
 

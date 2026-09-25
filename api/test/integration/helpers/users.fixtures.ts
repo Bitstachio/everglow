@@ -11,6 +11,7 @@ export const TEST_NOW = new Date("2026-06-10T12:00:00.000Z");
 
 export const createUserDetailsPayload = (overrides: Partial<CreateUserDetailsDto> = {}): CreateUserDetailsDto => ({
   name: "Jane Doe",
+  username: "jane.doe",
   email: "jane@example.com",
   ...overrides,
 });
@@ -47,6 +48,7 @@ export const buildUserWithDetails = (overrides: Partial<UserWithDetails> = {}): 
   details: {
     id: TEST_DETAILS_ID,
     userId: TEST_USER_ID,
+    username: "jane.doe",
     email: "jane@example.com",
     name: "Jane Doe",
     avatarS3Key: null,

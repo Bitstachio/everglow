@@ -33,6 +33,7 @@ describe("UserMapper", () => {
     details: {
       id: "22222222-2222-2222-2222-222222222222",
       userId,
+      username: "jane",
       email: "jane@example.com",
       name: "Jane Doe",
       avatarS3Key: null,
@@ -49,6 +50,7 @@ describe("UserMapper", () => {
         id: userId,
         isOnboarded: true,
         details: {
+          username: "jane",
           email: "jane@example.com",
           name: "Jane Doe",
           avatarUrl: null,

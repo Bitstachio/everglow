@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   NotFoundException,
   UnauthorizedException,
@@ -17,7 +18,7 @@ import { AppleIdentityRevocationService } from "./apple-identity-revocation.serv
 import { hashProviderSub } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { USER_SERVICE_ERRORS } from "./users.constants";
+import { USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } from "./users.constants";
 import { AccountDeletionUser, UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
@@ -51,6 +52,7 @@ describe("UsersService", () => {
 
   const createUserDetailsDto: CreateUserDetailsDto = {
     name: "Jane Doe",
+    username: "jane.doe",
     email: "jane@example.com",
   };
 
@@ -80,6 +82,7 @@ describe("UsersService", () => {
     details: {
       id: "22222222-2222-2222-2222-222222222222",
       userId,
+      username: "jane.doe",
       email: "jane@example.com",
       name: "Jane Doe",
       avatarS3Key: null,
@@ -177,6 +180,7 @@ describe("UsersService", () => {
         data: {
           details: {
             create: {
+              username: createUserDetailsDto.username,
               email: createUserDetailsDto.email,
               name: createUserDetailsDto.name,
             },
@@ -212,9 +216,89 @@ describe("UsersService", () => {
       prisma.userDetails.count.mockResolvedValue(1);
 
       await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toThrow(
-        new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(createUserDetailsDto.email)),
+        new ConflictException(USER_SERVICE_ERRORS.EMAIL_TAKEN(createUserDetailsDto.email!)),
       );
       expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it("creates details without an email when onboarding omits it", async () => {
+      const withoutEmail = { name: "Jane Doe", username: "jane.doe" };
+      const created = {
+        ...userWithDetails,
+        details: { ...userWithDetails.details!, email: null },
+      };
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+      prisma.user.update.mockResolvedValue(created);
+
+      const result = await service.createDetails(userId, withoutEmail);
+
+      expect(prisma.userDetails.count).not.toHaveBeenCalled();
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: {
+          details: {
+            create: {
+              username: "jane.doe",
+              email: null,
+              name: "Jane Doe",
+            },
+          },
+        },
+        include: userWithDetailsInclude,
+      });
+      expect(result).toEqual(created);
+    });
+
+    it("derives a username from email when onboarding omits username", async () => {
+      const emailOnly = { name: "Jane Doe", email: "jane@example.com" };
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+      prisma.userDetails.count.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+      prisma.user.update.mockResolvedValue(userWithDetails);
+
+      await service.createDetails(userId, emailOnly);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: {
+          details: {
+            create: {
+              username: "jane",
+              email: "jane@example.com",
+              name: "Jane Doe",
+            },
+          },
+        },
+        include: userWithDetailsInclude,
+      });
+    });
+
+    it("throws BadRequestException when onboarding omits both username and email", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+
+      await expect(service.createDetails(userId, { name: "Jane Doe" })).rejects.toThrow(BadRequestException);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it("throws BadRequestException when the username is reserved", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+
+      await expect(service.createDetails(userId, { ...createUserDetailsDto, username: "admin" })).rejects.toThrow(
+        new BadRequestException(USER_SERVICE_ERRORS.USERNAME_RESERVED("admin")),
+      );
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it("throws coded ConflictException when username create loses a uniqueness race", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+      prisma.userDetails.count.mockResolvedValue(0);
+      prisma.user.update.mockRejectedValue(uniqueConstraintError());
+
+      await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toMatchObject({
+        response: {
+          code: USERNAME_TAKEN_CODE,
+          message: USER_SERVICE_ERRORS.USERNAME_TAKEN("jane.doe"),
+        },
+      });
     });
 
     it("rethrows unexpected Prisma errors from user.update", async () => {
@@ -283,6 +367,7 @@ describe("UsersService", () => {
   describe("update", () => {
     const updateDto: UpdateUserDto = {
       name: "Jane Smith",
+      username: "jane.smith",
       email: "jane.smith@example.com",
     };
 
@@ -291,6 +376,7 @@ describe("UsersService", () => {
       details: {
         ...userWithDetails.details!,
         name: updateDto.name!,
+        username: updateDto.username!,
         email: updateDto.email!,
       },
     };
@@ -385,6 +471,63 @@ describe("UsersService", () => {
       prisma.user.update.mockRejectedValue(prismaError);
 
       await expect(service.update(userId, updateDto)).rejects.toThrow(prismaError);
+    });
+
+    it("throws coded ConflictException when username update loses a uniqueness race", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.userDetails.count.mockResolvedValue(0);
+      prisma.user.update.mockRejectedValue(uniqueConstraintError());
+
+      await expect(service.update(userId, { username: "taken.name" })).rejects.toMatchObject({
+        response: {
+          code: USERNAME_TAKEN_CODE,
+          message: USER_SERVICE_ERRORS.USERNAME_TAKEN("taken.name"),
+        },
+      });
+    });
+  });
+
+  describe("checkUsernameAvailability", () => {
+    it("returns INVALID_FORMAT for too-short usernames", async () => {
+      await expect(service.checkUsernameAvailability(userId, "ab")).resolves.toEqual({
+        username: "ab",
+        available: false,
+        reason: "INVALID_FORMAT",
+      });
+      expect(prisma.userDetails.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("returns RESERVED for reserved usernames", async () => {
+      await expect(service.checkUsernameAvailability(userId, "Admin")).resolves.toEqual({
+        username: "admin",
+        available: false,
+        reason: "RESERVED",
+      });
+      expect(prisma.userDetails.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("returns TAKEN when another user holds the username", async () => {
+      prisma.userDetails.findFirst.mockResolvedValue({ userId: "other-user" } as never);
+
+      await expect(service.checkUsernameAvailability(userId, "Jane.Doe")).resolves.toEqual({
+        username: "jane.doe",
+        available: false,
+        reason: "TAKEN",
+      });
+      expect(prisma.userDetails.findFirst).toHaveBeenCalledWith({
+        where: { username: "jane.doe", NOT: { userId } },
+        select: { userId: true },
+      });
+    });
+
+    it("returns available when the caller already owns the username", async () => {
+      prisma.userDetails.findFirst.mockResolvedValue(null);
+
+      await expect(service.checkUsernameAvailability(userId, "jane.doe")).resolves.toEqual({
+        username: "jane.doe",
+        available: true,
+        reason: null,
+      });
     });
   });
 

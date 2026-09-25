@@ -88,7 +88,8 @@ export const useProfileScreen = () => {
     if (!form.formState.isSubmitting) setShowEditModal(false);
   };
 
-  const username = firstParam(params.username) ?? user?.details?.email.split("@")[0] ?? "Not set";
+  const username =
+    firstParam(params.username) ?? user?.details?.username ?? user?.details?.email?.split("@")[0] ?? "Not set";
 
   return {
     user,

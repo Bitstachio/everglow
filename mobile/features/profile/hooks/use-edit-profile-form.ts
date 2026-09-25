@@ -44,7 +44,7 @@ export const useEditProfileForm = ({ user, onSuccess }: UseEditProfileFormParams
   useEffect(() => {
     if (!user?.details) return;
 
-    reset({ name: user.details.name, email: user.details.email });
+    reset({ name: user.details.name, email: user.details.email ?? "" });
   }, [user, reset]);
 
   const onSubmit = form.handleSubmit(async (values) => {

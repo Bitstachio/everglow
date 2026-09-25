@@ -7,7 +7,8 @@ const firstParam = (value: string | string[] | undefined) => (Array.isArray(valu
 export const useEditUsernameScreen = () => {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ username?: string | string[] }>();
-  const initialUsername = firstParam(params.username) ?? user?.details?.email.split("@")[0] ?? "";
+  const initialUsername =
+    firstParam(params.username) ?? user?.details?.username ?? user?.details?.email?.split("@")[0] ?? "";
   const { form, onSubmit } = useEditUsernameForm({
     initialUsername,
     onSuccess: (username) => router.dismissTo({ pathname: "/account-settings", params: { username } }),

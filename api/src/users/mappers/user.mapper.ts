@@ -8,6 +8,7 @@ export class UserMapper {
       isOnboarded: !!user.details,
       details: user.details
         ? {
+            username: user.details.username,
             email: user.details.email,
             name: user.details.name,
             avatarUrl,

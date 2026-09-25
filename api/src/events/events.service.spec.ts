@@ -76,6 +76,7 @@ describe("EventsService", () => {
     details: {
       id: "22222222-2222-2222-2222-222222222222",
       userId: creatorId,
+      username: "jane",
       email: "jane@example.com",
       name: "Jane Doe",
       avatarS3Key: null,
@@ -136,6 +137,7 @@ describe("EventsService", () => {
     details: {
       id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
       userId: otherUserId,
+      username: "other",
       email: "other@example.com",
       name: "Other User",
       avatarS3Key: null,
@@ -194,6 +196,7 @@ describe("EventsService", () => {
     details: {
       id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
       userId: targetUserId,
+      username: "target",
       email: "target@example.com",
       name: "Target User",
       avatarS3Key: null,
@@ -213,6 +216,7 @@ describe("EventsService", () => {
 
   const participantWithDetails = {
     userId: targetUserId,
+    username: "target",
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: null,
@@ -1643,7 +1647,7 @@ describe("EventsService", () => {
 
       expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(participantsLookup(eventId));
       expect(result).toEqual([
-        { userId: callerId, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
+        { userId: callerId, username: "jane", name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
         participantWithDetails,
       ]);
     });
@@ -1673,7 +1677,7 @@ describe("EventsService", () => {
       const result = await service.getEventParticipants(eventId, callerId);
 
       expect(result).toEqual([
-        { userId: callerId, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
+        { userId: callerId, username: "jane", name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, avatarUrl: null },
       ]);
     });
 
@@ -1739,6 +1743,7 @@ describe("EventsService", () => {
 
       expect(result[0]).toEqual({
         userId: targetUserId,
+        username: "target",
         name: "Target User",
         accessLevel: AccessLevel.PARTICIPANT,
         avatarUrl: null,
@@ -1798,6 +1803,7 @@ describe("EventsService", () => {
       });
       expect(result).toEqual({
         userId: targetUserId,
+        username: "target",
         name: "Target User",
         accessLevel: AccessLevel.ORGANIZER,
         avatarUrl: null,
