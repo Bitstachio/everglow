@@ -53,6 +53,7 @@ describe("UsersService", () => {
   const createUserDetailsDto: CreateUserDetailsDto = {
     name: "Jane Doe",
     username: "jane.doe",
+    acceptedTerms: true,
   };
 
   const userWithoutDetails: UserWithDetails = {
@@ -176,6 +177,7 @@ describe("UsersService", () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: userId },
         data: {
+          termsAcceptedAt: expect.any(Date) as unknown,
           details: {
             create: {
               username: createUserDetailsDto.username,
@@ -188,29 +190,18 @@ describe("UsersService", () => {
       expect(result).toEqual(userWithDetails);
     });
 
-    it("records when the terms were accepted if the client sends acceptedTerms", async () => {
+    it("records when the terms were accepted", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
       prisma.userDetails.count.mockResolvedValue(0);
       prisma.user.update.mockResolvedValue({ ...userWithDetails, termsAcceptedAt: now });
 
-      await service.createDetails(userId, { ...createUserDetailsDto, acceptedTerms: true });
+      await service.createDetails(userId, createUserDetailsDto);
 
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ termsAcceptedAt: expect.any(Date) as unknown }) as unknown,
         }),
       );
-    });
-
-    it("leaves termsAcceptedAt untouched for a client that does not send acceptedTerms yet", async () => {
-      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
-      prisma.userDetails.count.mockResolvedValue(0);
-      prisma.user.update.mockResolvedValue(userWithDetails);
-
-      await service.createDetails(userId, createUserDetailsDto);
-
-      const [args] = prisma.user.update.mock.calls[0];
-      expect(args.data).not.toHaveProperty("termsAcceptedAt");
     });
 
     it("throws ConflictException when the user has already completed onboarding", async () => {

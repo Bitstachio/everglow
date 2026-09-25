@@ -262,9 +262,11 @@ A repeat that returns an existing report logs nothing, so each report is announc
 
 ## 6. Terms acceptance
 
-Guideline 1.2 also wants users to agree to terms that forbid objectionable content. `POST /users/me/onboarding` accepts an optional `acceptedTerms: true`; when present, `User.termsAcceptedAt` is set, and `GET /users/me` returns it (null otherwise). Any value other than `true` is a 400.
+Guideline 1.2 also wants users to agree to terms that forbid objectionable content. `POST /users/me/onboarding` **requires** `acceptedTerms: true`: onboarding without it, or with any other value, is a 400 and creates nothing. The acceptance time is stored as `User.termsAcceptedAt`, and `GET /users/me` returns it.
 
-The request field is optional only so the current mobile onboarding keeps working; it should become required once the app sends it. The response field `termsAcceptedAt` is already required and nullable in the OpenAPI schema, since the API always returns it.
+The app's onboarding screen shows an explicit consent control that links to the Terms of Use and Privacy Policy, and Continue stays disabled until it is ticked. Both legal screens are reachable before onboarding.
+
+`termsAcceptedAt` stays nullable in the response. Accounts onboarded before the field was required have null, and nothing has been released yet, so no re-prompt is needed. Once the terms change after launch, a versioned acceptance (which version, when) is the way to ask again.
 
 ---
 

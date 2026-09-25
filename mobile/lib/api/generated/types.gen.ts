@@ -39,9 +39,9 @@ export type CreateUserDetailsDto = {
    */
   username: string;
   /**
-   * The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Only `true` is valid; when sent, the acceptance time is recorded as termsAcceptedAt.
+   * The user accepted the terms of use, which forbid objectionable content and abusive behaviour. Required, and only `true` is valid; the acceptance time is recorded as termsAcceptedAt.
    */
-  acceptedTerms?: boolean;
+  acceptedTerms: boolean;
 };
 
 export type UsernameAvailabilityResponseDto = {
