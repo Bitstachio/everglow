@@ -13,7 +13,7 @@ import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_SERVICE_ERRORS } from "./events.constants";
+import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE } from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
@@ -267,6 +267,8 @@ describe("EventsService", () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    // No blocks unless a test says otherwise.
+    prisma.userBlock.findMany.mockResolvedValue([]);
     logger = {
       setContext: jest.fn(),
       info: jest.fn(),
@@ -709,6 +711,61 @@ describe("EventsService", () => {
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("answers with the unknown-link 404 when an organizer of the event blocked the caller", async () => {
+      setupSuccessfulJoin();
+      prisma.userBlock.findMany.mockResolvedValue([{ blockerId: "organizer-id", blocked: { details: null } }] as never);
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
+      );
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("tells the caller why when they blocked an organizer of the event", async () => {
+      setupSuccessfulJoin();
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blocked: { details: { name: "Sam" } } },
+      ] as never);
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toEqual({
+        code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
+        message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER("Sam"),
+      });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("keeps the organizer's block hidden when the two have blocked each other", async () => {
+      setupSuccessfulJoin();
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blocked: { details: { name: "Sam" } } },
+        { blockerId: "organizer-id", blocked: { details: null } },
+      ] as never);
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("checks blocks only against the event's organizers, in both directions, in one query", async () => {
+      setupSuccessfulJoin();
+
+      await service.joinByInvitationUrl(callerId, invitationUrl);
+
+      const organizerOfThisEvent = { eventAccesses: { some: { eventId, accessLevel: AccessLevel.ORGANIZER } } };
+      expect(prisma.userBlock.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.userBlock.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { blockedId: callerId, blocker: organizerOfThisEvent },
+              { blockerId: callerId, blocked: organizerOfThisEvent },
+            ],
+          },
+        }),
+      );
     });
 
     it("throws when the creator attempts to join via their own invitation link", async () => {

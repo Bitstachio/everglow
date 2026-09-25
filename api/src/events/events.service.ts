@@ -20,7 +20,7 @@ import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_SERVICE_ERRORS } from "./events.constants";
+import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE } from "./events.constants";
 import {
   EventAccessWithUser,
   EventParticipant,
@@ -106,6 +106,8 @@ export class EventsService {
     });
     if (existing) throw new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(event.id));
 
+    await this.assertNoBlockWithOrganizers(event.id, invitationUrl, callerId);
+
     await this.prisma.eventAccess.create({
       data: {
         userId: callerId,
@@ -120,6 +122,39 @@ export class EventsService {
     );
 
     return event;
+  }
+
+  /**
+   * Blocks between the joiner and the event's organizers, in one query. An
+   * organizer's block on the joiner reads as the same 404 as an unknown link,
+   * so a block is never revealed to the person blocked. The joiner's own block
+   * on an organizer is explained, since they made it and can undo it. Blocks
+   * between the joiner and ordinary members do not stop a join
+   * (docs/moderation.md).
+   */
+  private async assertNoBlockWithOrganizers(eventId: string, invitationUrl: string, callerId: string): Promise<void> {
+    const organizerOfThisEvent = { eventAccesses: { some: { eventId, accessLevel: AccessLevel.ORGANIZER } } };
+    const blocks = await this.prisma.userBlock.findMany({
+      where: {
+        OR: [
+          { blockedId: callerId, blocker: organizerOfThisEvent },
+          { blockerId: callerId, blocked: organizerOfThisEvent },
+        ],
+      },
+      select: { blockerId: true, blocked: { select: { details: { select: { name: true } } } } },
+    });
+
+    if (blocks.some((block) => block.blockerId !== callerId)) {
+      throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+    }
+
+    const ownBlock = blocks.find((block) => block.blockerId === callerId);
+    if (ownBlock) {
+      throw new ForbiddenException({
+        code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
+        message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER(ownBlock.blocked.details?.name ?? null),
+      });
+    }
   }
 
   async findOne(eventId: string, callerId: string): Promise<Event> {

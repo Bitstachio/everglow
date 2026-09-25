@@ -2,7 +2,11 @@ import { INestApplication } from "@nestjs/common";
 import { AccessLevel, Event, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
-import { EVENT_COVER_S3_KEY_PREFIX, EVENT_SERVICE_ERRORS } from "src/events/events.constants";
+import {
+  EVENT_COVER_S3_KEY_PREFIX,
+  EVENT_SERVICE_ERRORS,
+  ORGANIZER_BLOCKED_BY_CALLER_CODE,
+} from "src/events/events.constants";
 import { buildInvitationUrl } from "src/events/events.invitation";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "src/events/events.types";
 import { buildImageS3Key, IMAGE_UPLOAD_ERRORS, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
@@ -102,6 +106,7 @@ describe("EventsController (integration)", () => {
   beforeEach(() => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+    prisma.userBlock.findMany.mockResolvedValue([]);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     prisma.photo.findMany.mockResolvedValue([]);
@@ -266,6 +271,44 @@ describe("EventsController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND("missing-token"));
+    });
+
+    it("returns the unknown-link 404 when an organizer blocked the caller", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      prisma.event.findUnique.mockResolvedValue(buildEvent());
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+      prisma.userBlock.findMany.mockResolvedValue([{ blockerId: TEST_USER_ID, blocked: { details: null } }] as never);
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(404);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND("invite-token"));
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 with ORGANIZER_BLOCKED_BY_CALLER when the caller blocked an organizer", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      prisma.event.findUnique.mockResolvedValue(buildEvent());
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: TEST_OTHER_USER_ID, blocked: { details: { name: "Jane Doe" } } },
+      ] as never);
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
+        message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER("Jane Doe"),
+      });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
     it("returns 409 when the caller has already joined", async () => {
