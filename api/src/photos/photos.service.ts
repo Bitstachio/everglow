@@ -54,7 +54,7 @@ export class PhotosService {
     this.logger.setContext(this.constructor.name);
   }
 
-  /** Loads the event with the caller's access rows, or 404s. */
+  /** Loads the event with the caller's access rows and its member count, or 404s. */
   private async findEventForCaller(eventId: string, callerId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -272,8 +272,8 @@ export class PhotosService {
         AND: [
           { eventId, status: PhotoStatus.READY },
           accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
-          // Photos of blocked uploaders drop out here (docs/moderation.md).
-          this.photoVisibilityService.whereVisibleTo(callerId, event),
+          // Reported and blocked photos drop out here (docs/moderation.md).
+          await this.photoVisibilityService.whereVisibleTo(callerId, event),
           ...afterCursor,
         ],
       },

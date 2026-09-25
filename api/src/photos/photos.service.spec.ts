@@ -93,6 +93,7 @@ describe("PhotosService", () => {
   const eventWithAccess = (access: EventAccess[]) => ({
     ...event,
     eventAccesses: access,
+    _count: { eventAccesses: 5 },
   });
 
   // Stands in for whatever PhotoVisibilityService decides; its rules have their own spec.
@@ -126,7 +127,7 @@ describe("PhotosService", () => {
     };
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
     photoVisibilityService = {
-      whereVisibleTo: jest.fn().mockReturnValue(visibilityWhere),
+      whereVisibleTo: jest.fn().mockResolvedValue(visibilityWhere),
       isVisibleTo: jest.fn().mockResolvedValue(true),
     };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
@@ -568,6 +569,12 @@ describe("PhotosService", () => {
 
       await service.listPhotos(eventId, callerId, {});
 
+      // The member count the hide threshold needs arrives with the event row.
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({ _count: { select: { eventAccesses: true } } }) as unknown,
+        }),
+      );
       expect(photoVisibilityService.whereVisibleTo).toHaveBeenCalledWith(callerId, loadedEvent);
     });
 

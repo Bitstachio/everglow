@@ -781,6 +781,293 @@
         ]
       }
     },
+    "/api/v2/photos/{photoId}/reports": {
+      "post": {
+        "description": "Any member of the photo's event. The photo is hidden from the reporter at once. Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned.",
+        "operationId": "ReportsController_reportPhoto",
+        "parameters": [
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The caller's open report on the photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Report a photo",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/participants/{targetUserId}/reports": {
+      "post": {
+        "description": "Any member of the event, about any other member. Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned.",
+        "operationId": "ReportsController_reportMember",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetUserId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The caller's open report on the member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Report a member of an event",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/reports": {
+      "get": {
+        "operationId": "ReportsController_listReports",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor: the nextCursor value from the previous page. Omit for the first page.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Omit for every status.",
+            "schema": {
+              "$ref": "#/components/schemas/ReportStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reports, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ReportListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List an event's reports (organizers only, cursor-paginated)",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/api/v2/reports/{reportId}": {
+      "patch": {
+        "description": "Not available to the organizer the report is about. Resolving never deletes anything by itself.",
+        "operationId": "ReportsController_resolveReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Resolve a report (organizers only)",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
     "/api/v2/users/me/blocks": {
       "get": {
         "operationId": "BlocksController_list",
@@ -2091,6 +2378,174 @@
         "required": [
           "items",
           "nextCursor"
+        ]
+      },
+      "ReportTargetType": {
+        "type": "string",
+        "enum": [
+          "PHOTO",
+          "MEMBER"
+        ]
+      },
+      "ReportReason": {
+        "type": "string",
+        "enum": [
+          "SPAM",
+          "NUDITY_OR_SEXUAL",
+          "HARASSMENT",
+          "VIOLENCE",
+          "OTHER"
+        ]
+      },
+      "ReportStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "ACTIONED",
+          "DISMISSED"
+        ]
+      },
+      "ReportResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportTargetType"
+              }
+            ]
+          },
+          "photoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The reported photo. Null for MEMBER reports, and once the photo has been deleted."
+          },
+          "reportedUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The reported member, or the uploader of the reported photo. Null once that account has been deleted, or when the photo had no uploader left."
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportStatus"
+              }
+            ]
+          },
+          "resolvedById": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The organizer who resolved the report. Null while OPEN, and once that account has been deleted."
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "eventId",
+          "targetType",
+          "photoId",
+          "reportedUserId",
+          "reason",
+          "note",
+          "status",
+          "resolvedById",
+          "resolvedAt",
+          "createdAt"
+        ]
+      },
+      "CreateReportDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Optional context for the organizers, in the reporter's own words."
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ReportListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportResponseDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page; pass it as ?cursor=. Null on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "ReportResolution": {
+        "type": "string",
+        "enum": [
+          "ACTIONED",
+          "DISMISSED"
+        ],
+        "description": "ACTIONED: the organizer dealt with the target (deleted the photo, removed the member). DISMISSED: nothing was wrong. Neither deletes anything by itself; both end the report's hiding effect."
+      },
+      "ResolveReportDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "ACTIONED: the organizer dealt with the target (deleted the photo, removed the member). DISMISSED: nothing was wrong. Neither deletes anything by itself; both end the report's hiding effect.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportResolution"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status"
         ]
       },
       "BlockedUserResponseDto": {

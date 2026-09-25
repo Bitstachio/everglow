@@ -3,13 +3,14 @@ import { userWithDetailsInclude } from "src/users/users.types";
 
 /**
  * What `PhotoVisibilityService` needs to know about a photo's event: the
- * caller's membership (organizers are exempt from every filter). Load the
- * event with this include and it arrives with the row, so visibility costs no
- * extra event query.
+ * caller's membership (organizers are exempt from every filter) and the member
+ * count (the hide threshold depends on it). Load the event with this include
+ * and both arrive with the row, so visibility costs no extra event query.
  */
 export const eventForPhotoVisibilityInclude = (callerId: string) =>
   ({
     eventAccesses: { where: { userId: callerId } },
+    _count: { select: { eventAccesses: true } },
   }) as const;
 
 export type EventForPhotoVisibility = Prisma.EventGetPayload<{
