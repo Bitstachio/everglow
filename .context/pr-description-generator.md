@@ -6,14 +6,17 @@ This is not the squash commit **body**. When the PR is merged, a separate extend
 
 # Inputs
 
-- **Full diff against the base branch**: `git diff <base>...HEAD`. Describe the whole branch, not the last commit.
+- **Full diff against the base branch**: `git diff <base>...HEAD`. Describe the whole branch, not the last commit. For a stack layer, `base` is the parent branch (or `main` for the bottom), not the whole feature.
 - **Commits**: `git log <base>..HEAD --oneline`, as a guide to what happened, not as the structure of the body.
 - **Sibling PRs**: read the two or three most recent PRs in the same area (`gh pr list --state merged`). If the PR continues a series a teammate started, match that teammate's style instead of this template.
-- **Linear**: the issue this PR implements. Every PR has one. If the task came without an issue, create it before opening the PR, per [linear-issue-generator.md](./linear-issue-generator.md).
+- **Stack**: if this work is more than one reviewable unit, follow [stacked-prs.md](./stacked-prs.md) **before** opening PRs. Use `gh stack` so GitHub gets a Stack object; do not open standalone PRs and link them later in the UI.
+- **Linear**: the issue this PR implements. Every PR has one. One issue may have several PRs. If the task came without an issue, create it before opening the PR, per [linear-issue-generator.md](./linear-issue-generator.md).
 
 # Title (required)
 
 This line is the permanent Conventional Commits subject on `main` after squash. Write it once here; do not invent a second subject in the commit-description generator.
+
+**Branch commits are not Conventional Commits.** While the PR is open, `git commit` subjects are temporary and will be discarded on squash. Do not prefix them with `feat:`, `fix:`, `docs:`, `chore:`, or a `(scope)`. Use a short plain imperative sentence (for example `drop email from profile DTOs`, `fix prettier in users integration tests`). The type/scope discipline lives only in this PR title.
 
 Rules:
 
@@ -59,9 +62,11 @@ Stacked on #N; retarget to main once that merges.
 Closes [EV-N](https://linear.app/mehrshadfb/issue/EV-N). Part of [EV-M](https://linear.app/mehrshadfb/issue/EV-M).
 ```
 
-## Stacked line (only for stacked PRs)
+## Stacked line (required for every PR above the bottom of a stack)
 
 First line, plain text, before any heading: which PR this is based on and what happens when it merges. Update it after the base merges ("Was stacked on #N, which is now merged; retargeted to main.").
+
+Create the stack with `gh stack submit` (see [stacked-prs.md](./stacked-prs.md)). The stacked line in the body is for humans reading the PR; the GitHub Stack object is what navigates the chain in the product UI.
 
 ## Summary (required)
 
@@ -108,14 +113,16 @@ Run API commands from `api/` and mobile commands from `mobile/` with pnpm 11.25.
 
 Last line, outside any section. Use markdown links, because the repository has no autolink for `EV-` keys, and use Linear's magic words so its GitHub integration can link and close the issue once connected:
 
-- `Closes [EV-N](url).` for the issue this PR completes
+- `Part of [EV-N](url).` on every intermediate stack layer (and whenever this PR alone does not finish the issue)
+- `Closes [EV-N](url).` only on the PR that completes the issue (often the top of the stack, or a single PR when there is no stack)
 - `Part of [EV-M](url).` for a parent that stays open (for example, the mobile half is still to do)
 
-The link has to go both ways. Also add the PR to the issue as a link attachment, so it appears in the issue's resources; the PR body line alone does not do that until the Linear GitHub integration is connected. See "Keeping the issue in sync" in [linear-issue-generator.md](./linear-issue-generator.md).
+The link has to go both ways. Also add **each** PR to the issue as a link attachment, so they all appear in the issue's resources; the PR body line alone does not do that until the Linear GitHub integration is connected. See "Keeping the issue in sync" in [linear-issue-generator.md](./linear-issue-generator.md).
 
 # Rules
 
-- No AI attribution anywhere: no "Generated with", no "Co-Authored-By", no tool names.
+- No AI attribution anywhere: no "Generated with", "Created by", "Written by", or similar footers naming Cursor, Claude, Copilot, ChatGPT, or any other tool or model. Do not put tool or model names in the body as authorship. Different teammates (and the same person across revisions) may use different tools on one PR; leave no stamps.
+- No `Co-Authored-By` (or any other git trailer) for an agent or tool in commit messages that land on the branch. Human `Co-authored-by` only when a real person collaborated.
 - Write for a reviewer who knows the codebase but not this branch. State facts; do not narrate how you worked.
 - One idea per bullet. No nested bullets deeper than one level.
 - Keep the body in sync with the branch. When a later push changes what the PR does, edit the Summary, Notes and Test plan instead of appending "update:" lines.
@@ -130,7 +137,7 @@ Before posting, check:
 - Every ticked box was actually run on the final state; CI is unticked unless green.
 - A contract change is called out in Notes together with the mobile client regeneration.
 - The Linear line links the right issues with markdown links, and the issue has the PR attached.
-- There is no AI attribution.
+- There is no AI attribution: no tool/model footers, no agent `Co-authored-by`.
 
 # Example
 
