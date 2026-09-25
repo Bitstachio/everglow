@@ -1,6 +1,6 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
@@ -8,14 +8,11 @@ import type { DeleteAccountPhotoPolicy } from "../types";
 import { useChangePassword } from "./use-change-password";
 import { useEditProfileForm } from "./use-edit-profile-form";
 
-const firstParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
-
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();
   const deleting = useRef(false);
   const deleteProfileMutation = useDeleteProfileMutation();
   const [showEditModal, setShowEditModal] = useState(false);
-  const params = useLocalSearchParams<{ username?: string | string[] }>();
   const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
 
   const { form, onSubmit } = useEditProfileForm({
@@ -88,13 +85,12 @@ export const useProfileScreen = () => {
     if (!form.formState.isSubmitting) setShowEditModal(false);
   };
 
-  const username =
-    firstParam(params.username) ?? user?.details?.username ?? user?.details?.email?.split("@")[0] ?? "Not set";
+  const username = user?.details?.username ?? "Not set";
 
   return {
     user,
     username,
-    handleOpenUsername: () => router.push({ pathname: "/edit-username", params: { username } }),
+    handleOpenUsername: () => router.push("/edit-username"),
     handleOpenDisplayName: () => router.push("/edit-display-name"),
     handleOpenUsage: () => router.push("/usage"),
     handleOpenPrivacyPolicy: () => router.push("/privacy-policy"),
