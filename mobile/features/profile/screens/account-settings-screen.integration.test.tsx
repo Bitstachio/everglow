@@ -17,7 +17,7 @@ let mockAuth0Sub: string | undefined = "auth0|user-1";
 const mockUser = {
   id: "user-1",
   isOnboarded: true,
-  details: { name: "Ada Lovelace", email: "ada@example.com" },
+  details: { name: "Ada Lovelace", username: "ada.lovelace" },
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -52,9 +52,7 @@ jest.mock("expo-router", () => ({
     push: (...args: unknown[]) => mockPush(...args),
     replace: (...args: unknown[]) => mockReplace(...args),
   },
-  useLocalSearchParams: () => ({}),
 }));
-jest.mock("../components/edit-profile-modal", () => ({ EditProfileModal: () => null }));
 
 const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 

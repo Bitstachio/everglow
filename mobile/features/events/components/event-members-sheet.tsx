@@ -36,6 +36,11 @@ export const EventMembersSheet = ({ visible, participants, onClose, onRemove }: 
               </View>
               <View className="flex-1 gap-1">
                 <ThemedText className="text-base font-semibold">{participant.name || "Unknown User"}</ThemedText>
+                {participant.username ? (
+                  <ThemedText tone="muted" className="text-sm">
+                    @{participant.username}
+                  </ThemedText>
+                ) : null}
                 <View className="self-start rounded-lg bg-surface px-2 py-1">
                   <ThemedText className="text-xs font-medium uppercase" tone="muted">
                     {getAccessLevelLabel(participant.accessLevel)}

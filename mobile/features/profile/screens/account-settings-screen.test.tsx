@@ -2,7 +2,7 @@ import { render, screen, userEvent } from "@testing-library/react-native";
 import AccountSettingsScreen from "./account-settings-screen";
 
 const mockScreen = {
-  user: { details: { name: "Ada", email: "ada@example.com" } },
+  user: { details: { name: "Ada", username: "ada" } },
   username: "ada",
   handleOpenUsername: jest.fn(),
   handleOpenUsage: jest.fn(),
@@ -14,17 +14,11 @@ const mockScreen = {
   handleChangePassword: jest.fn(),
   isLoading: false,
   isDeleting: false,
-  showEditModal: false,
-  form: { control: undefined, formState: { isSubmitting: false, isDirty: false } },
-  onSubmit: jest.fn(),
   handleLogout: jest.fn(),
-  handleEditProfile: jest.fn(),
   handleDeleteAccount: jest.fn(),
-  handleCancelEdit: jest.fn(),
 };
 
 jest.mock("../hooks/use-profile-screen", () => ({ useProfileScreen: () => mockScreen }));
-jest.mock("../components/edit-profile-modal", () => ({ EditProfileModal: () => null }));
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -83,4 +77,11 @@ test("Change Password is disabled while the browser is opening", async () => {
   expect(row).toBeDisabled();
   await userEvent.setup().press(row);
   expect(mockScreen.handleChangePassword).not.toHaveBeenCalled();
+});
+
+test("shows the username in the header and has no Change Email row", async () => {
+  await render(<AccountSettingsScreen />);
+  expect(screen.getByText("@ada")).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Change Email Address" })).not.toBeOnTheScreen();
+  expect(screen.queryByText(/No email added/i)).not.toBeOnTheScreen();
 });
