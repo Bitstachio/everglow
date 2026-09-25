@@ -225,8 +225,10 @@ Two things fix it, and both are needed.
 | `EventAccess.userId` | `Cascade` | A membership has no meaning without its member.                                                          |
 | `Event.creatorId`    | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                           |
 | `Photo.addedById`    | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota. |
+| `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence that belongs to the event; it outlives whoever filed it, was named in it, or resolved it ([moderation.md](./moderation.md#what-happens-on-delete)). |
+| `UserBlock.blockerId`, `UserBlock.blockedId` | `Cascade` | A block means nothing once either account is gone. |
 
-**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos, the covers of deleted events, and the avatar alike), which are purged best effort after the row is gone.
+**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos, the covers of deleted events, and the avatar alike), which are purged best effort after the row is gone. Reports and blocks need no step here: their relations above settle them on their own.
 
 **Accounts already being deleted do not count as cover.** Both organizer rules ignore members whose own `deletionStartedAt` is set. Without that, two members of one event leaving at the same time can strand it:
 
@@ -255,6 +257,8 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 | Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere. |
 | Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                             |
 | Storage quota, purchased limit                | Gone with the row. Kept photos count toward nobody's quota.                   |
+| Reports filed, received or resolved           | Kept in their event with the account's id nulled; they go when the event does. |
+| Blocks, in either direction                   | Deleted by cascade.                                                           |
 
 ### The photo choice is required, and KEEP is the one to offer
 

@@ -63,6 +63,7 @@ describe("UsersService", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -76,6 +77,7 @@ describe("UsersService", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -183,6 +185,31 @@ describe("UsersService", () => {
         include: userWithDetailsInclude,
       });
       expect(result).toEqual(userWithDetails);
+    });
+
+    it("records when the terms were accepted if the client sends acceptedTerms", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+      prisma.userDetails.count.mockResolvedValue(0);
+      prisma.user.update.mockResolvedValue({ ...userWithDetails, termsAcceptedAt: now });
+
+      await service.createDetails(userId, { ...createUserDetailsDto, acceptedTerms: true });
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ termsAcceptedAt: expect.any(Date) as unknown }) as unknown,
+        }),
+      );
+    });
+
+    it("leaves termsAcceptedAt untouched for a client that does not send acceptedTerms yet", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+      prisma.userDetails.count.mockResolvedValue(0);
+      prisma.user.update.mockResolvedValue(userWithDetails);
+
+      await service.createDetails(userId, createUserDetailsDto);
+
+      const [args] = prisma.user.update.mock.calls[0];
+      expect(args.data).not.toHaveProperty("termsAcceptedAt");
     });
 
     it("throws ConflictException when the user has already completed onboarding", async () => {

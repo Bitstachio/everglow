@@ -11,6 +11,13 @@ export class UserResponseDto {
   @ApiProperty({ type: () => UserDetailsResponseDto, nullable: true })
   details: UserDetailsResponseDto | null;
 
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description: "When the user accepted the terms of use; null if they have not been asked yet.",
+  })
+  termsAcceptedAt: Date | null;
+
   @ApiProperty()
   createdAt: Date;
 

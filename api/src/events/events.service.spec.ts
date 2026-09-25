@@ -58,6 +58,7 @@ describe("EventsService", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -71,6 +72,7 @@ describe("EventsService", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -131,6 +133,7 @@ describe("EventsService", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -189,6 +192,7 @@ describe("EventsService", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    termsAcceptedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
