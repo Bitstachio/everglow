@@ -27,6 +27,7 @@ describe("BlockMapper", () => {
         userId: blockedId,
         email: "blocked@example.com",
         name: "Blocked User",
+        avatarS3Key: null,
         createdAt: now,
         updatedAt: now,
       },

@@ -2,16 +2,17 @@ import { INestApplication, InternalServerErrorException, UnauthorizedException }
 import { AccountDeletionPhotoPolicy, PhotoStatus, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockDeep, mockReset } from "jest-mock-extended";
+import { buildImageS3Key, IMAGE_UPLOAD_ERRORS, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
 import { AppleSiwaService, AppleTokenRevocationError } from "src/sdk/apple/apple-siwa.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { hashProviderSub } from "src/users/deleted-provider-sub";
-import { USER_SERVICE_ERRORS } from "src/users/users.constants";
+import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
-import { authHeader } from "./helpers/auth.fixtures";
+import { authHeader, TEST_APPLE_ACCESS_TOKEN } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
   TEST_NOW,
@@ -25,6 +26,10 @@ import {
 
 const USERS_BASE_PATH = `/${API_GLOBAL_PREFIX}/users`;
 const ONE_GIB = 1024n ** 3n;
+const AVATAR_UPLOAD_URL = "https://s3.example/avatar-put?sig=1";
+const AVATAR_URL = "https://s3.example/avatar-get?sig=1";
+const AVATAR_UPLOAD_ID = "9f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f";
+const AVATAR_S3_KEY = buildImageS3Key(USER_AVATAR_S3_KEY_PREFIX, TEST_USER_ID, AVATAR_UPLOAD_ID);
 
 type WrappedResponse<T> = {
   data: T;
@@ -50,7 +55,13 @@ describe("UsersController (integration)", () => {
   let usersService: UsersService;
   let httpServer: Server;
 
-  const s3Service = { deleteObjects: jest.fn() };
+  const s3Service = {
+    deleteObjects: jest.fn(),
+    deleteObject: jest.fn(),
+    headObject: jest.fn(),
+    getPresignedUploadUrl: jest.fn(),
+    getPresignedDownloadUrl: jest.fn(),
+  };
 
   beforeAll(async () => {
     auth0Management = mockDeep<Auth0ManagementService>();
@@ -87,8 +98,11 @@ describe("UsersController (integration)", () => {
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
-    s3Service.deleteObjects.mockReset();
+    for (const method of Object.values(s3Service)) method.mockReset();
     s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [] });
+    s3Service.deleteObject.mockResolvedValue(undefined);
+    s3Service.getPresignedUploadUrl.mockResolvedValue(AVATAR_UPLOAD_URL);
+    s3Service.getPresignedDownloadUrl.mockResolvedValue(AVATAR_URL);
   });
 
   describe("POST /users/me/onboarding", () => {
@@ -288,6 +302,211 @@ describe("UsersController (integration)", () => {
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(USER_SERVICE_ERRORS.NOT_FOUND(TEST_USER_ID));
       expect(body.meta.path).toBe(path);
+    });
+  });
+
+  describe("avatar", () => {
+    const uploadUrlPath = `${USERS_BASE_PATH}/me/avatar/upload-url`;
+    const avatarPath = `${USERS_BASE_PATH}/me/avatar`;
+
+    const buildUserWithAvatar = (avatarS3Key: string | null) => {
+      const user = buildUserWithDetails();
+      return { ...user, details: { ...user.details!, avatarS3Key } };
+    };
+
+    const uploadedObject = (contentType = "image/jpeg") => ({
+      exists: true,
+      contentType,
+      sizeBytes: 204800,
+      lastModified: new Date(),
+    });
+
+    type ProfileBody = WrappedResponse<{ details: { avatarUrl: string | null } | null }>;
+
+    describe("GET /users/me", () => {
+      it("returns a presigned avatarUrl and never the S3 key", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(AVATAR_S3_KEY));
+
+        const response = await request(httpServer).get(`${USERS_BASE_PATH}/me`).set(authHeader()).expect(200);
+
+        expect((response.body as ProfileBody).data.details?.avatarUrl).toBe(AVATAR_URL);
+        expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith(expect.objectContaining({ key: AVATAR_S3_KEY }));
+        expect(JSON.stringify(response.body)).not.toContain("avatarS3Key");
+      });
+
+      it("returns a null avatarUrl when none is set", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(null));
+
+        const response = await request(httpServer).get(`${USERS_BASE_PATH}/me`).set(authHeader()).expect(200);
+
+        expect((response.body as ProfileBody).data.details).toMatchObject({ avatarUrl: null });
+        expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("POST /users/me/avatar/upload-url", () => {
+      const payload = { contentType: "image/jpeg", sizeBytes: 204800 };
+
+      it("returns 201 with an upload id and a URL signed for the caller's own key", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(null));
+
+        const response = await request(httpServer).post(uploadUrlPath).set(authHeader()).send(payload).expect(201);
+
+        const body = response.body as WrappedResponse<{ uploadId: string; uploadUrl: string; expiresAt: string }>;
+        expect(body.data).toEqual({
+          uploadId: expect.any(String) as string,
+          uploadUrl: AVATAR_UPLOAD_URL,
+          expiresAt: expect.any(String) as string,
+        });
+        expect(body.meta.path).toBe(uploadUrlPath);
+        expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith(
+          expect.objectContaining({
+            key: buildImageS3Key(USER_AVATAR_S3_KEY_PREFIX, TEST_USER_ID, body.data.uploadId),
+            contentType: payload.contentType,
+            contentLength: payload.sizeBytes,
+          }),
+        );
+      });
+
+      it.each([
+        ["an unsupported content type", { ...payload, contentType: "image/heic" }],
+        ["an oversize file", { ...payload, sizeBytes: MAX_IMAGE_SIZE_BYTES + 1 }],
+        ["an empty file", { ...payload, sizeBytes: 0 }],
+        ["a client-supplied key", { ...payload, key: "avatars/someone-else/x" }],
+      ])("returns 400 for %s", async (_label, body) => {
+        await request(httpServer).post(uploadUrlPath).set(authHeader()).send(body).expect(400);
+
+        expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+      });
+
+      it("returns 422 before onboarding", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+
+        const response = await request(httpServer).post(uploadUrlPath).set(authHeader()).send(payload).expect(422);
+
+        expect((response.body as ErrorResponse).message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+        expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+      });
+
+      it("returns 401 when the access token is missing", async () => {
+        await request(httpServer).post(uploadUrlPath).send(payload).expect(401);
+      });
+    });
+
+    describe("PUT /users/me/avatar", () => {
+      const payload = { uploadId: AVATAR_UPLOAD_ID };
+
+      it("returns 200 with the profile carrying the new avatarUrl", async () => {
+        prisma.user.findUnique
+          .mockResolvedValueOnce(buildUserWithAvatar(null))
+          .mockResolvedValueOnce(buildUserWithAvatar(AVATAR_S3_KEY));
+        prisma.userDetails.updateMany.mockResolvedValue({ count: 1 });
+        s3Service.headObject.mockResolvedValue(uploadedObject());
+
+        const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(200);
+
+        const body = response.body as ProfileBody;
+        expect(body.data.details?.avatarUrl).toBe(AVATAR_URL);
+        expect(body.meta.path).toBe(avatarPath);
+        expect(s3Service.headObject).toHaveBeenCalledWith(AVATAR_S3_KEY);
+        expect(prisma.userDetails.updateMany).toHaveBeenCalledWith({
+          where: { userId: TEST_USER_ID, avatarS3Key: null },
+          data: { avatarS3Key: AVATAR_S3_KEY },
+        });
+      });
+
+      it("returns 404 when nothing was uploaded for the id", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(null));
+        s3Service.headObject.mockResolvedValue({ exists: false });
+
+        const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(404);
+
+        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(AVATAR_UPLOAD_ID));
+        expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();
+      });
+
+      it("returns 422 and discards an object of a disallowed type", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(null));
+        s3Service.headObject.mockResolvedValue(uploadedObject("image/gif"));
+
+        const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(422);
+
+        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(AVATAR_UPLOAD_ID));
+        expect(s3Service.deleteObject).toHaveBeenCalledWith(AVATAR_S3_KEY);
+        expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["a non-UUID upload id", { uploadId: "../someone-else" }],
+        ["a client-supplied key", { uploadId: AVATAR_UPLOAD_ID, key: "avatars/someone-else/x" }],
+        ["an empty body", {}],
+      ])("returns 400 for %s", async (_label, body) => {
+        await request(httpServer).put(avatarPath).set(authHeader()).send(body).expect(400);
+
+        expect(s3Service.headObject).not.toHaveBeenCalled();
+      });
+
+      it("returns 422 before onboarding", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+
+        const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(422);
+
+        expect((response.body as ErrorResponse).message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+        expect(s3Service.headObject).not.toHaveBeenCalled();
+      });
+
+      it("returns 401 when the access token is missing", async () => {
+        await request(httpServer).put(avatarPath).send(payload).expect(401);
+      });
+    });
+
+    describe("DELETE /users/me/avatar", () => {
+      it("returns 204 after deleting the object and clearing the column", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(AVATAR_S3_KEY));
+        prisma.userDetails.updateMany.mockResolvedValue({ count: 1 });
+
+        await request(httpServer).delete(avatarPath).set(authHeader()).expect(204);
+
+        expect(s3Service.deleteObject).toHaveBeenCalledWith(AVATAR_S3_KEY);
+        expect(prisma.userDetails.updateMany).toHaveBeenCalledWith({
+          where: { userId: TEST_USER_ID, avatarS3Key: AVATAR_S3_KEY },
+          data: { avatarS3Key: null },
+        });
+      });
+
+      it("returns 204 when there is no avatar to remove", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(null));
+
+        await request(httpServer).delete(avatarPath).set(authHeader()).expect(204);
+
+        expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      });
+
+      it("returns 422 before onboarding", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
+
+        await request(httpServer).delete(avatarPath).set(authHeader()).expect(422);
+      });
+
+      it("returns 401 when the access token is missing", async () => {
+        await request(httpServer).delete(avatarPath).expect(401);
+      });
+    });
+
+    describe("DELETE /users/me", () => {
+      it("purges the avatar object with the rest of the account's objects, after the row is gone", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(AVATAR_S3_KEY));
+        prisma.user.update.mockResolvedValue(buildUserWithAvatar(AVATAR_S3_KEY));
+        prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key: AVATAR_S3_KEY } as never);
+        auth0Management.deleteUser.mockResolvedValue(undefined);
+
+        await request(httpServer).delete(`${USERS_BASE_PATH}/me?photos=KEEP`).set(authHeader()).expect(204);
+
+        expect(s3Service.deleteObjects).toHaveBeenCalledWith([AVATAR_S3_KEY]);
+        expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+          s3Service.deleteObjects.mock.invocationCallOrder[0],
+        );
+      });
     });
   });
 
@@ -766,6 +985,41 @@ describe("UsersController (integration)", () => {
       expect(result).toEqual(active);
       expect(prisma.deletedProviderSub.findUnique).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /users/me/password-change-ticket", () => {
+    const path = `${USERS_BASE_PATH}/me/password-change-ticket`;
+
+    it("returns 200 with the Auth0 ticket URL for a database identity", async () => {
+      auth0Management.createPasswordChangeTicket.mockResolvedValue({
+        ticketUrl: "https://auth0.example/u/reset-verify?ticket=abc",
+      });
+
+      const response = await request(httpServer).post(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<{ ticketUrl: string }>;
+      expect(body.data).toEqual({ ticketUrl: "https://auth0.example/u/reset-verify?ticket=abc" });
+      expect(auth0Management.createPasswordChangeTicket).toHaveBeenCalledWith(TEST_PROVIDER_SUB);
+    });
+
+    it("returns 403 for a social identity without calling Auth0", async () => {
+      const response = await request(httpServer).post(path).set(authHeader(TEST_APPLE_ACCESS_TOKEN)).expect(403);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toEqual(expect.any(String));
+      expect(auth0Management.createPasswordChangeTicket).not.toHaveBeenCalled();
+    });
+
+    it("returns 401 without a bearer token", async () => {
+      await request(httpServer).post(path).expect(401);
+      expect(auth0Management.createPasswordChangeTicket).not.toHaveBeenCalled();
+    });
+
+    it("returns 500 when Auth0 ticket minting fails", async () => {
+      auth0Management.createPasswordChangeTicket.mockRejectedValue(new InternalServerErrorException("ticket failed"));
+
+      await request(httpServer).post(path).set(authHeader()).expect(500);
     });
   });
 });

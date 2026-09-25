@@ -57,6 +57,7 @@ describe("ReportsService", () => {
       userId: callerId,
       email: "caller@example.com",
       name: "Caller",
+      avatarS3Key: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -69,6 +70,7 @@ describe("ReportsService", () => {
     date: new Date("2026-08-15T18:00:00.000Z"),
     creatorId: uploaderId,
     invitationUrl: "invite-token",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };

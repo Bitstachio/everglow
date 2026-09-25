@@ -251,6 +251,189 @@
         ]
       }
     },
+    "/api/v2/users/me/avatar/upload-url": {
+      "post": {
+        "operationId": "UsersController_createAvatarUploadUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImageUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload id with a presigned S3 PUT URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ImageUploadResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint a presigned upload URL for the current user's avatar",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v2/users/me/avatar": {
+      "put": {
+        "operationId": "UsersController_confirmAvatarUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmImageUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User profile with the new avatar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UserResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm an uploaded avatar and set it on the current user",
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_removeAvatar",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Avatar removed (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove the current user's avatar",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v2/users/me/password-change-ticket": {
+      "post": {
+        "description": "Returns an Auth0-hosted URL where the caller sets a new password. Only database (auth0|…) identities are eligible. The API never accepts a password.",
+        "operationId": "UsersController_createPasswordChangeTicket",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Password-change ticket URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PasswordChangeTicketResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "Caller is not a database identity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a password-change ticket",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/events/{eventId}/photos/upload-urls": {
       "post": {
         "operationId": "PhotosController_createUploadUrls",
@@ -1520,6 +1703,167 @@
           "events"
         ]
       }
+    },
+    "/api/v2/events/{eventId}/cover/upload-url": {
+      "post": {
+        "operationId": "EventsController_createCoverUploadUrl",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImageUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload id with a presigned S3 PUT URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ImageUploadResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint a presigned upload URL for the event cover image",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/cover": {
+      "put": {
+        "operationId": "EventsController_confirmCoverUpload",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmImageUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event with the new cover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm an uploaded cover image and set it on the event",
+        "tags": [
+          "events"
+        ]
+      },
+      "delete": {
+        "operationId": "EventsController_removeCover",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cover removed (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove the event cover image",
+        "tags": [
+          "events"
+        ]
+      }
     }
   },
   "info": {
@@ -1551,6 +1895,12 @@
             "type": "string",
             "example": "Jane Doe"
           },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2048,
+            "description": "Short-lived presigned URL of the profile avatar; null when none is set"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -1563,6 +1913,7 @@
         "required": [
           "email",
           "name",
+          "avatarUrl",
           "createdAt",
           "updatedAt"
         ]
@@ -1690,6 +2041,81 @@
           }
         }
       },
+      "ImageUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Pass it back to confirm the upload"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Presigned S3 PUT URL the client uploads bytes to"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When uploadUrl stops being accepted; request a new one after this"
+          }
+        },
+        "required": [
+          "uploadId",
+          "uploadUrl",
+          "expiresAt"
+        ]
+      },
+      "CreateImageUploadDto": {
+        "type": "object",
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "example": "image/jpeg"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5242880,
+            "example": 262144
+          }
+        },
+        "required": [
+          "contentType",
+          "sizeBytes"
+        ]
+      },
+      "ConfirmImageUploadDto": {
+        "type": "object",
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The uploadId returned when the upload URL was minted"
+          }
+        },
+        "required": [
+          "uploadId"
+        ]
+      },
+      "PasswordChangeTicketResponseDto": {
+        "type": "object",
+        "properties": {
+          "ticketUrl": {
+            "type": "string",
+            "description": "Auth0-hosted password change URL. Open in the system browser; do not embed in a WebView.",
+            "example": "https://your-tenant.us.auth0.com/u/reset-verify?ticket=…"
+          }
+        },
+        "required": [
+          "ticketUrl"
+        ]
+      },
       "UploadSlotResponseDto": {
         "type": "object",
         "properties": {
@@ -1701,11 +2127,17 @@
             "type": "string",
             "maxLength": 2048,
             "description": "Presigned S3 PUT URL the client uploads bytes to"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When uploadUrl stops being accepted; mint a new slot after this"
           }
         },
         "required": [
           "photoId",
-          "uploadUrl"
+          "uploadUrl",
+          "expiresAt"
         ]
       },
       "UploadFileDto": {
@@ -2090,6 +2522,12 @@
             "type": "string",
             "description": "Shareable invitation link composed from the stored invite token"
           },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2048,
+            "description": "Short-lived presigned URL of the event cover image; null when none is set"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -2106,6 +2544,7 @@
           "date",
           "creatorId",
           "invitationUrl",
+          "coverUrl",
           "createdAt",
           "updatedAt"
         ]
@@ -2156,6 +2595,12 @@
               }
             ]
           },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2048,
+            "description": "Short-lived presigned URL of the member's avatar; null when none is set"
+          },
           "isBlockedByCaller": {
             "type": "boolean",
             "description": "Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed."
@@ -2165,6 +2610,7 @@
           "userId",
           "name",
           "accessLevel",
+          "avatarUrl",
           "isBlockedByCaller"
         ]
       },

@@ -13,7 +13,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
 import { S3_SERVICE_ERRORS } from "./s3.constants";
-import { S3Service } from "./s3.service";
+import { S3Service, presignedUrlExpiresAt } from "./s3.service";
 
 jest.mock("@aws-sdk/s3-request-presigner");
 
@@ -206,12 +206,17 @@ describe("S3Service", () => {
 
   describe("headObject", () => {
     it("returns metadata when the object exists", async () => {
-      sendSpy.mockResolvedValueOnce({ ContentType: "image/jpeg", ContentLength: 1234 } as never);
+      const lastModified = new Date("2026-09-01T00:00:00.000Z");
+      sendSpy.mockResolvedValueOnce({
+        ContentType: "image/jpeg",
+        ContentLength: 1234,
+        LastModified: lastModified,
+      } as never);
 
       const result = await service.headObject("a/b.jpg");
 
       expect(sendSpy).toHaveBeenCalledWith(expect.any(HeadObjectCommand));
-      expect(result).toEqual({ exists: true, contentType: "image/jpeg", sizeBytes: 1234 });
+      expect(result).toEqual({ exists: true, contentType: "image/jpeg", sizeBytes: 1234, lastModified });
     });
 
     it("returns exists false when the object is missing", async () => {
@@ -333,5 +338,21 @@ describe("S3Service", () => {
         InternalServerErrorException,
       );
     });
+  });
+});
+
+describe("presignedUrlExpiresAt", () => {
+  it("is the signing moment plus the lifetime", () => {
+    const now = Date.UTC(2026, 8, 23, 12, 0, 0);
+
+    expect(presignedUrlExpiresAt(900, now)).toEqual(new Date("2026-09-23T12:15:00.000Z"));
+  });
+
+  it("defaults to the current time", () => {
+    const before = Date.now();
+    const expiresAt = presignedUrlExpiresAt(60).getTime();
+
+    expect(expiresAt).toBeGreaterThanOrEqual(before + 60_000);
+    expect(expiresAt).toBeLessThanOrEqual(Date.now() + 60_000);
   });
 });

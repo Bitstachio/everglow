@@ -1,4 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { STRING_LIMITS } from "src/common/constants/schema.constants";
 
 export class EventResponseDto {
   @ApiProperty({ format: "uuid" })
@@ -23,6 +24,14 @@ export class EventResponseDto {
 
   @ApiProperty({ description: "Shareable invitation link composed from the stored invite token" })
   invitationUrl: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    maxLength: STRING_LIMITS.LONG,
+    description: "Short-lived presigned URL of the event cover image; null when none is set",
+  })
+  coverUrl: string | null;
 
   @ApiProperty()
   createdAt: Date;

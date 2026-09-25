@@ -22,6 +22,7 @@ describe("PhotoVisibilityService", () => {
     description: null,
     date: now,
     creatorId: null,
+    coverS3Key: null,
     invitationUrl: "invite-token",
     createdAt: now,
     updatedAt: now,

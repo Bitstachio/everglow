@@ -37,6 +37,7 @@ describe("UserMapper", () => {
       userId,
       email: "jane@example.com",
       name: "Jane Doe",
+      avatarS3Key: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -44,7 +45,7 @@ describe("UserMapper", () => {
 
   describe("toResponseDto", () => {
     it("maps a user with details and sets isOnboarded to true", () => {
-      const result = UserMapper.toResponseDto(userWithDetails);
+      const result = UserMapper.toResponseDto(userWithDetails, null);
 
       expect(result).toEqual({
         id: userId,
@@ -52,6 +53,7 @@ describe("UserMapper", () => {
         details: {
           email: "jane@example.com",
           name: "Jane Doe",
+          avatarUrl: null,
           createdAt: now,
           updatedAt: now,
         },
@@ -62,13 +64,13 @@ describe("UserMapper", () => {
     });
 
     it("exposes when the terms were accepted", () => {
-      const result = UserMapper.toResponseDto({ ...userWithDetails, termsAcceptedAt: now });
+      const result = UserMapper.toResponseDto({ ...userWithDetails, termsAcceptedAt: now }, null);
 
       expect(result.termsAcceptedAt).toEqual(now);
     });
 
     it("maps a user without details and sets isOnboarded to false", () => {
-      const result = UserMapper.toResponseDto(userWithoutDetails);
+      const result = UserMapper.toResponseDto(userWithoutDetails, null);
 
       expect(result).toEqual({
         id: userId,
@@ -80,11 +82,18 @@ describe("UserMapper", () => {
       });
     });
 
+    it("exposes the presigned avatar URL on the details", () => {
+      const result = UserMapper.toResponseDto(userWithDetails, "https://s3.example/avatar?sig=1");
+
+      expect(result.details?.avatarUrl).toBe("https://s3.example/avatar?sig=1");
+    });
+
     it("omits internal fields from nested details", () => {
-      const result = UserMapper.toResponseDto(userWithDetails);
+      const result = UserMapper.toResponseDto(userWithDetails, null);
 
       expect(result.details).not.toHaveProperty("id");
       expect(result.details).not.toHaveProperty("userId");
+      expect(result.details).not.toHaveProperty("avatarS3Key");
     });
   });
 });

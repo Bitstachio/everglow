@@ -5,6 +5,7 @@ import { AccessLevel, Event, EventAccess, Prisma, PrismaClient } from "generated
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { ImageUploadService } from "src/images/image-upload.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
@@ -26,6 +27,7 @@ describe("EventsService", () => {
   let service: EventsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoPurgeService: { purgeObjects: jest.Mock };
+  let imageUploads: { getDownloadUrl: jest.Mock };
   let logger: {
     setContext: jest.Mock;
     info: jest.Mock;
@@ -78,6 +80,7 @@ describe("EventsService", () => {
       userId: creatorId,
       email: "jane@example.com",
       name: "Jane Doe",
+      avatarS3Key: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -90,6 +93,7 @@ describe("EventsService", () => {
     date: new Date(createEventDto.date),
     creatorId,
     invitationUrl: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -104,6 +108,7 @@ describe("EventsService", () => {
     date: new Date("2026-09-15T18:00:00.000Z"),
     creatorId: userId,
     invitationUrl: "invite-created",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -115,6 +120,7 @@ describe("EventsService", () => {
     date: new Date("2026-08-01T18:00:00.000Z"),
     creatorId: otherUserId,
     invitationUrl: "invite-access",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -135,6 +141,7 @@ describe("EventsService", () => {
       userId: otherUserId,
       email: "other@example.com",
       name: "Other User",
+      avatarS3Key: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -193,6 +200,7 @@ describe("EventsService", () => {
       userId: targetUserId,
       email: "target@example.com",
       name: "Target User",
+      avatarS3Key: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -211,6 +219,7 @@ describe("EventsService", () => {
     userId: targetUserId,
     name: "Target User",
     accessLevel: AccessLevel.PARTICIPANT,
+    avatarUrl: null,
     isBlockedByCaller: false,
   };
 
@@ -266,6 +275,10 @@ describe("EventsService", () => {
     };
 
     photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
+    // Mirrors the real service: a URL per key, null for a member without an avatar.
+    imageUploads = {
+      getDownloadUrl: jest.fn((key: string | null) => Promise.resolve(key ? `https://s3.example/${key}?sig=1` : null)),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -276,6 +289,7 @@ describe("EventsService", () => {
           useValue: prisma,
         },
         { provide: PhotoPurgeService, useValue: photoPurgeService },
+        { provide: ImageUploadService, useValue: imageUploads },
         {
           provide: PinoLogger,
           useValue: logger,
@@ -605,6 +619,7 @@ describe("EventsService", () => {
         date: eventCreatedByUser.date,
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
+        coverS3Key: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -826,6 +841,7 @@ describe("EventsService", () => {
         date: eventCreatedByUser.date,
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
+        coverS3Key: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -869,6 +885,36 @@ describe("EventsService", () => {
 
       await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(ForbiddenException);
       await expect(service.delete(eventId, callerId)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe("getUpdatable", () => {
+    it("returns the event without its access rows when the caller is an organizer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+
+      await expect(service.getUpdatable(eventId, callerId)).resolves.toEqual(eventCreatedByUser);
+
+      expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
+    });
+
+    it("throws 404 when the event does not exist, before evaluating access", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+    });
+
+    it.each([
+      ["a participant", () => [participantAccess]],
+      ["a viewer", () => [viewerAccess]],
+      ["not a member", () => []],
+    ])("throws 403 when the caller is %s", async (_label, accesses) => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, accesses()));
+
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
     });
   });
 
@@ -1144,6 +1190,32 @@ describe("EventsService", () => {
       });
       expect(logger.info).toHaveBeenCalledWith(
         { event: "event.deleted", eventId, callerId, photoCount: 2, audit: true },
+        "Event deleted",
+      );
+    });
+
+    it("purges the cover object with the photos, taking its key from the row the delete returned", async () => {
+      const photoKey = `photos/${callerId}/${eventId}/a`;
+      const coverS3Key = `event-covers/${eventId}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
+      // The authorization read saw no cover; one was confirmed before the delete ran.
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.photo.findMany.mockResolvedValue([{ s3Key: photoKey }] as never);
+      prisma.event.delete.mockResolvedValue({ ...eventCreatedByUser, coverS3Key });
+
+      await service.delete(eventId, callerId);
+
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledTimes(1);
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledWith([photoKey, coverS3Key], {
+        event: "event.photos.purged",
+        eventId,
+        callerId,
+      });
+      expect(prisma.event.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        photoPurgeService.purgeObjects.mock.invocationCallOrder[0],
+      );
+      // The cover is not a photo, and its key is never logged.
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.deleted", eventId, callerId, photoCount: 1, audit: true },
         "Event deleted",
       );
     });
@@ -1577,7 +1649,13 @@ describe("EventsService", () => {
 
       expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(participantsLookup(eventId, callerId));
       expect(result).toEqual([
-        { userId: callerId, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, isBlockedByCaller: false },
+        {
+          userId: callerId,
+          name: "Jane Doe",
+          accessLevel: AccessLevel.ORGANIZER,
+          avatarUrl: null,
+          isBlockedByCaller: false,
+        },
         participantWithDetails,
       ]);
     });
@@ -1607,7 +1685,13 @@ describe("EventsService", () => {
       const result = await service.getEventParticipants(eventId, callerId);
 
       expect(result).toEqual([
-        { userId: callerId, name: "Jane Doe", accessLevel: AccessLevel.ORGANIZER, isBlockedByCaller: false },
+        {
+          userId: callerId,
+          name: "Jane Doe",
+          accessLevel: AccessLevel.ORGANIZER,
+          avatarUrl: null,
+          isBlockedByCaller: false,
+        },
       ]);
     });
 
@@ -1629,6 +1713,29 @@ describe("EventsService", () => {
       const result = await service.getEventParticipants(eventId, callerId);
 
       expect(result[0].name).toBe("Target User");
+    });
+
+    it("presigns an avatar URL per member from the rows already loaded", async () => {
+      const avatarS3Key = `avatars/${targetUserId}/99999999-9999-9999-9999-999999999999`;
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([
+        organizerRow,
+        eventAccessWithUser(targetParticipantAccess, {
+          ...targetUserWithDetails,
+          details: { ...targetUserWithDetails.details!, avatarS3Key },
+        }),
+      ]);
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(result.map((participant) => participant.avatarUrl)).toEqual([
+        null,
+        `https://s3.example/${avatarS3Key}?sig=1`,
+      ]);
+      // No lookup per member: the keys came with the single membership query.
+      expect(prisma.eventAccess.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.userDetails.findMany).not.toHaveBeenCalled();
+      expect(prisma.userDetails.findUnique).not.toHaveBeenCalled();
     });
 
     it("excludes members without user details from the list", async () => {

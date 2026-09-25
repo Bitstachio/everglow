@@ -5,7 +5,8 @@ import { buildInvitationUrl } from "../events.invitation";
 import { EventParticipant } from "../events.types";
 
 export class EventMapper {
-  static toResponseDto(event: Event): EventResponseDto {
+  /** `coverUrl` is presigned by the caller; the mapper never sees S3, and the key is never returned. */
+  static toResponseDto(event: Event, coverUrl: string | null): EventResponseDto {
     return {
       id: event.id,
       title: event.title,
@@ -13,13 +14,10 @@ export class EventMapper {
       date: event.date,
       creatorId: event.creatorId,
       invitationUrl: buildInvitationUrl(event.invitationUrl),
+      coverUrl,
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
     };
-  }
-
-  static toResponseDtoList(events: Event[]): EventResponseDto[] {
-    return events.map((event) => EventMapper.toResponseDto(event));
   }
 
   static toParticipantResponseDto(participant: EventParticipant): EventParticipantResponseDto {
@@ -27,6 +25,7 @@ export class EventMapper {
       userId: participant.userId,
       name: participant.name,
       accessLevel: participant.accessLevel,
+      avatarUrl: participant.avatarUrl,
       isBlockedByCaller: participant.isBlockedByCaller,
     };
   }

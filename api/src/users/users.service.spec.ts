@@ -84,6 +84,7 @@ describe("UsersService", () => {
       userId,
       email: "jane@example.com",
       name: "Jane Doe",
+      avatarS3Key: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -100,7 +101,14 @@ describe("UsersService", () => {
     auth0Management = mockDeep<Auth0ManagementService>();
     deletionPrep = {
       prepareRelatedData: jest.fn().mockResolvedValue({
-        summary: { eventsDeleted: 0, eventsHandedOver: 0, photosKept: 0, photosDeleted: 0, uploadsDiscarded: 0 },
+        summary: {
+          eventsDeleted: 0,
+          eventsHandedOver: 0,
+          photosKept: 0,
+          photosDeleted: 0,
+          uploadsDiscarded: 0,
+          avatarQueued: false,
+        },
         s3Keys: [],
       }),
     };
@@ -272,6 +280,30 @@ describe("UsersService", () => {
       prisma.user.findUnique.mockRejectedValue(prismaError);
 
       await expect(service.getById(userId)).rejects.toThrow(prismaError);
+    });
+  });
+
+  describe("getOnboardedById", () => {
+    it("returns the user once onboarding is complete", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+
+      await expect(service.getOnboardedById(userId)).resolves.toEqual(userWithDetails);
+    });
+
+    it("throws UnprocessableEntityException when onboarding is incomplete", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+
+      await expect(service.getOnboardedById(userId)).rejects.toThrow(
+        new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE),
+      );
+    });
+
+    it("throws NotFoundException when the user does not exist", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getOnboardedById(userId)).rejects.toThrow(
+        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
+      );
     });
   });
 
@@ -617,10 +649,17 @@ describe("UsersService", () => {
       expect(deletionPrep.prepareRelatedData).toHaveBeenCalledWith(userId, AccountDeletionPhotoPolicy.DELETE);
     });
 
-    it("purges the prepared S3 keys only after the row is gone", async () => {
-      const s3Keys = ["photos/u/e/a", "photos/u/e/b"];
+    it("purges the prepared S3 keys, avatar included, only after the row is gone", async () => {
+      const s3Keys = ["photos/u/e/a", "photos/u/e/b", "avatars/u/a"];
       deletionPrep.prepareRelatedData.mockResolvedValue({
-        summary: { eventsDeleted: 1, eventsHandedOver: 0, photosKept: 0, photosDeleted: 2, uploadsDiscarded: 0 },
+        summary: {
+          eventsDeleted: 1,
+          eventsHandedOver: 0,
+          photosKept: 0,
+          photosDeleted: 2,
+          uploadsDiscarded: 0,
+          avatarQueued: true,
+        },
         s3Keys,
       });
       prisma.user.update

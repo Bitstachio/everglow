@@ -14,6 +14,12 @@ import type {
   BlocksControllerUnblockData,
   BlocksControllerUnblockErrors,
   BlocksControllerUnblockResponses,
+  EventsControllerConfirmCoverUploadData,
+  EventsControllerConfirmCoverUploadErrors,
+  EventsControllerConfirmCoverUploadResponses,
+  EventsControllerCreateCoverUploadUrlData,
+  EventsControllerCreateCoverUploadUrlErrors,
+  EventsControllerCreateCoverUploadUrlResponses,
   EventsControllerCreateData,
   EventsControllerCreateErrors,
   EventsControllerCreateResponses,
@@ -35,6 +41,9 @@ import type {
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlErrors,
   EventsControllerRegenerateInvitationUrlResponses,
+  EventsControllerRemoveCoverData,
+  EventsControllerRemoveCoverErrors,
+  EventsControllerRemoveCoverResponses,
   EventsControllerRemoveData,
   EventsControllerRemoveErrors,
   EventsControllerRemoveParticipantData,
@@ -77,12 +86,24 @@ import type {
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingErrors,
   UsersControllerCompleteOnboardingResponses,
+  UsersControllerConfirmAvatarUploadData,
+  UsersControllerConfirmAvatarUploadErrors,
+  UsersControllerConfirmAvatarUploadResponses,
+  UsersControllerCreateAvatarUploadUrlData,
+  UsersControllerCreateAvatarUploadUrlErrors,
+  UsersControllerCreateAvatarUploadUrlResponses,
+  UsersControllerCreatePasswordChangeTicketData,
+  UsersControllerCreatePasswordChangeTicketErrors,
+  UsersControllerCreatePasswordChangeTicketResponses,
   UsersControllerFindMeData,
   UsersControllerFindMeErrors,
   UsersControllerFindMeResponses,
   UsersControllerGetMyStorageData,
   UsersControllerGetMyStorageErrors,
   UsersControllerGetMyStorageResponses,
+  UsersControllerRemoveAvatarData,
+  UsersControllerRemoveAvatarErrors,
+  UsersControllerRemoveAvatarResponses,
   UsersControllerRemoveMeData,
   UsersControllerRemoveMeErrors,
   UsersControllerRemoveMeResponses,
@@ -189,6 +210,84 @@ export const usersControllerGetMyStorage = <ThrowOnError extends boolean = false
   >({
     responseType: "json",
     url: "/api/v2/users/me/storage",
+    ...options,
+  });
+
+/**
+ * Mint a presigned upload URL for the current user's avatar
+ */
+export const usersControllerCreateAvatarUploadUrl = <ThrowOnError extends boolean = false>(
+  options: Options<UsersControllerCreateAvatarUploadUrlData, ThrowOnError>,
+): RequestResult<
+  UsersControllerCreateAvatarUploadUrlResponses,
+  UsersControllerCreateAvatarUploadUrlErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    UsersControllerCreateAvatarUploadUrlResponses,
+    UsersControllerCreateAvatarUploadUrlErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/avatar/upload-url",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Remove the current user's avatar
+ */
+export const usersControllerRemoveAvatar = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerRemoveAvatarData, ThrowOnError>,
+): RequestResult<UsersControllerRemoveAvatarResponses, UsersControllerRemoveAvatarErrors, ThrowOnError> =>
+  (options?.client ?? client).delete<
+    UsersControllerRemoveAvatarResponses,
+    UsersControllerRemoveAvatarErrors,
+    ThrowOnError
+  >({ url: "/api/v2/users/me/avatar", ...options });
+
+/**
+ * Confirm an uploaded avatar and set it on the current user
+ */
+export const usersControllerConfirmAvatarUpload = <ThrowOnError extends boolean = false>(
+  options: Options<UsersControllerConfirmAvatarUploadData, ThrowOnError>,
+): RequestResult<UsersControllerConfirmAvatarUploadResponses, UsersControllerConfirmAvatarUploadErrors, ThrowOnError> =>
+  (options.client ?? client).put<
+    UsersControllerConfirmAvatarUploadResponses,
+    UsersControllerConfirmAvatarUploadErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/avatar",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Create a password-change ticket
+ *
+ * Returns an Auth0-hosted URL where the caller sets a new password. Only database (auth0|…) identities are eligible. The API never accepts a password.
+ */
+export const usersControllerCreatePasswordChangeTicket = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerCreatePasswordChangeTicketData, ThrowOnError>,
+): RequestResult<
+  UsersControllerCreatePasswordChangeTicketResponses,
+  UsersControllerCreatePasswordChangeTicketErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).post<
+    UsersControllerCreatePasswordChangeTicketResponses,
+    UsersControllerCreatePasswordChangeTicketErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/password-change-ticket",
     ...options,
   });
 
@@ -550,4 +649,60 @@ export const eventsControllerRegenerateInvitationUrl = <ThrowOnError extends boo
     responseType: "json",
     url: "/api/v2/events/{eventId}/regenerate-url",
     ...options,
+  });
+
+/**
+ * Mint a presigned upload URL for the event cover image
+ */
+export const eventsControllerCreateCoverUploadUrl = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerCreateCoverUploadUrlData, ThrowOnError>,
+): RequestResult<
+  EventsControllerCreateCoverUploadUrlResponses,
+  EventsControllerCreateCoverUploadUrlErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    EventsControllerCreateCoverUploadUrlResponses,
+    EventsControllerCreateCoverUploadUrlErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/cover/upload-url",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Remove the event cover image
+ */
+export const eventsControllerRemoveCover = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerRemoveCoverData, ThrowOnError>,
+): RequestResult<EventsControllerRemoveCoverResponses, EventsControllerRemoveCoverErrors, ThrowOnError> =>
+  (options.client ?? client).delete<
+    EventsControllerRemoveCoverResponses,
+    EventsControllerRemoveCoverErrors,
+    ThrowOnError
+  >({ url: "/api/v2/events/{eventId}/cover", ...options });
+
+/**
+ * Confirm an uploaded cover image and set it on the event
+ */
+export const eventsControllerConfirmCoverUpload = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerConfirmCoverUploadData, ThrowOnError>,
+): RequestResult<EventsControllerConfirmCoverUploadResponses, EventsControllerConfirmCoverUploadErrors, ThrowOnError> =>
+  (options.client ?? client).put<
+    EventsControllerConfirmCoverUploadResponses,
+    EventsControllerConfirmCoverUploadErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/cover",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });

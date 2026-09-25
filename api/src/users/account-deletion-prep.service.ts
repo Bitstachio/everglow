@@ -4,7 +4,7 @@ import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 
 export interface AccountDeletionPrepSummary {
-  /** Events the account organised alone with nobody else in them: deleted, photos included. */
+  /** Events the account organised alone with nobody else in them: deleted, photos and cover included. */
   eventsDeleted: number;
   /** Events the account organised alone with other members: the longest-standing member is now an organizer. */
   eventsHandedOver: number;
@@ -14,6 +14,8 @@ export interface AccountDeletionPrepSummary {
   photosDeleted: number;
   /** PENDING upload slots discarded. */
   uploadsDiscarded: number;
+  /** Whether the profile had an avatar whose object is queued for the purge. */
+  avatarQueued: boolean;
 }
 
 export interface AccountDeletionPrepResult {
@@ -117,6 +119,9 @@ export class AccountDeletionPrepService {
       // still in it, including photos of members who left earlier.
       const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
       s3Keys.push(...photos.map((photo) => photo.s3Key));
+      // Its cover goes to the same purge; the column disappears with the row.
+      const event = await tx.event.findUnique({ where: { id: eventId }, select: { coverS3Key: true } });
+      if (event?.coverS3Key) s3Keys.push(event.coverS3Key);
       // deleteMany, not delete: a concurrent deletion of the last other member
       // may have removed this event already, and that is the outcome we wanted.
       const { count } = await tx.event.deleteMany({ where: { id: eventId } });
@@ -151,8 +156,22 @@ export class AccountDeletionPrepService {
       photosKept = count;
     }
 
+    // 4. The avatar. Its column cascades with the user row, so only the object
+    //    needs collecting; the row is left alone, which keeps a resumed saga
+    //    finding the same key again.
+    const profile = await tx.userDetails.findUnique({ where: { userId }, select: { avatarS3Key: true } });
+    const avatarS3Key = profile?.avatarS3Key ?? null;
+    if (avatarS3Key) s3Keys.push(avatarS3Key);
+
     return {
-      summary: { eventsDeleted, eventsHandedOver, photosKept, photosDeleted, uploadsDiscarded: pending.length },
+      summary: {
+        eventsDeleted,
+        eventsHandedOver,
+        photosKept,
+        photosDeleted,
+        uploadsDiscarded: pending.length,
+        avatarQueued: avatarS3Key !== null,
+      },
       s3Keys,
     };
   }

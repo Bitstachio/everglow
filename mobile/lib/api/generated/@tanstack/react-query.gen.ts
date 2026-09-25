@@ -15,7 +15,9 @@ import {
   blocksControllerBlock,
   blocksControllerList,
   blocksControllerUnblock,
+  eventsControllerConfirmCoverUpload,
   eventsControllerCreate,
+  eventsControllerCreateCoverUploadUrl,
   eventsControllerFindAll,
   eventsControllerFindOne,
   eventsControllerGetParticipants,
@@ -23,6 +25,7 @@ import {
   eventsControllerLeave,
   eventsControllerRegenerateInvitationUrl,
   eventsControllerRemove,
+  eventsControllerRemoveCover,
   eventsControllerRemoveParticipant,
   eventsControllerUpdate,
   eventsControllerUpdateParticipantAccess,
@@ -37,8 +40,12 @@ import {
   reportsControllerReportPhoto,
   reportsControllerResolveReport,
   usersControllerCompleteOnboarding,
+  usersControllerConfirmAvatarUpload,
+  usersControllerCreateAvatarUploadUrl,
+  usersControllerCreatePasswordChangeTicket,
   usersControllerFindMe,
   usersControllerGetMyStorage,
+  usersControllerRemoveAvatar,
   usersControllerRemoveMe,
   usersControllerUpdateMe,
 } from "../sdk.gen";
@@ -53,6 +60,12 @@ import type {
   BlocksControllerUnblockData,
   BlocksControllerUnblockError,
   BlocksControllerUnblockResponse,
+  EventsControllerConfirmCoverUploadData,
+  EventsControllerConfirmCoverUploadError,
+  EventsControllerConfirmCoverUploadResponse,
+  EventsControllerCreateCoverUploadUrlData,
+  EventsControllerCreateCoverUploadUrlError,
+  EventsControllerCreateCoverUploadUrlResponse,
   EventsControllerCreateData,
   EventsControllerCreateError,
   EventsControllerCreateResponse,
@@ -74,6 +87,9 @@ import type {
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlError,
   EventsControllerRegenerateInvitationUrlResponse,
+  EventsControllerRemoveCoverData,
+  EventsControllerRemoveCoverError,
+  EventsControllerRemoveCoverResponse,
   EventsControllerRemoveData,
   EventsControllerRemoveError,
   EventsControllerRemoveParticipantData,
@@ -116,12 +132,24 @@ import type {
   UsersControllerCompleteOnboardingData,
   UsersControllerCompleteOnboardingError,
   UsersControllerCompleteOnboardingResponse,
+  UsersControllerConfirmAvatarUploadData,
+  UsersControllerConfirmAvatarUploadError,
+  UsersControllerConfirmAvatarUploadResponse,
+  UsersControllerCreateAvatarUploadUrlData,
+  UsersControllerCreateAvatarUploadUrlError,
+  UsersControllerCreateAvatarUploadUrlResponse,
+  UsersControllerCreatePasswordChangeTicketData,
+  UsersControllerCreatePasswordChangeTicketError,
+  UsersControllerCreatePasswordChangeTicketResponse,
   UsersControllerFindMeData,
   UsersControllerFindMeError,
   UsersControllerFindMeResponse,
   UsersControllerGetMyStorageData,
   UsersControllerGetMyStorageError,
   UsersControllerGetMyStorageResponse,
+  UsersControllerRemoveAvatarData,
+  UsersControllerRemoveAvatarError,
+  UsersControllerRemoveAvatarResponse,
   UsersControllerRemoveMeData,
   UsersControllerRemoveMeError,
   UsersControllerRemoveMeResponse,
@@ -316,6 +344,116 @@ export const usersControllerGetMyStorageOptions = (options?: Options<UsersContro
     },
     queryKey: usersControllerGetMyStorageQueryKey(options),
   });
+
+/**
+ * Mint a presigned upload URL for the current user's avatar
+ */
+export const usersControllerCreateAvatarUploadUrlMutation = (
+  options?: Partial<Options<UsersControllerCreateAvatarUploadUrlData>>,
+): UseMutationOptions<
+  UsersControllerCreateAvatarUploadUrlResponse,
+  AxiosError<UsersControllerCreateAvatarUploadUrlError>,
+  Options<UsersControllerCreateAvatarUploadUrlData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerCreateAvatarUploadUrlResponse,
+    AxiosError<UsersControllerCreateAvatarUploadUrlError>,
+    Options<UsersControllerCreateAvatarUploadUrlData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerCreateAvatarUploadUrl({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Remove the current user's avatar
+ */
+export const usersControllerRemoveAvatarMutation = (
+  options?: Partial<Options<UsersControllerRemoveAvatarData>>,
+): UseMutationOptions<
+  UsersControllerRemoveAvatarResponse,
+  AxiosError<UsersControllerRemoveAvatarError>,
+  Options<UsersControllerRemoveAvatarData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerRemoveAvatarResponse,
+    AxiosError<UsersControllerRemoveAvatarError>,
+    Options<UsersControllerRemoveAvatarData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerRemoveAvatar({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Confirm an uploaded avatar and set it on the current user
+ */
+export const usersControllerConfirmAvatarUploadMutation = (
+  options?: Partial<Options<UsersControllerConfirmAvatarUploadData>>,
+): UseMutationOptions<
+  UsersControllerConfirmAvatarUploadResponse,
+  AxiosError<UsersControllerConfirmAvatarUploadError>,
+  Options<UsersControllerConfirmAvatarUploadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerConfirmAvatarUploadResponse,
+    AxiosError<UsersControllerConfirmAvatarUploadError>,
+    Options<UsersControllerConfirmAvatarUploadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerConfirmAvatarUpload({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Create a password-change ticket
+ *
+ * Returns an Auth0-hosted URL where the caller sets a new password. Only database (auth0|…) identities are eligible. The API never accepts a password.
+ */
+export const usersControllerCreatePasswordChangeTicketMutation = (
+  options?: Partial<Options<UsersControllerCreatePasswordChangeTicketData>>,
+): UseMutationOptions<
+  UsersControllerCreatePasswordChangeTicketResponse,
+  AxiosError<UsersControllerCreatePasswordChangeTicketError>,
+  Options<UsersControllerCreatePasswordChangeTicketData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerCreatePasswordChangeTicketResponse,
+    AxiosError<UsersControllerCreatePasswordChangeTicketError>,
+    Options<UsersControllerCreatePasswordChangeTicketData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerCreatePasswordChangeTicket({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 /**
  * Mint presigned upload URLs for a batch of photos
@@ -1041,6 +1179,87 @@ export const eventsControllerRegenerateInvitationUrlMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await eventsControllerRegenerateInvitationUrl({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Mint a presigned upload URL for the event cover image
+ */
+export const eventsControllerCreateCoverUploadUrlMutation = (
+  options?: Partial<Options<EventsControllerCreateCoverUploadUrlData>>,
+): UseMutationOptions<
+  EventsControllerCreateCoverUploadUrlResponse,
+  AxiosError<EventsControllerCreateCoverUploadUrlError>,
+  Options<EventsControllerCreateCoverUploadUrlData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    EventsControllerCreateCoverUploadUrlResponse,
+    AxiosError<EventsControllerCreateCoverUploadUrlError>,
+    Options<EventsControllerCreateCoverUploadUrlData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await eventsControllerCreateCoverUploadUrl({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Remove the event cover image
+ */
+export const eventsControllerRemoveCoverMutation = (
+  options?: Partial<Options<EventsControllerRemoveCoverData>>,
+): UseMutationOptions<
+  EventsControllerRemoveCoverResponse,
+  AxiosError<EventsControllerRemoveCoverError>,
+  Options<EventsControllerRemoveCoverData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    EventsControllerRemoveCoverResponse,
+    AxiosError<EventsControllerRemoveCoverError>,
+    Options<EventsControllerRemoveCoverData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await eventsControllerRemoveCover({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Confirm an uploaded cover image and set it on the event
+ */
+export const eventsControllerConfirmCoverUploadMutation = (
+  options?: Partial<Options<EventsControllerConfirmCoverUploadData>>,
+): UseMutationOptions<
+  EventsControllerConfirmCoverUploadResponse,
+  AxiosError<EventsControllerConfirmCoverUploadError>,
+  Options<EventsControllerConfirmCoverUploadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    EventsControllerConfirmCoverUploadResponse,
+    AxiosError<EventsControllerConfirmCoverUploadError>,
+    Options<EventsControllerConfirmCoverUploadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await eventsControllerConfirmCoverUpload({
         ...options,
         ...fnOptions,
         throwOnError: true,

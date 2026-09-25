@@ -33,7 +33,9 @@ export interface PresignedDownloadInput {
   expiresInSeconds?: number;
 }
 
-export type HeadObjectResult = { exists: true; contentType?: string; sizeBytes?: number } | { exists: false };
+export type HeadObjectResult =
+  | { exists: true; contentType?: string; sizeBytes?: number; lastModified?: Date }
+  | { exists: false };
 
 export interface S3ObjectSummary {
   key: string;
@@ -61,6 +63,13 @@ export interface DeleteObjectsResult {
 // content-length is signed as soon as ContentLength is set on the command and
 // is listed for the same clarity.
 const PRESIGNED_UPLOAD_SIGNED_HEADERS = new Set(["content-type", "content-length"]);
+
+/**
+ * When a URL presigned for `expiresInSeconds` stops being accepted. Computed
+ * before signing so the client never sees a time later than the real cutoff.
+ */
+export const presignedUrlExpiresAt = (expiresInSeconds: number, now = Date.now()): Date =>
+  new Date(now + expiresInSeconds * 1000);
 
 @Injectable()
 export class S3Service implements OnModuleDestroy {
@@ -158,7 +167,12 @@ export class S3Service implements OnModuleDestroy {
   async headObject(key: string): Promise<HeadObjectResult> {
     try {
       const response = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
-      return { exists: true, contentType: response.ContentType, sizeBytes: response.ContentLength };
+      return {
+        exists: true,
+        contentType: response.ContentType,
+        sizeBytes: response.ContentLength,
+        lastModified: response.LastModified,
+      };
     } catch (error) {
       if (error instanceof NotFound) return { exists: false };
       this.logger.error({ err: error as Error, key }, "s3 headObject failed");

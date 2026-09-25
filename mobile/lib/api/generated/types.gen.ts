@@ -7,6 +7,10 @@ export type ClientOptions = {
 export type UserDetailsResponseDto = {
   email: string;
   name: string;
+  /**
+   * Short-lived presigned URL of the profile avatar; null when none is set
+   */
+  avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -57,12 +61,50 @@ export type UpdateUserDto = {
   email?: string;
 };
 
+export type ImageUploadResponseDto = {
+  /**
+   * Pass it back to confirm the upload
+   */
+  uploadId: string;
+  /**
+   * Presigned S3 PUT URL the client uploads bytes to
+   */
+  uploadUrl: string;
+  /**
+   * When uploadUrl stops being accepted; request a new one after this
+   */
+  expiresAt: string;
+};
+
+export type CreateImageUploadDto = {
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  sizeBytes: number;
+};
+
+export type ConfirmImageUploadDto = {
+  /**
+   * The uploadId returned when the upload URL was minted
+   */
+  uploadId: string;
+};
+
+export type PasswordChangeTicketResponseDto = {
+  /**
+   * Auth0-hosted password change URL. Open in the system browser; do not embed in a WebView.
+   */
+  ticketUrl: string;
+};
+
 export type UploadSlotResponseDto = {
   photoId: string;
   /**
    * Presigned S3 PUT URL the client uploads bytes to
    */
   uploadUrl: string;
+  /**
+   * When uploadUrl stops being accepted; mint a new slot after this
+   */
+  expiresAt: string;
 };
 
 export type UploadFileDto = {
@@ -192,6 +234,10 @@ export type EventResponseDto = {
    * Shareable invitation link composed from the stored invite token
    */
   invitationUrl: string;
+  /**
+   * Short-lived presigned URL of the event cover image; null when none is set
+   */
+  coverUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -217,6 +263,10 @@ export type EventParticipantResponseDto = {
   userId: string;
   name: string;
   accessLevel: AccessLevel;
+  /**
+   * Short-lived presigned URL of the member's avatar; null when none is set
+   */
+  avatarUrl: string | null;
   /**
    * Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed.
    */
@@ -438,6 +488,171 @@ export type UsersControllerGetMyStorageResponses = {
 
 export type UsersControllerGetMyStorageResponse =
   UsersControllerGetMyStorageResponses[keyof UsersControllerGetMyStorageResponses];
+
+export type UsersControllerCreateAvatarUploadUrlData = {
+  body: CreateImageUploadDto;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/avatar/upload-url";
+};
+
+export type UsersControllerCreateAvatarUploadUrlErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCreateAvatarUploadUrlError =
+  UsersControllerCreateAvatarUploadUrlErrors[keyof UsersControllerCreateAvatarUploadUrlErrors];
+
+export type UsersControllerCreateAvatarUploadUrlResponses = {
+  /**
+   * Upload id with a presigned S3 PUT URL
+   */
+  201: {
+    data: ImageUploadResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCreateAvatarUploadUrlResponse =
+  UsersControllerCreateAvatarUploadUrlResponses[keyof UsersControllerCreateAvatarUploadUrlResponses];
+
+export type UsersControllerRemoveAvatarData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/avatar";
+};
+
+export type UsersControllerRemoveAvatarErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerRemoveAvatarError =
+  UsersControllerRemoveAvatarErrors[keyof UsersControllerRemoveAvatarErrors];
+
+export type UsersControllerRemoveAvatarResponses = {
+  /**
+   * Avatar removed (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type UsersControllerRemoveAvatarResponse =
+  UsersControllerRemoveAvatarResponses[keyof UsersControllerRemoveAvatarResponses];
+
+export type UsersControllerConfirmAvatarUploadData = {
+  body: ConfirmImageUploadDto;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/avatar";
+};
+
+export type UsersControllerConfirmAvatarUploadErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerConfirmAvatarUploadError =
+  UsersControllerConfirmAvatarUploadErrors[keyof UsersControllerConfirmAvatarUploadErrors];
+
+export type UsersControllerConfirmAvatarUploadResponses = {
+  /**
+   * User profile with the new avatar
+   */
+  200: {
+    data: UserResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerConfirmAvatarUploadResponse =
+  UsersControllerConfirmAvatarUploadResponses[keyof UsersControllerConfirmAvatarUploadResponses];
+
+export type UsersControllerCreatePasswordChangeTicketData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/password-change-ticket";
+};
+
+export type UsersControllerCreatePasswordChangeTicketErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Caller is not a database identity
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCreatePasswordChangeTicketError =
+  UsersControllerCreatePasswordChangeTicketErrors[keyof UsersControllerCreatePasswordChangeTicketErrors];
+
+export type UsersControllerCreatePasswordChangeTicketResponses = {
+  /**
+   * Password-change ticket URL
+   */
+  200: {
+    data: PasswordChangeTicketResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerCreatePasswordChangeTicketResponse =
+  UsersControllerCreatePasswordChangeTicketResponses[keyof UsersControllerCreatePasswordChangeTicketResponses];
 
 export type PhotosControllerCreateUploadUrlsData = {
   body: CreateUploadUrlsDto;
@@ -1398,3 +1613,129 @@ export type EventsControllerRegenerateInvitationUrlResponses = {
 
 export type EventsControllerRegenerateInvitationUrlResponse =
   EventsControllerRegenerateInvitationUrlResponses[keyof EventsControllerRegenerateInvitationUrlResponses];
+
+export type EventsControllerCreateCoverUploadUrlData = {
+  body: CreateImageUploadDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/cover/upload-url";
+};
+
+export type EventsControllerCreateCoverUploadUrlErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerCreateCoverUploadUrlError =
+  EventsControllerCreateCoverUploadUrlErrors[keyof EventsControllerCreateCoverUploadUrlErrors];
+
+export type EventsControllerCreateCoverUploadUrlResponses = {
+  /**
+   * Upload id with a presigned S3 PUT URL
+   */
+  201: {
+    data: ImageUploadResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerCreateCoverUploadUrlResponse =
+  EventsControllerCreateCoverUploadUrlResponses[keyof EventsControllerCreateCoverUploadUrlResponses];
+
+export type EventsControllerRemoveCoverData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/cover";
+};
+
+export type EventsControllerRemoveCoverErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerRemoveCoverError =
+  EventsControllerRemoveCoverErrors[keyof EventsControllerRemoveCoverErrors];
+
+export type EventsControllerRemoveCoverResponses = {
+  /**
+   * Cover removed (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type EventsControllerRemoveCoverResponse =
+  EventsControllerRemoveCoverResponses[keyof EventsControllerRemoveCoverResponses];
+
+export type EventsControllerConfirmCoverUploadData = {
+  body: ConfirmImageUploadDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/cover";
+};
+
+export type EventsControllerConfirmCoverUploadErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerConfirmCoverUploadError =
+  EventsControllerConfirmCoverUploadErrors[keyof EventsControllerConfirmCoverUploadErrors];
+
+export type EventsControllerConfirmCoverUploadResponses = {
+  /**
+   * Event with the new cover
+   */
+  200: {
+    data: EventResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerConfirmCoverUploadResponse =
+  EventsControllerConfirmCoverUploadResponses[keyof EventsControllerConfirmCoverUploadResponses];

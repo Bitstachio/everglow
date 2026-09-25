@@ -228,7 +228,7 @@ Two things fix it, and both are needed.
 | `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence that belongs to the event; it outlives whoever filed it, was named in it, or resolved it ([moderation.md](./moderation.md#what-happens-on-delete)). |
 | `UserBlock.blockerId`, `UserBlock.blockedId` | `Cascade` | A block means nothing once either account is gone. |
 
-**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, and applying the photo policy. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys, which are purged best effort after the row is gone. Reports and blocks need no step here: their relations above settle them on their own.
+**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos, the covers of deleted events, and the avatar alike), which are purged best effort after the row is gone. Reports and blocks need no step here: their relations above settle them on their own.
 
 **Accounts already being deleted do not count as cover.** Both organizer rules ignore members whose own `deletionStartedAt` is set. Without that, two members of one event leaving at the same time can strand it:
 
@@ -248,8 +248,9 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 | Data                                          | On deletion                                                                   |
 | --------------------------------------------- | ----------------------------------------------------------------------------- |
 | Identity, profile (`UserDetails`)             | Deleted. No name or email survives.                                           |
+| Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.      |
 | Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                          |
-| Events organised alone, nobody else in them   | Deleted, with every photo still in them.                                      |
+| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                  |
 | Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                |
 | Events with another organizer                 | Untouched; only the membership goes.                                          |
 | `Event.creatorId` on surviving events         | Null.                                                                         |
@@ -284,15 +285,17 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Organises an event with another organizer      | Membership removed; event untouched                                                                      |
 | Only organizer, other members are participants | Longest-standing participant promoted                                                                    |
 | Only organizer, other members are only viewers | Longest-standing viewer promoted                                                                         |
-| Only member of the event                       | Event deleted with all its photos; S3 purged after commit                                                |
+| Only member of the event                       | Event deleted with all its photos and its cover; S3 purged after commit                                  |
 | Created an event it later left                 | `creatorId` set to null; nothing else                                                                    |
 | Uploaded photos, `?photos=KEEP`                | Kept, `addedById` null; organizers can still delete them                                                 |
 | Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit                                                        |
-| Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the photo reconciler             |
+| Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the S3 orphan reconciler         |
+| Has an avatar                                  | Key collected in prep, column left to the cascade, object purged after commit ([image-uploads.md](./image-uploads.md)) |
+| Avatar uploaded but never confirmed            | No row ever referenced it; an orphan for the S3 orphan reconciler                                        |
 | Prep fails                                     | 500, Auth0 untouched, login intact, retryable                                                            |
 | Auth0 fails after intent                       | 500, row and flag kept; reconciler retries, 404 counts as success                                        |
 | Database delete fails after Auth0              | Row kept and flagged; reconciler finishes it                                                             |
-| S3 purge fails                                 | Logged with counts; photo orphan reconciler reclaims; request still 204                                  |
+| S3 purge fails                                 | Logged with counts; S3 orphan reconciler reclaims; request still 204                                     |
 | Any request with a pre-deletion token          | Generic 401; client signs out                                                                            |
 | Same person signs in again later               | New account, new id, free tier (see authentication.md §6)                                                |
 | Deletion abandoned after the attempt budget    | Reported once as `user.account.deletion_abandoned`; the row awaits a person (§4 runbook)                 |

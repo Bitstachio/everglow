@@ -1,6 +1,9 @@
+const coverage = require("./jest.coverage");
+
 /** @type {import('jest').Config} */
 module.exports = {
   preset: "jest-expo",
+  ...coverage("unit"),
   testMatch: ["**/*.(test|spec).(ts|tsx|js|jsx)"],
   testPathIgnorePatterns: ["\\.integration\\.(test|spec)\\.(ts|tsx|js|jsx)$"],
   moduleNameMapper: {

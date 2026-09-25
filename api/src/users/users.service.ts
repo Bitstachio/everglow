@@ -18,7 +18,7 @@ import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK, USER_SERVICE_ERRORS } from "./users.constants";
-import { UserWithDetails, userWithDetailsInclude } from "./users.types";
+import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
 
 /** Fields the account-deletion saga needs; callers may pass a lean select. */
 export type AccountDeletionUser = Pick<
@@ -79,10 +79,18 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
+  /** The user, or 422 while onboarding is incomplete: profile data hangs off the details row. */
+  async getOnboardedById(id: string): Promise<OnboardedUser> {
     const user = await this.getById(id);
 
     if (!user.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+
+    return user as OnboardedUser;
+  }
+
+  async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
+    await this.getOnboardedById(id);
+
     if (dto.email) await this.assertEmailIsUnique(dto.email, id);
 
     const updated = await this.prisma.user.update({
@@ -188,8 +196,9 @@ export class UsersService {
       "User account deleted",
     );
 
-    // S3 last and best effort: the rows are already gone, so what is left at
-    // stake is storage cost, which the photo orphan reconciler also covers.
+    // S3 last and best effort (photos and the avatar alike): the rows are
+    // already gone, so what is left at stake is storage cost, which the S3
+    // orphan reconciler also covers.
     await this.photoPurge.purgeObjects(s3Keys, { event: ALERT_EVENTS.ACCOUNT_PHOTOS_PURGED, userId: id });
   }
 

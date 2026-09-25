@@ -35,6 +35,7 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   date: new Date("2026-08-15T18:00:00.000Z"),
   creatorId: TEST_USER_ID,
   invitationUrl: TEST_INVITE_TOKEN,
+  coverS3Key: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,
@@ -47,6 +48,7 @@ export const buildOtherUserEvent = (overrides: Partial<Event> = {}): Event => ({
   date: new Date("2026-09-01T18:00:00.000Z"),
   creatorId: TEST_OTHER_USER_ID,
   invitationUrl: TEST_OTHER_INVITE_TOKEN,
+  coverS3Key: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,
@@ -110,6 +112,7 @@ export const buildOtherUserWithDetails = (overrides: Partial<UserWithDetails> = 
       userId: TEST_OTHER_USER_ID,
       email: "other@example.com",
       name: "Other User",
+      avatarS3Key: null,
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
     },
@@ -125,19 +128,21 @@ export const buildTargetUserWithDetails = (overrides: Partial<UserWithDetails> =
       userId: TEST_TARGET_USER_ID,
       email: "target@example.com",
       name: "Target User",
+      avatarS3Key: null,
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
     },
     ...overrides,
   });
 
-export const expectedEventResponse = (event: Event) => ({
+export const expectedEventResponse = (event: Event, coverUrl: string | null = null) => ({
   id: event.id,
   title: event.title,
   description: event.description,
   date: event.date.toISOString(),
   creatorId: event.creatorId,
   invitationUrl: buildInvitationUrl(event.invitationUrl),
+  coverUrl,
   createdAt: event.createdAt.toISOString(),
   updatedAt: event.updatedAt.toISOString(),
 });

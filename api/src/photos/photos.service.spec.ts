@@ -63,6 +63,7 @@ describe("PhotosService", () => {
       userId: callerId,
       email: "caller@example.com",
       name: "Caller",
+      avatarS3Key: null,
       createdAt: now,
       updatedAt: now,
     },
@@ -75,6 +76,7 @@ describe("PhotosService", () => {
     date: new Date("2026-08-15T18:00:00.000Z"),
     creatorId: callerId,
     invitationUrl: "invite-token",
+    coverS3Key: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -242,7 +244,11 @@ describe("PhotosService", () => {
 
         expect(slots).toHaveLength(files.length);
         for (const [index, slot] of slots.entries()) {
-          expect(slot).toEqual({ photoId: rows[index].id, uploadUrl: "https://signed-put" });
+          expect(slot).toEqual({
+            photoId: rows[index].id,
+            uploadUrl: "https://signed-put",
+            expiresAt: expect.any(Date) as Date,
+          });
         }
         expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith({
           key: rows[0].s3Key,

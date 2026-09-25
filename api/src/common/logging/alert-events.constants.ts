@@ -29,8 +29,8 @@ export const ALERT_EVENTS = {
   ACCOUNT_DELETION_RECONCILE_RUN_FAILED: "user.account.deletion_reconcile.run_failed",
   PHOTO_PENDING_CLEANUP_RUN_COMPLETED: "photo.pending_cleanup.run_completed",
   PHOTO_PENDING_CLEANUP_RUN_FAILED: "photo.pending_cleanup.run_failed",
-  PHOTO_ORPHAN_RECONCILE_RUN_COMPLETED: "photo.orphan_reconcile.run_completed",
-  PHOTO_ORPHAN_RECONCILE_RUN_FAILED: "photo.orphan_reconcile.run_failed",
+  S3_ORPHAN_RECONCILE_RUN_COMPLETED: "storage.orphan_reconcile.run_completed",
+  S3_ORPHAN_RECONCILE_RUN_FAILED: "storage.orphan_reconcile.run_failed",
 } as const;
 
 export type AlertEvent = (typeof ALERT_EVENTS)[keyof typeof ALERT_EVENTS];
