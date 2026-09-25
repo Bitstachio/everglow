@@ -44,15 +44,15 @@ A report points at a photo or at a member. Both are stored as plain foreign keys
 
 A report never blocks a deletion, and only the event takes reports with it.
 
-| Relation                | On delete  | Why                                                                                                                  |
-| ----------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------- |
-| `Report.eventId`        | `Cascade`  | Reports are the event's moderation queue. With the event gone there is nobody to read them and nothing to moderate.   |
-| `Report.reporterId`     | `SetNull`  | A reporter deleting their account must not erase the evidence. The report stays, and still counts towards hiding.     |
-| `Report.photoId`        | `SetNull`  | Deleting the photo is usually the organizer's answer to the report. The report stays so it can be resolved `ACTIONED`. |
-| `Report.reportedUserId` | `SetNull`  | A reported account can be deleted like any other; what was reported about it stays in the event's queue.              |
-| `Report.resolvedById`   | `SetNull`  | The verdict outlives the organizer who gave it.                                                                       |
-| `UserBlock.blockerId`   | `Cascade`  | A block means nothing once either side is gone.                                                                       |
-| `UserBlock.blockedId`   | `Cascade`  | Same.                                                                                                                 |
+| Relation                | On delete | Why                                                                                                                    |
+| ----------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `Report.eventId`        | `Cascade` | Reports are the event's moderation queue. With the event gone there is nobody to read them and nothing to moderate.    |
+| `Report.reporterId`     | `SetNull` | A reporter deleting their account must not erase the evidence. The report stays, and still counts towards hiding.      |
+| `Report.photoId`        | `SetNull` | Deleting the photo is usually the organizer's answer to the report. The report stays so it can be resolved `ACTIONED`. |
+| `Report.reportedUserId` | `SetNull` | A reported account can be deleted like any other; what was reported about it stays in the event's queue.               |
+| `Report.resolvedById`   | `SetNull` | The verdict outlives the organizer who gave it.                                                                        |
+| `UserBlock.blockerId`   | `Cascade` | A block means nothing once either side is gone.                                                                        |
+| `UserBlock.blockedId`   | `Cascade` | Same.                                                                                                                  |
 
 So account deletion needs **no prep step** for either model: `AccountDeletionPrepService` is unchanged, and `user.delete` cannot fail on a report or a block (see [account-deletion.md §6](./account-deletion.md#6-prep-making-the-row-deletable)).
 
@@ -60,12 +60,12 @@ So account deletion needs **no prep step** for either model: `AccountDeletionPre
 
 Added by hand in the migration. Each is written so that a later `SET NULL` still passes: a comparison with `NULL` is `NULL`, and a `CHECK` only rejects `FALSE`.
 
-| Constraint                                | Rule                                                                                  |
-| ----------------------------------------- | ------------------------------------------------------------------------------------- |
-| `Report_member_target_has_no_photo_check` | `targetType = 'PHOTO' OR photoId IS NULL`                                             |
-| `Report_reporter_is_not_reported_check`   | `reporterId <> reportedUserId`                                                        |
-| `Report_resolution_matches_status_check`  | OPEN has no `resolvedAt` and no `resolvedById`; a resolved report has a `resolvedAt`   |
-| `UserBlock_no_self_block_check`           | `blockerId <> blockedId`                                                              |
+| Constraint                                | Rule                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| `Report_member_target_has_no_photo_check` | `targetType = 'PHOTO' OR photoId IS NULL`                                            |
+| `Report_reporter_is_not_reported_check`   | `reporterId <> reportedUserId`                                                       |
+| `Report_resolution_matches_status_check`  | OPEN has no `resolvedAt` and no `resolvedById`; a resolved report has a `resolvedAt` |
+| `UserBlock_no_self_block_check`           | `blockerId <> blockedId`                                                             |
 
 ### One OPEN report per reporter and target
 
@@ -82,24 +82,24 @@ The photo index needs no `targetType` predicate: MEMBER reports have a null `pho
 
 ### Indexes
 
-| Index                                        | Serves                                                                                    |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `(eventId, status, createdAt)`               | The organizer queue, and the per-event lookup of photos over the hide threshold (§3)       |
-| `(reporterId, photoId) WHERE OPEN` (unique)  | Idempotency, and "which photos has the caller an open report on?" in the photo read paths |
-| `(photoId)`, `(reporterId)`, `(reportedUserId)`, `(resolvedById)` | The rows each `SET NULL` has to find when a photo or an account is deleted |
-| `UserBlock (blockerId, blockedId)` (unique)  | Idempotency, the caller's block list, "did the caller block this uploader?"               |
-| `UserBlock (blockedId)`                      | The other direction of the symmetric filter, and the cascade                              |
+| Index                                                             | Serves                                                                                    |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `(eventId, status, createdAt)`                                    | The organizer queue, and the per-event lookup of photos over the hide threshold (§3)      |
+| `(reporterId, photoId) WHERE OPEN` (unique)                       | Idempotency, and "which photos has the caller an open report on?" in the photo read paths |
+| `(photoId)`, `(reporterId)`, `(reportedUserId)`, `(resolvedById)` | The rows each `SET NULL` has to find when a photo or an account is deleted                |
+| `UserBlock (blockerId, blockedId)` (unique)                       | Idempotency, the caller's block list, "did the caller block this uploader?"               |
+| `UserBlock (blockedId)`                                           | The other direction of the symmetric filter, and the cascade                              |
 
 ---
 
 ## 2. Reports
 
-| Endpoint                                                     | Who               | Result                                         |
-| ------------------------------------------------------------ | ----------------- | ---------------------------------------------- |
-| `POST /photos/:photoId/reports`                              | any member        | 201, the caller's OPEN report on the photo     |
-| `POST /events/:eventId/participants/:targetUserId/reports`   | any member        | 201, the caller's OPEN report on the member    |
-| `GET /events/:eventId/reports?status=&cursor=&limit=`        | organizers        | 200, `{ items, nextCursor }`, newest first     |
-| `PATCH /reports/:reportId` `{ status: ACTIONED \| DISMISSED }` | organizers        | 200, the resolved report                       |
+| Endpoint                                                   | Who        | Result                                      |
+| ---------------------------------------------------------- | ---------- | ------------------------------------------- |
+| `POST /photos/:photoId/reports`                            | any member | 201, the caller's OPEN report on the photo  |
+| `POST /events/:eventId/participants/:targetUserId/reports` | any member | 201, the caller's OPEN report on the member |
+| `GET /events/:eventId/reports?status=&cursor=&limit=`      | organizers | 200, `{ items, nextCursor }`, newest first  |
+| `PATCH /reports/:reportId` `{ action }`                    | organizers | 200, the resolved report                    |
 
 The target is in the route, so both `POST`s share one body: `{ reason, note? }`.
 
@@ -110,9 +110,20 @@ Rules:
 - **The photo must be visible to the reporter.** A photo they cannot see (a blocked uploader, or one already hidden from everyone) is a 404, exactly as `GET /photos/:photoId` would answer. The one exception is a photo hidden by their own OPEN report: that is a repeat, and it gets the report back.
 - **Repeats are idempotent.** While the caller's earlier report on the same target is OPEN, `POST` returns that report with 201 and creates nothing. The reason and note of the first submission stand.
 - **Reporters are anonymous to organizers.** `ReportResponseDto` has no `reporterId`. In a small event an organizer who learns who reported them can retaliate; the id stays in the database and in the audit log (§5) for the platform owner.
-- **Resolving deletes nothing.** Organizers already have `DELETE /photos/:photoId` and `DELETE /events/:eventId/participants/:targetUserId`. `ACTIONED` records that they used one of them (or otherwise dealt with it), `DISMISSED` that nothing was wrong. A report whose photo or account has since been deleted can still be resolved.
+- **Organizers see who uploaded a reported photo, never who reported it.** `reportedUserId` is the uploader (or the reported member); there is no reporter field.
+- **Resolving is an action, not a label.** The organizer says what to do, and the API does it and records the verdict in one transaction:
+
+  | `action`        | What it does                                                                               | Every OPEN report on the target becomes |
+  | --------------- | ------------------------------------------------------------------------------------------ | --------------------------------------- |
+  | `REMOVE_PHOTO`  | Deletes the reported photo. Photo reports only; on a member report it is a 400.            | `ACTIONED`                              |
+  | `REMOVE_MEMBER` | Removes the reported member from the event, and for a photo report deletes that photo too. | `ACTIONED`                              |
+  | `DISMISS`       | Nothing. The content stays, and a photo hidden by its reports is back.                     | `DISMISSED`                             |
+
+  "The target" is the photo for a photo report, the member for a member report, and for `REMOVE_MEMBER` everything reported about that member in the event, photos included. One verdict closes them all, so a photo reported by five people is one decision, not five. A report whose target has since been deleted closes just itself.
+
+- **A removal needs something to remove.** `REMOVE_PHOTO` when the photo is already gone, or `REMOVE_MEMBER` when the account is gone, is a 422; `DISMISS` closes such a report. The photo's S3 object is deleted after the transaction commits. If that fails the call still succeeds, a `report.photo_object_retained` warning is logged, and the orphan reconciler removes the object later.
 - **An organizer cannot resolve a report about themselves** or about their own photo: 403. Another organizer has to. If there is none, the report stays OPEN, which is one reason such reports are escalated at creation (§5).
-- **A report is resolved once.** The update is guarded on `status = OPEN`; a second verdict, including one racing the first, gets 409.
+- **A report is resolved once.** The update is guarded on `status = OPEN`; a second verdict, including one racing the first, gets 409 and removes nothing.
 - The list uses the same keyset pagination as the photo list (`src/common/pagination`).
 
 ---
@@ -133,7 +144,8 @@ Hiding is a **filter in the photo read paths**. `PhotoStatus` is untouched and n
 
    One OPEN report per reporter is enforced by the database (§1), so counting rows is counting distinct reporters.
 
-3. **Resolving restores.** Each report is resolved on its own, as `ACTIONED` or `DISMISSED`; either takes it out of the count. The photo is back for everyone as soon as fewer OPEN reports than the threshold remain, and back for a reporter when their own report is resolved. `ACTIONED` is expected to follow the delete, in which case there is nothing left to restore.
+3. **A photo is hidden from everyone except the event's organizers after one OPEN report for a severe reason** (`NUDITY_OR_SEXUAL` or `VIOLENCE`, `SEVERE_REPORT_REASONS`). Leaving such a photo up while it collects more reports costs more than hiding a harmless one until an organizer looks. The report is escalated at once as well (§5).
+4. **Resolving restores.** A verdict closes every OPEN report on the photo (§2). `DISMISS` brings the photo back for everyone, reporters included; `REMOVE_PHOTO` and `REMOVE_MEMBER` delete it, so there is nothing to restore.
 
 "Everyone" includes the uploader. Organizers always see the photo, because they are the ones who have to look at it.
 
@@ -148,8 +160,9 @@ The threshold is evaluated when photos are read, not stored on the photo. Member
 
 {
   AND: [
-    { reports: { none: { reporterId: callerId, status: OPEN } } }, // rule 1
-    { id: { notIn: photoIdsOverThreshold } },                      // rule 2
+    { reports: { none: { reporterId: callerId, status: OPEN } } },                  // rule 1
+    { reports: { none: { status: OPEN, reason: { in: SEVERE_REPORT_REASONS } } } }, // rule 3
+    { id: { notIn: photoIdsOverThreshold } },                                       // rule 2
     { NOT: { addedBy: { is: { OR: [blockedByCaller, blockedTheCaller] } } } }, // blocks, §4
   ],
 }
@@ -161,17 +174,17 @@ The threshold is evaluated when photos are read, not stored on the photo. Member
 
 Both callers load the event with `eventForPhotoVisibilityInclude(callerId)`, which brings the caller's membership and the member count along with the row they were loading anyway.
 
-Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … HAVING count(*) >= threshold` over the event's OPEN reports on `(eventId, status, createdAt)`. It returns the handful of photos currently waiting for an organizer, not a row per photo. Rule 1 and the blocks are subqueries inside the photo query, answered by `(reporterId, photoId) WHERE OPEN` and the two `UserBlock` indexes. There is no per-row query. Organizers pay nothing.
+Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … HAVING count(*) >= threshold` over the event's OPEN reports on `(eventId, status, createdAt)`. It returns the handful of photos currently waiting for an organizer, not a row per photo. Rules 1 and 3 and the blocks are subqueries inside the photo query, answered by `(reporterId, photoId) WHERE OPEN` and the two `UserBlock` indexes. There is no per-row query. Organizers pay nothing.
 
 ---
 
 ## 4. Blocks
 
-| Endpoint                           | Result                                           |
-| ---------------------------------- | ------------------------------------------------ |
-| `PUT /users/me/blocks/:userId`     | 200, `{ userId, name, username, blockedAt }`               |
-| `DELETE /users/me/blocks/:userId`  | 204                                              |
-| `GET /users/me/blocks`             | 200, `{ items: [{ userId, name, username, blockedAt }] }`  |
+| Endpoint                          | Result                                                    |
+| --------------------------------- | --------------------------------------------------------- |
+| `PUT /users/me/blocks/:userId`    | 200, `{ userId, name, username, blockedAt }`              |
+| `DELETE /users/me/blocks/:userId` | 204                                                       |
+| `GET /users/me/blocks`            | 200, `{ items: [{ userId, name, username, blockedAt }] }` |
 
 - **Only someone you share an event with.** Anyone else gets the same 404 as a user id that does not exist, so the endpoint cannot be used to find out which ids are real. Blocking yourself is a 403.
 - **Both writes are idempotent.** Blocking twice returns the existing block (`ON CONFLICT DO NOTHING` on the unique pair, so two requests at once leave one row); unblocking someone who is not blocked is a 204.
@@ -181,16 +194,17 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 - **Nobody is removed from anything.** Both users stay members, both can upload, and third parties see the photos of both. Removing a member is an organizer's decision, not a side effect of a block.
 - **Both still see each other in the members list.** Hiding membership would confuse organizers and would leak anyway through member counts and other members' photos. The row is marked instead (next point), which is how Discord and WhatsApp treat blocked people in shared groups.
 - **The participants list marks who I blocked.** Each row of `GET /events/:eventId/participants` has `isBlockedByCaller`, so the client can offer to unblock. It is loaded in the same query as the roster, and only ever from `blocksReceived WHERE blockerId = caller`: nothing in the API reveals who has blocked the caller.
+
 ### Joining an event across a block
 
 `POST /events/join` checks blocks between the joiner and the event's **organizers** (any organizer, not only the creator), in both directions, in one query:
 
-| Situation | Result |
-| --- | --- |
-| An organizer blocked the joiner | **404**, the same `Event with invitation URL "…" not found` as a link that does not exist. The block is never revealed to the person blocked |
-| The joiner blocked an organizer | **403** with `code: ORGANIZER_BLOCKED_BY_CALLER` and "This event is organized by … you blocked. Unblock them to join." The joiner made the block, so explaining it reveals nothing, and the client can offer to unblock |
-| Both blocked each other | 404, as in the first row |
-| The joiner and an ordinary member blocked each other | Joins normally; the photo filter keeps the two apart |
+| Situation                                            | Result                                                                                                                                                                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An organizer blocked the joiner                      | **404**, the same `Event with invitation URL "…" not found` as a link that does not exist. The block is never revealed to the person blocked                                                                            |
+| The joiner blocked an organizer                      | **403** with `code: ORGANIZER_BLOCKED_BY_CALLER` and "This event is organized by … you blocked. Unblock them to join." The joiner made the block, so explaining it reveals nothing, and the client can offer to unblock |
+| Both blocked each other                              | 404, as in the first row                                                                                                                                                                                                |
+| The joiner and an ordinary member blocked each other | Joins normally; the photo filter keeps the two apart                                                                                                                                                                    |
 
 Existing memberships are not changed when a block happens later; an organizer who wants a blocked member out uses remove-member.
 
@@ -202,20 +216,22 @@ Existing memberships are not changed when a block happens later; an organizer wh
 
 Organizers moderate their own events, but the platform owner has to be able to act when they do not, or when they are the problem. There is no admin endpoint yet (§8), so escalation is **log-based**: alerting keys off stable event names.
 
-| Event              | Level  | When                          | Fields                                                                                            |
-| ------------------ | ------ | ----------------------------- | ------------------------------------------------------------------------------------------------- |
-| `report.created`   | `info` | every new report              | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `reason`, `audit`    |
-| `report.escalated` | `warn` | a new report that needs a human | the same, plus `escalationReasons`                                                                |
-| `report.resolved`  | `info` | an organizer's verdict        | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `resolution`, `audit` |
-| `user.block.created`, `user.block.removed` | `info` | the block list changed | `callerId`, `blockedUserId`, `audit`                                                 |
+| Event                                      | Level  | When                                                 | Fields                                                                                                                                                              |
+| ------------------------------------------ | ------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report.created`                           | `info` | every new report                                     | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `reason`, `audit`                                                                     |
+| `report.escalated`                         | `warn` | a new report that needs a human                      | the same, plus `escalationReasons`                                                                                                                                  |
+| `report.resolved`                          | `info` | an organizer's verdict                               | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `action`, `resolution`, `closedReports`, `removedPhotoId`, `removedMemberId`, `audit` |
+| `report.stale`                             | `warn` | hourly, while any report has been OPEN over 24 hours | `stale` (the count), `reportIds` and `eventIds` of the 20 oldest, `oldestCreatedAt`, `audit`                                                                        |
+| `user.block.created`, `user.block.removed` | `info` | the block list changed                               | `callerId`, `blockedUserId`, `audit`                                                                                                                                |
 
-**`report.escalated` is the alert** (a ticket, see [alerting.md §3](./alerting.md#3-events-to-alert-on)); the other three are audit records. `escalationReasons` holds one or more of:
+**`report.escalated` and `report.stale` are the alerts** (tickets, see [alerting.md §3](./alerting.md#3-events-to-alert-on)); the rest are audit records. `report.stale` catches the organizer who does not act: `StaleReportCheckScheduler` runs every hour (`STALE_REPORT_AFTER_HOURS` = 24) with the usual `report.stale_check.run_completed` / `run_failed` heartbeat. `escalationReasons` holds one or more of:
 
-| Reason                   | Meaning                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `severe_reason`          | The reason is `NUDITY_OR_SEXUAL` or `VIOLENCE` (`SEVERE_REPORT_REASONS`).                                     |
-| `target_is_organizer`    | The reported member, or the uploader of the reported photo, organizes the event and cannot judge it themselves. |
-| `hide_threshold_reached` | This report is the one that hid the photo from the event. It stays hidden until an organizer resolves it.     |
+| Reason                     | Meaning                                                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `severe_reason`            | The reason is `NUDITY_OR_SEXUAL` or `VIOLENCE` (`SEVERE_REPORT_REASONS`). A photo report of this kind also hides the photo (§3). |
+| `target_is_organizer`      | The reported member, or the uploader of the reported photo, organizes the event and cannot judge it themselves.                  |
+| `target_is_sole_organizer` | Added to `target_is_organizer` when they are the event's only organizer, so no one in the event can resolve it.                  |
+| `hide_threshold_reached`   | This report is the one that hid the photo from the event. It stays hidden until an organizer resolves it.                        |
 
 A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged ([logging-conventions.md §3](./logging-conventions.md#3-redaction--pii-the-non-negotiable-rule)).
 
@@ -238,9 +254,8 @@ The five mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/part
 ## 8. Out of scope
 
 - **An admin dashboard or admin endpoint.** The platform owner works from the logs and the database for now.
-- **Notifications** to organizers about new reports, or to reporters about the outcome.
-- **Resolving every report on a target in one call.** Each report is resolved on its own.
-- **Automatic removal.** No number of reports deletes a photo or removes a member; hiding is the strongest automatic effect.
+- **Notifications.** Organizers should hear about new reports and hidden photos, and uploaders only when their photo is removed; reporters are not told the outcome. Tracked in the Notifications project in Linear.
+- **Automatic removal.** No number of reports deletes a photo or removes a member; hiding is the strongest automatic effect, and deleting is always an organizer's `action`.
 - **Content scanning** (hashes, classifiers) at upload.
 - **Hiding members.** A block filters photos. The blocked member still appears in the participants list, flagged for the blocker.
 - **An appeal flow** for the uploader of a hidden photo.

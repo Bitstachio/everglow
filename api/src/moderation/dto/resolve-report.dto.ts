@@ -1,15 +1,18 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsIn } from "class-validator";
-import { REPORT_RESOLUTIONS, type ReportResolution } from "../moderation.constants";
+import { REPORT_RESOLUTION_ACTIONS, type ReportResolutionAction } from "../moderation.constants";
+
+const ACTIONS = Object.values(REPORT_RESOLUTION_ACTIONS);
 
 export class ResolveReportDto {
   @ApiProperty({
-    enum: REPORT_RESOLUTIONS,
-    enumName: "ReportResolution",
+    enum: ACTIONS,
+    enumName: "ReportResolutionAction",
     description:
-      "ACTIONED: the organizer dealt with the target (deleted the photo, removed the member). " +
-      "DISMISSED: nothing was wrong. Neither deletes anything by itself; both end the report's hiding effect.",
+      "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, " +
+      "and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. " +
+      "Every action closes all OPEN reports on the same target.",
   })
-  @IsIn(REPORT_RESOLUTIONS)
-  status: ReportResolution;
+  @IsIn(ACTIONS)
+  action: ReportResolutionAction;
 }

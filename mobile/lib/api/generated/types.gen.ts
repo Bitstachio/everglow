@@ -215,15 +215,15 @@ export type ReportListResponseDto = {
 };
 
 /**
- * ACTIONED: the organizer dealt with the target (deleted the photo, removed the member). DISMISSED: nothing was wrong. Neither deletes anything by itself; both end the report's hiding effect.
+ * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
  */
-export type ReportResolution = "ACTIONED" | "DISMISSED";
+export type ReportResolutionAction = "REMOVE_PHOTO" | "REMOVE_MEMBER" | "DISMISS";
 
 export type ResolveReportDto = {
   /**
-   * ACTIONED: the organizer dealt with the target (deleted the photo, removed the member). DISMISSED: nothing was wrong. Neither deletes anything by itself; both end the report's hiding effect.
+   * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event, and the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
    */
-  status: ReportResolution;
+  action: ReportResolutionAction;
 };
 
 export type BlockedUserResponseDto = {

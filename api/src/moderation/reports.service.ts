@@ -1,6 +1,13 @@
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import {
   AccessLevel,
   Event,
@@ -20,14 +27,19 @@ import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { eventWithCallerAccessInclude } from "src/events/events.types";
 import { PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
+import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { CreateReportDto } from "./dto/create-report.dto";
 import { ListReportsQueryDto } from "./dto/list-reports-query.dto";
 import {
   REPORT_ESCALATION_REASONS,
+  REPORT_RESOLUTION_ACTIONS,
   REPORT_SERVICE_ERRORS,
+  RESOLUTION_STATUS,
   ReportEscalationReason,
-  ReportResolution,
+  ReportResolutionAction,
   SEVERE_REPORT_REASONS,
+  STALE_REPORT_AFTER_HOURS,
+  STALE_REPORT_SAMPLE_SIZE,
   reportHideThreshold,
 } from "./moderation.constants";
 import { eventForPhotoVisibilityInclude } from "./moderation.types";
@@ -45,12 +57,18 @@ interface EscalationContext {
   hideThreshold?: number;
 }
 
+export interface StaleReportCheckResult {
+  /** OPEN reports older than STALE_REPORT_AFTER_HOURS, across every event. */
+  stale: number;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly abilityFactory: AbilityFactory,
     private readonly photoVisibilityService: PhotoVisibilityService,
+    private readonly s3Service: S3Service,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -153,7 +171,12 @@ export class ReportsService {
     return toKeysetPage(reports, limit);
   }
 
-  async resolveReport(reportId: string, callerId: string, resolution: ReportResolution): Promise<Report> {
+  /**
+   * Applies an organizer's decision to a report (docs/moderation.md, "Resolving
+   * a report"). Every action closes all OPEN reports on the same target, so one
+   * decision settles what several members reported.
+   */
+  async resolveReport(reportId: string, callerId: string, action: ReportResolutionAction): Promise<Report> {
     const loaded = await this.prisma.report.findUnique({
       where: { id: reportId },
       include: { event: { include: eventWithCallerAccessInclude(callerId) } },
@@ -167,17 +190,45 @@ export class ReportsService {
 
     // An organizer must not be the judge of a report about themselves or their
     // own photo. With no other organizer it stays open: `report.escalated`
-    // already told the platform owner about it.
+    // already told the platform owner about it, and `report.stale` repeats it.
     if (loaded.reportedUserId === callerId) throw new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_RESOLVE_OWN);
 
-    // Guarded on OPEN so that, of two organizers resolving at once, one wins
-    // and the other is told, instead of the later verdict silently replacing
-    // the earlier one.
-    const [resolved] = await this.prisma.report.updateManyAndReturn({
-      where: { id: reportId, status: ReportStatus.OPEN },
-      data: { status: resolution, resolvedById: callerId, resolvedAt: new Date() },
+    const photo = await this.photoToRemove(loaded, action);
+    const removedMemberId = action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER ? loaded.reportedUserId : null;
+    if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER && !removedMemberId) {
+      throw new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_MEMBER_GONE);
+    }
+
+    const resolution = { status: RESOLUTION_STATUS[action], resolvedById: callerId, resolvedAt: new Date() };
+    const sameTarget = this.sameTargetWhere(loaded, action);
+
+    const { resolved, closedReports } = await this.prisma.$transaction(async (tx) => {
+      // Guarded on OPEN so that, of two organizers acting at once, one wins and
+      // the other is told, instead of both removing things.
+      const [acted] = await tx.report.updateManyAndReturn({
+        where: { id: reportId, status: ReportStatus.OPEN },
+        data: resolution,
+      });
+      if (!acted) throw new ConflictException(REPORT_SERVICE_ERRORS.ALREADY_RESOLVED(reportId));
+
+      const others = sameTarget
+        ? await tx.report.updateMany({
+            where: { AND: [{ id: { not: reportId } }, { status: ReportStatus.OPEN }, sameTarget] },
+            data: resolution,
+          })
+        : { count: 0 };
+
+      // Rows first, inside the transaction; the photo's object goes after the
+      // commit (below), as in an event delete.
+      if (photo) await tx.photo.deleteMany({ where: { id: photo.id } });
+      if (removedMemberId) {
+        await tx.eventAccess.deleteMany({ where: { eventId: loaded.eventId, userId: removedMemberId } });
+      }
+
+      return { resolved: acted, closedReports: others.count + 1 };
     });
-    if (!resolved) throw new ConflictException(REPORT_SERVICE_ERRORS.ALREADY_RESOLVED(reportId));
+
+    if (photo) await this.deletePhotoObject(photo, reportId);
 
     this.logger.info(
       {
@@ -188,13 +239,107 @@ export class ReportsService {
         targetType: resolved.targetType,
         photoId: resolved.photoId,
         reportedUserId: resolved.reportedUserId,
-        resolution,
+        action,
+        resolution: resolution.status,
+        closedReports,
+        removedPhotoId: photo?.id ?? null,
+        removedMemberId,
         audit: true,
       },
       "Report resolved",
     );
 
     return resolved;
+  }
+
+  /**
+   * Logs one `report.stale` line when OPEN reports have waited longer than
+   * STALE_REPORT_AFTER_HOURS, across every event. Run hourly by
+   * StaleReportCheckScheduler, so the alert repeats until someone acts.
+   */
+  async reportStaleReports(): Promise<StaleReportCheckResult> {
+    const cutoff = new Date(Date.now() - STALE_REPORT_AFTER_HOURS * 60 * 60 * 1000);
+    const where = { status: ReportStatus.OPEN, createdAt: { lt: cutoff } };
+
+    const [stale, oldest] = await Promise.all([
+      this.prisma.report.count({ where }),
+      this.prisma.report.findMany({
+        where,
+        orderBy: { createdAt: "asc" },
+        take: STALE_REPORT_SAMPLE_SIZE,
+        select: { id: true, eventId: true, createdAt: true },
+      }),
+    ]);
+
+    if (stale > 0) {
+      this.logger.warn(
+        {
+          event: ALERT_EVENTS.REPORT_STALE,
+          stale,
+          staleAfterHours: STALE_REPORT_AFTER_HOURS,
+          oldestCreatedAt: oldest[0]?.createdAt,
+          reportIds: oldest.map((report) => report.id),
+          eventIds: [...new Set(oldest.map((report) => report.eventId))],
+          audit: true,
+        },
+        "Reports have been open longer than the response window",
+      );
+    }
+
+    return { stale };
+  }
+
+  /**
+   * The photo a resolution deletes: the reported photo for REMOVE_PHOTO, and
+   * for REMOVE_MEMBER too when the report is about a photo, since closing its
+   * reports would otherwise make it visible again.
+   */
+  private async photoToRemove(
+    report: Report,
+    action: ReportResolutionAction,
+  ): Promise<{ id: string; s3Key: string } | null> {
+    if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO && report.targetType !== ReportTargetType.PHOTO) {
+      throw new BadRequestException(REPORT_SERVICE_ERRORS.REMOVE_PHOTO_NOT_A_PHOTO_REPORT);
+    }
+    if (action === REPORT_RESOLUTION_ACTIONS.DISMISS || report.targetType !== ReportTargetType.PHOTO) return null;
+
+    const photo = report.photoId
+      ? await this.prisma.photo.findUnique({ where: { id: report.photoId }, select: { id: true, s3Key: true } })
+      : null;
+    if (!photo && action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO) {
+      throw new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_PHOTO_GONE);
+    }
+    return photo;
+  }
+
+  /**
+   * The other OPEN reports one decision settles: every report on the same
+   * photo, or for REMOVE_MEMBER every report about that member in the event.
+   * Null when the target is gone and only the report acted on can close.
+   */
+  private sameTargetWhere(report: Report, action: ReportResolutionAction): Prisma.ReportWhereInput | null {
+    if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER) {
+      return report.reportedUserId ? { eventId: report.eventId, reportedUserId: report.reportedUserId } : null;
+    }
+    if (report.targetType === ReportTargetType.PHOTO) {
+      return report.photoId ? { photoId: report.photoId } : null;
+    }
+    return report.reportedUserId
+      ? { eventId: report.eventId, targetType: ReportTargetType.MEMBER, reportedUserId: report.reportedUserId }
+      : null;
+  }
+
+  // Best effort, like the event delete purge: the row is gone, so what is left
+  // at stake is storage cost, which the S3 orphan reconciler also covers.
+  private async deletePhotoObject(photo: { id: string; s3Key: string }, reportId: string): Promise<void> {
+    try {
+      await this.s3Service.deleteObject(photo.s3Key);
+    } catch (error) {
+      this.logger.warn(
+        { err: error as Error, event: "report.photo_object_retained", reportId, photoId: photo.id },
+        "Removed photo's object could not be deleted from S3; the orphan reconciler will reclaim it",
+      );
+    }
   }
 
   private async assertCanReportIn(event: Event & { eventAccesses: EventAccess[] }, callerId: string): Promise<void> {
@@ -280,6 +425,11 @@ export class ReportsService {
     if (SEVERE_REPORT_REASONS.includes(report.reason)) reasons.push(REPORT_ESCALATION_REASONS.SEVERE_REASON);
     if (context.reportedAccessLevel === AccessLevel.ORGANIZER) {
       reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_ORGANIZER);
+      // Nobody in the event can resolve a report about its only organizer.
+      const organizers = await this.prisma.eventAccess.count({
+        where: { eventId: report.eventId, accessLevel: AccessLevel.ORGANIZER },
+      });
+      if (organizers === 1) reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_SOLE_ORGANIZER);
     }
     if (report.photoId && context.hideThreshold !== undefined) {
       const openReports = await this.prisma.report.count({

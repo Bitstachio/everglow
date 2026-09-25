@@ -5,11 +5,12 @@ import { BlocksService } from "./blocks.service";
 import { PhotoVisibilityService } from "./photo-visibility.service";
 import { ReportsController } from "./reports.controller";
 import { ReportsService } from "./reports.service";
+import { StaleReportCheckScheduler } from "./stale-report-check.scheduler";
 
 @Module({
   imports: [CaslModule],
   controllers: [ReportsController, BlocksController],
-  providers: [ReportsService, BlocksService, PhotoVisibilityService],
+  providers: [ReportsService, BlocksService, PhotoVisibilityService, StaleReportCheckScheduler],
   // The photo read paths are the only consumer outside this module.
   exports: [PhotoVisibilityService],
 })

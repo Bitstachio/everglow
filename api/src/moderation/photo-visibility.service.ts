@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { AccessLevel, Prisma, ReportStatus } from "generated/prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
-import { reportHideThreshold } from "./moderation.constants";
+import { SEVERE_REPORT_REASONS, reportHideThreshold } from "./moderation.constants";
 import { EventForPhotoVisibility } from "./moderation.types";
 
 /**
@@ -19,10 +19,11 @@ export class PhotoVisibilityService {
    * empty filter: they moderate, so they see everything. Everyone else loses
    *
    * 1. photos they have an OPEN report on,
-   * 2. photos whose OPEN reports reached the event's hide threshold,
-   * 3. photos of anyone they blocked or who blocked them.
+   * 2. photos with an OPEN report for a severe reason (nudity, violence),
+   * 3. photos whose OPEN reports reached the event's hide threshold,
+   * 4. photos of anyone they blocked or who blocked them.
    *
-   * Costs one grouped query per call, never one per photo; 1 and 3 are
+   * Costs one grouped query per call, never one per photo; 1, 2 and 4 are
    * subqueries inside the photo query itself.
    */
   async whereVisibleTo(callerId: string, event: EventForPhotoVisibility): Promise<Prisma.PhotoWhereInput> {
@@ -38,6 +39,7 @@ export class PhotoVisibilityService {
     return {
       AND: [
         { reports: { none: { reporterId: callerId, status: ReportStatus.OPEN } } },
+        { reports: { none: { status: ReportStatus.OPEN, reason: { in: [...SEVERE_REPORT_REASONS] } } } },
         { id: { notIn: hiddenPhotoIds } },
         {
           // A photo whose uploader is gone (addedById null) matches no block.

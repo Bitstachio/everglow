@@ -1,5 +1,5 @@
 import { INestApplication } from "@nestjs/common";
-import { AccessLevel, PrismaClient, ReportReason, ReportStatus } from "generated/prisma/client";
+import { AccessLevel, PrismaClient, ReportReason, ReportStatus, ReportTargetType } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
@@ -61,6 +61,7 @@ describe("Moderation (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;
+  const s3Service = { deleteObject: jest.fn() };
 
   type Access = ReturnType<typeof buildOrganizerAccess>;
 
@@ -78,7 +79,7 @@ describe("Moderation (integration)", () => {
   });
 
   beforeAll(async () => {
-    const context = await createTestApp((builder) => builder.overrideProvider(S3Service).useValue({}));
+    const context = await createTestApp((builder) => builder.overrideProvider(S3Service).useValue(s3Service));
     app = context.app;
     prisma = context.prisma;
     httpServer = app.getHttpServer() as Server;
@@ -97,6 +98,8 @@ describe("Moderation (integration)", () => {
     prisma.report.count.mockResolvedValue(1);
     prisma.photo.count.mockResolvedValue(1);
     prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
+    prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    s3Service.deleteObject.mockReset().mockResolvedValue(undefined);
   });
 
   describe("POST /photos/:photoId/reports", () => {
@@ -328,57 +331,103 @@ describe("Moderation (integration)", () => {
   });
 
   describe("PATCH /reports/:reportId", () => {
-    it.each([ReportStatus.ACTIONED, ReportStatus.DISMISSED])(
-      "returns 200 with the report resolved as %s for an organizer",
-      async (status) => {
-        const resolved = buildReport({ status, resolvedById: TEST_USER_ID, resolvedAt: TEST_NOW });
-        prisma.report.findUnique.mockResolvedValue(reportWithAccess([buildOrganizerAccess()]) as never);
-        prisma.report.updateManyAndReturn.mockResolvedValue([resolved]);
+    const patch = (body: object) => request(httpServer).patch(reportPath()).set(authHeader()).send(body);
+    const resolvedAs = (status: ReportStatus) =>
+      buildReport({ status, resolvedById: TEST_USER_ID, resolvedAt: TEST_NOW });
 
-        const response = await request(httpServer).patch(reportPath()).set(authHeader()).send({ status }).expect(200);
+    const setup = (
+      report = reportWithAccess([buildOrganizerAccess()]),
+      status: ReportStatus = ReportStatus.ACTIONED,
+    ) => {
+      prisma.report.findUnique.mockResolvedValue(report as never);
+      prisma.photo.findUnique.mockResolvedValue(buildPhoto({ addedById: TEST_TARGET_USER_ID }));
+      prisma.report.updateManyAndReturn.mockResolvedValue([resolvedAs(status)]);
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+    };
 
-        const body = response.body as WrappedResponse<ReportBody>;
-        expect(body.data).toEqual(expectedReportResponse(resolved));
-        expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
-          where: { id: TEST_REPORT_ID, status: "OPEN" },
-          data: { status, resolvedById: TEST_USER_ID, resolvedAt: expect.any(Date) as unknown },
-        });
-      },
-    );
+    it("REMOVE_PHOTO returns 200, deletes the photo and its object, and resolves the report as ACTIONED", async () => {
+      setup();
 
-    it("returns 400 when asked to set a report back to OPEN", async () => {
-      await request(httpServer).patch(reportPath()).set(authHeader()).send({ status: ReportStatus.OPEN }).expect(400);
+      const response = await patch({ action: "REMOVE_PHOTO" }).expect(200);
+
+      const body = response.body as WrappedResponse<ReportBody>;
+      expect(body.data).toEqual(expectedReportResponse(resolvedAs(ReportStatus.ACTIONED)));
+      expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
+        where: { id: TEST_REPORT_ID, status: "OPEN" },
+        data: { status: "ACTIONED", resolvedById: TEST_USER_ID, resolvedAt: expect.any(Date) as unknown },
+      });
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+      expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
+      expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("REMOVE_MEMBER returns 200 and removes the reported member from the event", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()], { targetType: ReportTargetType.MEMBER, photoId: null }));
+
+      await patch({ action: "REMOVE_MEMBER" }).expect(200);
+
+      expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({
+        where: { eventId: TEST_EVENT_ID, userId: TEST_TARGET_USER_ID },
+      });
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("DISMISS returns 200, resolves the report as DISMISSED, and removes nothing", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()]), ReportStatus.DISMISSED);
+
+      const response = await patch({ action: "DISMISS" }).expect(200);
+
+      const body = response.body as WrappedResponse<ReportBody>;
+      expect(body.data.status).toBe("DISMISSED");
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it.each([{ action: "DELETE" }, { status: "DISMISSED" }, {}])("returns 400 for the body %j", async (body) => {
+      await patch(body).expect(400);
 
       expect(prisma.report.findUnique).not.toHaveBeenCalled();
     });
 
+    it("returns 400 for REMOVE_PHOTO on a report about a member", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()], { targetType: ReportTargetType.MEMBER, photoId: null }));
+
+      const response = await patch({ action: "REMOVE_PHOTO" }).expect(400);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(REPORT_SERVICE_ERRORS.REMOVE_PHOTO_NOT_A_PHOTO_REPORT);
+    });
+
+    it("returns 422 for REMOVE_PHOTO when the photo is already gone", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()], { photoId: null }));
+
+      const response = await patch({ action: "REMOVE_PHOTO" }).expect(422);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(REPORT_SERVICE_ERRORS.REPORTED_PHOTO_GONE);
+      expect(prisma.report.updateManyAndReturn).not.toHaveBeenCalled();
+    });
+
     it("returns 401 when the access token is missing", async () => {
-      await request(httpServer).patch(reportPath()).send({ status: ReportStatus.DISMISSED }).expect(401);
+      await request(httpServer).patch(reportPath()).send({ action: "DISMISS" }).expect(401);
     });
 
     it("returns 403 when the caller is not an organizer of the report's event", async () => {
-      prisma.report.findUnique.mockResolvedValue(reportWithAccess([buildParticipantAccess()]) as never);
+      setup(reportWithAccess([buildParticipantAccess()]));
 
-      const response = await request(httpServer)
-        .patch(reportPath())
-        .set(authHeader())
-        .send({ status: ReportStatus.DISMISSED })
-        .expect(403);
+      const response = await patch({ action: "DISMISS" }).expect(403);
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(REPORT_SERVICE_ERRORS.RESOLVE_FORBIDDEN(TEST_REPORT_ID));
     });
 
     it("returns 403 when an organizer resolves a report made against themselves", async () => {
-      prisma.report.findUnique.mockResolvedValue(
-        reportWithAccess([buildOrganizerAccess()], { reportedUserId: TEST_USER_ID }) as never,
-      );
+      setup(reportWithAccess([buildOrganizerAccess()], { reportedUserId: TEST_USER_ID }));
 
-      const response = await request(httpServer)
-        .patch(reportPath())
-        .set(authHeader())
-        .send({ status: ReportStatus.DISMISSED })
-        .expect(403);
+      const response = await patch({ action: "DISMISS" }).expect(403);
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(REPORT_SERVICE_ERRORS.CANNOT_RESOLVE_OWN);
@@ -388,30 +437,22 @@ describe("Moderation (integration)", () => {
     it("returns 404 when the report does not exist", async () => {
       prisma.report.findUnique.mockResolvedValue(null);
 
-      const response = await request(httpServer)
-        .patch(reportPath())
-        .set(authHeader())
-        .send({ status: ReportStatus.DISMISSED })
-        .expect(404);
+      const response = await patch({ action: "DISMISS" }).expect(404);
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(REPORT_SERVICE_ERRORS.NOT_FOUND(TEST_REPORT_ID));
     });
 
-    it("returns 409 when the report has already been resolved", async () => {
-      prisma.report.findUnique.mockResolvedValue(
-        reportWithAccess([buildOrganizerAccess()], { status: ReportStatus.DISMISSED, resolvedAt: TEST_NOW }) as never,
-      );
+    it("returns 409 and removes nothing when the report has already been resolved", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()], { status: ReportStatus.DISMISSED, resolvedAt: TEST_NOW }));
       prisma.report.updateManyAndReturn.mockResolvedValue([]);
 
-      const response = await request(httpServer)
-        .patch(reportPath())
-        .set(authHeader())
-        .send({ status: ReportStatus.ACTIONED })
-        .expect(409);
+      const response = await patch({ action: "REMOVE_PHOTO" }).expect(409);
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(REPORT_SERVICE_ERRORS.ALREADY_RESOLVED(TEST_REPORT_ID));
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
     });
   });
 

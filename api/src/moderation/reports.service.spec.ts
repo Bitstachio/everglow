@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import {
   AccessLevel,
@@ -18,8 +24,9 @@ import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { FREE_TIER_STORAGE_LIMIT_BYTES, PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
+import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
-import { REPORT_SERVICE_ERRORS } from "./moderation.constants";
+import { REPORT_SERVICE_ERRORS, STALE_REPORT_AFTER_HOURS } from "./moderation.constants";
 import { PhotoVisibilityService } from "./photo-visibility.service";
 import { ReportsService } from "./reports.service";
 
@@ -27,6 +34,7 @@ describe("ReportsService", () => {
   let service: ReportsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoVisibilityService: { isVisibleTo: jest.Mock };
+  let s3Service: { deleteObject: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
@@ -130,6 +138,7 @@ describe("ReportsService", () => {
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
     photoVisibilityService = { isVisibleTo: jest.fn().mockResolvedValue(true) };
+    s3Service = { deleteObject: jest.fn().mockResolvedValue(undefined) };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -138,6 +147,7 @@ describe("ReportsService", () => {
         AbilityFactory,
         { provide: PrismaService, useValue: prisma },
         { provide: PhotoVisibilityService, useValue: photoVisibilityService },
+        { provide: S3Service, useValue: s3Service },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -148,6 +158,8 @@ describe("ReportsService", () => {
     prisma.report.findFirst.mockResolvedValue(null);
     prisma.report.count.mockResolvedValue(1);
     prisma.eventAccess.findUnique.mockResolvedValue(access(uploaderId, AccessLevel.PARTICIPANT));
+    // Interactive transactions run their callback against the same mock client.
+    prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
   });
 
   describe("reportPhoto", () => {
@@ -347,6 +359,21 @@ describe("ReportsService", () => {
         });
         expect(logger.warn).toHaveBeenCalledWith(
           expect.objectContaining({ escalationReasons: ["target_is_organizer"] }),
+          expect.any(String),
+        );
+      });
+
+      it("also flags a report about an event's only organizer, whom nobody in the event can judge", async () => {
+        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+        prisma.eventAccess.findUnique.mockResolvedValue(access(uploaderId, AccessLevel.ORGANIZER));
+        prisma.eventAccess.count.mockResolvedValue(1);
+        prisma.report.createManyAndReturn.mockResolvedValue([buildReport()]);
+
+        await service.reportPhoto(photoId, callerId, { reason: ReportReason.SPAM });
+
+        expect(prisma.eventAccess.count).toHaveBeenCalledWith({ where: { eventId, accessLevel: "ORGANIZER" } });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ escalationReasons: ["target_is_organizer", "target_is_sole_organizer"] }),
           expect.any(String),
         );
       });
@@ -595,38 +622,205 @@ describe("ReportsService", () => {
   });
 
   describe("resolveReport", () => {
+    const reporterId = "99999999-9999-9999-9999-999999999999";
     const reportFor = (accessLevel: AccessLevel | null, overrides: Partial<Report> = {}) => ({
-      ...buildReport({ reporterId: "99999999-9999-9999-9999-999999999999", ...overrides }),
+      ...buildReport({ reporterId, ...overrides }),
       event: { ...event, eventAccesses: accessLevel ? [access(callerId, accessLevel)] : [] },
     });
+    const s3Key = `photos/${uploaderId}/${eventId}/${photoId}`;
+    const resolvedAs = (status: ReportStatus) =>
+      buildReport({ reporterId, status, resolvedById: callerId, resolvedAt: now });
 
-    it.each([ReportStatus.ACTIONED, ReportStatus.DISMISSED] as const)(
-      "lets an organizer resolve an OPEN report as %s, touching nothing else",
-      async (resolution) => {
-        const resolved = buildReport({ status: resolution, resolvedById: callerId, resolvedAt: now });
-        prisma.report.findUnique.mockResolvedValue(reportFor(AccessLevel.ORGANIZER));
-        prisma.report.updateManyAndReturn.mockResolvedValue([resolved]);
+    const setup = (report = reportFor(AccessLevel.ORGANIZER), status: ReportStatus = ReportStatus.ACTIONED) => {
+      prisma.report.findUnique.mockResolvedValue(report);
+      prisma.photo.findUnique.mockResolvedValue({ id: photoId, s3Key } as never);
+      prisma.report.updateManyAndReturn.mockResolvedValue([resolvedAs(status)]);
+      prisma.report.updateMany.mockResolvedValue({ count: 2 });
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+    };
 
-        await expect(service.resolveReport(reportId, callerId, resolution)).resolves.toEqual(resolved);
+    describe("REMOVE_PHOTO", () => {
+      it("deletes the photo and closes every OPEN report on it as ACTIONED, in one transaction", async () => {
+        setup();
 
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).resolves.toEqual(
+          resolvedAs(ReportStatus.ACTIONED),
+        );
+
+        const resolution = { status: "ACTIONED", resolvedById: callerId, resolvedAt: expect.any(Date) as unknown };
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
         expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
           where: { id: reportId, status: "OPEN" },
-          data: { status: resolution, resolvedById: callerId, resolvedAt: expect.any(Date) as unknown },
+          data: resolution,
         });
-        // Resolving is a verdict, not an action: the photo and the member stay.
-        expect(prisma.photo.delete).not.toHaveBeenCalled();
-        expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+        expect(prisma.report.updateMany).toHaveBeenCalledWith({
+          where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { photoId }] },
+          data: resolution,
+        });
+        expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId } });
+        expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
         expect(logger.info).toHaveBeenCalledWith(
-          expect.objectContaining({ event: "report.resolved", reportId, callerId, resolution, audit: true }),
+          expect.objectContaining({
+            event: "report.resolved",
+            action: "REMOVE_PHOTO",
+            resolution: "ACTIONED",
+            closedReports: 3,
+            removedPhotoId: photoId,
+            removedMemberId: null,
+            audit: true,
+          }),
           "Report resolved",
         );
-      },
-    );
+      });
+
+      it("deletes the photo's object after the rows are gone", async () => {
+        setup();
+
+        await service.resolveReport(reportId, callerId, "REMOVE_PHOTO");
+
+        expect(s3Service.deleteObject).toHaveBeenCalledWith(s3Key);
+        expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeGreaterThan(
+          prisma.photo.deleteMany.mock.invocationCallOrder[0],
+        );
+      });
+
+      it("still succeeds when S3 fails, leaving the object to the orphan reconciler", async () => {
+        setup();
+        s3Service.deleteObject.mockRejectedValue(new Error("s3 down"));
+
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).resolves.toBeDefined();
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "report.photo_object_retained", photoId }),
+          expect.any(String),
+        );
+      });
+
+      it("rejects REMOVE_PHOTO on a report about a member", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.MEMBER, photoId: null }));
+
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toThrow(
+          new BadRequestException(REPORT_SERVICE_ERRORS.REMOVE_PHOTO_NOT_A_PHOTO_REPORT),
+        );
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      });
+
+      it("answers 422 when the photo was already deleted, pointing the organizer at DISMISS", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { photoId: null }));
+
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toThrow(
+          new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_PHOTO_GONE),
+        );
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("REMOVE_MEMBER", () => {
+      it("removes the member and closes every OPEN report about them in the event", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.MEMBER, photoId: null }));
+
+        await service.resolveReport(reportId, callerId, "REMOVE_MEMBER");
+
+        expect(prisma.report.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { eventId, reportedUserId: uploaderId }] },
+          }),
+        );
+        expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({ where: { eventId, userId: uploaderId } });
+        expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ action: "REMOVE_MEMBER", removedMemberId: uploaderId, removedPhotoId: null }),
+          "Report resolved",
+        );
+      });
+
+      it("also deletes the reported photo when the report is about one, so it does not reappear", async () => {
+        setup();
+
+        await service.resolveReport(reportId, callerId, "REMOVE_MEMBER");
+
+        expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({ where: { eventId, userId: uploaderId } });
+        expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId } });
+        expect(s3Service.deleteObject).toHaveBeenCalledWith(s3Key);
+      });
+
+      it("removes the member even when the reported photo is already gone", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { photoId: null }));
+
+        await service.resolveReport(reportId, callerId, "REMOVE_MEMBER");
+
+        expect(prisma.eventAccess.deleteMany).toHaveBeenCalled();
+        expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      });
+
+      it("answers 422 when the reported account no longer exists", async () => {
+        setup(
+          reportFor(AccessLevel.ORGANIZER, {
+            targetType: ReportTargetType.MEMBER,
+            photoId: null,
+            reportedUserId: null,
+          }),
+        );
+
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_MEMBER")).rejects.toThrow(
+          new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_MEMBER_GONE),
+        );
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("DISMISS", () => {
+      it("closes every OPEN report on the photo as DISMISSED and removes nothing", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER), ReportStatus.DISMISSED);
+
+        await expect(service.resolveReport(reportId, callerId, "DISMISS")).resolves.toEqual(
+          resolvedAs(ReportStatus.DISMISSED),
+        );
+
+        expect(prisma.report.updateMany).toHaveBeenCalledWith({
+          where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { photoId }] },
+          data: { status: "DISMISSED", resolvedById: callerId, resolvedAt: expect.any(Date) as unknown },
+        });
+        expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+        expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
+        expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      });
+
+      it("closes only the member reports about that member, not reports on their photos", async () => {
+        setup(
+          reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.MEMBER, photoId: null }),
+          ReportStatus.DISMISSED,
+        );
+
+        await service.resolveReport(reportId, callerId, "DISMISS");
+
+        expect(prisma.report.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              AND: [
+                { id: { not: reportId } },
+                { status: "OPEN" },
+                { eventId, targetType: "MEMBER", reportedUserId: uploaderId },
+              ],
+            },
+          }),
+        );
+      });
+
+      it("closes just the one report when its target is gone", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { photoId: null }), ReportStatus.DISMISSED);
+
+        await service.resolveReport(reportId, callerId, "DISMISS");
+
+        expect(prisma.report.updateMany).not.toHaveBeenCalled();
+        expect(logger.info).toHaveBeenCalledWith(expect.objectContaining({ closedReports: 1 }), "Report resolved");
+      });
+    });
 
     it("throws NotFoundException when the report does not exist", async () => {
       prisma.report.findUnique.mockResolvedValue(null);
 
-      await expect(service.resolveReport(reportId, callerId, "DISMISSED")).rejects.toThrow(
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toThrow(
         new NotFoundException(REPORT_SERVICE_ERRORS.NOT_FOUND(reportId)),
       );
     });
@@ -634,12 +828,12 @@ describe("ReportsService", () => {
     it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER, null])(
       "throws ForbiddenException for a caller whose access is %s",
       async (accessLevel) => {
-        prisma.report.findUnique.mockResolvedValue(reportFor(accessLevel));
+        setup(reportFor(accessLevel));
 
-        await expect(service.resolveReport(reportId, callerId, "DISMISSED")).rejects.toThrow(
+        await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toThrow(
           new ForbiddenException(REPORT_SERVICE_ERRORS.RESOLVE_FORBIDDEN(reportId)),
         );
-        expect(prisma.report.updateManyAndReturn).not.toHaveBeenCalled();
+        expect(prisma.$transaction).not.toHaveBeenCalled();
       },
     );
 
@@ -647,25 +841,71 @@ describe("ReportsService", () => {
       ["a report about themselves", { targetType: ReportTargetType.MEMBER, photoId: null }],
       ["a report about their own photo", {}],
     ])("does not let an organizer resolve %s", async (_label, overrides) => {
-      prisma.report.findUnique.mockResolvedValue(
-        reportFor(AccessLevel.ORGANIZER, { ...overrides, reportedUserId: callerId }),
-      );
+      setup(reportFor(AccessLevel.ORGANIZER, { ...overrides, reportedUserId: callerId }));
 
-      await expect(service.resolveReport(reportId, callerId, "DISMISSED")).rejects.toThrow(
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toThrow(
         new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_RESOLVE_OWN),
       );
-      expect(prisma.report.updateManyAndReturn).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it("answers 409 when the report was already resolved, including by a concurrent request", async () => {
-      prisma.report.findUnique.mockResolvedValue(reportFor(AccessLevel.ORGANIZER));
-      // The OPEN guard in the UPDATE matched nothing.
+    it("answers 409 and removes nothing when the report was already resolved, including by a concurrent request", async () => {
+      setup();
+      // The OPEN guard in the UPDATE matched nothing, which rolls the transaction back.
       prisma.report.updateManyAndReturn.mockResolvedValue([]);
 
-      await expect(service.resolveReport(reportId, callerId, "ACTIONED")).rejects.toThrow(
+      await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toThrow(
         new ConflictException(REPORT_SERVICE_ERRORS.ALREADY_RESOLVED(reportId)),
       );
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reportStaleReports", () => {
+    it("logs one report.stale line with the exact count and the oldest reports", async () => {
+      jest.useFakeTimers({ now: new Date("2026-06-12T12:00:00.000Z") });
+      try {
+        const stale = [
+          { id: "r-1", eventId, createdAt: new Date("2026-06-10T09:00:00.000Z") },
+          { id: "r-2", eventId, createdAt: new Date("2026-06-11T08:00:00.000Z") },
+        ];
+        prisma.report.count.mockResolvedValue(7);
+        prisma.report.findMany.mockResolvedValue(stale as never);
+
+        await expect(service.reportStaleReports()).resolves.toEqual({ stale: 7 });
+
+        const where = {
+          status: "OPEN",
+          createdAt: { lt: new Date(Date.now() - STALE_REPORT_AFTER_HOURS * 60 * 60 * 1000) },
+        };
+        expect(prisma.report.count).toHaveBeenCalledWith({ where });
+        expect(prisma.report.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where, orderBy: { createdAt: "asc" }, take: 20 }),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "report.stale",
+            stale: 7,
+            reportIds: ["r-1", "r-2"],
+            eventIds: [eventId],
+            oldestCreatedAt: stale[0].createdAt,
+            audit: true,
+          }),
+          expect.any(String),
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("logs nothing when no report is stale", async () => {
+      prisma.report.count.mockResolvedValue(0);
+      prisma.report.findMany.mockResolvedValue([]);
+
+      await expect(service.reportStaleReports()).resolves.toEqual({ stale: 0 });
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 });

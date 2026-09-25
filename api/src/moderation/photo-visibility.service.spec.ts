@@ -67,7 +67,7 @@ describe("PhotoVisibilityService", () => {
 
       const where = await service.whereVisibleTo(callerId, eventFor(accessLevel));
 
-      expect(where.AND).toHaveLength(3);
+      expect(where.AND).toHaveLength(4);
     });
 
     it("hides photos the caller has an OPEN report on, and only OPEN ones", async () => {
@@ -76,6 +76,16 @@ describe("PhotoVisibilityService", () => {
       const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
 
       expect(where.AND).toContainEqual({ reports: { none: { reporterId: callerId, status: "OPEN" } } });
+    });
+
+    it("hides a photo with a single OPEN report for nudity or violence, before any threshold", async () => {
+      mockPhotosOverThreshold([]);
+
+      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+
+      expect(where.AND).toContainEqual({
+        reports: { none: { status: "OPEN", reason: { in: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } } },
+      });
     });
 
     it("hides photos whose OPEN reports reached the threshold, found with one grouped query for the event", async () => {
