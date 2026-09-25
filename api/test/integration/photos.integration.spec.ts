@@ -532,12 +532,22 @@ describe("PhotosController (integration)", () => {
   });
 
   describe("DELETE /photos/:photoId", () => {
+    beforeEach(() => {
+      prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    });
+
     it("returns 204 when an organizer deletes another member's photo", async () => {
       const photo = photoWithAccess([buildOrganizerAccess()], { addedById: TEST_OTHER_USER_ID });
       prisma.photo.findUnique.mockResolvedValue(photo as never);
       prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+      // Its OPEN reports close with it.
+      expect(prisma.report.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { photoId: { in: [photo.id] }, status: "OPEN" } }),
+      );
 
       expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });

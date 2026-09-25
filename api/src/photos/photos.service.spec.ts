@@ -714,6 +714,12 @@ describe("PhotosService", () => {
       event: { ...event, eventAccesses: access },
     });
 
+    beforeEach(() => {
+      // The row and its reports go in one interactive transaction, against the same mock client.
+      prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    });
+
     it("throws NotFoundException when the photo does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(null);
@@ -761,6 +767,27 @@ describe("PhotosService", () => {
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
     });
 
+    it("closes the photo's OPEN reports as ACTIONED with the delete, and audits how many", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);
+      prisma.report.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.deletePhoto(photoId, callerId);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: { photoId: { in: [photoId] }, status: "OPEN" },
+        data: { status: "ACTIONED", resolvedById: callerId, resolvedAt: expect.any(Date) as unknown },
+      });
+      // Before the row: its delete sets the reports' photoId to null.
+      expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.photo.delete.mock.invocationCallOrder[0],
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "photo.deleted", uploaderId: callerId, closedReports: 2, audit: true }),
+        "Photo deleted",
+      );
+    });
+
     it("keeps the row when the S3 delete fails so the operation can be retried", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);
@@ -768,6 +795,7 @@ describe("PhotosService", () => {
 
       await expect(service.deletePhoto(photoId, callerId)).rejects.toBeInstanceOf(Error);
       expect(prisma.photo.delete).not.toHaveBeenCalled();
+      expect(prisma.report.updateMany).not.toHaveBeenCalled();
     });
   });
 });

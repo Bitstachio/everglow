@@ -11,6 +11,7 @@ import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/comm
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
+import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
 import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
@@ -339,10 +340,25 @@ export class PhotosService {
 
     // S3 first: if it fails the row survives and the delete can be retried.
     await this.s3Service.deleteObject(photo.s3Key);
-    await this.prisma.photo.delete({ where: { id: photoId } });
+    // The photo's OPEN reports close with it; see closeReportsOnDeletedPhotos.
+    const closedReports = await this.prisma.$transaction(async (tx) => {
+      const closed = await closeReportsOnDeletedPhotos(tx, [photoId], callerId);
+      await tx.photo.delete({ where: { id: photoId } });
+      return closed;
+    });
 
+    // closedReports > 0 with the uploader as caller is someone removing a
+    // photo reported against them; the audit log keeps that visible.
     this.logger.info(
-      { event: "photo.deleted", photoId, eventId: photo.eventId, callerId, audit: true },
+      {
+        event: "photo.deleted",
+        photoId,
+        eventId: photo.eventId,
+        callerId,
+        uploaderId: photo.addedById,
+        closedReports,
+        audit: true,
+      },
       "Photo deleted",
     );
   }
