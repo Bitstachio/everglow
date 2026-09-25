@@ -3,3 +3,7 @@
 *.tfstate
 *.tfstate.*
 crash.log
+
+# Local variable values; alert_email must not be committed (public repo).
+*.tfvars
+!*.tfvars.example

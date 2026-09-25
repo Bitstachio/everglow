@@ -40,23 +40,64 @@ resource "aws_s3_bucket_public_access_block" "photos" {
   restrict_public_buckets = true
 }
 
-# Refuse any non-HTTPS access.
-resource "aws_s3_bucket_policy" "photos_tls_only" {
+# One policy per bucket, so every rule for the photos bucket lives here.
+resource "aws_s3_bucket_policy" "photos" {
   bucket = aws_s3_bucket.photos.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "DenyInsecureTransport"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "s3:*"
-        Resource  = [aws_s3_bucket.photos.arn, "${aws_s3_bucket.photos.arn}/*"]
-        Condition = { Bool = { "aws:SecureTransport" = "false" } }
-      },
-    ]
+    Statement = concat(
+      [
+        {
+          # Refuse any non-HTTPS access.
+          Sid       = "DenyInsecureTransport"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = "s3:*"
+          Resource  = [aws_s3_bucket.photos.arn, "${aws_s3_bucket.photos.arn}/*"]
+          Condition = { Bool = { "aws:SecureTransport" = "false" } }
+        },
+      ],
+      # Photos are users' private data: only the API reads them. An explicit
+      # Deny beats any Allow, so this holds for admins too; opening a photo
+      # means changing this policy first, which CloudTrail records and the
+      # alerts below report. The app is unaffected: its download URLs are
+      # presigned by the API, so AWS sees the API reading. See
+      # docs/photo-privacy.md.
+      var.allow_human_photo_reads ? [] : [
+        {
+          Sid       = "OnlyTheApiReadsPhotos"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = ["s3:GetObject", "s3:GetObjectVersion"]
+          Resource  = "${aws_s3_bucket.photos.arn}/*"
+          Condition = { ArnNotEquals = { "aws:PrincipalArn" = aws_iam_user.api.arn } }
+        },
+      ],
+    )
   })
+}
+
+# The policy used to hold only the TLS rule under this name.
+moved {
+  from = aws_s3_bucket_policy.photos_tls_only
+  to   = aws_s3_bucket_policy.photos
+}
+
+# New objects are encrypted with a key only the API may use, so S3 read
+# access alone is not enough to see a photo. Objects uploaded before this
+# keep S3-managed encryption. Bucket keys cut the KMS calls (and cost) per
+# object; CloudTrail still records every object read.
+resource "aws_s3_bucket_server_side_encryption_configuration" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.photos.arn
+    }
+    bucket_key_enabled = true
+  }
 }
 
 # Browsers only — native mobile uploads ignore CORS. Tighten allowed_origins
