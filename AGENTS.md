@@ -16,5 +16,5 @@ Shared process docs live in [`.context/`](.context/). Read the matching file in 
 
 ## Cursor
 
-- The Linear plugin is enabled in [`.cursor/settings.json`](.cursor/settings.json). Authenticate Linear once so issue create and search work from chat.
+- Project plugins in [`.cursor/settings.json`](.cursor/settings.json): **Linear** (issues) and **Auth0** (auth guidance). Authenticate each once so they work from chat.
 - If Linear is not authenticated, say so and still draft the issue to the template so a person can paste it.

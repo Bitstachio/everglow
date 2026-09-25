@@ -2,6 +2,9 @@
   "plugins": {
     "linear": {
       "enabled": true
+    },
+    "auth0": {
+      "enabled": true
     }
   }
 }
