@@ -1,0 +1,18 @@
+---
+description: Write GitHub PR titles and bodies for Everglow
+alwaysApply: true
+---
+
+# Pull request descriptions
+
+When drafting, updating, or opening a pull request (including `gh pr create`):
+
+1. **Read and follow** `.context/pr-description-generator.md` in full.
+2. Base the write-up on the **entire** branch vs its merge base (`git diff <base>...HEAD`), not only the latest commit.
+3. Every PR needs a Linear issue. If none exists, create one first per the linear-issues rule / `.context/linear-issue-generator.md`.
+4. End the PR body with the required Linear line, e.g. `Closes [EV-N](https://linear.app/mehrshadfb/issue/EV-N).`
+5. Also attach the PR on the Linear issue (link attachment). Both directions are required.
+
+This file is the **PR body** reviewers read on GitHub. It is not the squash commit message — that uses the commit-descriptions rule and `.context/commit-description-generator.md`.
+
+No AI attribution in the title or body.

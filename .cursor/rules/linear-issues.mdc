@@ -1,0 +1,19 @@
+---
+description: File and sync Everglow work as Linear issues (team EV)
+alwaysApply: true
+---
+
+# Linear issues
+
+Every task needs a Linear issue before work starts. Do not use GitHub Issues.
+
+Before creating, searching, updating, or linking any issue:
+
+1. **Read and follow** `.context/linear-issue-generator.md` in full.
+2. Search Linear for an existing match before filing a duplicate.
+3. Use team **Everglow** (`EV-N`), required Type + Area labels, and the Type-matched description template.
+4. Tell the requester the issue key (`EV-N`) when you create one.
+
+When opening or merging a PR, keep the issue in sync (In Progress → PR attachment + `Closes EV-N` on the PR → Done on merge) as described in that file.
+
+Use the Linear MCP / plugin when available. If it is not authenticated, say so and still draft the issue contents to the template so a human can paste them.
