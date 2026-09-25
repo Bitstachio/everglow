@@ -6,6 +6,9 @@ import { useAuth } from "@/context/auth-context";
 import { Input } from "@/components/ui/input/input";
 import { Button } from "@/components/ui/button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ApiError, getErrorCode, getErrorMessage } from "@/lib/api/errors";
+import { useUsernameAvailability } from "@/features/profile/hooks/use-username-availability";
+import { isUsernameFormatValid, normalizeUsername, usernameAvailabilityMessage } from "@/features/profile/lib/username";
 
 export default function OnboardingScreen() {
   const { completeOnboarding, isLoading, error, clearError, isAuthenticated, isOnboarded } = useAuth();
@@ -14,14 +17,14 @@ export default function OnboardingScreen() {
   const isDark = colorScheme === "dark";
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [formErrors, setFormErrors] = useState({ name: "", email: "" });
+  const [username, setUsername] = useState("");
+  const [formErrors, setFormErrors] = useState({ name: "", username: "" });
+  const availability = useUsernameAvailability(username);
 
-  // Prefill from the Auth0 ID token when available (token may arrive after first render).
+  // Prefill display name from the Auth0 ID token when available (token may arrive after first render).
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- one-time async Auth0 profile prefill */
     if (auth0User?.name) setName((prev) => prev || auth0User.name || "");
-    if (auth0User?.email) setEmail((prev) => prev || auth0User.email || "");
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [auth0User]);
 
@@ -40,8 +43,9 @@ export default function OnboardingScreen() {
   }, [isAuthenticated, isOnboarded]);
 
   const validateForm = () => {
-    const errors = { name: "", email: "" };
+    const errors = { name: "", username: "" };
     let isValid = true;
+    const normalizedUsername = normalizeUsername(username);
 
     if (!name.trim()) {
       errors.name = "Name is required";
@@ -51,11 +55,14 @@ export default function OnboardingScreen() {
       isValid = false;
     }
 
-    if (!email.trim()) {
-      errors.email = "Email is required";
+    if (!normalizedUsername) {
+      errors.username = "Username is required";
       isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      errors.email = "Email is invalid";
+    } else if (!isUsernameFormatValid(normalizedUsername)) {
+      errors.username = usernameAvailabilityMessage("INVALID_FORMAT") ?? "Invalid username";
+      isValid = false;
+    } else if (!availability.canSubmit) {
+      errors.username = availability.message ?? "Username is not available";
       isValid = false;
     }
 
@@ -68,12 +75,33 @@ export default function OnboardingScreen() {
       return;
     }
 
+    const normalizedUsername = normalizeUsername(username);
+
     try {
-      await completeOnboarding({ name: name.trim(), email: email.trim() });
-    } catch (err: any) {
-      Alert.alert("Onboarding Failed", err.message || "Please try again");
+      await completeOnboarding({ name: name.trim(), username: normalizedUsername });
+    } catch (err: unknown) {
+      if (getErrorCode(err) === "USERNAME_TAKEN") {
+        setFormErrors((prev) => ({
+          ...prev,
+          username: usernameAvailabilityMessage("TAKEN") ?? "This username is taken",
+        }));
+        return;
+      }
+      if (err instanceof ApiError && err.status === 400) {
+        setFormErrors((prev) => ({
+          ...prev,
+          username: getErrorMessage(err, usernameAvailabilityMessage("INVALID_FORMAT") ?? "Invalid username"),
+        }));
+        return;
+      }
+      Alert.alert("Onboarding Failed", getErrorMessage(err, "Please try again"));
     }
   };
+
+  const usernameFieldError =
+    formErrors.username ||
+    (availability.status === "unavailable" || availability.status === "paused" ? (availability.message ?? "") : "");
+  const canContinue = !isLoading && availability.canSubmit && name.trim().length >= 2;
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -105,20 +133,29 @@ export default function OnboardingScreen() {
               autoComplete="name"
             />
             <Input
-              label="Email"
-              placeholder="Enter your email"
-              value={email}
+              label="Username"
+              accessibilityLabel="Username"
+              placeholder="Enter your username"
+              value={username}
               onChangeText={(text) => {
-                setEmail(text);
-                if (formErrors.email) setFormErrors({ ...formErrors, email: "" });
+                setUsername(text);
+                if (formErrors.username) setFormErrors({ ...formErrors, username: "" });
                 if (error) clearError();
               }}
-              error={formErrors.email}
-              keyboardType="email-address"
+              error={usernameFieldError}
               autoCapitalize="none"
-              autoComplete="email"
+              autoCorrect={false}
+              autoComplete="username"
             />
-            <Button title="Continue" onPress={handleSubmit} isLoading={isLoading} disabled={isLoading} />
+            {availability.status === "checking" || availability.status === "available" ? (
+              <Text
+                style={[styles.availabilityHint, isDark ? styles.availabilityHintDark : styles.availabilityHintLight]}
+                accessibilityLiveRegion="polite"
+              >
+                {availability.message}
+              </Text>
+            ) : null}
+            <Button title="Continue" onPress={handleSubmit} isLoading={isLoading} disabled={!canContinue} />
           </View>
         </View>
       </ScrollView>
@@ -183,5 +220,16 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 24,
+    gap: 12,
+  },
+  availabilityHint: {
+    fontSize: 14,
+    marginTop: -4,
+  },
+  availabilityHintLight: {
+    color: "#6B7280",
+  },
+  availabilityHintDark: {
+    color: "#9CA3AF",
   },
 });
