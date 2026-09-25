@@ -153,11 +153,7 @@ describe("UsersController (integration)", () => {
     });
 
     it("returns 400 when username is omitted", async () => {
-      const response = await request(httpServer)
-        .post(path)
-        .set(authHeader())
-        .send({ name: "Jane Doe" })
-        .expect(400);
+      const response = await request(httpServer).post(path).set(authHeader()).send({ name: "Jane Doe" }).expect(400);
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBeDefined();
@@ -690,11 +686,7 @@ describe("UsersController (integration)", () => {
     });
 
     it("returns 400 when the payload contains invalid values", async () => {
-      const response = await request(httpServer)
-        .patch(path)
-        .set(authHeader())
-        .send({ username: "ab" })
-        .expect(400);
+      const response = await request(httpServer).patch(path).set(authHeader()).send({ username: "ab" }).expect(400);
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBeDefined();
