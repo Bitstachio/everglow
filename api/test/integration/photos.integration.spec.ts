@@ -2,13 +2,14 @@ import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
+import { PAGINATION_ERRORS } from "src/common/pagination/pagination.constants";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import {
   PHOTO_SERVICE_ERRORS,
   FREE_TIER_STORAGE_LIMIT_BYTES,
   STORAGE_RESERVATION_MAX_ATTEMPTS,
 } from "src/photos/photos.constants";
-import { encodePhotoCursor } from "src/photos/photos.cursor";
+import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -374,7 +375,7 @@ describe("PhotosController (integration)", () => {
 
       const body = response.body as WrappedResponse<PhotoListBody>;
       expect(body.data.items).toHaveLength(1);
-      expect(body.data.nextCursor).toBe(encodePhotoCursor(first));
+      expect(body.data.nextCursor).toBe(encodeKeysetCursor(first));
     });
 
     it("returns 200 and applies a cursor as a keyset filter on the next page", async () => {
@@ -384,7 +385,7 @@ describe("PhotosController (integration)", () => {
 
       const response = await request(httpServer)
         .get(photosListPath())
-        .query({ cursor: encodePhotoCursor(last), limit: 1 })
+        .query({ cursor: encodeKeysetCursor(last), limit: 1 })
         .set(authHeader())
         .expect(200);
 
@@ -415,7 +416,7 @@ describe("PhotosController (integration)", () => {
         .expect(400);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.INVALID_CURSOR);
+      expect(body.message).toBe(PAGINATION_ERRORS.INVALID_CURSOR);
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
