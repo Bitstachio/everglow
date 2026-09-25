@@ -109,15 +109,13 @@ type UploadEventPhotoInput = {
   uri: string;
   fileName: string;
   mimeType: string;
-  sizeBytes: number;
 };
 
 export const useUploadEventPhotoMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation<PhotoResponseDto, Error, UploadEventPhotoInput>({
-    mutationFn: async ({ eventId, uri, fileName, mimeType, sizeBytes }) =>
-      uploadPhoto(eventId, uri, fileName, mimeType, sizeBytes),
+    mutationFn: async ({ eventId, uri, fileName, mimeType }) => uploadPhoto(eventId, uri, fileName, mimeType),
     onSuccess: async (_data, { eventId }) => {
       await queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
     },

@@ -269,7 +269,6 @@ test("uploads a selected photo and refreshes the photo list", async () => {
       "file://photo.jpg",
       expect.stringMatching(/^event_photo_\d+\.jpg$/),
       "image/jpg",
-      2048,
     ),
   );
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo uploaded successfully!");
