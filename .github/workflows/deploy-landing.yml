@@ -1,0 +1,70 @@
+name: Deploy landing to Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "landing/**"
+      - ".github/workflows/deploy-landing.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: landing/pnpm-lock.yaml
+
+      - uses: actions/configure-pages@v5
+
+      - name: Restore Next.js cache
+        uses: actions/cache@v4
+        with:
+          path: landing/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('landing/pnpm-lock.yaml') }}-${{ hashFiles('landing/**.[jt]s', 'landing/**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('landing/pnpm-lock.yaml') }}-
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Optional until the waitlist worker is live (EV-43). Set as a repo
+          # Actions variable when the production worker URL is known.
+          NEXT_PUBLIC_WAITLIST_URL: ${{ vars.NEXT_PUBLIC_WAITLIST_URL }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: landing/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
