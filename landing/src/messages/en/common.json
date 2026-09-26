@@ -5,11 +5,12 @@
   },
   "nav": {
     "brand": "Everglow",
+    "how": "How",
     "ariaLabel": "Primary"
   },
   "hero": {
     "brand": "Everglow",
-    "headline": "Group chats are bad photo albums",
-    "body": "Let's put your photos somewhere your friends and family can actually find and enjoy."
+    "headline": "Why are we dumping pictures from a night out in a group chat?",
+    "body": "Let's put them somewhere people can actually find and enjoy (without scrolling a hundred times)."
   }
 }

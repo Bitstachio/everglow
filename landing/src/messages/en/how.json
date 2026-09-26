@@ -1,0 +1,16 @@
+{
+  "discovery": {
+    "title": "Find the night, not the thread.",
+    "body": "Switch how you look. Search by name. Filter what you hosted or went to. Prefer the day over the title? Use the calendar. Finding an event should take seconds, not test your patience.",
+    "phone": "Events"
+  },
+  "gallery": {
+    "title": "Keep the keepers.",
+    "body": "Save shots to your own gallery. Download what you want. Filter the set, group near-identical angles, and let AI quietly drop the blurry misses. You leave with the good ones.",
+    "phone": "Gallery"
+  },
+  "storage": {
+    "title": "More uploads when you need it.",
+    "body": "As much as we would love to give you infinite space, servers cost money. We keep rates as low as we can. Once you go past your free quota, you only pay for the space you actually use. No subscription locking you in."
+  }
+}

@@ -1,4 +1,5 @@
 import { Hero } from "@/components/sections/hero";
+import { How } from "@/components/sections/how";
 import { SiteNav } from "@/components/ui/site-nav";
 import { routing } from "@/i18n/routing";
 import { hasLocale } from "next-intl";
@@ -20,6 +21,7 @@ const HomePage = async ({ params }: HomePageProps) => {
       <SiteNav />
       <main>
         <Hero />
+        <How />
       </main>
     </>
   );
