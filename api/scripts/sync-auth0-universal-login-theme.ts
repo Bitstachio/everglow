@@ -3,7 +3,7 @@
  * Auth0 tenant configured by AUTH0_DOMAIN + management credentials.
  *
  * Usage (from api/):
- *   npm run auth0:sync-theme
+ *   pnpm run auth0:sync-theme
  *
  * Requires: AUTH0_DOMAIN, AUTH0_MANAGEMENT_CLIENT_ID, AUTH0_MANAGEMENT_CLIENT_SECRET
  * Optional: AUTH0_BRANDING_LOGO_URL

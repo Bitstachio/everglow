@@ -5,6 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@11.25.0",
   "scripts": {
     "build": "prisma generate && nest build",
     "postinstall": "prisma generate",
@@ -13,7 +14,7 @@
     "openapi:generate": "ts-node --project scripts/tsconfig.json -r tsconfig-paths/register scripts/generate-openapi.ts",
     "auth0:sync-theme": "ts-node --project scripts/tsconfig.json -r tsconfig-paths/register -r dotenv/config scripts/sync-auth0-universal-login-theme.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
-    "openapi:check": "npm run openapi:generate && git diff --exit-code openapi/openapi.json",
+    "openapi:check": "pnpm run openapi:generate && git diff --exit-code openapi/openapi.json",
     "setup:local": "node scripts/setup-local.mjs",
     "start": "nest start",
     "start:dev": "nest start --watch",
