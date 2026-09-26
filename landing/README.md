@@ -15,3 +15,4 @@ pnpm lint
 
 - Scope is this folder only; it does not talk to the API or mobile app.
 - `next-intl` is wired with English as the starting locale. Add locales under `src/messages/` when needed.
+- TypeScript and React conventions: [docs/code-conventions.md](./docs/code-conventions.md).

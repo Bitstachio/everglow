@@ -1,26 +1,39 @@
 @import "tailwindcss";
 
 :root {
-  --bg-main: #f8fafc;
+  /* Neutrals */
+  --bg-main: #fafaf8;
   --bg-surface: #ffffff;
-  --text-strong: #0f172a;
-  --text-primary: #334155;
-  --text-secondary: #64748b;
-  --accent-primary: #0d9488;
-  --accent-hover: #0f766e;
-  --border-default: #e2e8f0;
+  --text-strong: #1a1a1d;
+  --text-primary: #1a1a1d;
+  --text-secondary: #6b6b70;
+  --border-default: #EDEDEA;
+  /* Accent — warm amber-copper (single hue; soft tints for chips / focus) */
+  --accent-primary: #c45c26;
+  --accent-hover: #a34a1e;
+  --accent-active: #843b18;
+  --accent-foreground: #ffffff;
+  --accent-soft: #c45c2614;
+
   --duration-standard: 300ms;
 }
 
 @theme inline {
   --color-background: var(--bg-main);
   --color-surface: var(--bg-surface);
+
   --color-strong: var(--text-strong);
   --color-foreground: var(--text-primary);
   --color-muted: var(--text-secondary);
+
   --color-accent: var(--accent-primary);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+
   --color-border: var(--border-default);
+
   --font-sans: var(--font-sans);
   --transition-duration-standard: var(--duration-standard);
 }

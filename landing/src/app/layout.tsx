@@ -1,4 +1,4 @@
-import { cn } from "@/utils/cn";
+import { cn } from "@/lib/cn";
 import { Inter } from "next/font/google";
 import { ReactNode } from "react";
 import "./globals.css";
