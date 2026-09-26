@@ -122,6 +122,9 @@ function loadEnv() {
 
 function installDependencies() {
   step("Dependencies");
+  if (runQuietly("pnpm", ["--version"]).status !== 0) {
+    fail("pnpm is not installed.", "Run: corepack enable (it provides the version pinned in package.json).");
+  }
   const marker = join(API_DIR, "node_modules", ".modules.yaml");
   const lockfile = join(API_DIR, "pnpm-lock.yaml");
   if (existsSync(marker) && existsSync(lockfile) && statSync(marker).mtimeMs >= statSync(lockfile).mtimeMs) {
@@ -163,7 +166,7 @@ function startDatabase(env) {
 
 function applyMigrations() {
   step("Migrations");
-  if (run("npx", ["prisma", "migrate", "deploy"]).status !== 0) {
+  if (run("pnpm", ["exec", "prisma", "migrate", "deploy"]).status !== 0) {
     fail("prisma migrate deploy failed.", "Check that DATABASE_URL is right and the database is reachable.");
   }
   ok("Database schema is up to date");

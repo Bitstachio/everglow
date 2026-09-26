@@ -28,17 +28,17 @@ On **pnpm 11+**, project settings (including `allowBuilds`) live in **`pnpm-work
 
 ## What changed in this migration
 
-| Change                                            | Purpose                                                                 |
-| ------------------------------------------------- | ----------------------------------------------------------------------- |
-| Removed `api/package-lock.json`                   | npm lockfile must not coexist with pnpm                                 |
-| Added `api/pnpm-lock.yaml`                        | Commit and use this lockfile going forward                              |
-| Added `api/pnpm-workspace.yaml`                   | pnpm 11+ settings (`allowBuilds` for Prisma and related postinstalls)   |
-| `openapi:check` and docs/scripts use `pnpm run …` | Avoid hardcoded `npm`                                                   |
-| CI API job and `api/Dockerfile`                   | Install with pnpm 11.25.0                                               |
-| `scripts/setup-local.mjs`                         | Uses `pnpm install --frozen-lockfile` and checks `pnpm-lock.yaml`       |
-| Exact pins for lint/format/test tooling           | Keeps Prettier, ESLint, Jest, and `@nestjs/swagger` on the npm lock versions so CI and OpenAPI stay stable |
+| Change                                               | Purpose                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Removed `api/package-lock.json`                      | npm lockfile must not coexist with pnpm                                                       |
+| Added `api/pnpm-lock.yaml`                           | Created with `pnpm import` from the npm lockfile, so every dependency keeps its exact version |
+| Added `api/pnpm-workspace.yaml`                      | pnpm 11+ settings (`allowBuilds`: which dependency install scripts may run)                   |
+| `"packageManager": "pnpm@11.25.0"` in `package.json` | Corepack (and pnpm itself) switch to exactly this version                                     |
+| `openapi:check` and docs/scripts use `pnpm run …`    | Avoid hardcoded `npm`                                                                         |
+| CI API job and `api/Dockerfile`                      | Install with pnpm 11.25.0                                                                     |
+| `scripts/setup-local.mjs`                            | Uses `pnpm install --frozen-lockfile` and checks `pnpm-lock.yaml`                             |
 
-A fresh `pnpm install` against caret ranges floated Prettier, `typescript-eslint`, and `@nestjs/swagger`, which broke format/lint and changed `openapi.json`. Those packages are pinned to the versions from the last npm lockfile.
+**No dependency versions changed.** The lockfile came from `pnpm import`, which reads `package-lock.json`, so the switch is a pure package-manager change. A fresh resolve instead would have upgraded about half the direct dependencies at once (NestJS, the AWS SDK, Prisma, and the lint and format tools that rewrite code). Upgrades belong in their own PRs.
 
 ---
 
@@ -46,12 +46,11 @@ A fresh `pnpm install` against caret ranges floated Prettier, `typescript-eslint
 
 ### 1. Install pnpm
 
-Preferred (uses Node’s Corepack):
+Preferred (uses Node’s Corepack, which reads `packageManager` from `package.json`):
 
 ```bash
 corepack enable
-corepack prepare pnpm@11.25.0 --activate
-pnpm --version
+pnpm --version   # 11.25.0 inside api/
 ```
 
 ### 2. Clean old npm install and install with pnpm
@@ -77,12 +76,12 @@ pnpm run start:dev
 
 ## Day-to-day commands
 
-| Task            | Use                                    |
-| --------------- | -------------------------------------- |
-| Install deps    | `pnpm install`                         |
-| Add a dependency| `pnpm add <pkg>` / `pnpm add -D <pkg>` |
-| Run a script    | `pnpm run <script>` or `pnpm <script>` |
-| Exec a binary   | `pnpm exec <bin>` (prefer over `npx`)  |
+| Task             | Use                                    |
+| ---------------- | -------------------------------------- |
+| Install deps     | `pnpm install`                         |
+| Add a dependency | `pnpm add <pkg>` / `pnpm add -D <pkg>` |
+| Run a script     | `pnpm run <script>` or `pnpm <script>` |
+| Exec a binary    | `pnpm exec <bin>` (prefer over `npx`)  |
 
 ---
 
@@ -90,4 +89,5 @@ pnpm run start:dev
 
 1. **One package manager in `api/`:** only commit `pnpm-lock.yaml`. Never reintroduce `package-lock.json` here.
 2. **Keep isolated linking** unless a Nest/Prisma tooling issue forces a change; do not copy mobile’s `nodeLinker: hoisted` without a reason.
-3. **Approve new build scripts consciously:** if install warns about ignored builds, run `pnpm approve-builds` and commit the allowlist in `pnpm-workspace.yaml`.
+3. **Approve new build scripts consciously:** if install warns about ignored builds, decide per package and record `true` or `false` in `allowBuilds` in `pnpm-workspace.yaml` (`pnpm approve-builds` helps).
+4. **Upgrade on purpose:** `pnpm install` keeps the lockfile's versions; bump dependencies in a dedicated PR, not as a side effect of other work.
