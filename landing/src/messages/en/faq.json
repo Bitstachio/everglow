@@ -1,0 +1,21 @@
+{
+  "headline": "Questions you might ask",
+  "items": {
+    "cameraRoll": {
+      "q": "Is this replacing my camera roll?",
+      "a": "No. The shared album lives here so everyone can grab what they want. The keepers go into your gallery. This is not meant to be your main photo storage."
+    },
+    "ios": {
+      "q": "Doesn't iPhone already do this?",
+      "a": "If everyone in the room owns an iPhone, sure. We don't refuse friendship with Android users. And we're cloud-first: the album lives online, you pull the keepers into your gallery."
+    },
+    "others": {
+      "q": "Aren't there other apps for this purpose?",
+      "a": "We're not pretending there aren't. There are others that already do some version of this. The interesting question is why most people still dump the night in a group chat."
+    },
+    "join": {
+      "q": "How do people get in?",
+      "a": "You share an invite link or a QR code. They join on iOS or Android, and the photos are there. Only people you invite see the album. Not the rest of the internet."
+    }
+  }
+}

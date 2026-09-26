@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "title": "Everglow",
+    "description": "Event photos in one place, for the people who were there."
+  },
+  "nav": {
+    "brand": "Everglow",
+    "how": "How",
+    "faq": "FAQ",
+    "ariaLabel": "Primary"
+  },
+  "hero": {
+    "brand": "Everglow",
+    "headline": "Why are we dumping pictures from a night out in a group chat?",
+    "body": "Let's put them somewhere people can actually find and enjoy (without scrolling a hundred times)."
+  },
+  "footer": {
+    "copyright": "© 2026 Everglow"
+  }
+}
