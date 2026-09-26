@@ -247,7 +247,7 @@ In order of implementation:
 - [x] **Expired empty slots released early** — the sweeper drops PENDING rows whose URL has expired and whose key holds no object on its next run, instead of at the 24h cutoff (#48).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
 - [x] **Integration tests** — HTTP/controller-level, with auth + CASL (see [Testing](./testing.md)).
-- [x] **OpenAPI regen** — `npm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
+- [x] **OpenAPI regen** — `pnpm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
 - [x] **README update** — implementation status is tracked in this checklist.
 
 ### Out of scope for v1 (tracked as future work)

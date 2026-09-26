@@ -2,7 +2,7 @@
 
 This guide is for teammates pulling the branch that switches **`/mobile`** from npm to pnpm.
 
-**Scope:** `mobile/` only. `api/` stays on npm for now; keep using `npm` there.
+**Scope:** `mobile/` only. The API later moved to pnpm as well (see the API pnpm migration); use `pnpm` in both packages.
 
 ---
 
@@ -12,7 +12,7 @@ This guide is for teammates pulling the branch that switches **`/mobile`** from 
 - Smaller disk usage across projects
 - Stricter dependency handling than npm’s flat tree (with an Expo-friendly layout; see below)
 
-We are **not** setting up a repo-wide pnpm workspace yet. When/if we add a web client that shares packages with mobile, a monorepo workspace becomes more useful. Backend (`api/`) can stay separate until that matters.
+We are **not** setting up a repo-wide pnpm workspace yet. Each package (`mobile/`, `api/`) keeps its own lockfile and `pnpm-workspace.yaml` for pnpm 11+ settings.
 
 ---
 
@@ -56,7 +56,7 @@ Do **not** put `node-linker=hoisted` in `.npmrc`; it will look correct and do no
 
 - `mobile/README.md` and some docs still mention `npm install` / `npm run …`
 
-`api/` CI and lockfile are intentionally untouched.
+The API has its own pnpm migration (`api/docs/pnpm-migration.md`).
 
 ---
 
@@ -134,7 +134,7 @@ pnpm run ios
 | Exec a binary                     | `pnpm exec <bin>` (prefer over `npx` in this package)           |
 | Lint / format / OpenAPI           | `pnpm run lint`, `pnpm run format`, `pnpm run openapi:generate` |
 
-**`api/`:** still `npm install` / `npm run …` as before.
+**`api/`:** also uses `pnpm` (same version). See `api/docs/pnpm-migration.md`.
 
 ---
 
@@ -214,5 +214,5 @@ No. Isolated linking is the purist default. Hoisting is a deliberate compatibili
 **Why do we have `pnpm-workspace.yaml` if we are not a monorepo?**  
 pnpm 11 stores project settings there. Ours mainly holds `nodeLinker: hoisted` and `allowBuilds`.
 
-**Will `api/` move to pnpm?**  
-Not in this change. We can migrate later without blocking mobile.
+**Did `api/` move to pnpm?**  
+Yes. Each package keeps its own lockfile; there is still no repo-wide workspace.

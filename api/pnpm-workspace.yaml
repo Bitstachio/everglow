@@ -1,0 +1,11 @@
+# Single-package project; this file also holds pnpm 11+ settings
+# (non-auth config no longer lives in .npmrc / package.json "pnpm" field).
+
+# Approve dependency lifecycle scripts (pnpm blocks them by default).
+allowBuilds:
+  "@nestjs/core": true
+  "@parcel/watcher": true
+  "@prisma/engines": true
+  "@scarf/scarf": true
+  prisma: true
+  unrs-resolver: true
