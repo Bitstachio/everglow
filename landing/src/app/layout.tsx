@@ -1,18 +1,18 @@
 import { cn } from "@/lib/cn";
-import { Inter } from "next/font/google";
+import { Outfit } from "next/font/google";
 import { ReactNode } from "react";
 import "./globals.css";
 
-const inter = Inter({
+const outfit = Outfit({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
   display: "swap",
 });
 
 const RootLayout = ({ children }: { children: ReactNode }) => (
   <html lang="en" className="scroll-smooth">
-    <body className={cn(inter.variable, "antialiased")}>{children}</body>
+    <body className={cn(outfit.variable, "font-sans antialiased")}>{children}</body>
   </html>
 );
 

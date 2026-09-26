@@ -3,6 +3,10 @@
     "title": "Everglow",
     "description": "Shared moments from the events that matter."
   },
+  "nav": {
+    "brand": "Everglow",
+    "ariaLabel": "Primary"
+  },
   "hero": {
     "brand": "Everglow",
     "headline": "Keep the night glowing.",

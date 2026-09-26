@@ -1,14 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  /* Neutrals */
   --bg-main: #fafaf8;
   --bg-surface: #ffffff;
   --text-strong: #1a1a1d;
   --text-primary: #1a1a1d;
   --text-secondary: #6b6b70;
   --border-default: #EDEDEA;
-  /* Accent — warm amber-copper (single hue; soft tints for chips / focus) */
+
   --accent-primary: #c45c26;
   --accent-hover: #a34a1e;
   --accent-active: #843b18;
@@ -35,6 +34,7 @@
   --color-border: var(--border-default);
 
   --font-sans: var(--font-sans);
+  --font-display: var(--font-sans);
   --transition-duration-standard: var(--duration-standard);
 }
 
@@ -42,4 +42,124 @@ body {
   background-color: var(--bg-main);
   color: var(--text-primary);
   @apply font-sans antialiased;
+}
+
+/* Static abstract hero wash — amber-copper only, no animation */
+.hero-ribbon {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  opacity: 0.55;
+  will-change: auto;
+}
+
+.hero-ribbon-a {
+  top: -8%;
+  right: -12%;
+  width: min(72vw, 42rem);
+  height: min(52vw, 28rem);
+  background: linear-gradient(135deg, #f0a070 0%, #c45c26 55%, #e8c4a8 100%);
+  transform: rotate(-18deg);
+}
+
+.hero-ribbon-b {
+  top: 18%;
+  right: -4%;
+  width: min(58vw, 34rem);
+  height: min(36vw, 20rem);
+  background: linear-gradient(160deg, #e89a62 0%, #a34a1e 70%);
+  opacity: 0.4;
+  transform: rotate(12deg);
+  filter: blur(64px);
+}
+
+.hero-ribbon-c {
+  bottom: 8%;
+  right: 8%;
+  width: min(48vw, 26rem);
+  height: min(32vw, 16rem);
+  background: linear-gradient(200deg, #f5d4b8 0%, #d47845 100%);
+  opacity: 0.45;
+  transform: rotate(-8deg);
+  filter: blur(56px);
+}
+
+.hero-ribbon-d {
+  top: 42%;
+  right: 28%;
+  width: min(28vw, 14rem);
+  height: min(28vw, 14rem);
+  background: radial-gradient(circle, #c45c26 0%, transparent 70%);
+  opacity: 0.25;
+  filter: blur(40px);
+}
+
+.hero-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    var(--bg-main) 0%,
+    var(--bg-main) 38%,
+    color-mix(in srgb, var(--bg-main) 55%, transparent) 58%,
+    transparent 78%
+  );
+}
+
+@media (max-width: 767px) {
+  .hero-ribbon {
+    opacity: 0.35;
+    filter: blur(40px);
+  }
+
+  .hero-ribbon-a {
+    top: -6%;
+    right: -28%;
+    width: 90vw;
+    height: 50vw;
+  }
+
+  .hero-ribbon-b,
+  .hero-ribbon-c,
+  .hero-ribbon-d {
+    opacity: 0.22;
+  }
+
+  .hero-fade {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-main) 70%, transparent) 0%,
+      var(--bg-main) 48%,
+      var(--bg-main) 100%
+    );
+  }
+}
+
+.hero-enter > * {
+  animation: hero-enter 700ms ease-out both;
+}
+
+.hero-enter > :nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.hero-enter > :nth-child(3) {
+  animation-delay: 220ms;
+}
+
+@keyframes hero-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-enter > * {
+    animation: none;
+  }
 }
