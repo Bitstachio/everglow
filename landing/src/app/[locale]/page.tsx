@@ -1,6 +1,7 @@
 import { Faq } from "@/components/sections/faq";
 import { Hero } from "@/components/sections/hero";
 import { How } from "@/components/sections/how";
+import { SiteFooter } from "@/components/ui/site-footer";
 import { SiteNav } from "@/components/ui/site-nav";
 import { routing } from "@/i18n/routing";
 import { hasLocale } from "next-intl";
@@ -25,6 +26,7 @@ const HomePage = async ({ params }: HomePageProps) => {
         <How />
         <Faq />
       </main>
+      <SiteFooter />
     </>
   );
 };
