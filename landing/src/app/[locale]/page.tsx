@@ -2,7 +2,7 @@ import { Faq } from "@/components/sections/faq";
 import { Hero } from "@/components/sections/hero";
 import { How } from "@/components/sections/how";
 import { SiteFooter } from "@/components/ui/site-footer";
-import { SiteNav } from "@/components/ui/site-nav";
+import { SiteNav } from "@/components/ui/site-nav/site-nav";
 import { routing } from "@/i18n/routing";
 import { hasLocale } from "next-intl";
 import { setRequestLocale } from "next-intl/server";

@@ -6,12 +6,13 @@ import { getTranslations } from "next-intl/server";
 type HowRowProps = {
   title: string;
   body: string;
-  phone: string;
+  imageSrc: string;
+  imageAlt: string;
   reverse?: boolean;
   lead?: boolean;
 };
 
-const HowRow = ({ title, body, phone, reverse = false, lead = false }: HowRowProps) => {
+const HowRow = ({ title, body, imageSrc, imageAlt, reverse = false, lead = false }: HowRowProps) => {
   const Heading = lead ? "h2" : "h3";
 
   return (
@@ -32,7 +33,7 @@ const HowRow = ({ title, body, phone, reverse = false, lead = false }: HowRowPro
         </Heading>
         <p className={cn("text-muted mt-4 leading-relaxed", lead ? "text-lg sm:text-xl" : "text-lg")}>{body}</p>
       </div>
-      <PhoneFrame caption={phone} />
+      <PhoneFrame src={imageSrc} alt={imageAlt} />
     </div>
   );
 };
@@ -53,10 +54,17 @@ export const How = async () => {
         <HowRow
           title={t("discovery.title")}
           body={t("discovery.body")}
-          phone={t("discovery.phone")}
+          imageSrc="/screenshots/how-find-the-night.png"
+          imageAlt={t("discovery.imageAlt")}
           lead
         />
-        <HowRow title={t("gallery.title")} body={t("gallery.body")} phone={t("gallery.phone")} reverse />
+        <HowRow
+          title={t("gallery.title")}
+          body={t("gallery.body")}
+          imageSrc="/screenshots/how-keep-the-keepers.png"
+          imageAlt={t("gallery.imageAlt")}
+          reverse
+        />
         <HowCopy title={t("storage.title")} body={t("storage.body")} />
       </Container>
     </section>

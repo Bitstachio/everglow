@@ -6,7 +6,7 @@ export const Hero = async () => {
   const t = await getTranslations("common.hero");
 
   return (
-    <section className="relative flex min-h-screen items-center overflow-hidden">
+    <section id="home" className="relative flex min-h-screen items-center overflow-hidden">
       <HeroBackdrop />
       <Container className="relative z-10 pt-28 pb-24 sm:pt-32">
         <div className="hero-enter max-w-xl md:max-w-lg lg:max-w-xl">

@@ -2,12 +2,12 @@
   "discovery": {
     "title": "Find the night, not the thread.",
     "body": "Switch how you look. Search by name. Filter what you hosted or went to. Prefer the day over the title? Use the calendar. Finding an event should take seconds, not test your patience.",
-    "phone": "Events"
+    "imageAlt": "Everglow events list and calendar on a phone"
   },
   "gallery": {
     "title": "Keep the keepers.",
     "body": "The night lives in a cloud album. Pull the keepers into your gallery. Filter the set, group similar angles, and let AI drop the blurry misses.",
-    "phone": "Gallery"
+    "imageAlt": "Everglow photo gallery with filters on a phone"
   },
   "storage": {
     "title": "More uploads when you need it.",
