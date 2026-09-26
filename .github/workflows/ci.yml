@@ -49,33 +49,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: api/package-lock.json
+          cache: pnpm
+          cache-dependency-path: api/pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm run format:check
+      - run: pnpm run format:check
         background: true
       - name: OpenAPI spec is up to date
-        run: npm run openapi:check
+        run: pnpm run openapi:check
         background: true
-      # Avoid --fix in CI (npm scripts must not mutate files)
-      - run: npx eslint "{src,apps,libs,test}/**/*.ts"
+      # Avoid --fix in CI (scripts must not mutate files)
+      - run: pnpm exec eslint "{src,apps,libs,test}/**/*.ts"
         background: true
       # Full-project type check — specs and scripts are excluded from the
       # build tsconfig and ts-jest transpiles without type checking
-      - run: npm run typecheck
+      - run: pnpm run typecheck
         background: true
-      - run: npm run test:cov
+      - run: pnpm run test:cov
         background: true
       - wait-all:
 
-      - run: npm run test:integration
+      - run: pnpm run test:integration
 
-      - run: npm run build
+      - run: pnpm run build
 
       - name: Validate docker-compose config
         # compose requires .env to exist (env_file); stub it from the example

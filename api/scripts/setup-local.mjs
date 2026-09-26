@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-command local setup for the API: npm run setup:local [-- --start]
+// One-command local setup for the API: pnpm run setup:local [-- --start]
 //
 // Prepares a developer machine to run the API against their own Postgres and
 // the shared dev bucket. Safe to re-run: it never overwrites .env and every
@@ -7,7 +7,7 @@
 // values in .env come from.
 //
 // Only Node built-ins until dependencies are installed, because this runs
-// before `npm ci` on a fresh clone.
+// before `pnpm install` on a fresh clone.
 
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, statSync } from "node:fs";
@@ -122,14 +122,17 @@ function loadEnv() {
 
 function installDependencies() {
   step("Dependencies");
-  const marker = join(API_DIR, "node_modules", ".package-lock.json");
-  const lockfile = join(API_DIR, "package-lock.json");
-  if (existsSync(marker) && statSync(marker).mtimeMs >= statSync(lockfile).mtimeMs) {
+  if (runQuietly("pnpm", ["--version"]).status !== 0) {
+    fail("pnpm is not installed.", "Run: corepack enable (it provides the version pinned in package.json).");
+  }
+  const marker = join(API_DIR, "node_modules", ".modules.yaml");
+  const lockfile = join(API_DIR, "pnpm-lock.yaml");
+  if (existsSync(marker) && existsSync(lockfile) && statSync(marker).mtimeMs >= statSync(lockfile).mtimeMs) {
     ok("Up to date");
     return;
   }
   // postinstall runs prisma generate.
-  if (run("npm", ["ci"]).status !== 0) fail("npm ci failed.");
+  if (run("pnpm", ["install", "--frozen-lockfile"]).status !== 0) fail("pnpm install failed.");
   ok("Installed");
 }
 
@@ -163,7 +166,7 @@ function startDatabase(env) {
 
 function applyMigrations() {
   step("Migrations");
-  if (run("npx", ["prisma", "migrate", "deploy"]).status !== 0) {
+  if (run("pnpm", ["exec", "prisma", "migrate", "deploy"]).status !== 0) {
     fail("prisma migrate deploy failed.", "Check that DATABASE_URL is right and the database is reachable.");
   }
   ok("Database schema is up to date");
@@ -222,7 +225,7 @@ function printNextSteps(env, willStart) {
   const port = env.PORT || "3000";
   const lan = lanAddress();
   console.log(`\n${green(bold("Ready."))}${willStart ? " Starting the API..." : ""}\n`);
-  if (!willStart) console.log(`  Start the API:      ${bold("npm run start:dev")}`);
+  if (!willStart) console.log(`  Start the API:      ${bold("pnpm run start:dev")}`);
   console.log(`  Swagger:            http://localhost:${port}/api/docs`);
   console.log(`\n  EXPO_PUBLIC_API_URL in mobile/.env:`);
   console.log(`    iOS simulator      http://localhost:${port}`);
@@ -244,7 +247,7 @@ async function main() {
   await checkS3(env);
   printNextSteps(env, willStart);
 
-  if (willStart) process.exit(run("npm", ["run", "start:dev"]).status ?? 0);
+  if (willStart) process.exit(run("pnpm", ["run", "start:dev"]).status ?? 0);
 }
 
 main().catch((error) => fail(error?.stack ?? String(error)));

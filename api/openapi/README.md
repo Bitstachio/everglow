@@ -6,7 +6,7 @@
 
 ```bash
 cd api
-npm run openapi:generate
+pnpm run openapi:generate
 ```
 
 Commit `openapi.json` when API routes or request/response shapes change.
@@ -14,7 +14,7 @@ Commit `openapi.json` when API routes or request/response shapes change.
 ## Verify (CI-friendly)
 
 ```bash
-npm run openapi:check
+pnpm run openapi:check
 ```
 
 Fails if the committed spec is out of date.

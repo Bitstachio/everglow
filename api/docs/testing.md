@@ -11,9 +11,9 @@ This document covers **unit** and **integration** tests for the Everglow API (Je
 | E2E (planned)   | TBD under `test/`                  | TBD                        | Critical workflows only                                | Real services — **no mocks**           |
 
 ```sh
-npm test                 # unit (src/**/*.spec.ts)
-npm run test:cov         # unit + coverage
-npm run test:integration # integration suite
+pnpm test                 # unit (src/**/*.spec.ts)
+pnpm run test:cov         # unit + coverage
+pnpm run test:integration # integration suite
 ```
 
 CI runs `test:cov`, then `test:integration`, then build. See `.github/workflows/ci.yml`.
@@ -40,7 +40,7 @@ Unit tests stay fast and local so feature folders can grow without pulling in th
 
 **Location:** `test/integration/` (not colocated under `src/`).
 
-**Naming:** `*.integration.spec.ts` so they use a separate Jest config (`test/integration/jest-integration.json`) and never run under `npm test`.
+**Naming:** `*.integration.spec.ts` so they use a separate Jest config (`test/integration/jest-integration.json`) and never run under `pnpm test`.
 
 ### Why “integration” (not E2E)
 

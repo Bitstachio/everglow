@@ -24,7 +24,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: build
-    command: npx prisma migrate deploy
+    command: pnpm exec prisma migrate deploy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-everglow_dev}:${POSTGRES_PASSWORD:-everglow_pass}@db:5432/${POSTGRES_DB:-everglow_db}
     depends_on:

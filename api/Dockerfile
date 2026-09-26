@@ -7,18 +7,20 @@ FROM node:22-alpine AS base
 
 WORKDIR /app
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl \
+  && corepack enable \
+  && corepack prepare pnpm@11.25.0 --activate
 
 # ---------------------------------------------------------------------------
 # Dependencies: install all packages (dev + prod) for the build stage
 # ---------------------------------------------------------------------------
 FROM base AS deps
 
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
 # ---------------------------------------------------------------------------
 # Build: compile TypeScript and generate the Prisma client
@@ -28,7 +30,7 @@ FROM deps AS build
 COPY nest-cli.json tsconfig.json tsconfig.build.json ./
 COPY src ./src
 
-RUN npm run build
+RUN pnpm run build
 
 # ---------------------------------------------------------------------------
 # Production: minimal runtime image (no devDependencies, no source)
@@ -37,11 +39,11 @@ FROM base AS production
 
 ENV NODE_ENV=production
 
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Skip postinstall (prisma CLI is a devDependency); client is copied from build.
-RUN npm ci --omit=dev --ignore-scripts \
-  && npm cache clean --force
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts \
+  && pnpm store prune
 
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/generated ./generated
