@@ -1,0 +1,9 @@
+# Single-package project; this file also holds pnpm 11+ settings
+# (non-auth config no longer lives in .npmrc / package.json "pnpm" field).
+nodeLinker: hoisted
+
+allowBuilds:
+  "@parcel/watcher": true
+  "@swc/core": true
+  sharp: true
+  unrs-resolver: true

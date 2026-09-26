@@ -1,14 +1,14 @@
-# Everglow landing
+# Everglow Landing
 
 Marketing site for Everglow. Next.js with static export (`output: "export"`).
 
 ## Scripts
 
 ```bash
-npm install
-npm run dev      # http://localhost:3000
-npm run build    # static output in out/
-npm run lint
+pnpm install
+pnpm dev      # http://localhost:3000
+pnpm build    # static output in out/
+pnpm lint
 ```
 
 ## Notes
