@@ -24,6 +24,12 @@ export const SiteNav = async () => {
         >
           {t("how")}
         </a>
+        <a
+          href="#faq"
+          className="text-strong/70 hover:text-strong rounded-full px-4 py-2 text-sm font-medium tracking-tight transition-colors duration-standard"
+        >
+          {t("faq")}
+        </a>
       </nav>
     </header>
   );
