@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Everglow",
-    "description": "Shared moments from the events that matter."
+    "description": "Event photos in one place, for the people who were there."
   },
   "nav": {
     "brand": "Everglow",
@@ -9,7 +9,7 @@
   },
   "hero": {
     "brand": "Everglow",
-    "headline": "Keep the night glowing.",
-    "body": "A place for the photos from your events — shared with the people who were there."
+    "headline": "Group chats are bad photo albums",
+    "body": "Let's put your photos somewhere your friends and family can actually find and enjoy."
   }
 }

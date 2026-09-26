@@ -14,6 +14,10 @@
   --accent-foreground: #ffffff;
   --accent-soft: #c45c2614;
 
+  /* Secondary — used in the hero wash for orange→purple vibrancy */
+  --accent-secondary: #7c3aed;
+  --accent-secondary-soft: #7c3aed1f;
+
   --duration-standard: 300ms;
 }
 
@@ -30,6 +34,8 @@
   --color-accent-active: var(--accent-active);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-accent-secondary-soft: var(--accent-secondary-soft);
 
   --color-border: var(--border-default);
 
@@ -44,54 +50,31 @@ body {
   @apply font-sans antialiased;
 }
 
-/* Static abstract hero wash — amber-copper only, no animation */
-.hero-ribbon {
+/* Static abstract hero wash — two circles, one color each, no animation */
+.hero-blob {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(48px);
-  opacity: 0.55;
   will-change: auto;
 }
 
-.hero-ribbon-a {
-  top: -8%;
-  right: -12%;
-  width: min(72vw, 42rem);
-  height: min(52vw, 28rem);
-  background: linear-gradient(135deg, #f0a070 0%, #c45c26 55%, #e8c4a8 100%);
-  transform: rotate(-18deg);
-}
-
-.hero-ribbon-b {
-  top: 18%;
-  right: -4%;
-  width: min(58vw, 34rem);
-  height: min(36vw, 20rem);
-  background: linear-gradient(160deg, #e89a62 0%, #a34a1e 70%);
-  opacity: 0.4;
-  transform: rotate(12deg);
-  filter: blur(64px);
-}
-
-.hero-ribbon-c {
-  bottom: 8%;
-  right: 8%;
-  width: min(48vw, 26rem);
-  height: min(32vw, 16rem);
-  background: linear-gradient(200deg, #f5d4b8 0%, #d47845 100%);
-  opacity: 0.45;
-  transform: rotate(-8deg);
-  filter: blur(56px);
-}
-
-.hero-ribbon-d {
-  top: 42%;
-  right: 28%;
-  width: min(28vw, 14rem);
-  height: min(28vw, 14rem);
-  background: radial-gradient(circle, #c45c26 0%, transparent 70%);
-  opacity: 0.25;
+.hero-blob-copper {
+  top: -4%;
+  right: -8%;
+  width: min(62vw, 36rem);
+  height: min(62vw, 36rem);
+  background: radial-gradient(circle at 40% 40%, #e8894f 0%, var(--accent-primary) 55%, transparent 78%);
+  opacity: 0.7;
   filter: blur(40px);
+}
+
+.hero-blob-purple {
+  top: 28%;
+  right: 10%;
+  width: min(52vw, 30rem);
+  height: min(52vw, 30rem);
+  background: radial-gradient(circle at 45% 45%, #9b6ef5 0%, var(--accent-secondary) 55%, transparent 78%);
+  opacity: 0.55;
+  filter: blur(44px);
 }
 
 .hero-fade {
@@ -107,22 +90,20 @@ body {
 }
 
 @media (max-width: 767px) {
-  .hero-ribbon {
-    opacity: 0.35;
-    filter: blur(40px);
-  }
-
-  .hero-ribbon-a {
-    top: -6%;
+  .hero-blob-copper {
+    top: -8%;
     right: -28%;
-    width: 90vw;
-    height: 50vw;
+    width: 78vw;
+    height: 78vw;
+    opacity: 0.45;
   }
 
-  .hero-ribbon-b,
-  .hero-ribbon-c,
-  .hero-ribbon-d {
-    opacity: 0.22;
+  .hero-blob-purple {
+    top: 26%;
+    right: -4%;
+    width: 58vw;
+    height: 58vw;
+    opacity: 0.32;
   }
 
   .hero-fade {
