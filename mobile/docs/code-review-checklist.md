@@ -85,7 +85,7 @@ ESLint blocks feature `api/`, feature `hooks/`, React Query, and SDK imports fro
 - [ ] Component is presentational: data and callbacks come from props (or a colocated private hook for UI-only state)
 - [ ] No sophisticated logic left in the component body — extract to a hook; colocate if component-private, or place in `hooks/` / feature `hooks/` when shared appropriately
 - [ ] No `useEffect` that fetches or mutates data
-- [ ] No calls into `@/lib/event`, `@/lib/photo`, or other service modules (wrap in `api/` first)
+- [ ] No ad hoc service modules for server calls (wrap generated SDK usage in feature `api/` first)
 - [ ] Composes `@/components/ui` primitives instead of reimplementing buttons, inputs, etc.
 - [ ] Feature-local types used only in one file stay in that file; shared types move to `types.ts` or a shared types module
 
@@ -144,12 +144,12 @@ See [API](./api.md). Spot-check:
 - [ ] New endpoints are consumed through feature `api/` wrappers, not ad hoc Axios calls
 - [ ] Global hooks stay in `hooks/`; feature screen/form hooks stay in `features/<name>/hooks/`; component-private hooks colocate with their component in a same-named folder
 
-## Legacy code (events, photos/gallery)
+## Legacy code (events UI)
 
 Legacy areas are exempt from some ESLint rules so existing code keeps passing. They are not references for new work.
 
-- [ ] New features match `features/profile/`, not `features/events/` or gallery/`lib/photo` patterns
-- [ ] New code does not introduce `component/` folders, screen logic, or direct `lib/event` / `lib/photo` calls from UI layers
+- [ ] New features match `features/profile/`, not older `features/events/` screen/component patterns
+- [ ] New code does not introduce `component/` folders, screen logic, or SDK calls from UI layers
 - [ ] New code does not add paths to `legacyStyleSheetPaths`; migrate StyleSheet call sites toward NativeWind instead
 - [ ] Legacy refactors move toward the profile pattern and remove ESLint exemptions in the same PR
 

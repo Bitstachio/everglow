@@ -8,7 +8,7 @@ It does not define how to call the API, build forms, or write TypeScript style. 
 
 **Reference implementation:** `features/profile/` is the only feature module that follows this structure today. Copy that layout when building new features.
 
-**Legacy code:** `features/events/` and photos/gallery code (`lib/photo.ts`, related event screens) predate this structure and will be heavily refactored. Do not use them as examples. ESLint exempts legacy paths where old code would fail; see [ESLint enforcement](#eslint-enforcement).
+**Legacy code:** parts of `features/events/` (screens, components, and some StyleSheet usage) still predate this structure and will be heavily refactored. Do not use them as examples for new features. Event server calls already live under `features/events/api/`. ESLint exempts legacy paths where old code would fail; see [ESLint enforcement](#eslint-enforcement).
 
 ```
 mobile/

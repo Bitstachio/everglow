@@ -19,8 +19,8 @@ const mockUpdate = jest.fn();
 const mockRemove = jest.fn();
 const mockLeave = jest.fn();
 const mockRemoveParticipant = jest.fn();
-const mockUploadPhoto = jest.fn();
-const mockDeletePhoto = jest.fn();
+const mockUploadEventPhoto = jest.fn();
+const mockRemovePhoto = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 const mockRequestLibraryPermission = jest.fn();
@@ -41,10 +41,10 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerLeave: (...args: unknown[]) => mockLeave(...args),
   eventsControllerRemoveParticipant: (...args: unknown[]) => mockRemoveParticipant(...args),
   photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
+  photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
 }));
-jest.mock("@/lib/photo", () => ({
-  uploadPhoto: (...args: unknown[]) => mockUploadPhoto(...args),
-  deletePhoto: (...args: unknown[]) => mockDeletePhoto(...args),
+jest.mock("../api/upload-event-photo", () => ({
+  uploadEventPhoto: (...args: unknown[]) => mockUploadEventPhoto(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => {
@@ -124,8 +124,8 @@ beforeEach(() => {
   mockRemove.mockReset().mockResolvedValue({});
   mockLeave.mockReset().mockResolvedValue({});
   mockRemoveParticipant.mockReset().mockResolvedValue({});
-  mockUploadPhoto.mockReset().mockResolvedValue(buildPhoto({ id: "photo-2" }));
-  mockDeletePhoto.mockReset().mockResolvedValue(undefined);
+  mockUploadEventPhoto.mockReset().mockResolvedValue(buildPhoto({ id: "photo-2" }));
+  mockRemovePhoto.mockReset().mockResolvedValue({});
   mockBack.mockReset();
   mockReplace.mockReset();
   mockRequestLibraryPermission.mockReset().mockResolvedValue({ granted: true });
@@ -264,7 +264,7 @@ test("uploads a selected photo and refreshes the photo list", async () => {
   await userEvent.setup().press(screen.getByLabelText("Add photo"));
 
   await waitFor(() =>
-    expect(mockUploadPhoto).toHaveBeenCalledWith(
+    expect(mockUploadEventPhoto).toHaveBeenCalledWith(
       "event-1",
       "file://photo.jpg",
       expect.stringMatching(/^event_photo_\d+\.jpg$/),
@@ -287,7 +287,7 @@ test("blocks upload when photo library permission is denied", async () => {
     "Please grant photo library access to upload images.",
   );
   expect(mockLaunchLibrary).not.toHaveBeenCalled();
-  expect(mockUploadPhoto).not.toHaveBeenCalled();
+  expect(mockUploadEventPhoto).not.toHaveBeenCalled();
 });
 
 test("deletes a photo after confirmation", async () => {
@@ -296,7 +296,9 @@ test("deletes a photo after confirmation", async () => {
   await userEvent.setup().press(screen.getByLabelText("Delete photo photo-1"));
   confirmDestructiveAlert();
 
-  await waitFor(() => expect(mockDeletePhoto).toHaveBeenCalledWith("photo-1"));
+  await waitFor(() =>
+    expect(mockRemovePhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true }),
+  );
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo deleted successfully");
 });
 

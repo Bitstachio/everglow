@@ -2,16 +2,10 @@ import {
   photosControllerConfirmUploads,
   photosControllerCreateUploadUrls,
   photosControllerFindOne,
-  photosControllerListPhotos,
-  photosControllerRemove,
 } from "@/lib/api/generated";
-import type { PhotoResponseDto, UploadFileDto } from "@/lib/api/generated";
+import type { UploadFileDto } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
-import { getUserEvents } from "@/lib/event";
-
-export type Photo = PhotoResponseDto;
-
-export type { PhotoResponseDto };
+import type { PhotoResponseDto } from "../types";
 
 const normalizeContentType = (fileType: string): UploadFileDto["contentType"] => {
   if (fileType === "image/jpeg" || fileType === "image/png" || fileType === "image/webp") {
@@ -23,27 +17,8 @@ const normalizeContentType = (fileType: string): UploadFileDto["contentType"] =>
   return "image/jpeg";
 };
 
-export const getPhotosByEvent = async (eventId: string): Promise<PhotoResponseDto[]> => {
-  const { data } = await photosControllerListPhotos({ path: { eventId }, throwOnError: true });
-  return unwrapEnvelope(data).items;
-};
-
-export const getAllPhotosFromUserEvents = async (): Promise<PhotoResponseDto[]> => {
-  const events = await getUserEvents();
-  const lists = await Promise.all(events.map((event) => getPhotosByEvent(event.id)));
-  return lists.flat();
-};
-
-export const getPhotoById = async (photoId: string): Promise<PhotoResponseDto> => {
-  const { data } = await photosControllerFindOne({ path: { photoId }, throwOnError: true });
-  return unwrapEnvelope(data);
-};
-
-export const deletePhoto = async (photoId: string): Promise<void> => {
-  await photosControllerRemove({ path: { photoId }, throwOnError: true });
-};
-
-export const uploadPhoto = async (
+/** Mint a slot, PUT the file to storage, confirm, then return the photo. */
+export const uploadEventPhoto = async (
   eventId: string,
   fileUri: string,
   _fileName: string,
@@ -83,11 +58,6 @@ export const uploadPhoto = async (
     throwOnError: true,
   });
 
-  return getPhotoById(slot.photoId);
-};
-
-/** @deprecated Gallery aggregation helper; prefer listing photos per event. */
-export const getEventPhotoCount = async (eventId: string): Promise<number> => {
-  const photos = await getPhotosByEvent(eventId);
-  return photos.length;
+  const { data } = await photosControllerFindOne({ path: { photoId: slot.photoId }, throwOnError: true });
+  return unwrapEnvelope(data);
 };

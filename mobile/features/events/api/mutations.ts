@@ -6,10 +6,11 @@ import {
   eventsControllerRemove,
   eventsControllerRemoveParticipant,
   eventsControllerUpdate,
+  photosControllerRemove,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
-import { deletePhoto, uploadPhoto } from "@/lib/photo";
 import { eventsKeys } from "./keys";
+import { uploadEventPhoto } from "./upload-event-photo";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, PhotoResponseDto, UpdateEventDto } from "../types";
 
 const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClient>, eventId?: string) => {
@@ -117,7 +118,7 @@ export const useUploadEventPhotoMutation = () => {
 
   return useMutation<PhotoResponseDto, Error, UploadEventPhotoInput>({
     mutationFn: async ({ eventId, uri, fileName, mimeType, sizeBytes }) =>
-      uploadPhoto(eventId, uri, fileName, mimeType, sizeBytes),
+      uploadEventPhoto(eventId, uri, fileName, mimeType, sizeBytes),
     onSuccess: async (_data, { eventId }) => {
       await queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
     },
@@ -134,7 +135,7 @@ export const useDeleteEventPhotoMutation = () => {
 
   return useMutation<void, Error, DeleteEventPhotoInput>({
     mutationFn: async ({ photoId }) => {
-      await deletePhoto(photoId);
+      await photosControllerRemove({ path: { photoId }, throwOnError: true });
     },
     onSuccess: async (_data, { eventId }) => {
       await queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
