@@ -19,7 +19,9 @@ const mockUpdate = jest.fn();
 const mockRemove = jest.fn();
 const mockLeave = jest.fn();
 const mockRemoveParticipant = jest.fn();
-const mockUploadEventPhoto = jest.fn();
+const mockCreateUploadUrls = jest.fn();
+const mockConfirmUploads = jest.fn();
+const mockFindOnePhoto = jest.fn();
 const mockRemovePhoto = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
@@ -41,10 +43,10 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerLeave: (...args: unknown[]) => mockLeave(...args),
   eventsControllerRemoveParticipant: (...args: unknown[]) => mockRemoveParticipant(...args),
   photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
+  photosControllerCreateUploadUrls: (...args: unknown[]) => mockCreateUploadUrls(...args),
+  photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
+  photosControllerFindOne: (...args: unknown[]) => mockFindOnePhoto(...args),
   photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
-}));
-jest.mock("../api/upload-event-photo", () => ({
-  uploadEventPhoto: (...args: unknown[]) => mockUploadEventPhoto(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => {
@@ -124,7 +126,11 @@ beforeEach(() => {
   mockRemove.mockReset().mockResolvedValue({});
   mockLeave.mockReset().mockResolvedValue({});
   mockRemoveParticipant.mockReset().mockResolvedValue({});
-  mockUploadEventPhoto.mockReset().mockResolvedValue(buildPhoto({ id: "photo-2" }));
+  mockCreateUploadUrls.mockReset().mockResolvedValue({
+    data: { data: [{ photoId: "photo-2", uploadUrl: "https://upload.example.com/slot" }] },
+  });
+  mockConfirmUploads.mockReset().mockResolvedValue({ data: { data: null } });
+  mockFindOnePhoto.mockReset().mockResolvedValue({ data: { data: buildPhoto({ id: "photo-2" }) } });
   mockRemovePhoto.mockReset().mockResolvedValue({});
   mockBack.mockReset();
   mockReplace.mockReset();
@@ -136,6 +142,10 @@ beforeEach(() => {
   mockRequestMediaPermission.mockReset().mockResolvedValue({ status: "granted" });
   mockCreateAsset.mockReset().mockResolvedValue({});
   mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg" });
+  globalThis.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    blob: async () => new Blob(["image-bytes"]),
+  }) as typeof fetch;
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
@@ -264,14 +274,17 @@ test("uploads a selected photo and refreshes the photo list", async () => {
   await userEvent.setup().press(screen.getByLabelText("Add photo"));
 
   await waitFor(() =>
-    expect(mockUploadEventPhoto).toHaveBeenCalledWith(
-      "event-1",
-      "file://photo.jpg",
-      expect.stringMatching(/^event_photo_\d+\.jpg$/),
-      "image/jpg",
-      2048,
-    ),
+    expect(mockCreateUploadUrls).toHaveBeenCalledWith({
+      path: { eventId: "event-1" },
+      body: { files: [{ contentType: "image/jpeg", sizeBytes: 2048 }] },
+      throwOnError: true,
+    }),
   );
+  expect(mockConfirmUploads).toHaveBeenCalledWith({
+    path: { eventId: "event-1" },
+    body: { photoIds: ["photo-2"] },
+    throwOnError: true,
+  });
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo uploaded successfully!");
   await waitFor(() => expect(mockListPhotos.mock.calls.length).toBeGreaterThan(photoCallsBefore));
 });
@@ -287,7 +300,7 @@ test("blocks upload when photo library permission is denied", async () => {
     "Please grant photo library access to upload images.",
   );
   expect(mockLaunchLibrary).not.toHaveBeenCalled();
-  expect(mockUploadEventPhoto).not.toHaveBeenCalled();
+  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
 });
 
 test("deletes a photo after confirmation", async () => {
