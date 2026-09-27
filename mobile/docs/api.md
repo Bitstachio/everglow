@@ -4,7 +4,7 @@ This document covers server communication in the Everglow mobile app: the shared
 
 **Convention hierarchy:** API code follows [codebase conventions](./code-conventions.md). Feature `api/` folders sit inside the layout defined by [feature code organization](./feature-code-organization.md).
 
-**Reference implementation:** `features/profile/api/` is the model for feature API hooks. Do not copy patterns from `features/events/` or `lib/event.ts` / `lib/photo.ts`.
+**Reference implementation:** `features/profile/api/` is the model for feature API hooks. Prefer that layout when adding or refactoring feature API code; parts of `features/events/` still predate the full feature structure.
 
 ## Shared client (`lib/api/`)
 
