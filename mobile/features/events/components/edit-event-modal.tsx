@@ -2,6 +2,7 @@ import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { H3 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Calendar, Clock } from "lucide-react-native";
@@ -16,10 +17,19 @@ type EditEventModalProps = {
   isSubmitting: boolean;
   error?: string;
   onSubmit: () => void;
+  onDelete: () => void;
   onClose: () => void;
 };
 
-export const EditEventModal = ({ visible, control, isSubmitting, error, onSubmit, onClose }: EditEventModalProps) => {
+export const EditEventModal = ({
+  visible,
+  control,
+  isSubmitting,
+  error,
+  onSubmit,
+  onDelete,
+  onClose,
+}: EditEventModalProps) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -184,6 +194,21 @@ export const EditEventModal = ({ visible, control, isSubmitting, error, onSubmit
           disabled={isSubmitting}
         />
         <Button title="Cancel" onPress={handleClose} variant="outline" disabled={isSubmitting} />
+      </View>
+
+      <View className="gap-3">
+        <H3>Danger Zone</H3>
+        <View className="gap-3 rounded-2xl border border-border bg-surface p-4">
+          <ThemedText tone="muted" className="text-sm">
+            Permanently delete this event and all of its photos. This cannot be undone.
+          </ThemedText>
+          <Button
+            title="Delete Event"
+            onPress={onDelete}
+            disabled={isSubmitting}
+            className="bg-danger active:opacity-80"
+          />
+        </View>
       </View>
     </BottomSheet>
   );

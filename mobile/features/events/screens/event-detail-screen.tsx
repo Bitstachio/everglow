@@ -74,7 +74,8 @@ const EventDetailScreen = () => {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-4 pb-6 pt-4"
+        contentContainerClassName="gap-6 px-4 pt-4"
+        contentContainerStyle={{ paddingBottom: isAdmin ? 24 + insets.bottom : 24 }}
         refreshControl={
           <RefreshControl
             testID="event-detail-refresh"
@@ -115,13 +116,11 @@ const EventDetailScreen = () => {
         />
       </ScrollView>
 
-      <View className="border-t border-border px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
-        {isAdmin ? (
-          <Button title="Delete Event" onPress={handleDeleteEvent} className="bg-danger active:opacity-80" />
-        ) : (
+      {!isAdmin ? (
+        <View className="border-t border-border px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
           <Button title="Leave Event" onPress={handleLeaveEvent} variant="outline" />
-        )}
-      </View>
+        </View>
+      ) : null}
 
       {isAdmin ? (
         <EventMembersSheet
@@ -139,6 +138,7 @@ const EventDetailScreen = () => {
           isSubmitting={form.formState.isSubmitting}
           error={form.formState.errors.root?.server?.message}
           onSubmit={onSubmit}
+          onDelete={handleDeleteEvent}
           onClose={handleCloseEdit}
         />
       ) : null}

@@ -6,6 +6,7 @@ import { EditEventModal } from "./edit-event-modal";
 import type { EditEventValues } from "../types";
 
 const onSubmit = jest.fn();
+const onDelete = jest.fn();
 const onClose = jest.fn();
 
 const FormProbe = ({
@@ -25,6 +26,7 @@ const FormProbe = ({
       isSubmitting={isSubmitting}
       error={error}
       onSubmit={onSubmit}
+      onDelete={onDelete}
       onClose={onClose}
     />
   );
@@ -33,6 +35,7 @@ const FormProbe = ({
 beforeEach(() => {
   mockColorScheme.mockReturnValue("light");
   onSubmit.mockReset();
+  onDelete.mockReset();
   onClose.mockReset();
 });
 
@@ -83,4 +86,18 @@ test("Cancel closes while loading locks controls", async () => {
 test("shows a server error message", async () => {
   await render(<FormProbe error="Network unavailable" />);
   expect(screen.getByText("Network unavailable")).toBeOnTheScreen();
+});
+
+test("Danger Zone delete calls onDelete and is locked while submitting", async () => {
+  const view = await render(<FormProbe />);
+  expect(screen.getByText("Danger Zone")).toBeOnTheScreen();
+  expect(
+    screen.getByText("Permanently delete this event and all of its photos. This cannot be undone."),
+  ).toBeOnTheScreen();
+
+  await userEvent.setup().press(screen.getByText("Delete Event"));
+  expect(onDelete).toHaveBeenCalledTimes(1);
+
+  await view.rerender(<FormProbe isSubmitting />);
+  expect(screen.getByText("Delete Event")).toBeDisabled();
 });

@@ -169,7 +169,7 @@ test.each(["light", "dark"] as const)("loads event details for an organizer in %
   expect(screen.getByLabelText("Event photo photo-1")).toBeOnTheScreen();
   expect(screen.getByLabelText("Edit event")).toBeOnTheScreen();
   expect(screen.getByLabelText("View all members, 2")).toBeOnTheScreen();
-  expect(screen.getByText("Delete Event")).toBeOnTheScreen();
+  expect(screen.queryByText("Delete Event")).not.toBeOnTheScreen();
   expect(screen.queryByText("Leave Event")).not.toBeOnTheScreen();
 });
 
@@ -327,9 +327,11 @@ test("downloads a photo to the media library", async () => {
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo downloaded successfully!");
 });
 
-test("deletes the event and returns to the events root", async () => {
+test("deletes the event from Edit Event and returns to the events root", async () => {
   await renderScreen();
   await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Edit event"));
+  await screen.findByText("Danger Zone");
   await userEvent.setup().press(screen.getByText("Delete Event"));
   confirmDestructiveAlert();
 
