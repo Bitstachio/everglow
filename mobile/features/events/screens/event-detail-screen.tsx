@@ -86,16 +86,6 @@ const EventDetailScreen = () => {
       >
         <EventDetailInfo event={event} />
 
-        <EventPhotosSection
-          photos={photos}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          isUploading={isUploadingPhoto}
-          onUpload={handleUploadImage}
-          onDownload={handleDownloadPhoto}
-          onDelete={handleDeletePhoto}
-        />
-
         {isAdmin ? (
           <View className="flex-row items-center justify-between gap-3">
             <H2 className="flex-1">Members</H2>
@@ -113,6 +103,16 @@ const EventDetailScreen = () => {
             </Pressable>
           </View>
         ) : null}
+
+        <EventPhotosSection
+          photos={photos}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          isUploading={isUploadingPhoto}
+          onUpload={handleUploadImage}
+          onDownload={handleDownloadPhoto}
+          onDelete={handleDeletePhoto}
+        />
       </ScrollView>
 
       <View className="border-t border-border px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
