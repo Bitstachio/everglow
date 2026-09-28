@@ -16,7 +16,7 @@ const EditEventDateScreen = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right"]}>
+    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
       <EditEventDateForm
         control={form.control}
         isDirty={form.formState.isDirty}

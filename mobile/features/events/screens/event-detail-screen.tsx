@@ -3,6 +3,7 @@ import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
+import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -10,7 +11,6 @@ import { colorTokens } from "@/theme/tokens";
 import { ChevronRight, Settings } from "lucide-react-native";
 import { Stack } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EventDetailInfo } from "../components/event-detail-info";
 import { EventMembersSheet } from "../components/event-members-sheet";
 import { EventPhotosSection } from "../components/event-photos-section";
@@ -18,7 +18,6 @@ import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 
 const EventDetailScreen = () => {
   const colorScheme = useColorScheme();
-  const insets = useSafeAreaInsets();
   const {
     event,
     photos,
@@ -66,20 +65,19 @@ const EventDetailScreen = () => {
         }}
       />
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="pt-4"
-        contentContainerStyle={{ paddingBottom: isAdmin ? 24 + insets.bottom : 24 }}
-        refreshControl={
-          <RefreshControl
-            testID="event-detail-refresh"
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colorTokens[colorScheme].foreground}
-          />
-        }
-      >
-        <View className="gap-6 px-4">
+      <SafeAreaView className="flex-1" edges={["bottom"]}>
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-6 px-4 pt-4 pb-6"
+          refreshControl={
+            <RefreshControl
+              testID="event-detail-refresh"
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colorTokens[colorScheme].foreground}
+            />
+          }
+        >
           <EventDetailInfo event={event} />
 
           {isAdmin ? (
@@ -109,14 +107,14 @@ const EventDetailScreen = () => {
             onDownload={handleDownloadPhoto}
             onDelete={handleDeletePhoto}
           />
-        </View>
-      </ScrollView>
+        </ScrollView>
 
-      {!isAdmin ? (
-        <View className="border-t border-border px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
-          <Button title="Leave Event" onPress={handleLeaveEvent} variant="outline" />
-        </View>
-      ) : null}
+        {!isAdmin ? (
+          <View className="border-t border-border px-4 pb-4 pt-3">
+            <Button title="Leave Event" onPress={handleLeaveEvent} variant="outline" />
+          </View>
+        ) : null}
+      </SafeAreaView>
 
       {isAdmin ? (
         <EventMembersSheet

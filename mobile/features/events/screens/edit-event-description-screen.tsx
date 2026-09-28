@@ -16,7 +16,7 @@ const EditEventDescriptionScreen = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right"]}>
+    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <EditEventDescriptionForm
           control={form.control}
