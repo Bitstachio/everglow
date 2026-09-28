@@ -6,7 +6,6 @@ import { Calendar, Clock } from "lucide-react-native";
 import { Controller, type Control } from "react-hook-form";
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { EditEventDateValues } from "../types";
 
 type EditEventDateFormProps = {
@@ -32,7 +31,6 @@ const formatTime = (date: Date) =>
   });
 
 export const EditEventDateForm = ({ control, isDirty, isSubmitting, error, onSubmit }: EditEventDateFormProps) => {
-  const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -148,7 +146,7 @@ export const EditEventDateForm = ({ control, isDirty, isSubmitting, error, onSub
         ) : null}
       </ScrollView>
 
-      <View className="px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
+      <View className="px-4 pt-3 pb-4">
         <Button
           title="Save"
           onPress={() => {
