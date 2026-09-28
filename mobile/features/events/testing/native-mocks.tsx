@@ -1,5 +1,4 @@
-// Only native/platform boundaries are replaced; feature components stay real.
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { CameraView } from "expo-camera";
 
 export const mockColorScheme = jest.fn(() => "light");
@@ -7,9 +6,14 @@ export const mockRequestPermission = jest.fn();
 export const mockCameraPermission = jest.fn((): { granted: boolean } | null => ({ granted: true }));
 
 jest.mock("@/hooks/use-color-scheme", () => ({ useColorScheme: () => mockColorScheme() }));
-jest.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
-}));
+jest.mock("react-native-safe-area-context", () => {
+  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+    SafeAreaView: View,
+    SafeAreaProvider: ({ children }: { children: ReactNode }) => children,
+  };
+});
 jest.mock("react-native-qrcode-svg", () => {
   const { View } = jest.requireActual("react-native");
   return {

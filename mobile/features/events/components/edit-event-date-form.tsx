@@ -1,82 +1,44 @@
 import { AppIcon } from "@/components/ui/app-icon";
-import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { FormField } from "@/components/ui/form-field";
-import { H3 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Calendar, Clock } from "lucide-react-native";
 import { Controller, type Control } from "react-hook-form";
 import { useState } from "react";
-import { Platform, Pressable, View } from "react-native";
-import type { EditEventValues } from "../types";
+import { Platform, Pressable, ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { EditEventDateValues } from "../types";
 
-type EditEventModalProps = {
-  visible: boolean;
-  control: Control<EditEventValues>;
+type EditEventDateFormProps = {
+  control: Control<EditEventDateValues>;
+  isDirty: boolean;
   isSubmitting: boolean;
   error?: string;
   onSubmit: () => void;
-  onDelete: () => void;
-  onClose: () => void;
 };
 
-export const EditEventModal = ({
-  visible,
-  control,
-  isSubmitting,
-  error,
-  onSubmit,
-  onDelete,
-  onClose,
-}: EditEventModalProps) => {
+const formatDate = (date: Date) =>
+  date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const formatTime = (date: Date) =>
+  date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+export const EditEventDateForm = ({ control, isDirty, isSubmitting, error, onSubmit }: EditEventDateFormProps) => {
+  const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-
-  const formatTime = (date: Date) =>
-    date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-
-  const handleClose = () => {
-    if (!isSubmitting) onClose();
-  };
-
   return (
-    <BottomSheet
-      testID="edit-event-sheet"
-      visible={visible}
-      onClose={handleClose}
-      title="Edit Event"
-      dismissAccessibilityLabel="Dismiss edit event"
-      closeAccessibilityLabel="Close edit event"
-    >
-      <View className="gap-4">
-        <FormField
-          control={control}
-          name="title"
-          label="Event Title"
-          placeholder="Enter event title"
-          editable={!isSubmitting}
-        />
-
-        <FormField
-          control={control}
-          name="description"
-          label="Description"
-          placeholder="Enter event description"
-          editable={!isSubmitting}
-        />
-
+    <View className="flex-1 bg-background">
+      <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-4 pb-6" keyboardShouldPersistTaps="handled">
         <Controller
           control={control}
           name="date"
@@ -175,41 +137,29 @@ export const EditEventModal = ({
           }}
         />
 
+        <ThemedText tone="muted" className="text-sm">
+          Guests see this date and time on the event details screen.
+        </ThemedText>
+
         {error ? (
           <ThemedText accessibilityRole="alert" tone="danger" className="text-sm">
             {error}
           </ThemedText>
         ) : null}
-      </View>
+      </ScrollView>
 
-      <View className="gap-3">
+      <View className="px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
         <Button
-          title="Save Changes"
+          title="Save"
           onPress={() => {
             setShowDatePicker(false);
             setShowTimePicker(false);
             onSubmit();
           }}
           isLoading={isSubmitting}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !isDirty}
         />
-        <Button title="Cancel" onPress={handleClose} variant="outline" disabled={isSubmitting} />
       </View>
-
-      <View className="gap-3">
-        <H3>Danger Zone</H3>
-        <View className="gap-3 rounded-2xl border border-border bg-surface p-4">
-          <ThemedText tone="muted" className="text-sm">
-            Permanently delete this event and all of its photos. This cannot be undone.
-          </ThemedText>
-          <Button
-            title="Delete Event"
-            onPress={onDelete}
-            disabled={isSubmitting}
-            className="bg-danger active:opacity-80"
-          />
-        </View>
-      </View>
-    </BottomSheet>
+    </View>
   );
 };

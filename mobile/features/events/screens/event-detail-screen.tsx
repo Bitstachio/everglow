@@ -7,11 +7,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
-import { ChevronRight, Pencil } from "lucide-react-native";
+import { ChevronRight, Settings } from "lucide-react-native";
 import { Stack } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EditEventModal } from "../components/edit-event-modal";
 import { EventDetailInfo } from "../components/event-detail-info";
 import { EventMembersSheet } from "../components/event-members-sheet";
 import { EventPhotosSection } from "../components/event-photos-section";
@@ -29,15 +28,10 @@ const EventDetailScreen = () => {
     isAdmin,
     currentUserId,
     isUploadingPhoto,
-    editModalVisible,
     membersSheetVisible,
-    form,
-    onSubmit,
     onRefresh,
-    handleOpenEdit,
-    handleCloseEdit,
+    handleOpenSettings,
     handleUploadImage,
-    handleDeleteEvent,
     handleLeaveEvent,
     handleDeletePhoto,
     handleRemoveMember,
@@ -65,8 +59,8 @@ const EventDetailScreen = () => {
           headerBackTitle: "Back",
           headerRight: () =>
             isAdmin ? (
-              <IconButton accessibilityLabel="Edit event" onPress={handleOpenEdit}>
-                <AppIcon icon={Pencil} size="sm" className="text-accent" />
+              <IconButton accessibilityLabel="Event settings" onPress={handleOpenSettings}>
+                <AppIcon icon={Settings} size="sm" className="text-accent" />
               </IconButton>
             ) : null,
         }}
@@ -128,18 +122,6 @@ const EventDetailScreen = () => {
           participants={participants}
           onClose={handleCloseMembers}
           onRemove={handleRemoveMember}
-        />
-      ) : null}
-
-      {isAdmin ? (
-        <EditEventModal
-          visible={editModalVisible}
-          control={form.control}
-          isSubmitting={form.formState.isSubmitting}
-          error={form.formState.errors.root?.server?.message}
-          onSubmit={onSubmit}
-          onDelete={handleDeleteEvent}
-          onClose={handleCloseEdit}
         />
       ) : null}
     </ThemedView>

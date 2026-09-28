@@ -3,7 +3,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
-import { SettingsRow } from "../components/settings-row";
+import { SettingsRow } from "@/components/ui/settings-row";
 import { useProfileScreen } from "../hooks/use-profile-screen";
 
 const AccountSettingsScreen = () => {
