@@ -1,21 +1,24 @@
 import { Prisma } from "generated/prisma/client";
-import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
+import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 
-/** What happens to a removed member's photos in the event. The organizer chooses. */
-export const REMOVED_MEMBER_PHOTOS = {
-  /** They stay in the event, still credited to the member. */
+/**
+ * What happens to a departing member's photos in the event: chosen by the
+ * organizer who removes them, or by the member who leaves.
+ */
+export const MEMBER_PHOTOS = {
+  /** They stay in the event, still credited to the member and counted against their storage; they can delete them later. */
   KEEP: "KEEP",
   /** Everything the member uploaded to the event is deleted. */
   DELETE: "DELETE",
 } as const;
-export type RemovedMemberPhotos = (typeof REMOVED_MEMBER_PHOTOS)[keyof typeof REMOVED_MEMBER_PHOTOS];
+export type MemberPhotos = (typeof MEMBER_PHOTOS)[keyof typeof MEMBER_PHOTOS];
 
 export interface RemoveMemberInput {
   eventId: string;
   userId: string;
   /** The organizer removing them: recorded on the ban, and as the resolver of any reports it closes. */
   removedById: string;
-  photos: RemovedMemberPhotos;
+  photos: MemberPhotos;
   /** Photos the caller deletes itself, e.g. the one a report is about. */
   excludePhotoIds?: string[];
 }
@@ -50,15 +53,8 @@ export async function removeMemberInTransaction(
     update: {},
   });
 
-  if (photos === REMOVED_MEMBER_PHOTOS.KEEP) return { photoKeys: [], photosDeleted: 0, reportsClosed: 0 };
+  if (photos === MEMBER_PHOTOS.KEEP) return { photoKeys: [], photosDeleted: 0, reportsClosed: 0 };
 
-  const uploaded = await tx.photo.findMany({
-    where: { eventId, addedById: userId, id: { notIn: excludePhotoIds } },
-    select: { id: true, s3Key: true },
-  });
-  const ids = uploaded.map((photo) => photo.id);
-  const reportsClosed = await closeReportsOnDeletedPhotos(tx, ids, removedById);
-  const { count } = await tx.photo.deleteMany({ where: { id: { in: ids } } });
-
-  return { photoKeys: uploaded.map((photo) => photo.s3Key), photosDeleted: count, reportsClosed };
+  const deleted = await deleteUploadsInTransaction(tx, { eventId, userId, closedById: removedById, excludePhotoIds });
+  return { photoKeys: deleted.photoKeys, photosDeleted: deleted.photosDeleted, reportsClosed: deleted.reportsClosed };
 }

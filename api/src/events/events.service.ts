@@ -19,7 +19,8 @@ import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
-import { REMOVED_MEMBER_PHOTOS, RemovedMemberPhotos, removeMemberInTransaction } from "./event-membership";
+import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-membership";
+import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE, REMOVED_FROM_EVENT_CODE } from "./events.constants";
 import {
@@ -244,7 +245,12 @@ export class EventsService {
     return updated;
   }
 
-  async leaveEvent(eventId: string, callerId: string): Promise<void> {
+  /**
+   * Leaving records no ban, so the member can rejoin through the link. With
+   * DELETE their photos in the event go too; with KEEP they stay, still
+   * theirs, and can be deleted later from the storage screen.
+   */
+  async leaveEvent(eventId: string, callerId: string, photos: MemberPhotos = MEMBER_PHOTOS.KEEP): Promise<void> {
     const loaded = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: eventWithCallerAccessInclude(callerId),
@@ -264,11 +270,33 @@ export class EventsService {
       }
     }
 
-    await this.prisma.eventAccess.delete({
-      where: { userId_eventId: { userId: callerId, eventId } },
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      await tx.eventAccess.delete({ where: { userId_eventId: { userId: callerId, eventId } } });
+      return photos === MEMBER_PHOTOS.DELETE
+        ? deleteUploadsInTransaction(tx, { eventId, userId: callerId, closedById: callerId })
+        : null;
     });
 
-    this.logger.info({ event: "event.left", eventId, callerId, audit: true }, "User left event");
+    this.logger.info(
+      {
+        event: "event.left",
+        eventId,
+        callerId,
+        photos,
+        photosDeleted: deleted?.photosDeleted ?? 0,
+        bytesFreed: (deleted?.bytesFreed ?? 0n).toString(),
+        audit: true,
+      },
+      "User left event",
+    );
+
+    if (deleted) {
+      await this.photoPurgeService.purgeObjects(deleted.photoKeys, {
+        event: ALERT_EVENTS.EVENT_MEMBER_PHOTOS_PURGED,
+        eventId,
+        callerId,
+      });
+    }
   }
 
   async getEventParticipants(eventId: string, callerId: string): Promise<EventParticipant[]> {
@@ -359,7 +387,7 @@ export class EventsService {
     eventId: string,
     callerId: string,
     targetUserId: string,
-    photos: RemovedMemberPhotos = REMOVED_MEMBER_PHOTOS.KEEP,
+    photos: MemberPhotos = MEMBER_PHOTOS.KEEP,
   ): Promise<void> {
     await this.getUpdatable(eventId, callerId);
 

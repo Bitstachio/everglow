@@ -528,6 +528,37 @@ describe("EventsController (integration)", () => {
   describe("POST /events/:eventId/leave", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/leave`;
 
+    it("with ?photos=DELETE, deletes the leaver's photos in the event and purges them", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+      prisma.eventAccess.delete.mockResolvedValue(buildParticipantAccess());
+      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p", sizeBytes: 1000 }] as never);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      s3Service.deleteObjects.mockResolvedValue({ deleted: ["photos/u/e/p"], failed: [] });
+
+      await request(httpServer).post(path()).query({ photos: "DELETE" }).set(authHeader()).expect(204);
+
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_PHOTO_ID] } } });
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/p"]);
+      expect(prisma.eventBan.upsert).not.toHaveBeenCalled();
+    });
+
+    it("keeps the leaver's photos by default", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+      prisma.eventAccess.delete.mockResolvedValue(buildParticipantAccess());
+
+      await request(httpServer).post(path()).set(authHeader()).expect(204);
+
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for an unknown photos value", async () => {
+      await request(httpServer).post(path()).query({ photos: "MAYBE" }).set(authHeader()).expect(400);
+
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
     it("returns 204 when a participant leaves the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
       prisma.eventAccess.delete.mockResolvedValue(buildParticipantAccess());
@@ -708,7 +739,7 @@ describe("EventsController (integration)", () => {
 
     it("with ?photos=DELETE, deletes the participant's photos in the event and purges their objects", async () => {
       setupRemove();
-      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p" }] as never);
+      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p", sizeBytes: 1000 }] as never);
       prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       prisma.report.updateMany.mockResolvedValue({ count: 0 });
       s3Service.deleteObjects.mockResolvedValue({ deleted: ["photos/u/e/p"], failed: [] });

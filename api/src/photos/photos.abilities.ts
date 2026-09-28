@@ -1,5 +1,5 @@
 import { AbilityBuilder } from "@casl/ability";
-import { AccessLevel, PhotoStatus } from "generated/prisma/client";
+import { AccessLevel } from "generated/prisma/client";
 import { AbilityUserContext, AppAbility } from "src/casl/ability.types";
 
 export const PHOTO_ACTIONS = {
@@ -36,14 +36,9 @@ export const definePhotoAbilities = (can: AbilityBuilder<AppAbility>["can"], use
     event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } },
   });
 
-  // Participants can delete their own photos, as long as they are still event members.
-  can(PHOTO_ACTIONS.DELETE, PHOTO_SUBJECT, {
-    addedById: user.id,
-    event: { is: { eventAccesses: { some: { userId: user.id } } } },
-  });
-
-  // Uploaders can always release their own unconfirmed slots, membership or
-  // not. A PENDING row is invisible to every other member and holds only the
-  // uploader's quota, so nobody else can free it on their behalf.
-  can(PHOTO_ACTIONS.DELETE, PHOTO_SUBJECT, { addedById: user.id, status: PhotoStatus.PENDING });
+  // Uploaders can always delete their own photos, membership or not. Photos
+  // kept in an event they left or were removed from still count toward their
+  // storage, so they must be able to take them back (docs/photos-architecture.md
+  // §9). This also covers releasing their own unconfirmed PENDING slots.
+  can(PHOTO_ACTIONS.DELETE, PHOTO_SUBJECT, { addedById: user.id });
 };

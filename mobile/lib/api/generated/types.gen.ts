@@ -71,6 +71,82 @@ export type UserStorageResponseDto = {
   remainingBytes: string;
 };
 
+/**
+ * MEMBER: still in the event. LEFT: left on their own (can rejoin through the link). REMOVED: an organizer removed them. Photos count toward storage in every case.
+ */
+export type EventMembership = "MEMBER" | "LEFT" | "REMOVED";
+
+export type EventStorageUsageResponseDto = {
+  eventId: string;
+  title: string;
+  /**
+   * Short-lived presigned URL of the event cover; null when none is set
+   */
+  coverUrl: string | null;
+  /**
+   * MEMBER: still in the event. LEFT: left on their own (can rejoin through the link). REMOVED: an organizer removed them. Photos count toward storage in every case.
+   */
+  membership: EventMembership;
+  /**
+   * Photos the caller uploaded to this event, including uploads still in progress
+   */
+  photoCount: number;
+  /**
+   * Bytes those photos use; the rows add up to usedBytes
+   */
+  bytes: string;
+};
+
+export type EventStorageUsageListResponseDto = {
+  /**
+   * Largest first
+   */
+  items: Array<EventStorageUsageResponseDto>;
+};
+
+export type OwnPhotoResponseDto = {
+  id: string;
+  /**
+   * Presigned S3 GET URL, valid for a short period
+   */
+  url: string;
+  contentType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+  /**
+   * Bytes this photo uses
+   */
+  sizeBytes: number;
+  createdAt: string;
+};
+
+export type OwnPhotoListResponseDto = {
+  /**
+   * Newest first
+   */
+  items: Array<OwnPhotoResponseDto>;
+  /**
+   * Opaque cursor for the next page; pass it as ?cursor=. Null on the last page.
+   */
+  nextCursor: string | null;
+};
+
+export type DeleteOwnPhotosResponseDto = {
+  /**
+   * Photos actually deleted
+   */
+  photosDeleted: number;
+  /**
+   * Bytes returned to the caller's storage
+   */
+  bytesFreed: string;
+};
+
+export type DeleteOwnPhotosDto = {
+  /**
+   * The photos to delete. Omit it to delete all of your photos in the event. Ids that are not your photos in this event are ignored.
+   */
+  photoIds?: Array<string>;
+};
+
 export type UpdateUserDto = {
   name?: string;
   /**
@@ -222,7 +298,7 @@ export type ReportResolutionAction = "REMOVE_PHOTO" | "REMOVE_MEMBER" | "DISMISS
 /**
  * REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.
  */
-export type RemovedMemberPhotos = "KEEP" | "DELETE";
+export type MemberPhotos = "KEEP" | "DELETE";
 
 export type ResolveReportDto = {
   /**
@@ -232,7 +308,7 @@ export type ResolveReportDto = {
   /**
    * REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.
    */
-  photos?: RemovedMemberPhotos;
+  photos?: MemberPhotos;
 };
 
 export type BlockedUserResponseDto = {
@@ -592,6 +668,139 @@ export type UsersControllerGetMyStorageResponses = {
 
 export type UsersControllerGetMyStorageResponse =
   UsersControllerGetMyStorageResponses[keyof UsersControllerGetMyStorageResponses];
+
+export type UsersControllerGetMyStorageByEventData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/storage/events";
+};
+
+export type UsersControllerGetMyStorageByEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerGetMyStorageByEventError =
+  UsersControllerGetMyStorageByEventErrors[keyof UsersControllerGetMyStorageByEventErrors];
+
+export type UsersControllerGetMyStorageByEventResponses = {
+  /**
+   * Storage used per event
+   */
+  200: {
+    data: EventStorageUsageListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerGetMyStorageByEventResponse =
+  UsersControllerGetMyStorageByEventResponses[keyof UsersControllerGetMyStorageByEventResponses];
+
+export type UsersControllerListMyPhotosInEventData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: {
+    /**
+     * Opaque cursor: the nextCursor value from the previous page. Omit for the first page.
+     */
+    cursor?: string;
+    limit?: number;
+  };
+  url: "/api/v2/users/me/storage/events/{eventId}/photos";
+};
+
+export type UsersControllerListMyPhotosInEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerListMyPhotosInEventError =
+  UsersControllerListMyPhotosInEventErrors[keyof UsersControllerListMyPhotosInEventErrors];
+
+export type UsersControllerListMyPhotosInEventResponses = {
+  /**
+   * The caller's photos in the event
+   */
+  200: {
+    data: OwnPhotoListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerListMyPhotosInEventResponse =
+  UsersControllerListMyPhotosInEventResponses[keyof UsersControllerListMyPhotosInEventResponses];
+
+export type UsersControllerDeleteMyPhotosInEventData = {
+  body: DeleteOwnPhotosDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/users/me/storage/events/{eventId}/photos/delete";
+};
+
+export type UsersControllerDeleteMyPhotosInEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerDeleteMyPhotosInEventError =
+  UsersControllerDeleteMyPhotosInEventErrors[keyof UsersControllerDeleteMyPhotosInEventErrors];
+
+export type UsersControllerDeleteMyPhotosInEventResponses = {
+  /**
+   * What was deleted and how much space it freed
+   */
+  200: {
+    data: DeleteOwnPhotosResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerDeleteMyPhotosInEventResponse =
+  UsersControllerDeleteMyPhotosInEventResponses[keyof UsersControllerDeleteMyPhotosInEventResponses];
 
 export type UsersControllerCreateAvatarUploadUrlData = {
   body: CreateImageUploadDto;
@@ -1514,7 +1723,12 @@ export type EventsControllerLeaveData = {
   path: {
     eventId: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * What happens to the photos you uploaded to this event. KEEP (default): they stay in the event and keep counting toward your storage; you can still delete them later from GET /users/me/storage/events. DELETE: they are all deleted now and the space is freed.
+     */
+    photos?: MemberPhotos;
+  };
   url: "/api/v2/events/{eventId}/leave";
 };
 
@@ -1644,7 +1858,7 @@ export type EventsControllerRemoveParticipantData = {
     /**
      * What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is banned from rejoining through the invitation link until an organizer lifts the ban.
      */
-    photos?: RemovedMemberPhotos;
+    photos?: MemberPhotos;
   };
   url: "/api/v2/events/{eventId}/participants/{targetUserId}";
 };
