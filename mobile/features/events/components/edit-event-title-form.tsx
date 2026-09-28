@@ -13,13 +13,7 @@ type EditEventTitleFormProps = {
   onSubmit: () => void;
 };
 
-export const EditEventTitleForm = ({
-  control,
-  isDirty,
-  isSubmitting,
-  error,
-  onSubmit,
-}: EditEventTitleFormProps) => (
+export const EditEventTitleForm = ({ control, isDirty, isSubmitting, error, onSubmit }: EditEventTitleFormProps) => (
   <View className="flex-1 bg-background">
     <ScrollView className="flex-1" contentContainerClassName="px-4 pt-4 pb-6" keyboardShouldPersistTaps="handled">
       <View className="gap-2">

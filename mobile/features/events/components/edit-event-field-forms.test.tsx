@@ -42,14 +42,7 @@ const DateProbe = ({
   isSubmitting?: boolean;
 }) => {
   const form = useForm<EditEventDateValues>({ defaultValues: defaults });
-  return (
-    <EditEventDateForm
-      control={form.control}
-      isDirty
-      isSubmitting={isSubmitting}
-      onSubmit={onSubmit}
-    />
-  );
+  return <EditEventDateForm control={form.control} isDirty isSubmitting={isSubmitting} onSubmit={onSubmit} />;
 };
 
 test("title form renders the seeded value and submits when dirty", async () => {

@@ -114,10 +114,7 @@ test("sends non-organizers back", async () => {
   mockFindOne.mockResolvedValue({ data: { data: buildEvent({ creatorId: "user-1" }) } });
   mockGetParticipants.mockResolvedValue({
     data: {
-      data: [
-        buildParticipant(),
-        buildParticipant({ userId: "user-2", name: "Guest", accessLevel: "PARTICIPANT" }),
-      ],
+      data: [buildParticipant(), buildParticipant({ userId: "user-2", name: "Guest", accessLevel: "PARTICIPANT" })],
     },
   });
   const client = new QueryClient({

@@ -36,7 +36,11 @@ export const EditEventDateForm = ({ control, isDirty, isSubmitting, error, onSub
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-4 pb-6" keyboardShouldPersistTaps="handled">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-4 px-4 pt-4 pb-6"
+        keyboardShouldPersistTaps="handled"
+      >
         <Controller
           control={control}
           name="date"
