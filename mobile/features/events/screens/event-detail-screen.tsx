@@ -68,7 +68,7 @@ const EventDetailScreen = () => {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-4 pt-4"
+        contentContainerClassName="pt-4"
         contentContainerStyle={{ paddingBottom: isAdmin ? 24 + insets.bottom : 24 }}
         refreshControl={
           <RefreshControl
@@ -79,35 +79,37 @@ const EventDetailScreen = () => {
           />
         }
       >
-        <EventDetailInfo event={event} />
+        <View className="gap-6 px-4">
+          <EventDetailInfo event={event} />
 
-        {isAdmin ? (
-          <View className="flex-row items-center justify-between gap-3">
-            <H2 className="flex-1">Members</H2>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`View all members, ${participants.length}`}
-              onPress={handleOpenMembers}
-              className="h-11 flex-row items-center gap-2 rounded-xl bg-surface px-3"
-              hitSlop={8}
-            >
-              <ThemedText className="text-sm font-medium" tone="accent">
-                View All ({participants.length})
-              </ThemedText>
-              <AppIcon icon={ChevronRight} size="xs" className="text-accent" />
-            </Pressable>
-          </View>
-        ) : null}
+          {isAdmin ? (
+            <View className="flex-row items-center justify-between gap-3">
+              <H2 className="flex-1">Members</H2>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`View all members, ${participants.length}`}
+                onPress={handleOpenMembers}
+                className="h-11 flex-row items-center gap-2 rounded-xl bg-surface px-3"
+                hitSlop={8}
+              >
+                <ThemedText className="text-sm font-medium" tone="accent">
+                  View All ({participants.length})
+                </ThemedText>
+                <AppIcon icon={ChevronRight} size="xs" className="text-accent" />
+              </Pressable>
+            </View>
+          ) : null}
 
-        <EventPhotosSection
-          photos={photos}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          isUploading={isUploadingPhoto}
-          onUpload={handleUploadImage}
-          onDownload={handleDownloadPhoto}
-          onDelete={handleDeletePhoto}
-        />
+          <EventPhotosSection
+            photos={photos}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            isUploading={isUploadingPhoto}
+            onUpload={handleUploadImage}
+            onDownload={handleDownloadPhoto}
+            onDelete={handleDeletePhoto}
+          />
+        </View>
       </ScrollView>
 
       {!isAdmin ? (
