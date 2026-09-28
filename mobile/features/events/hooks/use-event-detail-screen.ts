@@ -7,7 +7,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert } from "react-native";
 import {
-  useDeleteEventMutation,
   useDeleteEventPhotoMutation,
   useLeaveEventMutation,
   useRemoveEventParticipantMutation,
@@ -15,7 +14,6 @@ import {
 } from "../api/mutations";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
 import type { PhotoResponseDto } from "../types";
-import { useEditEventForm, valuesFromEvent } from "./use-edit-event-form";
 
 export const useEventDetailScreen = () => {
   const router = useRouter();
@@ -27,27 +25,16 @@ export const useEventDetailScreen = () => {
   const photosQuery = useEventPhotosQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
 
-  const deleteEventMutation = useDeleteEventMutation();
   const leaveEventMutation = useLeaveEventMutation();
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
   const uploadPhotoMutation = useUploadEventPhotoMutation();
   const deletePhotoMutation = useDeleteEventPhotoMutation();
 
-  const [editModalVisible, setEditModalVisible] = useState(false);
   const [membersSheetVisible, setMembersSheetVisible] = useState(false);
 
   const event = eventQuery.data ?? null;
   const photos = photosQuery.data ?? [];
   const participants = participantsQuery.data ?? [];
-
-  const { form, onSubmit } = useEditEventForm({
-    eventId: eventId ?? "",
-    event,
-    onSuccess: () => {
-      setEditModalVisible(false);
-      Alert.alert("Success", "Event updated successfully");
-    },
-  });
 
   const currentParticipant = participants.find((participant) => participant.userId === user?.id);
   const isAdmin = event?.creatorId === user?.id || currentParticipant?.accessLevel === "ORGANIZER";
@@ -65,15 +52,9 @@ export const useEventDetailScreen = () => {
     void Promise.all([eventQuery.refetch(), photosQuery.refetch(), participantsQuery.refetch()]);
   };
 
-  const handleOpenEdit = () => {
-    if (!event) return;
-    form.reset(valuesFromEvent(event));
-    setEditModalVisible(true);
-  };
-
-  const handleCloseEdit = () => {
-    if (form.formState.isSubmitting) return;
-    setEditModalVisible(false);
+  const handleOpenSettings = () => {
+    if (!eventId) return;
+    router.push(`/events/${eventId}/settings`);
   };
 
   const handleUploadImage = async () => {
@@ -117,29 +98,6 @@ export const useEventDetailScreen = () => {
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error, "Failed to upload photo"));
     }
-  };
-
-  const handleDeleteEvent = () => {
-    if (!eventId) return;
-
-    Alert.alert("Delete Event", "Are you sure you want to delete this event? This action cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          deleteEventMutation.mutate(eventId, {
-            onSuccess: () => {
-              Alert.alert("Success", "Event deleted successfully");
-              router.replace("/events");
-            },
-            onError: (error) => {
-              Alert.alert("Error", getErrorMessage(error, "Failed to delete event"));
-            },
-          });
-        },
-      },
-    ]);
   };
 
   const handleLeaveEvent = () => {
@@ -250,15 +208,10 @@ export const useEventDetailScreen = () => {
     isAdmin,
     currentUserId: user?.id,
     isUploadingPhoto: uploadPhotoMutation.isPending,
-    editModalVisible,
     membersSheetVisible,
-    form,
-    onSubmit,
     onRefresh,
-    handleOpenEdit,
-    handleCloseEdit,
+    handleOpenSettings,
     handleUploadImage,
-    handleDeleteEvent,
     handleLeaveEvent,
     handleDeletePhoto,
     handleRemoveMember,

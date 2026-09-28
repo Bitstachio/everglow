@@ -43,7 +43,14 @@ const RootNavigator = () => {
         <Stack.Screen name="usage" options={{ title: "Usage", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/list" options={{ title: "My Events", headerBackTitle: "Back" }} />
         <Stack.Screen name="events/create" options={{ title: "Create Event", headerBackTitle: "Back" }} />
-        <Stack.Screen name="events/[id]" />
+        <Stack.Screen name="events/[id]/index" />
+        <Stack.Screen name="events/[id]/settings" options={{ title: "Event Settings", headerBackTitle: "Back" }} />
+        <Stack.Screen name="events/[id]/edit-title" options={{ title: "Edit Title", headerBackTitle: "Back" }} />
+        <Stack.Screen
+          name="events/[id]/edit-description"
+          options={{ title: "Edit Description", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen name="events/[id]/edit-date" options={{ title: "Edit Date & Time", headerBackTitle: "Back" }} />
       </Stack.Protected>
     </Stack>
   );

@@ -1,5 +1,4 @@
 import { mockColorScheme } from "../testing/native-mocks";
-import "../testing/date-picker-mock";
 // The integration harness supplies the real data provider and observes native services.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -15,8 +14,6 @@ import { eventsKeys } from "../api/keys";
 const mockFindOne = jest.fn();
 const mockListPhotos = jest.fn();
 const mockGetParticipants = jest.fn();
-const mockUpdate = jest.fn();
-const mockRemove = jest.fn();
 const mockLeave = jest.fn();
 const mockRemoveParticipant = jest.fn();
 const mockCreateUploadUrls = jest.fn();
@@ -25,6 +22,7 @@ const mockFindOnePhoto = jest.fn();
 const mockRemovePhoto = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 const mockRequestLibraryPermission = jest.fn();
 const mockLaunchLibrary = jest.fn();
 const mockRequestMediaPermission = jest.fn();
@@ -38,8 +36,6 @@ jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => 
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
-  eventsControllerUpdate: (...args: unknown[]) => mockUpdate(...args),
-  eventsControllerRemove: (...args: unknown[]) => mockRemove(...args),
   eventsControllerLeave: (...args: unknown[]) => mockLeave(...args),
   eventsControllerRemoveParticipant: (...args: unknown[]) => mockRemoveParticipant(...args),
   photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
@@ -57,7 +53,7 @@ jest.mock("expo-router", () => {
       Screen: ({ options }: { options?: { headerRight?: () => React.ReactNode } }) =>
         React.createElement(View, { testID: "stack-header-right" }, options?.headerRight?.() ?? null),
     },
-    useRouter: () => ({ back: mockBack, replace: mockReplace }),
+    useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush }),
     useLocalSearchParams: () => ({ id: mockEventId }),
   };
 });
@@ -122,8 +118,6 @@ beforeEach(() => {
   mockFindOne.mockReset();
   mockListPhotos.mockReset();
   mockGetParticipants.mockReset();
-  mockUpdate.mockReset().mockResolvedValue({ data: { data: buildEvent({ title: "Updated meetup" }) } });
-  mockRemove.mockReset().mockResolvedValue({});
   mockLeave.mockReset().mockResolvedValue({});
   mockRemoveParticipant.mockReset().mockResolvedValue({});
   mockCreateUploadUrls.mockReset().mockResolvedValue({
@@ -134,6 +128,7 @@ beforeEach(() => {
   mockRemovePhoto.mockReset().mockResolvedValue({});
   mockBack.mockReset();
   mockReplace.mockReset();
+  mockPush.mockReset();
   mockRequestLibraryPermission.mockReset().mockResolvedValue({ granted: true });
   mockLaunchLibrary.mockReset().mockResolvedValue({
     canceled: false,
@@ -167,9 +162,9 @@ test.each(["light", "dark"] as const)("loads event details for an organizer in %
   expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
   expect(screen.getByText("An afternoon with friends")).toBeOnTheScreen();
   expect(screen.getByLabelText("Event photo photo-1")).toBeOnTheScreen();
-  expect(screen.getByLabelText("Edit event")).toBeOnTheScreen();
+  expect(screen.getByLabelText("Event settings")).toBeOnTheScreen();
   expect(screen.getByLabelText("View all members, 2")).toBeOnTheScreen();
-  expect(screen.getByText("Delete Event")).toBeOnTheScreen();
+  expect(screen.queryByText("Delete Event")).not.toBeOnTheScreen();
   expect(screen.queryByText("Leave Event")).not.toBeOnTheScreen();
 });
 
@@ -185,7 +180,7 @@ test("shows leave action for non-admin members without edit or members controls"
 
   expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
   expect(screen.getByText("Leave Event")).toBeOnTheScreen();
-  expect(screen.queryByLabelText("Edit event")).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText("Event settings")).not.toBeOnTheScreen();
   expect(screen.queryByLabelText(/View all members/)).not.toBeOnTheScreen();
   expect(screen.queryByText("Delete Event")).not.toBeOnTheScreen();
 });
@@ -208,63 +203,11 @@ test("alerts and navigates back when the event fails to load", async () => {
   expect(mockBack).toHaveBeenCalledTimes(1);
 });
 
-test("edits the event with pasted values and invalidates detail caches", async () => {
-  const client = await renderScreen();
-  await screen.findByText("Weekend meetup");
-  const user = userEvent.setup();
-  await user.press(screen.getByLabelText("Edit event"));
-  expect(screen.getByText("Edit Event")).toBeOnTheScreen();
-
-  await user.paste(screen.getByPlaceholderText("Enter event title"), "  Updated meetup  ");
-  await user.paste(screen.getByPlaceholderText("Enter event description"), "  New details  ");
-  await user.press(screen.getByRole("button", { name: "Choose date" }));
-  const initial = screen.getByTestId("date-picker").props.value as Date;
-  await fireEvent(screen.getByTestId("date-picker"), "change", { type: "set" }, new Date(2031, 1, 10));
-  await user.press(screen.getByRole("button", { name: "Choose time" }));
-  await fireEvent(screen.getByTestId("time-picker"), "change", { type: "set" }, new Date(2030, 0, 1, 9, 45));
-  await user.press(screen.getByText("Save Changes"));
-
-  await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-  const expectedDate = new Date(initial);
-  expectedDate.setFullYear(2031, 1, 10);
-  expectedDate.setHours(9, 45);
-  expect(mockUpdate).toHaveBeenCalledWith({
-    path: { eventId: "event-1" },
-    body: { title: "Updated meetup", description: "New details", date: expectedDate.toISOString() },
-    throwOnError: true,
-  });
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Event updated successfully");
-  expect(client.getQueryState(eventsKeys.list("user-1"))?.isInvalidated).toBe(true);
-});
-
-test("keeps edit values after a failed save and allows retry", async () => {
-  mockUpdate.mockRejectedValueOnce(new Error("Network unavailable"));
+test("opens event settings from the header action", async () => {
   await renderScreen();
   await screen.findByText("Weekend meetup");
-  const user = userEvent.setup();
-  await user.press(screen.getByLabelText("Edit event"));
-  await user.paste(screen.getByPlaceholderText("Enter event title"), "Retry title");
-  await user.press(screen.getByText("Save Changes"));
-
-  expect(await screen.findByText("Network unavailable")).toBeOnTheScreen();
-  expect(screen.getByPlaceholderText("Enter event title")).toHaveDisplayValue("Retry title");
-  expect(screen.getByText("Edit Event")).toBeOnTheScreen();
-
-  await user.press(screen.getByText("Save Changes"));
-  await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2));
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Event updated successfully");
-});
-
-test("validates required title before calling update", async () => {
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  const user = userEvent.setup();
-  await user.press(screen.getByLabelText("Edit event"));
-  await user.paste(screen.getByPlaceholderText("Enter event title"), "   ");
-  await user.press(screen.getByText("Save Changes"));
-
-  expect(await screen.findByText("Event title is required.")).toBeOnTheScreen();
-  expect(mockUpdate).not.toHaveBeenCalled();
+  await userEvent.setup().press(screen.getByLabelText("Event settings"));
+  expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
 });
 
 test("uploads a selected photo and refreshes the photo list", async () => {
@@ -325,17 +268,6 @@ test("downloads a photo to the media library", async () => {
   );
   expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/photo.jpg");
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo downloaded successfully!");
-});
-
-test("deletes the event and returns to the events root", async () => {
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByText("Delete Event"));
-  confirmDestructiveAlert();
-
-  await waitFor(() => expect(mockRemove).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
-  expect(mockReplace).toHaveBeenCalledWith("/events");
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Event deleted successfully");
 });
 
 test("leaves the event as a non-admin member", async () => {
