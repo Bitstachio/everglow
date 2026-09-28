@@ -14,9 +14,10 @@ import { eventsKeys } from "../api/keys";
 
 const mockCreate = jest.fn();
 const mockBack = jest.fn();
+const mockReplace = jest.fn();
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({ eventsControllerCreate: (...args: unknown[]) => mockCreate(...args) }));
-jest.mock("expo-router", () => ({ useRouter: () => ({ back: mockBack }) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ back: mockBack, replace: mockReplace }) }));
 const clients: QueryClient[] = [];
 const originalOS = Platform.OS;
 const renderScreen = async () => {
@@ -44,6 +45,7 @@ beforeEach(() => {
   mockColorScheme.mockReturnValue("light");
   mockCreate.mockReset().mockResolvedValue({ data: { data: buildEvent() } });
   mockBack.mockReset();
+  mockReplace.mockReset();
   jest.spyOn(Clipboard, "setString").mockImplementation(() => {});
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
   jest.spyOn(Share, "share").mockResolvedValue({ action: Share.sharedAction });
@@ -145,7 +147,7 @@ test("locks editing and picker controls until creation completes", async () => {
   expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
 });
 
-test("copies and shares the server-returned invitation and Done returns to the previous page", async () => {
+test("copies and shares the selected role invite and Share later returns", async () => {
   await renderScreen();
   await submit();
   await screen.findByText("Your event is live");
@@ -153,12 +155,12 @@ test("copies and shares the server-returned invitation and Done returns to the p
   await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
   expect(Clipboard.setString).toHaveBeenCalledWith(buildEvent().invitationUrl);
   expect(Alert.alert).toHaveBeenCalledWith("Copied!", "Invitation link copied to clipboard");
-  await user.press(screen.getByText("Share event"));
+  await user.press(screen.getByText("Share Participant Invite"));
   expect(Share.share).toHaveBeenCalledWith({
-    message: `Join "${buildEvent().title}" via ${buildEvent().invitationUrl}`,
+    message: `Join "${buildEvent().title}" as Participant via ${buildEvent().invitationUrl}`,
   });
   expect(mockBack).not.toHaveBeenCalled();
-  await user.press(screen.getByText("Done"));
+  await user.press(screen.getByText("Share later"));
   expect(mockBack).toHaveBeenCalledTimes(1);
 });
 
@@ -169,7 +171,7 @@ test.each([new Error("Share unavailable"), "unknown failure"])(
     await renderScreen();
     await submit();
     await screen.findByText("Your event is live");
-    await userEvent.setup().press(screen.getByText("Share event"));
+    await userEvent.setup().press(screen.getByText("Share Participant Invite"));
     await waitFor(() =>
       expect(Alert.alert).toHaveBeenCalledWith(
         "Error",
@@ -186,31 +188,27 @@ test("dismisses native sharing without treating it as an error", async () => {
   await renderScreen();
   await submit();
   await screen.findByText("Your event is live");
-  await userEvent.setup().press(screen.getByText("Share event"));
+  await userEvent.setup().press(screen.getByText("Share Participant Invite"));
   expect(Alert.alert).not.toHaveBeenCalled();
   expect(screen.getByText("Your event is live")).toBeOnTheScreen();
 });
 
-test("Create Another resets the form and replaces the invitation after the next creation", async () => {
+test("Go to Event opens the new event detail screen", async () => {
+  await renderScreen();
+  await submit();
+  await screen.findByText("Your event is live");
+  await userEvent.setup().press(screen.getByText("Go to Event"));
+  expect(mockReplace).toHaveBeenCalledWith(`/events/${buildEvent().id}`);
+});
+
+test("role tabs switch the invite URL used for copy", async () => {
+  const event = buildEvent();
+  mockCreate.mockResolvedValue({ data: { data: event } });
   await renderScreen();
   await submit();
   await screen.findByText("Your event is live");
   const user = userEvent.setup();
-  await user.press(screen.getByText("Create another"));
-  expect(screen.getByPlaceholderText("Enter event name")).toHaveDisplayValue("");
-  expect(screen.getByPlaceholderText("What's this event about?")).toHaveDisplayValue("");
-  expect(screen.queryByRole("button", { name: "Copy invitation link" })).not.toBeOnTheScreen();
-  const next = buildEvent({
-    id: "second",
-    title: "Picnic",
-    description: null,
-    invitationUrl: "https://events.everglow.app/invite/picnic",
-  });
-  mockCreate.mockResolvedValue({ data: { data: next } });
-  await submit("Picnic");
-  expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
+  await user.press(screen.getByRole("tab", { name: "Invite as Organizer" }));
   await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
-  expect(Clipboard.setString).toHaveBeenLastCalledWith(next.invitationUrl);
-  expect(screen.getByText("Picnic")).toBeOnTheScreen();
-  expect(mockCreate).toHaveBeenCalledTimes(2);
+  expect(Clipboard.setString).toHaveBeenCalledWith(event.invites[2].invitationUrl);
 });

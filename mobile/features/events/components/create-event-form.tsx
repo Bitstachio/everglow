@@ -10,7 +10,7 @@ import { useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { CreateEventValues, EventResponseDto } from "../types";
+import type { AccessLevel, CreateEventValues, EventResponseDto } from "../types";
 import { EventCreatedConfirmation } from "./event-created-confirmation";
 
 type CreateEventFormProps = {
@@ -19,10 +19,10 @@ type CreateEventFormProps = {
   error?: string;
   onSubmit: () => void;
   createdEvent: EventResponseDto | null;
-  handleCopyLink: () => void;
-  handleShareLink: () => void;
-  handleCreateAnother: () => void;
-  handleDone: () => void;
+  handleCopyLink: (invitationUrl: string) => void;
+  handleShareLink: (invitationUrl: string, accessLevel: AccessLevel) => void;
+  handleGoToEvent: () => void;
+  handleShareLater: () => void;
 };
 
 export const CreateEventForm = ({
@@ -33,8 +33,8 @@ export const CreateEventForm = ({
   createdEvent,
   handleCopyLink,
   handleShareLink,
-  handleCreateAnother,
-  handleDone,
+  handleGoToEvent,
+  handleShareLater,
 }: CreateEventFormProps) => {
   const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -61,8 +61,8 @@ export const CreateEventForm = ({
         event={createdEvent}
         onCopyLink={handleCopyLink}
         onShare={handleShareLink}
-        onCreateAnother={handleCreateAnother}
-        onDone={handleDone}
+        onGoToEvent={handleGoToEvent}
+        onShareLater={handleShareLater}
       />
     );
   }

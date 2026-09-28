@@ -21,8 +21,8 @@ const FormProbe = (props: Partial<Omit<ComponentProps<typeof CreateEventForm>, "
       onSubmit={jest.fn()}
       handleCopyLink={jest.fn()}
       handleShareLink={jest.fn()}
-      handleCreateAnother={jest.fn()}
-      handleDone={jest.fn()}
+      handleGoToEvent={jest.fn()}
+      handleShareLater={jest.fn()}
       {...props}
     />
   );
@@ -127,16 +127,37 @@ test("supports missing descriptions and dispatches each success action", async (
   const event = buildEvent({ description: null });
   const handleCopyLink = jest.fn(),
     handleShareLink = jest.fn(),
-    handleCreateAnother = jest.fn(),
-    handleDone = jest.fn();
+    handleGoToEvent = jest.fn(),
+    handleShareLater = jest.fn();
   await render(
-    <FormProbe createdEvent={event} {...{ handleCopyLink, handleShareLink, handleCreateAnother, handleDone }} />,
+    <FormProbe createdEvent={event} {...{ handleCopyLink, handleShareLink, handleGoToEvent, handleShareLater }} />,
   );
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
-  await user.press(screen.getByText("Share event"));
-  await user.press(screen.getByText("Create another"));
-  await user.press(screen.getByText("Done"));
-  for (const callback of [handleCopyLink, handleShareLink, handleCreateAnother, handleDone])
-    expect(callback).toHaveBeenCalledTimes(1);
+  await user.press(screen.getByText("Share Participant Invite"));
+  await user.press(screen.getByText("Go to Event"));
+  await user.press(screen.getByText("Share later"));
+  expect(handleCopyLink).toHaveBeenCalledWith(event.invitationUrl);
+  expect(handleShareLink).toHaveBeenCalledWith(event.invitationUrl, "PARTICIPANT");
+  expect(handleGoToEvent).toHaveBeenCalledTimes(1);
+  expect(handleShareLater).toHaveBeenCalledTimes(1);
+});
+
+test("switches invite link and share label when a role tab is selected", async () => {
+  const event = buildEvent();
+  const handleShareLink = jest.fn();
+  await render(<FormProbe createdEvent={event} handleShareLink={handleShareLink} />);
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("tab", { name: "Invite as Viewer" }));
+  expect(screen.getByText("Share Viewer Invite")).toBeOnTheScreen();
+  expect(screen.getByText("View only — no uploads")).toBeOnTheScreen();
+  await user.press(screen.getByText("Share Viewer Invite"));
+  expect(handleShareLink).toHaveBeenCalledWith(event.invites[1].invitationUrl, "VIEWER");
+});
+
+test("opens the event roles sheet from the info control", async () => {
+  await render(<FormProbe createdEvent={buildEvent()} />);
+  await userEvent.setup().press(screen.getByRole("button", { name: "About event roles" }));
+  expect(screen.getByText("Event Roles")).toBeOnTheScreen();
+  expect(screen.getByText("Best for most guests.")).toBeOnTheScreen();
 });
