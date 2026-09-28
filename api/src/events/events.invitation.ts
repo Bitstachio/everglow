@@ -1,5 +1,10 @@
 export const EVENT_INVITATION_BASE_URL = process.env.EVENT_INVITATION_BASE_URL ?? "https://events.everglow.app/invite";
 
+/** Roles that get a dedicated join link on every event. */
+export const EVENT_INVITE_ACCESS_LEVELS = ["PARTICIPANT", "VIEWER", "ORGANIZER"] as const;
+
+export type EventInviteAccessLevel = (typeof EVENT_INVITE_ACCESS_LEVELS)[number];
+
 export const buildInvitationUrl = (token: string): string => `${EVENT_INVITATION_BASE_URL}/${token}`;
 
 export const extractInvitationToken = (input: string): string => {

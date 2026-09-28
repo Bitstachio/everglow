@@ -26,6 +26,7 @@ import {
   eventsControllerLiftBan,
   eventsControllerListBans,
   eventsControllerRegenerateInvitationUrl,
+  eventsControllerRegenerateInvite,
   eventsControllerRemove,
   eventsControllerRemoveCover,
   eventsControllerRemoveParticipant,
@@ -100,6 +101,9 @@ import type {
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlError,
   EventsControllerRegenerateInvitationUrlResponse,
+  EventsControllerRegenerateInviteData,
+  EventsControllerRegenerateInviteError,
+  EventsControllerRegenerateInviteResponse,
   EventsControllerRemoveCoverData,
   EventsControllerRemoveCoverError,
   EventsControllerRemoveCoverResponse,
@@ -1439,7 +1443,9 @@ export const eventsControllerLiftBanMutation = (
 };
 
 /**
- * Regenerate the event invitation URL
+ * Regenerate the participant invitation URL
+ *
+ * Rotates the Participant invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.
  */
 export const eventsControllerRegenerateInvitationUrlMutation = (
   options?: Partial<Options<EventsControllerRegenerateInvitationUrlData>>,
@@ -1455,6 +1461,35 @@ export const eventsControllerRegenerateInvitationUrlMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await eventsControllerRegenerateInvitationUrl({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Regenerate an invitation URL for one access level
+ *
+ * Organizers only. Other roles' invite links stay valid.
+ */
+export const eventsControllerRegenerateInviteMutation = (
+  options?: Partial<Options<EventsControllerRegenerateInviteData>>,
+): UseMutationOptions<
+  EventsControllerRegenerateInviteResponse,
+  AxiosError<EventsControllerRegenerateInviteError>,
+  Options<EventsControllerRegenerateInviteData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    EventsControllerRegenerateInviteResponse,
+    AxiosError<EventsControllerRegenerateInviteError>,
+    Options<EventsControllerRegenerateInviteData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await eventsControllerRegenerateInvite({
         ...options,
         ...fnOptions,
         throwOnError: true,

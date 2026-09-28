@@ -1,6 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { STRING_LIMITS } from "src/common/constants/schema.constants";
 import { EVENT_STATUSES, type EventStatus } from "../events.constants";
+import { EventInviteResponseDto } from "./event-invite-response.dto";
 
 export class EventResponseDto {
   @ApiProperty({ format: "uuid" })
@@ -23,8 +24,18 @@ export class EventResponseDto {
   })
   creatorId: string | null;
 
-  @ApiProperty({ description: "Shareable invitation link composed from the stored invite token" })
+  @ApiProperty({
+    description:
+      "Participant invitation link. Prefer `invites` when present; kept for older clients that expect a single URL.",
+  })
   invitationUrl: string;
+
+  @ApiProperty({
+    type: [EventInviteResponseDto],
+    description:
+      "Per-role invitation links. Populated for organizers; empty for other members so invite tokens are not leaked.",
+  })
+  invites: EventInviteResponseDto[];
 
   @ApiProperty({
     nullable: true,
