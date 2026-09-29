@@ -219,7 +219,8 @@ test("uploads a selected photo and refreshes the photo list", async () => {
   await waitFor(() =>
     expect(mockCreateUploadUrls).toHaveBeenCalledWith({
       path: { eventId: "event-1" },
-      body: { files: [{ contentType: "image/jpeg", sizeBytes: 2048 }] },
+      // The size of the bytes read from the file, not the picker's fileSize.
+      body: { files: [{ contentType: "image/jpeg", sizeBytes: "image-bytes".length }] },
       throwOnError: true,
     }),
   );

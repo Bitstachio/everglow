@@ -148,18 +148,17 @@ test("photo upload mints a slot, uploads the blob, confirms, and invalidates pho
       uri: "file://photo.jpg",
       fileName: "photo.jpg",
       mimeType: "image/jpeg",
-      sizeBytes: 2048,
     }),
   ).resolves.toEqual(photo);
 
   expect(mockCreateUploadUrls).toHaveBeenCalledWith({
     path: { eventId: "event-1" },
-    body: { files: [{ contentType: "image/jpeg", sizeBytes: 2048 }] },
+    body: { files: [{ contentType: "image/jpeg", sizeBytes: blob.size }] },
     throwOnError: true,
   });
   expect(globalThis.fetch).toHaveBeenNthCalledWith(1, "file://photo.jpg");
   expect(globalThis.fetch).toHaveBeenNthCalledWith(2, "https://upload.example.com/slot", {
-    body: blob,
+    body: expect.any(Blob),
     headers: { "Content-Type": "image/jpeg" },
     method: "PUT",
   });
@@ -189,14 +188,57 @@ test("photo upload normalizes unknown image types to image/jpeg", async () => {
     uri: "file://photo.jpg",
     fileName: "photo.jpg",
     mimeType: "image/jpg",
-    sizeBytes: 100,
   });
 
   expect(mockCreateUploadUrls).toHaveBeenCalledWith(
     expect.objectContaining({
-      body: { files: [{ contentType: "image/jpeg", sizeBytes: 100 }] },
+      body: { files: [{ contentType: "image/jpeg", sizeBytes: 1 }] },
     }),
   );
+});
+
+test("photo upload sends a body typed with the signed content type", async () => {
+  const { wrapper } = setupUploadClient();
+  mockCreateUploadUrls.mockResolvedValue({
+    data: { data: [{ photoId: "photo-new", uploadUrl: "https://upload.example.com/slot" }] },
+  });
+  mockConfirmUploads.mockResolvedValue({ data: { data: null } });
+  mockFindOnePhoto.mockResolvedValue({ data: { data: buildPhoto() } });
+  // A blob read from a file:// URI has no type, and Expo's fetch sends the
+  // body's type as Content-Type in place of the header.
+  const fileBlob = new Blob(["image-bytes"]);
+  (globalThis.fetch as jest.Mock)
+    .mockResolvedValueOnce({ blob: async () => fileBlob })
+    .mockResolvedValueOnce({ ok: true });
+
+  const { result } = await renderHook(() => useUploadEventPhotoMutation(), { wrapper });
+  await result.current.mutateAsync({
+    eventId: "event-1",
+    uri: "file://photo.png",
+    fileName: "photo.png",
+    mimeType: "image/png",
+  });
+
+  const [, init] = (globalThis.fetch as jest.Mock).mock.calls[1];
+  expect(init.headers).toEqual({ "Content-Type": "image/png" });
+  expect(init.body.type).toBe("image/png");
+  expect(init.body.size).toBe(fileBlob.size);
+});
+
+test("photo upload does not ask for an upload URL when the file is empty", async () => {
+  const { wrapper } = setupUploadClient();
+  (globalThis.fetch as jest.Mock).mockResolvedValueOnce({ blob: async () => new Blob([]) });
+
+  const { result } = await renderHook(() => useUploadEventPhotoMutation(), { wrapper });
+  await expect(
+    result.current.mutateAsync({
+      eventId: "event-1",
+      uri: "file://photo.jpg",
+      fileName: "photo.jpg",
+      mimeType: "image/jpeg",
+    }),
+  ).rejects.toThrow("Could not determine file size for upload");
+  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
 });
 
 test("photo upload fails when storage rejects the PUT", async () => {
@@ -215,7 +257,6 @@ test("photo upload fails when storage rejects the PUT", async () => {
       uri: "file://photo.jpg",
       fileName: "photo.jpg",
       mimeType: "image/png",
-      sizeBytes: 100,
     }),
   ).rejects.toThrow("Upload to storage failed (403)");
   expect(mockConfirmUploads).not.toHaveBeenCalled();
