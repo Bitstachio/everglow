@@ -5,6 +5,7 @@ import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import {
   EVENT_COVER_S3_KEY_PREFIX,
   EVENT_SERVICE_ERRORS,
+  EVENT_UNDER_REVIEW_CODE,
   ORGANIZER_BLOCKED_BY_CALLER_CODE,
   REMOVED_FROM_EVENT_CODE,
 } from "src/events/events.constants";
@@ -69,6 +70,7 @@ type EventResponseBody = {
   creatorId: string;
   invitationUrl: string;
   coverUrl: string | null;
+  status: "ACTIVE" | "UNDER_REVIEW";
   createdAt: string;
   updatedAt: string;
 };
@@ -337,6 +339,25 @@ describe("EventsController (integration)", () => {
       expect(response.body).toMatchObject({
         code: REMOVED_FROM_EVENT_CODE,
         message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
+      });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 with EVENT_UNDER_REVIEW while the platform reviews the event", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      prisma.event.findUnique.mockResolvedValue(buildEvent({ underReviewAt: new Date("2026-09-20T12:00:00.000Z") }));
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+      prisma.eventBan.findUnique.mockResolvedValue(null);
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        code: EVENT_UNDER_REVIEW_CODE,
+        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
       });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1085,6 +1106,22 @@ describe("EventsController (integration)", () => {
           where: { id: TEST_EVENT_ID, coverS3Key: null },
           data: { coverS3Key: COVER_S3_KEY, coverUpdatedById: TEST_USER_ID },
         });
+      });
+
+      it("still lets an organizer change the cover while the event is under review", async () => {
+        const underReviewAt = new Date("2026-09-20T12:00:00.000Z");
+        const confirmed = buildEvent({ coverS3Key: COVER_S3_KEY, underReviewAt });
+        prisma.event.findUnique
+          .mockResolvedValueOnce({ ...organizedEvent(null), underReviewAt })
+          .mockResolvedValueOnce(eventWithCallerAccess(confirmed, [buildOrganizerAccess()]));
+        prisma.event.updateMany.mockResolvedValue({ count: 1 });
+        s3Service.headObject.mockResolvedValue(uploadedObject());
+
+        const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(200);
+
+        const body = response.body as WrappedResponse<EventResponseBody>;
+        expect(body.data.status).toBe("UNDER_REVIEW");
+        expect(body.data.coverUrl).toBe(COVER_URL);
       });
 
       it("returns 404 when nothing was uploaded for that id", async () => {

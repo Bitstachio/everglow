@@ -158,6 +158,10 @@ model Event {
   // The organizer who set the current cover, so a reviewer of an event report
   // sees whose image it is. Null with no cover, or once that account is gone.
   coverUpdatedById String?  @db.Uuid
+  // Set when enough members report the event itself (docs/moderation.md,
+  // "Under review"): no one can join and no photos can be added. Only the
+  // platform clears it.
+  underReviewAt    DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

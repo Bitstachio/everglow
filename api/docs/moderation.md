@@ -160,6 +160,34 @@ Rules:
 
 A hidden cover reads as `coverUrl: null`, the same as no cover. The title and description are never hidden automatically: hiding an event's name would be confusing, and text waits for review.
 
+### Under review
+
+When enough members report the event itself, it goes **under review** (`Event.underReviewAt`). Each OPEN event report is by a different member (one per member), and enough is `underReviewThreshold(memberCount, anySevere)`:
+
+- **Any OPEN event report for nudity or violence:** the photo hide threshold, `reportHideThreshold`: 3, or 2 in an event of 3 members or fewer.
+- **None severe:** the same, or a tenth of the members rounded up (`UNDER_REVIEW_MEMBER_SHARE`), whichever is more. Events of up to 30 members are unchanged; a 100-member event needs 10 and a 300-member one 30. A few members of a large event can't pause it with spam reports, while severe content still pauses it quickly.
+
+| Members | None severe | Any severe |
+| ------- | ----------- | ---------- |
+| 3       | 2           | 2          |
+| 4–30    | 3           | 3          |
+| 100     | 10          | 3          |
+| 300     | 30          | 3          |
+
+Every event report reaches the platform owner anyway (`target_is_event`, §5); the threshold only decides when the event pauses by itself, before anyone has looked.
+
+While an event is under review:
+
+- **No one can join.** `POST /events/join` answers 403 with `code: "EVENT_UNDER_REVIEW"`, after the ban check, so a removed member still hears that they were removed.
+- **No photos can be added.** `POST /events/:eventId/photos/upload-urls` answers the same 403, organizers included. Slots minted before can still be confirmed.
+- **Members keep access.** Nothing is hidden beyond what §2 and §3 already hide, and nothing is deleted.
+- **Organizers can still change the cover**, so they can replace one that was reported.
+- **Every event response carries `status: "UNDER_REVIEW"`** (otherwise `"ACTIVE"`), so the app can say so on the event screen.
+
+The report that puts the event under review is escalated with `event_under_review` (§5); later reports are not, since the event is already there. The update only matches an event not yet under review, so of two reports that cross the threshold together exactly one says so.
+
+**Only the platform lifts it.** Resolving the reports does not: until the Admin dashboard exists (EV-58), the platform owner clears `underReviewAt` in the database, and closes the reports there too. Suspending, restoring and deleting an event are left to that dashboard.
+
 ---
 
 ## 3. Hiding reported photos
@@ -289,6 +317,7 @@ Organizers moderate their own events, but the platform owner has to be able to a
 | `target_is_sole_organizer` | Added to `target_is_organizer` when they are the event's only organizer, so no one in the event can resolve it.                  |
 | `target_is_event`          | Every report about the event itself (§2). Only the platform owner reviews these.                                                 |
 | `hide_threshold_reached`   | This report is the one that hid the photo from the event. It stays hidden until an organizer resolves it.                        |
+| `event_under_review`       | This report put the event under review (§2): joins and new photos are refused until the platform lifts it. Urgent.               |
 
 A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged ([logging-conventions.md §3](./logging-conventions.md#3-redaction--pii-the-non-negotiable-rule)).
 
@@ -306,7 +335,7 @@ The app's onboarding screen shows an explicit consent control that links to the 
 
 ## 7. Rate limiting
 
-The six mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId`, `DELETE /events/:eventId/bans/:userId`) carry `@RateLimit("sensitive")`: 10 a minute per user, on top of the global default. The two list endpoints stay on the global default. See [rate-limiting.md](./rate-limiting.md).
+The seven mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `POST /events/:eventId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId`, `DELETE /events/:eventId/bans/:userId`) carry `@RateLimit("sensitive")`: 10 a minute per user, on top of the global default. The two list endpoints stay on the global default. See [rate-limiting.md](./rate-limiting.md).
 
 ---
 

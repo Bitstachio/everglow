@@ -12,6 +12,7 @@ import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
+import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
@@ -78,6 +79,7 @@ describe("PhotosService", () => {
     invitationUrl: "invite-token",
     coverS3Key: null,
     coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -170,6 +172,23 @@ describe("PhotosService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
+    });
+
+    it("refuses new photos while the event is under review, organizers included", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventWithAccess([callerAccess("ORGANIZER")]),
+        underReviewAt: new Date(),
+      } as never);
+
+      const failure = await service.createUploadSlots(eventId, callerId, files).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toEqual({
+        code: EVENT_UNDER_REVIEW_CODE,
+        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
+      });
       expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
     });
 

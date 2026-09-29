@@ -13,7 +13,12 @@ import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE, REMOVED_FROM_EVENT_CODE } from "./events.constants";
+import {
+  EVENT_SERVICE_ERRORS,
+  EVENT_UNDER_REVIEW_CODE,
+  ORGANIZER_BLOCKED_BY_CALLER_CODE,
+  REMOVED_FROM_EVENT_CODE,
+} from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
@@ -95,6 +100,7 @@ describe("EventsService", () => {
     invitationUrl: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     coverS3Key: null,
     coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -111,6 +117,7 @@ describe("EventsService", () => {
     invitationUrl: "invite-created",
     coverS3Key: null,
     coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -124,6 +131,7 @@ describe("EventsService", () => {
     invitationUrl: "invite-access",
     coverS3Key: null,
     coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -627,6 +635,7 @@ describe("EventsService", () => {
         invitationUrl: eventCreatedByUser.invitationUrl,
         coverS3Key: null,
         coverUpdatedById: null,
+        underReviewAt: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -732,6 +741,20 @@ describe("EventsService", () => {
         message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
       });
       expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses anyone new while the event is under review", async () => {
+      setupSuccessfulJoin();
+      prisma.event.findUnique.mockResolvedValue({ ...eventCreatedByUser, underReviewAt: new Date() });
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toEqual({
+        code: EVENT_UNDER_REVIEW_CODE,
+        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
+      });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -923,6 +946,7 @@ describe("EventsService", () => {
         invitationUrl: eventCreatedByUser.invitationUrl,
         coverS3Key: null,
         coverUpdatedById: null,
+        underReviewAt: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });

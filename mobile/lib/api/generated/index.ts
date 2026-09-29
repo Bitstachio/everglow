@@ -163,6 +163,7 @@ export type {
   EventsControllerUpdateParticipantAccessResponses,
   EventsControllerUpdateResponse,
   EventsControllerUpdateResponses,
+  EventStatus,
   EventStorageUsageListResponseDto,
   EventStorageUsageResponseDto,
   ImageUploadResponseDto,

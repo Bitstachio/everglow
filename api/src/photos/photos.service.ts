@@ -8,7 +8,7 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
-import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
+import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
@@ -74,6 +74,11 @@ export class PhotosService {
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
     if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
       throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId));
+    }
+    // No new photos while the platform reviews the event. Slots minted before
+    // can still be confirmed; the cover can still be changed.
+    if (event.underReviewAt) {
+      throw new ForbiddenException({ code: EVENT_UNDER_REVIEW_CODE, message: EVENT_SERVICE_ERRORS.UNDER_REVIEW });
     }
 
     // Build a PENDING row per file up front: the S3 key embeds the photo id.

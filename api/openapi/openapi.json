@@ -3172,6 +3172,14 @@
           "items"
         ]
       },
+      "EventStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "UNDER_REVIEW"
+        ],
+        "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review."
+      },
       "EventResponseDto": {
         "type": "object",
         "properties": {
@@ -3207,6 +3215,14 @@
             "maxLength": 2048,
             "description": "Short-lived presigned URL of the event cover image; null when none is set, or while it is hidden from the caller after a report of the event"
           },
+          "status": {
+            "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EventStatus"
+              }
+            ]
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -3224,6 +3240,7 @@
           "creatorId",
           "invitationUrl",
           "coverUrl",
+          "status",
           "createdAt",
           "updatedAt"
         ]
