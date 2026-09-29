@@ -15,7 +15,7 @@ Everything lives in `src/moderation/`. The `events` and `photos` modules gain on
 model Report {
   eventId        // CASCADE
   reporterId?    // SET NULL
-  targetType     // PHOTO | MEMBER
+  targetType     // PHOTO | MEMBER | EVENT
   photoId?       // SET NULL, PHOTO reports only
   reportedUserId?// SET NULL: the reported member, or the uploader of the reported photo
   reason         // SPAM | NUDITY_OR_SEXUAL | HARASSMENT | VIOLENCE | OTHER
@@ -98,10 +98,11 @@ The photo index needs no `targetType` predicate: MEMBER reports have a null `pho
 | ---------------------------------------------------------- | ---------- | ------------------------------------------- |
 | `POST /photos/:photoId/reports`                            | any member | 201, the caller's OPEN report on the photo  |
 | `POST /events/:eventId/participants/:targetUserId/reports` | any member | 201, the caller's OPEN report on the member |
+| `POST /events/:eventId/reports`                            | any member | 201, the caller's OPEN report on the event  |
 | `GET /events/:eventId/reports?status=&cursor=&limit=`      | organizers | 200, `{ items, nextCursor }`, newest first  |
 | `PATCH /reports/:reportId` `{ action }`                    | organizers | 200, the resolved report                    |
 
-The target is in the route, so both `POST`s share one body: `{ reason, note? }`.
+The target is in the route, so all three `POST`s share one body: `{ reason, note? }`.
 
 Rules:
 
@@ -126,6 +127,14 @@ Rules:
 - **An organizer cannot resolve a report about themselves** or about their own photo: 403. Another organizer has to. If there is none, the report stays OPEN, which is one reason such reports are escalated at creation (§5).
 - **A report is resolved once.** The update is guarded on `status = OPEN`; a second verdict, including one racing the first, gets 409 and removes nothing.
 - The list uses the same keyset pagination as the photo list (`src/common/pagination`).
+
+### Reporting the event itself
+
+`POST /events/:eventId/reports` covers what the organizers authored: the cover, the title and the description, or the event as a whole. There is one action and no "which part" picker, as with WhatsApp's and Telegram's "Report group"; the note can say what is wrong.
+
+- **Only the platform owner reviews it.** It is the organizers' own content, so organizers can neither see nor resolve it: the CASL `read` and `update` rules for organizers cover `PHOTO` and `MEMBER` reports only, so the queue leaves event reports out and `PATCH /reports/:reportId` answers 403 for them. Every event report is escalated (`target_is_event`, §5) and is part of the 24-hour stale check.
+- **One OPEN event report per member**, enforced by the partial unique index `(reporterId, eventId) WHERE status = 'OPEN' AND targetType = 'EVENT'`; a repeat returns it, as for the other kinds. A check constraint keeps `reportedUserId` null on event reports; `photoId` was already limited to photo reports.
+- Until the Admin dashboard exists (EV-58), event reports are resolved in the database.
 
 ---
 
@@ -254,6 +263,7 @@ Organizers moderate their own events, but the platform owner has to be able to a
 | `severe_reason`            | The reason is `NUDITY_OR_SEXUAL` or `VIOLENCE` (`SEVERE_REPORT_REASONS`). A photo report of this kind also hides the photo (§3). |
 | `target_is_organizer`      | The reported member, or the uploader of the reported photo, organizes the event and cannot judge it themselves.                  |
 | `target_is_sole_organizer` | Added to `target_is_organizer` when they are the event's only organizer, so no one in the event can resolve it.                  |
+| `target_is_event`          | Every report about the event itself (§2). Only the platform owner reviews these.                                                 |
 | `hide_threshold_reached`   | This report is the one that hid the photo from the event. It stays hidden until an organizer resolves it.                        |
 
 A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged ([logging-conventions.md §3](./logging-conventions.md#3-redaction--pii-the-non-negotiable-rule)).

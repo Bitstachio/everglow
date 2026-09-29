@@ -202,6 +202,85 @@ describe("Moderation (integration)", () => {
     });
   });
 
+  describe("POST /events/:eventId/reports (about the event itself)", () => {
+    const payload = { reason: ReportReason.NUDITY_OR_SEXUAL, note: "The cover" };
+    const buildEventReport = () =>
+      buildReport({
+        targetType: ReportTargetType.EVENT,
+        photoId: null,
+        reportedUserId: null,
+        reason: payload.reason,
+        note: payload.note,
+      });
+
+    it("returns 201 with the report for any member, naming no photo and no member", async () => {
+      const report = buildEventReport();
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.report.createManyAndReturn.mockResolvedValue([report]);
+
+      const response = await request(httpServer).post(eventReportsPath()).set(authHeader()).send(payload).expect(201);
+
+      const body = response.body as WrappedResponse<ReportBody>;
+      expect(body.data).toEqual(expectedReportResponse(report));
+      expect(body.data.targetType).toBe("EVENT");
+      expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [expect.objectContaining({ targetType: "EVENT", photoId: null, reportedUserId: null })],
+        }),
+      );
+    });
+
+    it("returns 403 when the caller is not a member of the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([]));
+
+      const response = await request(httpServer).post(eventReportsPath()).set(authHeader()).send(payload).expect(403);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(REPORT_SERVICE_ERRORS.CREATE_FORBIDDEN(TEST_EVENT_ID));
+    });
+
+    it("returns 404 when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await request(httpServer).post(eventReportsPath()).set(authHeader()).send(payload).expect(404);
+    });
+
+    it("returns 400 for an unknown reason", async () => {
+      await request(httpServer).post(eventReportsPath()).set(authHeader()).send({ reason: "BORING" }).expect(400);
+    });
+
+    it("returns 401 when the access token is missing", async () => {
+      await request(httpServer).post(eventReportsPath()).send(payload).expect(401);
+    });
+
+    it("keeps event reports out of the organizers' queue", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]));
+      prisma.report.findMany.mockResolvedValue([]);
+
+      await request(httpServer).get(eventReportsPath()).set(authHeader()).expect(200);
+
+      const [args] = prisma.report.findMany.mock.calls[0];
+      expect(JSON.stringify(args?.where)).toContain('"targetType":{"in":["PHOTO","MEMBER"]}');
+    });
+
+    it("returns 403 when an organizer tries to resolve a report about their event", async () => {
+      prisma.report.findUnique.mockResolvedValue({
+        ...buildEventReport(),
+        event: eventWithAccess([buildOrganizerAccess()]),
+      } as never);
+
+      const response = await request(httpServer)
+        .patch(`/${API_GLOBAL_PREFIX}/reports/${TEST_REPORT_ID}`)
+        .set(authHeader())
+        .send({ action: "DISMISS" })
+        .expect(403);
+
+      const body = response.body as ErrorResponse;
+      expect(body.message).toBe(REPORT_SERVICE_ERRORS.RESOLVE_FORBIDDEN(TEST_REPORT_ID));
+      expect(prisma.report.updateManyAndReturn).not.toHaveBeenCalled();
+    });
+  });
+
   describe("POST /events/:eventId/participants/:targetUserId/reports", () => {
     const payload = { reason: ReportReason.HARASSMENT };
 

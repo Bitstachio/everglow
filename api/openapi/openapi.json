@@ -1107,6 +1107,69 @@
       }
     },
     "/api/v2/events/{eventId}/reports": {
+      "post": {
+        "description": "Any member of the event, about the event itself: its cover, title or description, or the event as a whole (the note can say which). Reviewed by the platform, never by the event's organizers. Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.",
+        "operationId": "ReportsController_reportEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The caller's open report on the event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Report an event",
+        "tags": [
+          "moderation"
+        ]
+      },
       "get": {
         "operationId": "ReportsController_listReports",
         "parameters": [
@@ -2858,7 +2921,8 @@
         "type": "string",
         "enum": [
           "PHOTO",
-          "MEMBER"
+          "MEMBER",
+          "EVENT"
         ]
       },
       "ReportReason": {

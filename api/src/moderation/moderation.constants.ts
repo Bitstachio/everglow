@@ -56,6 +56,9 @@ export const REPORT_ESCALATION_REASONS = {
   TARGET_IS_ORGANIZER: "target_is_organizer",
   TARGET_IS_SOLE_ORGANIZER: "target_is_sole_organizer",
   HIDE_THRESHOLD_REACHED: "hide_threshold_reached",
+  // Every report about an event: it is the organizers' own content, so only
+  // the platform owner reviews it.
+  TARGET_IS_EVENT: "target_is_event",
 } as const;
 
 export type ReportEscalationReason = (typeof REPORT_ESCALATION_REASONS)[keyof typeof REPORT_ESCALATION_REASONS];

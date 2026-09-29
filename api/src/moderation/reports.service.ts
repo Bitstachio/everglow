@@ -57,6 +57,8 @@ interface EscalationContext {
   reportedAccessLevel: AccessLevel | null;
   /** The event's hide threshold, for PHOTO reports. */
   hideThreshold?: number;
+  /** An EVENT report: always the platform owner's to review. */
+  targetIsEvent?: boolean;
 }
 
 export interface StaleReportCheckResult {
@@ -144,6 +146,25 @@ export class ReportsService {
     return this.createReport(callerId, target, dto, { reportedAccessLevel: targetAccess.accessLevel });
   }
 
+  /**
+   * A report about the event itself: its cover, title or description, or the
+   * event as a whole. Any member may file one. It is always escalated and never
+   * shown to the organizers, whose content it is about.
+   */
+  async reportEvent(eventId: string, callerId: string, dto: CreateReportDto): Promise<Report> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: eventWithCallerAccessInclude(callerId),
+    });
+    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    await this.assertCanReportIn(event, callerId);
+
+    const target: ReportTarget = { eventId, targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null };
+
+    return this.createReport(callerId, target, dto, { reportedAccessLevel: null, targetIsEvent: true });
+  }
+
   async listReports(eventId: string, callerId: string, query: ListReportsQueryDto): Promise<KeysetPage<Report>> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -152,8 +173,14 @@ export class ReportsService {
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    // Listing is reading reports of the event; authorize against a prospective row.
-    const prospectiveReport = subject(REPORT_SUBJECT, { eventId, event } as unknown as Report);
+    // Listing is reading reports of the event; authorize against a prospective
+    // row of a kind organizers review. The query below narrows to those kinds,
+    // so reports about the event itself never appear here.
+    const prospectiveReport = subject(REPORT_SUBJECT, {
+      eventId,
+      event,
+      targetType: ReportTargetType.PHOTO,
+    } as unknown as Report);
     if (!ability.can(REPORT_ACTIONS.READ, prospectiveReport)) {
       throw new ForbiddenException(REPORT_SERVICE_ERRORS.LIST_FORBIDDEN(eventId));
     }
@@ -454,6 +481,7 @@ export class ReportsService {
     const reasons: ReportEscalationReason[] = [];
 
     if (SEVERE_REPORT_REASONS.includes(report.reason)) reasons.push(REPORT_ESCALATION_REASONS.SEVERE_REASON);
+    if (context.targetIsEvent) reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_EVENT);
     if (context.reportedAccessLevel === AccessLevel.ORGANIZER) {
       reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_ORGANIZER);
       // Nobody in the event can resolve a report about its only organizer.

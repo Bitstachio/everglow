@@ -434,6 +434,96 @@ describe("ReportsService", () => {
     });
   });
 
+  describe("reportEvent", () => {
+    const dto = { reason: ReportReason.SPAM, note: "The cover is an ad" };
+    const eventReport = (overrides: Partial<Report> = {}) =>
+      buildReport({ targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null, ...overrides });
+    const eventWithCallerAccess = (accessLevel: AccessLevel | null) => ({
+      ...event,
+      eventAccesses: accessLevel ? [access(callerId, accessLevel)] : [],
+    });
+
+    it("lets any member report the event itself, naming no photo and no member", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.VIEWER));
+      prisma.report.createManyAndReturn.mockResolvedValue([eventReport({ reason: dto.reason, note: dto.note })]);
+
+      const result = await service.reportEvent(eventId, callerId, dto);
+
+      expect(result.targetType).toBe("EVENT");
+      expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith({
+        data: [
+          {
+            eventId,
+            targetType: "EVENT",
+            photoId: null,
+            reportedUserId: null,
+            reporterId: callerId,
+            reason: "SPAM",
+            note: "The cover is an ad",
+          },
+        ],
+        skipDuplicates: true,
+      });
+    });
+
+    it("always escalates it to the platform owner, whatever the reason", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
+
+      await service.reportEvent(eventId, callerId, dto);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.escalated",
+          targetType: "EVENT",
+          escalationReasons: ["target_is_event"],
+        }),
+        expect.any(String),
+      );
+    });
+
+    it("adds severe_reason for nudity or violence", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.report.createManyAndReturn.mockResolvedValue([eventReport({ reason: ReportReason.VIOLENCE })]);
+
+      await service.reportEvent(eventId, callerId, { reason: ReportReason.VIOLENCE });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ escalationReasons: ["severe_reason", "target_is_event"] }),
+        expect.any(String),
+      );
+    });
+
+    it("returns the caller's OPEN report on the event instead of creating a second one", async () => {
+      const existing = eventReport();
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.report.createManyAndReturn.mockResolvedValue([]);
+      prisma.report.findFirst.mockResolvedValue(existing);
+
+      await expect(service.reportEvent(eventId, callerId, dto)).resolves.toEqual(existing);
+      expect(prisma.report.findFirst).toHaveBeenCalledWith({
+        where: { reporterId: callerId, status: "OPEN", eventId, targetType: "EVENT", reportedUserId: null },
+      });
+    });
+
+    it("throws NotFoundException when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.reportEvent(eventId, callerId, dto)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+      );
+    });
+
+    it("throws ForbiddenException when the caller is not a member of the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(null));
+
+      await expect(service.reportEvent(eventId, callerId, dto)).rejects.toThrow(
+        new ForbiddenException(REPORT_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+    });
+  });
+
   describe("reportMember", () => {
     const dto = { reason: ReportReason.HARASSMENT };
     const targetUserId = uploaderId;
