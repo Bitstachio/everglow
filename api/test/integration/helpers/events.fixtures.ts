@@ -37,6 +37,7 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   invitationUrl: TEST_INVITE_TOKEN,
   coverS3Key: null,
   coverUpdatedById: null,
+  underReviewAt: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,
@@ -51,6 +52,7 @@ export const buildOtherUserEvent = (overrides: Partial<Event> = {}): Event => ({
   invitationUrl: TEST_OTHER_INVITE_TOKEN,
   coverS3Key: null,
   coverUpdatedById: null,
+  underReviewAt: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,
@@ -145,6 +147,7 @@ export const expectedEventResponse = (event: Event, coverUrl: string | null = nu
   creatorId: event.creatorId,
   invitationUrl: buildInvitationUrl(event.invitationUrl),
   coverUrl,
+  status: event.underReviewAt ? "UNDER_REVIEW" : "ACTIVE",
   createdAt: event.createdAt.toISOString(),
   updatedAt: event.updatedAt.toISOString(),
 });

@@ -55,6 +55,7 @@ describe("EventCoverService", () => {
     invitationUrl: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     coverS3Key,
     coverUpdatedById: coverS3Key ? callerId : null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   });

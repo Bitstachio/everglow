@@ -332,6 +332,11 @@ export type BlockedUserListResponseDto = {
   items: Array<BlockedUserResponseDto>;
 };
 
+/**
+ * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.
+ */
+export type EventStatus = "ACTIVE" | "UNDER_REVIEW";
+
 export type EventResponseDto = {
   id: string;
   title: string;
@@ -349,6 +354,10 @@ export type EventResponseDto = {
    * Short-lived presigned URL of the event cover image; null when none is set, or while it is hidden from the caller after a report of the event
    */
   coverUrl: string | null;
+  /**
+   * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.
+   */
+  status: EventStatus;
   createdAt: string;
   updatedAt: string;
 };

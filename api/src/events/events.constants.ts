@@ -22,6 +22,7 @@ export const EVENT_SERVICE_ERRORS = {
   ORGANIZER_BLOCKED_BY_CALLER: (organizerName: string | null) =>
     `This event is organized by ${organizerName ?? "someone"} you blocked. Unblock them to join.`,
   REMOVED_FROM_EVENT: "You were removed from this event by an organizer.",
+  UNDER_REVIEW: "This event is under review. No one can join it or add photos until the review is over.",
 };
 
 // The joiner blocked an organizer of the event they are joining; see docs/moderation.md.
@@ -29,6 +30,18 @@ export const ORGANIZER_BLOCKED_BY_CALLER_CODE = "ORGANIZER_BLOCKED_BY_CALLER";
 
 // An organizer removed the joiner, which bans them until an organizer lifts it; see docs/moderation.md.
 export const REMOVED_FROM_EVENT_CODE = "REMOVED_FROM_EVENT";
+
+// Members reported the event itself often enough that the platform is
+// reviewing it: joins and new photos are refused; see docs/moderation.md.
+export const EVENT_UNDER_REVIEW_CODE = "EVENT_UNDER_REVIEW";
+
+// An event's moderation status, derived from Event.underReviewAt.
+export const EVENT_STATUSES = {
+  ACTIVE: "ACTIVE",
+  UNDER_REVIEW: "UNDER_REVIEW",
+} as const;
+
+export type EventStatus = (typeof EVENT_STATUSES)[keyof typeof EVENT_STATUSES];
 
 // event-covers/{eventId}/{uploadId}; see docs/image-uploads.md.
 export const EVENT_COVER_S3_KEY_PREFIX = "event-covers/";

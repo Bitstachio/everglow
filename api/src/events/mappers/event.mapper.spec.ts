@@ -16,6 +16,7 @@ describe("EventMapper", () => {
     invitationUrl: inviteToken,
     coverS3Key: null,
     coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -43,9 +44,16 @@ describe("EventMapper", () => {
         creatorId: event.creatorId,
         invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}`,
         coverUrl,
+        status: "ACTIVE",
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
       });
+    });
+
+    it("reports UNDER_REVIEW once the event is under review", () => {
+      const underReview = { ...event, underReviewAt: new Date("2026-09-20T12:00:00.000Z") };
+
+      expect(EventMapper.toResponseDto(underReview, coverUrl).status).toBe("UNDER_REVIEW");
     });
 
     it("reports a null coverUrl for an event without a cover", () => {

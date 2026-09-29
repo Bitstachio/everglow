@@ -43,6 +43,7 @@ import {
   STALE_REPORT_AFTER_HOURS,
   STALE_REPORT_SAMPLE_SIZE,
   reportHideThreshold,
+  underReviewThreshold,
 } from "./moderation.constants";
 import { eventForPhotoVisibilityInclude } from "./moderation.types";
 import { PhotoVisibilityService } from "./photo-visibility.service";
@@ -61,6 +62,8 @@ interface EscalationContext {
   targetIsEvent?: boolean;
   /** For an EVENT report, who set the event's current cover, if anyone. */
   coverUpdatedById?: string | null;
+  /** For an EVENT report, the event's member count, which sets the under-review threshold. */
+  memberCount?: number;
 }
 
 export interface StaleReportCheckResult {
@@ -156,7 +159,7 @@ export class ReportsService {
   async reportEvent(eventId: string, callerId: string, dto: CreateReportDto): Promise<Report> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      include: eventWithCallerAccessInclude(callerId),
+      include: { ...eventWithCallerAccessInclude(callerId), _count: { select: { eventAccesses: true } } },
     });
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
@@ -168,6 +171,7 @@ export class ReportsService {
       reportedAccessLevel: null,
       targetIsEvent: true,
       coverUpdatedById: event.coverUpdatedById,
+      memberCount: event._count.eventAccesses,
     });
   }
 
@@ -505,7 +509,35 @@ export class ReportsService {
       // Equality, so the report that tips the photo over is the one that says so.
       if (openReports === context.hideThreshold) reasons.push(REPORT_ESCALATION_REASONS.HIDE_THRESHOLD_REACHED);
     }
+    if (context.targetIsEvent && context.memberCount !== undefined) {
+      if (await this.putUnderReviewAtThreshold(report.eventId, context.memberCount)) {
+        reasons.push(REPORT_ESCALATION_REASONS.EVENT_UNDER_REVIEW);
+      }
+    }
 
     return reasons;
+  }
+
+  /**
+   * Puts the event under review once its OPEN event reports reach
+   * `underReviewThreshold`; each is by a different member
+   * (Report_reporterId_eventId_key), so the rows are at most one per member.
+   * Returns whether this call did it: the update only matches an event not
+   * already under review, so of two reports that cross the threshold together
+   * exactly one says so. Only the platform lifts it.
+   */
+  private async putUnderReviewAtThreshold(eventId: string, memberCount: number): Promise<boolean> {
+    const openReports = await this.prisma.report.findMany({
+      where: { eventId, targetType: ReportTargetType.EVENT, status: ReportStatus.OPEN },
+      select: { reason: true },
+    });
+    const anySevere = openReports.some((open) => SEVERE_REPORT_REASONS.includes(open.reason));
+    if (openReports.length < underReviewThreshold(memberCount, anySevere)) return false;
+
+    const { count } = await this.prisma.event.updateMany({
+      where: { id: eventId, underReviewAt: null },
+      data: { underReviewAt: new Date() },
+    });
+    return count === 1;
   }
 }
