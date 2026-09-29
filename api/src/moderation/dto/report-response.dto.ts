@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { ReportReason, ReportStatus, ReportTargetType } from "generated/prisma/client";
+import { ReportClosedReason, ReportReason, ReportStatus, ReportTargetType } from "generated/prisma/client";
 import { REPORT_NOTE_MAX_LENGTH } from "../moderation.constants";
 
 /** Deliberately without the reporter: organizers act on a report without learning who filed it. */
@@ -7,8 +7,13 @@ export class ReportResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;
 
-  @ApiProperty({ format: "uuid" })
-  eventId: string;
+  @ApiProperty({
+    format: "uuid",
+    nullable: true,
+    type: String,
+    description: "Null once the event has been deleted; the report is kept as a record.",
+  })
+  eventId: string | null;
 
   @ApiProperty({ enum: ReportTargetType, enumName: "ReportTargetType" })
   targetType: ReportTargetType;
@@ -39,6 +44,16 @@ export class ReportResponseDto {
 
   @ApiProperty({ enum: ReportStatus, enumName: "ReportStatus" })
   status: ReportStatus;
+
+  @ApiProperty({
+    enum: ReportClosedReason,
+    enumName: "ReportClosedReason",
+    nullable: true,
+    description:
+      "How the report left OPEN: an organizer's verdict, or the photo, account or event being deleted. " +
+      "Null while OPEN, and on reports closed before it was recorded.",
+  })
+  closedReason: ReportClosedReason | null;
 
   @ApiProperty({
     format: "uuid",

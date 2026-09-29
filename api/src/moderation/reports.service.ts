@@ -36,6 +36,7 @@ import {
   REPORT_ESCALATION_REASONS,
   REPORT_RESOLUTION_ACTIONS,
   REPORT_SERVICE_ERRORS,
+  RESOLUTION_CLOSED_REASON,
   RESOLUTION_STATUS,
   ReportEscalationReason,
   ReportResolutionAction,
@@ -49,7 +50,7 @@ import { PhotoVisibilityService } from "./photo-visibility.service";
 import { REPORT_ACTIONS, REPORT_SUBJECT } from "./reports.abilities";
 
 /** What a report points at; `photoId` is set for PHOTO reports only. */
-type ReportTarget = Pick<Report, "eventId" | "targetType" | "photoId" | "reportedUserId">;
+type ReportTarget = Pick<Report, "targetType" | "photoId" | "reportedUserId"> & { eventId: string };
 
 /** Facts about the target that decide whether a new report is escalated. */
 interface EscalationContext {
@@ -117,7 +118,7 @@ export class ReportsService {
         })
       : null;
 
-    return this.createReport(callerId, target, dto, {
+    return this.createReport(callerId, target, photo.event.title, dto, {
       reportedAccessLevel: uploaderAccess?.accessLevel ?? null,
       hideThreshold: reportHideThreshold(photo.event._count.eventAccesses),
     });
@@ -145,7 +146,7 @@ export class ReportsService {
       reportedUserId: targetUserId,
     };
 
-    return this.createReport(callerId, target, dto, { reportedAccessLevel: targetAccess.accessLevel });
+    return this.createReport(callerId, target, event.title, dto, { reportedAccessLevel: targetAccess.accessLevel });
   }
 
   /**
@@ -164,7 +165,7 @@ export class ReportsService {
 
     const target: ReportTarget = { eventId, targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null };
 
-    return this.createReport(callerId, target, dto, {
+    return this.createReport(callerId, target, event.title, dto, {
       reportedAccessLevel: null,
       targetIsEvent: true,
       coverUpdatedById: event.coverUpdatedById,
@@ -227,6 +228,10 @@ export class ReportsService {
       include: { event: { include: eventWithCallerAccessInclude(callerId) } },
     });
     if (!loaded) throw new NotFoundException(REPORT_SERVICE_ERRORS.NOT_FOUND(reportId));
+    // A report whose event was deleted is closed and kept only as a record;
+    // no organizer is left to act on it.
+    const eventId = loaded.event?.id;
+    if (!eventId) throw new ForbiddenException(REPORT_SERVICE_ERRORS.RESOLVE_FORBIDDEN(reportId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(REPORT_ACTIONS.UPDATE, subject(REPORT_SUBJECT, loaded))) {
@@ -244,7 +249,12 @@ export class ReportsService {
       throw new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_MEMBER_GONE);
     }
 
-    const resolution = { status: RESOLUTION_STATUS[action], resolvedById: callerId, resolvedAt: new Date() };
+    const resolution = {
+      status: RESOLUTION_STATUS[action],
+      closedReason: RESOLUTION_CLOSED_REASON[action],
+      resolvedById: callerId,
+      resolvedAt: new Date(),
+    };
     const sameTarget = this.sameTargetWhere(loaded, action);
 
     const { resolved, closedReports, removedMember } = await this.prisma.$transaction(async (tx) => {
@@ -270,7 +280,7 @@ export class ReportsService {
       // with DELETE the member's other photos in the event.
       const member = removedMemberId
         ? await removeMemberInTransaction(tx, {
-            eventId: loaded.eventId,
+            eventId,
             userId: removedMemberId,
             removedById: callerId,
             photos: memberPhotos ?? MEMBER_PHOTOS.KEEP,
@@ -343,7 +353,7 @@ export class ReportsService {
           staleAfterHours: STALE_REPORT_AFTER_HOURS,
           oldestCreatedAt: oldest[0]?.createdAt,
           reportIds: oldest.map((report) => report.id),
-          eventIds: [...new Set(oldest.map((report) => report.eventId))],
+          eventIds: [...new Set(oldest.flatMap((report) => report.eventId ?? []))],
           audit: true,
         },
         "Reports have been open longer than the response window",
@@ -441,6 +451,7 @@ export class ReportsService {
   private async createReport(
     callerId: string,
     target: ReportTarget,
+    eventTitle: string,
     dto: CreateReportDto,
     context: EscalationContext,
   ): Promise<Report> {
@@ -448,7 +459,7 @@ export class ReportsService {
     // one inserts, and the other gets no row back instead of a unique
     // violation to catch.
     const [created] = await this.prisma.report.createManyAndReturn({
-      data: [{ ...target, reporterId: callerId, reason: dto.reason, note: dto.note ?? null }],
+      data: [{ ...target, eventTitle, reporterId: callerId, reason: dto.reason, note: dto.note ?? null }],
       skipDuplicates: true,
     });
     if (!created) {
@@ -473,7 +484,7 @@ export class ReportsService {
     };
     this.logger.info({ event: "report.created", ...fields }, "Report created");
 
-    const escalationReasons = await this.escalationReasonsFor(created, context);
+    const escalationReasons = await this.escalationReasonsFor(created, target.eventId, context);
     if (escalationReasons.length > 0) {
       // The event the platform owner's alert rule keys off (docs/alerting.md §3).
       this.logger.warn(
@@ -485,7 +496,11 @@ export class ReportsService {
     return created;
   }
 
-  private async escalationReasonsFor(report: Report, context: EscalationContext): Promise<ReportEscalationReason[]> {
+  private async escalationReasonsFor(
+    report: Report,
+    eventId: string,
+    context: EscalationContext,
+  ): Promise<ReportEscalationReason[]> {
     const reasons: ReportEscalationReason[] = [];
 
     if (SEVERE_REPORT_REASONS.includes(report.reason)) reasons.push(REPORT_ESCALATION_REASONS.SEVERE_REASON);
@@ -494,7 +509,7 @@ export class ReportsService {
       reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_ORGANIZER);
       // Nobody in the event can resolve a report about its only organizer.
       const organizers = await this.prisma.eventAccess.count({
-        where: { eventId: report.eventId, accessLevel: AccessLevel.ORGANIZER },
+        where: { eventId, accessLevel: AccessLevel.ORGANIZER },
       });
       if (organizers === 1) reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_SOLE_ORGANIZER);
     }

@@ -54,6 +54,20 @@ enum ReportStatus {
   DISMISSED
 }
 
+// How a report left OPEN (docs/moderation.md, "What happens on delete").
+enum ReportClosedReason {
+  // An organizer's verdict on this report or another on the same target.
+  PHOTO_REMOVED
+  MEMBER_REMOVED
+  DISMISSED
+  // The photo was deleted outside a verdict.
+  PHOTO_DELETED_BY_UPLOADER
+  PHOTO_DELETED_BY_ORGANIZER
+  // The uploader's account deletion took the photo with it.
+  ACCOUNT_DELETED
+  EVENT_DELETED
+}
+
 model User {
   id                  String                      @id @default(uuid()) @db.Uuid
   providerSub         String                      @unique @db.VarChar(255)
@@ -201,28 +215,35 @@ model Photo {
 // never carries a photoId, reporter and reported user differ, and the
 // resolution columns agree with the status.
 model Report {
-  id             String           @id @default(uuid()) @db.Uuid
-  eventId        String           @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
+  // Null once the event is deleted: the report stays as evidence, and
+  // eventTitle still says where it was filed.
+  eventId        String?             @db.Uuid
+  // The event's title when the report was filed.
+  eventTitle     String              @db.VarChar(100)
   // Null once the reporter's account is deleted: the report stays as evidence.
-  reporterId     String?          @db.Uuid
+  reporterId     String?             @db.Uuid
   targetType     ReportTargetType
   // Set for PHOTO reports; null again once that photo is deleted.
-  photoId        String?          @db.Uuid
+  photoId        String?             @db.Uuid
   // The reported member, or the uploader of the reported photo. Null once that
   // account is deleted, or when the photo had already lost its uploader.
-  reportedUserId String?          @db.Uuid
+  reportedUserId String?             @db.Uuid
   reason         ReportReason
-  note           String?          @db.VarChar(500)
-  status         ReportStatus     @default(OPEN)
-  resolvedById   String?          @db.Uuid
+  note           String?             @db.VarChar(500)
+  status         ReportStatus        @default(OPEN)
+  // Set whenever a report leaves OPEN; null while OPEN, and on reports closed
+  // before it existed.
+  closedReason   ReportClosedReason?
+  resolvedById   String?             @db.Uuid
   resolvedAt     DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
-  // Reports are an event's moderation queue and go with it. Everything else is
-  // SET NULL: deleting a photo, a reporter, a reported account or a resolver
-  // never fails on a report, and never erases one either.
-  event        Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  // Every relation is SET NULL: deleting an event, a photo, a reporter, a
+  // reported account or a resolver never fails on a report, and never erases
+  // one either. Reports are the durable record of abuse.
+  event        Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   reporter     User?  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: SetNull)
   photo        Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
   reportedUser User?  @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: SetNull)

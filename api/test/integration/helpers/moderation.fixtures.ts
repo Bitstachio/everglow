@@ -12,6 +12,7 @@ export const TEST_BLOCK_ID = "b10cb10c-b10c-4b10-8b10-b10cb10cb10c";
 export const buildReport = (overrides: Partial<Report> = {}): Report => ({
   id: TEST_REPORT_ID,
   eventId: TEST_EVENT_ID,
+  eventTitle: "Summer BBQ",
   reporterId: TEST_USER_ID,
   targetType: ReportTargetType.PHOTO,
   photoId: TEST_PHOTO_ID,
@@ -19,6 +20,7 @@ export const buildReport = (overrides: Partial<Report> = {}): Report => ({
   reason: ReportReason.SPAM,
   note: null,
   status: ReportStatus.OPEN,
+  closedReason: null,
   resolvedById: null,
   resolvedAt: null,
   createdAt: TEST_NOW,
@@ -39,6 +41,7 @@ export const expectedReportResponse = (report: Report) => ({
   reason: report.reason,
   note: report.note,
   status: report.status,
+  closedReason: report.closedReason,
   resolvedById: report.resolvedById,
   resolvedAt: report.resolvedAt?.toISOString() ?? null,
   createdAt: report.createdAt.toISOString(),

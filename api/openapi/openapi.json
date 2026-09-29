@@ -2943,6 +2943,19 @@
           "DISMISSED"
         ]
       },
+      "ReportClosedReason": {
+        "type": "string",
+        "enum": [
+          "PHOTO_REMOVED",
+          "MEMBER_REMOVED",
+          "DISMISSED",
+          "PHOTO_DELETED_BY_UPLOADER",
+          "PHOTO_DELETED_BY_ORGANIZER",
+          "ACCOUNT_DELETED",
+          "EVENT_DELETED"
+        ],
+        "description": "How the report left OPEN: an organizer's verdict, or the photo, account or event being deleted. Null while OPEN, and on reports closed before it was recorded."
+      },
       "ReportResponseDto": {
         "type": "object",
         "properties": {
@@ -2952,7 +2965,9 @@
           },
           "eventId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null once the event has been deleted; the report is kept as a record."
           },
           "targetType": {
             "allOf": [
@@ -2992,6 +3007,15 @@
               }
             ]
           },
+          "closedReason": {
+            "nullable": true,
+            "description": "How the report left OPEN: an organizer's verdict, or the photo, account or event being deleted. Null while OPEN, and on reports closed before it was recorded.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportClosedReason"
+              }
+            ]
+          },
           "resolvedById": {
             "type": "string",
             "format": "uuid",
@@ -3017,6 +3041,7 @@
           "reason",
           "note",
           "status",
+          "closedReason",
           "resolvedById",
           "resolvedAt",
           "createdAt"

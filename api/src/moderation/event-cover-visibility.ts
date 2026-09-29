@@ -25,7 +25,9 @@ export async function hiddenEventCoverIds(
     },
     select: { eventId: true, reporterId: true },
   });
-  if (reports.length === 0) return new Set();
+  // Every row matched eventId IN eventIds, so none is null.
+  const withEvent = reports.flatMap((report) => (report.eventId ? [{ ...report, eventId: report.eventId }] : []));
+  if (withEvent.length === 0) return new Set();
 
   const organizerOf = new Set(
     (
@@ -38,7 +40,7 @@ export async function hiddenEventCoverIds(
 
   // A row either is the viewer's own report or matched as severe.
   return new Set(
-    reports
+    withEvent
       .filter((report) => report.reporterId === viewerId || !organizerOf.has(report.eventId))
       .map((report) => report.eventId),
   );

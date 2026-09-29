@@ -42,19 +42,35 @@ A report points at a photo or at a member. Both are stored as plain foreign keys
 
 ### What happens on delete
 
-A report never blocks a deletion, and only the event takes reports with it.
+A report never blocks a deletion, and no deletion erases a report. Reports are the durable record of abuse: the log platform and its retention are not chosen yet, and a victim or the police may need the record later. Keeping the reported content itself, and for how long, is [EV-61](https://linear.app/mehrshadfb/issue/EV-61/preserve-reported-content-as-evidence-with-a-retention-window-and).
 
-| Relation                | On delete | Why                                                                                                                      |
-| ----------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `Report.eventId`        | `Cascade` | Reports are the event's moderation queue. With the event gone there is nobody to read them and nothing to moderate.      |
-| `Report.reporterId`     | `SetNull` | A reporter deleting their account must not erase the evidence. The report stays, and still counts towards hiding.        |
-| `Report.photoId`        | `SetNull` | The report stays as a record. Its OPEN reports are closed as `ACTIONED` in the same transaction, before the delete (§2). |
-| `Report.reportedUserId` | `SetNull` | A reported account can be deleted like any other; what was reported about it stays in the event's queue.                 |
-| `Report.resolvedById`   | `SetNull` | The verdict outlives the organizer who gave it.                                                                          |
-| `UserBlock.blockerId`   | `Cascade` | A block means nothing once either side is gone.                                                                          |
-| `UserBlock.blockedId`   | `Cascade` | Same.                                                                                                                    |
+| Relation                | On delete | Why                                                                                                                                                                                                                     |
+| ----------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Report.eventId`        | `SetNull` | The report stays as a record, and `eventTitle` (copied when it is filed) still says where. Its OPEN reports are closed as `EVENT_DELETED` in the same transaction, before the delete. Nobody can resolve it afterwards. |
+| `Report.reporterId`     | `SetNull` | A reporter deleting their account must not erase the evidence. The report stays, and still counts towards hiding.                                                                                                       |
+| `Report.photoId`        | `SetNull` | The report stays as a record. Its OPEN reports are closed as `ACTIONED` in the same transaction, before the delete (§2).                                                                                                |
+| `Report.reportedUserId` | `SetNull` | A reported account can be deleted like any other; what was reported about it stays in the event's queue.                                                                                                                |
+| `Report.resolvedById`   | `SetNull` | The verdict outlives the organizer who gave it.                                                                                                                                                                         |
+| `UserBlock.blockerId`   | `Cascade` | A block means nothing once either side is gone.                                                                                                                                                                         |
+| `UserBlock.blockedId`   | `Cascade` | Same.                                                                                                                                                                                                                   |
 
-So account deletion needs **no prep step** for either model: `AccountDeletionPrepService` is unchanged, and `user.delete` cannot fail on a report or a block (see [account-deletion.md §6](./account-deletion.md#6-prep-making-the-row-deletable)).
+So account deletion needs **no prep step** for either model beyond closing reports (below): `AccountDeletionPrepService` is unchanged, and `user.delete` cannot fail on a report or a block (see [account-deletion.md §6](./account-deletion.md#6-prep-making-the-row-deletable)).
+
+### How a report was closed
+
+Every report that leaves OPEN records why, in `closedReason` (null while OPEN; a check constraint enforces it):
+
+| `closedReason`               | Status      | When                                                                                           |
+| ---------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| `PHOTO_REMOVED`              | `ACTIONED`  | An organizer resolved a report on the photo with `REMOVE_PHOTO`.                               |
+| `MEMBER_REMOVED`             | `ACTIONED`  | An organizer removed the member, by resolving a report or directly, with their photos.         |
+| `DISMISSED`                  | `DISMISSED` | An organizer dismissed it.                                                                     |
+| `PHOTO_DELETED_BY_UPLOADER`  | `ACTIONED`  | The uploader deleted the photo: the delete endpoint, "Manage storage", or leaving with DELETE. |
+| `PHOTO_DELETED_BY_ORGANIZER` | `ACTIONED`  | An organizer deleted the photo with the delete endpoint, outside a report.                     |
+| `ACCOUNT_DELETED`            | `ACTIONED`  | The uploader deleted their account with `?photos=DELETE`.                                      |
+| `EVENT_DELETED`              | `ACTIONED`  | The event was deleted, by an organizer or with its only organizer's account.                   |
+
+`resolvedById` still names who did it. A report closed as `PHOTO_DELETED_BY_UPLOADER` right after it was filed is a reported uploader removing the evidence; the report keeps that visible. Reports closed before this column existed have it null, except dismissals, which were backfilled.
 
 ### Constraints Prisma cannot express
 

@@ -220,16 +220,16 @@ Two things fix it, and both are needed.
 
 **Schema.** The relations now say what should happen on their own:
 
-| Relation                                                            | On delete | Why                                                                                                                                                                      |
-| ------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `EventAccess.userId`                                                | `Cascade` | A membership has no meaning without its member.                                                                                                                          |
-| `Event.creatorId`                                                   | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                                                                                           |
-| `Photo.addedById`                                                   | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota.                                                                 |
-| `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence that belongs to the event; it outlives whoever filed it, was named in it, or resolved it ([moderation.md](./moderation.md#what-happens-on-delete)). |
-| `EventBan.userId`                                                   | `Cascade` | A ban from an event means nothing once the account is gone. `EventBan.bannedById` is `SetNull`: the ban outlives the organizer who issued it.                            |
-| `Event.coverUpdatedById`                                            | `SetNull` | Attribution of the current cover only; the cover stays.                                                                                                                  |
-| `UsernameChange.userId`                                             | `Cascade` | The change history only enforces this account's limit. (Holding released usernames for a cool-down, EV-30, may want to keep it.)                                         |
-| `UserBlock.blockerId`, `UserBlock.blockedId`                        | `Cascade` | A block means nothing once either account is gone.                                                                                                                       |
+| Relation                                                            | On delete | Why                                                                                                                                                                           |
+| ------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EventAccess.userId`                                                | `Cascade` | A membership has no meaning without its member.                                                                                                                               |
+| `Event.creatorId`                                                   | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                                                                                                |
+| `Photo.addedById`                                                   | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota.                                                                      |
+| `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence; it outlives whoever filed it, was named in it, or resolved it, and the event it was filed in ([moderation.md](./moderation.md#what-happens-on-delete)). |
+| `EventBan.userId`                                                   | `Cascade` | A ban from an event means nothing once the account is gone. `EventBan.bannedById` is `SetNull`: the ban outlives the organizer who issued it.                                 |
+| `Event.coverUpdatedById`                                            | `SetNull` | Attribution of the current cover only; the cover stays.                                                                                                                       |
+| `UsernameChange.userId`                                             | `Cascade` | The change history only enforces this account's limit. (Holding released usernames for a cool-down, EV-30, may want to keep it.)                                              |
+| `UserBlock.blockerId`, `UserBlock.blockedId`                        | `Cascade` | A block means nothing once either account is gone.                                                                                                                            |
 
 **`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos, the covers of deleted events, and the avatar alike), which are purged best effort after the row is gone. Reports and blocks need no step here: their relations above settle them on their own.
 
@@ -248,20 +248,20 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 
 ## 6a. What happens to the account's data
 
-| Data                                          | On deletion                                                                    |
-| --------------------------------------------- | ------------------------------------------------------------------------------ |
-| Identity, profile (`UserDetails`)             | Deleted. No name or username survives.                                         |
-| Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.       |
-| Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                           |
-| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                   |
-| Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                 |
-| Events with another organizer                 | Untouched; only the membership goes.                                           |
-| `Event.creatorId` on surviving events         | Null.                                                                          |
-| Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere.   |
-| Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                              |
-| Storage quota, purchased limit                | Gone with the row. Kept photos count toward nobody's quota.                    |
-| Reports filed, received or resolved           | Kept in their event with the account's id nulled; they go when the event does. |
-| Blocks, in either direction                   | Deleted by cascade.                                                            |
+| Data                                          | On deletion                                                                                                          |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Identity, profile (`UserDetails`)             | Deleted. No name or username survives.                                                                               |
+| Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.                                             |
+| Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                                                                 |
+| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                                                         |
+| Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                                                       |
+| Events with another organizer                 | Untouched; only the membership goes.                                                                                 |
+| `Event.creatorId` on surviving events         | Null.                                                                                                                |
+| Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere.                                         |
+| Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                                                                    |
+| Storage quota, purchased limit                | Gone with the row. Kept photos count toward nobody's quota.                                                          |
+| Reports filed, received or resolved           | Kept with the account's id nulled, even when the event is deleted with the account (then closed as `EVENT_DELETED`). |
+| Blocks, in either direction                   | Deleted by cascade.                                                                                                  |
 
 ### The photo choice is required, and KEEP is the one to offer
 

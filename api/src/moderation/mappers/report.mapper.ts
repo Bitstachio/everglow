@@ -15,6 +15,7 @@ export class ReportMapper {
       reason: report.reason,
       note: report.note,
       status: report.status,
+      closedReason: report.closedReason,
       resolvedById: report.resolvedById,
       resolvedAt: report.resolvedAt,
       createdAt: report.createdAt,

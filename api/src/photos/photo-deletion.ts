@@ -1,4 +1,4 @@
-import { Prisma } from "generated/prisma/client";
+import { Prisma, ReportClosedReason } from "generated/prisma/client";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 
 export interface DeleteUploadsInput {
@@ -7,6 +7,8 @@ export interface DeleteUploadsInput {
   userId: string;
   /** Recorded as the resolver of any reports the deletion closes. */
   closedById: string;
+  /** Recorded on any reports the deletion closes. */
+  closedReason: ReportClosedReason;
   /** Only these photos; all of the user's photos in the event when omitted. */
   photoIds?: string[];
   /** Photos the caller deletes itself, e.g. the one a report is about. */
@@ -32,7 +34,7 @@ export interface DeletedUploads {
  */
 export async function deleteUploadsInTransaction(
   tx: Prisma.TransactionClient,
-  { eventId, userId, closedById, photoIds, excludePhotoIds = [] }: DeleteUploadsInput,
+  { eventId, userId, closedById, closedReason, photoIds, excludePhotoIds = [] }: DeleteUploadsInput,
 ): Promise<DeletedUploads> {
   const uploaded = await tx.photo.findMany({
     where: { eventId, addedById: userId, id: { ...(photoIds && { in: photoIds }), notIn: excludePhotoIds } },
@@ -41,7 +43,7 @@ export async function deleteUploadsInTransaction(
   if (uploaded.length === 0) return { photoKeys: [], photosDeleted: 0, bytesFreed: 0n, reportsClosed: 0 };
 
   const ids = uploaded.map((photo) => photo.id);
-  const reportsClosed = await closeReportsOnDeletedPhotos(tx, ids, closedById);
+  const reportsClosed = await closeReportsOnDeletedPhotos(tx, ids, closedById, closedReason);
   const { count } = await tx.photo.deleteMany({ where: { id: { in: ids } } });
 
   return {

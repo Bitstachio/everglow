@@ -21,7 +21,9 @@ describe("deleteUploadsInTransaction", () => {
   });
 
   it("deletes all of the user's photos in the event, closing their OPEN reports first", async () => {
-    await expect(deleteUploadsInTransaction(prisma, { eventId, userId, closedById })).resolves.toEqual({
+    await expect(
+      deleteUploadsInTransaction(prisma, { eventId, userId, closedById, closedReason: "MEMBER_REMOVED" }),
+    ).resolves.toEqual({
       photoKeys: ["photos/a", "photos/b"],
       photosDeleted: 2,
       bytesFreed: 4_000_000n,
@@ -35,7 +37,11 @@ describe("deleteUploadsInTransaction", () => {
     expect(prisma.report.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { photoId: { in: ids }, status: "OPEN" },
-        data: expect.objectContaining({ status: "ACTIONED", resolvedById: closedById }) as unknown,
+        data: expect.objectContaining({
+          status: "ACTIONED",
+          closedReason: "MEMBER_REMOVED",
+          resolvedById: closedById,
+        }) as unknown,
       }),
     );
     expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
@@ -45,7 +51,13 @@ describe("deleteUploadsInTransaction", () => {
   });
 
   it("narrows to the given photos, still only the user's own in that event", async () => {
-    await deleteUploadsInTransaction(prisma, { eventId, userId, closedById, photoIds: [ids[0]] });
+    await deleteUploadsInTransaction(prisma, {
+      eventId,
+      userId,
+      closedById,
+      closedReason: "PHOTO_DELETED_BY_UPLOADER",
+      photoIds: [ids[0]],
+    });
 
     expect(prisma.photo.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { eventId, addedById: userId, id: { in: [ids[0]], notIn: [] } } }),
@@ -55,7 +67,9 @@ describe("deleteUploadsInTransaction", () => {
   it("does nothing when there is nothing to delete", async () => {
     prisma.photo.findMany.mockResolvedValue([]);
 
-    await expect(deleteUploadsInTransaction(prisma, { eventId, userId, closedById })).resolves.toEqual({
+    await expect(
+      deleteUploadsInTransaction(prisma, { eventId, userId, closedById, closedReason: "MEMBER_REMOVED" }),
+    ).resolves.toEqual({
       photoKeys: [],
       photosDeleted: 0,
       bytesFreed: 0n,

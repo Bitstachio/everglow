@@ -7,6 +7,7 @@ describe("ReportMapper", () => {
   const report: Report = {
     id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
     eventId: "66666666-6666-6666-6666-666666666666",
+    eventTitle: "Summer BBQ",
     reporterId: "11111111-1111-1111-1111-111111111111",
     targetType: "PHOTO",
     photoId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -14,6 +15,7 @@ describe("ReportMapper", () => {
     reason: "SPAM",
     note: "Keeps posting ads",
     status: "DISMISSED",
+    closedReason: "DISMISSED",
     resolvedById: "33333333-3333-3333-3333-333333333333",
     resolvedAt: now,
     createdAt: now,
@@ -31,6 +33,7 @@ describe("ReportMapper", () => {
         reason: "SPAM",
         note: report.note,
         status: "DISMISSED",
+        closedReason: "DISMISSED",
         resolvedById: report.resolvedById,
         resolvedAt: now,
         createdAt: now,

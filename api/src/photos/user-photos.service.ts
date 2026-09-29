@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PhotoStatus } from "generated/prisma/client";
+import { PhotoStatus, ReportClosedReason } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
@@ -132,7 +132,13 @@ export class UserPhotosService {
    */
   async deleteInEvent(userId: string, eventId: string, photoIds?: string[]): Promise<DeletedOwnPhotos> {
     const deleted = await this.prisma.$transaction((tx) =>
-      deleteUploadsInTransaction(tx, { eventId, userId, closedById: userId, photoIds }),
+      deleteUploadsInTransaction(tx, {
+        eventId,
+        userId,
+        closedById: userId,
+        closedReason: ReportClosedReason.PHOTO_DELETED_BY_UPLOADER,
+        photoIds,
+      }),
     );
 
     this.logger.info(

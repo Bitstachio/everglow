@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { Photo, PhotoStatus, Prisma } from "generated/prisma/client";
+import { Photo, PhotoStatus, Prisma, ReportClosedReason } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -342,7 +342,11 @@ export class PhotosService {
     await this.s3Service.deleteObject(photo.s3Key);
     // The photo's OPEN reports close with it; see closeReportsOnDeletedPhotos.
     const closedReports = await this.prisma.$transaction(async (tx) => {
-      const closed = await closeReportsOnDeletedPhotos(tx, [photoId], callerId);
+      const closedReason =
+        callerId === photo.addedById
+          ? ReportClosedReason.PHOTO_DELETED_BY_UPLOADER
+          : ReportClosedReason.PHOTO_DELETED_BY_ORGANIZER;
+      const closed = await closeReportsOnDeletedPhotos(tx, [photoId], callerId, closedReason);
       await tx.photo.delete({ where: { id: photoId } });
       return closed;
     });

@@ -58,7 +58,12 @@ describe("removeMemberInTransaction", () => {
     const ids = uploaded.map((photo) => photo.id);
     expect(prisma.report.updateMany).toHaveBeenCalledWith({
       where: { photoId: { in: ids }, status: "OPEN" },
-      data: { status: "ACTIONED", resolvedById: removedById, resolvedAt: expect.any(Date) as unknown },
+      data: {
+        status: "ACTIONED",
+        closedReason: "MEMBER_REMOVED",
+        resolvedById: removedById,
+        resolvedAt: expect.any(Date) as unknown,
+      },
     });
     expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.photo.deleteMany.mock.invocationCallOrder[0],

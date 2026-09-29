@@ -1,7 +1,13 @@
 import { Injectable } from "@nestjs/common";
-import { AccessLevel, AccountDeletionPhotoPolicy, PhotoStatus, Prisma } from "generated/prisma/client";
+import {
+  AccessLevel,
+  AccountDeletionPhotoPolicy,
+  PhotoStatus,
+  Prisma,
+  ReportClosedReason,
+} from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
-import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
+import { closeReportsOnDeletedEvent, closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
 
 export interface AccountDeletionPrepSummary {
@@ -125,6 +131,8 @@ export class AccountDeletionPrepService {
       // Its cover goes to the same purge; the column disappears with the row.
       const event = await tx.event.findUnique({ where: { id: eventId }, select: { coverS3Key: true } });
       if (event?.coverS3Key) s3Keys.push(event.coverS3Key);
+      // Its reports stay as evidence; its OPEN ones close first.
+      await closeReportsOnDeletedEvent(tx, eventId, userId);
       // deleteMany, not delete: a concurrent deletion of the last other member
       // may have removed this event already, and that is the outcome we wanted.
       const { count } = await tx.event.deleteMany({ where: { id: eventId } });
@@ -153,6 +161,7 @@ export class AccountDeletionPrepService {
           tx,
           ready.map((photo) => photo.id),
           userId,
+          ReportClosedReason.ACCOUNT_DELETED,
         );
         await tx.photo.deleteMany({ where: { addedById: userId } });
         s3Keys.push(...ready.map((photo) => photo.s3Key));

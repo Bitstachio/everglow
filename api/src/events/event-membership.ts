@@ -1,4 +1,4 @@
-import { Prisma } from "generated/prisma/client";
+import { Prisma, ReportClosedReason } from "generated/prisma/client";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 
 /**
@@ -55,6 +55,12 @@ export async function removeMemberInTransaction(
 
   if (photos === MEMBER_PHOTOS.KEEP) return { photoKeys: [], photosDeleted: 0, reportsClosed: 0 };
 
-  const deleted = await deleteUploadsInTransaction(tx, { eventId, userId, closedById: removedById, excludePhotoIds });
+  const deleted = await deleteUploadsInTransaction(tx, {
+    eventId,
+    userId,
+    closedById: removedById,
+    closedReason: ReportClosedReason.MEMBER_REMOVED,
+    excludePhotoIds,
+  });
   return { photoKeys: deleted.photoKeys, photosDeleted: deleted.photosDeleted, reportsClosed: deleted.reportsClosed };
 }

@@ -255,9 +255,24 @@ export type ReportReason = "SPAM" | "NUDITY_OR_SEXUAL" | "HARASSMENT" | "VIOLENC
 
 export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED";
 
+/**
+ * How the report left OPEN: an organizer's verdict, or the photo, account or event being deleted. Null while OPEN, and on reports closed before it was recorded.
+ */
+export type ReportClosedReason =
+  | "PHOTO_REMOVED"
+  | "MEMBER_REMOVED"
+  | "DISMISSED"
+  | "PHOTO_DELETED_BY_UPLOADER"
+  | "PHOTO_DELETED_BY_ORGANIZER"
+  | "ACCOUNT_DELETED"
+  | "EVENT_DELETED";
+
 export type ReportResponseDto = {
   id: string;
-  eventId: string;
+  /**
+   * Null once the event has been deleted; the report is kept as a record.
+   */
+  eventId: string | null;
   targetType: ReportTargetType;
   /**
    * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
@@ -270,6 +285,10 @@ export type ReportResponseDto = {
   reason: ReportReason;
   note: string | null;
   status: ReportStatus;
+  /**
+   * How the report left OPEN: an organizer's verdict, or the photo, account or event being deleted. Null while OPEN, and on reports closed before it was recorded.
+   */
+  closedReason: ReportClosedReason | null;
   /**
    * The organizer who resolved the report. Null while OPEN, and once that account has been deleted.
    */

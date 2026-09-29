@@ -1,4 +1,4 @@
-import { ReportReason, ReportStatus } from "generated/prisma/client";
+import { ReportClosedReason, ReportReason, ReportStatus } from "generated/prisma/client";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 
 const reportEntity = "Report";
@@ -41,6 +41,13 @@ export const RESOLUTION_STATUS: Record<ReportResolutionAction, ReportStatus> = {
   REMOVE_PHOTO: ReportStatus.ACTIONED,
   REMOVE_MEMBER: ReportStatus.ACTIONED,
   DISMISS: ReportStatus.DISMISSED,
+};
+
+/** How each action records the reports it closes. */
+export const RESOLUTION_CLOSED_REASON: Record<ReportResolutionAction, ReportClosedReason> = {
+  REMOVE_PHOTO: ReportClosedReason.PHOTO_REMOVED,
+  REMOVE_MEMBER: ReportClosedReason.MEMBER_REMOVED,
+  DISMISS: ReportClosedReason.DISMISSED,
 };
 
 // An OPEN report older than this pages the platform owner: the organizers have

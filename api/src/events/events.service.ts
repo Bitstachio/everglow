@@ -8,7 +8,8 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { AccessLevel, Event, Prisma } from "generated/prisma/client";
+import { AccessLevel, Event, Prisma, ReportClosedReason } from "generated/prisma/client";
+import { closeReportsOnDeletedEvent } from "src/moderation/report-closure";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -273,7 +274,12 @@ export class EventsService {
     const deleted = await this.prisma.$transaction(async (tx) => {
       await tx.eventAccess.delete({ where: { userId_eventId: { userId: callerId, eventId } } });
       return photos === MEMBER_PHOTOS.DELETE
-        ? deleteUploadsInTransaction(tx, { eventId, userId: callerId, closedById: callerId })
+        ? deleteUploadsInTransaction(tx, {
+            eventId,
+            userId: callerId,
+            closedById: callerId,
+            closedReason: ReportClosedReason.PHOTO_DELETED_BY_UPLOADER,
+          })
         : null;
     });
 
@@ -485,6 +491,8 @@ export class EventsService {
     // read above, so a cover confirmed in between is still purged.
     const { photoKeys, coverKey } = await this.prisma.$transaction(async (tx) => {
       const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
+      // The event's reports stay as evidence; its OPEN ones close first.
+      await closeReportsOnDeletedEvent(tx, eventId, callerId);
       const deleted = await tx.event.delete({ where: { id: eventId } });
       return { photoKeys: photos.map((photo) => photo.s3Key), coverKey: deleted.coverS3Key };
     });

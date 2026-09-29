@@ -777,7 +777,12 @@ describe("PhotosService", () => {
 
       expect(prisma.report.updateMany).toHaveBeenCalledWith({
         where: { photoId: { in: [photoId] }, status: "OPEN" },
-        data: { status: "ACTIONED", resolvedById: callerId, resolvedAt: expect.any(Date) as unknown },
+        data: {
+          status: "ACTIONED",
+          closedReason: "PHOTO_DELETED_BY_UPLOADER",
+          resolvedById: callerId,
+          resolvedAt: expect.any(Date) as unknown,
+        },
       });
       // Before the row: its delete sets the reports' photoId to null.
       expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
@@ -786,6 +791,25 @@ describe("PhotosService", () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.objectContaining({ event: "photo.deleted", uploaderId: callerId, closedReports: 2, audit: true }),
         "Photo deleted",
+      );
+    });
+
+    it("records an organizer deleting someone else's photo as PHOTO_DELETED_BY_ORGANIZER", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithEvent([callerAccess("ORGANIZER")], { addedById: "99999999-9999-4999-8999-999999999999" }) as never,
+      );
+      prisma.report.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.deletePhoto(photoId, callerId);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            closedReason: "PHOTO_DELETED_BY_ORGANIZER",
+            resolvedById: callerId,
+          }) as unknown,
+        }),
       );
     });
 

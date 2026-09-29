@@ -68,6 +68,7 @@ describe("AccountDeletionPrepService", () => {
 
   describe("events the account organises", () => {
     beforeEach(() => {
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
       prisma.eventAccess.findMany.mockResolvedValue([
         { eventId: coOrganizedEventId },
         { eventId: sharedEventId },
@@ -117,6 +118,23 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.event.deleteMany).toHaveBeenCalledWith({ where: { id: soloEventId } });
       expect(result.summary.eventsDeleted).toBe(1);
       expect(result.s3Keys).toEqual(expect.arrayContaining(["photos/solo/a", "photos/solo/b"]));
+    });
+
+    it("keeps the deleted event's reports, closing its OPEN ones as EVENT_DELETED first", async () => {
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: { eventId: soloEventId, status: "OPEN" },
+        data: expect.objectContaining({
+          status: "ACTIONED",
+          closedReason: "EVENT_DELETED",
+          resolvedById: userId,
+        }) as unknown,
+      });
+      expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.event.deleteMany.mock.invocationCallOrder[0],
+      );
+      expect(prisma.report.deleteMany).not.toHaveBeenCalled();
     });
 
     it("collects the cover key of an event it deletes, next to its photo keys", async () => {
@@ -231,7 +249,12 @@ describe("AccountDeletionPrepService", () => {
 
       expect(prisma.report.updateMany).toHaveBeenCalledWith({
         where: { photoId: { in: [readyPhotoId] }, status: "OPEN" },
-        data: { status: "ACTIONED", resolvedById: userId, resolvedAt: expect.any(Date) as unknown },
+        data: {
+          status: "ACTIONED",
+          closedReason: "ACCOUNT_DELETED",
+          resolvedById: userId,
+          resolvedAt: expect.any(Date) as unknown,
+        },
       });
       expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.deleteMany.mock.invocationCallOrder.at(-1)!,

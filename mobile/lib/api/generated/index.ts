@@ -198,6 +198,7 @@ export type {
   PhotosControllerRemoveErrors,
   PhotosControllerRemoveResponse,
   PhotosControllerRemoveResponses,
+  ReportClosedReason,
   ReportListResponseDto,
   ReportReason,
   ReportResolutionAction,

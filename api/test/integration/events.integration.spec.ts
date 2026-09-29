@@ -462,6 +462,24 @@ describe("EventsController (integration)", () => {
   describe("DELETE /events/:eventId", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}`;
 
+    beforeEach(() => {
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    });
+
+    it("keeps the event's reports, closing its OPEN ones as EVENT_DELETED", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.event.delete.mockResolvedValue(buildEvent());
+      prisma.report.updateMany.mockResolvedValue({ count: 2 });
+
+      await request(httpServer).delete(path()).set(authHeader()).expect(204);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: { eventId: TEST_EVENT_ID, status: "OPEN" },
+        data: expect.objectContaining({ status: "ACTIONED", closedReason: "EVENT_DELETED" }) as unknown,
+      });
+      expect(prisma.report.deleteMany).not.toHaveBeenCalled();
+    });
+
     it("returns 204 when the organizer deletes the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.event.delete.mockResolvedValue(buildEvent());

@@ -1233,6 +1233,30 @@ describe("EventsService", () => {
   });
 
   describe("delete", () => {
+    beforeEach(() => {
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    });
+
+    it("keeps the event's reports, closing its OPEN ones as EVENT_DELETED before the delete", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.delete.mockResolvedValue(eventCreatedByUser);
+
+      await service.delete(eventId, callerId);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: { eventId, status: "OPEN" },
+        data: expect.objectContaining({
+          status: "ACTIONED",
+          closedReason: "EVENT_DELETED",
+          resolvedById: callerId,
+        }) as unknown,
+      });
+      expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.event.delete.mock.invocationCallOrder[0],
+      );
+      expect(prisma.report.deleteMany).not.toHaveBeenCalled();
+    });
+
     it("deletes the event when the caller has organizer access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
       prisma.event.delete.mockResolvedValue(eventCreatedByUser);
