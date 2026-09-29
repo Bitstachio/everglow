@@ -16,11 +16,16 @@ describe("defineReportAbilities", () => {
 
   const reportWithAccess = (
     accessLevel: "ORGANIZER" | "PARTICIPANT" | "VIEWER",
-    { accessUserId = userId, reporterId = userId } = {},
+    {
+      accessUserId = userId,
+      reporterId = userId,
+      targetType = "PHOTO",
+    }: { accessUserId?: string; reporterId?: string; targetType?: "PHOTO" | "MEMBER" | "EVENT" } = {},
   ) =>
     subject(REPORT_SUBJECT, {
       eventId,
       reporterId,
+      targetType,
       event: { id: eventId, eventAccesses: [{ userId: accessUserId, accessLevel }] },
     } as never);
 
@@ -33,6 +38,12 @@ describe("defineReportAbilities", () => {
   });
 
   describe("create", () => {
+    it("allows any member to report the event itself", () => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+
+      expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("VIEWER", { targetType: "EVENT" }))).toBe(true);
+    });
+
     it("allows every member to report, viewers included", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
@@ -62,10 +73,17 @@ describe("defineReportAbilities", () => {
     ["read", REPORT_ACTIONS.READ],
     ["update", REPORT_ACTIONS.UPDATE],
   ])("%s", (_name, action) => {
-    it("allows organizers of the event", () => {
+    it("allows organizers of the event, for reports about photos and members", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
       expect(ability.can(action, reportWithAccess("ORGANIZER"))).toBe(true);
+      expect(ability.can(action, reportWithAccess("ORGANIZER", { targetType: "MEMBER" }))).toBe(true);
+    });
+
+    it("denies organizers reports about the event itself, which only the platform reviews", () => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+
+      expect(ability.can(action, reportWithAccess("ORGANIZER", { targetType: "EVENT" }))).toBe(false);
     });
 
     it("denies participants and viewers, even for a report they filed", () => {

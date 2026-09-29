@@ -249,7 +249,7 @@ export type PhotoListResponseDto = {
   nextCursor: string | null;
 };
 
-export type ReportTargetType = "PHOTO" | "MEMBER";
+export type ReportTargetType = "PHOTO" | "MEMBER" | "EVENT";
 
 export type ReportReason = "SPAM" | "NUDITY_OR_SEXUAL" | "HARASSMENT" | "VIOLENCE" | "OTHER";
 
@@ -1323,6 +1323,49 @@ export type ReportsControllerListReportsResponses = {
 
 export type ReportsControllerListReportsResponse =
   ReportsControllerListReportsResponses[keyof ReportsControllerListReportsResponses];
+
+export type ReportsControllerReportEventData = {
+  body: CreateReportDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/reports";
+};
+
+export type ReportsControllerReportEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportEventError =
+  ReportsControllerReportEventErrors[keyof ReportsControllerReportEventErrors];
+
+export type ReportsControllerReportEventResponses = {
+  /**
+   * The caller's open report on the event
+   */
+  201: {
+    data: ReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type ReportsControllerReportEventResponse =
+  ReportsControllerReportEventResponses[keyof ReportsControllerReportEventResponses];
 
 export type ReportsControllerResolveReportData = {
   body: ResolveReportDto;

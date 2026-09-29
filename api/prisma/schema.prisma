@@ -35,6 +35,9 @@ enum AccountDeletionPhotoPolicy {
 enum ReportTargetType {
   PHOTO
   MEMBER
+  // The event itself (cover, title, description): reviewed by the platform
+  // owner, never by the event's organizers. See docs/moderation.md.
+  EVENT
 }
 
 enum ReportReason {
@@ -228,6 +231,8 @@ model Report {
   // index does: PHOTO reports carry the uploader in reportedUserId too.
   @@unique([reporterId, photoId], where: { status: "OPEN" })
   @@unique([reporterId, eventId, reportedUserId], where: { status: "OPEN", targetType: "MEMBER" })
+  // One OPEN report per member about the event itself.
+  @@unique([reporterId, eventId], where: { status: "OPEN", targetType: "EVENT" })
   // Organizer queue (status filter, newest first) and the per-event lookup of
   // photos whose open reports reached the hide threshold.
   @@index([eventId, status, createdAt])

@@ -80,6 +80,9 @@ import type {
   ReportsControllerListReportsData,
   ReportsControllerListReportsErrors,
   ReportsControllerListReportsResponses,
+  ReportsControllerReportEventData,
+  ReportsControllerReportEventErrors,
+  ReportsControllerReportEventResponses,
   ReportsControllerReportMemberData,
   ReportsControllerReportMemberErrors,
   ReportsControllerReportMemberResponses,
@@ -524,6 +527,28 @@ export const reportsControllerListReports = <ThrowOnError extends boolean = fals
     responseType: "json",
     url: "/api/v2/events/{eventId}/reports",
     ...options,
+  });
+
+/**
+ * Report an event
+ *
+ * Any member of the event, about the event itself: its cover, title or description, or the event as a whole (the note can say which). Reviewed by the platform, never by the event's organizers. Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.
+ */
+export const reportsControllerReportEvent = <ThrowOnError extends boolean = false>(
+  options: Options<ReportsControllerReportEventData, ThrowOnError>,
+): RequestResult<ReportsControllerReportEventResponses, ReportsControllerReportEventErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ReportsControllerReportEventResponses,
+    ReportsControllerReportEventErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/reports",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });
 
 /**
