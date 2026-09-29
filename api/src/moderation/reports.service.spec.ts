@@ -27,7 +27,12 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
-import { REPORT_SERVICE_ERRORS, STALE_REPORT_AFTER_HOURS } from "./moderation.constants";
+import {
+  REPORT_HIDE_THRESHOLD,
+  REPORT_SERVICE_ERRORS,
+  SMALL_EVENT_REPORT_HIDE_THRESHOLD,
+  STALE_REPORT_AFTER_HOURS,
+} from "./moderation.constants";
 import { PhotoVisibilityService } from "./photo-visibility.service";
 import { ReportsService } from "./reports.service";
 
@@ -82,6 +87,7 @@ describe("ReportsService", () => {
     invitationUrl: "invite-token",
     coverS3Key: null,
     coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -439,9 +445,19 @@ describe("ReportsService", () => {
     const dto = { reason: ReportReason.SPAM, note: "The cover is an ad" };
     const eventReport = (overrides: Partial<Report> = {}) =>
       buildReport({ targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null, ...overrides });
-    const eventWithCallerAccess = (accessLevel: AccessLevel | null) => ({
+    const eventWithCallerAccess = (accessLevel: AccessLevel | null, memberCount = 10) => ({
       ...event,
       eventAccesses: accessLevel ? [access(callerId, accessLevel)] : [],
+      _count: { eventAccesses: memberCount },
+    });
+    const escalationReasonsLogged = () => {
+      const calls = logger.warn.mock.calls as [{ escalationReasons?: string[] }?][];
+      return calls.at(-1)?.[0]?.escalationReasons;
+    };
+
+    beforeEach(() => {
+      prisma.report.count.mockResolvedValue(1);
+      prisma.event.updateMany.mockResolvedValue({ count: 0 });
     });
 
     it("lets any member report the event itself, naming no photo and no member", async () => {
@@ -497,6 +513,69 @@ describe("ReportsService", () => {
         expect.objectContaining({ event: "report.created", coverUpdatedById: coverSetter }),
         "Report created",
       );
+    });
+
+    describe("under review", () => {
+      it("puts the event under review when its OPEN event reports reach the hide threshold", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
+        prisma.report.count.mockResolvedValue(REPORT_HIDE_THRESHOLD);
+        prisma.event.updateMany.mockResolvedValue({ count: 1 });
+
+        await service.reportEvent(eventId, callerId, dto);
+
+        expect(prisma.report.count).toHaveBeenCalledWith({
+          where: { eventId, targetType: ReportTargetType.EVENT, status: ReportStatus.OPEN },
+        });
+        expect(prisma.event.updateMany).toHaveBeenCalledWith({
+          where: { id: eventId, underReviewAt: null },
+          data: { underReviewAt: expect.any(Date) as Date },
+        });
+        expect(escalationReasonsLogged()).toEqual(["target_is_event", "event_under_review"]);
+      });
+
+      it("needs only two reports in an event of three or fewer", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT, 3));
+        prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
+        prisma.report.count.mockResolvedValue(SMALL_EVENT_REPORT_HIDE_THRESHOLD);
+        prisma.event.updateMany.mockResolvedValue({ count: 1 });
+
+        await service.reportEvent(eventId, callerId, dto);
+
+        expect(escalationReasonsLogged()).toContain("event_under_review");
+      });
+
+      it("leaves the event alone below the threshold", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
+        prisma.report.count.mockResolvedValue(REPORT_HIDE_THRESHOLD - 1);
+
+        await service.reportEvent(eventId, callerId, dto);
+
+        expect(prisma.event.updateMany).not.toHaveBeenCalled();
+        expect(escalationReasonsLogged()).toEqual(["target_is_event"]);
+      });
+
+      it("does not say so again for an event already under review", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
+        prisma.report.count.mockResolvedValue(REPORT_HIDE_THRESHOLD + 1);
+        prisma.event.updateMany.mockResolvedValue({ count: 0 });
+
+        await service.reportEvent(eventId, callerId, dto);
+
+        expect(escalationReasonsLogged()).toEqual(["target_is_event"]);
+      });
+
+      it("checks nothing for a repeat of the caller's OPEN report", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.report.createManyAndReturn.mockResolvedValue([]);
+        prisma.report.findFirst.mockResolvedValue(eventReport());
+
+        await service.reportEvent(eventId, callerId, dto);
+
+        expect(prisma.event.updateMany).not.toHaveBeenCalled();
+      });
     });
 
     it("adds severe_reason for nudity or violence", async () => {

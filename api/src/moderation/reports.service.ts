@@ -61,6 +61,8 @@ interface EscalationContext {
   targetIsEvent?: boolean;
   /** For an EVENT report, who set the event's current cover, if anyone. */
   coverUpdatedById?: string | null;
+  /** For an EVENT report, the OPEN event reports that put the event under review. */
+  underReviewThreshold?: number;
 }
 
 export interface StaleReportCheckResult {
@@ -156,7 +158,7 @@ export class ReportsService {
   async reportEvent(eventId: string, callerId: string, dto: CreateReportDto): Promise<Report> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      include: eventWithCallerAccessInclude(callerId),
+      include: { ...eventWithCallerAccessInclude(callerId), _count: { select: { eventAccesses: true } } },
     });
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
@@ -168,6 +170,8 @@ export class ReportsService {
       reportedAccessLevel: null,
       targetIsEvent: true,
       coverUpdatedById: event.coverUpdatedById,
+      // The same threshold that hides a photo from the whole event.
+      underReviewThreshold: reportHideThreshold(event._count.eventAccesses),
     });
   }
 
@@ -505,7 +509,32 @@ export class ReportsService {
       // Equality, so the report that tips the photo over is the one that says so.
       if (openReports === context.hideThreshold) reasons.push(REPORT_ESCALATION_REASONS.HIDE_THRESHOLD_REACHED);
     }
+    if (context.targetIsEvent && context.underReviewThreshold !== undefined) {
+      if (await this.putUnderReviewAtThreshold(report.eventId, context.underReviewThreshold)) {
+        reasons.push(REPORT_ESCALATION_REASONS.EVENT_UNDER_REVIEW);
+      }
+    }
 
     return reasons;
+  }
+
+  /**
+   * Puts the event under review once its OPEN event reports reach the
+   * threshold; each is by a different member (Report_reporterId_eventId_key).
+   * Returns whether this call did it: the update only matches an event not
+   * already under review, so of two reports that cross the threshold together
+   * exactly one says so. Only the platform lifts it.
+   */
+  private async putUnderReviewAtThreshold(eventId: string, threshold: number): Promise<boolean> {
+    const openReports = await this.prisma.report.count({
+      where: { eventId, targetType: ReportTargetType.EVENT, status: ReportStatus.OPEN },
+    });
+    if (openReports < threshold) return false;
+
+    const { count } = await this.prisma.event.updateMany({
+      where: { id: eventId, underReviewAt: null },
+      data: { underReviewAt: new Date() },
+    });
+    return count === 1;
   }
 }

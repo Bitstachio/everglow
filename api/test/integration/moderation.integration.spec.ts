@@ -65,7 +65,11 @@ describe("Moderation (integration)", () => {
 
   type Access = ReturnType<typeof buildOrganizerAccess>;
 
-  const eventWithAccess = (access: Access[]) => ({ ...buildEvent(), eventAccesses: access });
+  const eventWithAccess = (access: Access[]) => ({
+    ...buildEvent(),
+    eventAccesses: access,
+    _count: { eventAccesses: 5 },
+  });
 
   /** The target user's photo, loaded the way the report path loads it. */
   const photoWithAccess = (access: Access[], overrides: Parameters<typeof buildPhoto>[0] = {}) => ({
@@ -228,6 +232,20 @@ describe("Moderation (integration)", () => {
           data: [expect.objectContaining({ targetType: "EVENT", photoId: null, reportedUserId: null })],
         }),
       );
+    });
+
+    it("puts the event under review when this report reaches the threshold", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.report.createManyAndReturn.mockResolvedValue([buildEventReport()]);
+      prisma.report.count.mockResolvedValue(3);
+      prisma.event.updateMany.mockResolvedValue({ count: 1 });
+
+      await request(httpServer).post(eventReportsPath()).set(authHeader()).send(payload).expect(201);
+
+      expect(prisma.event.updateMany).toHaveBeenCalledWith({
+        where: { id: TEST_EVENT_ID, underReviewAt: null },
+        data: { underReviewAt: expect.any(Date) as Date },
+      });
     });
 
     it("returns 403 when the caller is not a member of the event", async () => {
