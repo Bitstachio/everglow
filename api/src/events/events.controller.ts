@@ -28,6 +28,7 @@ import { EventBanListResponseDto } from "./dto/event-ban-list-response.dto";
 import { EventParticipantResponseDto } from "./dto/event-participant-response.dto";
 import { EventResponseDto } from "./dto/event-response.dto";
 import { JoinEventDto } from "./dto/join-event.dto";
+import { LeaveEventQueryDto } from "./dto/leave-event-query.dto";
 import { RemoveParticipantQueryDto } from "./dto/remove-participant-query.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { UpdateParticipantAccessDto } from "./dto/update-participant-access.dto";
@@ -104,10 +105,17 @@ export class EventsController {
 
   @Post(":eventId/leave")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Leave an event" })
+  @ApiOperation({
+    summary: "Leave an event",
+    description: "You can rejoin through the invitation link. Choose whether your photos in the event stay or go.",
+  })
   @ApiNoContentResponse({ description: "Caller left the event (empty data envelope at runtime)" })
-  async leave(@CurrentUser() user: AuthenticatedUser, @Param("eventId", ParseUUIDPipe) eventId: string): Promise<void> {
-    return this.eventsService.leaveEvent(eventId, user.id);
+  async leave(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+    @Query() query: LeaveEventQueryDto,
+  ): Promise<void> {
+    return this.eventsService.leaveEvent(eventId, user.id, query.photos);
   }
 
   @Get(":eventId/participants")

@@ -1518,7 +1518,12 @@ export type EventsControllerLeaveData = {
   path: {
     eventId: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * What happens to the photos you uploaded to this event. KEEP (default): they stay in the event and keep counting toward your storage; you can still delete them later with DELETE /photos/:photoId. DELETE: they are all deleted now and the space is freed.
+     */
+    photos?: MemberPhotos;
+  };
   url: "/api/v2/events/{eventId}/leave";
 };
 

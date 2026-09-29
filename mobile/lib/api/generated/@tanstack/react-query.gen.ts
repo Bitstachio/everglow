@@ -1098,6 +1098,8 @@ export const eventsControllerUpdateMutation = (
 
 /**
  * Leave an event
+ *
+ * You can rejoin through the invitation link. Choose whether your photos in the event stay or go.
  */
 export const eventsControllerLeaveMutation = (
   options?: Partial<Options<EventsControllerLeaveData>>,
