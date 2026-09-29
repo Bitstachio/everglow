@@ -525,7 +525,7 @@ export class ReportsService {
       if (openReports === context.hideThreshold) reasons.push(REPORT_ESCALATION_REASONS.HIDE_THRESHOLD_REACHED);
     }
     if (context.targetIsEvent && context.memberCount !== undefined) {
-      if (await this.putUnderReviewAtThreshold(report.eventId, context.memberCount)) {
+      if (await this.putUnderReviewAtThreshold(eventId, context.memberCount)) {
         reasons.push(REPORT_ESCALATION_REASONS.EVENT_UNDER_REVIEW);
       }
     }
