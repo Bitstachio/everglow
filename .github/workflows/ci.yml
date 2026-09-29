@@ -18,6 +18,9 @@ jobs:
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lists the PR's files; required on a private repo
     outputs:
       api: ${{ steps.filter.outputs.api }}
       mobile: ${{ steps.filter.outputs.mobile }}
