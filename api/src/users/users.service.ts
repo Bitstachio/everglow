@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   UnauthorizedException,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import { AccountDeletionPhotoPolicy } from "generated/prisma/client";
+import { AccountDeletionPhotoPolicy, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
@@ -19,7 +21,14 @@ import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UsernameAvailabilityResponseDto } from "./dto/username-availability-response.dto";
-import { ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK, USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } from "./users.constants";
+import {
+  ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK,
+  USER_SERVICE_ERRORS,
+  USERNAME_CHANGE_LIMIT,
+  USERNAME_CHANGE_LIMITED_CODE,
+  USERNAME_CHANGE_WINDOW_DAYS,
+  USERNAME_TAKEN_CODE,
+} from "./users.constants";
 import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
 import { normalizeUsername, usernameFormatReason } from "./username";
 
@@ -98,25 +107,35 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto): Promise<UserWithDetails> {
-    await this.getOnboardedById(id);
+    const current = await this.getOnboardedById(id);
 
     const data: UpdateUserDto = { ...dto };
     if (dto.username !== undefined) {
       data.username = this.requireWritableUsername(dto.username);
     }
+    // Saving the username you already have is not a change and costs nothing.
+    const newUsername =
+      data.username !== undefined && data.username !== current.details.username ? data.username : null;
 
     try {
-      const updated = await this.prisma.user.update({
-        where: { id },
-        data: {
-          details: {
-            update: data,
+      const updated = await this.prisma.$transaction(async (tx) => {
+        if (newUsername) await this.recordUsernameChange(tx, id, current.details.username, newUsername);
+
+        return tx.user.update({
+          where: { id },
+          data: {
+            details: {
+              update: data,
+            },
           },
-        },
-        include: userWithDetailsInclude,
+          include: userWithDetailsInclude,
+        });
       });
 
-      this.logger.info({ event: "user.profile.updated", userId: id, fields: Object.keys(dto) }, "User profile updated");
+      this.logger.info(
+        { event: "user.profile.updated", userId: id, fields: Object.keys(dto), usernameChanged: !!newUsername },
+        "User profile updated",
+      );
 
       return updated;
     } catch (error) {
@@ -365,6 +384,49 @@ export class UsersService {
       throw new BadRequestException(USER_SERVICE_ERRORS.USERNAME_RESERVED(username));
     }
     return username;
+  }
+
+  /**
+   * When the user may change their username again, or null if they may now.
+   * The limit counts changes in a rolling window, so the next one opens when
+   * the oldest change inside it ages out.
+   */
+  async usernameChangeAvailableAt(userId: string, db: Prisma.TransactionClient = this.prisma): Promise<Date | null> {
+    const windowMs = USERNAME_CHANGE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const recent = await db.usernameChange.findMany({
+      where: { userId, changedAt: { gt: new Date(Date.now() - windowMs) } },
+      orderBy: { changedAt: "asc" },
+      select: { changedAt: true },
+      take: USERNAME_CHANGE_LIMIT,
+    });
+    if (recent.length < USERNAME_CHANGE_LIMIT) return null;
+
+    return new Date(recent[0].changedAt.getTime() + windowMs);
+  }
+
+  /**
+   * Enforces the limit and records the change, in the caller's transaction.
+   * The user's row is locked first, so two changes sent at once are counted
+   * one after the other and cannot both slip under the limit. If the update
+   * then fails (the new name is taken), the record rolls back with it.
+   */
+  private async recordUsernameChange(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    oldUsername: string,
+    newUsername: string,
+  ): Promise<void> {
+    await tx.$queryRaw`SELECT 1 FROM "User" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+
+    const availableAt = await this.usernameChangeAvailableAt(userId, tx);
+    if (availableAt) {
+      throw new HttpException(
+        { code: USERNAME_CHANGE_LIMITED_CODE, message: USER_SERVICE_ERRORS.USERNAME_CHANGE_LIMITED(availableAt) },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    await tx.usernameChange.create({ data: { userId, oldUsername, newUsername } });
   }
 
   private rethrowUsernameTaken(error: unknown, username: string): void {
