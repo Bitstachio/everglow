@@ -146,7 +146,19 @@ A hidden cover reads as `coverUrl: null`, the same as no cover. The title and de
 
 ### Under review
 
-When enough members report the event itself, it goes **under review** (`Event.underReviewAt`). Enough is the photo hide threshold, `reportHideThreshold(memberCount)`: 3 OPEN event reports, or 2 in an event of 3 members or fewer. Each is by a different member (one OPEN event report per member).
+When enough members report the event itself, it goes **under review** (`Event.underReviewAt`). Each OPEN event report is by a different member (one per member), and enough is `underReviewThreshold(memberCount, anySevere)`:
+
+- **Any OPEN event report for nudity or violence:** the photo hide threshold, `reportHideThreshold`: 3, or 2 in an event of 3 members or fewer.
+- **None severe:** the same, or a tenth of the members rounded up (`UNDER_REVIEW_MEMBER_SHARE`), whichever is more. Events of up to 30 members are unchanged; a 100-member event needs 10 and a 300-member one 30. A few members of a large event can't pause it with spam reports, while severe content still pauses it quickly.
+
+| Members | None severe | Any severe |
+| ------- | ----------- | ---------- |
+| 3       | 2           | 2          |
+| 4–30    | 3           | 3          |
+| 100     | 10          | 3          |
+| 300     | 30          | 3          |
+
+Every event report reaches the platform owner anyway (`target_is_event`, §5); the threshold only decides when the event pauses by itself, before anyone has looked.
 
 While an event is under review:
 

@@ -20,11 +20,26 @@ export const SMALL_EVENT_REPORT_HIDE_THRESHOLD = 2;
 export const reportHideThreshold = (memberCount: number): number =>
   memberCount - 1 < REPORT_HIDE_THRESHOLD ? SMALL_EVENT_REPORT_HIDE_THRESHOLD : REPORT_HIDE_THRESHOLD;
 
+// The share of an event's members whose OPEN event reports, none of them
+// severe, put the event under review. A floor of reportHideThreshold keeps
+// small events as they are; above 30 members it grows, so a few members of a
+// large event cannot pause it with spam reports (docs/moderation.md).
+export const UNDER_REVIEW_MEMBER_SHARE = 0.1;
+
 // Reasons that hide a photo from every non-organizer after a single OPEN
 // report, and that are escalated to the platform owner whatever the
 // organizers do. The harm of leaving such a photo up in a private album
 // outweighs the cost of a wrong report, which a dismissal undoes.
 export const SEVERE_REPORT_REASONS: readonly ReportReason[] = [ReportReason.NUDITY_OR_SEXUAL, ReportReason.VIOLENCE];
+
+/**
+ * OPEN event reports that put an event of `memberCount` members under review.
+ * Any severe report among them keeps it at the photo hide threshold.
+ */
+export const underReviewThreshold = (memberCount: number, anySevere: boolean): number => {
+  const floor = reportHideThreshold(memberCount);
+  return anySevere ? floor : Math.max(floor, Math.ceil(memberCount * UNDER_REVIEW_MEMBER_SHARE));
+};
 
 // What an organizer does with a report. Every action closes all OPEN reports
 // on the same target, not just the one acted on (docs/moderation.md).

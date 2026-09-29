@@ -100,6 +100,7 @@ describe("Moderation (integration)", () => {
     prisma.report.findFirst.mockResolvedValue(null);
     prisma.report.groupBy.mockResolvedValue([]);
     prisma.report.count.mockResolvedValue(1);
+    prisma.report.findMany.mockResolvedValue([]);
     prisma.photo.count.mockResolvedValue(1);
     prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
@@ -237,7 +238,9 @@ describe("Moderation (integration)", () => {
     it("puts the event under review when this report reaches the threshold", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
       prisma.report.createManyAndReturn.mockResolvedValue([buildEventReport()]);
-      prisma.report.count.mockResolvedValue(3);
+      prisma.report.findMany.mockResolvedValue(
+        Array.from({ length: 3 }, () => ({ reason: ReportReason.SPAM })) as never,
+      );
       prisma.event.updateMany.mockResolvedValue({ count: 1 });
 
       await request(httpServer).post(eventReportsPath()).set(authHeader()).send(payload).expect(201);
