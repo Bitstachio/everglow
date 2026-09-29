@@ -148,6 +148,9 @@ test("switches invite link and share label when a role tab is selected", async (
   const handleShareLink = jest.fn();
   await render(<FormProbe createdEvent={event} handleShareLink={handleShareLink} />);
   const user = userEvent.setup();
+  expect(screen.getByRole("tab", { name: "Invite as Participant" })).toBeOnTheScreen();
+  expect(screen.getByRole("tab", { name: "Invite as Viewer" })).toBeOnTheScreen();
+  expect(screen.queryByRole("tab", { name: "Invite as Organizer" })).toBeNull();
   await user.press(screen.getByRole("tab", { name: "Invite as Viewer" }));
   expect(screen.getByText("Share Viewer Invite")).toBeOnTheScreen();
   expect(screen.getByText("View only — no uploads")).toBeOnTheScreen();
@@ -160,4 +163,6 @@ test("opens the event roles sheet from the info control", async () => {
   await userEvent.setup().press(screen.getByRole("button", { name: "About event roles" }));
   expect(screen.getByText("Event Roles")).toBeOnTheScreen();
   expect(screen.getByText("Best for most guests.")).toBeOnTheScreen();
+  expect(screen.getByText("Organizer")).toBeOnTheScreen();
+  expect(screen.getByText(/Can only be assigned on the event page/)).toBeOnTheScreen();
 });

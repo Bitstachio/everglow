@@ -40,7 +40,7 @@ test("resolves invites with a participant fallback", () => {
 test("returns role hints for the invite tabs", () => {
   expect(getInviteRoleHint("PARTICIPANT")).toContain("upload");
   expect(getInviteRoleHint("VIEWER")).toContain("View only");
-  expect(getInviteRoleHint("ORGANIZER")).toContain("carefully");
+  expect(getInviteRoleHint("ORGANIZER")).toBe("");
 });
 
 test("returns all events when filters are empty", () => {

@@ -48,8 +48,8 @@ export const EVENT_ROLE_OPTIONS: { value: AccessLevel; label: string }[] = [
   { value: "VIEWER", label: "Viewer" },
 ];
 
-/** Order used on the post-create invite screen (default first). */
-export const INVITE_ROLE_TAB_ORDER: AccessLevel[] = ["PARTICIPANT", "VIEWER", "ORGANIZER"];
+/** Order used on the post-create invite screen (default first). Organizer is assigned on the event page. */
+export const INVITE_ROLE_TAB_ORDER: AccessLevel[] = ["PARTICIPANT", "VIEWER"];
 
 export const getInviteRoleHint = (accessLevel: AccessLevel) => {
   switch (accessLevel) {
@@ -57,8 +57,6 @@ export const getInviteRoleHint = (accessLevel: AccessLevel) => {
       return "Can upload photos · default for guests";
     case "VIEWER":
       return "View only — no uploads";
-    case "ORGANIZER":
-      return "Full event control — share carefully";
     default:
       return "";
   }
@@ -88,7 +86,7 @@ export const EVENT_ROLE_EXPLAINERS: EventRoleExplainer[] = [
     accessLevel: "ORGANIZER",
     summary: "Trusted co-hosts only.",
     can: ["Full event control", "Manage members and invites"],
-    cannot: ["Share carefully — high access"],
+    cannot: ["Can only be assigned on the event page"],
   },
 ];
 

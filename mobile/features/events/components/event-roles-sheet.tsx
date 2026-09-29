@@ -19,7 +19,7 @@ export const EventRolesSheet = ({ visible, onClose }: EventRolesSheetProps) => (
     closeAccessibilityLabel="Close event roles"
   >
     <ThemedText className="text-sm" tone="muted">
-      Each invite link grants a different level of access. Pick the role that matches who you're inviting.
+      Participant and Viewer invites are shareable below. Organizers can only be assigned on the event page.
     </ThemedText>
 
     <View className="gap-3">

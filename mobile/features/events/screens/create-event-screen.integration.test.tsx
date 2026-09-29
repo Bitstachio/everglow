@@ -208,7 +208,8 @@ test("role tabs switch the invite URL used for copy", async () => {
   await submit();
   await screen.findByText("Your event is live");
   const user = userEvent.setup();
-  await user.press(screen.getByRole("tab", { name: "Invite as Organizer" }));
+  expect(screen.queryByRole("tab", { name: "Invite as Organizer" })).toBeNull();
+  await user.press(screen.getByRole("tab", { name: "Invite as Viewer" }));
   await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
-  expect(Clipboard.setString).toHaveBeenCalledWith(event.invites[2].invitationUrl);
+  expect(Clipboard.setString).toHaveBeenCalledWith(event.invites[1].invitationUrl);
 });
