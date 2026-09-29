@@ -77,6 +77,7 @@ describe("PhotosService", () => {
     creatorId: callerId,
     invitationUrl: "invite-token",
     coverS3Key: null,
+    coverUpdatedById: null,
     createdAt: now,
     updatedAt: now,
   };

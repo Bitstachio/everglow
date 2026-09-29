@@ -52,14 +52,16 @@ export class EventsController {
   @ApiOperation({ summary: "Create an event" })
   @ApiWrappedResponse(EventResponseDto, "Created event", 201)
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateEventDto): Promise<EventResponseDto> {
-    return this.toResponseDto(await this.eventsService.create(user.id, dto));
+    return this.toResponseDto(await this.eventsService.create(user.id, dto), user.id);
   }
 
   @Get()
   @ApiOperation({ summary: "List events for the current user" })
   @ApiWrappedResponse(EventResponseDto, "Events the user can read", 200)
   async findAll(@CurrentUser() user: AuthenticatedUser): Promise<EventResponseDto[]> {
-    return Promise.all((await this.eventsService.findAllForUser(user.id)).map((event) => this.toResponseDto(event)));
+    const events = await this.eventsService.findAllForUser(user.id);
+    const coverUrls = await this.eventCoverService.getCoverUrls(events, user.id);
+    return events.map((event) => EventMapper.toResponseDto(event, coverUrls.get(event.id) ?? null));
   }
 
   @Post("join")
@@ -68,7 +70,7 @@ export class EventsController {
   @ApiWrappedResponse(EventResponseDto, "Joined event")
   async join(@CurrentUser() user: AuthenticatedUser, @Body() dto: JoinEventDto): Promise<EventResponseDto> {
     const invitationToken = extractInvitationToken(dto.invitationUrl);
-    return this.toResponseDto(await this.eventsService.joinByInvitationUrl(user.id, invitationToken));
+    return this.toResponseDto(await this.eventsService.joinByInvitationUrl(user.id, invitationToken), user.id);
   }
 
   @Get(":eventId")
@@ -78,7 +80,7 @@ export class EventsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
   ): Promise<EventResponseDto> {
-    return this.toResponseDto(await this.eventsService.findOne(eventId, user.id));
+    return this.toResponseDto(await this.eventsService.findOne(eventId, user.id), user.id);
   }
 
   @Patch(":eventId")
@@ -89,7 +91,7 @@ export class EventsController {
     @Param("eventId", ParseUUIDPipe) eventId: string,
     @Body() dto: UpdateEventDto,
   ): Promise<EventResponseDto> {
-    return this.toResponseDto(await this.eventsService.update(eventId, user.id, dto));
+    return this.toResponseDto(await this.eventsService.update(eventId, user.id, dto), user.id);
   }
 
   @Delete(":eventId")
@@ -192,7 +194,7 @@ export class EventsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
   ): Promise<EventResponseDto> {
-    return this.toResponseDto(await this.eventsService.regenerateInvitationUrl(eventId, user.id));
+    return this.toResponseDto(await this.eventsService.regenerateInvitationUrl(eventId, user.id), user.id);
   }
 
   @Post(":eventId/cover/upload-url")
@@ -215,7 +217,7 @@ export class EventsController {
     @Param("eventId", ParseUUIDPipe) eventId: string,
     @Body() dto: ConfirmImageUploadDto,
   ): Promise<EventResponseDto> {
-    return this.toResponseDto(await this.eventCoverService.confirmUpload(eventId, user.id, dto.uploadId));
+    return this.toResponseDto(await this.eventCoverService.confirmUpload(eventId, user.id, dto.uploadId), user.id);
   }
 
   @Delete(":eventId/cover")
@@ -229,7 +231,7 @@ export class EventsController {
     return this.eventCoverService.remove(eventId, user.id);
   }
 
-  private async toResponseDto(event: Event): Promise<EventResponseDto> {
-    return EventMapper.toResponseDto(event, await this.eventCoverService.getCoverUrl(event));
+  private async toResponseDto(event: Event, viewerId: string): Promise<EventResponseDto> {
+    return EventMapper.toResponseDto(event, await this.eventCoverService.getCoverUrl(event, viewerId));
   }
 }

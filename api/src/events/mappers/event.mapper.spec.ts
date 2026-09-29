@@ -15,6 +15,7 @@ describe("EventMapper", () => {
     creatorId: "11111111-1111-1111-1111-111111111111",
     invitationUrl: inviteToken,
     coverS3Key: null,
+    coverUpdatedById: null,
     createdAt: now,
     updatedAt: now,
   };

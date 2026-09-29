@@ -29,7 +29,9 @@ export class EventResponseDto {
     nullable: true,
     type: String,
     maxLength: STRING_LIMITS.LONG,
-    description: "Short-lived presigned URL of the event cover image; null when none is set",
+    description:
+      "Short-lived presigned URL of the event cover image; null when none is set, " +
+      "or while it is hidden from the caller after a report of the event",
   })
   coverUrl: string | null;
 

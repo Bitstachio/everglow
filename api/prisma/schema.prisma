@@ -91,6 +91,7 @@ model User {
   blocksReceived  UserBlock[]      @relation("BlocksReceived")
   eventBans       EventBan[]       @relation("EventBansReceived")
   usernameChanges UsernameChange[]
+  eventCoversSet  Event[]          @relation("EventCoversSet")
   eventBansIssued EventBan[]       @relation("EventBansIssued")
 
   // Reconciler looks up users mid-deletion; only those rows are indexed.
@@ -128,28 +129,33 @@ model UserDetails {
 }
 
 model Event {
-  id            String   @id @default(uuid()) @db.Uuid
-  title         String   @db.VarChar(100)
-  description   String?  @db.Text
-  date          DateTime
+  id               String   @id @default(uuid()) @db.Uuid
+  title            String   @db.VarChar(100)
+  description      String?  @db.Text
+  date             DateTime
   // Attribution only; null once the creator's account is deleted. Who may
   // manage the event is decided by EventAccess, never by this column.
-  creatorId     String?  @db.Uuid
-  invitationUrl String   @unique @db.VarChar(100)
+  creatorId        String?  @db.Uuid
+  invitationUrl    String   @unique @db.VarChar(100)
   // S3 key of the cover image (event-covers/{eventId}/{uploadId}); null when
   // none is set. Unique so the orphan reconciler resolves a page of keys with
   // one indexed lookup. See docs/image-uploads.md.
-  coverS3Key    String?  @unique @db.VarChar(255)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  coverS3Key       String?  @unique @db.VarChar(255)
+  // The organizer who set the current cover, so a reviewer of an event report
+  // sees whose image it is. Null with no cover, or once that account is gone.
+  coverUpdatedById String?  @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  creator       User?         @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: SetNull)
-  photos        Photo[]
-  eventAccesses EventAccess[]
-  reports       Report[]
-  bans          EventBan[]
+  creator        User?         @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: SetNull)
+  coverUpdatedBy User?         @relation("EventCoversSet", fields: [coverUpdatedById], references: [id], onDelete: SetNull)
+  photos         Photo[]
+  eventAccesses  EventAccess[]
+  reports        Report[]
+  bans           EventBan[]
 
   @@index([creatorId])
+  @@index([coverUpdatedById])
 }
 
 model EventAccess {

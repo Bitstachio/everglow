@@ -59,6 +59,8 @@ interface EscalationContext {
   hideThreshold?: number;
   /** An EVENT report: always the platform owner's to review. */
   targetIsEvent?: boolean;
+  /** For an EVENT report, who set the event's current cover, if anyone. */
+  coverUpdatedById?: string | null;
 }
 
 export interface StaleReportCheckResult {
@@ -162,7 +164,11 @@ export class ReportsService {
 
     const target: ReportTarget = { eventId, targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null };
 
-    return this.createReport(callerId, target, dto, { reportedAccessLevel: null, targetIsEvent: true });
+    return this.createReport(callerId, target, dto, {
+      reportedAccessLevel: null,
+      targetIsEvent: true,
+      coverUpdatedById: event.coverUpdatedById,
+    });
   }
 
   async listReports(eventId: string, callerId: string, query: ListReportsQueryDto): Promise<KeysetPage<Report>> {
@@ -461,6 +467,8 @@ export class ReportsService {
       photoId: created.photoId,
       reportedUserId: created.reportedUserId,
       reason: created.reason,
+      // Whose cover it is, so the reviewer of an event report knows where to look.
+      ...(context.targetIsEvent && { coverUpdatedById: context.coverUpdatedById ?? null }),
       audit: true,
     };
     this.logger.info({ event: "report.created", ...fields }, "Report created");
