@@ -19,6 +19,9 @@ jest.mock("@/context/auth-context", () => ({
 jest.mock("../api/mutations", () => ({
   useDeleteProfileMutation: () => ({ mutateAsync: mockDelete, isPending: false }),
 }));
+jest.mock("./use-change-avatar", () => ({
+  useChangeAvatar: () => ({ hasAvatar: false, isUpdatingAvatar: false, handleChangeAvatar: jest.fn() }),
+}));
 jest.mock("./use-change-password", () => ({
   useChangePassword: () => ({
     canChangePassword: true,

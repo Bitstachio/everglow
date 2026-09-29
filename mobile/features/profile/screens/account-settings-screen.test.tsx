@@ -12,6 +12,9 @@ const mockScreen = {
   handleOpenDisplayName: jest.fn(),
   handleOpenPrivacyPolicy: jest.fn(),
   handleOpenTermsOfUse: jest.fn(),
+  hasAvatar: false,
+  isUpdatingAvatar: false,
+  handleChangeAvatar: jest.fn(),
   canChangePassword: true,
   isChangingPassword: false,
   handleChangePassword: jest.fn(),
@@ -29,6 +32,8 @@ beforeEach(() => {
   mockScreen.canChangePassword = true;
   mockScreen.isChangingPassword = false;
   mockScreen.user.details.avatarUrl = null;
+  mockScreen.hasAvatar = false;
+  mockScreen.isUpdatingAvatar = false;
 });
 
 test.each([
@@ -99,4 +104,22 @@ test.each([
   const hidden = { includeHiddenElements: true };
   expect(screen.queryByTestId("avatar-image", hidden) !== null).toBe(avatarUrl !== null);
   expect(screen.queryByText("A", hidden) !== null).toBe(avatarUrl === null);
+});
+
+test.each([
+  [false, "Add profile photo"],
+  [true, "Change profile photo"],
+])("the profile photo opens the photo menu (hasAvatar=%s)", async (hasAvatar, label) => {
+  mockScreen.hasAvatar = hasAvatar;
+  await render(<AccountSettingsScreen />);
+  await userEvent.setup().press(screen.getByRole("button", { name: label }));
+  expect(mockScreen.handleChangeAvatar).toHaveBeenCalledTimes(1);
+});
+
+test("the profile photo is busy while it uploads", async () => {
+  mockScreen.isUpdatingAvatar = true;
+  await render(<AccountSettingsScreen />);
+  const button = screen.getByRole("button", { name: "Add profile photo" });
+  expect(button).toBeDisabled();
+  expect(screen.getByLabelText("Updating profile photo")).toBeOnTheScreen();
 });
