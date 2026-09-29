@@ -564,8 +564,18 @@ describe("PhotosController (integration)", () => {
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
     });
 
-    it("returns 403 when a former member deletes their own READY photo", async () => {
+    it("returns 204 when a former member deletes their own READY photo, freeing their storage", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoWithAccess([]) as never);
+      prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
+
+      await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+      expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+    });
+
+    it("returns 403 when a former member deletes someone else's photo", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([], { addedById: TEST_OTHER_USER_ID }) as never);
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
 
