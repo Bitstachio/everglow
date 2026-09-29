@@ -1691,7 +1691,7 @@
             "in": "query",
             "description": "What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is banned from rejoining through the invitation link until an organizer lifts the ban.",
             "schema": {
-              "$ref": "#/components/schemas/RemovedMemberPhotos"
+              "$ref": "#/components/schemas/MemberPhotos"
             }
           }
         ],
@@ -2649,7 +2649,7 @@
         ],
         "description": "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target."
       },
-      "RemovedMemberPhotos": {
+      "MemberPhotos": {
         "type": "string",
         "enum": [
           "KEEP",
@@ -2673,7 +2673,7 @@
             "description": "REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/RemovedMemberPhotos"
+                "$ref": "#/components/schemas/MemberPhotos"
               }
             ]
           }

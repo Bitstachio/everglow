@@ -19,7 +19,7 @@ import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
-import { REMOVED_MEMBER_PHOTOS, RemovedMemberPhotos, removeMemberInTransaction } from "./event-membership";
+import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-membership";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE, REMOVED_FROM_EVENT_CODE } from "./events.constants";
 import {
@@ -359,7 +359,7 @@ export class EventsService {
     eventId: string,
     callerId: string,
     targetUserId: string,
-    photos: RemovedMemberPhotos = REMOVED_MEMBER_PHOTOS.KEEP,
+    photos: MemberPhotos = MEMBER_PHOTOS.KEEP,
   ): Promise<void> {
     await this.getUpdatable(eventId, callerId);
 

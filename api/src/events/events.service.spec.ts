@@ -2204,8 +2204,8 @@ describe("EventsService", () => {
     it("with DELETE, deletes the member's photos in the event and purges their objects after the commit", async () => {
       setupOrganizerRemove();
       const uploaded = [
-        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a" },
-        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b" },
+        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a", sizeBytes: 1000 },
+        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b", sizeBytes: 2000 },
       ];
       prisma.photo.findMany.mockResolvedValue(uploaded as never);
       prisma.photo.deleteMany.mockResolvedValue({ count: 2 });

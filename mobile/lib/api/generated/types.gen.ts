@@ -226,7 +226,7 @@ export type ReportResolutionAction = "REMOVE_PHOTO" | "REMOVE_MEMBER" | "DISMISS
 /**
  * REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.
  */
-export type RemovedMemberPhotos = "KEEP" | "DELETE";
+export type MemberPhotos = "KEEP" | "DELETE";
 
 export type ResolveReportDto = {
   /**
@@ -236,7 +236,7 @@ export type ResolveReportDto = {
   /**
    * REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.
    */
-  photos?: RemovedMemberPhotos;
+  photos?: MemberPhotos;
 };
 
 export type BlockedUserResponseDto = {
@@ -1648,7 +1648,7 @@ export type EventsControllerRemoveParticipantData = {
     /**
      * What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is banned from rejoining through the invitation link until an organizer lifts the ban.
      */
-    photos?: RemovedMemberPhotos;
+    photos?: MemberPhotos;
   };
   url: "/api/v2/events/{eventId}/participants/{targetUserId}";
 };

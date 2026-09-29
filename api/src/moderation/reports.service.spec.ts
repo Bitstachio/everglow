@@ -786,7 +786,7 @@ describe("ReportsService", () => {
       it("with photos=DELETE, deletes the member's other photos in the event and purges them after the commit", async () => {
         setup();
         prisma.photo.findMany.mockResolvedValue([
-          { id: "dddddddd-dddd-dddd-dddd-dddddddddddd", s3Key: "photos/d" },
+          { id: "dddddddd-dddd-dddd-dddd-dddddddddddd", s3Key: "photos/d", sizeBytes: 1000 },
         ] as never);
         prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
 
