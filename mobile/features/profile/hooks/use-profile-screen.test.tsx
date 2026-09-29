@@ -121,7 +121,7 @@ test.each([
   expect(mockPush).toHaveBeenCalledWith(path);
 });
 
-test("exposes the profile username for the settings header", async () => {
+test("exposes the profile username for the Username row", async () => {
   const { result } = await renderHook(() => useProfileScreen());
   expect(result.current.username).toBe("ada");
 });

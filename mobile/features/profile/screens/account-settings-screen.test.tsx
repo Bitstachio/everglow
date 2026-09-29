@@ -79,9 +79,11 @@ test("Change Password is disabled while the browser is opening", async () => {
   expect(mockScreen.handleChangePassword).not.toHaveBeenCalled();
 });
 
-test("shows the username in the header and has no Change Email row", async () => {
+test("shows the name and username only in their rows, and has no Change Email row", async () => {
   await render(<AccountSettingsScreen />);
-  expect(screen.getByText("@ada")).toBeOnTheScreen();
+  expect(screen.queryByText("@ada")).not.toBeOnTheScreen();
+  expect(screen.getAllByText("ada")).toHaveLength(1);
+  expect(screen.getAllByText("Ada")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Change Email Address" })).not.toBeOnTheScreen();
   expect(screen.queryByText(/No email added/i)).not.toBeOnTheScreen();
 });
