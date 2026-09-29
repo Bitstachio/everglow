@@ -51,6 +51,14 @@ successful joins would.
 
 A route with `@RateLimit` is subject to both its tier and the global default. The tiers are independent buckets.
 
+## Not a tier: the username change limit
+
+Changing a username after onboarding is limited to **2 changes per 14 days**, like Instagram (`USERNAME_CHANGE_LIMIT` and `USERNAME_CHANGE_WINDOW_DAYS` in `users.constants.ts`). That is a product rule over days, not request throttling, so it is not a tier. It lives in `UsersService.update`:
+
+- Each real change is recorded in `UsernameChange` (user, old and new username, time). Choosing the first username at onboarding and saving the same username do not count, and name-only updates are never limited.
+- Inside the update's transaction the user's row is locked (`SELECT … FOR UPDATE`) before counting, so changes sent at the same moment are counted one after another. On real Postgres, five simultaneous changes record exactly two; without the lock all five got through.
+- Over the limit, `PATCH /users/me` answers **429** with `code: USERNAME_CHANGE_LIMITED` and a message naming the time. There is no `Retry-After` header: instead, `GET /users/me` returns `details.usernameChangeAvailableAt` (null when a change is allowed now), so the app can show the date before the user tries.
+
 ## Keying and guard order
 
 The rule: **per authenticated user where a verified user exists, per client IP otherwise.**

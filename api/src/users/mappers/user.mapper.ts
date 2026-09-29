@@ -2,7 +2,11 @@ import { UserResponseDto } from "../dto/user-response.dto";
 import { UserWithDetails } from "../users.types";
 
 export class UserMapper {
-  static toResponseDto(user: UserWithDetails, avatarUrl: string | null): UserResponseDto {
+  static toResponseDto(
+    user: UserWithDetails,
+    avatarUrl: string | null,
+    usernameChangeAvailableAt: Date | null,
+  ): UserResponseDto {
     return {
       id: user.id,
       isOnboarded: !!user.details,
@@ -11,6 +15,7 @@ export class UserMapper {
             username: user.details.username,
             name: user.details.name,
             avatarUrl,
+            usernameChangeAvailableAt,
             createdAt: user.details.createdAt,
             updatedAt: user.details.updatedAt,
           }

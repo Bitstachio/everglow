@@ -155,6 +155,10 @@ export class UsersController {
   }
 
   private async toResponseDto(user: UserWithDetails): Promise<UserResponseDto> {
-    return UserMapper.toResponseDto(user, await this.userAvatarService.getAvatarUrl(user));
+    const [avatarUrl, usernameChangeAvailableAt] = await Promise.all([
+      this.userAvatarService.getAvatarUrl(user),
+      user.details ? this.usersService.usernameChangeAvailableAt(user.id) : null,
+    ]);
+    return UserMapper.toResponseDto(user, avatarUrl, usernameChangeAvailableAt);
   }
 }

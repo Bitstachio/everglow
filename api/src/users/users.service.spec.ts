@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   NotFoundException,
   UnauthorizedException,
   UnprocessableEntityException,
@@ -18,7 +19,7 @@ import { AppleIdentityRevocationService } from "./apple-identity-revocation.serv
 import { hashProviderSub } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } from "./users.constants";
+import { USER_SERVICE_ERRORS, USERNAME_CHANGE_LIMITED_CODE, USERNAME_TAKEN_CODE } from "./users.constants";
 import { AccountDeletionUser, UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
@@ -319,6 +320,111 @@ describe("UsersService", () => {
         username: updateDto.username!,
       },
     };
+
+    beforeEach(() => {
+      // The update runs in one interactive transaction, against the same mock client.
+      prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+      prisma.usernameChange.findMany.mockResolvedValue([]);
+    });
+
+    describe("username change limit", () => {
+      const day = 24 * 60 * 60 * 1000;
+
+      it("records a real username change with the old and new handle, after locking the user's row", async () => {
+        prisma.user.findUnique.mockResolvedValue(userWithDetails);
+        prisma.user.update.mockResolvedValue(updatedUser);
+
+        await service.update(userId, { username: "jane.smith" });
+
+        expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+        expect(prisma.usernameChange.create).toHaveBeenCalledWith({
+          data: { userId, oldUsername: userWithDetails.details!.username, newUsername: "jane.smith" },
+        });
+        expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+          prisma.usernameChange.create.mock.invocationCallOrder[0],
+        );
+      });
+
+      it("counts only changes inside the 14-day window", async () => {
+        prisma.user.findUnique.mockResolvedValue(userWithDetails);
+        prisma.user.update.mockResolvedValue(updatedUser);
+        jest.useFakeTimers({ now: new Date("2026-06-20T12:00:00.000Z") });
+        try {
+          await service.update(userId, { username: "jane.smith" });
+        } finally {
+          jest.useRealTimers();
+        }
+
+        expect(prisma.usernameChange.findMany).toHaveBeenCalledWith({
+          where: { userId, changedAt: { gt: new Date("2026-06-06T12:00:00.000Z") } },
+          orderBy: { changedAt: "asc" },
+          select: { changedAt: true },
+          take: 2,
+        });
+      });
+
+      it("refuses a third change within 14 days with a coded 429 and changes nothing", async () => {
+        const oldest = new Date(Date.now() - 3 * day);
+        prisma.user.findUnique.mockResolvedValue(userWithDetails);
+        prisma.usernameChange.findMany.mockResolvedValue([
+          { changedAt: oldest },
+          { changedAt: new Date(Date.now() - day) },
+        ] as never);
+
+        const failure = await service.update(userId, { username: "jane.smith" }).catch((e: unknown) => e);
+
+        expect(failure).toBeInstanceOf(HttpException);
+        expect((failure as HttpException).getStatus()).toBe(429);
+        expect((failure as HttpException).getResponse()).toEqual({
+          code: USERNAME_CHANGE_LIMITED_CODE,
+          message: USER_SERVICE_ERRORS.USERNAME_CHANGE_LIMITED(new Date(oldest.getTime() + 14 * day)),
+        });
+        expect(prisma.usernameChange.create).not.toHaveBeenCalled();
+        expect(prisma.user.update).not.toHaveBeenCalled();
+      });
+
+      it("does not count saving the username the user already has", async () => {
+        prisma.user.findUnique.mockResolvedValue(userWithDetails);
+        prisma.user.update.mockResolvedValue(userWithDetails);
+
+        await service.update(userId, { username: userWithDetails.details!.username.toUpperCase() });
+
+        expect(prisma.$queryRaw).not.toHaveBeenCalled();
+        expect(prisma.usernameChange.create).not.toHaveBeenCalled();
+      });
+
+      it("does not count a name-only update, even when the limit is reached", async () => {
+        prisma.user.findUnique.mockResolvedValue(userWithDetails);
+        prisma.usernameChange.findMany.mockResolvedValue([
+          { changedAt: new Date() },
+          { changedAt: new Date() },
+        ] as never);
+        prisma.user.update.mockResolvedValue(userWithDetails);
+
+        await expect(service.update(userId, { name: "Jane Smith" })).resolves.toBeDefined();
+        expect(prisma.usernameChange.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("usernameChangeAvailableAt", () => {
+      const day = 24 * 60 * 60 * 1000;
+
+      it("is null while the user has changes left", async () => {
+        prisma.usernameChange.findMany.mockResolvedValue([{ changedAt: new Date() }] as never);
+
+        await expect(service.usernameChangeAvailableAt(userId)).resolves.toBeNull();
+      });
+
+      it("is when the oldest change in the window ages out, once the limit is reached", async () => {
+        const oldest = new Date(Date.now() - 5 * day);
+        prisma.usernameChange.findMany.mockResolvedValue([
+          { changedAt: oldest },
+          { changedAt: new Date(Date.now() - day) },
+        ] as never);
+
+        await expect(service.usernameChangeAvailableAt(userId)).resolves.toEqual(new Date(oldest.getTime() + 14 * day));
+      });
+    });
 
     it("updates user details when onboarding is complete", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);

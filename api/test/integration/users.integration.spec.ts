@@ -8,7 +8,12 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { hashProviderSub } from "src/users/deleted-provider-sub";
-import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS, USERNAME_TAKEN_CODE } from "src/users/users.constants";
+import {
+  USER_AVATAR_S3_KEY_PREFIX,
+  USER_SERVICE_ERRORS,
+  USERNAME_CHANGE_LIMITED_CODE,
+  USERNAME_TAKEN_CODE,
+} from "src/users/users.constants";
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
@@ -100,6 +105,8 @@ describe("UsersController (integration)", () => {
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
+    // No recent username changes: the username can be changed now.
+    prisma.usernameChange.findMany.mockResolvedValue([]);
     for (const method of Object.values(s3Service)) method.mockReset();
     s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [] });
     s3Service.deleteObject.mockResolvedValue(undefined);
@@ -685,6 +692,57 @@ describe("UsersController (integration)", () => {
 
   describe("PATCH /users/me", () => {
     const path = `${USERS_BASE_PATH}/me`;
+
+    describe("username change limit", () => {
+      const day = 24 * 60 * 60 * 1000;
+
+      it("returns 429 USERNAME_CHANGE_LIMITED on a third change within 14 days, and changes nothing", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+        prisma.usernameChange.findMany.mockResolvedValue([
+          { changedAt: new Date(Date.now() - 3 * day) },
+          { changedAt: new Date(Date.now() - day) },
+        ] as never);
+
+        const response = await request(httpServer)
+          .patch(path)
+          .set(authHeader())
+          .send({ username: "jane.new" })
+          .expect(429);
+
+        const body = response.body as ErrorResponse;
+        expect(body.code).toBe(USERNAME_CHANGE_LIMITED_CODE);
+        expect(prisma.user.update).not.toHaveBeenCalled();
+        expect(prisma.usernameChange.create).not.toHaveBeenCalled();
+      });
+
+      it("records the change and returns 200 while changes are left", async () => {
+        const existingUser = buildUserWithDetails();
+        prisma.user.findUnique.mockResolvedValue(existingUser);
+        prisma.user.update.mockResolvedValue(
+          buildUserWithDetails({ details: { ...existingUser.details!, username: "jane.new" } }),
+        );
+
+        await request(httpServer).patch(path).set(authHeader()).send({ username: "jane.new" }).expect(200);
+
+        expect(prisma.usernameChange.create).toHaveBeenCalledWith({
+          data: { userId: TEST_USER_ID, oldUsername: existingUser.details!.username, newUsername: "jane.new" },
+        });
+      });
+
+      it("GET /users/me says when the username can be changed again", async () => {
+        const oldest = new Date(Date.now() - 3 * day);
+        prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+        prisma.usernameChange.findMany.mockResolvedValue([
+          { changedAt: oldest },
+          { changedAt: new Date(Date.now() - day) },
+        ] as never);
+
+        const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+        const body = response.body as WrappedResponse<{ details: { usernameChangeAvailableAt: string | null } }>;
+        expect(body.data.details.usernameChangeAvailableAt).toBe(new Date(oldest.getTime() + 14 * day).toISOString());
+      });
+    });
 
     it("returns 200 and the updated user profile", async () => {
       const existingUser = buildUserWithDetails();

@@ -76,18 +76,19 @@ model User {
   updatedAt           DateTime                    @updatedAt
 
   details         UserDetails?
-  createdEvents   Event[]       @relation("CreatedEvents")
+  createdEvents   Event[]          @relation("CreatedEvents")
   eventAccesses   EventAccess[]
   photos          Photo[]
   // Moderation (see docs/moderation.md). Every relation below is SET NULL or
   // CASCADE, so none of them can block the account-deletion saga.
-  reportsFiled    Report[]      @relation("ReportsFiled")
-  reportsReceived Report[]      @relation("ReportsReceived")
-  reportsResolved Report[]      @relation("ReportsResolved")
-  blocksInitiated UserBlock[]   @relation("BlocksInitiated")
-  blocksReceived  UserBlock[]   @relation("BlocksReceived")
-  eventBans       EventBan[]    @relation("EventBansReceived")
-  eventBansIssued EventBan[]    @relation("EventBansIssued")
+  reportsFiled    Report[]         @relation("ReportsFiled")
+  reportsReceived Report[]         @relation("ReportsReceived")
+  reportsResolved Report[]         @relation("ReportsResolved")
+  blocksInitiated UserBlock[]      @relation("BlocksInitiated")
+  blocksReceived  UserBlock[]      @relation("BlocksReceived")
+  eventBans       EventBan[]       @relation("EventBansReceived")
+  usernameChanges UsernameChange[]
+  eventBansIssued EventBan[]       @relation("EventBansIssued")
 
   // Reconciler looks up users mid-deletion; only those rows are indexed.
   @@index([deletionStartedAt], where: { deletionStartedAt: { not: null } })
@@ -276,4 +277,22 @@ model EventBan {
   // Foreign keys the cascade and SET NULL actions have to find.
   @@index([userId])
   @@index([bannedById])
+}
+
+// Every change of a username after onboarding. Instagram-style limit: a user
+// may change their username a few times per rolling window
+// (USERNAME_CHANGE_LIMIT, USERNAME_CHANGE_WINDOW_DAYS in users.constants.ts).
+// Keeping the old handle also leaves room to hold released names for a
+// cool-down later (EV-30).
+model UsernameChange {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  oldUsername String   @db.VarChar(30)
+  newUsername String   @db.VarChar(30)
+  changedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The limit check: this user's changes inside the window, oldest first.
+  @@index([userId, changedAt])
 }
