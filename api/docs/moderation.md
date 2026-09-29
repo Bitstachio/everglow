@@ -225,7 +225,7 @@ An organizer removes a member either with `DELETE /events/:eventId/participants/
 
    It is a query parameter on the participant route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
 
-**A ban is per event.** It only stops rejoining through the invitation link; nothing else about the account changes. Leaving an event on your own records no ban, so you can come back.
+**A ban is per event.** It only stops rejoining through the invitation link; nothing else about the account changes. Leaving an event on your own records no ban, so you can come back. Leaving asks the member the same KEEP or DELETE question about their own photos.
 
 **Organizers manage bans.** `GET /events/:eventId/bans` lists them newest first with each member's name and username. `DELETE /events/:eventId/bans/:userId` lifts one; it is idempotent, and the person is not re-added but can rejoin through the link.
 
