@@ -328,7 +328,19 @@ Because `PENDING` rows count toward usage, an upload slot holds quota from the m
 
 ### Photos in events you no longer belong to
 
-Usage counts everything a person uploaded, including photos in events they left or were removed from with their photos kept. So **uploaders can always delete their own photos**, whether or not they are still a member (`DELETE /photos/:photoId`, CASL `addedById`); otherwise those photos would count against their storage forever with no way to remove them.
+Usage counts everything a person uploaded, including photos in events they left or were removed from with their photos kept. So those photos stay theirs to delete:
+
+- **Uploaders can always delete their own photos,** whether or not they are still a member (`DELETE /photos/:photoId`, CASL `addedById`).
+- **Leaving asks.** `POST /events/:eventId/leave?photos=KEEP|DELETE`: `KEEP` (the default) leaves the photos in the event, still theirs and still counted; `DELETE` removes them and frees the space. An organizer removing someone chooses the same way (docs/moderation.md).
+- **The storage screen shows where the space goes and lets them take it back.**
+
+  | Endpoint                                                               | Result                                                                                                                                                                                                                            |
+  | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `GET /users/me/storage/events`                                         | One row per event they have photos in, largest first: title, cover, `membership` (`MEMBER`, `LEFT` or `REMOVED`), photo count and bytes. It counts the same statuses as usage, so the rows add up to `usedBytes`                  |
+  | `GET /users/me/storage/events/:eventId/photos`                         | Their own photos in that event, newest first, with sizes; cursor-paginated. Moderation hiding does not apply: these are their own photos                                                                                          |
+  | `POST /users/me/storage/events/:eventId/photos/delete` `{ photoIds? }` | Deletes the given photos (up to 100) or, with no ids, all of theirs in the event. Returns `{ photosDeleted, bytesFreed }`; open reports on them are closed and the objects purged after the commit (`user.storage.photos_purged`) |
+
+Leaving, being removed and the storage screen all delete through one routine (`deleteUploadsInTransaction`), so they close reports and free quota the same way.
 
 Charging at mint rather than at confirm is deliberate. Not counting pending rows would let a client mint slots past the cap and confirm them later; the reservation in the transaction above is what makes the cap hold. The cost is the window between an abandoned slot and its release, which the expired-slot tier keeps to about an hour and a quarter plus the wait for the next run.
 

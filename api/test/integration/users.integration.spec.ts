@@ -17,6 +17,7 @@ import {
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
+import { TEST_EVENT_ID } from "./helpers/events.fixtures";
 import { TEST_PHOTO_ID } from "./helpers/photos.fixtures";
 import { authHeader, TEST_APPLE_ACCESS_TOKEN } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
@@ -635,6 +636,120 @@ describe("UsersController (integration)", () => {
           s3Service.deleteObjects.mock.invocationCallOrder[0],
         );
       });
+    });
+  });
+
+  describe("storage management", () => {
+    const eventsPath = `${USERS_BASE_PATH}/me/storage/events`;
+    const photosPath = `${eventsPath}/${TEST_EVENT_ID}/photos`;
+    const deletePath = `${photosPath}/delete`;
+    const createdAt = new Date("2026-06-10T12:00:00.000Z");
+
+    beforeEach(() => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+    });
+
+    it("GET /users/me/storage/events lists the caller's photos by event, with membership", async () => {
+      prisma.photo.groupBy.mockResolvedValue([
+        { eventId: TEST_EVENT_ID, _count: { _all: 3 }, _sum: { sizeBytes: 7_500_000 } },
+      ] as never);
+      prisma.event.findMany.mockResolvedValue([{ id: TEST_EVENT_ID, title: "Lisbon trip", coverS3Key: null }] as never);
+      prisma.eventAccess.findMany.mockResolvedValue([]);
+      prisma.eventBan.findMany.mockResolvedValue([]);
+
+      const response = await request(httpServer).get(eventsPath).set(authHeader()).expect(200);
+
+      const body = response.body as { data: { items: unknown[] } };
+      expect(body.data.items).toEqual([
+        {
+          eventId: TEST_EVENT_ID,
+          title: "Lisbon trip",
+          coverUrl: null,
+          membership: "LEFT",
+          photoCount: 3,
+          bytes: "7500000",
+        },
+      ]);
+    });
+
+    it("GET /users/me/storage/events/:eventId/photos returns the caller's photos with their sizes", async () => {
+      prisma.photo.findMany.mockResolvedValue([
+        {
+          id: TEST_PHOTO_ID,
+          eventId: TEST_EVENT_ID,
+          addedById: TEST_USER_ID,
+          s3Key: "photos/u/e/p",
+          contentType: "image/jpeg",
+          sizeBytes: 2_500_000,
+          status: PhotoStatus.READY,
+          createdAt,
+        },
+      ] as never);
+
+      const response = await request(httpServer).get(photosPath).set(authHeader()).expect(200);
+
+      const body = response.body as { data: { items: unknown[]; nextCursor: string | null } };
+      expect(body.data).toEqual({
+        items: [
+          {
+            id: TEST_PHOTO_ID,
+            url: AVATAR_URL,
+            contentType: "image/jpeg",
+            sizeBytes: 2_500_000,
+            createdAt: createdAt.toISOString(),
+          },
+        ],
+        nextCursor: null,
+      });
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { AND: [{ eventId: TEST_EVENT_ID, addedById: TEST_USER_ID, status: "READY" }] },
+        }),
+      );
+    });
+
+    it("POST .../photos/delete deletes the selected photos and reports the space freed", async () => {
+      prisma.photo.findMany.mockResolvedValue([
+        { id: TEST_PHOTO_ID, s3Key: "photos/u/e/p", sizeBytes: 2_500_000 },
+      ] as never);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      s3Service.deleteObjects.mockResolvedValue({ deleted: ["photos/u/e/p"], failed: [] });
+
+      const response = await request(httpServer)
+        .post(deletePath)
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID] })
+        .expect(200);
+
+      const body = response.body as { data: unknown };
+      expect(body.data).toEqual({ photosDeleted: 1, bytesFreed: "2500000" });
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_PHOTO_ID] } } });
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/p"]);
+    });
+
+    it("POST .../photos/delete with no body deletes all of the caller's photos in the event", async () => {
+      prisma.photo.findMany.mockResolvedValue([]);
+
+      await request(httpServer).post(deletePath).set(authHeader()).send({}).expect(200);
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { eventId: TEST_EVENT_ID, addedById: TEST_USER_ID, id: { notIn: [] } } }),
+      );
+    });
+
+    it.each([
+      ["an empty list", { photoIds: [] }],
+      ["a malformed id", { photoIds: ["not-a-uuid"] }],
+      ["more than 100 ids", { photoIds: Array.from({ length: 101 }, () => TEST_PHOTO_ID) }],
+    ])("POST .../photos/delete returns 400 for %s", async (_label, body) => {
+      await request(httpServer).post(deletePath).set(authHeader()).send(body).expect(400);
+
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 401 without an access token", async () => {
+      await request(httpServer).get(eventsPath).expect(401);
     });
   });
 

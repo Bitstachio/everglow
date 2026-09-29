@@ -248,7 +248,7 @@ export class EventsService {
   /**
    * Leaving records no ban, so the member can rejoin through the link. With
    * DELETE their photos in the event go too; with KEEP they stay, still
-   * theirs, and they can delete them later.
+   * theirs, and can be deleted later from the storage screen.
    */
   async leaveEvent(eventId: string, callerId: string, photos: MemberPhotos = MEMBER_PHOTOS.KEEP): Promise<void> {
     const loaded = await this.prisma.event.findUnique({
