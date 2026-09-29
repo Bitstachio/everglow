@@ -98,13 +98,24 @@ describe("definePhotoAbilities", () => {
       expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("VIEWER", { addedById: otherUserId }))).toBe(false);
     });
 
-    it("denies uploaders deleting their own photos after losing event access", () => {
+    it("lets uploaders delete their own photos after leaving or being removed from the event", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
       expect(
         ability.can(
           PHOTO_ACTIONS.DELETE,
           photoWithAccess("ORGANIZER", { accessUserId: otherUserId, addedById: userId }),
+        ),
+      ).toBe(true);
+    });
+
+    it("still denies a non-member deleting someone else's photo", () => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+
+      expect(
+        ability.can(
+          PHOTO_ACTIONS.DELETE,
+          photoWithAccess("ORGANIZER", { accessUserId: otherUserId, addedById: otherUserId }),
         ),
       ).toBe(false);
     });

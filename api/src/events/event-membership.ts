@@ -3,7 +3,7 @@ import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 
 /** What happens to a removed member's photos in the event. The organizer chooses. */
 export const MEMBER_PHOTOS = {
-  /** They stay in the event, still credited to the member. */
+  /** They stay in the event, still credited to the member and counted against their storage; they can delete them later. */
   KEEP: "KEEP",
   /** Everything the member uploaded to the event is deleted. */
   DELETE: "DELETE",
