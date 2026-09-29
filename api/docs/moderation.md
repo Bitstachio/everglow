@@ -218,10 +218,10 @@ An organizer removes a member either with `DELETE /events/:eventId/participants/
 2. An `EventBan` row is recorded (event, member, the organizer who removed them). Removing someone again keeps the first record.
 3. The organizer chooses what happens to the member's photos in that event:
 
-   | `photos`         | Effect                                                                                                                                                                |
-   | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `KEEP` (default) | They stay in the event, still credited to the member                                                                                                                  |
-   | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`) |
+   | `photos`         | Effect                                                                                                                                                                         |
+   | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+   | `KEEP` (default) | They stay in the event, still credited to the member and counted against their storage. The member can delete them later from their storage screen (photos-architecture.md §9) |
+   | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`)          |
 
    It is a query parameter on the participant route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
 
