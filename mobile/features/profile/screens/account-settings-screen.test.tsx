@@ -2,7 +2,10 @@ import { render, screen, userEvent } from "@testing-library/react-native";
 import AccountSettingsScreen from "./account-settings-screen";
 
 const mockScreen = {
-  user: { details: { name: "Ada", username: "ada" } },
+  user: {
+    id: "user-1",
+    details: { name: "Ada", username: "ada", avatarUrl: null as string | null },
+  },
   username: "ada",
   handleOpenUsername: jest.fn(),
   handleOpenUsage: jest.fn(),
@@ -25,6 +28,7 @@ beforeEach(() => {
   mockScreen.isDeleting = false;
   mockScreen.canChangePassword = true;
   mockScreen.isChangingPassword = false;
+  mockScreen.user.details.avatarUrl = null;
 });
 
 test.each([
@@ -84,4 +88,15 @@ test("shows the username in the header and has no Change Email row", async () =>
   expect(screen.getByText("@ada")).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Change Email Address" })).not.toBeOnTheScreen();
   expect(screen.queryByText(/No email added/i)).not.toBeOnTheScreen();
+});
+
+test.each([
+  ["the initial when there is no avatar", null],
+  ["the avatar when one is set", "https://bucket.example.com/avatars/user-1/upload-1?X-Amz-Signature=a"],
+])("the profile header shows %s", async (_label, avatarUrl) => {
+  mockScreen.user.details.avatarUrl = avatarUrl;
+  await render(<AccountSettingsScreen />);
+  const hidden = { includeHiddenElements: true };
+  expect(screen.queryByTestId("avatar-image", hidden) !== null).toBe(avatarUrl !== null);
+  expect(screen.queryByText("A", hidden) !== null).toBe(avatarUrl === null);
 });

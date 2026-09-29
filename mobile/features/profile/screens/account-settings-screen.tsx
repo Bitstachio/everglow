@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/avatar";
 import { H2, H3 } from "@/components/ui/heading";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -40,15 +41,7 @@ const AccountSettingsScreen = () => {
     <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
       <ScrollView className="flex-1" contentContainerClassName="gap-6 px-4 pt-4 pb-6">
         <View className="items-center gap-4 rounded-2xl bg-surface p-6">
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            className="h-20 w-20 items-center justify-center rounded-full bg-accent"
-          >
-            <ThemedText className="text-3xl font-bold text-accent-foreground">
-              {user.details?.name.trim().charAt(0).toUpperCase() || "E"}
-            </ThemedText>
-          </View>
+          <Avatar userId={user.id} name={user.details?.name} uri={user.details?.avatarUrl} size="lg" />
           <View className="items-center gap-1">
             <H2>{user.details?.name || "Your profile"}</H2>
             <ThemedText tone="muted" className="text-sm">
