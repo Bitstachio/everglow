@@ -1,14 +1,14 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { IsIn, IsOptional } from "class-validator";
-import { REMOVED_MEMBER_PHOTOS, type RemovedMemberPhotos } from "../event-membership";
+import { MEMBER_PHOTOS, type MemberPhotos } from "../event-membership";
 
-const PHOTOS = Object.values(REMOVED_MEMBER_PHOTOS);
+const PHOTOS = Object.values(MEMBER_PHOTOS);
 
 export class RemoveParticipantQueryDto {
   @ApiPropertyOptional({
     enum: PHOTOS,
-    enumName: "RemovedMemberPhotos",
-    default: REMOVED_MEMBER_PHOTOS.KEEP,
+    enumName: "MemberPhotos",
+    default: MEMBER_PHOTOS.KEEP,
     description:
       "What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited " +
       "to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is " +
@@ -16,5 +16,5 @@ export class RemoveParticipantQueryDto {
   })
   @IsOptional()
   @IsIn(PHOTOS)
-  photos?: RemovedMemberPhotos;
+  photos?: MemberPhotos;
 }

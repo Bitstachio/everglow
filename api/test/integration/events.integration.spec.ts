@@ -708,7 +708,7 @@ describe("EventsController (integration)", () => {
 
     it("with ?photos=DELETE, deletes the participant's photos in the event and purges their objects", async () => {
       setupRemove();
-      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p" }] as never);
+      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p", sizeBytes: 1000 }] as never);
       prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       prisma.report.updateMany.mockResolvedValue({ count: 0 });
       s3Service.deleteObjects.mockResolvedValue({ deleted: ["photos/u/e/p"], failed: [] });

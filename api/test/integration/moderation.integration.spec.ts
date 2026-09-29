@@ -389,7 +389,7 @@ describe("Moderation (integration)", () => {
 
     it("REMOVE_MEMBER with photos=DELETE deletes the member's other photos and purges their objects", async () => {
       setup(reportWithAccess([buildOrganizerAccess()], { targetType: ReportTargetType.MEMBER, photoId: null }));
-      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p" }] as never);
+      prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p", sizeBytes: 1000 }] as never);
       s3Service.deleteObjects.mockResolvedValue({ deleted: ["photos/u/e/p"], failed: [] });
 
       await patch({ action: "REMOVE_MEMBER", photos: "DELETE" }).expect(200);

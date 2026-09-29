@@ -23,11 +23,7 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
-import {
-  REMOVED_MEMBER_PHOTOS,
-  type RemovedMemberPhotos,
-  removeMemberInTransaction,
-} from "src/events/event-membership";
+import { MEMBER_PHOTOS, type MemberPhotos, removeMemberInTransaction } from "src/events/event-membership";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { eventWithCallerAccessInclude } from "src/events/events.types";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
@@ -187,7 +183,7 @@ export class ReportsService {
     reportId: string,
     callerId: string,
     action: ReportResolutionAction,
-    memberPhotos?: RemovedMemberPhotos,
+    memberPhotos?: MemberPhotos,
   ): Promise<Report> {
     if (memberPhotos && action !== REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER) {
       throw new BadRequestException(REPORT_SERVICE_ERRORS.PHOTOS_ONLY_WITH_REMOVE_MEMBER);
@@ -244,7 +240,7 @@ export class ReportsService {
             eventId: loaded.eventId,
             userId: removedMemberId,
             removedById: callerId,
-            photos: memberPhotos ?? REMOVED_MEMBER_PHOTOS.KEEP,
+            photos: memberPhotos ?? MEMBER_PHOTOS.KEEP,
             excludePhotoIds: photo ? [photo.id] : [],
           })
         : null;
@@ -277,7 +273,7 @@ export class ReportsService {
         closedReports,
         removedPhotoId: photo?.id ?? null,
         removedMemberId,
-        memberPhotos: removedMemberId ? (memberPhotos ?? REMOVED_MEMBER_PHOTOS.KEEP) : null,
+        memberPhotos: removedMemberId ? (memberPhotos ?? MEMBER_PHOTOS.KEEP) : null,
         memberPhotosDeleted: removedMember?.photosDeleted ?? 0,
         audit: true,
       },

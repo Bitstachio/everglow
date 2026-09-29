@@ -1,10 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsIn, IsOptional } from "class-validator";
-import { REMOVED_MEMBER_PHOTOS, type RemovedMemberPhotos } from "src/events/event-membership";
+import { MEMBER_PHOTOS, type MemberPhotos } from "src/events/event-membership";
 import { REPORT_RESOLUTION_ACTIONS, type ReportResolutionAction } from "../moderation.constants";
 
 const ACTIONS = Object.values(REPORT_RESOLUTION_ACTIONS);
-const PHOTOS = Object.values(REMOVED_MEMBER_PHOTOS);
+const PHOTOS = Object.values(MEMBER_PHOTOS);
 
 export class ResolveReportDto {
   @ApiProperty({
@@ -20,13 +20,13 @@ export class ResolveReportDto {
 
   @ApiPropertyOptional({
     enum: PHOTOS,
-    enumName: "RemovedMemberPhotos",
-    default: REMOVED_MEMBER_PHOTOS.KEEP,
+    enumName: "MemberPhotos",
+    default: MEMBER_PHOTOS.KEEP,
     description:
       "REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to " +
       "this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.",
   })
   @IsOptional()
   @IsIn(PHOTOS)
-  photos?: RemovedMemberPhotos;
+  photos?: MemberPhotos;
 }
