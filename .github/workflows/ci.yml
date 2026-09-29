@@ -187,6 +187,9 @@ jobs:
               FAILED=1
             fi
           }
+          # If change detection fails, API and Mobile are skipped; that must
+          # not read as a pass, or a PR can merge with nothing tested.
+          check_job "Detect changes" "${{ needs.changes.result }}"
           check_job "API" "${{ needs.api.result }}"
           check_job "Mobile" "${{ needs.mobile.result }}"
           if [ "$FAILED" = "1" ]; then
