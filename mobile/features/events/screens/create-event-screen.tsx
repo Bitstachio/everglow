@@ -1,12 +1,12 @@
-import { KeyboardAvoidingView, Platform } from "react-native";
-import { ThemedView } from "@/components/themed-view";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
+
 import { CreateEventForm } from "../components/create-event-form";
 import { useCreateEventScreen } from "../hooks/use-create-event-screen";
 
 const CreateEventScreen = () => {
   const { form, onSubmit, ...screen } = useCreateEventScreen();
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1 bg-background">
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <CreateEventForm
           {...screen}
@@ -16,7 +16,7 @@ const CreateEventScreen = () => {
           onSubmit={onSubmit}
         />
       </KeyboardAvoidingView>
-    </ThemedView>
+    </View>
   );
 };
 
