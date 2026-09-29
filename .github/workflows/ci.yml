@@ -18,6 +18,9 @@ jobs:
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lists the PR's files; required on a private repo
     outputs:
       api: ${{ steps.filter.outputs.api }}
       mobile: ${{ steps.filter.outputs.mobile }}
@@ -184,6 +187,9 @@ jobs:
               FAILED=1
             fi
           }
+          # If change detection fails, API and Mobile are skipped; that must
+          # not read as a pass, or a PR can merge with nothing tested.
+          check_job "Detect changes" "${{ needs.changes.result }}"
           check_job "API" "${{ needs.api.result }}"
           check_job "Mobile" "${{ needs.mobile.result }}"
           if [ "$FAILED" = "1" ]; then

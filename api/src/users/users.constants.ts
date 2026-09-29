@@ -11,7 +11,21 @@ export const USER_SERVICE_ERRORS = {
   ONBOARDING_INCOMPLETE: "Onboarding is incomplete. Please complete the user onboarding to continue.",
   AVATAR_CHANGED_CONCURRENTLY: "The avatar was changed by another request, please retry",
   ACCOUNT_DELETED: "This account has been deleted. Sign in again to start a new one.",
+  USERNAME_CHANGE_LIMITED: (availableAt: Date) =>
+    `You can change your username ${USERNAME_CHANGE_LIMIT} times every ${USERNAME_CHANGE_WINDOW_DAYS} days. ` +
+    `You can change it again after ${availableAt.toISOString()}.`,
 };
+
+/**
+ * Instagram-style limit on changing a username after onboarding: at most this
+ * many changes in any rolling window. Choosing the first username at
+ * onboarding does not count, and saving the same username is not a change.
+ */
+export const USERNAME_CHANGE_LIMIT = 2;
+export const USERNAME_CHANGE_WINDOW_DAYS = 14;
+
+/** Coded 429 when a username change would exceed USERNAME_CHANGE_LIMIT. */
+export const USERNAME_CHANGE_LIMITED_CODE = "USERNAME_CHANGE_LIMITED";
 
 /** Coded 409 when a username write loses a uniqueness race (or is already taken). */
 export const USERNAME_TAKEN_CODE = "USERNAME_TAKEN";

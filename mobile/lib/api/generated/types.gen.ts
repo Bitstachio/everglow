@@ -11,6 +11,10 @@ export type UserDetailsResponseDto = {
    * Short-lived presigned URL of the profile avatar; null when none is set
    */
   avatarUrl: string | null;
+  /**
+   * When the username can be changed again; null when it can be changed now. Usernames can be changed 2 times every 14 days, so the app can say when before the user tries.
+   */
+  usernameChangeAvailableAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

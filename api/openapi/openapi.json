@@ -2067,6 +2067,12 @@
             "maxLength": 2048,
             "description": "Short-lived presigned URL of the profile avatar; null when none is set"
           },
+          "usernameChangeAvailableAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the username can be changed again; null when it can be changed now. Usernames can be changed 2 times every 14 days, so the app can say when before the user tries."
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -2080,6 +2086,7 @@
           "username",
           "name",
           "avatarUrl",
+          "usernameChangeAvailableAt",
           "createdAt",
           "updatedAt"
         ]

@@ -16,6 +16,15 @@ export class UserDetailsResponseDto {
   })
   avatarUrl: string | null;
 
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description:
+      "When the username can be changed again; null when it can be changed now. Usernames can be changed " +
+      "2 times every 14 days, so the app can say when before the user tries.",
+  })
+  usernameChangeAvailableAt: Date | null;
+
   @ApiProperty()
   createdAt: Date;
 
