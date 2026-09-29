@@ -227,6 +227,7 @@ Two things fix it, and both are needed.
 | `Photo.addedById`                                                   | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota.                                                                 |
 | `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence that belongs to the event; it outlives whoever filed it, was named in it, or resolved it ([moderation.md](./moderation.md#what-happens-on-delete)). |
 | `EventBan.userId`                                                   | `Cascade` | A ban from an event means nothing once the account is gone. `EventBan.bannedById` is `SetNull`: the ban outlives the organizer who issued it.                            |
+| `Event.coverUpdatedById`                                            | `SetNull` | Attribution of the current cover only; the cover stays.                                                                                                                  |
 | `UsernameChange.userId`                                             | `Cascade` | The change history only enforces this account's limit. (Holding released usernames for a cool-down, EV-30, may want to keep it.)                                         |
 | `UserBlock.blockerId`, `UserBlock.blockedId`                        | `Cascade` | A block means nothing once either account is gone.                                                                                                                       |
 

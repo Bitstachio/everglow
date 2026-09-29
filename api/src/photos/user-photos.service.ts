@@ -6,6 +6,7 @@ import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/comm
 import { CursorPageQueryDto } from "src/common/pagination/cursor-page-query.dto";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { ImageUploadService } from "src/images/image-upload.service";
+import { hiddenEventCoverIds } from "src/moderation/event-cover-visibility";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
@@ -69,6 +70,7 @@ export class UserPhotosService {
       this.prisma.eventBan.findMany({ where: { userId, eventId: { in: eventIds } }, select: { eventId: true } }),
     ]);
     const memberOf = new Set(memberships.map((access) => access.eventId));
+    const hiddenCovers = await hiddenEventCoverIds(this.prisma, userId, eventIds);
     const bannedFrom = new Set(bans.map((ban) => ban.eventId));
     const eventsById = new Map(events.map((event) => [event.id, event]));
 
@@ -82,7 +84,7 @@ export class UserPhotosService {
           (async (): Promise<EventStorageUsage> => ({
             eventId: event.id,
             title: event.title,
-            coverUrl: await this.imageUploads.getDownloadUrl(event.coverS3Key),
+            coverUrl: hiddenCovers.has(event.id) ? null : await this.imageUploads.getDownloadUrl(event.coverS3Key),
             membership: memberOf.has(event.id)
               ? EVENT_MEMBERSHIP.MEMBER
               : bannedFrom.has(event.id)

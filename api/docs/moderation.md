@@ -135,6 +135,14 @@ Rules:
 - **Only the platform owner reviews it.** It is the organizers' own content, so organizers can neither see nor resolve it: the CASL `read` and `update` rules for organizers cover `PHOTO` and `MEMBER` reports only, so the queue leaves event reports out and `PATCH /reports/:reportId` answers 403 for them. Every event report is escalated (`target_is_event`, §5) and is part of the 24-hour stale check.
 - **One OPEN event report per member**, enforced by the partial unique index `(reporterId, eventId) WHERE status = 'OPEN' AND targetType = 'EVENT'`; a repeat returns it, as for the other kinds. A check constraint keeps `reportedUserId` null on event reports; `photoId` was already limited to photo reports.
 - Until the Admin dashboard exists (EV-58), event reports are resolved in the database.
+- **Who set the cover** is recorded on the event (`Event.coverUpdatedById`, set with the cover and cleared with it) and included in the report's `report.created` and `report.escalated` lines, so the reviewer knows whose image it is.
+
+**The cover is hidden, the text is not.** The cover is the one image of an event that photo reports don't cover, so it is hidden the way photos are (`hiddenEventCoverIds`, `moderation/event-cover-visibility.ts`), wherever an event's `coverUrl` is returned:
+
+- from the member who reported the event, while their report is OPEN;
+- from every non-organizer while any OPEN event report is for nudity or violence (`SEVERE_REPORT_REASONS`). Organizers keep seeing it, as they keep seeing reported photos.
+
+A hidden cover reads as `coverUrl: null`, the same as no cover. The title and description are never hidden automatically: hiding an event's name would be confusing, and text waits for review.
 
 ---
 

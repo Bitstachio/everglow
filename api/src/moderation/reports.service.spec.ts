@@ -81,6 +81,7 @@ describe("ReportsService", () => {
     creatorId: uploaderId,
     invitationUrl: "invite-token",
     coverS3Key: null,
+    coverUpdatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -479,6 +480,22 @@ describe("ReportsService", () => {
           escalationReasons: ["target_is_event"],
         }),
         expect.any(String),
+      );
+    });
+
+    it("names who set the event's cover in the report's log lines", async () => {
+      const coverSetter = "33333333-3333-3333-3333-333333333333";
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventWithCallerAccess(AccessLevel.PARTICIPANT),
+        coverUpdatedById: coverSetter,
+      });
+      prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
+
+      await service.reportEvent(eventId, callerId, dto);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.created", coverUpdatedById: coverSetter }),
+        "Report created",
       );
     });
 

@@ -94,6 +94,7 @@ describe("EventsService", () => {
     creatorId,
     invitationUrl: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     coverS3Key: null,
+    coverUpdatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -109,6 +110,7 @@ describe("EventsService", () => {
     creatorId: userId,
     invitationUrl: "invite-created",
     coverS3Key: null,
+    coverUpdatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -121,6 +123,7 @@ describe("EventsService", () => {
     creatorId: otherUserId,
     invitationUrl: "invite-access",
     coverS3Key: null,
+    coverUpdatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -623,6 +626,7 @@ describe("EventsService", () => {
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
         coverS3Key: null,
+        coverUpdatedById: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -918,6 +922,7 @@ describe("EventsService", () => {
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
         coverS3Key: null,
+        coverUpdatedById: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });

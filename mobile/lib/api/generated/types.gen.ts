@@ -346,7 +346,7 @@ export type EventResponseDto = {
    */
   invitationUrl: string;
   /**
-   * Short-lived presigned URL of the event cover image; null when none is set
+   * Short-lived presigned URL of the event cover image; null when none is set, or while it is hidden from the caller after a report of the event
    */
   coverUrl: string | null;
   createdAt: string;

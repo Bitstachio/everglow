@@ -111,6 +111,9 @@ describe("EventsController (integration)", () => {
     prisma.userBlock.findMany.mockResolvedValue([]);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    // No open event reports: covers are visible.
+    prisma.report.findMany.mockResolvedValue([]);
+    prisma.eventAccess.findMany.mockResolvedValue([]);
     prisma.photo.findMany.mockResolvedValue([]);
     Object.values(s3Service).forEach((mock) => mock.mockReset());
     s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [] });
@@ -958,11 +961,42 @@ describe("EventsController (integration)", () => {
 
         const body = response.body as WrappedResponse<EventResponseBody[]>;
         expect(body.data).toEqual([expectedEventResponse(events[0], COVER_URL), expectedEventResponse(events[1])]);
-        // The caller lookup for the ability plus the list itself: covers add no query, per row or otherwise.
+        // The caller lookup for the ability, the list itself, and one report check for all covers.
         expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
         expect(prisma.event.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.report.findMany).toHaveBeenCalledTimes(1);
         expect(prisma.event.findUnique).not.toHaveBeenCalled();
         expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(1);
+      });
+
+      it("hides the cover from a member who reported the event", async () => {
+        const event = buildEvent({ coverS3Key: COVER_S3_KEY });
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildParticipantAccess()]));
+        prisma.report.findMany.mockResolvedValue([{ eventId: TEST_EVENT_ID, reporterId: TEST_USER_ID }] as never);
+
+        const response = await request(httpServer)
+          .get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`)
+          .set(authHeader())
+          .expect(200);
+
+        const body = response.body as WrappedResponse<EventResponseBody>;
+        expect(body.data.coverUrl).toBeNull();
+        expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
+      });
+
+      it("keeps showing it to an organizer after someone else's severe report", async () => {
+        const event = buildEvent({ coverS3Key: COVER_S3_KEY });
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildOrganizerAccess()]));
+        prisma.report.findMany.mockResolvedValue([{ eventId: TEST_EVENT_ID, reporterId: TEST_OTHER_USER_ID }] as never);
+        prisma.eventAccess.findMany.mockResolvedValue([{ eventId: TEST_EVENT_ID }] as never);
+
+        const response = await request(httpServer)
+          .get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`)
+          .set(authHeader())
+          .expect(200);
+
+        const body = response.body as WrappedResponse<EventResponseBody>;
+        expect(body.data.coverUrl).toBe(COVER_URL);
       });
     });
 
@@ -1031,7 +1065,7 @@ describe("EventsController (integration)", () => {
         expect(s3Service.headObject).toHaveBeenCalledWith(COVER_S3_KEY);
         expect(prisma.event.updateMany).toHaveBeenCalledWith({
           where: { id: TEST_EVENT_ID, coverS3Key: null },
-          data: { coverS3Key: COVER_S3_KEY },
+          data: { coverS3Key: COVER_S3_KEY, coverUpdatedById: TEST_USER_ID },
         });
       });
 
@@ -1091,7 +1125,7 @@ describe("EventsController (integration)", () => {
         expect(s3Service.deleteObject).toHaveBeenCalledWith(COVER_S3_KEY);
         expect(prisma.event.updateMany).toHaveBeenCalledWith({
           where: { id: TEST_EVENT_ID, coverS3Key: COVER_S3_KEY },
-          data: { coverS3Key: null },
+          data: { coverS3Key: null, coverUpdatedById: null },
         });
       });
 

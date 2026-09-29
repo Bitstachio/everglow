@@ -61,6 +61,16 @@ describe("UserPhotosService", () => {
       ] as never);
       prisma.eventAccess.findMany.mockResolvedValue([{ eventId: wedding }] as never);
       prisma.eventBan.findMany.mockResolvedValue([{ eventId: office }] as never);
+      prisma.report.findMany.mockResolvedValue([]);
+    });
+
+    it("hides a cover the caller may not see, with the same rule as the event screens", async () => {
+      prisma.report.findMany.mockResolvedValue([{ eventId: wedding, reporterId: userId }] as never);
+
+      const rows = await service.usageByEvent(userId);
+
+      expect(rows.find((row) => row.eventId === wedding)?.coverUrl).toBeNull();
+      expect(imageUploads.getDownloadUrl).not.toHaveBeenCalledWith("event-covers/w/1");
     });
 
     it("returns one row per event, largest first, with how the caller relates to it", async () => {

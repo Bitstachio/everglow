@@ -108,6 +108,7 @@ describe("UsersController (integration)", () => {
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
     // No recent username changes: the username can be changed now.
     prisma.usernameChange.findMany.mockResolvedValue([]);
+    prisma.report.findMany.mockResolvedValue([]);
     for (const method of Object.values(s3Service)) method.mockReset();
     s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [] });
     s3Service.deleteObject.mockResolvedValue(undefined);
