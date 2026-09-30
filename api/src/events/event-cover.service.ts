@@ -8,6 +8,7 @@ import {
   ImageUploadService,
   ImageUploadTarget,
 } from "src/images/image-upload.service";
+import { hiddenEventCoverIds } from "src/moderation/event-cover-visibility";
 import { PrismaService } from "src/prisma/prisma.service";
 import { EVENT_COVER_S3_KEY_PREFIX, EVENT_SERVICE_ERRORS } from "./events.constants";
 import { EventsService } from "./events.service";
@@ -40,7 +41,7 @@ export class EventCoverService {
 
   async confirmUpload(eventId: string, callerId: string, uploadId: string): Promise<Event> {
     const event = await this.eventsService.getUpdatable(eventId, callerId);
-    const slot = this.slotFor(event);
+    const slot = this.slotFor(event, callerId);
 
     const key = await this.imageUploads.confirmUpload(this.targetFor(eventId), uploadId, slot);
     // An idempotent re-confirm changed nothing and is not worth a record.
@@ -57,21 +58,43 @@ export class EventCoverService {
   async remove(eventId: string, callerId: string): Promise<void> {
     const event = await this.eventsService.getUpdatable(eventId, callerId);
 
-    const removed = await this.imageUploads.remove(this.slotFor(event));
+    const removed = await this.imageUploads.remove(this.slotFor(event, callerId));
     if (removed) {
       this.logger.info({ event: "event.cover.removed", eventId, callerId, audit: true }, "Event cover removed");
     }
   }
 
-  async getCoverUrl(event: Event): Promise<string | null> {
-    return this.imageUploads.getDownloadUrl(event.coverS3Key);
+  /** The cover as this viewer may see it: null when there is none, or it is hidden from them by a report. */
+  async getCoverUrl(event: Event, viewerId: string): Promise<string | null> {
+    if (!event.coverS3Key) return null;
+    const hidden = await hiddenEventCoverIds(this.prisma, viewerId, [event.id]);
+    return hidden.has(event.id) ? null : this.imageUploads.getDownloadUrl(event.coverS3Key);
+  }
+
+  /** getCoverUrl for a list of events, checking reports once for all of them. */
+  async getCoverUrls(events: Event[], viewerId: string): Promise<Map<string, string | null>> {
+    const withCover = events.filter((event) => event.coverS3Key);
+    const hidden = await hiddenEventCoverIds(
+      this.prisma,
+      viewerId,
+      withCover.map((event) => event.id),
+    );
+    const urls = await Promise.all(
+      events.map(
+        async (event): Promise<[string, string | null]> => [
+          event.id,
+          hidden.has(event.id) ? null : await this.imageUploads.getDownloadUrl(event.coverS3Key),
+        ],
+      ),
+    );
+    return new Map(urls);
   }
 
   private targetFor(eventId: string): ImageUploadTarget {
     return { prefix: EVENT_COVER_S3_KEY_PREFIX, ownerId: eventId };
   }
 
-  private slotFor(event: Event): ImageSlot {
+  private slotFor(event: Event, callerId: string): ImageSlot {
     const currentKey = event.coverS3Key;
 
     return {
@@ -82,7 +105,8 @@ export class EventCoverService {
       save: async (key) => {
         const { count } = await this.prisma.event.updateMany({
           where: { id: event.id, coverS3Key: currentKey },
-          data: { coverS3Key: key },
+          // Who set it goes with it, and is cleared with it.
+          data: { coverS3Key: key, coverUpdatedById: key ? callerId : null },
         });
         if (count === 0) throw new ConflictException(EVENT_SERVICE_ERRORS.COVER_CHANGED_CONCURRENTLY);
       },

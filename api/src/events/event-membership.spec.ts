@@ -7,8 +7,8 @@ describe("removeMemberInTransaction", () => {
   const userId = "22222222-2222-2222-2222-222222222222";
   const removedById = "11111111-1111-1111-1111-111111111111";
   const uploaded = [
-    { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a" },
-    { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b" },
+    { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a", sizeBytes: 1000 },
+    { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b", sizeBytes: 2000 },
   ];
   let prisma: DeepMockProxy<PrismaClient>;
 
@@ -53,7 +53,7 @@ describe("removeMemberInTransaction", () => {
 
     expect(prisma.photo.findMany).toHaveBeenCalledWith({
       where: { eventId, addedById: userId, id: { notIn: ["cccccccc-cccc-cccc-cccc-cccccccccccc"] } },
-      select: { id: true, s3Key: true },
+      select: { id: true, s3Key: true, sizeBytes: true },
     });
     const ids = uploaded.map((photo) => photo.id);
     expect(prisma.report.updateMany).toHaveBeenCalledWith({

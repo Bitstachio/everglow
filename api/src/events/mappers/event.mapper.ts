@@ -3,6 +3,7 @@ import { EventBanListResponseDto } from "../dto/event-ban-list-response.dto";
 import { EventBanResponseDto } from "../dto/event-ban-response.dto";
 import { EventParticipantResponseDto } from "../dto/event-participant-response.dto";
 import { EventResponseDto } from "../dto/event-response.dto";
+import { EVENT_STATUSES } from "../events.constants";
 import { buildInvitationUrl } from "../events.invitation";
 import { EventBanWithUser, EventParticipant } from "../events.types";
 
@@ -17,6 +18,7 @@ export class EventMapper {
       creatorId: event.creatorId,
       invitationUrl: buildInvitationUrl(event.invitationUrl),
       coverUrl,
+      status: event.underReviewAt ? EVENT_STATUSES.UNDER_REVIEW : EVENT_STATUSES.ACTIVE,
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
     };

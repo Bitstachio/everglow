@@ -4,15 +4,15 @@ import { MEMBER_PHOTOS, type MemberPhotos } from "../event-membership";
 
 const PHOTOS = Object.values(MEMBER_PHOTOS);
 
-export class RemoveParticipantQueryDto {
+export class LeaveEventQueryDto {
   @ApiPropertyOptional({
     enum: PHOTOS,
     enumName: "MemberPhotos",
     default: MEMBER_PHOTOS.KEEP,
     description:
-      "What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited " +
-      "to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is " +
-      "banned from rejoining through the invitation link until an organizer lifts the ban.",
+      "What happens to the photos you uploaded to this event. KEEP (default): they stay in the event and keep " +
+      "counting toward your storage; you can still delete them later from GET /users/me/storage/events. " +
+      "DELETE: they are all deleted now and the space is freed.",
   })
   @IsOptional()
   @IsIn(PHOTOS)

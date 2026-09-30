@@ -15,7 +15,7 @@ Everything lives in `src/moderation/`. The `events` and `photos` modules gain on
 model Report {
   eventId        // CASCADE
   reporterId?    // SET NULL
-  targetType     // PHOTO | MEMBER
+  targetType     // PHOTO | MEMBER | EVENT
   photoId?       // SET NULL, PHOTO reports only
   reportedUserId?// SET NULL: the reported member, or the uploader of the reported photo
   reason         // SPAM | NUDITY_OR_SEXUAL | HARASSMENT | VIOLENCE | OTHER
@@ -98,10 +98,11 @@ The photo index needs no `targetType` predicate: MEMBER reports have a null `pho
 | ---------------------------------------------------------- | ---------- | ------------------------------------------- |
 | `POST /photos/:photoId/reports`                            | any member | 201, the caller's OPEN report on the photo  |
 | `POST /events/:eventId/participants/:targetUserId/reports` | any member | 201, the caller's OPEN report on the member |
+| `POST /events/:eventId/reports`                            | any member | 201, the caller's OPEN report on the event  |
 | `GET /events/:eventId/reports?status=&cursor=&limit=`      | organizers | 200, `{ items, nextCursor }`, newest first  |
 | `PATCH /reports/:reportId` `{ action }`                    | organizers | 200, the resolved report                    |
 
-The target is in the route, so both `POST`s share one body: `{ reason, note? }`.
+The target is in the route, so all three `POST`s share one body: `{ reason, note? }`.
 
 Rules:
 
@@ -126,6 +127,50 @@ Rules:
 - **An organizer cannot resolve a report about themselves** or about their own photo: 403. Another organizer has to. If there is none, the report stays OPEN, which is one reason such reports are escalated at creation (§5).
 - **A report is resolved once.** The update is guarded on `status = OPEN`; a second verdict, including one racing the first, gets 409 and removes nothing.
 - The list uses the same keyset pagination as the photo list (`src/common/pagination`).
+
+### Reporting the event itself
+
+`POST /events/:eventId/reports` covers what the organizers authored: the cover, the title and the description, or the event as a whole. There is one action and no "which part" picker, as with WhatsApp's and Telegram's "Report group"; the note can say what is wrong.
+
+- **Only the platform owner reviews it.** It is the organizers' own content, so organizers can neither see nor resolve it: the CASL `read` and `update` rules for organizers cover `PHOTO` and `MEMBER` reports only, so the queue leaves event reports out and `PATCH /reports/:reportId` answers 403 for them. Every event report is escalated (`target_is_event`, §5) and is part of the 24-hour stale check.
+- **One OPEN event report per member**, enforced by the partial unique index `(reporterId, eventId) WHERE status = 'OPEN' AND targetType = 'EVENT'`; a repeat returns it, as for the other kinds. A check constraint keeps `reportedUserId` null on event reports; `photoId` was already limited to photo reports.
+- Until the Admin dashboard exists (EV-58), event reports are resolved in the database.
+- **Who set the cover** is recorded on the event (`Event.coverUpdatedById`, set with the cover and cleared with it) and included in the report's `report.created` and `report.escalated` lines, so the reviewer knows whose image it is.
+
+**The cover is hidden, the text is not.** The cover is the one image of an event that photo reports don't cover, so it is hidden the way photos are (`hiddenEventCoverIds`, `moderation/event-cover-visibility.ts`), wherever an event's `coverUrl` is returned:
+
+- from the member who reported the event, while their report is OPEN;
+- from every non-organizer while any OPEN event report is for nudity or violence (`SEVERE_REPORT_REASONS`). Organizers keep seeing it, as they keep seeing reported photos.
+
+A hidden cover reads as `coverUrl: null`, the same as no cover. The title and description are never hidden automatically: hiding an event's name would be confusing, and text waits for review.
+
+### Under review
+
+When enough members report the event itself, it goes **under review** (`Event.underReviewAt`). Each OPEN event report is by a different member (one per member), and enough is `underReviewThreshold(memberCount, anySevere)`:
+
+- **Any OPEN event report for nudity or violence:** the photo hide threshold, `reportHideThreshold`: 3, or 2 in an event of 3 members or fewer.
+- **None severe:** the same, or a tenth of the members rounded up (`UNDER_REVIEW_MEMBER_SHARE`), whichever is more. Events of up to 30 members are unchanged; a 100-member event needs 10 and a 300-member one 30. A few members of a large event can't pause it with spam reports, while severe content still pauses it quickly.
+
+| Members | None severe | Any severe |
+| ------- | ----------- | ---------- |
+| 3       | 2           | 2          |
+| 4–30    | 3           | 3          |
+| 100     | 10          | 3          |
+| 300     | 30          | 3          |
+
+Every event report reaches the platform owner anyway (`target_is_event`, §5); the threshold only decides when the event pauses by itself, before anyone has looked.
+
+While an event is under review:
+
+- **No one can join.** `POST /events/join` answers 403 with `code: "EVENT_UNDER_REVIEW"`, after the ban check, so a removed member still hears that they were removed.
+- **No photos can be added.** `POST /events/:eventId/photos/upload-urls` answers the same 403, organizers included. Slots minted before can still be confirmed.
+- **Members keep access.** Nothing is hidden beyond what §2 and §3 already hide, and nothing is deleted.
+- **Organizers can still change the cover**, so they can replace one that was reported.
+- **Every event response carries `status: "UNDER_REVIEW"`** (otherwise `"ACTIVE"`), so the app can say so on the event screen.
+
+The report that puts the event under review is escalated with `event_under_review` (§5); later reports are not, since the event is already there. The update only matches an event not yet under review, so of two reports that cross the threshold together exactly one says so.
+
+**Only the platform lifts it.** Resolving the reports does not: until the Admin dashboard exists (EV-58), the platform owner clears `underReviewAt` in the database, and closes the reports there too. Suspending, restoring and deleting an event are left to that dashboard.
 
 ---
 
@@ -218,14 +263,14 @@ An organizer removes a member either with `DELETE /events/:eventId/participants/
 2. An `EventBan` row is recorded (event, member, the organizer who removed them). Removing someone again keeps the first record.
 3. The organizer chooses what happens to the member's photos in that event:
 
-   | `photos`         | Effect                                                                                                                                                                |
-   | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `KEEP` (default) | They stay in the event, still credited to the member                                                                                                                  |
-   | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`) |
+   | `photos`         | Effect                                                                                                                                                                         |
+   | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+   | `KEEP` (default) | They stay in the event, still credited to the member and counted against their storage. The member can delete them later from their storage screen (photos-architecture.md §9) |
+   | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`)          |
 
    It is a query parameter on the participant route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
 
-**A ban is per event.** It only stops rejoining through the invitation link; nothing else about the account changes. Leaving an event on your own records no ban, so you can come back.
+**A ban is per event.** It only stops rejoining through the invitation link; nothing else about the account changes. Leaving an event on your own records no ban, so you can come back. Leaving asks the member the same KEEP or DELETE question about their own photos.
 
 **Organizers manage bans.** `GET /events/:eventId/bans` lists them newest first with each member's name and username. `DELETE /events/:eventId/bans/:userId` lifts one; it is idempotent, and the person is not re-added but can rejoin through the link.
 
@@ -254,7 +299,9 @@ Organizers moderate their own events, but the platform owner has to be able to a
 | `severe_reason`            | The reason is `NUDITY_OR_SEXUAL` or `VIOLENCE` (`SEVERE_REPORT_REASONS`). A photo report of this kind also hides the photo (§3). |
 | `target_is_organizer`      | The reported member, or the uploader of the reported photo, organizes the event and cannot judge it themselves.                  |
 | `target_is_sole_organizer` | Added to `target_is_organizer` when they are the event's only organizer, so no one in the event can resolve it.                  |
+| `target_is_event`          | Every report about the event itself (§2). Only the platform owner reviews these.                                                 |
 | `hide_threshold_reached`   | This report is the one that hid the photo from the event. It stays hidden until an organizer resolves it.                        |
+| `event_under_review`       | This report put the event under review (§2): joins and new photos are refused until the platform lifts it. Urgent.               |
 
 A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged ([logging-conventions.md §3](./logging-conventions.md#3-redaction--pii-the-non-negotiable-rule)).
 
@@ -272,7 +319,7 @@ The app's onboarding screen shows an explicit consent control that links to the 
 
 ## 7. Rate limiting
 
-The six mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId`, `DELETE /events/:eventId/bans/:userId`) carry `@RateLimit("sensitive")`: 10 a minute per user, on top of the global default. The two list endpoints stay on the global default. See [rate-limiting.md](./rate-limiting.md).
+The seven mutations (`POST /photos/:photoId/reports`, `POST /events/:eventId/participants/:targetUserId/reports`, `POST /events/:eventId/reports`, `PATCH /reports/:reportId`, `PUT /users/me/blocks/:userId`, `DELETE /users/me/blocks/:userId`, `DELETE /events/:eventId/bans/:userId`) carry `@RateLimit("sensitive")`: 10 a minute per user, on top of the global default. The two list endpoints stay on the global default. See [rate-limiting.md](./rate-limiting.md).
 
 ---
 

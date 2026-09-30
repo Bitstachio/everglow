@@ -20,6 +20,19 @@ export const UPLOAD_URL_TTL_SECONDS = 3600; // 1 hour to upload a photo
 
 export const DOWNLOAD_URL_TTL_SECONDS = 900; // 15 minutes to download a photo
 
+/** The caller's relation to an event they have photos in, for the storage screen. */
+export const EVENT_MEMBERSHIP = {
+  MEMBER: "MEMBER",
+  /** Left on their own; they can rejoin through the link. */
+  LEFT: "LEFT",
+  /** An organizer removed them, which bans rejoining until lifted. */
+  REMOVED: "REMOVED",
+} as const;
+export type EventMembership = (typeof EVENT_MEMBERSHIP)[keyof typeof EVENT_MEMBERSHIP];
+
+// Photos one storage-screen delete may name; "delete all" sends none.
+export const MAX_OWN_PHOTOS_DELETE_BATCH = 100;
+
 // S3 checks a presigned URL's expiry when the PUT arrives, not when its body
 // finishes, so a PUT that started just before the TTL ran out can still be
 // streaming after it. A slot only counts as expired this long after the TTL.
