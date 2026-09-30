@@ -1,4 +1,9 @@
-import { REPORT_HIDE_THRESHOLD, SMALL_EVENT_REPORT_HIDE_THRESHOLD, reportHideThreshold } from "./moderation.constants";
+import {
+  REPORT_HIDE_THRESHOLD,
+  SMALL_EVENT_REPORT_HIDE_THRESHOLD,
+  reportHideThreshold,
+  underReviewThreshold,
+} from "./moderation.constants";
 
 describe("reportHideThreshold", () => {
   it.each([
@@ -16,4 +21,25 @@ describe("reportHideThreshold", () => {
   it("never lets a single report hide a photo from everyone", () => {
     expect(SMALL_EVENT_REPORT_HIDE_THRESHOLD).toBeGreaterThan(1);
   });
+});
+
+describe("underReviewThreshold", () => {
+  it.each([
+    [3, SMALL_EVENT_REPORT_HIDE_THRESHOLD],
+    [4, REPORT_HIDE_THRESHOLD],
+    [30, REPORT_HIDE_THRESHOLD],
+    // Above 30 members, a tenth of them, rounded up.
+    [31, 4],
+    [100, 10],
+    [300, 30],
+  ])("an event of %i members goes under review at %i open reports, none severe", (memberCount, expected) => {
+    expect(underReviewThreshold(memberCount, false)).toBe(expected);
+  });
+
+  it.each([3, 4, 100, 300])(
+    "stays at the photo hide threshold for %i members once any report is severe",
+    (memberCount) => {
+      expect(underReviewThreshold(memberCount, true)).toBe(reportHideThreshold(memberCount));
+    },
+  );
 });

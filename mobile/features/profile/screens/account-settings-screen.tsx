@@ -1,4 +1,4 @@
-import { H2, H3 } from "@/components/ui/heading";
+import { H3 } from "@/components/ui/heading";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ScrollView, View } from "react-native";
@@ -47,12 +47,6 @@ const AccountSettingsScreen = () => {
           >
             <ThemedText className="text-3xl font-bold text-accent-foreground">
               {user.details?.name.trim().charAt(0).toUpperCase() || "E"}
-            </ThemedText>
-          </View>
-          <View className="items-center gap-1">
-            <H2>{user.details?.name || "Your profile"}</H2>
-            <ThemedText tone="muted" className="text-sm">
-              {username !== "Not set" ? `@${username}` : "No username set"}
             </ThemedText>
           </View>
         </View>

@@ -11,7 +11,7 @@ export class LeaveEventQueryDto {
     default: MEMBER_PHOTOS.KEEP,
     description:
       "What happens to the photos you uploaded to this event. KEEP (default): they stay in the event and keep " +
-      "counting toward your storage; you can still delete them later with DELETE /photos/:photoId. " +
+      "counting toward your storage; you can still delete them later from GET /users/me/storage/events. " +
       "DELETE: they are all deleted now and the space is freed.",
   })
   @IsOptional()

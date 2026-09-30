@@ -80,6 +80,9 @@ import type {
   ReportsControllerListReportsData,
   ReportsControllerListReportsErrors,
   ReportsControllerListReportsResponses,
+  ReportsControllerReportEventData,
+  ReportsControllerReportEventErrors,
+  ReportsControllerReportEventResponses,
   ReportsControllerReportMemberData,
   ReportsControllerReportMemberErrors,
   ReportsControllerReportMemberResponses,
@@ -104,12 +107,21 @@ import type {
   UsersControllerCreatePasswordChangeTicketData,
   UsersControllerCreatePasswordChangeTicketErrors,
   UsersControllerCreatePasswordChangeTicketResponses,
+  UsersControllerDeleteMyPhotosInEventData,
+  UsersControllerDeleteMyPhotosInEventErrors,
+  UsersControllerDeleteMyPhotosInEventResponses,
   UsersControllerFindMeData,
   UsersControllerFindMeErrors,
   UsersControllerFindMeResponses,
+  UsersControllerGetMyStorageByEventData,
+  UsersControllerGetMyStorageByEventErrors,
+  UsersControllerGetMyStorageByEventResponses,
   UsersControllerGetMyStorageData,
   UsersControllerGetMyStorageErrors,
   UsersControllerGetMyStorageResponses,
+  UsersControllerListMyPhotosInEventData,
+  UsersControllerListMyPhotosInEventErrors,
+  UsersControllerListMyPhotosInEventResponses,
   UsersControllerRemoveAvatarData,
   UsersControllerRemoveAvatarErrors,
   UsersControllerRemoveAvatarResponses,
@@ -240,6 +252,68 @@ export const usersControllerGetMyStorage = <ThrowOnError extends boolean = false
     responseType: "json",
     url: "/api/v2/users/me/storage",
     ...options,
+  });
+
+/**
+ * Break the caller's storage down by event
+ *
+ * One row per event the caller has photos in, largest first, including events they left or were removed from.
+ */
+export const usersControllerGetMyStorageByEvent = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerGetMyStorageByEventData, ThrowOnError>,
+): RequestResult<UsersControllerGetMyStorageByEventResponses, UsersControllerGetMyStorageByEventErrors, ThrowOnError> =>
+  (options?.client ?? client).get<
+    UsersControllerGetMyStorageByEventResponses,
+    UsersControllerGetMyStorageByEventErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/storage/events",
+    ...options,
+  });
+
+/**
+ * List the caller's own photos in one event
+ *
+ * Newest first, with each photo's size. Works whether or not the caller is still a member.
+ */
+export const usersControllerListMyPhotosInEvent = <ThrowOnError extends boolean = false>(
+  options: Options<UsersControllerListMyPhotosInEventData, ThrowOnError>,
+): RequestResult<UsersControllerListMyPhotosInEventResponses, UsersControllerListMyPhotosInEventErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    UsersControllerListMyPhotosInEventResponses,
+    UsersControllerListMyPhotosInEventErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/storage/events/{eventId}/photos",
+    ...options,
+  });
+
+/**
+ * Delete the caller's own photos in one event to free storage
+ *
+ * Deletes the given photos, or all of the caller's photos in the event when photoIds is omitted. Works whether or not the caller is still a member. Open reports on them are closed.
+ */
+export const usersControllerDeleteMyPhotosInEvent = <ThrowOnError extends boolean = false>(
+  options: Options<UsersControllerDeleteMyPhotosInEventData, ThrowOnError>,
+): RequestResult<
+  UsersControllerDeleteMyPhotosInEventResponses,
+  UsersControllerDeleteMyPhotosInEventErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    UsersControllerDeleteMyPhotosInEventResponses,
+    UsersControllerDeleteMyPhotosInEventErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/storage/events/{eventId}/photos/delete",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });
 
 /**
@@ -453,6 +527,28 @@ export const reportsControllerListReports = <ThrowOnError extends boolean = fals
     responseType: "json",
     url: "/api/v2/events/{eventId}/reports",
     ...options,
+  });
+
+/**
+ * Report an event
+ *
+ * Any member of the event, about the event itself: its cover, title or description, or the event as a whole (the note can say which). Reviewed by the platform, never by the event's organizers. Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.
+ */
+export const reportsControllerReportEvent = <ThrowOnError extends boolean = false>(
+  options: Options<ReportsControllerReportEventData, ThrowOnError>,
+): RequestResult<ReportsControllerReportEventResponses, ReportsControllerReportEventErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ReportsControllerReportEventResponses,
+    ReportsControllerReportEventErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/reports",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });
 
 /**
