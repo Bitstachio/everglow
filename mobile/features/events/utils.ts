@@ -98,10 +98,7 @@ export const resolveEventInvites = (
   return [{ accessLevel: "PARTICIPANT", invitationUrl: event.invitationUrl }];
 };
 
-export const inviteUrlForRole = (
-  event: Pick<Event, "invitationUrl" | "invites">,
-  accessLevel: AccessLevel,
-): string => {
+export const inviteUrlForRole = (event: Pick<Event, "invitationUrl" | "invites">, accessLevel: AccessLevel): string => {
   const match = resolveEventInvites(event).find((invite) => invite.accessLevel === accessLevel);
   return match?.invitationUrl ?? event.invitationUrl;
 };

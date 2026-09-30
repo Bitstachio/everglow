@@ -20,10 +20,7 @@ const ScreenProbe = () => {
     <View>
       <Text>{state.createdEvent?.title ?? "No created event"}</Text>
       <Button title="Complete creation" onPress={() => mockSuccess(buildEvent())} />
-      <Button
-        title="Copy"
-        onPress={() => state.handleCopyLink(buildEvent().invitationUrl)}
-      />
+      <Button title="Copy" onPress={() => state.handleCopyLink(buildEvent().invitationUrl)} />
       <Button
         title="Share"
         onPress={() => state.handleShareLink(buildEvent().invitationUrl, "PARTICIPANT" as AccessLevel)}

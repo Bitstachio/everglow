@@ -183,11 +183,7 @@ export const EventCreatedConfirmation = ({
       </View>
 
       <View className="gap-2 px-4 pt-3 pb-4">
-        <Button
-          title={`Share ${roleLabel} Invite`}
-          icon={Share}
-          onPress={() => onShare(invitationUrl, activeRole)}
-        />
+        <Button title={`Share ${roleLabel} Invite`} icon={Share} onPress={() => onShare(invitationUrl, activeRole)} />
         <Button title="Go to Event" onPress={onGoToEvent} variant="outline" />
         <Button title="Share later" onPress={onShareLater} variant="ghost" />
       </View>
