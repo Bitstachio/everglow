@@ -232,7 +232,9 @@ describe("EventsController (integration)", () => {
       prisma.eventInvite.findUnique.mockResolvedValue(buildEventInvite({ eventId: event.id, token }));
       prisma.event.findUnique.mockResolvedValue(event);
       prisma.eventAccess.findUnique.mockResolvedValue(null);
-      prisma.eventAccess.create.mockResolvedValue(buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: event.id }));
+      prisma.eventAccess.create.mockResolvedValue(
+        buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: event.id }),
+      );
     };
 
     it("returns 200 and joins using a bare invite token", async () => {
