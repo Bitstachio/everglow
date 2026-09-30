@@ -308,6 +308,193 @@
         ]
       }
     },
+    "/api/v2/users/me/storage/events": {
+      "get": {
+        "description": "One row per event the caller has photos in, largest first, including events they left or were removed from.",
+        "operationId": "UsersController_getMyStorageByEvent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Storage used per event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventStorageUsageListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Break the caller's storage down by event",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v2/users/me/storage/events/{eventId}/photos": {
+      "get": {
+        "description": "Newest first, with each photo's size. Works whether or not the caller is still a member.",
+        "operationId": "UsersController_listMyPhotosInEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor: the nextCursor value from the previous page. Omit for the first page.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's photos in the event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OwnPhotoListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the caller's own photos in one event",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v2/users/me/storage/events/{eventId}/photos/delete": {
+      "post": {
+        "description": "Deletes the given photos, or all of the caller's photos in the event when photoIds is omitted. Works whether or not the caller is still a member. Open reports on them are closed.",
+        "operationId": "UsersController_deleteMyPhotosInEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteOwnPhotosDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was deleted and how much space it freed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeleteOwnPhotosResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete the caller's own photos in one event to free storage",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/users/me/avatar/upload-url": {
       "post": {
         "operationId": "UsersController_createAvatarUploadUrl",
@@ -920,6 +1107,69 @@
       }
     },
     "/api/v2/events/{eventId}/reports": {
+      "post": {
+        "description": "Any member of the event, about the event itself: its cover, title or description, or the event as a whole (the note can say which). Reviewed by the platform, never by the event's organizers. Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.",
+        "operationId": "ReportsController_reportEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The caller's open report on the event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Report an event",
+        "tags": [
+          "moderation"
+        ]
+      },
       "get": {
         "operationId": "ReportsController_listReports",
         "parameters": [
@@ -1505,6 +1755,7 @@
     },
     "/api/v2/events/{eventId}/leave": {
       "post": {
+        "description": "You can rejoin through the invitation link. Choose whether your photos in the event stay or go.",
         "operationId": "EventsController_leave",
         "parameters": [
           {
@@ -1513,6 +1764,15 @@
             "in": "path",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "photos",
+            "required": false,
+            "in": "query",
+            "description": "What happens to the photos you uploaded to this event. KEEP (default): they stay in the event and keep counting toward your storage; you can still delete them later from GET /users/me/storage/events. DELETE: they are all deleted now and the space is freed.",
+            "schema": {
+              "$ref": "#/components/schemas/MemberPhotos"
             }
           }
         ],
@@ -1691,7 +1951,7 @@
             "in": "query",
             "description": "What happens to the photos the member uploaded to this event. KEEP (default): they stay, still credited to the member. DELETE: they are all deleted, and their open reports are closed. Either way the member is banned from rejoining through the invitation link until an organizer lifts the ban.",
             "schema": {
-              "$ref": "#/components/schemas/RemovedMemberPhotos"
+              "$ref": "#/components/schemas/MemberPhotos"
             }
           }
         ],
@@ -2232,6 +2492,167 @@
           "remainingBytes"
         ]
       },
+      "EventMembership": {
+        "type": "string",
+        "enum": [
+          "MEMBER",
+          "LEFT",
+          "REMOVED"
+        ],
+        "description": "MEMBER: still in the event. LEFT: left on their own (can rejoin through the link). REMOVED: an organizer removed them. Photos count toward storage in every case."
+      },
+      "EventStorageUsageResponseDto": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2048,
+            "description": "Short-lived presigned URL of the event cover; null when none is set"
+          },
+          "membership": {
+            "description": "MEMBER: still in the event. LEFT: left on their own (can rejoin through the link). REMOVED: an organizer removed them. Photos count toward storage in every case.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EventMembership"
+              }
+            ]
+          },
+          "photoCount": {
+            "type": "number",
+            "description": "Photos the caller uploaded to this event, including uploads still in progress"
+          },
+          "bytes": {
+            "type": "string",
+            "description": "Bytes those photos use; the rows add up to usedBytes",
+            "example": "1288490188"
+          }
+        },
+        "required": [
+          "eventId",
+          "title",
+          "coverUrl",
+          "membership",
+          "photoCount",
+          "bytes"
+        ]
+      },
+      "EventStorageUsageListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Largest first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventStorageUsageResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "OwnPhotoResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Presigned S3 GET URL, valid for a short period"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+              "image/heic",
+              "image/heif"
+            ],
+            "example": "image/jpeg"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "description": "Bytes this photo uses",
+            "example": 2457600
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "contentType",
+          "sizeBytes",
+          "createdAt"
+        ]
+      },
+      "OwnPhotoListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Newest first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnPhotoResponseDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page; pass it as ?cursor=. Null on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "DeleteOwnPhotosResponseDto": {
+        "type": "object",
+        "properties": {
+          "photosDeleted": {
+            "type": "number",
+            "description": "Photos actually deleted"
+          },
+          "bytesFreed": {
+            "type": "string",
+            "description": "Bytes returned to the caller's storage",
+            "example": "671088640"
+          }
+        },
+        "required": [
+          "photosDeleted",
+          "bytesFreed"
+        ]
+      },
+      "DeleteOwnPhotosDto": {
+        "type": "object",
+        "properties": {
+          "photoIds": {
+            "maxItems": 100,
+            "description": "The photos to delete. Omit it to delete all of your photos in the event. Ids that are not your photos in this event are ignored.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "UpdateUserDto": {
         "type": "object",
         "properties": {
@@ -2500,7 +2921,8 @@
         "type": "string",
         "enum": [
           "PHOTO",
-          "MEMBER"
+          "MEMBER",
+          "EVENT"
         ]
       },
       "ReportReason": {
@@ -2649,7 +3071,7 @@
         ],
         "description": "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target."
       },
-      "RemovedMemberPhotos": {
+      "MemberPhotos": {
         "type": "string",
         "enum": [
           "KEEP",
@@ -2673,7 +3095,7 @@
             "description": "REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/RemovedMemberPhotos"
+                "$ref": "#/components/schemas/MemberPhotos"
               }
             ]
           }
@@ -2725,6 +3147,14 @@
           "items"
         ]
       },
+      "EventStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "UNDER_REVIEW"
+        ],
+        "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review."
+      },
       "EventResponseDto": {
         "type": "object",
         "properties": {
@@ -2758,7 +3188,15 @@
             "type": "string",
             "nullable": true,
             "maxLength": 2048,
-            "description": "Short-lived presigned URL of the event cover image; null when none is set"
+            "description": "Short-lived presigned URL of the event cover image; null when none is set, or while it is hidden from the caller after a report of the event"
+          },
+          "status": {
+            "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EventStatus"
+              }
+            ]
           },
           "createdAt": {
             "format": "date-time",
@@ -2777,6 +3215,7 @@
           "creatorId",
           "invitationUrl",
           "coverUrl",
+          "status",
           "createdAt",
           "updatedAt"
         ]

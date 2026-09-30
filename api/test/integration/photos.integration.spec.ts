@@ -3,7 +3,7 @@ import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { PAGINATION_ERRORS } from "src/common/pagination/pagination.constants";
-import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
+import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
 import {
   PHOTO_SERVICE_ERRORS,
   FREE_TIER_STORAGE_LIMIT_BYTES,
@@ -140,6 +140,22 @@ describe("PhotosController (integration)", () => {
       expect(s3Service.getPresignedUploadUrl).toHaveBeenCalledWith(
         expect.objectContaining({ contentType: "image/jpeg", contentLength: 1024 }),
       );
+    });
+
+    it("returns 403 with EVENT_UNDER_REVIEW and mints nothing while the platform reviews the event", async () => {
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventWithAccess([buildOrganizerAccess()]),
+        underReviewAt: new Date("2026-09-20T12:00:00.000Z"),
+      } as never);
+
+      const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
+
+      expect(response.body).toMatchObject({
+        code: EVENT_UNDER_REVIEW_CODE,
+        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
+      });
+      expect(prisma.photo.createMany).not.toHaveBeenCalled();
+      expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });
 
     it("returns 500 and releases the reserved rows when presigning fails", async () => {
@@ -564,8 +580,18 @@ describe("PhotosController (integration)", () => {
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
     });
 
-    it("returns 403 when a former member deletes their own READY photo", async () => {
+    it("returns 204 when a former member deletes their own READY photo, freeing their storage", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoWithAccess([]) as never);
+      prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
+
+      await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+      expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+    });
+
+    it("returns 403 when a former member deletes someone else's photo", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([], { addedById: TEST_OTHER_USER_ID }) as never);
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
 

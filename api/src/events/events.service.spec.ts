@@ -13,7 +13,12 @@ import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_SERVICE_ERRORS, ORGANIZER_BLOCKED_BY_CALLER_CODE, REMOVED_FROM_EVENT_CODE } from "./events.constants";
+import {
+  EVENT_SERVICE_ERRORS,
+  EVENT_UNDER_REVIEW_CODE,
+  ORGANIZER_BLOCKED_BY_CALLER_CODE,
+  REMOVED_FROM_EVENT_CODE,
+} from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
@@ -94,6 +99,8 @@ describe("EventsService", () => {
     creatorId,
     invitationUrl: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     coverS3Key: null,
+    coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -109,6 +116,8 @@ describe("EventsService", () => {
     creatorId: userId,
     invitationUrl: "invite-created",
     coverS3Key: null,
+    coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -121,6 +130,8 @@ describe("EventsService", () => {
     creatorId: otherUserId,
     invitationUrl: "invite-access",
     coverS3Key: null,
+    coverUpdatedById: null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -623,6 +634,8 @@ describe("EventsService", () => {
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
         coverS3Key: null,
+        coverUpdatedById: null,
+        underReviewAt: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -728,6 +741,20 @@ describe("EventsService", () => {
         message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
       });
       expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses anyone new while the event is under review", async () => {
+      setupSuccessfulJoin();
+      prisma.event.findUnique.mockResolvedValue({ ...eventCreatedByUser, underReviewAt: new Date() });
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toEqual({
+        code: EVENT_UNDER_REVIEW_CODE,
+        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
+      });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -918,6 +945,8 @@ describe("EventsService", () => {
         creatorId: eventCreatedByUser.creatorId,
         invitationUrl: eventCreatedByUser.invitationUrl,
         coverS3Key: null,
+        coverUpdatedById: null,
+        underReviewAt: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -1611,7 +1640,48 @@ describe("EventsService", () => {
         where: { userId_eventId: { userId: callerId, eventId } },
       });
       expect(logger.info).toHaveBeenCalledWith(
-        { event: "event.left", eventId, callerId, audit: true },
+        { event: "event.left", eventId, callerId, photos: "KEEP", photosDeleted: 0, bytesFreed: "0", audit: true },
+        "User left event",
+      );
+    });
+
+    it("keeps the member's photos by default and records no ban, so they can rejoin", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      prisma.eventAccess.delete.mockResolvedValue(participantAccess);
+
+      await service.leaveEvent(eventId, callerId);
+
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.eventBan.upsert).not.toHaveBeenCalled();
+      expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
+    });
+
+    it("with DELETE, deletes the member's photos in the event, frees their space, and purges the objects", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      prisma.eventAccess.delete.mockResolvedValue(participantAccess);
+      prisma.photo.findMany.mockResolvedValue([
+        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a", sizeBytes: 1000 },
+        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b", sizeBytes: 2500 },
+      ] as never);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 2 });
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.leaveEvent(eventId, callerId, "DELETE");
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { eventId, addedById: callerId, id: { notIn: [] } } }),
+      );
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"] } },
+      });
+      expect(photoPurgeService.purgeObjects).toHaveBeenCalledWith(["photos/a", "photos/b"], {
+        event: "event.member.photos_purged",
+        eventId,
+        callerId,
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "event.left", photos: "DELETE", photosDeleted: 2, bytesFreed: "3500" }),
         "User left event",
       );
     });
@@ -2204,8 +2274,8 @@ describe("EventsService", () => {
     it("with DELETE, deletes the member's photos in the event and purges their objects after the commit", async () => {
       setupOrganizerRemove();
       const uploaded = [
-        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a" },
-        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b" },
+        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", s3Key: "photos/a", sizeBytes: 1000 },
+        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", s3Key: "photos/b", sizeBytes: 2000 },
       ];
       prisma.photo.findMany.mockResolvedValue(uploaded as never);
       prisma.photo.deleteMany.mockResolvedValue({ count: 2 });

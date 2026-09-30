@@ -1,5 +1,5 @@
 import { AbilityBuilder } from "@casl/ability";
-import { AccessLevel } from "generated/prisma/client";
+import { AccessLevel, ReportTargetType } from "generated/prisma/client";
 import { AbilityUserContext, AppAbility } from "src/casl/ability.types";
 
 export const REPORT_ACTIONS = {
@@ -21,11 +21,13 @@ export const defineReportAbilities = (can: AbilityBuilder<AppAbility>["can"], us
     event: { is: { eventAccesses: { some: { userId: user.id } } } },
   });
 
-  // Organizers read the event's reports and resolve them.
-  can(REPORT_ACTIONS.READ, REPORT_SUBJECT, {
+  // Organizers read the event's reports about photos and members, and resolve
+  // them. Reports about the event itself are about their own content, so they
+  // go to the platform owner only (docs/moderation.md).
+  const organizerReviewable = {
+    targetType: { in: [ReportTargetType.PHOTO, ReportTargetType.MEMBER] },
     event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } },
-  });
-  can(REPORT_ACTIONS.UPDATE, REPORT_SUBJECT, {
-    event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } },
-  });
+  };
+  can(REPORT_ACTIONS.READ, REPORT_SUBJECT, organizerReviewable);
+  can(REPORT_ACTIONS.UPDATE, REPORT_SUBJECT, organizerReviewable);
 };
