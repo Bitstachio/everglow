@@ -2,12 +2,18 @@ import { render, screen, userEvent } from "@testing-library/react-native";
 import AccountSettingsScreen from "./account-settings-screen";
 
 const mockScreen = {
-  user: { details: { name: "Ada", username: "ada" } },
+  user: {
+    id: "user-1",
+    details: { name: "Ada", username: "ada", avatarUrl: null as string | null },
+  },
   username: "ada",
   handleOpenUsername: jest.fn(),
   handleOpenDisplayName: jest.fn(),
   handleOpenPrivacyPolicy: jest.fn(),
   handleOpenTermsOfUse: jest.fn(),
+  hasAvatar: false,
+  isUpdatingAvatar: false,
+  handleChangeAvatar: jest.fn(),
   canChangePassword: true,
   isChangingPassword: false,
   handleChangePassword: jest.fn(),
@@ -24,6 +30,9 @@ beforeEach(() => {
   mockScreen.isDeleting = false;
   mockScreen.canChangePassword = true;
   mockScreen.isChangingPassword = false;
+  mockScreen.user.details.avatarUrl = null;
+  mockScreen.hasAvatar = false;
+  mockScreen.isUpdatingAvatar = false;
 });
 
 test.each([
@@ -85,4 +94,33 @@ test("shows the name and username only in their rows, and has no Change Email ro
   expect(screen.getAllByText("Ada")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Change Email Address" })).not.toBeOnTheScreen();
   expect(screen.queryByText(/No email added/i)).not.toBeOnTheScreen();
+});
+
+test.each([
+  ["the initial when there is no avatar", null],
+  ["the avatar when one is set", "https://bucket.example.com/avatars/user-1/upload-1?X-Amz-Signature=a"],
+])("the profile header shows %s", async (_label, avatarUrl) => {
+  mockScreen.user.details.avatarUrl = avatarUrl;
+  await render(<AccountSettingsScreen />);
+  const hidden = { includeHiddenElements: true };
+  expect(screen.queryByTestId("avatar-image", hidden) !== null).toBe(avatarUrl !== null);
+  expect(screen.queryByText("A", hidden) !== null).toBe(avatarUrl === null);
+});
+
+test.each([
+  [false, "Add profile photo"],
+  [true, "Change profile photo"],
+])("the profile photo opens the photo menu (hasAvatar=%s)", async (hasAvatar, label) => {
+  mockScreen.hasAvatar = hasAvatar;
+  await render(<AccountSettingsScreen />);
+  await userEvent.setup().press(screen.getByRole("button", { name: label }));
+  expect(mockScreen.handleChangeAvatar).toHaveBeenCalledTimes(1);
+});
+
+test("the profile photo is busy while it uploads", async () => {
+  mockScreen.isUpdatingAvatar = true;
+  await render(<AccountSettingsScreen />);
+  const button = screen.getByRole("button", { name: "Add profile photo" });
+  expect(button).toBeDisabled();
+  expect(screen.getByLabelText("Updating profile photo")).toBeOnTheScreen();
 });

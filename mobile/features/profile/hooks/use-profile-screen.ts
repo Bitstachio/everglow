@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
 import type { DeleteAccountPhotoPolicy } from "../types";
+import { useChangeAvatar } from "./use-change-avatar";
 import { useChangePassword } from "./use-change-password";
 
 export const useProfileScreen = () => {
@@ -12,6 +13,7 @@ export const useProfileScreen = () => {
   const deleting = useRef(false);
   const deleteProfileMutation = useDeleteProfileMutation();
   const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
+  const { hasAvatar, isUpdatingAvatar, handleChangeAvatar } = useChangeAvatar();
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -72,6 +74,9 @@ export const useProfileScreen = () => {
     handleOpenDisplayName: () => router.push("/edit-display-name"),
     handleOpenPrivacyPolicy: () => router.push("/privacy-policy"),
     handleOpenTermsOfUse: () => router.push("/terms-of-use"),
+    hasAvatar,
+    isUpdatingAvatar,
+    handleChangeAvatar,
     canChangePassword,
     isChangingPassword,
     handleChangePassword,

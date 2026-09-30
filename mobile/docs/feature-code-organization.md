@@ -124,7 +124,7 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 ## Account Settings
 
-`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, security and legal sections, logout, and account deletion. Deletion asks for the photo policy and then confirms the irreversible action. Username and avatar uploads are not supported by the profile API. Change Password is available for Auth0 database identities (`auth0|…`): the app mints a ticket from `POST /users/me/password-change-ticket`, opens Auth0's hosted page in the system auth browser, and clears the local session if credentials die afterward. Social identities do not see the Change Password row. Signed-out password reset is Auth0 Universal Login’s own link (opened by Log In); the app does not duplicate it on the home screen (see [Credential changes](../../docs/credential-changes.md)). Profile email edits do not change the Auth0 sign-in email.
+`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, security and legal sections, logout, and account deletion. Deletion asks for the photo policy and then confirms the irreversible action. Tapping the profile photo opens a menu to take a photo, choose one from the library, or remove the current one (see [Profile photo](#profile-photo)). Change Password is available for Auth0 database identities (`auth0|…`): the app mints a ticket from `POST /users/me/password-change-ticket`, opens Auth0's hosted page in the system auth browser, and clears the local session if credentials die afterward. Social identities do not see the Change Password row. Signed-out password reset is Auth0 Universal Login’s own link (opened by Log In); the app does not duplicate it on the home screen (see [Credential changes](../../docs/credential-changes.md)). Profile email edits do not change the Auth0 sign-in email.
 
 ## Shared folders outside `features/`
 
@@ -216,6 +216,25 @@ form validates and trims the name, submits only `name` through the existing
 profile mutation, and returns to the previous screen after success. Save
 stays pinned above the safe area; failures keep the draft available for
 retry. The email action continues to use the existing profile modal.
+
+## Profile photo
+
+`useChangeAvatar` owns the flow: pick or take a photo with the picker's square
+crop, then `prepareAvatarImage` (`lib/avatar-image.ts`) centre-crops anything
+still not square, downscales to 1024px and re-encodes as JPEG. Re-encoding is
+what makes HEIC from the camera roll work, since the API only accepts JPEG,
+PNG and WebP up to 5 MB. The upload itself goes through the shared
+`uploadFile` helper (`lib/api/upload-file.ts`), which photos use too; the
+protocol is in `api/docs/uploads.md`.
+
+`useSetAvatarMutation` starts over with a new upload URL once on
+`IMAGE_UPLOAD_EXPIRED` / `IMAGE_UPLOAD_REJECTED`, retries a `409` (another
+device changed the avatar at the same moment) once, and refetches the user if
+the conflict persists. A `429` blocks further attempts until `Retry-After` has
+passed. The shared `Avatar` component (`components/ui/avatar.tsx`) shows the
+photo in settings and the members list with an initial as the fallback, and
+caches by user id and uploaded object rather than by the presigned URL, which
+changes on every fetch.
 
 ## Legal pages
 

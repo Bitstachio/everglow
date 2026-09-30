@@ -13,6 +13,7 @@ import {
 } from "@/lib/api/generated";
 import type { UploadFileDto } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
+import { uploadFile } from "@/lib/api/upload-file";
 import { eventsKeys } from "./keys";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, PhotoResponseDto, UpdateEventDto } from "../types";
 
@@ -44,45 +45,25 @@ const uploadEventPhoto = async (
   _fileName: string,
   fileType: string,
 ): Promise<PhotoResponseDto> => {
-  const contentType = normalizeContentType(fileType);
+  const slot = await uploadFile({
+    uri: fileUri,
+    contentType: normalizeContentType(fileType),
+    mint: async (file) => {
+      const { data: slotsBody } = await photosControllerCreateUploadUrls({
+        path: { eventId },
+        body: { files: [file] },
+        throwOnError: true,
+      });
 
-  // The upload URL is signed for an exact Content-Length, so the size must be
-  // that of the bytes we send. The picker's fileSize can describe the original
-  // photo rather than the cropped, re-encoded file, which S3 rejects with 403.
-  const fileResponse = await fetch(fileUri);
-  const blob = await fileResponse.blob();
-  if (blob.size <= 0) {
-    throw new Error("Could not determine file size for upload");
-  }
-
-  const { data: slotsBody } = await photosControllerCreateUploadUrls({
-    path: { eventId },
-    body: { files: [{ contentType, sizeBytes: blob.size }] },
-    throwOnError: true,
+      const raw = unwrapEnvelope(slotsBody);
+      const slots = (Array.isArray(raw) ? raw : [raw]).filter(Boolean);
+      const minted = slots[0];
+      if (!minted) {
+        throw new Error("No upload slot returned from the API");
+      }
+      return minted;
+    },
   });
-
-  const raw = unwrapEnvelope(slotsBody);
-  const slots = (Array.isArray(raw) ? raw : [raw]).filter(Boolean);
-  const slot = slots[0];
-  if (!slot) {
-    throw new Error("No upload slot returned from the API");
-  }
-
-  // Expo's fetch sends a Blob body with the blob's own type as Content-Type,
-  // overriding the header below. A blob read from a file:// URI has an empty
-  // type, so S3 sees "content-type:" and rejects the signed URL with 403.
-  // slice() gives a typed view of the same bytes without copying them.
-  const typedBlob = blob.slice(0, blob.size, contentType);
-
-  const uploadResponse = await fetch(slot.uploadUrl, {
-    body: typedBlob,
-    headers: { "Content-Type": contentType },
-    method: "PUT",
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error(`Upload to storage failed (${uploadResponse.status})`);
-  }
 
   await photosControllerConfirmUploads({
     path: { eventId },
