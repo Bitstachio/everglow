@@ -54,6 +54,8 @@ describe("EventCoverService", () => {
     creatorId: callerId,
     invitationUrl: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     coverS3Key,
+    coverUpdatedById: coverS3Key ? callerId : null,
+    underReviewAt: null,
     createdAt: now,
     updatedAt: now,
   });
@@ -137,7 +139,7 @@ describe("EventCoverService", () => {
       expect(s3Service.headObject).toHaveBeenCalledWith(coverKey);
       expect(prisma.event.updateMany).toHaveBeenCalledWith({
         where: { id: eventId, coverS3Key: null },
-        data: { coverS3Key: coverKey },
+        data: { coverS3Key: coverKey, coverUpdatedById: callerId },
       });
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
       expect(eventsService.findOne).toHaveBeenCalledWith(eventId, callerId);
@@ -157,7 +159,7 @@ describe("EventCoverService", () => {
       expect(s3Service.deleteObject).toHaveBeenCalledWith(previousCoverKey);
       expect(prisma.event.updateMany).toHaveBeenCalledWith({
         where: { id: eventId, coverS3Key: previousCoverKey },
-        data: { coverS3Key: coverKey },
+        data: { coverS3Key: coverKey, coverUpdatedById: callerId },
       });
       expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.event.updateMany.mock.invocationCallOrder[0],
@@ -255,7 +257,7 @@ describe("EventCoverService", () => {
       expect(s3Service.deleteObject).toHaveBeenCalledWith(coverKey);
       expect(prisma.event.updateMany).toHaveBeenCalledWith({
         where: { id: eventId, coverS3Key: coverKey },
-        data: { coverS3Key: null },
+        data: { coverS3Key: null, coverUpdatedById: null },
       });
       expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.event.updateMany.mock.invocationCallOrder[0],
@@ -294,17 +296,79 @@ describe("EventCoverService", () => {
   });
 
   describe("getCoverUrl", () => {
+    const viewerId = "99999999-9999-9999-9999-999999999999";
+
+    beforeEach(() => {
+      prisma.report.findMany.mockResolvedValue([]);
+      prisma.eventAccess.findMany.mockResolvedValue([]);
+    });
+
     it("presigns the cover of an event that has one", async () => {
-      await expect(service.getCoverUrl(eventWithCover(coverKey))).resolves.toBe("https://s3.example/get?sig=1");
+      await expect(service.getCoverUrl(eventWithCover(coverKey), viewerId)).resolves.toBe(
+        "https://s3.example/get?sig=1",
+      );
 
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith(expect.objectContaining({ key: coverKey }));
     });
 
     it("returns null for an event without a cover, and touches neither S3 nor the database", async () => {
-      await expect(service.getCoverUrl(eventWithCover(null))).resolves.toBeNull();
+      await expect(service.getCoverUrl(eventWithCover(null), viewerId)).resolves.toBeNull();
 
       expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
-      expect(prisma.event.findUnique).not.toHaveBeenCalled();
+      expect(prisma.report.findMany).not.toHaveBeenCalled();
+    });
+
+    it("hides the cover from a viewer who reported the event", async () => {
+      prisma.report.findMany.mockResolvedValue([{ eventId, reporterId: viewerId }] as never);
+
+      await expect(service.getCoverUrl(eventWithCover(coverKey), viewerId)).resolves.toBeNull();
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    });
+
+    it("hides the cover from non-organizers while a report for nudity or violence is open", async () => {
+      prisma.report.findMany.mockResolvedValue([{ eventId, reporterId: callerId }] as never);
+
+      await expect(service.getCoverUrl(eventWithCover(coverKey), viewerId)).resolves.toBeNull();
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: {
+          eventId: { in: [eventId] },
+          targetType: "EVENT",
+          status: "OPEN",
+          OR: [{ reporterId: viewerId }, { reason: { in: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } }],
+        },
+        select: { eventId: true, reporterId: true },
+      });
+    });
+
+    it("keeps showing it to organizers after someone else's severe report", async () => {
+      prisma.report.findMany.mockResolvedValue([{ eventId, reporterId: callerId }] as never);
+      prisma.eventAccess.findMany.mockResolvedValue([{ eventId }] as never);
+
+      await expect(service.getCoverUrl(eventWithCover(coverKey), viewerId)).resolves.toBe(
+        "https://s3.example/get?sig=1",
+      );
+    });
+  });
+
+  describe("getCoverUrls", () => {
+    it("checks reports once for the whole list and hides only the affected covers", async () => {
+      const otherId = "77777777-7777-7777-7777-777777777777";
+      prisma.report.findMany.mockResolvedValue([{ eventId, reporterId: callerId }] as never);
+      prisma.eventAccess.findMany.mockResolvedValue([]);
+
+      const urls = await service.getCoverUrls(
+        [
+          eventWithCover(coverKey),
+          { ...eventWithCover(previousCoverKey), id: otherId },
+          { ...eventWithCover(null), id: "none" },
+        ],
+        "99999999-9999-9999-9999-999999999999",
+      );
+
+      expect(prisma.report.findMany).toHaveBeenCalledTimes(1);
+      expect(urls.get(eventId)).toBeNull();
+      expect(urls.get(otherId)).toBe("https://s3.example/get?sig=1");
+      expect(urls.get("none")).toBeNull();
     });
   });
 

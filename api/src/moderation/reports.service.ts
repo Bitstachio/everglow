@@ -43,6 +43,7 @@ import {
   STALE_REPORT_AFTER_HOURS,
   STALE_REPORT_SAMPLE_SIZE,
   reportHideThreshold,
+  underReviewThreshold,
 } from "./moderation.constants";
 import { eventForPhotoVisibilityInclude } from "./moderation.types";
 import { PhotoVisibilityService } from "./photo-visibility.service";
@@ -57,6 +58,12 @@ interface EscalationContext {
   reportedAccessLevel: AccessLevel | null;
   /** The event's hide threshold, for PHOTO reports. */
   hideThreshold?: number;
+  /** An EVENT report: always the platform owner's to review. */
+  targetIsEvent?: boolean;
+  /** For an EVENT report, who set the event's current cover, if anyone. */
+  coverUpdatedById?: string | null;
+  /** For an EVENT report, the event's member count, which sets the under-review threshold. */
+  memberCount?: number;
 }
 
 export interface StaleReportCheckResult {
@@ -144,6 +151,30 @@ export class ReportsService {
     return this.createReport(callerId, target, dto, { reportedAccessLevel: targetAccess.accessLevel });
   }
 
+  /**
+   * A report about the event itself: its cover, title or description, or the
+   * event as a whole. Any member may file one. It is always escalated and never
+   * shown to the organizers, whose content it is about.
+   */
+  async reportEvent(eventId: string, callerId: string, dto: CreateReportDto): Promise<Report> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: { ...eventWithCallerAccessInclude(callerId), _count: { select: { eventAccesses: true } } },
+    });
+    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+
+    await this.assertCanReportIn(event, callerId);
+
+    const target: ReportTarget = { eventId, targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null };
+
+    return this.createReport(callerId, target, dto, {
+      reportedAccessLevel: null,
+      targetIsEvent: true,
+      coverUpdatedById: event.coverUpdatedById,
+      memberCount: event._count.eventAccesses,
+    });
+  }
+
   async listReports(eventId: string, callerId: string, query: ListReportsQueryDto): Promise<KeysetPage<Report>> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -152,8 +183,14 @@ export class ReportsService {
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    // Listing is reading reports of the event; authorize against a prospective row.
-    const prospectiveReport = subject(REPORT_SUBJECT, { eventId, event } as unknown as Report);
+    // Listing is reading reports of the event; authorize against a prospective
+    // row of a kind organizers review. The query below narrows to those kinds,
+    // so reports about the event itself never appear here.
+    const prospectiveReport = subject(REPORT_SUBJECT, {
+      eventId,
+      event,
+      targetType: ReportTargetType.PHOTO,
+    } as unknown as Report);
     if (!ability.can(REPORT_ACTIONS.READ, prospectiveReport)) {
       throw new ForbiddenException(REPORT_SERVICE_ERRORS.LIST_FORBIDDEN(eventId));
     }
@@ -434,6 +471,8 @@ export class ReportsService {
       photoId: created.photoId,
       reportedUserId: created.reportedUserId,
       reason: created.reason,
+      // Whose cover it is, so the reviewer of an event report knows where to look.
+      ...(context.targetIsEvent && { coverUpdatedById: context.coverUpdatedById ?? null }),
       audit: true,
     };
     this.logger.info({ event: "report.created", ...fields }, "Report created");
@@ -454,6 +493,7 @@ export class ReportsService {
     const reasons: ReportEscalationReason[] = [];
 
     if (SEVERE_REPORT_REASONS.includes(report.reason)) reasons.push(REPORT_ESCALATION_REASONS.SEVERE_REASON);
+    if (context.targetIsEvent) reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_EVENT);
     if (context.reportedAccessLevel === AccessLevel.ORGANIZER) {
       reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_ORGANIZER);
       // Nobody in the event can resolve a report about its only organizer.
@@ -469,7 +509,35 @@ export class ReportsService {
       // Equality, so the report that tips the photo over is the one that says so.
       if (openReports === context.hideThreshold) reasons.push(REPORT_ESCALATION_REASONS.HIDE_THRESHOLD_REACHED);
     }
+    if (context.targetIsEvent && context.memberCount !== undefined) {
+      if (await this.putUnderReviewAtThreshold(report.eventId, context.memberCount)) {
+        reasons.push(REPORT_ESCALATION_REASONS.EVENT_UNDER_REVIEW);
+      }
+    }
 
     return reasons;
+  }
+
+  /**
+   * Puts the event under review once its OPEN event reports reach
+   * `underReviewThreshold`; each is by a different member
+   * (Report_reporterId_eventId_key), so the rows are at most one per member.
+   * Returns whether this call did it: the update only matches an event not
+   * already under review, so of two reports that cross the threshold together
+   * exactly one says so. Only the platform lifts it.
+   */
+  private async putUnderReviewAtThreshold(eventId: string, memberCount: number): Promise<boolean> {
+    const openReports = await this.prisma.report.findMany({
+      where: { eventId, targetType: ReportTargetType.EVENT, status: ReportStatus.OPEN },
+      select: { reason: true },
+    });
+    const anySevere = openReports.some((open) => SEVERE_REPORT_REASONS.includes(open.reason));
+    if (openReports.length < underReviewThreshold(memberCount, anySevere)) return false;
+
+    const { count } = await this.prisma.event.updateMany({
+      where: { id: eventId, underReviewAt: null },
+      data: { underReviewAt: new Date() },
+    });
+    return count === 1;
   }
 }

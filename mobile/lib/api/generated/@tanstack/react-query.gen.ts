@@ -38,6 +38,7 @@ import {
   photosControllerListPhotos,
   photosControllerRemove,
   reportsControllerListReports,
+  reportsControllerReportEvent,
   reportsControllerReportMember,
   reportsControllerReportPhoto,
   reportsControllerResolveReport,
@@ -46,8 +47,11 @@ import {
   usersControllerConfirmAvatarUpload,
   usersControllerCreateAvatarUploadUrl,
   usersControllerCreatePasswordChangeTicket,
+  usersControllerDeleteMyPhotosInEvent,
   usersControllerFindMe,
   usersControllerGetMyStorage,
+  usersControllerGetMyStorageByEvent,
+  usersControllerListMyPhotosInEvent,
   usersControllerRemoveAvatar,
   usersControllerRemoveMe,
   usersControllerUpdateMe,
@@ -129,6 +133,9 @@ import type {
   ReportsControllerListReportsData,
   ReportsControllerListReportsError,
   ReportsControllerListReportsResponse,
+  ReportsControllerReportEventData,
+  ReportsControllerReportEventError,
+  ReportsControllerReportEventResponse,
   ReportsControllerReportMemberData,
   ReportsControllerReportMemberError,
   ReportsControllerReportMemberResponse,
@@ -153,12 +160,21 @@ import type {
   UsersControllerCreatePasswordChangeTicketData,
   UsersControllerCreatePasswordChangeTicketError,
   UsersControllerCreatePasswordChangeTicketResponse,
+  UsersControllerDeleteMyPhotosInEventData,
+  UsersControllerDeleteMyPhotosInEventError,
+  UsersControllerDeleteMyPhotosInEventResponse,
   UsersControllerFindMeData,
   UsersControllerFindMeError,
   UsersControllerFindMeResponse,
+  UsersControllerGetMyStorageByEventData,
+  UsersControllerGetMyStorageByEventError,
+  UsersControllerGetMyStorageByEventResponse,
   UsersControllerGetMyStorageData,
   UsersControllerGetMyStorageError,
   UsersControllerGetMyStorageResponse,
+  UsersControllerListMyPhotosInEventData,
+  UsersControllerListMyPhotosInEventError,
+  UsersControllerListMyPhotosInEventResponse,
   UsersControllerRemoveAvatarData,
   UsersControllerRemoveAvatarError,
   UsersControllerRemoveAvatarResponse,
@@ -385,6 +401,171 @@ export const usersControllerGetMyStorageOptions = (options?: Options<UsersContro
     queryKey: usersControllerGetMyStorageQueryKey(options),
   });
 
+export const usersControllerGetMyStorageByEventQueryKey = (options?: Options<UsersControllerGetMyStorageByEventData>) =>
+  createQueryKey("usersControllerGetMyStorageByEvent", options);
+
+/**
+ * Break the caller's storage down by event
+ *
+ * One row per event the caller has photos in, largest first, including events they left or were removed from.
+ */
+export const usersControllerGetMyStorageByEventOptions = (options?: Options<UsersControllerGetMyStorageByEventData>) =>
+  queryOptions<
+    UsersControllerGetMyStorageByEventResponse,
+    AxiosError<UsersControllerGetMyStorageByEventError>,
+    UsersControllerGetMyStorageByEventResponse,
+    ReturnType<typeof usersControllerGetMyStorageByEventQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await usersControllerGetMyStorageByEvent({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: usersControllerGetMyStorageByEventQueryKey(options),
+  });
+
+export const usersControllerListMyPhotosInEventQueryKey = (options: Options<UsersControllerListMyPhotosInEventData>) =>
+  createQueryKey("usersControllerListMyPhotosInEvent", options);
+
+/**
+ * List the caller's own photos in one event
+ *
+ * Newest first, with each photo's size. Works whether or not the caller is still a member.
+ */
+export const usersControllerListMyPhotosInEventOptions = (options: Options<UsersControllerListMyPhotosInEventData>) =>
+  queryOptions<
+    UsersControllerListMyPhotosInEventResponse,
+    AxiosError<UsersControllerListMyPhotosInEventError>,
+    UsersControllerListMyPhotosInEventResponse,
+    ReturnType<typeof usersControllerListMyPhotosInEventQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await usersControllerListMyPhotosInEvent({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: usersControllerListMyPhotosInEventQueryKey(options),
+  });
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], "body" | "headers" | "path" | "query">>(
+  queryKey: QueryKey<Options>,
+  page: K,
+) => {
+  const params = { ...queryKey[0] };
+  if (page.body) {
+    params.body = {
+      ...(queryKey[0].body as any),
+      ...(page.body as any),
+    };
+  }
+  if (page.headers) {
+    params.headers = {
+      ...queryKey[0].headers,
+      ...page.headers,
+    };
+  }
+  if (page.path) {
+    params.path = {
+      ...(queryKey[0].path as any),
+      ...(page.path as any),
+    };
+  }
+  if (page.query) {
+    params.query = {
+      ...(queryKey[0].query as any),
+      ...(page.query as any),
+    };
+  }
+  return params as unknown as typeof page;
+};
+
+export const usersControllerListMyPhotosInEventInfiniteQueryKey = (
+  options: Options<UsersControllerListMyPhotosInEventData>,
+): QueryKey<Options<UsersControllerListMyPhotosInEventData>> =>
+  createQueryKey("usersControllerListMyPhotosInEvent", options, true);
+
+/**
+ * List the caller's own photos in one event
+ *
+ * Newest first, with each photo's size. Works whether or not the caller is still a member.
+ */
+export const usersControllerListMyPhotosInEventInfiniteOptions = (
+  options: Options<UsersControllerListMyPhotosInEventData>,
+) => {
+  const opts = infiniteQueryOptions<
+    UsersControllerListMyPhotosInEventResponse,
+    AxiosError<UsersControllerListMyPhotosInEventError>,
+    InfiniteData<UsersControllerListMyPhotosInEventResponse>,
+    QueryKey<Options<UsersControllerListMyPhotosInEventData>>,
+    string | Pick<QueryKey<Options<UsersControllerListMyPhotosInEventData>>[0], "body" | "headers" | "path" | "query">
+  >(
+    // @ts-ignore
+    {
+      queryFn: async ({ pageParam, queryKey, signal }) => {
+        // @ts-ignore
+        const page: Pick<
+          QueryKey<Options<UsersControllerListMyPhotosInEventData>>[0],
+          "body" | "headers" | "path" | "query"
+        > =
+          typeof pageParam === "object"
+            ? pageParam
+            : {
+                query: {
+                  cursor: pageParam,
+                },
+              };
+        const params = createInfiniteParams(queryKey, page);
+        const { data } = await usersControllerListMyPhotosInEvent({
+          ...options,
+          ...params,
+          signal,
+          throwOnError: true,
+        });
+        return data;
+      },
+      queryKey: usersControllerListMyPhotosInEventInfiniteQueryKey(options),
+    },
+  );
+  return opts as Omit<typeof opts, "initialData">;
+};
+
+/**
+ * Delete the caller's own photos in one event to free storage
+ *
+ * Deletes the given photos, or all of the caller's photos in the event when photoIds is omitted. Works whether or not the caller is still a member. Open reports on them are closed.
+ */
+export const usersControllerDeleteMyPhotosInEventMutation = (
+  options?: Partial<Options<UsersControllerDeleteMyPhotosInEventData>>,
+): UseMutationOptions<
+  UsersControllerDeleteMyPhotosInEventResponse,
+  AxiosError<UsersControllerDeleteMyPhotosInEventError>,
+  Options<UsersControllerDeleteMyPhotosInEventData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UsersControllerDeleteMyPhotosInEventResponse,
+    AxiosError<UsersControllerDeleteMyPhotosInEventError>,
+    Options<UsersControllerDeleteMyPhotosInEventData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await usersControllerDeleteMyPhotosInEvent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
 /**
  * Mint a presigned upload URL for the current user's avatar
  */
@@ -573,38 +754,6 @@ export const photosControllerListPhotosOptions = (options: Options<PhotosControl
     },
     queryKey: photosControllerListPhotosQueryKey(options),
   });
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], "body" | "headers" | "path" | "query">>(
-  queryKey: QueryKey<Options>,
-  page: K,
-) => {
-  const params = { ...queryKey[0] };
-  if (page.body) {
-    params.body = {
-      ...(queryKey[0].body as any),
-      ...(page.body as any),
-    };
-  }
-  if (page.headers) {
-    params.headers = {
-      ...queryKey[0].headers,
-      ...page.headers,
-    };
-  }
-  if (page.path) {
-    params.path = {
-      ...(queryKey[0].path as any),
-      ...(page.path as any),
-    };
-  }
-  if (page.query) {
-    params.query = {
-      ...(queryKey[0].query as any),
-      ...(page.query as any),
-    };
-  }
-  return params as unknown as typeof page;
-};
 
 export const photosControllerListPhotosInfiniteQueryKey = (
   options: Options<PhotosControllerListPhotosData>,
@@ -826,6 +975,35 @@ export const reportsControllerListReportsInfiniteOptions = (options: Options<Rep
     },
   );
   return opts as Omit<typeof opts, "initialData">;
+};
+
+/**
+ * Report an event
+ *
+ * Any member of the event, about the event itself: its cover, title or description, or the event as a whole (the note can say which). Reviewed by the platform, never by the event's organizers. Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.
+ */
+export const reportsControllerReportEventMutation = (
+  options?: Partial<Options<ReportsControllerReportEventData>>,
+): UseMutationOptions<
+  ReportsControllerReportEventResponse,
+  AxiosError<ReportsControllerReportEventError>,
+  Options<ReportsControllerReportEventData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportsControllerReportEventResponse,
+    AxiosError<ReportsControllerReportEventError>,
+    Options<ReportsControllerReportEventData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reportsControllerReportEvent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
 };
 
 /**

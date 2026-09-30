@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { STRING_LIMITS } from "src/common/constants/schema.constants";
+import { EVENT_STATUSES, type EventStatus } from "../events.constants";
 
 export class EventResponseDto {
   @ApiProperty({ format: "uuid" })
@@ -29,9 +30,20 @@ export class EventResponseDto {
     nullable: true,
     type: String,
     maxLength: STRING_LIMITS.LONG,
-    description: "Short-lived presigned URL of the event cover image; null when none is set",
+    description:
+      "Short-lived presigned URL of the event cover image; null when none is set, " +
+      "or while it is hidden from the caller after a report of the event",
   })
   coverUrl: string | null;
+
+  @ApiProperty({
+    enum: EVENT_STATUSES,
+    enumName: "EventStatus",
+    description:
+      "UNDER_REVIEW once enough members have reported the event itself: members keep access, " +
+      "but no one can join and no photos can be added until the platform finishes its review.",
+  })
+  status: EventStatus;
 
   @ApiProperty()
   createdAt: Date;
