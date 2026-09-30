@@ -357,8 +357,7 @@ describe("EventsController (integration)", () => {
 
     it("returns 403 with EVENT_UNDER_REVIEW while the platform reviews the event", async () => {
       prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
-      prisma.event.findUnique.mockResolvedValue(buildEvent({ underReviewAt: new Date("2026-09-20T12:00:00.000Z") }));
-      prisma.eventAccess.findUnique.mockResolvedValue(null);
+      setupJoinableInvite(buildEvent({ underReviewAt: new Date("2026-09-20T12:00:00.000Z") }), "invite-token");
       prisma.eventBan.findUnique.mockResolvedValue(null);
 
       const response = await request(httpServer)
