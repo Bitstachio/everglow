@@ -907,7 +907,7 @@ describe("EventsController (integration)", () => {
       expect(prisma.eventInvite.update).toHaveBeenCalledTimes(1);
       expect(prisma.event.update).toHaveBeenCalledWith({
         where: { id: TEST_EVENT_ID },
-        data: { invitationUrl: expect.any(String) },
+        data: { invitationUrl: expect.any(String) as string },
       });
       expect(updatedEvent.invitationUrl).toBe("new-invite-token");
     });
@@ -953,7 +953,7 @@ describe("EventsController (integration)", () => {
       });
       expect(prisma.eventInvite.update).toHaveBeenCalledWith({
         where: { id: viewerInvite.id },
-        data: { token: expect.any(String) },
+        data: { token: expect.any(String) as string },
       });
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(prisma.event.findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: TEST_EVENT_ID } });
