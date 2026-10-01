@@ -484,6 +484,32 @@ export type EventBanListResponseDto = {
 
 export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
 
+export type ApiErrorDto = {
+  message?: string;
+  /**
+   * Stable machine-readable error code, when the error has one
+   */
+  code?:
+    | "ACTIVE_EVENT_LIMIT_REACHED"
+    | "EVENT_GALLERY_CLOSED"
+    | "EVENT_MEMBER_LIMIT_REACHED"
+    | "EVENT_STORAGE_LIMIT_REACHED"
+    | "EVENT_UNDER_REVIEW"
+    | "IMAGE_INVALID_SIZE"
+    | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
+    | "IMAGE_UPLOAD_EXPIRED"
+    | "IMAGE_UPLOAD_NOT_FOUND"
+    | "IMAGE_UPLOAD_REJECTED"
+    | "ORGANIZER_BLOCKED_BY_CALLER"
+    | "RATE_LIMIT_EXCEEDED"
+    | "REMOVED_FROM_EVENT"
+    | "STORAGE_QUOTA_EXCEEDED"
+    | "STORAGE_RESERVATION_CONFLICT"
+    | "USERNAME_CHANGE_LIMITED"
+    | "USERNAME_TAKEN";
+  meta: ResponseMetaDto;
+};
+
 export type AppControllerGetHelloData = {
   body?: never;
   path?: never;
@@ -510,31 +536,7 @@ export type UsersControllerCompleteOnboardingErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerCompleteOnboardingError =
@@ -573,31 +575,7 @@ export type UsersControllerCheckUsernameAvailabilityErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerCheckUsernameAvailabilityError =
@@ -636,31 +614,7 @@ export type UsersControllerRemoveMeErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerRemoveMeError = UsersControllerRemoveMeErrors[keyof UsersControllerRemoveMeErrors];
@@ -689,31 +643,7 @@ export type UsersControllerFindMeErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerFindMeError = UsersControllerFindMeErrors[keyof UsersControllerFindMeErrors];
@@ -745,31 +675,7 @@ export type UsersControllerUpdateMeErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerUpdateMeError = UsersControllerUpdateMeErrors[keyof UsersControllerUpdateMeErrors];
@@ -801,31 +707,7 @@ export type UsersControllerGetMyStorageErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerGetMyStorageError =
@@ -859,31 +741,7 @@ export type UsersControllerGetMyStorageByEventErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerGetMyStorageByEventError =
@@ -925,31 +783,7 @@ export type UsersControllerListMyPhotosInEventErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerListMyPhotosInEventError =
@@ -985,31 +819,7 @@ export type UsersControllerDeleteMyPhotosInEventErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerDeleteMyPhotosInEventError =
@@ -1043,31 +853,7 @@ export type UsersControllerCreateAvatarUploadUrlErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerCreateAvatarUploadUrlError =
@@ -1101,31 +887,7 @@ export type UsersControllerRemoveAvatarErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerRemoveAvatarError =
@@ -1156,31 +918,7 @@ export type UsersControllerConfirmAvatarUploadErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerConfirmAvatarUploadError =
@@ -1218,31 +956,7 @@ export type UsersControllerCreatePasswordChangeTicketErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type UsersControllerCreatePasswordChangeTicketError =
@@ -1278,31 +992,7 @@ export type PhotosControllerCreateUploadUrlsErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type PhotosControllerCreateUploadUrlsError =
@@ -1338,31 +1028,7 @@ export type PhotosControllerConfirmUploadsErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type PhotosControllerConfirmUploadsError =
@@ -1404,31 +1070,7 @@ export type PhotosControllerListPhotosErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type PhotosControllerListPhotosError = PhotosControllerListPhotosErrors[keyof PhotosControllerListPhotosErrors];
@@ -1463,31 +1105,7 @@ export type PhotosControllerRemoveErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type PhotosControllerRemoveError = PhotosControllerRemoveErrors[keyof PhotosControllerRemoveErrors];
@@ -1518,31 +1136,7 @@ export type PhotosControllerFindOneErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type PhotosControllerFindOneError = PhotosControllerFindOneErrors[keyof PhotosControllerFindOneErrors];
@@ -1576,31 +1170,7 @@ export type ReportsControllerReportPhotoErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type ReportsControllerReportPhotoError =
@@ -1637,31 +1207,7 @@ export type ReportsControllerReportMemberErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type ReportsControllerReportMemberError =
@@ -1707,31 +1253,7 @@ export type ReportsControllerListReportsErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type ReportsControllerListReportsError =
@@ -1767,31 +1289,7 @@ export type ReportsControllerReportEventErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type ReportsControllerReportEventError =
@@ -1827,31 +1325,7 @@ export type ReportsControllerResolveReportErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type ReportsControllerResolveReportError =
@@ -1885,31 +1359,7 @@ export type BlocksControllerListErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type BlocksControllerListError = BlocksControllerListErrors[keyof BlocksControllerListErrors];
@@ -1943,31 +1393,7 @@ export type BlocksControllerUnblockErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type BlocksControllerUnblockError = BlocksControllerUnblockErrors[keyof BlocksControllerUnblockErrors];
@@ -1998,31 +1424,7 @@ export type BlocksControllerBlockErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type BlocksControllerBlockError = BlocksControllerBlockErrors[keyof BlocksControllerBlockErrors];
@@ -2054,31 +1456,7 @@ export type EventsControllerFindAllErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerFindAllError = EventsControllerFindAllErrors[keyof EventsControllerFindAllErrors];
@@ -2110,31 +1488,7 @@ export type EventsControllerCreateErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerCreateError = EventsControllerCreateErrors[keyof EventsControllerCreateErrors];
@@ -2166,31 +1520,7 @@ export type EventsControllerJoinErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerJoinError = EventsControllerJoinErrors[keyof EventsControllerJoinErrors];
@@ -2224,31 +1554,7 @@ export type EventsControllerRemoveErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerRemoveError = EventsControllerRemoveErrors[keyof EventsControllerRemoveErrors];
@@ -2279,31 +1585,7 @@ export type EventsControllerFindOneErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerFindOneError = EventsControllerFindOneErrors[keyof EventsControllerFindOneErrors];
@@ -2337,31 +1619,7 @@ export type EventsControllerUpdateErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerUpdateError = EventsControllerUpdateErrors[keyof EventsControllerUpdateErrors];
@@ -2400,31 +1658,7 @@ export type EventsControllerLeaveErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerLeaveError = EventsControllerLeaveErrors[keyof EventsControllerLeaveErrors];
@@ -2455,31 +1689,7 @@ export type EventsControllerGetParticipantsErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerGetParticipantsError =
@@ -2516,31 +1726,7 @@ export type EventsControllerUpdateParticipantAccessErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerUpdateParticipantAccessError =
@@ -2582,31 +1768,7 @@ export type EventsControllerRemoveParticipantErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerRemoveParticipantError =
@@ -2639,31 +1801,7 @@ export type EventsControllerListBansErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerListBansError = EventsControllerListBansErrors[keyof EventsControllerListBansErrors];
@@ -2699,31 +1837,7 @@ export type EventsControllerLiftBanErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerLiftBanError = EventsControllerLiftBanErrors[keyof EventsControllerLiftBanErrors];
@@ -2754,31 +1868,7 @@ export type EventsControllerRegenerateInvitationUrlErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerRegenerateInvitationUrlError =
@@ -2815,31 +1905,7 @@ export type EventsControllerRegenerateInviteErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerRegenerateInviteError =
@@ -2875,31 +1941,7 @@ export type EventsControllerCreateCoverUploadUrlErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerCreateCoverUploadUrlError =
@@ -2935,31 +1977,7 @@ export type EventsControllerRemoveCoverErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerRemoveCoverError =
@@ -2992,31 +2010,7 @@ export type EventsControllerConfirmCoverUploadErrors = {
   /**
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
+  429: ApiErrorDto;
 };
 
 export type EventsControllerConfirmCoverUploadError =
