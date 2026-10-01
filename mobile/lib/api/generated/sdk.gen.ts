@@ -813,7 +813,7 @@ export const eventsControllerRegenerateInvitationUrl = <ThrowOnError extends boo
 /**
  * Regenerate an invitation URL for one access level
  *
- * Organizers only. Other roles' invite links stay valid.
+ * Organizers only. Other roles' invite links stay valid. Only PARTICIPANT and VIEWER have links; someone becomes an organizer only when an organizer promotes them.
  */
 export const eventsControllerRegenerateInvite = <ThrowOnError extends boolean = false>(
   options: Options<EventsControllerRegenerateInviteData, ThrowOnError>,

@@ -307,20 +307,19 @@ describe("EventsService", () => {
     },
   };
 
-  const expectThreeRoleInvites = (createData: unknown) => {
+  /** Participant and Viewer links only: nobody becomes an organizer through a link. */
+  const expectParticipantAndViewerInvites = (createData: unknown) => {
     const data = createData as {
       invitationUrl: string;
       invites?: { create?: Array<{ token: string; accessLevel: AccessLevel }> };
     };
-    expect(data.invites?.create).toHaveLength(3);
+    expect(data.invites?.create).toHaveLength(2);
     const invites = data.invites!.create!;
     const byLevel = Object.fromEntries(invites.map((invite) => [invite.accessLevel, invite]));
     expect(byLevel[AccessLevel.PARTICIPANT]?.token).toBe(data.invitationUrl);
     expect(byLevel[AccessLevel.VIEWER]?.token).toEqual(expect.any(String));
-    expect(byLevel[AccessLevel.ORGANIZER]?.token).toEqual(expect.any(String));
     expect(byLevel[AccessLevel.VIEWER]?.token).not.toBe(data.invitationUrl);
-    expect(byLevel[AccessLevel.ORGANIZER]?.token).not.toBe(data.invitationUrl);
-    expect(byLevel[AccessLevel.VIEWER]?.token).not.toBe(byLevel[AccessLevel.ORGANIZER]?.token);
+    expect(byLevel[AccessLevel.ORGANIZER]).toBeUndefined();
   };
 
   const eventWithCallerAccess = (event: Event, access: EventAccess[]) => ({
@@ -475,7 +474,7 @@ describe("EventsService", () => {
       expect(typeof createPayload.data.invitationUrl).toBe("string");
       expect(createPayload.data.invitationUrl).not.toBe("");
       expect(createPayload.data.invitationUrl.length).toBeLessThanOrEqual(100);
-      expectThreeRoleInvites(createPayload.data);
+      expectParticipantAndViewerInvites(createPayload.data);
       expect(result).toEqual(createdEvent);
       expect(logger.info).toHaveBeenCalledWith(
         { event: "event.created", eventId: createdEvent.id, creatorId },
@@ -492,13 +491,13 @@ describe("EventsService", () => {
       expect(prisma.event.create.mock.calls[0][0].data).toMatchObject(creatorOrganizerAccessGrant);
     });
 
-    it("creates PARTICIPANT, VIEWER, and ORGANIZER invite rows nested under the event", async () => {
+    it("creates PARTICIPANT and VIEWER invite rows, and no ORGANIZER one, nested under the event", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       prisma.event.create.mockResolvedValue(createdEvent);
 
       await service.create(creatorId, createEventDto);
 
-      expectThreeRoleInvites(prisma.event.create.mock.calls[0][0].data);
+      expectParticipantAndViewerInvites(prisma.event.create.mock.calls[0][0].data);
     });
 
     it("creates an event with a description when description is provided", async () => {
@@ -572,8 +571,8 @@ describe("EventsService", () => {
       expect(firstCreate.invitationUrl).not.toEqual(secondCreate.invitationUrl);
       expect(firstCreate.invitationUrl.length).toBeLessThanOrEqual(100);
       expect(secondCreate.invitationUrl.length).toBeLessThanOrEqual(100);
-      expectThreeRoleInvites(firstCreate);
-      expectThreeRoleInvites(secondCreate);
+      expectParticipantAndViewerInvites(firstCreate);
+      expectParticipantAndViewerInvites(secondCreate);
     });
 
     it("throws when the creator does not exist", async () => {
@@ -834,18 +833,13 @@ describe("EventsService", () => {
       );
     });
 
-    it("grants organizer access when joining via an ORGANIZER invite token", async () => {
+    it("treats a leftover ORGANIZER invite token as an unknown link", async () => {
       setupSuccessfulJoin(AccessLevel.ORGANIZER, eventCreatedByUser, organizerInvite.token);
 
-      await service.joinByInvitationUrl(callerId, organizerInvite.token);
-
-      expect(prisma.eventAccess.create).toHaveBeenCalledWith({
-        data: { userId: callerId, eventId, accessLevel: AccessLevel.ORGANIZER },
-      });
-      expect(logger.info).toHaveBeenCalledWith(
-        { event: "event.joined", eventId, callerId, accessLevel: AccessLevel.ORGANIZER },
-        "User joined event via invitation URL",
+      await expect(service.joinByInvitationUrl(callerId, organizerInvite.token)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(organizerInvite.token)),
       );
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
     it("returns the joined event without event access relations", async () => {
@@ -2039,7 +2033,7 @@ describe("EventsService", () => {
   });
 
   describe("listInvitesForCaller", () => {
-    const invites = [participantInvite, viewerInvite, organizerInvite];
+    const invites = [participantInvite, viewerInvite];
 
     const openGallery = { event: { galleryClosesAt: new Date(Date.now() + 60_000), galleryClosedAt: null } };
 
@@ -2053,7 +2047,9 @@ describe("EventsService", () => {
         where: { userId_eventId: { userId: callerId, eventId } },
         include: { event: { select: { galleryClosesAt: true, galleryClosedAt: true } } },
       });
-      expect(prisma.eventInvite.findMany).toHaveBeenCalledWith({ where: { eventId } });
+      expect(prisma.eventInvite.findMany).toHaveBeenCalledWith({
+        where: { eventId, accessLevel: { in: ["PARTICIPANT", "VIEWER"] } },
+      });
       expect(result).toEqual(invites);
     });
 

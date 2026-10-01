@@ -22,6 +22,7 @@ import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-membership";
+import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import {
@@ -94,7 +95,6 @@ export class EventsService {
             create: [
               { token: participantToken, accessLevel: AccessLevel.PARTICIPANT },
               { token: randomUUID(), accessLevel: AccessLevel.VIEWER },
-              { token: randomUUID(), accessLevel: AccessLevel.ORGANIZER },
             ],
           },
         },
@@ -128,7 +128,10 @@ export class EventsService {
     if (!caller.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
 
     const invite = await this.prisma.eventInvite.findUnique({ where: { token: invitationUrl } });
-    if (!invite) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+    // Organizer links no longer exist; one that slipped through reads as unknown.
+    if (!invite || !isInviteAccessLevel(invite.accessLevel)) {
+      throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+    }
 
     const event = await this.prisma.event.findUnique({ where: { id: invite.eventId } });
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
@@ -291,7 +294,7 @@ export class EventsService {
    * valid. The PARTICIPANT token also updates Event.invitationUrl so older
    * clients that only know that field keep working.
    */
-  async regenerateInvite(eventId: string, callerId: string, accessLevel: AccessLevel): Promise<Event> {
+  async regenerateInvite(eventId: string, callerId: string, accessLevel: EventInviteAccessLevel): Promise<Event> {
     const event = await this.getUpdatable(eventId, callerId);
     // No new links into a closed event, which can't be joined.
     this.eventPlanService.assertGalleryOpen(event);
@@ -340,7 +343,7 @@ export class EventsService {
     if (!access || access.accessLevel !== AccessLevel.ORGANIZER) return [];
     if (galleryStateOf(access.event) === GALLERY_STATES.CLOSED) return [];
 
-    return this.prisma.eventInvite.findMany({ where: { eventId } });
+    return this.prisma.eventInvite.findMany({ where: { eventId, accessLevel: { in: EVENT_INVITE_ACCESS_LEVELS } } });
   }
 
   /**
