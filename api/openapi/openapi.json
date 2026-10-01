@@ -3325,6 +3325,42 @@
           "PARTICIPANT",
           "VIEWER"
         ]
+      },
+      "ApiErrorDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "ACTIVE_EVENT_LIMIT_REACHED",
+              "EVENT_GALLERY_CLOSED",
+              "EVENT_MEMBER_LIMIT_REACHED",
+              "EVENT_STORAGE_LIMIT_REACHED",
+              "EVENT_UNDER_REVIEW",
+              "IMAGE_INVALID_SIZE",
+              "IMAGE_UNSUPPORTED_CONTENT_TYPE",
+              "IMAGE_UPLOAD_EXPIRED",
+              "IMAGE_UPLOAD_NOT_FOUND",
+              "IMAGE_UPLOAD_REJECTED",
+              "ORGANIZER_BLOCKED_BY_CALLER",
+              "RATE_LIMIT_EXCEEDED",
+              "REMOVED_FROM_EVENT",
+              "STORAGE_RESERVATION_CONFLICT",
+              "USERNAME_CHANGE_LIMITED",
+              "USERNAME_TAKEN"
+            ],
+            "description": "Stable machine-readable error code, when the error has one"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "meta"
+        ]
       }
     },
     "responses": {
@@ -3342,41 +3378,14 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "object",
-              "required": [
-                "meta"
-              ],
-              "properties": {
-                "message": {
-                  "type": "string",
-                  "example": "Too many requests, please try again later"
-                },
-                "code": {
-                  "type": "string",
-                  "description": "Stable machine-readable error code, when the error has one",
-                  "enum": [
-                    "ACTIVE_EVENT_LIMIT_REACHED",
-                    "EVENT_GALLERY_CLOSED",
-                    "EVENT_MEMBER_LIMIT_REACHED",
-                    "EVENT_STORAGE_LIMIT_REACHED",
-                    "EVENT_UNDER_REVIEW",
-                    "IMAGE_INVALID_SIZE",
-                    "IMAGE_UNSUPPORTED_CONTENT_TYPE",
-                    "IMAGE_UPLOAD_EXPIRED",
-                    "IMAGE_UPLOAD_NOT_FOUND",
-                    "IMAGE_UPLOAD_REJECTED",
-                    "ORGANIZER_BLOCKED_BY_CALLER",
-                    "RATE_LIMIT_EXCEEDED",
-                    "REMOVED_FROM_EVENT",
-                    "STORAGE_RESERVATION_CONFLICT",
-                    "USERNAME_CHANGE_LIMITED",
-                    "USERNAME_TAKEN"
-                  ],
-                  "example": "RATE_LIMIT_EXCEEDED"
-                },
-                "meta": {
-                  "$ref": "#/components/schemas/ResponseMetaDto"
-                }
+              "$ref": "#/components/schemas/ApiErrorDto"
+            },
+            "example": {
+              "message": "Too many requests, please try again later",
+              "code": "RATE_LIMIT_EXCEEDED",
+              "meta": {
+                "timestamp": "2026-06-03T12:00:00.000Z",
+                "path": "/api/v2/events/join"
               }
             }
           }

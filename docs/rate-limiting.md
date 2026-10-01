@@ -115,14 +115,20 @@ Retry-After: 37
 
 ### OpenAPI
 
-The 429 is documented once. `documentRateLimitResponses` (`rate-limit.swagger.ts`) runs inside
-`createOpenApiDocument`, adds a shared `#/components/responses/TooManyRequests`, and references it from every
-operation except those marked `@SkipRateLimit()`. Controllers declare nothing. The response schema is the general
-error envelope (`message?`, `code?`, `meta`) rather than one narrowed to this code, because it is the only error
-body in the spec and generated clients derive each operation's error type from it.
+The error envelope is its own Nest DTO, `ApiErrorDto` (`api/src/common/errors/api-error.dto.ts`).
+`createOpenApiDocument` registers it with `extraModels` so Nest publishes `#/components/schemas/ApiErrorDto`.
+`code` is the closed enum from `API_ERROR_CODES`. Changing that enum, or any other envelope field, is an edit
+to the errors module, then a spec and client regen. It does not belong in rate-limit Swagger.
+`AllExceptionsFilter` types its body as that same DTO.
+
+The 429 is documented separately. `documentRateLimitResponses` (`rate-limit.swagger.ts`) runs inside
+`createOpenApiDocument` after Nest builds the document, adds `#/components/responses/TooManyRequests`
+(`Retry-After`, and a JSON body that `$ref`s `ApiErrorDto` with a rate-limit example), and references that
+response from every operation except those marked `@SkipRateLimit()`. Controllers declare nothing.
 
 Adding or removing `@SkipRateLimit()` changes the spec, so regenerate it and the mobile client. Adding
-`@RateLimit` does not.
+`@RateLimit` does not. Adding a client-facing `code` means adding the constant to `API_ERROR_CODES`, then
+regenerating the spec and the mobile client.
 
 ## Logging
 

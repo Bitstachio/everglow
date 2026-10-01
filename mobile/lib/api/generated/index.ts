@@ -50,6 +50,7 @@ export type {
   AccountLimitsResponseDto,
   AccountPlan,
   AccountUsageResponseDto,
+  ApiErrorDto,
   AppControllerGetHelloData,
   AppControllerGetHelloResponses,
   BlockedUserListResponseDto,
