@@ -199,7 +199,7 @@ test("alerts and navigates back when the event fails to load", async () => {
     </QueryClientProvider>,
   );
 
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Event missing"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to load event details"));
   expect(mockBack).toHaveBeenCalledTimes(1);
 });
 

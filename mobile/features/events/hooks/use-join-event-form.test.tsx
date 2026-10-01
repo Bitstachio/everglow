@@ -52,7 +52,7 @@ test("retains the invitation and displays API errors for retry", async () => {
   const user = userEvent.setup();
   await user.paste(screen.getByPlaceholderText("Invitation"), "invite-token");
   await user.press(screen.getByRole("button", { name: "Join" }));
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Invitation expired"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to join event"));
   expect(screen.getByPlaceholderText("Invitation")).toHaveDisplayValue("invite-token");
   expect(mockSuccess).not.toHaveBeenCalled();
 });

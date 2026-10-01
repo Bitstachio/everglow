@@ -104,12 +104,12 @@ test("preserves values after an API failure and allows retry", async () => {
   const user = userEvent.setup();
   await user.paste(screen.getByPlaceholderText("Title"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Create" }));
-  expect(await screen.findByText("Network unavailable")).toBeOnTheScreen();
+  expect(await screen.findByText("Failed to create event")).toBeOnTheScreen();
   expect(screen.getByPlaceholderText("Title")).toHaveDisplayValue("Meetup");
   expect(mockSuccess).not.toHaveBeenCalled();
   await user.press(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
-  expect(screen.queryByText("Network unavailable")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Failed to create event")).not.toBeOnTheScreen();
 });
 
 test("disables submission while the request is pending", async () => {

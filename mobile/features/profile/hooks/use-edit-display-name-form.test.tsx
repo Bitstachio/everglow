@@ -77,7 +77,9 @@ test("preserves the draft after a failure and allows retry", async () => {
   await render(<Probe onSuccess={success} />);
   const user = await fillName("Grace");
   await user.press(screen.getByRole("button", { name: "Save" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Could not save");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Could not update your display name. Please try again.",
+  );
   expect(screen.getByLabelText("Display Name")).toHaveDisplayValue("Grace");
   expect(success).not.toHaveBeenCalled();
   await user.press(screen.getByRole("button", { name: "Save" }));

@@ -88,7 +88,7 @@ test("shows an error when ticket minting fails", async () => {
     await result.current.handleChangePassword();
   });
 
-  expect(alert).toHaveBeenCalledWith("Could not change password", "Offline");
+  expect(alert).toHaveBeenCalledWith("Could not change password", "Please try again.");
   expect(mockOpenTicket).not.toHaveBeenCalled();
 });
 

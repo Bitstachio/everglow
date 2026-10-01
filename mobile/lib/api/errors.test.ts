@@ -62,13 +62,18 @@ describe("toApiError", () => {
 });
 
 describe("getErrorMessage", () => {
-  it("returns the Error message or the fallback", () => {
-    expect(getErrorMessage(new Error("Offline"), "Please try again.")).toBe("Offline");
+  it("uses the fallback for non-ApiError throws", () => {
+    expect(getErrorMessage(new Error("internal stack hint"), "Please try again.")).toBe("Please try again.");
     expect(getErrorMessage("nope", "Please try again.")).toBe("Please try again.");
   });
 
-  it("prefers mapped copy when ApiError has a known code", () => {
-    const error = createApiError("raw backend text", { status: 409, code: "USERNAME_TAKEN" });
+  it("reads the message already set on ApiError", () => {
+    const error = toApiError({
+      response: {
+        status: 409,
+        data: { message: 'User with username "jane.doe" already exists', code: "USERNAME_TAKEN" },
+      },
+    });
     expect(getErrorMessage(error)).toBe(API_ERROR_MESSAGES.USERNAME_TAKEN);
   });
 });

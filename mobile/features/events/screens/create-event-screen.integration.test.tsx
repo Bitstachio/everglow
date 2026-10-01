@@ -118,14 +118,14 @@ test("keeps entered values after failure, preserves caches, and permits retry", 
   const client = await renderScreen();
   await userEvent.setup().paste(screen.getByPlaceholderText("What's this event about?"), "Bring friends");
   await submit();
-  expect(await screen.findByText("Network unavailable")).toBeOnTheScreen();
+  expect(await screen.findByText("Failed to create event")).toBeOnTheScreen();
   expect(screen.getByPlaceholderText("Enter event name")).toHaveDisplayValue("Meetup");
   expect(screen.getByPlaceholderText("What's this event about?")).toHaveDisplayValue("Bring friends");
   expect(client.getQueryState(eventsKeys.list("user-1"))?.isInvalidated).toBe(false);
   await userEvent.setup().press(screen.getByText("Create Event"));
   expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
   expect(mockCreate).toHaveBeenCalledTimes(2);
-  expect(screen.queryByText("Network unavailable")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Failed to create event")).not.toBeOnTheScreen();
 });
 
 test("locks editing and picker controls until creation completes", async () => {
@@ -172,12 +172,7 @@ test.each([new Error("Share unavailable"), "unknown failure"])(
     await submit();
     await screen.findByText("Your event is live");
     await userEvent.setup().press(screen.getByText("Share"));
-    await waitFor(() =>
-      expect(Alert.alert).toHaveBeenCalledWith(
-        "Error",
-        error instanceof Error ? error.message : "Failed to share invitation",
-      ),
-    );
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to share invitation"));
     expect(screen.getByText("Your event is live")).toBeOnTheScreen();
     expect(mockBack).not.toHaveBeenCalled();
   },

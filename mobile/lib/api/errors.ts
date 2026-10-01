@@ -88,10 +88,9 @@ export const toApiError = (error: unknown): ApiError => {
   return createApiError(err.message || "An unexpected error occurred", { cause: error });
 };
 
-/** Prefers mapped copy for ApiError codes; otherwise Error.message or fallback. */
-export const getErrorMessage = (error: unknown, fallback = "An unexpected error occurred"): string => {
-  if (isApiError(error)) {
-    return messageForApiErrorCode(error.code) ?? error.message ?? fallback;
-  }
-  return error instanceof Error ? error.message : fallback;
-};
+/**
+ * Display string for the UI. Trusts `ApiError.message` (set by `toApiError`).
+ * Any other throw uses `fallback` so internal Error text is not shown.
+ */
+export const getErrorMessage = (error: unknown, fallback = "An unexpected error occurred"): string =>
+  isApiError(error) ? error.message : fallback;
