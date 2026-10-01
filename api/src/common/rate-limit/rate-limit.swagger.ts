@@ -1,7 +1,6 @@
 import { HttpStatus } from "@nestjs/common";
-import { OpenAPIObject, getSchemaPath } from "@nestjs/swagger";
-import { API_ERROR_CODES } from "../errors/api-error-codes";
-import { ResponseMetaDto } from "../swagger/response-meta.dto";
+import { OpenAPIObject } from "@nestjs/swagger";
+import { API_ERROR_SCHEMA_REF } from "../errors/api-error.dto";
 import {
   RATE_LIMIT_EXCEEDED_CODE,
   RATE_LIMIT_EXCEEDED_MESSAGE,
@@ -14,9 +13,10 @@ const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch"
 /**
  * Documents the 429 once, as a shared component, and references it from every
  * operation the global guard covers, so no controller has to declare it by
- * hand. Operations marked by `@SkipRateLimit()` are left alone, and their
- * marker is stripped so it never reaches the published spec. `ResponseMetaDto`
- * is already a registered schema: every `@ApiWrappedResponse` adds it.
+ * hand. The JSON body is the shared error envelope (`ApiErrorDto`); this file
+ * owns only `Retry-After`, which operations get a 429, and the rate-limit
+ * example. Operations marked by `@SkipRateLimit()` are left alone, and their
+ * marker is stripped so it never reaches the published spec.
  */
 export const documentRateLimitResponses = (document: OpenAPIObject): OpenAPIObject => {
   document.components ??= {};
@@ -32,23 +32,13 @@ export const documentRateLimitResponses = (document: OpenAPIObject): OpenAPIObje
       },
       content: {
         "application/json": {
-          // The API's general error envelope. `code` is the closed set of
-          // client-facing codes (see API_ERROR_CODES); this response's example
-          // is RATE_LIMIT_EXCEEDED. The same schema types every operation's
-          // error body in generated clients.
-          schema: {
-            type: "object",
-            required: ["meta"],
-            properties: {
-              message: { type: "string", example: RATE_LIMIT_EXCEEDED_MESSAGE },
-              code: {
-                type: "string",
-                description: "Stable machine-readable error code, when the error has one",
-                enum: [...API_ERROR_CODES],
-                example: RATE_LIMIT_EXCEEDED_CODE,
-              },
-              meta: { $ref: getSchemaPath(ResponseMetaDto) },
-            },
+          schema: { $ref: API_ERROR_SCHEMA_REF },
+          // OAS 3.0 ignores keywords next to `$ref`, so the rate-limit sample
+          // lives on the media type, not on the shared envelope.
+          example: {
+            message: RATE_LIMIT_EXCEEDED_MESSAGE,
+            code: RATE_LIMIT_EXCEEDED_CODE,
+            meta: { timestamp: "2026-06-03T12:00:00.000Z", path: "/api/v2/events/join" },
           },
         },
       },
