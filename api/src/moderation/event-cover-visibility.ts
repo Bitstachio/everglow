@@ -9,11 +9,11 @@ import { SEVERE_REPORT_REASONS } from "./moderation.constants";
  * seeing it, as they keep seeing reported photos. Title and description are
  * never hidden automatically (docs/moderation.md).
  */
-export async function hiddenEventCoverIds(
+export const hiddenEventCoverIds = async (
   db: Prisma.TransactionClient,
   viewerId: string,
   eventIds: string[],
-): Promise<Set<string>> {
+): Promise<Set<string>> => {
   if (eventIds.length === 0) return new Set();
 
   const reports = await db.report.findMany({
@@ -42,4 +42,4 @@ export async function hiddenEventCoverIds(
       .filter((report) => report.reporterId === viewerId || !organizerOf.has(report.eventId))
       .map((report) => report.eventId),
   );
-}
+};

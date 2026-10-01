@@ -39,13 +39,13 @@ export interface RemovedMember {
  * because their photoId is SET NULL with the row. Objects are the caller's to
  * purge after the commit, never inside a database transaction.
  *
- * A plain function rather than a service method: ReportsService needs it, and
+ * A plain helper rather than a service method: ReportsService needs it, and
  * ModerationModule cannot import EventsModule without a cycle.
  */
-export async function removeMemberInTransaction(
+export const removeMemberInTransaction = async (
   tx: Prisma.TransactionClient,
   { eventId, userId, removedById, photos, excludePhotoIds = [] }: RemoveMemberInput,
-): Promise<RemovedMember> {
+): Promise<RemovedMember> => {
   await tx.eventAccess.deleteMany({ where: { eventId, userId } });
   await tx.eventBan.upsert({
     where: { eventId_userId: { eventId, userId } },
@@ -57,4 +57,4 @@ export async function removeMemberInTransaction(
 
   const deleted = await deleteUploadsInTransaction(tx, { eventId, userId, closedById: removedById, excludePhotoIds });
   return { photoKeys: deleted.photoKeys, photosDeleted: deleted.photosDeleted, reportsClosed: deleted.reportsClosed };
-}
+};

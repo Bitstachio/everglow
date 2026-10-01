@@ -18,7 +18,7 @@ const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch"
  * marker is stripped so it never reaches the published spec. `ResponseMetaDto`
  * is already a registered schema: every `@ApiWrappedResponse` adds it.
  */
-export function documentRateLimitResponses(document: OpenAPIObject): OpenAPIObject {
+export const documentRateLimitResponses = (document: OpenAPIObject): OpenAPIObject => {
   document.components ??= {};
   document.components.responses = {
     ...document.components.responses,
@@ -73,4 +73,4 @@ export function documentRateLimitResponses(document: OpenAPIObject): OpenAPIObje
   }
 
   return document;
-}
+};

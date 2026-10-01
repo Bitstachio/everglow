@@ -8,11 +8,11 @@ import { Prisma, ReportStatus } from "generated/prisma/client";
  * they would wait for a verdict nobody can give, which for a photo uploaded
  * by the event's only organizer means a stale-report alert every hour.
  */
-export async function closeReportsOnDeletedPhotos(
+export const closeReportsOnDeletedPhotos = async (
   tx: Prisma.TransactionClient,
   photoIds: string[],
   closedById: string,
-): Promise<number> {
+): Promise<number> => {
   if (photoIds.length === 0) return 0;
 
   const { count } = await tx.report.updateMany({
@@ -20,4 +20,4 @@ export async function closeReportsOnDeletedPhotos(
     data: { status: ReportStatus.ACTIONED, resolvedById: closedById, resolvedAt: new Date() },
   });
   return count;
-}
+};

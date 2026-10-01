@@ -14,9 +14,9 @@ export type TestAppContext = {
   prisma: DeepMockProxy<PrismaClient>;
 };
 
-export async function createTestApp(
+export const createTestApp = async (
   configureModule?: (builder: TestingModuleBuilder) => TestingModuleBuilder,
-): Promise<TestAppContext> {
+): Promise<TestAppContext> => {
   const prisma = mockDeep<PrismaClient>();
 
   let builder = Test.createTestingModule({
@@ -41,4 +41,4 @@ export async function createTestApp(
   await app.init();
 
   return { app, prisma };
-}
+};

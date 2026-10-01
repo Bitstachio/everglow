@@ -3,9 +3,9 @@ import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { AuthenticatedUser } from "./auth.types";
 import { CurrentUser } from "./current-user.decorator";
 
-function getDecoratorFactory<T>(
+const getDecoratorFactory = <T>(
   decorator: (...args: unknown[]) => ParameterDecorator,
-): (data: unknown, ctx: ExecutionContext) => T {
+): ((data: unknown, ctx: ExecutionContext) => T) => {
   class TestHost {
     handler(@decorator() _value: unknown) {}
   }
@@ -16,7 +16,7 @@ function getDecoratorFactory<T>(
   >;
 
   return metadata[Object.keys(metadata)[0]].factory;
-}
+};
 
 describe("CurrentUser", () => {
   const factory = getDecoratorFactory<AuthenticatedUser>(CurrentUser);
@@ -26,13 +26,12 @@ describe("CurrentUser", () => {
     sub: "auth0|abc123",
   };
 
-  function createExecutionContext(user: AuthenticatedUser): ExecutionContext {
-    return {
+  const createExecutionContext = (user: AuthenticatedUser): ExecutionContext =>
+    ({
       switchToHttp: () => ({
         getRequest: () => ({ user }),
       }),
-    } as ExecutionContext;
-  }
+    }) as ExecutionContext;
 
   it("returns the authenticated user from the request", () => {
     const ctx = createExecutionContext(authenticatedUser);

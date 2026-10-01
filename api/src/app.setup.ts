@@ -11,7 +11,7 @@ import { API_GLOBAL_PREFIX } from "./swagger/swagger.config";
  * and the E2E test app factory, so tests always run against the same
  * pipes/filters/interceptors as production.
  */
-export function configureApp(app: INestApplication): void {
+export const configureApp = (app: INestApplication): void => {
   app.useGlobalInterceptors(new ResponseInterceptor());
 
   app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
@@ -34,4 +34,4 @@ export function configureApp(app: INestApplication): void {
   // front lets any caller pick their own address. See docs/rate-limiting.md.
   const { trustProxy } = app.get<RateLimitConfig>(rateLimitConfig.KEY);
   (app as NestExpressApplication).set("trust proxy", trustProxy);
-}
+};
