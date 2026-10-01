@@ -98,7 +98,7 @@ describe("PhotosController (integration)", () => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     // An empty gallery, unless a test says otherwise.
-    prisma.photo.aggregate.mockResolvedValue({ _count: { _all: 0 }, _sum: { sizeBytes: 0 } } as never);
+    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
     // Moderation defaults: no photo is over the report threshold, and a photo read one by one is visible.
     prisma.report.groupBy.mockResolvedValue([]);
     prisma.photo.count.mockResolvedValue(1);
@@ -173,7 +173,6 @@ describe("PhotosController (integration)", () => {
 
       expect(prisma.photo.aggregate).toHaveBeenCalledWith({
         where: { eventId: TEST_EVENT_ID, status: { in: ["PENDING", "READY"] } },
-        _count: { _all: true },
         _sum: { sizeBytes: true },
       });
       expect(prisma.user.findUnique).not.toHaveBeenCalledWith(
@@ -223,13 +222,13 @@ describe("PhotosController (integration)", () => {
       expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
     });
 
-    it("returns 403 EVENT_PHOTO_LIMIT_REACHED when the gallery has no room for the batch", async () => {
+    it("returns 403 EVENT_STORAGE_LIMIT_REACHED when the gallery's 3 GB has no room for the batch", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
-      prisma.photo.aggregate.mockResolvedValue({ _count: { _all: 500 }, _sum: { sizeBytes: 1024 } } as never);
+      prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 3 * 1024 ** 3 - 512 } } as never);
 
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
 
-      expect(response.body).toMatchObject({ code: "EVENT_PHOTO_LIMIT_REACHED" });
+      expect(response.body).toMatchObject({ code: "EVENT_STORAGE_LIMIT_REACHED" });
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });

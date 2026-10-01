@@ -18,13 +18,14 @@ import {
 /** What an event holds now, measured the way its limits are. */
 export interface EventUsage {
   members: number;
-  photos: number;
+  /** Bytes of the gallery's PENDING and READY photos. */
+  storageBytes: bigint;
 }
 
 /** The fields of an event its plan limits depend on. */
 export type PlannedEvent = Pick<Event, "id" | "plan" | "galleryClosesAt" | "galleryClosedAt">;
 
-const NO_USAGE: EventUsage = { members: 0, photos: 0 };
+const NO_USAGE: EventUsage = { members: 0, storageBytes: 0n };
 
 /** Photos that take room in a gallery: uploads in progress and finished ones. */
 const GALLERY_PHOTO_STATUSES = [PhotoStatus.PENDING, PhotoStatus.READY];
@@ -63,7 +64,7 @@ export class EventPlanService {
     return ACCOUNT_PLAN_LIMITS[await this.accountPlanFor(userId)];
   }
 
-  /** Members and photos per event, in two queries whatever the number of events. */
+  /** Members and gallery storage per event, in two queries whatever the number of events. */
   async usageFor(eventIds: string[]): Promise<Map<string, EventUsage>> {
     const usage = new Map<string, EventUsage>(eventIds.map((id) => [id, { ...NO_USAGE }]));
     if (eventIds.length === 0) return usage;
@@ -77,12 +78,12 @@ export class EventPlanService {
       this.prisma.photo.groupBy({
         by: ["eventId"],
         where: { eventId: { in: eventIds }, status: { in: GALLERY_PHOTO_STATUSES } },
-        _count: { _all: true },
+        _sum: { sizeBytes: true },
       }),
     ]);
 
     for (const row of members) usage.get(row.eventId)!.members = row._count._all;
-    for (const row of photos) usage.get(row.eventId)!.photos = row._count._all;
+    for (const row of photos) usage.get(row.eventId)!.storageBytes = BigInt(row._sum.sizeBytes ?? 0);
     return usage;
   }
 
@@ -135,39 +136,24 @@ export class EventPlanService {
   }
 
   /**
-   * Refuses a batch that would take the gallery past its plan's photo or byte
-   * limit. Run it inside the upload reservation's Serializable transaction, so
-   * two batches for the same gallery cannot both slip under the limit.
+   * Refuses a batch that would take the gallery past its plan's storage.
+   * Run it inside the upload reservation's Serializable transaction, so two
+   * batches for the same gallery cannot both slip under the limit.
    */
-  async assertGalleryHasRoom(
-    tx: Prisma.TransactionClient,
-    event: PlannedEvent,
-    requestedPhotos: number,
-    requestedBytes: bigint,
-  ): Promise<void> {
-    const { maxPhotos, maxGalleryBytes } = this.limitsFor(event.plan);
-    if (maxPhotos === null && maxGalleryBytes === null) return;
+  async assertGalleryHasRoom(tx: Prisma.TransactionClient, event: PlannedEvent, requestedBytes: bigint): Promise<void> {
+    const { maxGalleryBytes } = this.limitsFor(event.plan);
+    if (maxGalleryBytes === null) return;
 
     const held = await tx.photo.aggregate({
       where: { eventId: event.id, status: { in: GALLERY_PHOTO_STATUSES } },
-      _count: { _all: true },
       _sum: { sizeBytes: true },
     });
-    const photos = held._count._all;
     const bytes = BigInt(held._sum.sizeBytes ?? 0);
+    if (bytes + requestedBytes <= maxGalleryBytes) return;
 
-    if (maxPhotos !== null && photos + requestedPhotos > maxPhotos) {
-      throw new ForbiddenException({
-        code: PLAN_LIMIT_CODES.EVENT_PHOTO_LIMIT_REACHED,
-        message: PLAN_LIMIT_MESSAGES.EVENT_PHOTO_LIMIT_REACHED(maxPhotos),
-      });
-    }
-    // The byte cap is a hidden safety net, so its message names no number.
-    if (maxGalleryBytes !== null && bytes + requestedBytes > maxGalleryBytes) {
-      throw new ForbiddenException({
-        code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,
-        message: PLAN_LIMIT_MESSAGES.EVENT_STORAGE_LIMIT_REACHED,
-      });
-    }
+    throw new ForbiddenException({
+      code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,
+      message: PLAN_LIMIT_MESSAGES.EVENT_STORAGE_LIMIT_REACHED,
+    });
   }
 }

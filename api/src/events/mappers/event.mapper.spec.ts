@@ -35,7 +35,7 @@ describe("EventMapper", () => {
 
   describe("toResponseDto", () => {
     const coverUrl = "https://s3.example/cover?sig=1";
-    const usage = { members: 4, photos: 12 };
+    const usage = { members: 4, storageBytes: 1288490188n };
 
     it("maps event fields, composes the shareable invitation URL, and carries the presigned cover URL", () => {
       const result = EventMapper.toResponseDto(event, coverUrl, usage);
@@ -53,8 +53,8 @@ describe("EventMapper", () => {
         plan: "FREE",
         galleryState: "OPEN",
         galleryClosesAt: null,
-        limits: { members: 30, photos: 500 },
-        usage: { members: 4, photos: 12 },
+        limits: { members: 30, storageBytes: "3221225472" },
+        usage: { members: 4, storageBytes: "1288490188" },
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
       });
