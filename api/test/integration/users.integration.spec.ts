@@ -691,6 +691,57 @@ describe("UsersController (integration)", () => {
     });
   });
 
+  describe("GET /users/me/limits", () => {
+    const path = `${USERS_BASE_PATH}/me/limits`;
+
+    type LimitsBody = {
+      plan: string;
+      limits: { activeEvents: number | null };
+      usage: { activeEvents: number };
+      nextClosingEvent: { id: string; title: string; galleryClosesAt: string } | null;
+    };
+
+    beforeEach(() => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+    });
+
+    it("returns the plan's active-event limit, the caller's active events and the one that closes first", async () => {
+      const galleryClosesAt = new Date("2026-10-20T18:00:00.000Z");
+      prisma.event.count.mockResolvedValue(1);
+      prisma.event.findFirst.mockResolvedValue({ id: TEST_EVENT_ID, title: "Book Club", galleryClosesAt } as never);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<LimitsBody>;
+      expect(body.data).toEqual({
+        plan: "FREE",
+        limits: { activeEvents: 2 },
+        usage: { activeEvents: 1 },
+        nextClosingEvent: { id: TEST_EVENT_ID, title: "Book Club", galleryClosesAt: galleryClosesAt.toISOString() },
+      });
+      expect(body.meta.path).toBe(path);
+    });
+
+    it("counts only events the caller created whose galleries are still open", async () => {
+      prisma.event.count.mockResolvedValue(0);
+      prisma.event.findFirst.mockResolvedValue(null);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+      expect((response.body as WrappedResponse<LimitsBody>).data).toMatchObject({
+        usage: { activeEvents: 0 },
+        nextClosingEvent: null,
+      });
+      expect(prisma.event.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({ creatorId: TEST_USER_ID, galleryClosedAt: null }) as unknown,
+      });
+    });
+
+    it("returns 401 without an access token", async () => {
+      await request(httpServer).get(path).expect(401);
+    });
+  });
+
   describe("GET /users/me/storage", () => {
     const path = `${USERS_BASE_PATH}/me/storage`;
 
