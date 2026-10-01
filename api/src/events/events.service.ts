@@ -10,7 +10,7 @@ import {
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, EventPlan, Prisma } from "generated/prisma/client";
 import { EventPlanService } from "src/plans/event-plan.service";
-import { galleryClosesAt } from "src/plans/plans.constants";
+import { GALLERY_STATES, galleryClosesAt, galleryStateOf } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -136,6 +136,11 @@ export class EventsService {
     });
     if (existing) throw new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(event.id));
 
+    // A closed event can't be joined: its photos are gone, and it stays only
+    // as a record for the people who were there (docs/event-quotas.md).
+    // Checked first, since it is true for everyone whatever else applies.
+    this.eventPlanService.assertGalleryOpen(event);
+
     // Removed by an organizer: said plainly, since they already know. Checked
     // before blocks so a removed member is not told about a block instead.
     const ban = await this.prisma.eventBan.findUnique({
@@ -251,17 +256,18 @@ export class EventsService {
   async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
     const event = await this.getUpdatable(eventId, callerId);
 
-    // A new date moves the close time with it, until the gallery has closed:
-    // a closed gallery never reopens.
+    // A new date moves the close time with it. Once the gallery has closed
+    // the date is fixed: moving it would imply reopening, which never
+    // happens. The title, description and cover can still change.
     const date = dto.date !== undefined ? new Date(dto.date) : undefined;
-    const movesCloseTime = date !== undefined && !event.galleryClosedAt;
+    if (date !== undefined) this.eventPlanService.assertGalleryOpen(event);
 
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(date !== undefined && { date }),
-        ...(movesCloseTime && { galleryClosesAt: galleryClosesAt(date, event.plan) }),
+        ...(date !== undefined && { galleryClosesAt: galleryClosesAt(date, event.plan) }),
         ...(dto.description !== undefined && { description: dto.description }),
       },
     });
@@ -281,7 +287,9 @@ export class EventsService {
    * clients that only know that field keep working.
    */
   async regenerateInvite(eventId: string, callerId: string, accessLevel: AccessLevel): Promise<Event> {
-    await this.getUpdatable(eventId, callerId);
+    const event = await this.getUpdatable(eventId, callerId);
+    // No new links into a closed event, which can't be joined.
+    this.eventPlanService.assertGalleryOpen(event);
 
     const invite = await this.prisma.eventInvite.findUnique({
       where: { eventId_accessLevel: { eventId, accessLevel } },
@@ -316,21 +324,26 @@ export class EventsService {
 
   /**
    * Invite rows for organizers only. Non-organizers get an empty list so
-   * invite tokens are not leaked on event responses.
+   * invite tokens are not leaked on event responses. A closed event has no
+   * invites to share, since it can't be joined.
    */
   async listInvitesForCaller(eventId: string, callerId: string): Promise<EventInvite[]> {
     const access = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: callerId, eventId } },
+      include: { event: { select: { galleryClosesAt: true, galleryClosedAt: true } } },
     });
     if (!access || access.accessLevel !== AccessLevel.ORGANIZER) return [];
+    if (galleryStateOf(access.event) === GALLERY_STATES.CLOSED) return [];
 
     return this.prisma.eventInvite.findMany({ where: { eventId } });
   }
 
   /**
-   * Leaving records no ban, so the member can rejoin through the link. With
-   * DELETE their photos in the event go too; with KEEP they stay, still
-   * theirs, and can be deleted later from the storage screen.
+   * Leaving records no ban, so the member can rejoin through the link while
+   * the gallery is open. With DELETE their photos in the event go too; with
+   * KEEP they stay in the gallery until it closes. On a closed event `photos`
+   * is ignored: its gallery is gone, and what the close job kept (photos with
+   * open reports) is evidence a member must not be able to delete.
    */
   async leaveEvent(eventId: string, callerId: string, photos: MemberPhotos = MEMBER_PHOTOS.KEEP): Promise<void> {
     const loaded = await this.prisma.event.findUnique({
@@ -352,11 +365,11 @@ export class EventsService {
       }
     }
 
+    const deletesPhotos = photos === MEMBER_PHOTOS.DELETE && galleryStateOf(loaded) === GALLERY_STATES.OPEN;
+
     const deleted = await this.prisma.$transaction(async (tx) => {
       await tx.eventAccess.delete({ where: { userId_eventId: { userId: callerId, eventId } } });
-      return photos === MEMBER_PHOTOS.DELETE
-        ? deleteUploadsInTransaction(tx, { eventId, userId: callerId, closedById: callerId })
-        : null;
+      return deletesPhotos ? deleteUploadsInTransaction(tx, { eventId, userId: callerId, closedById: callerId }) : null;
     });
 
     this.logger.info(

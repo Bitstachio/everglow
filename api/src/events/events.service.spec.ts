@@ -940,6 +940,22 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
+    it("refuses anyone new once the event's gallery has closed", async () => {
+      setupSuccessfulJoin();
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventCreatedByUser,
+        galleryClosesAt: new Date(Date.now() - 60_000),
+      });
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      // Before the ban, review and block checks: it applies to everyone.
+      expect(prisma.eventBan.findUnique).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
     it("refuses anyone new while the event is under review", async () => {
       setupSuccessfulJoin();
       prisma.event.findUnique.mockResolvedValue({ ...eventCreatedByUser, underReviewAt: new Date() });
@@ -1226,6 +1242,30 @@ describe("EventsService", () => {
   });
 
   describe("update", () => {
+    describe("once the gallery has closed", () => {
+      const closedEvent: Event = { ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) };
+
+      it("refuses a new date, which would imply reopening it", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedEvent, [organizerAccess]));
+
+        const failure = await service
+          .update(eventId, callerId, { date: "2026-12-01T18:00:00.000Z" })
+          .catch((e: unknown) => e);
+
+        expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+        expect(prisma.event.update).not.toHaveBeenCalled();
+      });
+
+      it("still lets organizers change the title", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedEvent, [organizerAccess]));
+        prisma.event.update.mockResolvedValue({ ...closedEvent, title: "Renamed" });
+
+        await service.update(eventId, callerId, { title: "Renamed" });
+
+        expect(prisma.event.update).toHaveBeenCalledWith({ where: { id: eventId }, data: { title: "Renamed" } });
+      });
+    });
+
     it("updates the event when the caller has organizer access", async () => {
       const updatedEvent: Event = { ...eventCreatedByUser, title: updateTitleDto.title! };
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
@@ -1889,6 +1929,21 @@ describe("EventsService", () => {
   });
 
   describe("regenerateInvite", () => {
+    it("refuses new links into a closed event", async () => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess({ ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) }, [
+          organizerAccess,
+        ]),
+      );
+
+      const failure = await service
+        .regenerateInvite(eventId, callerId, AccessLevel.PARTICIPANT)
+        .catch((e: unknown) => e);
+
+      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
+    });
+
     it("rotates a VIEWER invite token without updating Event.invitationUrl", async () => {
       const rotatedToken = "rotated-viewer-token";
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
@@ -1941,17 +1996,30 @@ describe("EventsService", () => {
   describe("listInvitesForCaller", () => {
     const invites = [participantInvite, viewerInvite, organizerInvite];
 
+    const openGallery = { event: { galleryClosesAt: new Date(Date.now() + 60_000), galleryClosedAt: null } };
+
     it("returns invites when the caller is an organizer", async () => {
-      prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
+      prisma.eventAccess.findUnique.mockResolvedValue({ ...organizerAccess, ...openGallery } as never);
       prisma.eventInvite.findMany.mockResolvedValue(invites);
 
       const result = await service.listInvitesForCaller(eventId, callerId);
 
       expect(prisma.eventAccess.findUnique).toHaveBeenCalledWith({
         where: { userId_eventId: { userId: callerId, eventId } },
+        include: { event: { select: { galleryClosesAt: true, galleryClosedAt: true } } },
       });
       expect(prisma.eventInvite.findMany).toHaveBeenCalledWith({ where: { eventId } });
       expect(result).toEqual(invites);
+    });
+
+    it("returns no invites for a closed event, even to an organizer", async () => {
+      prisma.eventAccess.findUnique.mockResolvedValue({
+        ...organizerAccess,
+        event: { galleryClosesAt: new Date(Date.now() - 60_000), galleryClosedAt: null },
+      } as never);
+
+      await expect(service.listInvitesForCaller(eventId, callerId)).resolves.toEqual([]);
+      expect(prisma.eventInvite.findMany).not.toHaveBeenCalled();
     });
 
     it("returns an empty array when the caller is a participant", async () => {
@@ -1983,6 +2051,22 @@ describe("EventsService", () => {
   });
 
   describe("leaveEvent", () => {
+    it("ignores photos=DELETE on a closed event, so kept evidence can't be deleted", async () => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess({ ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) }, [
+          participantAccess,
+        ]),
+      );
+      prisma.eventAccess.delete.mockResolvedValue(participantAccess);
+
+      await service.leaveEvent(eventId, callerId, "DELETE");
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalledTimes(1);
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
+    });
+
     it("removes participant access when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
       prisma.eventAccess.delete.mockResolvedValue(participantAccess);

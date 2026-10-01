@@ -22,7 +22,11 @@ It replaces the personal 5 GB storage limit ([photos-architecture.md](./photos-a
 - **Active** means the gallery is still open. Only events you created count; events you joined don't. When one closes or you delete it, you can start another. There's no weekly allowance, so a busy weekend is fine as long as no more than 2 are open at once.
 - **Photos** is what users see. Behind it, the existing 25 MB per-file limit stays, plus a hidden 3 GB per-event safety cap that no normal event reaches.
 - **The window** ends 30 days after the event's date. After that, uploads stop and the photos are removed. The event stays, doesn't count toward the 2 anymore, and can't be reopened.
-- **A closed event** stays in its members' lists, marked closed, with its details and members. **It can't be joined**, so its invite links stop working. Members can remove it from their list (leaving it), and organizers can delete it for everyone.
+- **A closed event** stays in its members' lists, marked closed, with its details and members. Members can remove it from their list (leaving it), and organizers can delete it for everyone. What it no longer allows:
+  - **joining**: the invite links stop working (`EVENT_GALLERY_CLOSED`), and event responses list no invites;
+  - **new invite links**: regenerating one is refused;
+  - **a new date**: it would imply reopening the gallery. The title, description and cover can still change;
+  - **deleting photos on leave**: `?photos=DELETE` is ignored, so photos kept as evidence (open reports) can't be removed by a member.
 - **Members** counts every role, organizers included.
 
 ### When a limit is reached

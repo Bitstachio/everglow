@@ -370,6 +370,20 @@ describe("EventsController (integration)", () => {
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
+    it("returns 403 EVENT_GALLERY_CLOSED for an event whose gallery has closed", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      setupJoinableInvite(buildEvent({ galleryClosesAt: new Date(Date.now() - 60_000) }), "invite-token");
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
     it("returns 403 EVENT_MEMBER_LIMIT_REACHED when the event already has 30 members", async () => {
       prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
       setupJoinableInvite(buildEvent(), "invite-token");
