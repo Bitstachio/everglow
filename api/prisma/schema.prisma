@@ -154,7 +154,15 @@ model Event {
   // "Under review"): no one can join and no photos can be added. Only the
   // platform clears it.
   underReviewAt    DateTime?
+  // What the host bought, for display and reporting. It decides no limit by
+  // itself: the limits below are copied from the plan when the event is
+  // created or upgraded, so changing a plan's numbers later never changes
+  // events already sold, and one event can be given more.
   plan             EventPlan @default(FREE)
+  // Members of every role; null means no limit.
+  memberLimit       Int?     @default(30)
+  // The gallery's storage, the one limit on what it holds; null means no limit.
+  storageLimitBytes BigInt?  @default(3221225472)
   // When the gallery closes: the event's date plus its plan's window, moved
   // with the date until it has closed. Null on a plan that never closes.
   galleryClosesAt  DateTime?

@@ -103,6 +103,8 @@ describe("EventsService", () => {
     coverUpdatedById: null,
     underReviewAt: null,
     plan: "FREE",
+    memberLimit: 30,
+    storageLimitBytes: 3221225472n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -123,6 +125,8 @@ describe("EventsService", () => {
     coverUpdatedById: null,
     underReviewAt: null,
     plan: "FREE",
+    memberLimit: 30,
+    storageLimitBytes: 3221225472n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -140,6 +144,8 @@ describe("EventsService", () => {
     coverUpdatedById: null,
     underReviewAt: null,
     plan: "FREE",
+    memberLimit: 30,
+    storageLimitBytes: 3221225472n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -392,6 +398,19 @@ describe("EventsService", () => {
       expect(failure).toBeInstanceOf(ForbiddenException);
       expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "ACTIVE_EVENT_LIMIT_REACHED" });
       expect(prisma.event.create).not.toHaveBeenCalled();
+    });
+
+    it("copies the free plan's limits onto the new event", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(callerId, createEventDto);
+
+      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject({
+        plan: "FREE",
+        memberLimit: 30,
+        storageLimitBytes: 3n * 1024n ** 3n,
+      });
     });
 
     it("allows a second active event", async () => {
@@ -735,6 +754,15 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
+    it("uses the event's own member limit, not its plan's default", async () => {
+      setupSuccessfulJoin(AccessLevel.PARTICIPANT, { ...eventCreatedByUser, memberLimit: 45 });
+      prisma.eventAccess.count.mockResolvedValue(40);
+
+      await service.joinByInvitationUrl(callerId, invitationUrl);
+
+      expect(prisma.eventAccess.create).toHaveBeenCalledTimes(1);
+    });
+
     it("lets the 30th member in", async () => {
       setupSuccessfulJoin();
       prisma.eventAccess.count.mockResolvedValue(29);
@@ -821,6 +849,8 @@ describe("EventsService", () => {
         coverUpdatedById: null,
         underReviewAt: null,
         plan: "FREE",
+        memberLimit: 30,
+        storageLimitBytes: 3221225472n,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
@@ -1147,6 +1177,8 @@ describe("EventsService", () => {
         coverUpdatedById: null,
         underReviewAt: null,
         plan: "FREE",
+        memberLimit: 30,
+        storageLimitBytes: 3221225472n,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,

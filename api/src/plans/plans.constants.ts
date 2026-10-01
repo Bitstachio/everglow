@@ -1,10 +1,13 @@
 import { EventPlan } from "generated/prisma/client";
 
 /**
- * What one event may hold on its plan (docs/event-quotas.md). Every limit is
- * read from here through EventPlanService, never hard-coded elsewhere, so a
- * paid plan is a new EventPlan value plus its row: the Record type refuses to
- * compile until every plan has one. `null` means no limit.
+ * What an event on each plan starts with (docs/event-quotas.md). These are
+ * copied onto the event (`Event.memberLimit`, `Event.storageLimitBytes`,
+ * `Event.galleryClosesAt`) when it is created or upgraded, and the checks read
+ * the event, never this map. Changing a number here changes only events
+ * created or upgraded afterwards. A paid plan is a new EventPlan value plus
+ * its row: the Record type refuses to compile until every plan has one.
+ * `null` means no limit.
  */
 export interface EventPlanLimits {
   /** Members of every role, organizers included. */
@@ -75,6 +78,15 @@ export const GALLERY_STATES = {
 export type GalleryState = (typeof GALLERY_STATES)[keyof typeof GALLERY_STATES];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The limits an event takes on when it is created on, or upgraded to, `plan`. */
+export const planLimitsForEvent = (
+  plan: EventPlan,
+): { plan: EventPlan; memberLimit: number | null; storageLimitBytes: bigint | null } => ({
+  plan,
+  memberLimit: EVENT_PLAN_LIMITS[plan].maxMembers,
+  storageLimitBytes: EVENT_PLAN_LIMITS[plan].maxGalleryBytes,
+});
 
 /** When a gallery on `plan` closes for an event on `date`; null when the plan never closes it. */
 export const galleryClosesAt = (date: Date, plan: EventPlan): Date | null => {

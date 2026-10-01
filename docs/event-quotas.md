@@ -68,14 +68,15 @@ Why per event first: the whole category charges this way (POV, Kululu, GuestPix,
 
 ## How it's built
 
-Every limit goes through one plan layer in the API (`api/src/plans/`), so a paid plan is a data change, not a refactor:
+**Each event carries its own limits.** The plan only says where they started. A paid plan is then a data change, not a refactor, and changing a plan's numbers never changes events already sold.
 
-- **`Event.plan`** says which plan an event is on. Only `FREE` exists today.
-- **`EVENT_PLAN_LIMITS`** (`plans.constants.ts`) holds each plan's members, gallery storage and window. **`ACCOUNT_PLAN_LIMITS`** holds the active-event cap per account plan. Everyone is on the free account plan until a subscription exists.
-- **`EventPlanService`** is the only code that reads those numbers. Nothing else hard-codes 2, 30, 3 GB or 30 days.
+- **`Event.memberLimit`** and **`Event.storageLimitBytes`** are the limits the checks read; null means no limit. They are copied from the event's plan when it is created (and, later, when it is upgraded). A purchase or an add-on only changes these fields on that one event, for example "add 5 GB".
+- **`Event.plan`** records what was bought, for display and reporting. Only `FREE` exists today. It decides no limit by itself.
+- **`EVENT_PLAN_LIMITS`** (`plans.constants.ts`) holds each plan's starting values: members, gallery storage and window. **`ACCOUNT_PLAN_LIMITS`** holds the active-event cap per account plan; everyone is on the free account plan until a subscription exists.
+- **`EventPlanService`** runs every check. Nothing else hard-codes 2, 30, 3 GB or 30 days.
 - **`Event.galleryClosesAt`** is the event's date plus its plan's window, moved with the date until the gallery closes. **`Event.galleryClosedAt`** is set when the photos are removed. Responses carry `galleryState` (`OPEN` or `CLOSED`), separate from the moderation `status`.
 
-Adding Plus later means a new `EventPlan` value and its row in `EVENT_PLAN_LIMITS`. An upgrade sets the event's plan and recomputes `galleryClosesAt`.
+Adding Plus later means a new `EventPlan` value and its row in `EVENT_PLAN_LIMITS`. An upgrade sets the event's plan, copies Plus's limits onto it, and recomputes `galleryClosesAt`.
 
 ## Costs
 

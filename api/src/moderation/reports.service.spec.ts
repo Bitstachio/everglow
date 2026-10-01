@@ -89,6 +89,8 @@ describe("ReportsService", () => {
     coverUpdatedById: null,
     underReviewAt: null,
     plan: "FREE",
+    memberLimit: 30,
+    storageLimitBytes: 3221225472n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,

@@ -18,6 +18,8 @@ describe("EventMapper", () => {
     coverUpdatedById: null,
     underReviewAt: null,
     plan: "FREE",
+    memberLimit: 30,
+    storageLimitBytes: 3221225472n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -58,6 +60,22 @@ describe("EventMapper", () => {
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
       });
+    });
+
+    it("reports the event's own limits, which can differ from its plan's defaults", () => {
+      const result = EventMapper.toResponseDto(
+        { ...event, memberLimit: 45, storageLimitBytes: 8n * 1024n ** 3n },
+        null,
+        usage,
+      );
+
+      expect(result.limits).toEqual({ members: 45, storageBytes: String(8 * 1024 ** 3) });
+    });
+
+    it("reports no limit as null", () => {
+      const result = EventMapper.toResponseDto({ ...event, memberLimit: null, storageLimitBytes: null }, null, usage);
+
+      expect(result.limits).toEqual({ members: null, storageBytes: null });
     });
 
     it("reports a CLOSED gallery once the close time has passed, and once the close job has run", () => {

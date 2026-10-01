@@ -23,7 +23,10 @@ export interface EventUsage {
 }
 
 /** The fields of an event its plan limits depend on. */
-export type PlannedEvent = Pick<Event, "id" | "plan" | "galleryClosesAt" | "galleryClosedAt">;
+export type PlannedEvent = Pick<
+  Event,
+  "id" | "plan" | "memberLimit" | "storageLimitBytes" | "galleryClosesAt" | "galleryClosedAt"
+>;
 
 const NO_USAGE: EventUsage = { members: 0, storageBytes: 0n };
 
@@ -113,7 +116,8 @@ export class EventPlanService {
    * makes two joins to the same event count one after the other.
    */
   async assertCanJoin(tx: Prisma.TransactionClient, event: PlannedEvent): Promise<void> {
-    const { maxMembers } = this.limitsFor(event.plan);
+    // The event's own limit, set from its plan when it was created or upgraded.
+    const maxMembers = event.memberLimit;
     if (maxMembers === null) return;
 
     await lockForTransaction(tx, `event-plan:members:${event.id}`);
@@ -141,7 +145,8 @@ export class EventPlanService {
    * batches for the same gallery cannot both slip under the limit.
    */
   async assertGalleryHasRoom(tx: Prisma.TransactionClient, event: PlannedEvent, requestedBytes: bigint): Promise<void> {
-    const { maxGalleryBytes } = this.limitsFor(event.plan);
+    // The event's own limit, set from its plan when it was created or upgraded.
+    const maxGalleryBytes = event.storageLimitBytes;
     if (maxGalleryBytes === null) return;
 
     const held = await tx.photo.aggregate({
