@@ -1,5 +1,7 @@
 import { AppIcon } from "@/components/ui/app-icon";
 import { Spinner } from "@/components/ui/spinner";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens, type ColorTokenName } from "@/theme/tokens";
 import type { ComponentProps } from "react";
 import { Pressable, Text, type PressableProps } from "react-native";
 
@@ -28,6 +30,13 @@ const LABEL_CLASSES: Record<ButtonVariant, string> = {
   ghost: "text-muted",
 };
 
+const ICON_TOKEN: Record<ButtonVariant, ColorTokenName> = {
+  primary: "accentForeground",
+  secondary: "foreground",
+  outline: "foreground",
+  ghost: "muted",
+};
+
 export const Button = ({
   title,
   variant = "primary",
@@ -39,6 +48,7 @@ export const Button = ({
   accessibilityLabel,
   ...props
 }: ButtonProps) => {
+  const colorScheme = useColorScheme();
   const isDisabled = disabled || isLoading;
 
   return (
@@ -62,7 +72,14 @@ export const Button = ({
         <Spinner tone={variant === "primary" ? "accentForeground" : "accent"} label="Loading" />
       ) : (
         <>
-          {icon ? <AppIcon icon={icon} size="sm" className={LABEL_CLASSES[variant]} /> : null}
+          {icon ? (
+            <AppIcon
+              icon={icon}
+              size="sm"
+              color={colorTokens[colorScheme][ICON_TOKEN[variant]]}
+              className={LABEL_CLASSES[variant]}
+            />
+          ) : null}
           <Text className={`text-base font-semibold ${LABEL_CLASSES[variant]}`}>{title}</Text>
         </>
       )}

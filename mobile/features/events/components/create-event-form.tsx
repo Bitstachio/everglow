@@ -2,15 +2,15 @@ import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { H1 } from "@/components/ui/heading";
+import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { ThemedText } from "@/components/ui/themed-text";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Calendar, Clock } from "lucide-react-native";
 import { Controller, type Control } from "react-hook-form";
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { CreateEventValues, EventResponseDto } from "../types";
+import type { AccessLevel, CreateEventValues, EventResponseDto } from "../types";
 import { EventCreatedConfirmation } from "./event-created-confirmation";
 
 type CreateEventFormProps = {
@@ -19,10 +19,10 @@ type CreateEventFormProps = {
   error?: string;
   onSubmit: () => void;
   createdEvent: EventResponseDto | null;
-  handleCopyLink: () => void;
-  handleShareLink: () => void;
-  handleCreateAnother: () => void;
-  handleDone: () => void;
+  handleCopyLink: (invitationUrl: string) => void;
+  handleShareLink: (invitationUrl: string, accessLevel: AccessLevel) => void;
+  handleGoToEvent: () => void;
+  handleShareLater: () => void;
 };
 
 export const CreateEventForm = ({
@@ -33,10 +33,9 @@ export const CreateEventForm = ({
   createdEvent,
   handleCopyLink,
   handleShareLink,
-  handleCreateAnother,
-  handleDone,
+  handleGoToEvent,
+  handleShareLater,
 }: CreateEventFormProps) => {
-  const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -61,14 +60,14 @@ export const CreateEventForm = ({
         event={createdEvent}
         onCopyLink={handleCopyLink}
         onShare={handleShareLink}
-        onCreateAnother={handleCreateAnother}
-        onDone={handleDone}
+        onGoToEvent={handleGoToEvent}
+        onShareLater={handleShareLater}
       />
     );
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
       <ScrollView
         className="flex-1"
         contentContainerClassName="gap-6 px-4 pb-6 pt-4"
@@ -221,7 +220,7 @@ export const CreateEventForm = ({
         ) : null}
       </ScrollView>
 
-      <View className="px-4 pt-3" style={{ paddingBottom: 16 + insets.bottom }}>
+      <View className="px-4 pt-3 pb-4">
         <Button
           title="Create Event"
           onPress={() => {
@@ -233,6 +232,6 @@ export const CreateEventForm = ({
           disabled={isSubmitting}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
