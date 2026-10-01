@@ -47,6 +47,17 @@ Why per event first: the whole category charges this way (POV, Kululu, GuestPix,
 3. **Usage tracking:** photos, members and downloads per event. These set the paid prices.
 4. **Reported photos are kept when a gallery closes**, for the retention window in [EV-61](https://linear.app/mehrshadfb/issue/EV-61), so closing a gallery never destroys evidence.
 
+## How it's built
+
+Every limit goes through one plan layer in the API (`api/src/plans/`), so a paid plan is a data change, not a refactor:
+
+- **`Event.plan`** says which plan an event is on. Only `FREE` exists today.
+- **`EVENT_PLAN_LIMITS`** (`plans.constants.ts`) holds each plan's members, photos, hidden byte cap and window. **`ACCOUNT_PLAN_LIMITS`** holds the active-event cap per account plan. Everyone is on the free account plan until a subscription exists.
+- **`EventPlanService`** is the only code that reads those numbers. Nothing else hard-codes 2, 30, 500 or 30 days.
+- **`Event.galleryClosesAt`** is the event's date plus its plan's window, moved with the date until the gallery closes. **`Event.galleryClosedAt`** is set when the photos are removed. Responses carry `galleryState` (`OPEN` or `CLOSED`), separate from the moderation `status`.
+
+Adding Plus later means a new `EventPlan` value and its row in `EVENT_PLAN_LIMITS`. An upgrade sets the event's plan and recomputes `galleryClosesAt`.
+
 ## Costs
 
 Photos are stored in S3.

@@ -80,6 +80,9 @@ describe("PhotosService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    plan: "FREE",
+    galleryClosesAt: null,
+    galleryClosedAt: null,
     createdAt: now,
     updatedAt: now,
   };

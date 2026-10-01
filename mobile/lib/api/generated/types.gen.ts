@@ -347,6 +347,38 @@ export type EventInviteResponseDto = {
  */
 export type EventStatus = "ACTIVE" | "UNDER_REVIEW";
 
+/**
+ * The plan whose limits apply to this event.
+ */
+export type EventPlan = "FREE";
+
+/**
+ * OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.
+ */
+export type GalleryState = "OPEN" | "CLOSED";
+
+export type EventLimitsResponseDto = {
+  /**
+   * Members of every role, organizers included; null for no limit.
+   */
+  members: number | null;
+  /**
+   * Photos in the gallery; null for no limit.
+   */
+  photos: number | null;
+};
+
+export type EventUsageResponseDto = {
+  /**
+   * Members of every role, organizers included.
+   */
+  members: number;
+  /**
+   * Photos in the gallery, uploads in progress included.
+   */
+  photos: number;
+};
+
 export type EventResponseDto = {
   id: string;
   title: string;
@@ -372,6 +404,20 @@ export type EventResponseDto = {
    * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.
    */
   status: EventStatus;
+  /**
+   * The plan whose limits apply to this event.
+   */
+  plan: EventPlan;
+  /**
+   * OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.
+   */
+  galleryState: GalleryState;
+  /**
+   * When the gallery closes: the event's date plus its plan's window. Null on a plan that never closes.
+   */
+  galleryClosesAt: string | null;
+  limits: EventLimitsResponseDto;
+  usage: EventUsageResponseDto;
   createdAt: string;
   updatedAt: string;
 };

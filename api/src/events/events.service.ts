@@ -8,7 +8,8 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { AccessLevel, Event, EventInvite, Prisma } from "generated/prisma/client";
+import { AccessLevel, Event, EventInvite, EventPlan, Prisma } from "generated/prisma/client";
+import { galleryClosesAt } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -64,11 +65,14 @@ export class EventsService {
     }
 
     const participantToken = randomUUID();
+    const date = new Date(dto.date);
 
     const event = await this.prisma.event.create({
       data: {
         title: dto.title,
-        date: new Date(dto.date),
+        date,
+        plan: EventPlan.FREE,
+        galleryClosesAt: galleryClosesAt(date, EventPlan.FREE),
         creatorId,
         invitationUrl: participantToken,
         ...(dto.description !== undefined && { description: dto.description }),
@@ -233,13 +237,19 @@ export class EventsService {
   }
 
   async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
-    await this.getUpdatable(eventId, callerId);
+    const event = await this.getUpdatable(eventId, callerId);
+
+    // A new date moves the close time with it, until the gallery has closed:
+    // a closed gallery never reopens.
+    const date = dto.date !== undefined ? new Date(dto.date) : undefined;
+    const movesCloseTime = date !== undefined && !event.galleryClosedAt;
 
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
-        ...(dto.date !== undefined && { date: new Date(dto.date) }),
+        ...(date !== undefined && { date }),
+        ...(movesCloseTime && { galleryClosesAt: galleryClosesAt(date, event.plan) }),
         ...(dto.description !== undefined && { description: dto.description }),
       },
     });
