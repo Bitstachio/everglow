@@ -17,6 +17,7 @@ import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import request from "supertest";
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, TEST_TARGET_USER_ID, authHeader } from "./helpers/auth.fixtures";
+import { buildFreePlan } from "./helpers/plans.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
   TEST_EVENT_ID,
@@ -112,6 +113,9 @@ describe("EventsController (integration)", () => {
 
   beforeEach(() => {
     mockReset(prisma);
+    // Every event is on the free plan's first version unless a test says otherwise.
+    prisma.plan.findUnique.mockResolvedValue(buildFreePlan());
+    prisma.plan.findFirst.mockResolvedValue(buildFreePlan());
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     prisma.userBlock.findMany.mockResolvedValue([]);
     // Usage on event responses: nothing counted unless a test says so.

@@ -3252,7 +3252,7 @@
         "enum": [
           "FREE"
         ],
-        "description": "The plan whose limits apply to this event."
+        "description": "The plan the event is on. Its limits are in `limits`, which can include storage added to this event."
       },
       "GalleryState": {
         "type": "string",
@@ -3351,7 +3351,7 @@
             ]
           },
           "plan": {
-            "description": "The plan whose limits apply to this event.",
+            "description": "The plan the event is on. Its limits are in `limits`, which can include storage added to this event.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/EventPlan"

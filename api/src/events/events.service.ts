@@ -10,7 +10,7 @@ import {
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, EventPlan, Prisma } from "generated/prisma/client";
 import { EventPlanService } from "src/plans/event-plan.service";
-import { galleryClosesAt, planLimitsForEvent } from "src/plans/plans.constants";
+import { galleryClosesAt } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -68,6 +68,8 @@ export class EventsService {
 
     const participantToken = randomUUID();
     const date = new Date(dto.date);
+    // New events start on the free plan's newest version (docs/event-quotas.md).
+    const plan = await this.eventPlanService.currentPlan(EventPlan.FREE);
 
     // The active-event check and the insert share a transaction, so two
     // creates by the same person can't both pass it (docs/event-quotas.md).
@@ -77,8 +79,8 @@ export class EventsService {
         data: {
           title: dto.title,
           date,
-          ...planLimitsForEvent(EventPlan.FREE),
-          galleryClosesAt: galleryClosesAt(date, EventPlan.FREE),
+          planId: plan.id,
+          galleryClosesAt: galleryClosesAt(date, plan.galleryWindowDays),
           creatorId,
           invitationUrl: participantToken,
           ...(dto.description !== undefined && { description: dto.description }),
@@ -255,13 +257,15 @@ export class EventsService {
     // a closed gallery never reopens.
     const date = dto.date !== undefined ? new Date(dto.date) : undefined;
     const movesCloseTime = date !== undefined && !event.galleryClosedAt;
+    // The window comes from the event's own plan version, not the newest one.
+    const windowDays = movesCloseTime ? (await this.eventPlanService.planFor(event.planId)).galleryWindowDays : null;
 
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(date !== undefined && { date }),
-        ...(movesCloseTime && { galleryClosesAt: galleryClosesAt(date, event.plan) }),
+        ...(movesCloseTime && { galleryClosesAt: galleryClosesAt(date, windowDays) }),
         ...(dto.description !== undefined && { description: dto.description }),
       },
     });

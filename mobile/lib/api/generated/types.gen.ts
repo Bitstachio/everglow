@@ -348,7 +348,7 @@ export type EventInviteResponseDto = {
 export type EventStatus = "ACTIVE" | "UNDER_REVIEW";
 
 /**
- * The plan whose limits apply to this event.
+ * The plan the event is on. Its limits are in `limits`, which can include storage added to this event.
  */
 export type EventPlan = "FREE";
 
@@ -405,7 +405,7 @@ export type EventResponseDto = {
    */
   status: EventStatus;
   /**
-   * The plan whose limits apply to this event.
+   * The plan the event is on. Its limits are in `limits`, which can include storage added to this event.
    */
   plan: EventPlan;
   /**

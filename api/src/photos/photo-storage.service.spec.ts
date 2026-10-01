@@ -7,11 +7,10 @@ import {
   PayloadTooLargeException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { PhotoStatus, Prisma, PrismaClient } from "generated/prisma/client";
+import { PhotoStatus, Plan, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { EventPlanService } from "src/plans/event-plan.service";
-import { EVENT_PLAN_LIMITS } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import {
@@ -30,6 +29,16 @@ describe("PhotoStorageService", () => {
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
   const userId = "11111111-1111-1111-1111-111111111111";
+  /** The free plan's first version, as the migration seeds it. */
+  const freePlan: Plan = {
+    id: "f0000000-0000-4000-8000-000000000001",
+    code: "FREE",
+    version: 1,
+    memberLimit: 30,
+    storageLimitBytes: 3n * 1024n ** 3n,
+    galleryWindowDays: 30,
+    createdAt: new Date("2026-10-01T00:00:00.000Z"),
+  };
   const eventId = "66666666-6666-6666-6666-666666666666";
 
   const usageWhere = {
@@ -64,6 +73,7 @@ describe("PhotoStorageService", () => {
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
     prisma.user.findUnique.mockResolvedValue(userWithLimit(FREE_TIER_STORAGE_LIMIT_BYTES));
+    prisma.plan.findUnique.mockResolvedValue(freePlan);
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -251,9 +261,8 @@ describe("PhotoStorageService", () => {
 
     const event = {
       id: eventId,
-      plan: "FREE" as const,
-      memberLimit: 30,
-      storageLimitBytes: EVENT_PLAN_LIMITS.FREE.maxGalleryBytes,
+      planId: freePlan.id,
+      bonusStorageBytes: 0n,
       galleryClosesAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       galleryClosedAt: null,
     };
@@ -264,7 +273,7 @@ describe("PhotoStorageService", () => {
     /** The storage the gallery already uses. */
     const held = (bytes: number | bigint | null) =>
       ({ _sum: { sizeBytes: bytes === null ? null : Number(bytes) } }) as never;
-    const maxGalleryBytes = event.storageLimitBytes;
+    const maxGalleryBytes = freePlan.storageLimitBytes;
 
     beforeEach(() => {
       tx = mockDeep<Prisma.TransactionClient>();
@@ -312,20 +321,19 @@ describe("PhotoStorageService", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it("checks the event's own storage limit, not its plan's default", async () => {
-      const upgraded = { ...event, storageLimitBytes: maxGalleryBytes! + 5n * 1024n ** 3n };
+    it("counts storage given to this event on top of its plan", async () => {
+      const withBonus = { ...event, bonusStorageBytes: 5n * 1024n ** 3n };
       tx.photo.aggregate.mockResolvedValue(held(maxGalleryBytes! + 1n));
       tx.photo.createMany.mockResolvedValue({ count: 1 });
 
-      await expect(service.reserveUploadBytes(upgraded, [buildRow(1024)])).resolves.toBeUndefined();
+      await expect(service.reserveUploadBytes(withBonus, [buildRow(1024)])).resolves.toBeUndefined();
     });
 
-    it("never refuses a gallery without a storage limit", async () => {
+    it("never refuses a gallery whose plan has no storage limit", async () => {
+      prisma.plan.findUnique.mockResolvedValue({ ...freePlan, storageLimitBytes: null });
       tx.photo.createMany.mockResolvedValue({ count: 1 });
 
-      await expect(
-        service.reserveUploadBytes({ ...event, storageLimitBytes: null }, [buildRow(1)]),
-      ).resolves.toBeUndefined();
+      await expect(service.reserveUploadBytes(event, [buildRow(1)])).resolves.toBeUndefined();
       expect(tx.photo.aggregate).not.toHaveBeenCalled();
     });
 

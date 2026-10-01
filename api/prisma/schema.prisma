@@ -128,51 +128,73 @@ model UserDetails {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// The plan an event is on (docs/event-quotas.md); its limits live in
-// src/plans/plans.constants.ts. Paid plans are added here later.
+// Which plan a Plan row is a version of (docs/event-quotas.md). Paid plans
+// are added here later.
 enum EventPlan {
   FREE
 }
 
+// A plan's terms: what an event on it may hold and for how long
+// (docs/event-quotas.md). Rows are immutable once written (a trigger refuses
+// updates): changing a plan means inserting its next version, so every event
+// keeps the terms it was created or bought with. New events get the highest
+// version of their plan's code. A new kind of limit is a new column here,
+// never on Event.
+model Plan {
+  id                String    @id @default(uuid()) @db.Uuid
+  code              EventPlan
+  version           Int
+  // Members of every role, organizers included; null means no limit.
+  memberLimit       Int?
+  // The gallery's storage, the one limit on what it holds; null means no limit.
+  storageLimitBytes BigInt?
+  // Days after the event's date that its gallery stays open; null never closes.
+  galleryWindowDays Int?
+  createdAt         DateTime  @default(now())
+
+  events Event[]
+
+  @@unique([code, version])
+}
+
 model Event {
-  id               String   @id @default(uuid()) @db.Uuid
-  title            String   @db.VarChar(100)
-  description      String?  @db.Text
-  date             DateTime
+  id                String    @id @default(uuid()) @db.Uuid
+  title             String    @db.VarChar(100)
+  description       String?   @db.Text
+  date              DateTime
   // Attribution only; null once the creator's account is deleted. Who may
   // manage the event is decided by EventAccess, never by this column.
-  creatorId        String?  @db.Uuid
-  invitationUrl    String   @unique @db.VarChar(100)
+  creatorId         String?   @db.Uuid
+  invitationUrl     String    @unique @db.VarChar(100)
   // S3 key of the cover image (event-covers/{eventId}/{uploadId}); null when
   // none is set. Unique so the orphan reconciler resolves a page of keys with
   // one indexed lookup. See docs/image-uploads.md.
-  coverS3Key       String?  @unique @db.VarChar(255)
+  coverS3Key        String?   @unique @db.VarChar(255)
   // The organizer who set the current cover, so a reviewer of an event report
   // sees whose image it is. Null with no cover, or once that account is gone.
-  coverUpdatedById String?  @db.Uuid
+  coverUpdatedById  String?   @db.Uuid
   // Set when enough members report the event itself (docs/moderation.md,
   // "Under review"): no one can join and no photos can be added. Only the
   // platform clears it.
-  underReviewAt    DateTime?
-  // What the host bought, for display and reporting. It decides no limit by
-  // itself: the limits below are copied from the plan when the event is
-  // created or upgraded, so changing a plan's numbers later never changes
-  // events already sold, and one event can be given more.
-  plan             EventPlan @default(FREE)
-  // Members of every role; null means no limit.
-  memberLimit       Int?     @default(30)
-  // The gallery's storage, the one limit on what it holds; null means no limit.
-  storageLimitBytes BigInt?  @default(3221225472)
+  underReviewAt     DateTime?
+  // The plan version the event was created on (or upgraded to); its limits
+  // come from that row.
+  planId            String    @db.Uuid
+  // Storage given to this event on top of its plan, e.g. an add-on or a
+  // support grant. Added to the plan's storage limit.
+  bonusStorageBytes BigInt    @default(0)
   // When the gallery closes: the event's date plus its plan's window, moved
   // with the date until it has closed. Null on a plan that never closes.
-  galleryClosesAt  DateTime?
+  galleryClosesAt   DateTime?
   // When the close job removed the gallery's photos. The event stays.
-  galleryClosedAt  DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  galleryClosedAt   DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   creator        User?         @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: SetNull)
   coverUpdatedBy User?         @relation("EventCoversSet", fields: [coverUpdatedById], references: [id], onDelete: SetNull)
+  // Restrict: a plan version some event uses can never be deleted.
+  plan           Plan          @relation(fields: [planId], references: [id], onDelete: Restrict)
   photos         Photo[]
   eventAccesses  EventAccess[]
   invites        EventInvite[]
@@ -181,6 +203,7 @@ model Event {
 
   @@index([creatorId])
   @@index([coverUpdatedById])
+  @@index([planId])
 }
 
 /// One shareable join token per access level for an event. Joining via the

@@ -1,5 +1,5 @@
 import { Event, EventInvite } from "generated/prisma/client";
-import { EventUsage } from "src/plans/event-plan.service";
+import { EventLimits, EventUsage } from "src/plans/event-plan.service";
 import { galleryStateOf } from "src/plans/plans.constants";
 import { EventBanListResponseDto } from "../dto/event-ban-list-response.dto";
 import { EventBanResponseDto } from "../dto/event-ban-response.dto";
@@ -19,11 +19,12 @@ const INVITE_SORT_ORDER: Record<string, number> = {
 export class EventMapper {
   /**
    * `coverUrl` is presigned by the caller; the mapper never sees S3, and the key is never returned.
-   * `usage` comes from EventPlanService.usageFor.
+   * `limits` and `usage` come from EventPlanService (limitsOf, usageFor).
    */
   static toResponseDto(
     event: Event,
     coverUrl: string | null,
+    limits: EventLimits,
     usage: EventUsage,
     invites: EventInvite[] = [],
   ): EventResponseDto {
@@ -37,10 +38,10 @@ export class EventMapper {
       invites: EventMapper.toInviteResponseDtoList(invites),
       coverUrl,
       status: event.underReviewAt ? EVENT_STATUSES.UNDER_REVIEW : EVENT_STATUSES.ACTIVE,
-      plan: event.plan,
+      plan: limits.plan,
       galleryState: galleryStateOf(event),
       galleryClosesAt: event.galleryClosesAt,
-      limits: { members: event.memberLimit, storageBytes: event.storageLimitBytes?.toString() ?? null },
+      limits: { members: limits.memberLimit, storageBytes: limits.storageLimitBytes?.toString() ?? null },
       usage: { members: usage.members, storageBytes: usage.storageBytes.toString() },
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,

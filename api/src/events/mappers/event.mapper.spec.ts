@@ -17,9 +17,8 @@ describe("EventMapper", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
-    memberLimit: 30,
-    storageLimitBytes: 3221225472n,
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -38,9 +37,10 @@ describe("EventMapper", () => {
   describe("toResponseDto", () => {
     const coverUrl = "https://s3.example/cover?sig=1";
     const usage = { members: 4, storageBytes: 1288490188n };
+    const limits = { plan: "FREE" as const, memberLimit: 30, storageLimitBytes: 3221225472n };
 
     it("maps event fields, composes the shareable invitation URL, and carries the presigned cover URL", () => {
-      const result = EventMapper.toResponseDto(event, coverUrl, usage);
+      const result = EventMapper.toResponseDto(event, coverUrl, limits, usage);
 
       expect(result).toEqual({
         id: event.id,
@@ -62,29 +62,35 @@ describe("EventMapper", () => {
       });
     });
 
-    it("reports the event's own limits, which can differ from its plan's defaults", () => {
-      const result = EventMapper.toResponseDto(
-        { ...event, memberLimit: 45, storageLimitBytes: 8n * 1024n ** 3n },
-        null,
-        usage,
-      );
+    it("reports the limits it's given, which include storage added to this event", () => {
+      const withBonus = { plan: "FREE" as const, memberLimit: 30, storageLimitBytes: 8n * 1024n ** 3n };
 
-      expect(result.limits).toEqual({ members: 45, storageBytes: String(8 * 1024 ** 3) });
+      expect(EventMapper.toResponseDto(event, null, withBonus, usage).limits).toEqual({
+        members: 30,
+        storageBytes: String(8 * 1024 ** 3),
+      });
     });
 
     it("reports no limit as null", () => {
-      const result = EventMapper.toResponseDto({ ...event, memberLimit: null, storageLimitBytes: null }, null, usage);
+      const unlimited = { plan: "FREE" as const, memberLimit: null, storageLimitBytes: null };
 
-      expect(result.limits).toEqual({ members: null, storageBytes: null });
+      expect(EventMapper.toResponseDto(event, null, unlimited, usage).limits).toEqual({
+        members: null,
+        storageBytes: null,
+      });
     });
 
     it("reports a CLOSED gallery once the close time has passed, and once the close job has run", () => {
       const past = new Date(Date.now() - 60_000);
 
-      expect(EventMapper.toResponseDto({ ...event, galleryClosesAt: past }, null, usage).galleryState).toBe("CLOSED");
-      expect(EventMapper.toResponseDto({ ...event, galleryClosedAt: past }, null, usage).galleryState).toBe("CLOSED");
+      expect(EventMapper.toResponseDto({ ...event, galleryClosesAt: past }, null, limits, usage).galleryState).toBe(
+        "CLOSED",
+      );
+      expect(EventMapper.toResponseDto({ ...event, galleryClosedAt: past }, null, limits, usage).galleryState).toBe(
+        "CLOSED",
+      );
       expect(
-        EventMapper.toResponseDto({ ...event, galleryClosesAt: new Date(Date.now() + 60_000) }, null, usage)
+        EventMapper.toResponseDto({ ...event, galleryClosesAt: new Date(Date.now() + 60_000) }, null, limits, usage)
           .galleryState,
       ).toBe("OPEN");
     });
@@ -92,7 +98,7 @@ describe("EventMapper", () => {
     it("reports UNDER_REVIEW once the event is under review", () => {
       const underReview = { ...event, underReviewAt: new Date("2026-09-20T12:00:00.000Z") };
 
-      expect(EventMapper.toResponseDto(underReview, coverUrl, usage).status).toBe("UNDER_REVIEW");
+      expect(EventMapper.toResponseDto(underReview, coverUrl, limits, usage).status).toBe("UNDER_REVIEW");
     });
 
     it("maps organizer invites into shareable URLs in role order", () => {
@@ -123,7 +129,7 @@ describe("EventMapper", () => {
         },
       ];
 
-      expect(EventMapper.toResponseDto(event, null, usage, invites).invites).toEqual([
+      expect(EventMapper.toResponseDto(event, null, limits, usage, invites).invites).toEqual([
         { accessLevel: AccessLevel.PARTICIPANT, invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}` },
         { accessLevel: AccessLevel.VIEWER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/viewer-token` },
         { accessLevel: AccessLevel.ORGANIZER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/org-token` },
@@ -131,19 +137,19 @@ describe("EventMapper", () => {
     });
 
     it("reports a null coverUrl for an event without a cover", () => {
-      expect(EventMapper.toResponseDto(event, null, usage).coverUrl).toBeNull();
+      expect(EventMapper.toResponseDto(event, null, limits, usage).coverUrl).toBeNull();
     });
 
     it("never exposes the cover's S3 key", () => {
       const coverS3Key = `event-covers/${event.id}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
 
-      const result = EventMapper.toResponseDto({ ...event, coverS3Key }, coverUrl, usage);
+      const result = EventMapper.toResponseDto({ ...event, coverS3Key }, coverUrl, limits, usage);
 
       expect(JSON.stringify(result)).not.toContain(coverS3Key);
     });
 
     it("does not expose the raw invite token as the response invitationUrl", () => {
-      const result = EventMapper.toResponseDto(event, null, usage);
+      const result = EventMapper.toResponseDto(event, null, limits, usage);
 
       expect(result.invitationUrl).not.toBe(inviteToken);
       expect(result.invitationUrl).toContain(inviteToken);
