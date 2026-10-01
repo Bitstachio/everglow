@@ -263,8 +263,56 @@
         ]
       }
     },
+    "/api/v2/users/me/limits": {
+      "get": {
+        "description": "The caller's active events (events they created whose galleries are still open) against their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: read the numbers here. Each event's own limits are on the event.",
+        "operationId": "UsersController_getMyLimits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Plan limits and usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UserLimitsResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get the current user's plan limits and usage",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/users/me/storage": {
       "get": {
+        "deprecated": true,
+        "description": "Deprecated: there is no personal storage limit any more. Each gallery has its own (an event's limits and usage), and GET /users/me/limits has the account's. Removed once the app no longer calls it.",
         "operationId": "UsersController_getMyStorage",
         "parameters": [],
         "responses": {
@@ -2529,6 +2577,95 @@
           "username",
           "available",
           "reason"
+        ]
+      },
+      "AccountPlan": {
+        "type": "string",
+        "enum": [
+          "FREE"
+        ],
+        "description": "The caller's account plan. Every account is FREE until a host subscription exists."
+      },
+      "AccountLimitsResponseDto": {
+        "type": "object",
+        "properties": {
+          "activeEvents": {
+            "type": "number",
+            "nullable": true,
+            "description": "Events the caller created whose galleries are still open, at once; null for no limit. Joined events never count."
+          }
+        },
+        "required": [
+          "activeEvents"
+        ]
+      },
+      "AccountUsageResponseDto": {
+        "type": "object",
+        "properties": {
+          "activeEvents": {
+            "type": "number",
+            "description": "Events the caller created whose galleries are still open."
+          }
+        },
+        "required": [
+          "activeEvents"
+        ]
+      },
+      "ClosingEventResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "galleryClosesAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When the gallery closes; from then on the event no longer counts as active."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "galleryClosesAt"
+        ]
+      },
+      "UserLimitsResponseDto": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "description": "The caller's account plan. Every account is FREE until a host subscription exists.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountPlan"
+              }
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AccountLimitsResponseDto"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/AccountUsageResponseDto"
+          },
+          "nextClosingEvent": {
+            "nullable": true,
+            "description": "The caller's active event whose gallery closes first, which frees a place for a new one; null when none of their active events is set to close.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ClosingEventResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "plan",
+          "limits",
+          "usage",
+          "nextClosingEvent"
         ]
       },
       "UserStorageResponseDto": {

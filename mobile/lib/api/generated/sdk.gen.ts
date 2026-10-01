@@ -116,6 +116,9 @@ import type {
   UsersControllerFindMeData,
   UsersControllerFindMeErrors,
   UsersControllerFindMeResponses,
+  UsersControllerGetMyLimitsData,
+  UsersControllerGetMyLimitsErrors,
+  UsersControllerGetMyLimitsResponses,
   UsersControllerGetMyStorageByEventData,
   UsersControllerGetMyStorageByEventErrors,
   UsersControllerGetMyStorageByEventResponses,
@@ -242,7 +245,25 @@ export const usersControllerUpdateMe = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * Get the current user's plan limits and usage
+ *
+ * The caller's active events (events they created whose galleries are still open) against their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: read the numbers here. Each event's own limits are on the event.
+ */
+export const usersControllerGetMyLimits = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerGetMyLimitsData, ThrowOnError>,
+): RequestResult<UsersControllerGetMyLimitsResponses, UsersControllerGetMyLimitsErrors, ThrowOnError> =>
+  (options?.client ?? client).get<UsersControllerGetMyLimitsResponses, UsersControllerGetMyLimitsErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/users/me/limits",
+    ...options,
+  });
+
+/**
  * Get current user photo storage quota
+ *
+ * Deprecated: there is no personal storage limit any more. Each gallery has its own (an event's limits and usage), and GET /users/me/limits has the account's. Removed once the app no longer calls it.
+ *
+ * @deprecated
  */
 export const usersControllerGetMyStorage = <ThrowOnError extends boolean = false>(
   options?: Options<UsersControllerGetMyStorageData, ThrowOnError>,

@@ -3,7 +3,8 @@ import { Test } from "@nestjs/testing";
 import { Plan, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PrismaService } from "src/prisma/prisma.service";
-import { EventPlanService, PlannedEvent } from "./event-plan.service";
+import { activeEventsCreatedBy, EventPlanService, PlannedEvent } from "./event-plan.service";
+import { PLAN_LIMIT_CODES } from "./plans.constants";
 
 describe("EventPlanService", () => {
   let service: EventPlanService;
@@ -101,8 +102,66 @@ describe("EventPlanService", () => {
     });
   });
 
-  it("gives every account the free account limits until a subscription exists", async () => {
-    await expect(service.accountLimitsFor("user-1")).resolves.toEqual({ maxActiveEvents: 2 });
+  describe("accounts", () => {
+    const userId = "11111111-1111-1111-1111-111111111111";
+
+    it("gives every account the free account limits until a subscription exists", async () => {
+      await expect(service.accountLimitsFor(userId)).resolves.toEqual({ plan: "FREE", maxActiveEvents: 2 });
+    });
+
+    it("counts the account's events whose galleries are open, and finds the one that closes first", async () => {
+      const now = new Date("2026-10-01T12:00:00.000Z");
+      const closesAt = new Date("2026-10-20T18:00:00.000Z");
+      prisma.event.count.mockResolvedValue(2);
+      prisma.event.findFirst.mockResolvedValue({
+        id: event.id,
+        title: "Book Club",
+        galleryClosesAt: closesAt,
+      } as never);
+
+      await expect(service.accountUsageFor(userId, now)).resolves.toEqual({
+        activeEvents: 2,
+        nextClosingEvent: { id: event.id, title: "Book Club", galleryClosesAt: closesAt },
+      });
+      expect(prisma.event.count).toHaveBeenCalledWith({ where: activeEventsCreatedBy(userId, now) });
+      expect(prisma.event.findFirst).toHaveBeenCalledWith({
+        where: { AND: [activeEventsCreatedBy(userId, now), { galleryClosesAt: { not: null } }] },
+        orderBy: [{ galleryClosesAt: "asc" }, { id: "asc" }],
+        select: { id: true, title: true, galleryClosesAt: true },
+      });
+    });
+
+    it("has no event to close next when none of the active ones is set to close", async () => {
+      prisma.event.count.mockResolvedValue(0);
+      prisma.event.findFirst.mockResolvedValue(null);
+
+      await expect(service.accountUsageFor(userId)).resolves.toEqual({ activeEvents: 0, nextClosingEvent: null });
+    });
+
+    describe("assertCanCreateEvent", () => {
+      it("refuses an event past the account's active-event limit", async () => {
+        prisma.event.count.mockResolvedValue(2);
+
+        await expect(service.assertCanCreateEvent(prisma, userId)).rejects.toMatchObject({
+          response: { code: PLAN_LIMIT_CODES.ACTIVE_EVENT_LIMIT_REACHED },
+        });
+      });
+
+      it("lets an account under its limit create one, counting under the creator's lock", async () => {
+        prisma.event.count.mockResolvedValue(1);
+
+        await expect(service.assertCanCreateEvent(prisma, userId)).resolves.toBeUndefined();
+        expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      });
+
+      it("never counts events on an account plan without a limit", async () => {
+        jest.spyOn(service, "accountLimitsFor").mockResolvedValue({ plan: "FREE", maxActiveEvents: null });
+
+        await expect(service.assertCanCreateEvent(prisma, userId)).resolves.toBeUndefined();
+        expect(prisma.event.count).not.toHaveBeenCalled();
+        expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("usageFor", () => {

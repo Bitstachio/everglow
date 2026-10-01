@@ -34,6 +34,7 @@ import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { DeleteAccountQueryDto } from "./dto/delete-account-query.dto";
 import { PasswordChangeTicketResponseDto } from "./dto/password-change-ticket-response.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
+import { UserLimitsResponseDto } from "./dto/user-limits-response.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
 import { UserStorageResponseDto } from "./dto/user-storage-response.dto";
 import { UsernameAvailabilityQueryDto } from "./dto/username-availability-query.dto";
@@ -50,6 +51,7 @@ import { OwnPhotoListResponseDto } from "src/photos/dto/own-photo-list-response.
 import { UserPhotosMapper } from "src/photos/mappers/user-photos.mapper";
 import { PhotoStorageService } from "src/photos/photo-storage.service";
 import { UserPhotosService } from "src/photos/user-photos.service";
+import { EventPlanService } from "src/plans/event-plan.service";
 
 @ApiTags("users")
 @ApiBearerAuth("access-token")
@@ -63,6 +65,7 @@ export class UsersController {
     private readonly credentialsService: CredentialsService,
     private readonly photoStorageService: PhotoStorageService,
     private readonly userPhotosService: UserPhotosService,
+    private readonly eventPlanService: EventPlanService,
   ) {}
 
   @Post("me/onboarding")
@@ -94,8 +97,31 @@ export class UsersController {
     return this.toResponseDto(await this.usersService.getById(user.id));
   }
 
+  @Get("me/limits")
+  @ApiOperation({
+    summary: "Get the current user's plan limits and usage",
+    description:
+      "The caller's active events (events they created whose galleries are still open) against their plan's " +
+      "limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: " +
+      "read the numbers here. Each event's own limits are on the event.",
+  })
+  @ApiWrappedResponse(UserLimitsResponseDto, "Plan limits and usage")
+  async getMyLimits(@CurrentUser() user: AuthenticatedUser): Promise<UserLimitsResponseDto> {
+    const [limits, usage] = await Promise.all([
+      this.eventPlanService.accountLimitsFor(user.id),
+      this.eventPlanService.accountUsageFor(user.id),
+    ]);
+    return UserMapper.toLimitsResponseDto(limits, usage);
+  }
+
   @Get("me/storage")
-  @ApiOperation({ summary: "Get current user photo storage quota" })
+  @ApiOperation({
+    summary: "Get current user photo storage quota",
+    description:
+      "Deprecated: there is no personal storage limit any more. Each gallery has its own (an event's limits and " +
+      "usage), and GET /users/me/limits has the account's. Removed once the app no longer calls it.",
+    deprecated: true,
+  })
   @ApiWrappedResponse(UserStorageResponseDto, "Photo storage usage")
   async getMyStorage(@CurrentUser() user: AuthenticatedUser): Promise<UserStorageResponseDto> {
     return this.photoStorageService.getStorageForUser(user.id);
