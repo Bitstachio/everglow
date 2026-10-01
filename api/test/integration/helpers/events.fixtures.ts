@@ -7,6 +7,7 @@ import { EventAccessWithUser } from "src/events/events.types";
 import { UserWithDetails } from "src/users/users.types";
 import { TEST_NOW, TEST_USER_ID, buildUserWithDetails } from "./users.fixtures";
 import { TEST_OTHER_USER_ID, TEST_TARGET_USER_ID } from "./auth.fixtures";
+import { TEST_FREE_PLAN_ID } from "./plans.fixtures";
 
 export const TEST_EVENT_ID = "66666666-6666-6666-6666-666666666666";
 export const TEST_OTHER_EVENT_ID = "77777777-7777-7777-7777-777777777777";
@@ -42,7 +43,8 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   coverS3Key: null,
   coverUpdatedById: null,
   underReviewAt: null,
-  plan: "FREE",
+  planId: TEST_FREE_PLAN_ID,
+  bonusStorageBytes: 0n,
   galleryClosesAt: null,
   galleryClosedAt: null,
   createdAt: TEST_NOW,
@@ -60,7 +62,8 @@ export const buildOtherUserEvent = (overrides: Partial<Event> = {}): Event => ({
   coverS3Key: null,
   coverUpdatedById: null,
   underReviewAt: null,
-  plan: "FREE",
+  planId: TEST_FREE_PLAN_ID,
+  bonusStorageBytes: 0n,
   galleryClosesAt: null,
   galleryClosedAt: null,
   createdAt: TEST_NOW,
@@ -181,11 +184,11 @@ export const expectedEventResponse = (
   invites,
   coverUrl,
   status: event.underReviewAt ? "UNDER_REVIEW" : "ACTIVE",
-  plan: event.plan,
+  plan: "FREE",
   galleryState: "OPEN",
   galleryClosesAt: event.galleryClosesAt?.toISOString() ?? null,
-  limits: { members: 30, photos: 500 },
-  usage: { members: 0, photos: 0 },
+  limits: { members: 30, storageBytes: "3221225472" },
+  usage: { members: 0, storageBytes: "0" },
   createdAt: event.createdAt.toISOString(),
   updatedAt: event.updatedAt.toISOString(),
 });

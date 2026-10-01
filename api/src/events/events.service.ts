@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, EventPlan, Prisma } from "generated/prisma/client";
+import { EventPlanService } from "src/plans/event-plan.service";
 import { galleryClosesAt } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
@@ -45,6 +46,7 @@ export class EventsService {
     private readonly abilityFactory: AbilityFactory,
     private readonly photoPurgeService: PhotoPurgeService,
     private readonly imageUploads: ImageUploadService,
+    private readonly eventPlanService: EventPlanService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -66,30 +68,37 @@ export class EventsService {
 
     const participantToken = randomUUID();
     const date = new Date(dto.date);
+    // New events start on the free plan's newest version (docs/event-quotas.md).
+    const plan = await this.eventPlanService.currentPlan(EventPlan.FREE);
 
-    const event = await this.prisma.event.create({
-      data: {
-        title: dto.title,
-        date,
-        plan: EventPlan.FREE,
-        galleryClosesAt: galleryClosesAt(date, EventPlan.FREE),
-        creatorId,
-        invitationUrl: participantToken,
-        ...(dto.description !== undefined && { description: dto.description }),
-        eventAccesses: {
-          create: {
-            userId: creatorId,
-            accessLevel: AccessLevel.ORGANIZER,
+    // The active-event check and the insert share a transaction, so two
+    // creates by the same person can't both pass it (docs/event-quotas.md).
+    const event = await this.prisma.$transaction(async (tx) => {
+      await this.eventPlanService.assertCanCreateEvent(tx, creatorId);
+      return tx.event.create({
+        data: {
+          title: dto.title,
+          date,
+          planId: plan.id,
+          galleryClosesAt: galleryClosesAt(date, plan.galleryWindowDays),
+          creatorId,
+          invitationUrl: participantToken,
+          ...(dto.description !== undefined && { description: dto.description }),
+          eventAccesses: {
+            create: {
+              userId: creatorId,
+              accessLevel: AccessLevel.ORGANIZER,
+            },
+          },
+          invites: {
+            create: [
+              { token: participantToken, accessLevel: AccessLevel.PARTICIPANT },
+              { token: randomUUID(), accessLevel: AccessLevel.VIEWER },
+              { token: randomUUID(), accessLevel: AccessLevel.ORGANIZER },
+            ],
           },
         },
-        invites: {
-          create: [
-            { token: participantToken, accessLevel: AccessLevel.PARTICIPANT },
-            { token: randomUUID(), accessLevel: AccessLevel.VIEWER },
-            { token: randomUUID(), accessLevel: AccessLevel.ORGANIZER },
-          ],
-        },
-      },
+      });
     });
 
     this.logger.info({ event: "event.created", eventId: event.id, creatorId }, "Event created");
@@ -146,12 +155,17 @@ export class EventsService {
 
     await this.assertNoBlockWithOrganizers(event.id, invitationUrl, callerId);
 
-    await this.prisma.eventAccess.create({
-      data: {
-        userId: callerId,
-        eventId: event.id,
-        accessLevel: invite.accessLevel,
-      },
+    // The member check and the insert share a transaction, so two joins to a
+    // nearly full event can't both pass it (docs/event-quotas.md).
+    await this.prisma.$transaction(async (tx) => {
+      await this.eventPlanService.assertCanJoin(tx, event);
+      await tx.eventAccess.create({
+        data: {
+          userId: callerId,
+          eventId: event.id,
+          accessLevel: invite.accessLevel,
+        },
+      });
     });
 
     this.logger.info(
@@ -243,13 +257,15 @@ export class EventsService {
     // a closed gallery never reopens.
     const date = dto.date !== undefined ? new Date(dto.date) : undefined;
     const movesCloseTime = date !== undefined && !event.galleryClosedAt;
+    // The window comes from the event's own plan version, not the newest one.
+    const windowDays = movesCloseTime ? (await this.eventPlanService.planFor(event.planId)).galleryWindowDays : null;
 
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(date !== undefined && { date }),
-        ...(movesCloseTime && { galleryClosesAt: galleryClosesAt(date, event.plan) }),
+        ...(movesCloseTime && { galleryClosesAt: galleryClosesAt(date, windowDays) }),
         ...(dto.description !== undefined && { description: dto.description }),
       },
     });

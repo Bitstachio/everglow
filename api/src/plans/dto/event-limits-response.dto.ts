@@ -1,6 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 
-/** The user-facing limits of an event's plan. The gallery byte cap is a safety net and stays hidden. */
+/** The limits of an event's plan. */
 export class EventLimitsResponseDto {
   @ApiProperty({
     type: Number,
@@ -9,8 +9,13 @@ export class EventLimitsResponseDto {
   })
   members: number | null;
 
-  @ApiProperty({ type: Number, nullable: true, description: "Photos in the gallery; null for no limit." })
-  photos: number | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "The gallery's storage, in bytes as a decimal string; null for no limit.",
+    example: "3221225472",
+  })
+  storageBytes: string | null;
 }
 
 /** What the event holds now, counted the way its limits are. */
@@ -18,6 +23,10 @@ export class EventUsageResponseDto {
   @ApiProperty({ description: "Members of every role, organizers included." })
   members: number;
 
-  @ApiProperty({ description: "Photos in the gallery, uploads in progress included." })
-  photos: number;
+  @ApiProperty({
+    type: String,
+    description: "Storage used by the gallery's photos, uploads in progress included, in bytes as a decimal string.",
+    example: "1288490188",
+  })
+  storageBytes: string;
 }

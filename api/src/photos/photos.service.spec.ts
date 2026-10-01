@@ -80,7 +80,8 @@ describe("PhotosService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -240,7 +241,7 @@ describe("PhotosService", () => {
     });
 
     it.each(["ORGANIZER", "PARTICIPANT"] as const)(
-      "reserves quota for the PENDING rows, then returns presigned slots for a %s",
+      "reserves room in the event's gallery for the PENDING rows, then returns presigned slots for a %s",
       async (accessLevel) => {
         prisma.user.findUnique.mockResolvedValue(callerWithDetails);
         prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess(accessLevel)]) as never);
@@ -249,10 +250,11 @@ describe("PhotosService", () => {
 
         expect(photoStorageService.reserveUploadBytes).toHaveBeenCalledTimes(1);
         const [reservedFor, rows] = photoStorageService.reserveUploadBytes.mock.calls[0] as [
-          string,
+          { id: string },
           Record<string, unknown>[],
         ];
-        expect(reservedFor).toBe(callerId);
+        // The gallery's room is checked per event now, not against the uploader.
+        expect(reservedFor.id).toBe(eventId);
         expect(rows).toHaveLength(files.length);
         for (const [index, row] of rows.entries()) {
           expect(row).toMatchObject({

@@ -5,6 +5,7 @@ import {
   REMOVED_FROM_EVENT_CODE,
 } from "src/events/events.constants";
 import { IMAGE_UPLOAD_ERROR_CODES } from "src/images/images.constants";
+import { PLAN_LIMIT_CODES } from "src/plans/plans.constants";
 import { STORAGE_QUOTA_EXCEEDED_CODE, STORAGE_RESERVATION_CONFLICT_CODE } from "src/photos/photos.constants";
 import { USERNAME_CHANGE_LIMITED_CODE, USERNAME_TAKEN_CODE } from "src/users/users.constants";
 
@@ -16,6 +17,10 @@ import { USERNAME_CHANGE_LIMITED_CODE, USERNAME_TAKEN_CODE } from "src/users/use
  * Keep alphabetical by string value so reviews and diffs stay stable.
  */
 export const API_ERROR_CODES = [
+  PLAN_LIMIT_CODES.ACTIVE_EVENT_LIMIT_REACHED,
+  PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED,
+  PLAN_LIMIT_CODES.EVENT_MEMBER_LIMIT_REACHED,
+  PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,
   EVENT_UNDER_REVIEW_CODE,
   IMAGE_UPLOAD_ERROR_CODES.INVALID_SIZE,
   IMAGE_UPLOAD_ERROR_CODES.UNSUPPORTED_CONTENT_TYPE,

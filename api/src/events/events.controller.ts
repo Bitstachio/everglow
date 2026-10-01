@@ -63,8 +63,9 @@ export class EventsController {
   @ApiWrappedResponse(EventResponseDto, "Events the user can read", 200)
   async findAll(@CurrentUser() user: AuthenticatedUser): Promise<EventResponseDto[]> {
     const events = await this.eventsService.findAllForUser(user.id);
-    const [coverUrls, usage] = await Promise.all([
+    const [coverUrls, limits, usage] = await Promise.all([
       this.eventCoverService.getCoverUrls(events, user.id),
+      this.eventPlanService.limitsForEvents(events),
       this.eventPlanService.usageFor(events.map((event) => event.id)),
     ]);
     return Promise.all(
@@ -72,6 +73,7 @@ export class EventsController {
         EventMapper.toResponseDto(
           event,
           coverUrls.get(event.id) ?? null,
+          limits.get(event.id)!,
           usage.get(event.id)!,
           await this.eventsService.listInvitesForCaller(event.id, user.id),
         ),
@@ -266,11 +268,12 @@ export class EventsController {
   }
 
   private async toResponseDto(event: Event, viewerId: string): Promise<EventResponseDto> {
-    const [coverUrl, invites, usage] = await Promise.all([
+    const [coverUrl, invites, limits, usage] = await Promise.all([
       this.eventCoverService.getCoverUrl(event, viewerId),
       this.eventsService.listInvitesForCaller(event.id, viewerId),
+      this.eventPlanService.limitsOf(event),
       this.eventPlanService.usageFor([event.id]),
     ]);
-    return EventMapper.toResponseDto(event, coverUrl, usage.get(event.id)!, invites);
+    return EventMapper.toResponseDto(event, coverUrl, limits, usage.get(event.id)!, invites);
   }
 }
