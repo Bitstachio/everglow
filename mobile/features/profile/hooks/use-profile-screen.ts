@@ -70,7 +70,6 @@ export const useProfileScreen = () => {
     username,
     handleOpenUsername: () => router.push("/edit-username"),
     handleOpenDisplayName: () => router.push("/edit-display-name"),
-    handleOpenUsage: () => router.push("/usage"),
     handleOpenPrivacyPolicy: () => router.push("/privacy-policy"),
     handleOpenTermsOfUse: () => router.push("/terms-of-use"),
     canChangePassword,
