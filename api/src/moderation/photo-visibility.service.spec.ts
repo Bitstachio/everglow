@@ -61,6 +61,41 @@ describe("PhotoVisibilityService", () => {
   });
 
   describe("whereVisibleTo", () => {
+    describe("a closed gallery", () => {
+      const noPhotos = { id: { in: [] } };
+      const pastCloseTime = new Date(Date.now() - 60 * 1000);
+
+      it.each([AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT, AccessLevel.VIEWER])(
+        "shows a %s no photo once the close time has passed, and asks the database nothing",
+        async (accessLevel) => {
+          const event = { ...eventFor(accessLevel), galleryClosesAt: pastCloseTime };
+
+          await expect(service.whereVisibleTo(callerId, event)).resolves.toEqual(noPhotos);
+          expect(prisma.report.groupBy).not.toHaveBeenCalled();
+        },
+      );
+
+      it("shows no photo once the close job has run", async () => {
+        const event = { ...eventFor(AccessLevel.ORGANIZER), galleryClosedAt: now };
+
+        await expect(service.whereVisibleTo(callerId, event)).resolves.toEqual(noPhotos);
+      });
+
+      it("still shows an organizer everything until the close time", async () => {
+        const event = { ...eventFor(AccessLevel.ORGANIZER), galleryClosesAt: new Date(Date.now() + 60 * 1000) };
+
+        await expect(service.whereVisibleTo(callerId, event)).resolves.toEqual({});
+      });
+
+      it("makes a single photo of a closed gallery invisible", async () => {
+        prisma.photo.count.mockResolvedValue(0);
+        const event = { ...eventFor(AccessLevel.ORGANIZER), galleryClosesAt: pastCloseTime };
+
+        await expect(service.isVisibleTo(photoId, callerId, event)).resolves.toBe(false);
+        expect(prisma.photo.count).toHaveBeenCalledWith({ where: { AND: [{ id: photoId }, noPhotos] } });
+      });
+    });
+
     it("filters nothing for an organizer of the event, and asks the database nothing", async () => {
       const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.ORGANIZER));
 
