@@ -107,9 +107,8 @@ Retry-After: 37
 - The guard throws `RateLimitExceededException`, an `HttpException` whose body carries `code`. It goes through
   `AllExceptionsFilter` like every other error, so the envelope is the standard one.
 - `AllExceptionsFilter` now surfaces a string `code` from any `HttpException` body. That is what makes
-  `RATE_LIMIT_EXCEEDED` reach the client, and it does the same for the codes that already existed
-  (`STORAGE_QUOTA_EXCEEDED`, `STORAGE_RESERVATION_CONFLICT`), which were previously thrown but dropped. No other
-  body fields are exposed.
+  `RATE_LIMIT_EXCEEDED` reach the client, and it does the same for the codes that already existed (such as
+  `STORAGE_RESERVATION_CONFLICT`), which were previously thrown but dropped. No other body fields are exposed.
 - `Retry-After` is whole seconds, at least 1. Throttler's own `X-RateLimit-*` / `Retry-After-<tier>` headers are
   switched off: with two tiers on a route they are ambiguous, and the suffixed retry header is not one clients
   understand.

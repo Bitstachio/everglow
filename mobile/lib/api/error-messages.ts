@@ -28,7 +28,6 @@ export const API_ERROR_MESSAGES = {
   ORGANIZER_BLOCKED_BY_CALLER: "This event is organized by someone you blocked. Unblock them to join.",
   RATE_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
   REMOVED_FROM_EVENT: "You were removed from this event by an organizer.",
-  STORAGE_QUOTA_EXCEEDED: "You've run out of photo storage. Free up space or upgrade to continue.",
   STORAGE_RESERVATION_CONFLICT: "Another upload is in progress. Please try again.",
   USERNAME_CHANGE_LIMITED: "You've changed your username too many times recently. Please try again later.",
   USERNAME_TAKEN: "This username is taken",

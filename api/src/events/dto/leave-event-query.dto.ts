@@ -10,9 +10,9 @@ export class LeaveEventQueryDto {
     enumName: "MemberPhotos",
     default: MEMBER_PHOTOS.KEEP,
     description:
-      "What happens to the photos you uploaded to this event. KEEP (default): they stay in the event and keep " +
-      "counting toward your storage; you can still delete them later from GET /users/me/storage/events. " +
-      "DELETE: they are all deleted now and the space is freed.",
+      "What happens to the photos you uploaded to this event. KEEP (default): they stay in the event, " +
+      "credited to you, until its gallery closes. DELETE: they are all deleted now, unless the gallery has " +
+      "already closed, in which case nothing is deleted.",
   })
   @IsOptional()
   @IsIn(PHOTOS)

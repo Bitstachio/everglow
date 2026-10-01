@@ -18,7 +18,7 @@ S3 is guaranteed to reject a PUT whose `Content-Type` differs from the signed on
 | Who may call it             | event organizer or participant                                                                                          | the user, once onboarded                                 | event organizer                                                 |
 | Batch                       | up to 20 files                                                                                                          | one                                                      | one                                                             |
 | Limits                      | 25 MB; JPEG, PNG, WebP, HEIC, HEIF                                                                                      | 5 MB; JPEG, PNG, WebP                                    | 5 MB; JPEG, PNG, WebP                                           |
-| Counts toward storage quota | yes, from mint                                                                                                          | no                                                       | no                                                              |
+| Counts toward gallery limit | yes, from mint                                                                                                          | no                                                       | no                                                              |
 | Written at mint             | one `PENDING` `Photo` row per file                                                                                      | nothing                                                  | nothing                                                         |
 | Mint response               | `[{ photoId, uploadUrl, expiresAt }]`                                                                                   | `{ uploadId, uploadUrl, expiresAt }`                     | `{ uploadId, uploadUrl, expiresAt }`                            |
 | URL lifetime                | 1 hour                                                                                                                  | 15 minutes                                               | 15 minutes                                                      |
@@ -35,7 +35,8 @@ Failures that a client should branch on carry a stable `code` in the error envel
 
 | Code                             | Status | Kind          | Meaning                                                 |
 | -------------------------------- | ------ | ------------- | ------------------------------------------------------- |
-| `STORAGE_QUOTA_EXCEEDED`         | 413    | photos        | the batch does not fit under the uploader's limit       |
+| `EVENT_STORAGE_LIMIT_REACHED`    | 403    | photos        | the batch would take the gallery past its storage limit |
+| `EVENT_GALLERY_CLOSED`           | 403    | photos        | the event's gallery has closed                          |
 | `STORAGE_RESERVATION_CONFLICT`   | 409    | photos        | concurrent batches kept colliding; retry                |
 | `IMAGE_UNSUPPORTED_CONTENT_TYPE` | 400    | avatar, cover | type not in the image allowlist                         |
 | `IMAGE_INVALID_SIZE`             | 400    | avatar, cover | size not a whole number between 1 and the image maximum |

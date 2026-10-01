@@ -7,8 +7,6 @@ export interface DeleteUploadsInput {
   userId: string;
   /** Recorded as the resolver of any reports the deletion closes. */
   closedById: string;
-  /** Only these photos; all of the user's photos in the event when omitted. */
-  photoIds?: string[];
   /** Photos the caller deletes itself, e.g. the one a report is about. */
   excludePhotoIds?: string[];
 }
@@ -17,25 +15,24 @@ export interface DeletedUploads {
   /** Objects to purge once the transaction has committed. */
   photoKeys: string[];
   photosDeleted: number;
-  /** Quota returned to the uploader. */
+  /** Storage freed in the event's gallery. */
   bytesFreed: bigint;
   reportsClosed: number;
 }
 
 /**
- * Deletes photos a user uploaded to one event, whatever their status, inside
- * the caller's transaction. Leaving an event, being removed from one, and
- * clearing space from the storage screen all come through here. Their OPEN
- * reports are closed first, because the delete sets the reports' photoId to
- * null. Objects are the caller's to purge after the commit, never inside a
- * database transaction.
+ * Deletes the photos a user uploaded to one event, whatever their status,
+ * inside the caller's transaction. Leaving an event and being removed from one
+ * both come through here. Their OPEN reports are closed first, because the
+ * delete sets the reports' photoId to null. Objects are the caller's to purge
+ * after the commit, never inside a database transaction.
  */
 export const deleteUploadsInTransaction = async (
   tx: Prisma.TransactionClient,
-  { eventId, userId, closedById, photoIds, excludePhotoIds = [] }: DeleteUploadsInput,
+  { eventId, userId, closedById, excludePhotoIds = [] }: DeleteUploadsInput,
 ): Promise<DeletedUploads> => {
   const uploaded = await tx.photo.findMany({
-    where: { eventId, addedById: userId, id: { ...(photoIds && { in: photoIds }), notIn: excludePhotoIds } },
+    where: { eventId, addedById: userId, id: { notIn: excludePhotoIds } },
     select: { id: true, s3Key: true, sizeBytes: true },
   });
   if (uploaded.length === 0) return { photoKeys: [], photosDeleted: 0, bytesFreed: 0n, reportsClosed: 0 };

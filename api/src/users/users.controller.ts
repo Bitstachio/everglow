@@ -5,8 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -43,14 +41,7 @@ import { UserMapper } from "./mappers/user.mapper";
 import { UserAvatarService } from "./user-avatar.service";
 import { UsersService } from "./users.service";
 import { UserWithDetails } from "./users.types";
-import { CursorPageQueryDto } from "src/common/pagination/cursor-page-query.dto";
-import { DeleteOwnPhotosResponseDto } from "src/photos/dto/delete-own-photos-response.dto";
-import { DeleteOwnPhotosDto } from "src/photos/dto/delete-own-photos.dto";
-import { EventStorageUsageListResponseDto } from "src/photos/dto/event-storage-usage-list-response.dto";
-import { OwnPhotoListResponseDto } from "src/photos/dto/own-photo-list-response.dto";
-import { UserPhotosMapper } from "src/photos/mappers/user-photos.mapper";
 import { PhotoStorageService } from "src/photos/photo-storage.service";
-import { UserPhotosService } from "src/photos/user-photos.service";
 import { EventPlanService } from "src/plans/event-plan.service";
 
 @ApiTags("users")
@@ -64,7 +55,6 @@ export class UsersController {
     private readonly userAvatarService: UserAvatarService,
     private readonly credentialsService: CredentialsService,
     private readonly photoStorageService: PhotoStorageService,
-    private readonly userPhotosService: UserPhotosService,
     private readonly eventPlanService: EventPlanService,
   ) {}
 
@@ -119,52 +109,6 @@ export class UsersController {
   @ApiWrappedResponse(UserStorageResponseDto, "Photo storage usage")
   async getMyStorage(@CurrentUser() user: AuthenticatedUser): Promise<UserStorageResponseDto> {
     return this.photoStorageService.getStorageForUser(user.id);
-  }
-
-  @Get("me/storage/events")
-  @ApiOperation({
-    summary: "Break the caller's storage down by event",
-    description:
-      "One row per event the caller has photos in, largest first, including events they left or were removed from.",
-  })
-  @ApiWrappedResponse(EventStorageUsageListResponseDto, "Storage used per event")
-  async getMyStorageByEvent(@CurrentUser() user: AuthenticatedUser): Promise<EventStorageUsageListResponseDto> {
-    return UserPhotosMapper.toUsageListResponseDto(await this.userPhotosService.usageByEvent(user.id));
-  }
-
-  @Get("me/storage/events/:eventId/photos")
-  @ApiOperation({
-    summary: "List the caller's own photos in one event",
-    description: "Newest first, with each photo's size. Works whether or not the caller is still a member.",
-  })
-  @ApiWrappedResponse(OwnPhotoListResponseDto, "The caller's photos in the event")
-  async listMyPhotosInEvent(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("eventId", ParseUUIDPipe) eventId: string,
-    @Query() query: CursorPageQueryDto,
-  ): Promise<OwnPhotoListResponseDto> {
-    const page = await this.userPhotosService.listInEvent(user.id, eventId, query);
-    return UserPhotosMapper.toOwnPhotoListResponseDto(page.items, page.nextCursor);
-  }
-
-  @Post("me/storage/events/:eventId/photos/delete")
-  @HttpCode(HttpStatus.OK)
-  @RateLimit("sensitive")
-  @ApiOperation({
-    summary: "Delete the caller's own photos in one event to free storage",
-    description:
-      "Deletes the given photos, or all of the caller's photos in the event when photoIds is omitted. " +
-      "Works whether or not the caller is still a member. Open reports on them are closed.",
-  })
-  @ApiWrappedResponse(DeleteOwnPhotosResponseDto, "What was deleted and how much space it freed")
-  async deleteMyPhotosInEvent(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("eventId", ParseUUIDPipe) eventId: string,
-    @Body() dto: DeleteOwnPhotosDto,
-  ): Promise<DeleteOwnPhotosResponseDto> {
-    return UserPhotosMapper.toDeleteResponseDto(
-      await this.userPhotosService.deleteInEvent(user.id, eventId, dto.photoIds),
-    );
   }
 
   @Patch("me")

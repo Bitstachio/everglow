@@ -6,7 +6,7 @@ import {
 } from "src/events/events.constants";
 import { IMAGE_UPLOAD_ERROR_CODES } from "src/images/images.constants";
 import { PLAN_LIMIT_CODES } from "src/plans/plans.constants";
-import { STORAGE_QUOTA_EXCEEDED_CODE, STORAGE_RESERVATION_CONFLICT_CODE } from "src/photos/photos.constants";
+import { STORAGE_RESERVATION_CONFLICT_CODE } from "src/photos/photos.constants";
 import { USERNAME_CHANGE_LIMITED_CODE, USERNAME_TAKEN_CODE } from "src/users/users.constants";
 
 /**
@@ -30,7 +30,6 @@ export const API_ERROR_CODES = [
   ORGANIZER_BLOCKED_BY_CALLER_CODE,
   RATE_LIMIT_EXCEEDED_CODE,
   REMOVED_FROM_EVENT_CODE,
-  STORAGE_QUOTA_EXCEEDED_CODE,
   STORAGE_RESERVATION_CONFLICT_CODE,
   USERNAME_CHANGE_LIMITED_CODE,
   USERNAME_TAKEN_CODE,

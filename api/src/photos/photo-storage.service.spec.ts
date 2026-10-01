@@ -1,11 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  PayloadTooLargeException,
-} from "@nestjs/common";
+import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PhotoStatus, Plan, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -17,7 +11,6 @@ import {
   buildPhotoS3Key,
   FREE_TIER_STORAGE_LIMIT_BYTES,
   PHOTO_SERVICE_ERRORS,
-  STORAGE_QUOTA_EXCEEDED_CODE,
   STORAGE_RESERVATION_CONFLICT_CODE,
   STORAGE_RESERVATION_MAX_ATTEMPTS,
 } from "./photos.constants";
@@ -88,7 +81,7 @@ describe("PhotoStorageService", () => {
     service = module.get(PhotoStorageService);
   });
 
-  it("returns storage usage for a user", async () => {
+  it("reports a person's uploads against the old personal limit, for GET /users/me/storage", async () => {
     prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 1024 } } as never);
 
     await expect(service.getStorageForUser(userId)).resolves.toEqual({
@@ -122,136 +115,6 @@ describe("PhotoStorageService", () => {
 
     await expect(snapshot).rejects.toBeInstanceOf(NotFoundException);
     await expect(snapshot).rejects.toThrow(USER_SERVICE_ERRORS.NOT_FOUND(userId));
-  });
-
-  it("allows uploads within the remaining quota", async () => {
-    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 100 } } as never);
-
-    await expect(service.assertCanUpload(userId, 200)).resolves.toBeUndefined();
-  });
-
-  it("rejects uploads that would exceed the quota", async () => {
-    const usedBytes = FREE_TIER_STORAGE_LIMIT_BYTES - 100n;
-    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: Number(usedBytes) } } as never);
-
-    await expect(service.assertCanUpload(userId, 200)).rejects.toMatchObject({
-      response: {
-        code: STORAGE_QUOTA_EXCEEDED_CODE,
-        message: PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED,
-        usedBytes: usedBytes.toString(),
-        limitBytes: FREE_TIER_STORAGE_LIMIT_BYTES.toString(),
-        requestedBytes: "200",
-      },
-    });
-    await expect(service.assertCanUpload(userId, 200)).rejects.toBeInstanceOf(PayloadTooLargeException);
-  });
-
-  it("enforces the caller's own limit, not the free-tier default", async () => {
-    // Above the free tier but under this user's raised ceiling: allowed.
-    prisma.user.findUnique.mockResolvedValue(userWithLimit(TEN_GIB));
-    prisma.photo.aggregate.mockResolvedValue({
-      _sum: { sizeBytes: Number(FREE_TIER_STORAGE_LIMIT_BYTES + 1n) },
-    } as never);
-    await expect(service.assertCanUpload(userId, 200)).resolves.toBeUndefined();
-
-    // Under the free tier but over this user's lowered ceiling: rejected.
-    prisma.user.findUnique.mockResolvedValue(userWithLimit(ONE_GIB));
-    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: Number(ONE_GIB - 100n) } } as never);
-    await expect(service.assertCanUpload(userId, 200)).rejects.toMatchObject({
-      response: {
-        code: STORAGE_QUOTA_EXCEEDED_CODE,
-        usedBytes: (ONE_GIB - 100n).toString(),
-        limitBytes: ONE_GIB.toString(),
-        requestedBytes: "200",
-      },
-    });
-  });
-
-  describe("addStorageLimit", () => {
-    const newLimit = FREE_TIER_STORAGE_LIMIT_BYTES + TEN_GIB;
-
-    const recordNotFound = () =>
-      new Prisma.PrismaClientKnownRequestError("An operation failed because it depends on one or more records", {
-        code: "P2025",
-        clientVersion: "7.8.0",
-      });
-
-    beforeEach(() => {
-      prisma.user.update.mockResolvedValue({ storageLimitBytes: newLimit } as never);
-    });
-
-    it("increments the stored limit in one update and returns the new value", async () => {
-      await expect(service.addStorageLimit(userId, TEN_GIB)).resolves.toBe(newLimit);
-
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: userId },
-        data: { storageLimitBytes: { increment: TEN_GIB } },
-        select: { storageLimitBytes: true },
-      });
-      // The grant must not be read-modify-write: no lookup, no transaction.
-      expect(prisma.user.findUnique).not.toHaveBeenCalled();
-      expect(prisma.$transaction).not.toHaveBeenCalled();
-    });
-
-    it("accepts a plain number and converts it to a bigint increment", async () => {
-      await expect(service.addStorageLimit(userId, 1024)).resolves.toBe(newLimit);
-
-      expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { storageLimitBytes: { increment: 1024n } } }),
-      );
-    });
-
-    it("logs an audit record with bigints stringified for JSON", async () => {
-      await service.addStorageLimit(userId, TEN_GIB);
-
-      expect(logger.info).toHaveBeenCalledWith(
-        {
-          event: "user.storage_limit.increased",
-          userId,
-          additionalBytes: TEN_GIB.toString(),
-          newLimitBytes: newLimit.toString(),
-          audit: true,
-        },
-        expect.any(String),
-      );
-    });
-
-    it.each([
-      ["zero", 0n],
-      ["a negative bigint", -1n],
-      ["a negative number", -1024],
-      ["a fractional number", 1.5],
-    ])("rejects %s with 400 and touches no row", async (_label, value) => {
-      const grant = service.addStorageLimit(userId, value);
-
-      await expect(grant).rejects.toBeInstanceOf(BadRequestException);
-      await expect(grant).rejects.toThrow(PHOTO_SERVICE_ERRORS.INVALID_STORAGE_INCREMENT(String(value)));
-      expect(prisma.user.update).not.toHaveBeenCalled();
-      expect(logger.info).not.toHaveBeenCalled();
-    });
-
-    it("translates a missing user into 404", async () => {
-      prisma.user.update.mockRejectedValue(recordNotFound());
-
-      const grant = service.addStorageLimit(userId, TEN_GIB);
-
-      await expect(grant).rejects.toBeInstanceOf(NotFoundException);
-      await expect(grant).rejects.toThrow(USER_SERVICE_ERRORS.NOT_FOUND(userId));
-      expect(logger.info).not.toHaveBeenCalled();
-    });
-
-    it("recognises a P2025 wrapped by the driver adapter", async () => {
-      prisma.user.update.mockRejectedValue(new Error("update failed", { cause: recordNotFound() }));
-
-      await expect(service.addStorageLimit(userId, TEN_GIB)).rejects.toBeInstanceOf(NotFoundException);
-    });
-
-    it("rethrows unrelated database errors untouched", async () => {
-      const outage = new Error("connection reset");
-      prisma.user.update.mockRejectedValue(outage);
-
-      await expect(service.addStorageLimit(userId, TEN_GIB)).rejects.toBe(outage);
-    });
   });
 
   describe("reserveUploadBytes", () => {

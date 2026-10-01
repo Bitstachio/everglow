@@ -44,14 +44,6 @@ describe("deleteUploadsInTransaction", () => {
     expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ids } } });
   });
 
-  it("narrows to the given photos, still only the user's own in that event", async () => {
-    await deleteUploadsInTransaction(prisma, { eventId, userId, closedById, photoIds: [ids[0]] });
-
-    expect(prisma.photo.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { eventId, addedById: userId, id: { in: [ids[0]], notIn: [] } } }),
-    );
-  });
-
   it("does nothing when there is nothing to delete", async () => {
     prisma.photo.findMany.mockResolvedValue([]);
 

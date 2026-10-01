@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  PayloadTooLargeException,
-} from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -13,6 +7,7 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
+import { PLAN_LIMIT_CODES, PLAN_LIMIT_MESSAGES } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
@@ -205,16 +200,19 @@ describe("PhotosService", () => {
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
-    it("throws PayloadTooLargeException and mints no URLs when the reservation exceeds storage quota", async () => {
+    it("propagates a full gallery and mints no URLs when the reservation is refused", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
       photoStorageService.reserveUploadBytes.mockRejectedValue(
-        new PayloadTooLargeException(PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED),
+        new ForbiddenException({
+          code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,
+          message: PLAN_LIMIT_MESSAGES.EVENT_STORAGE_LIMIT_REACHED,
+        }),
       );
 
-      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(
-        PayloadTooLargeException,
-      );
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toMatchObject({
+        response: { code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED },
+      });
       expect(photoStorageService.reserveUploadBytes).toHaveBeenCalledTimes(1);
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });

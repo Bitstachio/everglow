@@ -11,7 +11,6 @@ import { PhotoPurgeService } from "./photo-purge.service";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosController } from "./photos.controller";
 import { PhotosService } from "./photos.service";
-import { UserPhotosService } from "./user-photos.service";
 
 @Module({
   imports: [CaslModule, ImagesModule, ModerationModule, PlansModule, StorageModule],
@@ -23,8 +22,7 @@ import { UserPhotosService } from "./user-photos.service";
     PhotoPendingCleanupService,
     PhotoPendingCleanupScheduler,
     PhotoOrphanSource,
-    UserPhotosService,
   ],
-  exports: [PhotosService, PhotoStorageService, PhotoPurgeService, UserPhotosService],
+  exports: [PhotosService, PhotoStorageService, PhotoPurgeService],
 })
 export class PhotosModule {}
