@@ -1,5 +1,6 @@
 import { HttpStatus } from "@nestjs/common";
 import { OpenAPIObject, getSchemaPath } from "@nestjs/swagger";
+import { API_ERROR_CODES } from "../errors/api-error-codes";
 import { ResponseMetaDto } from "../swagger/response-meta.dto";
 import {
   RATE_LIMIT_EXCEEDED_CODE,
@@ -31,10 +32,10 @@ export function documentRateLimitResponses(document: OpenAPIObject): OpenAPIObje
       },
       content: {
         "application/json": {
-          // The API's general error envelope, with this response's values as
-          // examples. Deliberately not narrowed to the one code: it is the only
-          // error body in the spec, so generated clients type every operation's
-          // error from it, and those errors carry other codes or none.
+          // The API's general error envelope. `code` is the closed set of
+          // client-facing codes (see API_ERROR_CODES); this response's example
+          // is RATE_LIMIT_EXCEEDED. The same schema types every operation's
+          // error body in generated clients.
           schema: {
             type: "object",
             required: ["meta"],
@@ -43,6 +44,7 @@ export function documentRateLimitResponses(document: OpenAPIObject): OpenAPIObje
               code: {
                 type: "string",
                 description: "Stable machine-readable error code, when the error has one",
+                enum: [...API_ERROR_CODES],
                 example: RATE_LIMIT_EXCEEDED_CODE,
               },
               meta: { $ref: getSchemaPath(ResponseMetaDto) },

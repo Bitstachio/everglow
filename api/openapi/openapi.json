@@ -3472,6 +3472,21 @@
                 "code": {
                   "type": "string",
                   "description": "Stable machine-readable error code, when the error has one",
+                  "enum": [
+                    "EVENT_UNDER_REVIEW",
+                    "IMAGE_INVALID_SIZE",
+                    "IMAGE_UNSUPPORTED_CONTENT_TYPE",
+                    "IMAGE_UPLOAD_EXPIRED",
+                    "IMAGE_UPLOAD_NOT_FOUND",
+                    "IMAGE_UPLOAD_REJECTED",
+                    "ORGANIZER_BLOCKED_BY_CALLER",
+                    "RATE_LIMIT_EXCEEDED",
+                    "REMOVED_FROM_EVENT",
+                    "STORAGE_QUOTA_EXCEEDED",
+                    "STORAGE_RESERVATION_CONFLICT",
+                    "USERNAME_CHANGE_LIMITED",
+                    "USERNAME_TAKEN"
+                  ],
                   "example": "RATE_LIMIT_EXCEEDED"
                 },
                 "meta": {
