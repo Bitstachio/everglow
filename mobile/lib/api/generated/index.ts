@@ -49,6 +49,7 @@ export {
 } from "./sdk.gen";
 export type {
   AccessLevel,
+  ApiErrorDto,
   AppControllerGetHelloData,
   AppControllerGetHelloResponses,
   BlockedUserListResponseDto,

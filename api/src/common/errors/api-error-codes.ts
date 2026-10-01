@@ -10,8 +10,8 @@ import { USERNAME_CHANGE_LIMITED_CODE, USERNAME_TAKEN_CODE } from "src/users/use
 
 /**
  * Closed set of machine-readable `code` values the API may put on the error
- * envelope. Domain modules own each constant; this list is the OpenAPI enum
- * source so clients can generate a typed union.
+ * envelope. Domain modules own each constant; `documentApiError` publishes
+ * this list as the OpenAPI `code` enum so clients can generate a typed union.
  *
  * Keep alphabetical by string value so reviews and diffs stay stable.
  */

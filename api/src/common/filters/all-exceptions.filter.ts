@@ -3,6 +3,10 @@ import { HttpAdapterHost } from "@nestjs/core";
 import { Request } from "express";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 
+/**
+ * Body this filter writes. The published contract is `ApiErrorDto`
+ * (`documentApiError`); keep the two aligned.
+ */
 export type ErrorResponse = {
   message?: string;
   /** Stable machine-readable code, present when the thrown HttpException carries one. */

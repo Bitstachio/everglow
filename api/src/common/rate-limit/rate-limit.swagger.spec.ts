@@ -1,6 +1,10 @@
 import { OpenAPIObject } from "@nestjs/swagger";
-import { API_ERROR_CODES } from "../errors/api-error-codes";
-import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXEMPT_EXTENSION } from "./rate-limit.constants";
+import { API_ERROR_SCHEMA_REF } from "../errors/api-error.swagger";
+import {
+  RATE_LIMIT_EXCEEDED_CODE,
+  RATE_LIMIT_EXCEEDED_MESSAGE,
+  RATE_LIMIT_EXEMPT_EXTENSION,
+} from "./rate-limit.constants";
 import { documentRateLimitResponses } from "./rate-limit.swagger";
 
 const TOO_MANY_REQUESTS_REF = { $ref: "#/components/responses/TooManyRequests" };
@@ -22,26 +26,22 @@ const buildDocument = (): OpenAPIObject => ({
 });
 
 describe("documentRateLimitResponses", () => {
-  it("declares the 429 once as a shared component carrying the code enum and Retry-After", () => {
+  it("declares the 429 once, with Retry-After and a ref to the shared error envelope", () => {
     const document = documentRateLimitResponses(buildDocument());
 
     expect(document.components?.responses?.TooManyRequests).toMatchObject({
       headers: { "Retry-After": { schema: { type: "integer" } } },
       content: {
         "application/json": {
-          schema: {
-            required: ["meta"],
-            properties: {
-              code: {
-                type: "string",
-                enum: [...API_ERROR_CODES],
-                example: RATE_LIMIT_EXCEEDED_CODE,
-              },
-            },
+          schema: { $ref: API_ERROR_SCHEMA_REF },
+          example: {
+            message: RATE_LIMIT_EXCEEDED_MESSAGE,
+            code: RATE_LIMIT_EXCEEDED_CODE,
           },
         },
       },
     });
+    expect(document.components?.schemas).toBeUndefined();
   });
 
   it("references it from every operation, keeping the responses already documented", () => {

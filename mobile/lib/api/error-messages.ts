@@ -1,11 +1,10 @@
-import type { UsersControllerFindMeErrors } from "@/lib/api/generated";
+import type { ApiErrorDto } from "@/lib/api/generated";
 
 /**
- * Closed set of machine-readable API `code` values from OpenAPI.
- * Hey API inlines this union on every rate-limited operation's 429 body;
- * any `[429]["code"]` is the shared envelope enum.
+ * Closed set of machine-readable API `code` values from the shared OpenAPI
+ * error envelope (`ApiErrorDto`).
  */
-export type ApiErrorCode = NonNullable<UsersControllerFindMeErrors[429]["code"]>;
+export type ApiErrorCode = NonNullable<ApiErrorDto["code"]>;
 
 /**
  * Client-facing copy for each OpenAPI error `code`.
