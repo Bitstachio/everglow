@@ -101,21 +101,6 @@ export type UserLimitsResponseDto = {
   nextClosingEvent: ClosingEventResponseDto | null;
 };
 
-export type UserStorageResponseDto = {
-  /**
-   * Bytes currently used by the caller's uploads
-   */
-  usedBytes: string;
-  /**
-   * Maximum bytes the caller may use
-   */
-  limitBytes: string;
-  /**
-   * Bytes remaining before the quota is reached
-   */
-  remainingBytes: string;
-};
-
 export type UpdateUserDto = {
   name?: string;
   /**
@@ -688,40 +673,6 @@ export type UsersControllerGetMyLimitsResponses = {
 
 export type UsersControllerGetMyLimitsResponse =
   UsersControllerGetMyLimitsResponses[keyof UsersControllerGetMyLimitsResponses];
-
-export type UsersControllerGetMyStorageData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/v2/users/me/storage";
-};
-
-export type UsersControllerGetMyStorageErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-  /**
-   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
-   */
-  429: ApiErrorDto;
-};
-
-export type UsersControllerGetMyStorageError =
-  UsersControllerGetMyStorageErrors[keyof UsersControllerGetMyStorageErrors];
-
-export type UsersControllerGetMyStorageResponses = {
-  /**
-   * Photo storage usage
-   */
-  200: {
-    data: UserStorageResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type UsersControllerGetMyStorageResponse =
-  UsersControllerGetMyStorageResponses[keyof UsersControllerGetMyStorageResponses];
 
 export type UsersControllerCreateAvatarUploadUrlData = {
   body: CreateImageUploadDto;

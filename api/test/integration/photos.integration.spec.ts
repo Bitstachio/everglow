@@ -179,9 +179,6 @@ describe("PhotosController (integration)", () => {
         where: { eventId: TEST_EVENT_ID, status: { in: ["PENDING", "READY"] } },
         _sum: { sizeBytes: true },
       });
-      expect(prisma.user.findUnique).not.toHaveBeenCalledWith(
-        expect.objectContaining({ select: { storageLimitBytes: true } }),
-      );
     });
 
     it("returns 400 for a disallowed contentType", async () => {

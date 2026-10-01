@@ -34,14 +34,12 @@ import { PasswordChangeTicketResponseDto } from "./dto/password-change-ticket-re
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserLimitsResponseDto } from "./dto/user-limits-response.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
-import { UserStorageResponseDto } from "./dto/user-storage-response.dto";
 import { UsernameAvailabilityQueryDto } from "./dto/username-availability-query.dto";
 import { UsernameAvailabilityResponseDto } from "./dto/username-availability-response.dto";
 import { UserMapper } from "./mappers/user.mapper";
 import { UserAvatarService } from "./user-avatar.service";
 import { UsersService } from "./users.service";
 import { UserWithDetails } from "./users.types";
-import { PhotoStorageService } from "src/photos/photo-storage.service";
 import { EventPlanService } from "src/plans/event-plan.service";
 
 @ApiTags("users")
@@ -54,7 +52,6 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly userAvatarService: UserAvatarService,
     private readonly credentialsService: CredentialsService,
-    private readonly photoStorageService: PhotoStorageService,
     private readonly eventPlanService: EventPlanService,
   ) {}
 
@@ -102,13 +99,6 @@ export class UsersController {
       this.eventPlanService.accountUsageFor(user.id),
     ]);
     return UserMapper.toLimitsResponseDto(limits, usage);
-  }
-
-  @Get("me/storage")
-  @ApiOperation({ summary: "Get current user photo storage quota" })
-  @ApiWrappedResponse(UserStorageResponseDto, "Photo storage usage")
-  async getMyStorage(@CurrentUser() user: AuthenticatedUser): Promise<UserStorageResponseDto> {
-    return this.photoStorageService.getStorageForUser(user.id);
   }
 
   @Patch("me")

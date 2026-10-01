@@ -50,7 +50,6 @@ import {
   usersControllerCreatePasswordChangeTicket,
   usersControllerFindMe,
   usersControllerGetMyLimits,
-  usersControllerGetMyStorage,
   usersControllerRemoveAvatar,
   usersControllerRemoveMe,
   usersControllerUpdateMe,
@@ -168,9 +167,6 @@ import type {
   UsersControllerGetMyLimitsData,
   UsersControllerGetMyLimitsError,
   UsersControllerGetMyLimitsResponse,
-  UsersControllerGetMyStorageData,
-  UsersControllerGetMyStorageError,
-  UsersControllerGetMyStorageResponse,
   UsersControllerRemoveAvatarData,
   UsersControllerRemoveAvatarError,
   UsersControllerRemoveAvatarResponse,
@@ -397,31 +393,6 @@ export const usersControllerGetMyLimitsOptions = (options?: Options<UsersControl
       return data;
     },
     queryKey: usersControllerGetMyLimitsQueryKey(options),
-  });
-
-export const usersControllerGetMyStorageQueryKey = (options?: Options<UsersControllerGetMyStorageData>) =>
-  createQueryKey("usersControllerGetMyStorage", options);
-
-/**
- * Get current user photo storage quota
- */
-export const usersControllerGetMyStorageOptions = (options?: Options<UsersControllerGetMyStorageData>) =>
-  queryOptions<
-    UsersControllerGetMyStorageResponse,
-    AxiosError<UsersControllerGetMyStorageError>,
-    UsersControllerGetMyStorageResponse,
-    ReturnType<typeof usersControllerGetMyStorageQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await usersControllerGetMyStorage({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      });
-      return data;
-    },
-    queryKey: usersControllerGetMyStorageQueryKey(options),
   });
 
 /**

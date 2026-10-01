@@ -11,7 +11,6 @@ import { AccountDeletionPhotoPolicy, Prisma, PrismaClient } from "generated/pris
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { AccountDeletionPrepService } from "./account-deletion-prep.service";
@@ -60,7 +59,6 @@ describe("UsersService", () => {
   const userWithoutDetails: UserWithDetails = {
     id: userId,
     providerSub,
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
@@ -74,7 +72,6 @@ describe("UsersService", () => {
   const userWithDetails: UserWithDetails = {
     id: userId,
     providerSub,
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,

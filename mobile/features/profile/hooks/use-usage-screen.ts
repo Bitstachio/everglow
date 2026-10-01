@@ -1,16 +1,16 @@
 import { useAuth } from "@/context/auth-context";
-import { useProfileStorageQuery } from "../api/queries";
+import { useProfileLimitsQuery } from "../api/queries";
 
 export const useUsageScreen = () => {
   const { user } = useAuth();
-  const storage = useProfileStorageQuery(user?.id);
+  const limits = useProfileLimitsQuery(user?.id);
   return {
-    storage: storage.data,
-    isLoading: storage.isPending,
-    isError: storage.isError,
-    isFetching: storage.isFetching,
+    limits: limits.data,
+    isLoading: limits.isPending,
+    isError: limits.isError,
+    isFetching: limits.isFetching,
     onRetry: () => {
-      void storage.refetch();
+      void limits.refetch();
     },
   };
 };

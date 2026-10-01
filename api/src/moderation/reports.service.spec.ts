@@ -22,7 +22,7 @@ import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
-import { FREE_TIER_STORAGE_LIMIT_BYTES, PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
+import { PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
@@ -54,7 +54,6 @@ describe("ReportsService", () => {
   const callerWithoutDetails: UserWithDetails = {
     id: callerId,
     providerSub: "auth0|caller",
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,

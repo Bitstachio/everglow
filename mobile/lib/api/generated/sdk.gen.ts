@@ -116,9 +116,6 @@ import type {
   UsersControllerGetMyLimitsData,
   UsersControllerGetMyLimitsErrors,
   UsersControllerGetMyLimitsResponses,
-  UsersControllerGetMyStorageData,
-  UsersControllerGetMyStorageErrors,
-  UsersControllerGetMyStorageResponses,
   UsersControllerRemoveAvatarData,
   UsersControllerRemoveAvatarErrors,
   UsersControllerRemoveAvatarResponses,
@@ -246,22 +243,6 @@ export const usersControllerGetMyLimits = <ThrowOnError extends boolean = false>
   (options?.client ?? client).get<UsersControllerGetMyLimitsResponses, UsersControllerGetMyLimitsErrors, ThrowOnError>({
     responseType: "json",
     url: "/api/v2/users/me/limits",
-    ...options,
-  });
-
-/**
- * Get current user photo storage quota
- */
-export const usersControllerGetMyStorage = <ThrowOnError extends boolean = false>(
-  options?: Options<UsersControllerGetMyStorageData, ThrowOnError>,
-): RequestResult<UsersControllerGetMyStorageResponses, UsersControllerGetMyStorageErrors, ThrowOnError> =>
-  (options?.client ?? client).get<
-    UsersControllerGetMyStorageResponses,
-    UsersControllerGetMyStorageErrors,
-    ThrowOnError
-  >({
-    responseType: "json",
-    url: "/api/v2/users/me/storage",
     ...options,
   });
 

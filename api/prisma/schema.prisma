@@ -57,10 +57,6 @@ enum ReportStatus {
 model User {
   id                  String                      @id @default(uuid()) @db.Uuid
   providerSub         String                      @unique @db.VarChar(255)
-  // Photo storage ceiling in bytes. Defaults to the free tier (5 GiB); keep in
-  // sync with FREE_TIER_STORAGE_LIMIT_BYTES in src/photos/photos.constants.ts.
-  // Billing raises it per account; usage stays computed from Photo rows.
-  storageLimitBytes   BigInt                      @default(5368709120)
   // Account deletion saga (see docs/account-deletion.md): null means that
   // phase has not happened. deletionStartedAt marks durable intent;
   // auth0DeletedAt marks that the IdP user is already gone.

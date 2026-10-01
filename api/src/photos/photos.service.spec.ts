@@ -12,12 +12,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
-import {
-  buildPhotoS3Key,
-  FREE_TIER_STORAGE_LIMIT_BYTES,
-  PHOTO_SERVICE_ERRORS,
-  UPLOAD_URL_TTL_SECONDS,
-} from "./photos.constants";
+import { buildPhotoS3Key, PHOTO_SERVICE_ERRORS, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosService } from "./photos.service";
 
@@ -41,7 +36,6 @@ describe("PhotosService", () => {
   const callerWithoutDetails: UserWithDetails = {
     id: callerId,
     providerSub: "auth0|caller",
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
