@@ -81,7 +81,7 @@ describe("PhotoStorageService", () => {
     service = module.get(PhotoStorageService);
   });
 
-  it("reports a person's uploads against the old personal limit, for the deprecated GET /users/me/storage", async () => {
+  it("reports a person's uploads against the old personal limit, for GET /users/me/storage", async () => {
     prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 1024 } } as never);
 
     await expect(service.getStorageForUser(userId)).resolves.toEqual({

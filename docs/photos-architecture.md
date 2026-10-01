@@ -236,10 +236,10 @@ In order of implementation:
 - [x] **`GET /events/:eventId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
 - [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
-- [x] ~~**Per-user storage quota**~~ — replaced by gallery storage per event (§9); `GET /users/me/storage` is deprecated.
+- [x] ~~**Per-user storage quota**~~ — replaced by gallery storage per event (§9).
 - [x] **Race-safe quota reservation** — usage check + PENDING insert in one Serializable transaction, retried on serialization failure.
 - [x] **Pending photo cleanup** — hourly sweeper deletes stale `PENDING` rows and S3 objects (default age: 24h).
-- [x] ~~**Per-user storage limit**~~ — `User.storageLimitBytes`; no longer enforced, and removed with `GET /users/me/storage`.
+- [x] ~~**Per-user storage limit**~~ — `User.storageLimitBytes`; no longer enforced.
 - [x] ~~**Storage limit grants**~~ — removed; storage added to one gallery is `Event.bonusStorageBytes`.
 - [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§11).
 - [x] **Signed upload shape** — `Content-Type` and `Content-Length` are signed into the PUT URL. S3 enforces the type; size enforcement on PUT is unverified, so confirm remains the size guarantee.
@@ -272,7 +272,7 @@ Each event's gallery has a storage limit: its plan's `storageLimitBytes` (3 GB o
 - **Read API:** each event's `limits.storageBytes` and `usage.storageBytes`, as decimal strings (bigint-safe JSON).
 - **Raising one gallery's limit** is a row update, not a redeploy: `UPDATE "Event" SET "bonusStorageBytes" = "bonusStorageBytes" + 5368709120 WHERE id = '…';` Paid add-ons will do the same.
 
-`GET /users/me/storage` still reports a person's uploads against the old personal limit (`User.storageLimitBytes`, 5 GiB). Nothing enforces it; it is deprecated, and goes with the column once the app no longer calls it.
+`GET /users/me/storage` still reports a person's uploads against the old personal limit (`User.storageLimitBytes`, 5 GiB), which nothing enforces.
 
 ### Why the check and the insert share a transaction
 

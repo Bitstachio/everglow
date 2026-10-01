@@ -34,7 +34,7 @@ export class PhotoStorageService {
   }
 
   /**
-   * A person's uploads against the old personal limit, for the deprecated GET
+   * A person's uploads against the old personal limit, for GET
    * /users/me/storage only. Nothing enforces that limit: each gallery's
    * storage is limited by its event's plan (reserveUploadBytes).
    */
@@ -113,7 +113,7 @@ export class PhotoStorageService {
     }
   }
 
-  /** The old personal limit, `User.storageLimitBytes`, for the deprecated GET /users/me/storage. */
+  /** The old personal limit, `User.storageLimitBytes`, for GET /users/me/storage. */
   private async getLimitBytes(userId: string): Promise<bigint> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

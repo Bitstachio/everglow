@@ -48,7 +48,7 @@ const PHOTO_S3_KEY_PATTERNS = [
 /** True for keys the API could have minted; anything else under the prefix is not ours to touch. */
 export const isPhotoS3Key = (key: string): boolean => PHOTO_S3_KEY_PATTERNS.some((pattern) => pattern.test(key));
 
-// The old personal limit, still reported by the deprecated GET /users/me/storage.
+// The old personal limit, still reported by GET /users/me/storage.
 // Nothing enforces it: each gallery's storage is limited by its event's plan.
 export const FREE_TIER_STORAGE_LIMIT_BYTES = 5n * 1024n * 1024n * 1024n; // 5 GiB
 
