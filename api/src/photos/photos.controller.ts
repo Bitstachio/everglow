@@ -59,7 +59,11 @@ export class PhotosController {
   }
 
   @Get("events/:eventId/photos")
-  @ApiOperation({ summary: "List ready photos in an event (cursor-paginated)" })
+  @ApiOperation({
+    summary: "List ready photos in an event (cursor-paginated)",
+    description:
+      "Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included.",
+  })
   @ApiWrappedResponse(PhotoListResponseDto, "Photos with presigned download URLs, newest first")
   async listPhotos(
     @CurrentUser() user: AuthenticatedUser,
@@ -71,7 +75,7 @@ export class PhotosController {
   }
 
   @Get("photos/:photoId")
-  @ApiOperation({ summary: "Get a photo by ID" })
+  @ApiOperation({ summary: "Get a photo by ID", description: "404 once the photo's gallery has closed." })
   @ApiWrappedResponse(PhotoResponseDto, "Photo with presigned download URL")
   async findOne(
     @CurrentUser() user: AuthenticatedUser,

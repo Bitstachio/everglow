@@ -564,6 +564,8 @@ export const photosControllerListPhotosQueryKey = (options: Options<PhotosContro
 
 /**
  * List ready photos in an event (cursor-paginated)
+ *
+ * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included.
  */
 export const photosControllerListPhotosOptions = (options: Options<PhotosControllerListPhotosData>) =>
   queryOptions<
@@ -622,6 +624,8 @@ export const photosControllerListPhotosInfiniteQueryKey = (
 
 /**
  * List ready photos in an event (cursor-paginated)
+ *
+ * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included.
  */
 export const photosControllerListPhotosInfiniteOptions = (options: Options<PhotosControllerListPhotosData>) => {
   const opts = infiniteQueryOptions<
@@ -690,6 +694,8 @@ export const photosControllerFindOneQueryKey = (options: Options<PhotosControlle
 
 /**
  * Get a photo by ID
+ *
+ * 404 once the photo's gallery has closed.
  */
 export const photosControllerFindOneOptions = (options: Options<PhotosControllerFindOneData>) =>
   queryOptions<
