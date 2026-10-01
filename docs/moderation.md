@@ -263,10 +263,10 @@ An organizer removes a member either with `DELETE /events/:eventId/participants/
 2. An `EventBan` row is recorded (event, member, the organizer who removed them). Removing someone again keeps the first record.
 3. The organizer chooses what happens to the member's photos in that event:
 
-   | `photos`         | Effect                                                                                                                                                                         |
-   | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+   | `photos`         | Effect                                                                                                                                                                                                     |
+   | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
    | `KEEP` (default) | They stay in the event, still credited to the member and counted against their storage. The member can delete them later from their storage screen ([photos-architecture.md](./photos-architecture.md) §9) |
-   | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`)          |
+   | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`)                                      |
 
    It is a query parameter on the participant route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
 
@@ -277,6 +277,13 @@ An organizer removes a member either with `DELETE /events/:eventId/participants/
 A ban cascades with the event and with the banned account, and `bannedById` becomes null when the removing organizer's account is deleted.
 
 - Reports and blocks are independent. A blocked user can still be reported, and reporting does not block.
+
+### Invite links and becoming an organizer
+
+Every event has two invite links, **Participant** and **Viewer** (`EventInvite`). There is no organizer link: a link can be forwarded or leak, and an organizer can remove people and delete the event. **Someone becomes an organizer only when an organizer promotes a member** (`PUT /events/:eventId/participants/:targetUserId/access`). The last organizer can't be demoted (`LAST_ORGANIZER`).
+
+- `POST /events/:eventId/invites/:accessLevel/regenerate` accepts `PARTICIPANT` and `VIEWER`; `ORGANIZER` is a 400.
+- Organizer links created before this rule were deleted by a migration. A leftover token reads as an unknown link (404).
 
 ---
 

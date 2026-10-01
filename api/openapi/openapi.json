@@ -2132,7 +2132,7 @@
     },
     "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate": {
       "post": {
-        "description": "Organizers only. Other roles' invite links stay valid.",
+        "description": "Organizers only. Other roles' invite links stay valid. Only PARTICIPANT and VIEWER have links; someone becomes an organizer only when an organizer promotes them.",
         "operationId": "EventsController_regenerateInvite",
         "parameters": [
           {
@@ -2148,7 +2148,7 @@
             "required": true,
             "in": "path",
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/InviteAccessLevel"
             }
           }
         ],
@@ -3252,7 +3252,7 @@
         "enum": [
           "FREE"
         ],
-        "description": "The plan whose limits apply to this event."
+        "description": "The plan the event is on. Its limits are in `limits`, which can include storage added to this event."
       },
       "GalleryState": {
         "type": "string",
@@ -3270,15 +3270,16 @@
             "nullable": true,
             "description": "Members of every role, organizers included; null for no limit."
           },
-          "photos": {
-            "type": "number",
+          "storageBytes": {
+            "type": "string",
             "nullable": true,
-            "description": "Photos in the gallery; null for no limit."
+            "description": "The gallery's storage, in bytes as a decimal string; null for no limit.",
+            "example": "3221225472"
           }
         },
         "required": [
           "members",
-          "photos"
+          "storageBytes"
         ]
       },
       "EventUsageResponseDto": {
@@ -3288,14 +3289,15 @@
             "type": "number",
             "description": "Members of every role, organizers included."
           },
-          "photos": {
-            "type": "number",
-            "description": "Photos in the gallery, uploads in progress included."
+          "storageBytes": {
+            "type": "string",
+            "description": "Storage used by the gallery's photos, uploads in progress included, in bytes as a decimal string.",
+            "example": "1288490188"
           }
         },
         "required": [
           "members",
-          "photos"
+          "storageBytes"
         ]
       },
       "EventResponseDto": {
@@ -3349,7 +3351,7 @@
             ]
           },
           "plan": {
-            "description": "The plan whose limits apply to this event.",
+            "description": "The plan the event is on. Its limits are in `limits`, which can include storage added to this event.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/EventPlan"
@@ -3528,6 +3530,13 @@
           "items"
         ]
       },
+      "InviteAccessLevel": {
+        "type": "string",
+        "enum": [
+          "PARTICIPANT",
+          "VIEWER"
+        ]
+      },
       "ApiErrorDto": {
         "type": "object",
         "properties": {
@@ -3537,6 +3546,10 @@
           "code": {
             "type": "string",
             "enum": [
+              "ACTIVE_EVENT_LIMIT_REACHED",
+              "EVENT_GALLERY_CLOSED",
+              "EVENT_MEMBER_LIMIT_REACHED",
+              "EVENT_STORAGE_LIMIT_REACHED",
               "EVENT_UNDER_REVIEW",
               "IMAGE_INVALID_SIZE",
               "IMAGE_UNSUPPORTED_CONTENT_TYPE",

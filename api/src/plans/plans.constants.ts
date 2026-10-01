@@ -1,31 +1,3 @@
-import { EventPlan } from "generated/prisma/client";
-
-/**
- * What one event may hold on its plan (docs/event-quotas.md). Every limit is
- * read from here through EventPlanService, never hard-coded elsewhere, so a
- * paid plan is a new EventPlan value plus its row: the Record type refuses to
- * compile until every plan has one. `null` means no limit.
- */
-export interface EventPlanLimits {
-  /** Members of every role, organizers included. */
-  maxMembers: number | null;
-  /** PENDING and READY photos, the same rows the upload reservation counts. */
-  maxPhotos: number | null;
-  /** A safety cap on the gallery's bytes; never shown to users. */
-  maxGalleryBytes: bigint | null;
-  /** Days after the event's date that its gallery stays open; null never closes. */
-  galleryWindowDays: number | null;
-}
-
-export const EVENT_PLAN_LIMITS: Record<EventPlan, EventPlanLimits> = {
-  FREE: {
-    maxMembers: 30,
-    maxPhotos: 500,
-    maxGalleryBytes: 3n * 1024n * 1024n * 1024n,
-    galleryWindowDays: 30,
-  },
-};
-
 /**
  * What an account may do whatever its events' plans are. Everyone is on FREE
  * until a host subscription exists; it is the seam that subscription plugs
@@ -46,6 +18,26 @@ export const ACCOUNT_PLAN_LIMITS: Record<AccountPlan, AccountPlanLimits> = {
   FREE: { maxActiveEvents: 2 },
 };
 
+/**
+ * Why a plan refused a request (docs/event-quotas.md). Every one is a 403. The
+ * app takes the numbers for its copy from the event's `limits` and `usage`.
+ * The event limits themselves live in the Plan table, not in code.
+ */
+export const PLAN_LIMIT_CODES = {
+  ACTIVE_EVENT_LIMIT_REACHED: "ACTIVE_EVENT_LIMIT_REACHED",
+  EVENT_MEMBER_LIMIT_REACHED: "EVENT_MEMBER_LIMIT_REACHED",
+  EVENT_STORAGE_LIMIT_REACHED: "EVENT_STORAGE_LIMIT_REACHED",
+  EVENT_GALLERY_CLOSED: "EVENT_GALLERY_CLOSED",
+} as const;
+
+export const PLAN_LIMIT_MESSAGES = {
+  ACTIVE_EVENT_LIMIT_REACHED: (limit: number) =>
+    `You already have ${limit} active events. One frees up when a gallery closes or you delete an event.`,
+  EVENT_MEMBER_LIMIT_REACHED: (limit: number) => `This event is full: it has reached ${limit} members.`,
+  EVENT_STORAGE_LIMIT_REACHED: "This gallery is full: there isn't enough storage left for these photos.",
+  EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
+};
+
 /** Whether an event's gallery still takes photos; see galleryStateOf. */
 export const GALLERY_STATES = {
   OPEN: "OPEN",
@@ -56,11 +48,12 @@ export type GalleryState = (typeof GALLERY_STATES)[keyof typeof GALLERY_STATES];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** When a gallery on `plan` closes for an event on `date`; null when the plan never closes it. */
-export const galleryClosesAt = (date: Date, plan: EventPlan): Date | null => {
-  const days = EVENT_PLAN_LIMITS[plan].galleryWindowDays;
-  return days === null ? null : new Date(date.getTime() + days * DAY_MS);
-};
+/**
+ * When a gallery closes for an event on `date`, given its plan's window in
+ * days; null when the plan never closes it.
+ */
+export const galleryClosesAt = (date: Date, galleryWindowDays: number | null): Date | null =>
+  galleryWindowDays === null ? null : new Date(date.getTime() + galleryWindowDays * DAY_MS);
 
 /**
  * CLOSED once the close job has run, or once the close time has passed: the

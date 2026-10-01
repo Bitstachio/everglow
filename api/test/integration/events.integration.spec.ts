@@ -17,6 +17,7 @@ import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import request from "supertest";
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, TEST_TARGET_USER_ID, authHeader } from "./helpers/auth.fixtures";
+import { buildFreePlan } from "./helpers/plans.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
   TEST_EVENT_ID,
@@ -112,6 +113,9 @@ describe("EventsController (integration)", () => {
 
   beforeEach(() => {
     mockReset(prisma);
+    // Every event is on the free plan's first version unless a test says otherwise.
+    prisma.plan.findUnique.mockResolvedValue(buildFreePlan());
+    prisma.plan.findFirst.mockResolvedValue(buildFreePlan());
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     prisma.userBlock.findMany.mockResolvedValue([]);
     // Usage on event responses: nothing counted unless a test says so.
@@ -119,6 +123,9 @@ describe("EventsController (integration)", () => {
     prisma.photo.groupBy.mockResolvedValue([] as never);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    // Plan limits: no active events and a nearly empty event, unless a test says otherwise.
+    prisma.event.count.mockResolvedValue(0);
+    prisma.eventAccess.count.mockResolvedValue(1);
     // No open event reports: covers are visible.
     prisma.report.findMany.mockResolvedValue([]);
     prisma.eventAccess.findMany.mockResolvedValue([]);
@@ -133,6 +140,15 @@ describe("EventsController (integration)", () => {
 
   describe("POST /events", () => {
     const path = EVENTS_BASE_PATH;
+
+    it("returns 403 ACTIVE_EVENT_LIMIT_REACHED when the caller already has 2 active events", async () => {
+      prisma.event.count.mockResolvedValue(2);
+
+      const response = await request(httpServer).post(path).set(authHeader()).send(createEventPayload()).expect(403);
+
+      expect(response.body).toMatchObject({ code: "ACTIVE_EVENT_LIMIT_REACHED" });
+      expect(prisma.event.create).not.toHaveBeenCalled();
+    });
 
     it("returns 201 and a mapped event response on success", async () => {
       const payload = createEventPayload();
@@ -355,6 +371,37 @@ describe("EventsController (integration)", () => {
         code: REMOVED_FROM_EVENT_CODE,
         message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
       });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 EVENT_GALLERY_CLOSED for an event whose gallery has closed", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      setupJoinableInvite(buildEvent({ galleryClosesAt: new Date(Date.now() - 60_000) }), "invite-token");
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 EVENT_MEMBER_LIMIT_REACHED when the event already has 30 members", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      setupJoinableInvite(buildEvent(), "invite-token");
+      prisma.eventBan.findUnique.mockResolvedValue(null);
+      prisma.userBlock.findMany.mockResolvedValue([]);
+      prisma.eventAccess.count.mockResolvedValue(30);
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_MEMBER_LIMIT_REACHED" });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -936,6 +983,14 @@ describe("EventsController (integration)", () => {
   describe("POST /events/:eventId/invites/:accessLevel/regenerate", () => {
     const path = (accessLevel: AccessLevel = AccessLevel.VIEWER, eventId = TEST_EVENT_ID) =>
       `${EVENTS_BASE_PATH}/${eventId}/invites/${accessLevel}/regenerate`;
+
+    it("returns 400 for ORGANIZER: organizer links don't exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+
+      await request(httpServer).post(path(AccessLevel.ORGANIZER)).set(authHeader()).expect(400);
+
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
+    });
 
     it("returns 201 and rotates a VIEWER invite without changing Event.invitationUrl", async () => {
       const event = buildEvent();

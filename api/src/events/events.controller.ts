@@ -14,8 +14,15 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
-import { AccessLevel, Event } from "generated/prisma/client";
+import {
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+import { Event } from "generated/prisma/client";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
@@ -34,7 +41,7 @@ import { RemoveParticipantQueryDto } from "./dto/remove-participant-query.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { UpdateParticipantAccessDto } from "./dto/update-participant-access.dto";
 import { EventCoverService } from "./event-cover.service";
-import { extractInvitationToken } from "./events.invitation";
+import { extractInvitationToken, INVITE_ACCESS_LEVELS, type EventInviteAccessLevel } from "./events.invitation";
 import { EventsService } from "./events.service";
 import { EventMapper } from "./mappers/event.mapper";
 import { EventPlanService } from "src/plans/event-plan.service";
@@ -63,8 +70,9 @@ export class EventsController {
   @ApiWrappedResponse(EventResponseDto, "Events the user can read", 200)
   async findAll(@CurrentUser() user: AuthenticatedUser): Promise<EventResponseDto[]> {
     const events = await this.eventsService.findAllForUser(user.id);
-    const [coverUrls, usage] = await Promise.all([
+    const [coverUrls, limits, usage] = await Promise.all([
       this.eventCoverService.getCoverUrls(events, user.id),
+      this.eventPlanService.limitsForEvents(events),
       this.eventPlanService.usageFor(events.map((event) => event.id)),
     ]);
     return Promise.all(
@@ -72,6 +80,7 @@ export class EventsController {
         EventMapper.toResponseDto(
           event,
           coverUrls.get(event.id) ?? null,
+          limits.get(event.id)!,
           usage.get(event.id)!,
           await this.eventsService.listInvitesForCaller(event.id, user.id),
         ),
@@ -220,13 +229,16 @@ export class EventsController {
   @RateLimit("sensitive")
   @ApiOperation({
     summary: "Regenerate an invitation URL for one access level",
-    description: "Organizers only. Other roles' invite links stay valid.",
+    description:
+      "Organizers only. Other roles' invite links stay valid. Only PARTICIPANT and VIEWER have links; " +
+      "someone becomes an organizer only when an organizer promotes them.",
   })
+  @ApiParam({ name: "accessLevel", enum: INVITE_ACCESS_LEVELS, enumName: "InviteAccessLevel" })
   @ApiWrappedResponse(EventResponseDto, "Event with the rotated invite")
   async regenerateInvite(
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
-    @Param("accessLevel", new ParseEnumPipe(AccessLevel)) accessLevel: AccessLevel,
+    @Param("accessLevel", new ParseEnumPipe(INVITE_ACCESS_LEVELS)) accessLevel: EventInviteAccessLevel,
   ): Promise<EventResponseDto> {
     return this.toResponseDto(await this.eventsService.regenerateInvite(eventId, user.id, accessLevel), user.id);
   }
@@ -266,11 +278,12 @@ export class EventsController {
   }
 
   private async toResponseDto(event: Event, viewerId: string): Promise<EventResponseDto> {
-    const [coverUrl, invites, usage] = await Promise.all([
+    const [coverUrl, invites, limits, usage] = await Promise.all([
       this.eventCoverService.getCoverUrl(event, viewerId),
       this.eventsService.listInvitesForCaller(event.id, viewerId),
+      this.eventPlanService.limitsOf(event),
       this.eventPlanService.usageFor([event.id]),
     ]);
-    return EventMapper.toResponseDto(event, coverUrl, usage.get(event.id)!, invites);
+    return EventMapper.toResponseDto(event, coverUrl, limits, usage.get(event.id)!, invites);
   }
 }

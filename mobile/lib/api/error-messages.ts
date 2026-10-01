@@ -14,6 +14,11 @@ export type ApiErrorCode = NonNullable<ApiErrorDto["code"]>;
  * that this map does not cover (or when a key is mistyped).
  */
 export const API_ERROR_MESSAGES = {
+  ACTIVE_EVENT_LIMIT_REACHED:
+    "You already have 2 active events on the free plan. One frees up when a gallery closes or you delete an event.",
+  EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
+  EVENT_MEMBER_LIMIT_REACHED: "This event is full.",
+  EVENT_STORAGE_LIMIT_REACHED: "This gallery is full. There isn't enough storage left for these photos.",
   EVENT_UNDER_REVIEW: "This event is under review. No one can join or add photos until the review is over.",
   IMAGE_INVALID_SIZE: "That image is too large or empty. Choose a different file.",
   IMAGE_UNSUPPORTED_CONTENT_TYPE: "That image type isn't supported. Use JPEG, PNG, or WebP.",

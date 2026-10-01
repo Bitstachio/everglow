@@ -348,7 +348,7 @@ export type EventInviteResponseDto = {
 export type EventStatus = "ACTIVE" | "UNDER_REVIEW";
 
 /**
- * The plan whose limits apply to this event.
+ * The plan the event is on. Its limits are in `limits`, which can include storage added to this event.
  */
 export type EventPlan = "FREE";
 
@@ -363,9 +363,9 @@ export type EventLimitsResponseDto = {
    */
   members: number | null;
   /**
-   * Photos in the gallery; null for no limit.
+   * The gallery's storage, in bytes as a decimal string; null for no limit.
    */
-  photos: number | null;
+  storageBytes: string | null;
 };
 
 export type EventUsageResponseDto = {
@@ -374,9 +374,9 @@ export type EventUsageResponseDto = {
    */
   members: number;
   /**
-   * Photos in the gallery, uploads in progress included.
+   * Storage used by the gallery's photos, uploads in progress included, in bytes as a decimal string.
    */
-  photos: number;
+  storageBytes: string;
 };
 
 export type EventResponseDto = {
@@ -405,7 +405,7 @@ export type EventResponseDto = {
    */
   status: EventStatus;
   /**
-   * The plan whose limits apply to this event.
+   * The plan the event is on. Its limits are in `limits`, which can include storage added to this event.
    */
   plan: EventPlan;
   /**
@@ -482,12 +482,18 @@ export type EventBanListResponseDto = {
   items: Array<EventBanResponseDto>;
 };
 
+export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
+
 export type ApiErrorDto = {
   message?: string;
   /**
    * Stable machine-readable error code, when the error has one
    */
   code?:
+    | "ACTIVE_EVENT_LIMIT_REACHED"
+    | "EVENT_GALLERY_CLOSED"
+    | "EVENT_MEMBER_LIMIT_REACHED"
+    | "EVENT_STORAGE_LIMIT_REACHED"
     | "EVENT_UNDER_REVIEW"
     | "IMAGE_INVALID_SIZE"
     | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1885,7 +1891,7 @@ export type EventsControllerRegenerateInviteData = {
   body?: never;
   path: {
     eventId: string;
-    accessLevel: string;
+    accessLevel: InviteAccessLevel;
   };
   query?: never;
   url: "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate";

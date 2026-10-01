@@ -179,6 +179,7 @@ export type {
   EventUsageResponseDto,
   GalleryState,
   ImageUploadResponseDto,
+  InviteAccessLevel,
   JoinEventDto,
   MemberPhotos,
   OwnPhotoListResponseDto,

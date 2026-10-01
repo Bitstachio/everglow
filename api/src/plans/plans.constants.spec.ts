@@ -1,22 +1,19 @@
-import { EVENT_PLAN_LIMITS, galleryClosesAt, galleryStateOf } from "./plans.constants";
+import { ACCOUNT_PLAN_LIMITS, galleryClosesAt, galleryStateOf } from "./plans.constants";
 
 describe("plans", () => {
-  describe("EVENT_PLAN_LIMITS", () => {
-    it("holds the free plan from docs/event-quotas.md", () => {
-      expect(EVENT_PLAN_LIMITS.FREE).toEqual({
-        maxMembers: 30,
-        maxPhotos: 500,
-        maxGalleryBytes: 3n * 1024n ** 3n,
-        galleryWindowDays: 30,
-      });
+  describe("ACCOUNT_PLAN_LIMITS", () => {
+    it("lets a free account run 2 active events (docs/event-quotas.md)", () => {
+      expect(ACCOUNT_PLAN_LIMITS.FREE).toEqual({ maxActiveEvents: 2 });
     });
   });
 
   describe("galleryClosesAt", () => {
-    it("closes a free gallery 30 days after the event's date", () => {
-      expect(galleryClosesAt(new Date("2026-10-01T18:00:00.000Z"), "FREE")).toEqual(
-        new Date("2026-10-31T18:00:00.000Z"),
-      );
+    it("closes a gallery its plan's window after the event's date", () => {
+      expect(galleryClosesAt(new Date("2026-10-01T18:00:00.000Z"), 30)).toEqual(new Date("2026-10-31T18:00:00.000Z"));
+    });
+
+    it("never closes a gallery on a plan without a window", () => {
+      expect(galleryClosesAt(new Date("2026-10-01T18:00:00.000Z"), null)).toBeNull();
     });
   });
 

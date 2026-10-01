@@ -9,7 +9,8 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, EventPlan, Prisma } from "generated/prisma/client";
-import { galleryClosesAt } from "src/plans/plans.constants";
+import { EventPlanService } from "src/plans/event-plan.service";
+import { GALLERY_STATES, galleryClosesAt, galleryStateOf } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -21,6 +22,7 @@ import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-membership";
+import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import {
@@ -45,6 +47,7 @@ export class EventsService {
     private readonly abilityFactory: AbilityFactory,
     private readonly photoPurgeService: PhotoPurgeService,
     private readonly imageUploads: ImageUploadService,
+    private readonly eventPlanService: EventPlanService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -66,30 +69,36 @@ export class EventsService {
 
     const participantToken = randomUUID();
     const date = new Date(dto.date);
+    // New events start on the free plan's newest version (docs/event-quotas.md).
+    const plan = await this.eventPlanService.currentPlan(EventPlan.FREE);
 
-    const event = await this.prisma.event.create({
-      data: {
-        title: dto.title,
-        date,
-        plan: EventPlan.FREE,
-        galleryClosesAt: galleryClosesAt(date, EventPlan.FREE),
-        creatorId,
-        invitationUrl: participantToken,
-        ...(dto.description !== undefined && { description: dto.description }),
-        eventAccesses: {
-          create: {
-            userId: creatorId,
-            accessLevel: AccessLevel.ORGANIZER,
+    // The active-event check and the insert share a transaction, so two
+    // creates by the same person can't both pass it (docs/event-quotas.md).
+    const event = await this.prisma.$transaction(async (tx) => {
+      await this.eventPlanService.assertCanCreateEvent(tx, creatorId);
+      return tx.event.create({
+        data: {
+          title: dto.title,
+          date,
+          planId: plan.id,
+          galleryClosesAt: galleryClosesAt(date, plan.galleryWindowDays),
+          creatorId,
+          invitationUrl: participantToken,
+          ...(dto.description !== undefined && { description: dto.description }),
+          eventAccesses: {
+            create: {
+              userId: creatorId,
+              accessLevel: AccessLevel.ORGANIZER,
+            },
+          },
+          invites: {
+            create: [
+              { token: participantToken, accessLevel: AccessLevel.PARTICIPANT },
+              { token: randomUUID(), accessLevel: AccessLevel.VIEWER },
+            ],
           },
         },
-        invites: {
-          create: [
-            { token: participantToken, accessLevel: AccessLevel.PARTICIPANT },
-            { token: randomUUID(), accessLevel: AccessLevel.VIEWER },
-            { token: randomUUID(), accessLevel: AccessLevel.ORGANIZER },
-          ],
-        },
-      },
+      });
     });
 
     this.logger.info({ event: "event.created", eventId: event.id, creatorId }, "Event created");
@@ -119,7 +128,10 @@ export class EventsService {
     if (!caller.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
 
     const invite = await this.prisma.eventInvite.findUnique({ where: { token: invitationUrl } });
-    if (!invite) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+    // Organizer links no longer exist; one that slipped through reads as unknown.
+    if (!invite || !isInviteAccessLevel(invite.accessLevel)) {
+      throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+    }
 
     const event = await this.prisma.event.findUnique({ where: { id: invite.eventId } });
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
@@ -128,6 +140,11 @@ export class EventsService {
       where: { userId_eventId: { userId: callerId, eventId: event.id } },
     });
     if (existing) throw new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(event.id));
+
+    // A closed event can't be joined: its photos are gone, and it stays only
+    // as a record for the people who were there (docs/event-quotas.md).
+    // Checked first, since it is true for everyone whatever else applies.
+    this.eventPlanService.assertGalleryOpen(event);
 
     // Removed by an organizer: said plainly, since they already know. Checked
     // before blocks so a removed member is not told about a block instead.
@@ -146,12 +163,17 @@ export class EventsService {
 
     await this.assertNoBlockWithOrganizers(event.id, invitationUrl, callerId);
 
-    await this.prisma.eventAccess.create({
-      data: {
-        userId: callerId,
-        eventId: event.id,
-        accessLevel: invite.accessLevel,
-      },
+    // The member check and the insert share a transaction, so two joins to a
+    // nearly full event can't both pass it (docs/event-quotas.md).
+    await this.prisma.$transaction(async (tx) => {
+      await this.eventPlanService.assertCanJoin(tx, event);
+      await tx.eventAccess.create({
+        data: {
+          userId: callerId,
+          eventId: event.id,
+          accessLevel: invite.accessLevel,
+        },
+      });
     });
 
     this.logger.info(
@@ -239,17 +261,21 @@ export class EventsService {
   async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
     const event = await this.getUpdatable(eventId, callerId);
 
-    // A new date moves the close time with it, until the gallery has closed:
-    // a closed gallery never reopens.
+    // A new date moves the close time with it. Once the gallery has closed
+    // the date is fixed: moving it would imply reopening, which never
+    // happens. The title, description and cover can still change.
     const date = dto.date !== undefined ? new Date(dto.date) : undefined;
-    const movesCloseTime = date !== undefined && !event.galleryClosedAt;
+    if (date !== undefined) this.eventPlanService.assertGalleryOpen(event);
+    // The window comes from the event's own plan version, not the newest one.
+    const windowDays =
+      date !== undefined ? (await this.eventPlanService.planFor(event.planId)).galleryWindowDays : null;
 
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(date !== undefined && { date }),
-        ...(movesCloseTime && { galleryClosesAt: galleryClosesAt(date, event.plan) }),
+        ...(date !== undefined && { galleryClosesAt: galleryClosesAt(date, windowDays) }),
         ...(dto.description !== undefined && { description: dto.description }),
       },
     });
@@ -268,8 +294,10 @@ export class EventsService {
    * valid. The PARTICIPANT token also updates Event.invitationUrl so older
    * clients that only know that field keep working.
    */
-  async regenerateInvite(eventId: string, callerId: string, accessLevel: AccessLevel): Promise<Event> {
-    await this.getUpdatable(eventId, callerId);
+  async regenerateInvite(eventId: string, callerId: string, accessLevel: EventInviteAccessLevel): Promise<Event> {
+    const event = await this.getUpdatable(eventId, callerId);
+    // No new links into a closed event, which can't be joined.
+    this.eventPlanService.assertGalleryOpen(event);
 
     const invite = await this.prisma.eventInvite.findUnique({
       where: { eventId_accessLevel: { eventId, accessLevel } },
@@ -304,21 +332,26 @@ export class EventsService {
 
   /**
    * Invite rows for organizers only. Non-organizers get an empty list so
-   * invite tokens are not leaked on event responses.
+   * invite tokens are not leaked on event responses. A closed event has no
+   * invites to share, since it can't be joined.
    */
   async listInvitesForCaller(eventId: string, callerId: string): Promise<EventInvite[]> {
     const access = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: callerId, eventId } },
+      include: { event: { select: { galleryClosesAt: true, galleryClosedAt: true } } },
     });
     if (!access || access.accessLevel !== AccessLevel.ORGANIZER) return [];
+    if (galleryStateOf(access.event) === GALLERY_STATES.CLOSED) return [];
 
-    return this.prisma.eventInvite.findMany({ where: { eventId } });
+    return this.prisma.eventInvite.findMany({ where: { eventId, accessLevel: { in: EVENT_INVITE_ACCESS_LEVELS } } });
   }
 
   /**
-   * Leaving records no ban, so the member can rejoin through the link. With
-   * DELETE their photos in the event go too; with KEEP they stay, still
-   * theirs, and can be deleted later from the storage screen.
+   * Leaving records no ban, so the member can rejoin through the link while
+   * the gallery is open. With DELETE their photos in the event go too; with
+   * KEEP they stay in the gallery until it closes. On a closed event `photos`
+   * is ignored: its gallery is gone, and what the close job kept (photos with
+   * open reports) is evidence a member must not be able to delete.
    */
   async leaveEvent(eventId: string, callerId: string, photos: MemberPhotos = MEMBER_PHOTOS.KEEP): Promise<void> {
     const loaded = await this.prisma.event.findUnique({
@@ -340,11 +373,11 @@ export class EventsService {
       }
     }
 
+    const deletesPhotos = photos === MEMBER_PHOTOS.DELETE && galleryStateOf(loaded) === GALLERY_STATES.OPEN;
+
     const deleted = await this.prisma.$transaction(async (tx) => {
       await tx.eventAccess.delete({ where: { userId_eventId: { userId: callerId, eventId } } });
-      return photos === MEMBER_PHOTOS.DELETE
-        ? deleteUploadsInTransaction(tx, { eventId, userId: callerId, closedById: callerId })
-        : null;
+      return deletesPhotos ? deleteUploadsInTransaction(tx, { eventId, userId: callerId, closedById: callerId }) : null;
     });
 
     this.logger.info(

@@ -1,10 +1,11 @@
 import { accessibleBy } from "@casl/prisma";
 import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { AccessLevel, Event, EventAccess, EventInvite, Prisma, PrismaClient } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess, EventInvite, Plan, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { EventPlanService } from "src/plans/event-plan.service";
 import { ImageUploadService } from "src/images/image-upload.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -29,6 +30,17 @@ const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput 
 };
 
 describe("EventsService", () => {
+  /** The free plan's first version, as the migration seeds it. */
+  const freePlan: Plan = {
+    id: "f0000000-0000-4000-8000-000000000001",
+    code: "FREE",
+    version: 1,
+    memberLimit: 30,
+    storageLimitBytes: 3n * 1024n ** 3n,
+    galleryWindowDays: 30,
+    createdAt: new Date("2026-10-01T00:00:00.000Z"),
+  };
+
   let service: EventsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoPurgeService: { purgeObjects: jest.Mock };
@@ -101,7 +113,8 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -121,7 +134,8 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -138,7 +152,8 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -292,20 +307,19 @@ describe("EventsService", () => {
     },
   };
 
-  const expectThreeRoleInvites = (createData: unknown) => {
+  /** Participant and Viewer links only: nobody becomes an organizer through a link. */
+  const expectParticipantAndViewerInvites = (createData: unknown) => {
     const data = createData as {
       invitationUrl: string;
       invites?: { create?: Array<{ token: string; accessLevel: AccessLevel }> };
     };
-    expect(data.invites?.create).toHaveLength(3);
+    expect(data.invites?.create).toHaveLength(2);
     const invites = data.invites!.create!;
     const byLevel = Object.fromEntries(invites.map((invite) => [invite.accessLevel, invite]));
     expect(byLevel[AccessLevel.PARTICIPANT]?.token).toBe(data.invitationUrl);
     expect(byLevel[AccessLevel.VIEWER]?.token).toEqual(expect.any(String));
-    expect(byLevel[AccessLevel.ORGANIZER]?.token).toEqual(expect.any(String));
     expect(byLevel[AccessLevel.VIEWER]?.token).not.toBe(data.invitationUrl);
-    expect(byLevel[AccessLevel.ORGANIZER]?.token).not.toBe(data.invitationUrl);
-    expect(byLevel[AccessLevel.VIEWER]?.token).not.toBe(byLevel[AccessLevel.ORGANIZER]?.token);
+    expect(byLevel[AccessLevel.ORGANIZER]).toBeUndefined();
   };
 
   const eventWithCallerAccess = (event: Event, access: EventAccess[]) => ({
@@ -350,6 +364,7 @@ describe("EventsService", () => {
       providers: [
         EventsService,
         AbilityFactory,
+        EventPlanService,
         {
           provide: PrismaService,
           useValue: prisma,
@@ -368,6 +383,9 @@ describe("EventsService", () => {
     prisma.user.findUnique.mockResolvedValue(userWithDetails);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    // Every event is on the free plan's first version unless a test says otherwise.
+    prisma.plan.findUnique.mockResolvedValue(freePlan);
+    prisma.plan.findFirst.mockResolvedValue(freePlan);
     prisma.photo.findMany.mockResolvedValue([]);
   });
 
@@ -376,6 +394,65 @@ describe("EventsService", () => {
   });
 
   describe("create", () => {
+    beforeEach(() => {
+      // No active events yet, unless a test says otherwise.
+      prisma.event.count.mockResolvedValue(0);
+    });
+
+    it("refuses a third active event with 403 ACTIVE_EVENT_LIMIT_REACHED", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.count.mockResolvedValue(2);
+
+      const failure = await service.create(callerId, createEventDto).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "ACTIVE_EVENT_LIMIT_REACHED" });
+      expect(prisma.event.create).not.toHaveBeenCalled();
+    });
+
+    it("creates the event on the free plan's newest version, closing after that version's window", async () => {
+      const freeV2 = { ...freePlan, id: "f0000000-0000-4000-8000-000000000002", version: 2, galleryWindowDays: 45 };
+      prisma.plan.findFirst.mockResolvedValue(freeV2);
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(callerId, createEventDto);
+
+      expect(prisma.plan.findFirst).toHaveBeenCalledWith({ where: { code: "FREE" }, orderBy: { version: "desc" } });
+      const data = prisma.event.create.mock.calls[0][0].data;
+      expect(data.planId).toBe(freeV2.id);
+      expect(data.galleryClosesAt).toEqual(
+        new Date(new Date(createEventDto.date).getTime() + 45 * 24 * 60 * 60 * 1000),
+      );
+    });
+
+    it("allows a second active event", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.count.mockResolvedValue(1);
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await expect(service.create(callerId, createEventDto)).resolves.toBeDefined();
+    });
+
+    it("counts only the creator's events whose galleries are open, under a per-creator lock", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(callerId, createEventDto);
+
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(prisma.event.count).toHaveBeenCalledWith({
+        where: {
+          creatorId: callerId,
+          galleryClosedAt: null,
+          OR: [{ galleryClosesAt: null }, { galleryClosesAt: { gt: expect.any(Date) as Date } }],
+        },
+      });
+      expect(prisma.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.event.create.mock.invocationCallOrder[0],
+      );
+    });
+
     it("creates an event when the creator exists and has completed onboarding", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       prisma.event.create.mockResolvedValue(createdEvent);
@@ -397,7 +474,7 @@ describe("EventsService", () => {
       expect(typeof createPayload.data.invitationUrl).toBe("string");
       expect(createPayload.data.invitationUrl).not.toBe("");
       expect(createPayload.data.invitationUrl.length).toBeLessThanOrEqual(100);
-      expectThreeRoleInvites(createPayload.data);
+      expectParticipantAndViewerInvites(createPayload.data);
       expect(result).toEqual(createdEvent);
       expect(logger.info).toHaveBeenCalledWith(
         { event: "event.created", eventId: createdEvent.id, creatorId },
@@ -414,13 +491,13 @@ describe("EventsService", () => {
       expect(prisma.event.create.mock.calls[0][0].data).toMatchObject(creatorOrganizerAccessGrant);
     });
 
-    it("creates PARTICIPANT, VIEWER, and ORGANIZER invite rows nested under the event", async () => {
+    it("creates PARTICIPANT and VIEWER invite rows, and no ORGANIZER one, nested under the event", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       prisma.event.create.mockResolvedValue(createdEvent);
 
       await service.create(creatorId, createEventDto);
 
-      expectThreeRoleInvites(prisma.event.create.mock.calls[0][0].data);
+      expectParticipantAndViewerInvites(prisma.event.create.mock.calls[0][0].data);
     });
 
     it("creates an event with a description when description is provided", async () => {
@@ -494,8 +571,8 @@ describe("EventsService", () => {
       expect(firstCreate.invitationUrl).not.toEqual(secondCreate.invitationUrl);
       expect(firstCreate.invitationUrl.length).toBeLessThanOrEqual(100);
       expect(secondCreate.invitationUrl.length).toBeLessThanOrEqual(100);
-      expectThreeRoleInvites(firstCreate);
-      expectThreeRoleInvites(secondCreate);
+      expectParticipantAndViewerInvites(firstCreate);
+      expectParticipantAndViewerInvites(secondCreate);
     });
 
     it("throws when the creator does not exist", async () => {
@@ -668,6 +745,7 @@ describe("EventsService", () => {
       prisma.eventInvite.findUnique.mockResolvedValue(invite);
       prisma.event.findUnique.mockResolvedValue(event);
       prisma.eventAccess.findUnique.mockResolvedValue(null);
+      prisma.eventAccess.count.mockResolvedValue(1);
       prisma.eventAccess.create.mockResolvedValue({
         ...newParticipantAccess,
         eventId: event.id,
@@ -675,6 +753,38 @@ describe("EventsService", () => {
       });
       return invite;
     };
+
+    it("refuses a member past the plan's limit, every role counted, under a per-event lock", async () => {
+      setupSuccessfulJoin(AccessLevel.VIEWER);
+      prisma.eventAccess.count.mockResolvedValue(30);
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_MEMBER_LIMIT_REACHED" });
+      expect(prisma.eventAccess.count).toHaveBeenCalledWith({ where: { eventId } });
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("uses the member limit of the plan version the event is on", async () => {
+      prisma.plan.findUnique.mockResolvedValue({ ...freePlan, memberLimit: 45 });
+      setupSuccessfulJoin();
+      prisma.eventAccess.count.mockResolvedValue(40);
+
+      await service.joinByInvitationUrl(callerId, invitationUrl);
+
+      expect(prisma.eventAccess.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("lets the 30th member in", async () => {
+      setupSuccessfulJoin();
+      prisma.eventAccess.count.mockResolvedValue(29);
+
+      await service.joinByInvitationUrl(callerId, invitationUrl);
+
+      expect(prisma.eventAccess.create).toHaveBeenCalledTimes(1);
+    });
 
     it("joins the event when the caller is onboarded and the invitation URL is valid", async () => {
       setupSuccessfulJoin();
@@ -723,18 +833,13 @@ describe("EventsService", () => {
       );
     });
 
-    it("grants organizer access when joining via an ORGANIZER invite token", async () => {
+    it("treats a leftover ORGANIZER invite token as an unknown link", async () => {
       setupSuccessfulJoin(AccessLevel.ORGANIZER, eventCreatedByUser, organizerInvite.token);
 
-      await service.joinByInvitationUrl(callerId, organizerInvite.token);
-
-      expect(prisma.eventAccess.create).toHaveBeenCalledWith({
-        data: { userId: callerId, eventId, accessLevel: AccessLevel.ORGANIZER },
-      });
-      expect(logger.info).toHaveBeenCalledWith(
-        { event: "event.joined", eventId, callerId, accessLevel: AccessLevel.ORGANIZER },
-        "User joined event via invitation URL",
+      await expect(service.joinByInvitationUrl(callerId, organizerInvite.token)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(organizerInvite.token)),
       );
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
     it("returns the joined event without event access relations", async () => {
@@ -752,7 +857,8 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
-        plan: "FREE",
+        planId: "f0000000-0000-4000-8000-000000000001",
+        bonusStorageBytes: 0n,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
@@ -869,6 +975,22 @@ describe("EventsService", () => {
         message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
       });
       expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses anyone new once the event's gallery has closed", async () => {
+      setupSuccessfulJoin();
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventCreatedByUser,
+        galleryClosesAt: new Date(Date.now() - 60_000),
+      });
+
+      const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      // Before the ban, review and block checks: it applies to everyone.
+      expect(prisma.eventBan.findUnique).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -1078,7 +1200,8 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
-        plan: "FREE",
+        planId: "f0000000-0000-4000-8000-000000000001",
+        bonusStorageBytes: 0n,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
@@ -1158,6 +1281,30 @@ describe("EventsService", () => {
   });
 
   describe("update", () => {
+    describe("once the gallery has closed", () => {
+      const closedEvent: Event = { ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) };
+
+      it("refuses a new date, which would imply reopening it", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedEvent, [organizerAccess]));
+
+        const failure = await service
+          .update(eventId, callerId, { date: "2026-12-01T18:00:00.000Z" })
+          .catch((e: unknown) => e);
+
+        expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+        expect(prisma.event.update).not.toHaveBeenCalled();
+      });
+
+      it("still lets organizers change the title", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedEvent, [organizerAccess]));
+        prisma.event.update.mockResolvedValue({ ...closedEvent, title: "Renamed" });
+
+        await service.update(eventId, callerId, { title: "Renamed" });
+
+        expect(prisma.event.update).toHaveBeenCalledWith({ where: { id: eventId }, data: { title: "Renamed" } });
+      });
+    });
+
     it("updates the event when the caller has organizer access", async () => {
       const updatedEvent: Event = { ...eventCreatedByUser, title: updateTitleDto.title! };
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
@@ -1821,6 +1968,21 @@ describe("EventsService", () => {
   });
 
   describe("regenerateInvite", () => {
+    it("refuses new links into a closed event", async () => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess({ ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) }, [
+          organizerAccess,
+        ]),
+      );
+
+      const failure = await service
+        .regenerateInvite(eventId, callerId, AccessLevel.PARTICIPANT)
+        .catch((e: unknown) => e);
+
+      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
+    });
+
     it("rotates a VIEWER invite token without updating Event.invitationUrl", async () => {
       const rotatedToken = "rotated-viewer-token";
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
@@ -1871,19 +2033,34 @@ describe("EventsService", () => {
   });
 
   describe("listInvitesForCaller", () => {
-    const invites = [participantInvite, viewerInvite, organizerInvite];
+    const invites = [participantInvite, viewerInvite];
+
+    const openGallery = { event: { galleryClosesAt: new Date(Date.now() + 60_000), galleryClosedAt: null } };
 
     it("returns invites when the caller is an organizer", async () => {
-      prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
+      prisma.eventAccess.findUnique.mockResolvedValue({ ...organizerAccess, ...openGallery } as never);
       prisma.eventInvite.findMany.mockResolvedValue(invites);
 
       const result = await service.listInvitesForCaller(eventId, callerId);
 
       expect(prisma.eventAccess.findUnique).toHaveBeenCalledWith({
         where: { userId_eventId: { userId: callerId, eventId } },
+        include: { event: { select: { galleryClosesAt: true, galleryClosedAt: true } } },
       });
-      expect(prisma.eventInvite.findMany).toHaveBeenCalledWith({ where: { eventId } });
+      expect(prisma.eventInvite.findMany).toHaveBeenCalledWith({
+        where: { eventId, accessLevel: { in: ["PARTICIPANT", "VIEWER"] } },
+      });
       expect(result).toEqual(invites);
+    });
+
+    it("returns no invites for a closed event, even to an organizer", async () => {
+      prisma.eventAccess.findUnique.mockResolvedValue({
+        ...organizerAccess,
+        event: { galleryClosesAt: new Date(Date.now() - 60_000), galleryClosedAt: null },
+      } as never);
+
+      await expect(service.listInvitesForCaller(eventId, callerId)).resolves.toEqual([]);
+      expect(prisma.eventInvite.findMany).not.toHaveBeenCalled();
     });
 
     it("returns an empty array when the caller is a participant", async () => {
@@ -1915,6 +2092,22 @@ describe("EventsService", () => {
   });
 
   describe("leaveEvent", () => {
+    it("ignores photos=DELETE on a closed event, so kept evidence can't be deleted", async () => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess({ ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) }, [
+          participantAccess,
+        ]),
+      );
+      prisma.eventAccess.delete.mockResolvedValue(participantAccess);
+
+      await service.leaveEvent(eventId, callerId, "DELETE");
+
+      expect(prisma.eventAccess.delete).toHaveBeenCalledTimes(1);
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
+    });
+
     it("removes participant access when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
       prisma.eventAccess.delete.mockResolvedValue(participantAccess);
