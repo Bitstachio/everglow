@@ -13,7 +13,6 @@ import { EventBanWithUser, EventParticipant } from "../events.types";
 const INVITE_SORT_ORDER: Record<string, number> = {
   PARTICIPANT: 0,
   VIEWER: 1,
-  ORGANIZER: 2,
 };
 
 export class EventMapper {

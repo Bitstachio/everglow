@@ -482,6 +482,8 @@ export type EventBanListResponseDto = {
   items: Array<EventBanResponseDto>;
 };
 
+export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
+
 export type AppControllerGetHelloData = {
   body?: never;
   path?: never;
@@ -2799,7 +2801,7 @@ export type EventsControllerRegenerateInviteData = {
   body?: never;
   path: {
     eventId: string;
-    accessLevel: string;
+    accessLevel: InviteAccessLevel;
   };
   query?: never;
   url: "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate";

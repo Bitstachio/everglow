@@ -2132,7 +2132,7 @@
     },
     "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate": {
       "post": {
-        "description": "Organizers only. Other roles' invite links stay valid.",
+        "description": "Organizers only. Other roles' invite links stay valid. Only PARTICIPANT and VIEWER have links; someone becomes an organizer only when an organizer promotes them.",
         "operationId": "EventsController_regenerateInvite",
         "parameters": [
           {
@@ -2148,7 +2148,7 @@
             "required": true,
             "in": "path",
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/InviteAccessLevel"
             }
           }
         ],
@@ -3528,6 +3528,13 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "InviteAccessLevel": {
+        "type": "string",
+        "enum": [
+          "PARTICIPANT",
+          "VIEWER"
         ]
       }
     },

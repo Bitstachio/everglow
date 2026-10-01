@@ -984,6 +984,14 @@ describe("EventsController (integration)", () => {
     const path = (accessLevel: AccessLevel = AccessLevel.VIEWER, eventId = TEST_EVENT_ID) =>
       `${EVENTS_BASE_PATH}/${eventId}/invites/${accessLevel}/regenerate`;
 
+    it("returns 400 for ORGANIZER: organizer links don't exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+
+      await request(httpServer).post(path(AccessLevel.ORGANIZER)).set(authHeader()).expect(400);
+
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
+    });
+
     it("returns 201 and rotates a VIEWER invite without changing Event.invitationUrl", async () => {
       const event = buildEvent();
       const viewerInvite = buildViewerEventInvite();
