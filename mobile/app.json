@@ -74,13 +74,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes for event invitations."
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes for event invitations and take your profile photo."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to upload event images."
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to upload event images and choose your profile photo."
         }
       ],
       [
