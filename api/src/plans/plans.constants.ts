@@ -46,6 +46,27 @@ export const ACCOUNT_PLAN_LIMITS: Record<AccountPlan, AccountPlanLimits> = {
   FREE: { maxActiveEvents: 2 },
 };
 
+/**
+ * Why a plan refused a request (docs/event-quotas.md). Every one is a 403. The
+ * app takes the numbers for its copy from the event's `limits` and `usage`.
+ */
+export const PLAN_LIMIT_CODES = {
+  ACTIVE_EVENT_LIMIT_REACHED: "ACTIVE_EVENT_LIMIT_REACHED",
+  EVENT_MEMBER_LIMIT_REACHED: "EVENT_MEMBER_LIMIT_REACHED",
+  EVENT_PHOTO_LIMIT_REACHED: "EVENT_PHOTO_LIMIT_REACHED",
+  EVENT_STORAGE_LIMIT_REACHED: "EVENT_STORAGE_LIMIT_REACHED",
+  EVENT_GALLERY_CLOSED: "EVENT_GALLERY_CLOSED",
+} as const;
+
+export const PLAN_LIMIT_MESSAGES = {
+  ACTIVE_EVENT_LIMIT_REACHED: (limit: number) =>
+    `You already have ${limit} active events. One frees up when a gallery closes or you delete an event.`,
+  EVENT_MEMBER_LIMIT_REACHED: (limit: number) => `This event is full: it has reached ${limit} members.`,
+  EVENT_PHOTO_LIMIT_REACHED: (limit: number) => `This gallery is full: it has reached ${limit} photos.`,
+  EVENT_STORAGE_LIMIT_REACHED: "This gallery is out of space.",
+  EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
+};
+
 /** Whether an event's gallery still takes photos; see galleryStateOf. */
 export const GALLERY_STATES = {
   OPEN: "OPEN",

@@ -3557,6 +3557,11 @@
                   "type": "string",
                   "description": "Stable machine-readable error code, when the error has one",
                   "enum": [
+                    "ACTIVE_EVENT_LIMIT_REACHED",
+                    "EVENT_GALLERY_CLOSED",
+                    "EVENT_MEMBER_LIMIT_REACHED",
+                    "EVENT_PHOTO_LIMIT_REACHED",
+                    "EVENT_STORAGE_LIMIT_REACHED",
                     "EVENT_UNDER_REVIEW",
                     "IMAGE_INVALID_SIZE",
                     "IMAGE_UNSUPPORTED_CONTENT_TYPE",

@@ -96,7 +96,7 @@ export class PhotosService {
     });
     // Quota check and insert run in one serializable transaction, so concurrent
     // batches for the same uploader cannot both slip under the cap.
-    await this.photoStorageService.reserveUploadBytes(callerId, rows);
+    await this.photoStorageService.reserveUploadBytes(event, rows);
 
     // Presign only once the reservation has committed: no transaction is held
     // open across S3 calls, and a rejected batch mints no URLs. The URL binds
