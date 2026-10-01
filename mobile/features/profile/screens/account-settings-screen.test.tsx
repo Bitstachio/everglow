@@ -5,7 +5,6 @@ const mockScreen = {
   user: { details: { name: "Ada", username: "ada" } },
   username: "ada",
   handleOpenUsername: jest.fn(),
-  handleOpenUsage: jest.fn(),
   handleOpenDisplayName: jest.fn(),
   handleOpenPrivacyPolicy: jest.fn(),
   handleOpenTermsOfUse: jest.fn(),

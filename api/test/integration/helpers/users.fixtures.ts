@@ -1,4 +1,3 @@
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { CreateUserDetailsDto } from "src/users/dto/create-user-details.dto";
 import { UpdateUserDto } from "src/users/dto/update-user.dto";
 import { UserWithDetails } from "src/users/users.types";
@@ -24,7 +23,6 @@ export const updateUserPayload = (overrides: Partial<UpdateUserDto> = {}): Updat
 export const buildUserWithoutDetails = (overrides: Partial<UserWithDetails> = {}): UserWithDetails => ({
   id: TEST_USER_ID,
   providerSub: TEST_PROVIDER_SUB,
-  storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
   deletionStartedAt: null,
   auth0DeletedAt: null,
   deletionPhotoPolicy: null,
@@ -39,7 +37,6 @@ export const buildUserWithoutDetails = (overrides: Partial<UserWithDetails> = {}
 export const buildUserWithDetails = (overrides: Partial<UserWithDetails> = {}): UserWithDetails => ({
   id: TEST_USER_ID,
   providerSub: TEST_PROVIDER_SUB,
-  storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
   deletionStartedAt: null,
   auth0DeletedAt: null,
   deletionPhotoPolicy: null,

@@ -19,7 +19,6 @@ import { UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { UsersService } from "src/users/users.service";
 import { UserWithDetails } from "src/users/users.types";
 import { JwtPayloadDto } from "./jwt-payload.dto";
@@ -42,7 +41,6 @@ describe("JwtStrategy", () => {
   const resolvedUser: UserWithDetails = {
     id: userId,
     providerSub,
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,

@@ -22,7 +22,6 @@ import {
 } from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput => {
   const ability = new AbilityFactory(mockDeep<PrismaService>()).createForUser({ id: lookupUserId, isOnboarded: true });
@@ -70,7 +69,6 @@ describe("EventsService", () => {
   const userWithoutDetails: UserWithDetails = {
     id: creatorId,
     providerSub,
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
@@ -84,7 +82,6 @@ describe("EventsService", () => {
   const userWithDetails: UserWithDetails = {
     id: creatorId,
     providerSub,
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
@@ -163,7 +160,6 @@ describe("EventsService", () => {
   const otherUserWithDetails: UserWithDetails = {
     id: otherUserId,
     providerSub: "auth0|other",
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
@@ -249,7 +245,6 @@ describe("EventsService", () => {
   const targetUserWithDetails: UserWithDetails = {
     id: targetUserId,
     providerSub: "auth0|target",
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,

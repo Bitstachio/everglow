@@ -15,7 +15,6 @@ import {
   IMAGE_UPLOAD_ERRORS,
   MAX_IMAGE_SIZE_BYTES,
 } from "src/images/images.constants";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserAvatarService } from "./user-avatar.service";
@@ -48,7 +47,6 @@ describe("UserAvatarService", () => {
   const userWithAvatar = (avatarS3Key: string | null): UserWithDetails => ({
     id: userId,
     providerSub: "auth0|abc123",
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,

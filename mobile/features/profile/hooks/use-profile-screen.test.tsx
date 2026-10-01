@@ -94,12 +94,6 @@ test("ignores duplicate confirmations while deletion is pending", async () => {
   expect(mockLogout).toHaveBeenCalledTimes(1);
 });
 
-test("opens the dedicated Usage page", async () => {
-  const { result } = await renderHook(() => useProfileScreen());
-  result.current.handleOpenUsage();
-  expect(mockPush).toHaveBeenCalledWith("/usage");
-});
-
 test("opens the dedicated username page", async () => {
   const { result } = await renderHook(() => useProfileScreen());
   result.current.handleOpenUsername();

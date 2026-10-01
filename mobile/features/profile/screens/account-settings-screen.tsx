@@ -11,7 +11,6 @@ const AccountSettingsScreen = () => {
     user,
     username,
     handleOpenUsername,
-    handleOpenUsage,
     handleOpenDisplayName,
     handleOpenPrivacyPolicy,
     handleOpenTermsOfUse,
@@ -69,15 +68,6 @@ const AccountSettingsScreen = () => {
           />
         </View>
 
-        <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <SettingsRow
-            title="Usage"
-            description="View your photo storage"
-            icon="pie-chart-outline"
-            onPress={handleOpenUsage}
-            disabled={isDeleting}
-          />
-        </View>
         {canChangePassword ? (
           <View className="gap-3">
             <H3>Security</H3>

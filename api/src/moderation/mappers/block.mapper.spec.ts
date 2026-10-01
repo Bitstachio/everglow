@@ -1,4 +1,3 @@
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 import { BlockWithBlockedUser } from "../moderation.types";
 import { BlockMapper } from "./block.mapper";
 
@@ -14,7 +13,6 @@ describe("BlockMapper", () => {
     blocked: {
       id: blockedId,
       providerSub: "auth0|blocked",
-      storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
       deletionStartedAt: null,
       auth0DeletedAt: null,
       deletionPhotoPolicy: null,

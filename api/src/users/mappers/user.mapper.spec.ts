@@ -1,6 +1,5 @@
 import { UserMapper } from "./user.mapper";
 import { UserWithDetails } from "../users.types";
-import { FREE_TIER_STORAGE_LIMIT_BYTES } from "src/photos/photos.constants";
 
 describe("UserMapper", () => {
   const userId = "11111111-1111-1111-1111-111111111111";
@@ -10,7 +9,6 @@ describe("UserMapper", () => {
   const userWithoutDetails: UserWithDetails = {
     id: userId,
     providerSub,
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
@@ -24,7 +22,6 @@ describe("UserMapper", () => {
   const userWithDetails: UserWithDetails = {
     id: userId,
     providerSub,
-    storageLimitBytes: FREE_TIER_STORAGE_LIMIT_BYTES,
     deletionStartedAt: null,
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,

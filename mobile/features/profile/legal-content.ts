@@ -24,7 +24,7 @@ export const PRIVACY_POLICY_SECTIONS: LegalSection[] = [
   },
   {
     heading: "Your choices",
-    body: "You can edit your profile details, review your storage usage, and delete your account at any time from Account Settings. Deleting your account is permanent and cannot be undone.",
+    body: "You can edit your profile details and delete your account at any time from Account Settings. Deleting your account is permanent and cannot be undone.",
   },
   {
     heading: "Contact us",
