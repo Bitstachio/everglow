@@ -1,5 +1,11 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { Alert } from "react-native";
+import { z } from "zod";
+import { useJoinEventMutation } from "../api/mutations";
+import type { EventResponseDto } from "../types";
 
 /** Join failures that belong on the invitation field (see `error-messages.ts`). */
 const JOIN_INVITATION_FIELD_ERROR_CODES = [
@@ -12,12 +18,6 @@ const isJoinInvitationFieldError = (error: unknown): boolean => {
   const code = getErrorCode(error);
   return code != null && (JOIN_INVITATION_FIELD_ERROR_CODES as readonly string[]).includes(code);
 };
-import { useEffect, useRef } from "react";
-import { useForm } from "react-hook-form";
-import { Alert } from "react-native";
-import { z } from "zod";
-import { useJoinEventMutation } from "../api/mutations";
-import type { EventResponseDto } from "../types";
 
 const joinEventSchema = z.object({
   // The API accepts both full invitation URLs and bare invite tokens.
