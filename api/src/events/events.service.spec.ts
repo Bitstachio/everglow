@@ -1,7 +1,7 @@
 import { accessibleBy } from "@casl/prisma";
 import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { AccessLevel, Event, EventAccess, EventInvite, Prisma, PrismaClient } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess, EventInvite, Plan, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
@@ -30,6 +30,17 @@ const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput 
 };
 
 describe("EventsService", () => {
+  /** The free plan's first version, as the migration seeds it. */
+  const freePlan: Plan = {
+    id: "f0000000-0000-4000-8000-000000000001",
+    code: "FREE",
+    version: 1,
+    memberLimit: 30,
+    storageLimitBytes: 3n * 1024n ** 3n,
+    galleryWindowDays: 30,
+    createdAt: new Date("2026-10-01T00:00:00.000Z"),
+  };
+
   let service: EventsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoPurgeService: { purgeObjects: jest.Mock };
@@ -102,9 +113,8 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
-    memberLimit: 30,
-    storageLimitBytes: 3221225472n,
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -124,9 +134,8 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
-    memberLimit: 30,
-    storageLimitBytes: 3221225472n,
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -143,9 +152,8 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
-    plan: "FREE",
-    memberLimit: 30,
-    storageLimitBytes: 3221225472n,
+    planId: "f0000000-0000-4000-8000-000000000001",
+    bonusStorageBytes: 0n,
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -376,6 +384,9 @@ describe("EventsService", () => {
     prisma.user.findUnique.mockResolvedValue(userWithDetails);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    // Every event is on the free plan's first version unless a test says otherwise.
+    prisma.plan.findUnique.mockResolvedValue(freePlan);
+    prisma.plan.findFirst.mockResolvedValue(freePlan);
     prisma.photo.findMany.mockResolvedValue([]);
   });
 
@@ -400,17 +411,20 @@ describe("EventsService", () => {
       expect(prisma.event.create).not.toHaveBeenCalled();
     });
 
-    it("copies the free plan's limits onto the new event", async () => {
+    it("creates the event on the free plan's newest version, closing after that version's window", async () => {
+      const freeV2 = { ...freePlan, id: "f0000000-0000-4000-8000-000000000002", version: 2, galleryWindowDays: 45 };
+      prisma.plan.findFirst.mockResolvedValue(freeV2);
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       prisma.event.create.mockResolvedValue(createdEvent);
 
       await service.create(callerId, createEventDto);
 
-      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject({
-        plan: "FREE",
-        memberLimit: 30,
-        storageLimitBytes: 3n * 1024n ** 3n,
-      });
+      expect(prisma.plan.findFirst).toHaveBeenCalledWith({ where: { code: "FREE" }, orderBy: { version: "desc" } });
+      const data = prisma.event.create.mock.calls[0][0].data;
+      expect(data.planId).toBe(freeV2.id);
+      expect(data.galleryClosesAt).toEqual(
+        new Date(new Date(createEventDto.date).getTime() + 45 * 24 * 60 * 60 * 1000),
+      );
     });
 
     it("allows a second active event", async () => {
@@ -754,8 +768,9 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
-    it("uses the event's own member limit, not its plan's default", async () => {
-      setupSuccessfulJoin(AccessLevel.PARTICIPANT, { ...eventCreatedByUser, memberLimit: 45 });
+    it("uses the member limit of the plan version the event is on", async () => {
+      prisma.plan.findUnique.mockResolvedValue({ ...freePlan, memberLimit: 45 });
+      setupSuccessfulJoin();
       prisma.eventAccess.count.mockResolvedValue(40);
 
       await service.joinByInvitationUrl(callerId, invitationUrl);
@@ -848,9 +863,8 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
-        plan: "FREE",
-        memberLimit: 30,
-        storageLimitBytes: 3221225472n,
+        planId: "f0000000-0000-4000-8000-000000000001",
+        bonusStorageBytes: 0n,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
@@ -1192,9 +1206,8 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
-        plan: "FREE",
-        memberLimit: 30,
-        storageLimitBytes: 3221225472n,
+        planId: "f0000000-0000-4000-8000-000000000001",
+        bonusStorageBytes: 0n,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,

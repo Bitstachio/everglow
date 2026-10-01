@@ -1,5 +1,5 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
-import { Event, EventPlan, PhotoStatus, Prisma } from "generated/prisma/client";
+import { ForbiddenException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { Event, EventPlan, PhotoStatus, Plan, Prisma } from "generated/prisma/client";
 import { lockForTransaction } from "src/prisma/advisory-lock";
 import { PrismaService } from "src/prisma/prisma.service";
 import {
@@ -7,8 +7,6 @@ import {
   ACCOUNT_PLANS,
   AccountPlan,
   AccountPlanLimits,
-  EVENT_PLAN_LIMITS,
-  EventPlanLimits,
   GALLERY_STATES,
   galleryStateOf,
   PLAN_LIMIT_CODES,
@@ -22,11 +20,15 @@ export interface EventUsage {
   storageBytes: bigint;
 }
 
-/** The fields of an event its plan limits depend on. */
-export type PlannedEvent = Pick<
-  Event,
-  "id" | "plan" | "memberLimit" | "storageLimitBytes" | "galleryClosesAt" | "galleryClosedAt"
->;
+/** What an event may hold: its plan version's terms, plus anything given to that one event. null means no limit. */
+export interface EventLimits {
+  plan: EventPlan;
+  memberLimit: number | null;
+  storageLimitBytes: bigint | null;
+}
+
+/** The fields of an event its limits depend on. */
+export type PlannedEvent = Pick<Event, "id" | "planId" | "bonusStorageBytes" | "galleryClosesAt" | "galleryClosedAt">;
 
 const NO_USAGE: EventUsage = { members: 0, storageBytes: 0n };
 
@@ -47,14 +49,57 @@ export const activeEventsCreatedBy = (userId: string, now: Date = new Date()): P
 /**
  * The one place that answers "what may this event or account hold, and how
  * much does it hold now" (docs/event-quotas.md). Enforcement and responses
- * both go through it, so a paid plan changes the numbers here and nowhere else.
+ * both go through it.
+ *
+ * An event's limits come from the Plan row it points at, a versioned and
+ * immutable catalog, plus `Event.bonusStorageBytes`. Because plan rows never
+ * change (a database trigger refuses updates), they are cached by id for the
+ * life of the process.
  */
 @Injectable()
 export class EventPlanService {
+  private readonly plansById = new Map<string, Plan>();
+
   constructor(private readonly prisma: PrismaService) {}
 
-  limitsFor(plan: EventPlan): EventPlanLimits {
-    return EVENT_PLAN_LIMITS[plan];
+  /** A plan version by id, cached: plan rows never change. */
+  async planFor(planId: string): Promise<Plan> {
+    const cached = this.plansById.get(planId);
+    if (cached) return cached;
+
+    const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
+    // The foreign key makes this unreachable; failing loudly beats guessing limits.
+    if (!plan) throw new InternalServerErrorException(`Plan ${planId} not found`);
+    this.plansById.set(plan.id, plan);
+    return plan;
+  }
+
+  /**
+   * The version of `code` new events get: the highest one. Not cached, since a
+   * new version can be inserted at any time.
+   */
+  async currentPlan(code: EventPlan): Promise<Plan> {
+    const plan = await this.prisma.plan.findFirst({ where: { code }, orderBy: { version: "desc" } });
+    // The migration seeds FREE version 1; a missing plan is a deploy error.
+    if (!plan) throw new InternalServerErrorException(`No version of plan ${code} exists`);
+    this.plansById.set(plan.id, plan);
+    return plan;
+  }
+
+  /** An event's limits: its plan version's terms, with its bonus storage added. */
+  async limitsOf(event: PlannedEvent): Promise<EventLimits> {
+    const plan = await this.planFor(event.planId);
+    return {
+      plan: plan.code,
+      memberLimit: plan.memberLimit,
+      storageLimitBytes: plan.storageLimitBytes === null ? null : plan.storageLimitBytes + event.bonusStorageBytes,
+    };
+  }
+
+  /** Limits for several events; plans are shared and cached, so this costs at most one query per plan version. */
+  async limitsForEvents(events: PlannedEvent[]): Promise<Map<string, EventLimits>> {
+    const entries = await Promise.all(events.map(async (event) => [event.id, await this.limitsOf(event)] as const));
+    return new Map(entries);
   }
 
   /** Every account is FREE until a host subscription exists. */
@@ -116,17 +161,16 @@ export class EventPlanService {
    * makes two joins to the same event count one after the other.
    */
   async assertCanJoin(tx: Prisma.TransactionClient, event: PlannedEvent): Promise<void> {
-    // The event's own limit, set from its plan when it was created or upgraded.
-    const maxMembers = event.memberLimit;
-    if (maxMembers === null) return;
+    const { memberLimit } = await this.limitsOf(event);
+    if (memberLimit === null) return;
 
     await lockForTransaction(tx, `event-plan:members:${event.id}`);
     const members = await tx.eventAccess.count({ where: { eventId: event.id } });
-    if (members < maxMembers) return;
+    if (members < memberLimit) return;
 
     throw new ForbiddenException({
       code: PLAN_LIMIT_CODES.EVENT_MEMBER_LIMIT_REACHED,
-      message: PLAN_LIMIT_MESSAGES.EVENT_MEMBER_LIMIT_REACHED(maxMembers),
+      message: PLAN_LIMIT_MESSAGES.EVENT_MEMBER_LIMIT_REACHED(memberLimit),
     });
   }
 
@@ -140,21 +184,20 @@ export class EventPlanService {
   }
 
   /**
-   * Refuses a batch that would take the gallery past its plan's storage.
-   * Run it inside the upload reservation's Serializable transaction, so two
+   * Refuses a batch that would take the gallery past its storage limit. Run
+   * it inside the upload reservation's Serializable transaction, so two
    * batches for the same gallery cannot both slip under the limit.
    */
   async assertGalleryHasRoom(tx: Prisma.TransactionClient, event: PlannedEvent, requestedBytes: bigint): Promise<void> {
-    // The event's own limit, set from its plan when it was created or upgraded.
-    const maxGalleryBytes = event.storageLimitBytes;
-    if (maxGalleryBytes === null) return;
+    const { storageLimitBytes } = await this.limitsOf(event);
+    if (storageLimitBytes === null) return;
 
     const held = await tx.photo.aggregate({
       where: { eventId: event.id, status: { in: GALLERY_PHOTO_STATUSES } },
       _sum: { sizeBytes: true },
     });
     const bytes = BigInt(held._sum.sizeBytes ?? 0);
-    if (bytes + requestedBytes <= maxGalleryBytes) return;
+    if (bytes + requestedBytes <= storageLimitBytes) return;
 
     throw new ForbiddenException({
       code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,

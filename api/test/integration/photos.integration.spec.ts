@@ -10,6 +10,7 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, authHeader } from "./helpers/auth.fixtures";
+import { buildFreePlan } from "./helpers/plans.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
   TEST_EVENT_ID,
@@ -96,6 +97,9 @@ describe("PhotosController (integration)", () => {
 
   beforeEach(() => {
     mockReset(prisma);
+    // Every event is on the free plan's first version unless a test says otherwise.
+    prisma.plan.findUnique.mockResolvedValue(buildFreePlan());
+    prisma.plan.findFirst.mockResolvedValue(buildFreePlan());
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     // An empty gallery, unless a test says otherwise.
     prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);

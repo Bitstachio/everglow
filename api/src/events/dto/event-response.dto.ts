@@ -59,7 +59,11 @@ export class EventResponseDto {
   })
   status: EventStatus;
 
-  @ApiProperty({ enum: EventPlan, enumName: "EventPlan", description: "The plan whose limits apply to this event." })
+  @ApiProperty({
+    enum: EventPlan,
+    enumName: "EventPlan",
+    description: "The plan the event is on. Its limits are in `limits`, which can include storage added to this event.",
+  })
   plan: EventPlan;
 
   @ApiProperty({
