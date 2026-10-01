@@ -1,7 +1,6 @@
 import { messageForApiErrorCode } from "@/lib/api/error-messages";
 
-const CLIENT_SAFE_SERVER_ERROR = "Something went wrong. Please try again.";
-const CLIENT_SAFE_CLIENT_ERROR = "Something went wrong. Please try again.";
+const CLIENT_SAFE_ERROR = "Something went wrong. Please try again.";
 
 type ApiErrorShape = {
   response?: {
@@ -34,10 +33,8 @@ const parseRetryAfterSeconds = (headers: Record<string, unknown> | undefined): n
   return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 };
 
-const messageForHttpFailure = (status: number, code: string | undefined): string => {
-  if (status >= 500) return CLIENT_SAFE_SERVER_ERROR;
-  return messageForApiErrorCode(code) ?? CLIENT_SAFE_CLIENT_ERROR;
-};
+const messageForHttpFailure = (status: number, code: string | undefined): string =>
+  status >= 500 ? CLIENT_SAFE_ERROR : (messageForApiErrorCode(code) ?? CLIENT_SAFE_ERROR);
 
 /** Transport/API failure with optional status, machine code, and Retry-After. */
 export const createApiError = (
@@ -88,9 +85,5 @@ export const toApiError = (error: unknown): ApiError => {
   return createApiError(err.message || "An unexpected error occurred", { cause: error });
 };
 
-/**
- * Display string for the UI. Trusts `ApiError.message` (set by `toApiError`).
- * Any other throw uses `fallback` so internal Error text is not shown.
- */
 export const getErrorMessage = (error: unknown, fallback = "An unexpected error occurred"): string =>
   isApiError(error) ? error.message : fallback;

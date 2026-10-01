@@ -1,5 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getErrorMessage } from "@/lib/api/errors";
+import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
+
+/** Join failures that belong on the invitation field (see `error-messages.ts`). */
+const JOIN_INVITATION_FIELD_ERROR_CODES = [
+  "ORGANIZER_BLOCKED_BY_CALLER",
+  "REMOVED_FROM_EVENT",
+  "EVENT_UNDER_REVIEW",
+] as const;
+
+const isJoinInvitationFieldError = (error: unknown): boolean => {
+  const code = getErrorCode(error);
+  return code != null && (JOIN_INVITATION_FIELD_ERROR_CODES as readonly string[]).includes(code);
+};
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "react-native";
@@ -38,11 +50,16 @@ export const useJoinEventForm = ({ visible, onSuccess }: UseJoinEventFormParams)
   }, [visible, reset]);
 
   const submit = form.handleSubmit(async (values) => {
+    form.clearErrors("invitationUrl");
     try {
       const event = await mutation.mutateAsync(values);
       reset();
       onSuccess(event);
     } catch (error) {
+      if (isJoinInvitationFieldError(error)) {
+        form.setError("invitationUrl", { message: getErrorMessage(error) });
+        return;
+      }
       Alert.alert("Error", getErrorMessage(error, "Failed to join event"));
     }
   });

@@ -126,7 +126,7 @@ test("keeps Continue disabled until the username is available", async () => {
 
 test("shows taken when onboarding loses a uniqueness race", async () => {
   mockCompleteOnboarding.mockRejectedValueOnce(
-    createApiError("Username already exists", { status: 409, code: "USERNAME_TAKEN" }),
+    createApiError("This username is taken", { status: 409, code: "USERNAME_TAKEN" }),
   );
   const user = userEvent.setup();
   await render(<OnboardingScreen />);

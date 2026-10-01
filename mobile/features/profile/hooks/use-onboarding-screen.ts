@@ -1,4 +1,4 @@
-import { getErrorCode, getErrorMessage, isApiError } from "@/lib/api/errors";
+import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
 import { useAuth } from "@/context/auth-context";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -79,17 +79,7 @@ export const useOnboardingScreen = () => {
       await completeOnboarding({ name: name.trim(), username: normalizedUsername, acceptedTerms: true });
     } catch (err: unknown) {
       if (getErrorCode(err) === "USERNAME_TAKEN") {
-        setFormErrors((prev) => ({
-          ...prev,
-          username: usernameAvailabilityMessage("TAKEN") ?? "This username is taken",
-        }));
-        return;
-      }
-      if (isApiError(err) && err.status === 400) {
-        setFormErrors((prev) => ({
-          ...prev,
-          username: getErrorMessage(err, usernameAvailabilityMessage("INVALID_FORMAT") ?? "Invalid username"),
-        }));
+        setFormErrors((prev) => ({ ...prev, username: getErrorMessage(err) }));
         return;
       }
       Alert.alert("Onboarding Failed", getErrorMessage(err, "Please try again"));
