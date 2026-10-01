@@ -25,10 +25,10 @@ export interface ScheduledJob<TResult extends object> {
  * Never throws: nothing awaits a cron tick, so an error escaping it would be
  * an unhandled rejection rather than something a caller could act on.
  */
-export async function runScheduledJob<TResult extends object>(
+export const runScheduledJob = async <TResult extends object>(
   logger: PinoLogger,
   job: ScheduledJob<TResult>,
-): Promise<void> {
+): Promise<void> => {
   if (!job.enabled) return;
 
   const startedAt = Date.now();
@@ -44,4 +44,4 @@ export async function runScheduledJob<TResult extends object>(
       `${job.name} run failed`,
     );
   }
-}
+};

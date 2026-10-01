@@ -30,10 +30,10 @@ export interface DeletedUploads {
  * null. Objects are the caller's to purge after the commit, never inside a
  * database transaction.
  */
-export async function deleteUploadsInTransaction(
+export const deleteUploadsInTransaction = async (
   tx: Prisma.TransactionClient,
   { eventId, userId, closedById, photoIds, excludePhotoIds = [] }: DeleteUploadsInput,
-): Promise<DeletedUploads> {
+): Promise<DeletedUploads> => {
   const uploaded = await tx.photo.findMany({
     where: { eventId, addedById: userId, id: { ...(photoIds && { in: photoIds }), notIn: excludePhotoIds } },
     select: { id: true, s3Key: true, sizeBytes: true },
@@ -50,4 +50,4 @@ export async function deleteUploadsInTransaction(
     bytesFreed: uploaded.reduce((sum, photo) => sum + BigInt(photo.sizeBytes), 0n),
     reportsClosed,
   };
-}
+};

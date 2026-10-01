@@ -4,7 +4,7 @@ import { AppModule } from "./app.module";
 import { configureApp } from "./app.setup";
 import { SWAGGER_PATH, setupSwagger } from "./swagger/swagger.config";
 
-async function bootstrap() {
+const bootstrap = async () => {
   const app = await NestFactory.create(AppModule);
 
   app.useLogger(app.get(Logger));
@@ -15,5 +15,5 @@ async function bootstrap() {
   await app.listen(port, "0.0.0.0");
   console.log(`Application is running on: http://localhost:${port}`);
   console.log(`Swagger docs available at: http://localhost:${port}/${SWAGGER_PATH}`);
-}
+};
 void bootstrap();

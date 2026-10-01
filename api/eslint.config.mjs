@@ -30,7 +30,21 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+      // Match mobile codebaseConventionRules that apply to Nest/TypeScript.
+      'func-style': ['error', 'expression'],
+      'prefer-arrow-callback': 'error',
+      'no-var': 'error',
+      'prefer-const': 'error',
+      'no-restricted-syntax': [
+        'error',
+        {
+          // Nest class/object methods are FunctionExpression in the AST; allow those.
+          selector:
+            ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
+          message: 'Use an arrow function instead of the function keyword.',
+        },
+      ],
     },
   },
   {
