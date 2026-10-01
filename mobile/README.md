@@ -1,54 +1,39 @@
-# Welcome to your Expo app 👋
+# Everglow mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo app for iOS and Android. Product and architecture that also apply to the API live in the repo [`docs/`](../docs/) folder. How we write this app lives in [`docs/code-conventions.md`](docs/code-conventions.md).
 
 ## Get started
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## End-to-end tests
-
-Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run instructions are in [docs/e2e.md](docs/e2e.md). After installing the Maestro CLI, building the native app (`pnpm ios` / `pnpm android`), and signing in on a simulator/emulator, run `pnpm test:e2e:ios` or `pnpm test:e2e:android` from `mobile/`.
-
-## Get a fresh project
-
-When you're ready, run:
+From `mobile/`:
 
 ```bash
-npm run reset-project
+corepack enable
+pnpm install
+pnpm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+`pnpm-workspace.yaml` sets `nodeLinker: hoisted`. Expo, Metro, and CocoaPods need a flatter `node_modules` than pnpm's default isolated layout.
 
-## Learn more
+Point the app at an API with `EXPO_PUBLIC_API_URL` in `mobile/.env`. Local API setup is in [api/docs/local-setup.md](../api/docs/local-setup.md).
 
-To learn more about developing your project with Expo, look at the following resources:
+## Tests
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+pnpm test
+pnpm test:e2e:ios      # Maestro; see docs/e2e.md
+pnpm test:e2e:android
+```
 
-## Join the community
+Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run instructions are in [docs/e2e.md](docs/e2e.md). After installing the Maestro CLI, building the native app (`pnpm ios` / `pnpm android`), and signing in on a simulator/emulator, run the platform script from `mobile/`.
 
-Join our community of developers creating universal apps.
+## Docs
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+| Topic                     | Doc                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Conventions (entry point) | [docs/code-conventions.md](docs/code-conventions.md)                                                 |
+| Feature folders           | [docs/feature-code-organization.md](docs/feature-code-organization.md)                               |
+| API client                | [docs/api.md](docs/api.md)                                                                           |
+| Forms                     | [docs/forms.md](docs/forms.md)                                                                       |
+| Theme / UI scale / icons  | [docs/theme.md](docs/theme.md), [docs/ui-scale.md](docs/ui-scale.md), [docs/icons.md](docs/icons.md) |
+| Testing / E2E             | [docs/testing.md](docs/testing.md), [docs/e2e.md](docs/e2e.md)                                       |
+| Shared product docs       | [../docs/](../docs/)                                                                                 |

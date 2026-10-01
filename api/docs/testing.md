@@ -29,7 +29,7 @@ CI runs `test:cov`, then `test:integration`, then build. See `.github/workflows/
 **Typical pattern:**
 
 - Stub `PrismaService` with `mockDeep<PrismaClient>()` from `jest-mock-extended`.
-- Stub `PinoLogger` and other collaborators with `useValue` (see [logging conventions](./logging-conventions.md#7-stubbing-pinologger-in-unit-tests)).
+- Stub `PinoLogger` and other collaborators with `useValue` (see [logging conventions](./logging-conventions.md#7-testing-services-that-log)).
 - Assert business rules, thrown Nest exceptions, and Prisma call shapes — not HTTP status codes or response envelopes.
 
 Unit tests stay fast and local so feature folders can grow without pulling in the whole app graph.
@@ -79,7 +79,7 @@ Feature-owned **unit** specs stay colocated. Shared integration fixtures live in
 
 When a suite needs an extra override (e.g. mock `S3Service`), pass a `configureModule` callback into `createTestApp`.
 
-Rate limiting is switched off for the whole suite in `jest-integration.setup.ts` (`RATE_LIMIT_ENABLED=false`), so no suite needs to think about it; `rate-limit.integration.spec.ts` opts back in. See [rate limiting](./rate-limiting.md#testing).
+Rate limiting is switched off for the whole suite in `jest-integration.setup.ts` (`RATE_LIMIT_ENABLED=false`), so no suite needs to think about it; `rate-limit.integration.spec.ts` opts back in. See [rate limiting](../../docs/rate-limiting.md#testing).
 
 ---
 

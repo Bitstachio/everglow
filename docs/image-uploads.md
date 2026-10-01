@@ -6,7 +6,7 @@ Like photos, the API never proxies image bytes. Clients upload to and download f
 
 ---
 
-## 1. The shared module (`src/images`)
+## 1. The shared module (`api/src/images`)
 
 | Piece                                                                     | Role                                                                                  |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -91,7 +91,7 @@ Deleting the owning row cannot be retried once the row is gone, so it follows th
 
 ---
 
-## 4. Avatars (`src/users`)
+## 4. Avatars (`api/src/users`)
 
 `UserDetails.avatarS3Key` (nullable, unique). It lives on `UserDetails` rather than `User` because `User` is the identity and saga record while `UserDetails` is the profile (name, username) the avatar is shown with; it cascades with the profile; and every place that displays an avatar already loads `details`, so exposing it costs no extra query. The consequence is that **an avatar can only be set after onboarding** (422 before).
 
@@ -111,7 +111,7 @@ Deleting the owning row cannot be retried once the row is gone, so it follows th
 
 ---
 
-## 5. Event covers (`src/events`)
+## 5. Event covers (`api/src/events`)
 
 `Event.coverS3Key` (nullable, unique), keys under `event-covers/{eventId}/{uploadId}`. The second consumer, and the same shape as the avatar: `EventCoverService` holds the target, the slot, and the audit lines, and everything else is the shared module.
 
@@ -132,7 +132,7 @@ Deleting the owning row cannot be retried once the row is gone, so it follows th
 
 ## 6. Orphan reconciler
 
-The daily S3 orphan reconciler ([photos-architecture.md §11](./photos-architecture.md#11-s3-orphan-reconciler)) walks a **registry of owned prefixes** (`src/storage`). Each `OrphanSource` names its prefix, recognises the keys the API could have minted under it, and answers "which of these keys does a row still reference?" with one query per S3 page. The reconciler's safety properties are unchanged and shared: opt-in flag, minimum object age, one batch cap per run across all prefixes, and keys a source does not recognise are never touched. Prefixes may not overlap; a source that breaks that fails the boot.
+The daily S3 orphan reconciler ([photos-architecture.md §11](./photos-architecture.md#11-s3-orphan-reconciler)) walks a **registry of owned prefixes** (`api/src/storage`). Each `OrphanSource` names its prefix, recognises the keys the API could have minted under it, and answers "which of these keys does a row still reference?" with one query per S3 page. The reconciler's safety properties are unchanged and shared: opt-in flag, minimum object age, one batch cap per run across all prefixes, and keys a source does not recognise are never touched. Prefixes may not overlap; a source that breaks that fails the boot.
 
 Images add one rule. A photo's row exists before its object can, so "no row" proves an orphan. A stateless image upload is the opposite: **the object exists before anything references it**, so only its age separates an upload awaiting its confirm from an abandoned one. Two constants close that gap:
 
@@ -150,10 +150,10 @@ What the event cover (§5) did, as the recipe for the next one:
 1. **Schema:** a nullable, `@unique` `VarChar(255)` key column on the owning model (unique gives the reconciler its index).
 2. **Prefix:** a constant ending in `/` (e.g. `EVENT_COVER_S3_KEY_PREFIX = "event-covers/"`) that overlaps no registered prefix.
 3. **Module:** import `ImagesModule`.
-4. **Service:** authorize the caller with the feature's own rules, then call `createUpload` / `confirmUpload` / `remove` with `{ prefix, ownerId }` and an `ImageSlot` whose `save` is a conditional `updateMany` on the key that was read (throw 409 on `count === 0`). Log the feature's own audit events. `src/users/user-avatar.service.ts` and `src/events/event-cover.service.ts` are the references.
+4. **Service:** authorize the caller with the feature's own rules, then call `createUpload` / `confirmUpload` / `remove` with `{ prefix, ownerId }` and an `ImageSlot` whose `save` is a conditional `updateMany` on the key that was read (throw 409 on `count === 0`). Log the feature's own audit events. `api/src/users/user-avatar.service.ts` and `api/src/events/event-cover.service.ts` are the references.
 5. **Endpoints:** reuse `CreateImageUploadDto`, `ConfirmImageUploadDto`, `ImageUploadResponseDto`.
 6. **Reads:** expose `getDownloadUrl(row.key)` as a nullable URL; never return the key.
-7. **Reconciler:** a provider of a few lines, such as `src/events/event-cover-orphan-source.ts`:
+7. **Reconciler:** a provider of a few lines, such as `api/src/events/event-cover-orphan-source.ts`:
 
    ```ts
    @Injectable()
@@ -175,8 +175,8 @@ What the event cover (§5) did, as the recipe for the next one:
    }
    ```
 
-   and add the new prefix to the expectation in `test/integration/app.integration.spec.ts`, which asserts the prefixes registered at boot.
+   and add the new prefix to the expectation in `api/test/integration/app.integration.spec.ts`, which asserts the prefixes registered at boot.
 
 8. **Deletion of the owning row:** collect the key before the row goes and purge it after the commit, next to the keys that path already purges (`PhotoPurgeService.purgeObjects`).
 
-No infrastructure change is needed: the IAM policy, CORS rule, and lifecycle rule in `infra/main.tf` all cover the whole bucket.
+No infrastructure change is needed: the IAM policy, CORS rule, and lifecycle rule in `api/infra/main.tf` all cover the whole bucket.

@@ -4,7 +4,7 @@ This document is the entry point for how we write TypeScript and React Native co
 
 **Reference implementation:** `features/profile/` for feature structure.
 
-**Enforcement:** `mobile/eslint.config.js` encodes what can be automated. Run `npm run lint` before opening a PR (lints `app/`, `components/`, `constants/`, `context/`, `features/`, `hooks/`, `lib/`, and `providers/`). Use the [code review checklist](./code-review-checklist.md) for everything lint cannot judge.
+**Enforcement:** `mobile/eslint.config.js` encodes what can be automated. Run `pnpm lint` before opening a PR (lints `app/`, `components/`, `constants/`, `context/`, `features/`, `hooks/`, `lib/`, and `providers/`). Use the [code review checklist](./code-review-checklist.md) for everything lint cannot judge.
 
 ## Topic docs
 
@@ -19,6 +19,7 @@ This document is the entry point for how we write TypeScript and React Native co
 | Component / hook tests (Jest + RNTL)          | [Testing](./testing.md)                                     |
 | E2E tests (Maestro)                           | [E2E](./e2e.md)                                             |
 | PR review judgments                           | [Code review checklist](./code-review-checklist.md)         |
+| Shared product / architecture                 | [Repo `docs/`](../../docs/)                                 |
 
 ## Convention hierarchy
 
@@ -240,7 +241,7 @@ Lint covers filename case and many structure rules. It cannot cover identifier n
 | Screen / component layout  | [UI scale](./ui-scale.md) + [Theme](./theme.md)             |
 | Component / hook tests     | [Testing](./testing.md)                                     |
 | Mobile E2E / Maestro       | [E2E](./e2e.md)                                             |
-| Reviewing a PR             | Checklist + `npm run lint`                                  |
+| Reviewing a PR             | Checklist + `pnpm lint`                                     |
 
 ## Migrating legacy code
 

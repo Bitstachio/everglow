@@ -124,7 +124,7 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 ## Account Settings
 
-`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, a Usage navigation row, security and legal sections, logout, and account deletion. The protected `/usage` route shows account-scoped photo storage, a percentage bar, used/remaining/limit values, and a Photos stored row marked unavailable because the existing API does not return a photo count. Deletion asks for the photo policy and then confirms the irreversible action. Username and avatar uploads are not supported by the profile API. Change Password is available for Auth0 database identities (`auth0|…`): the app mints a ticket from `POST /users/me/password-change-ticket`, opens Auth0's hosted page in the system auth browser, and clears the local session if credentials die afterward. Social identities do not see the Change Password row. Signed-out password reset is Auth0 Universal Login’s own link (opened by Log In); the app does not duplicate it on the home screen (see [Credential changes](./credential-changes.md)). Profile email edits do not change the Auth0 sign-in email.
+`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, a Usage navigation row, security and legal sections, logout, and account deletion. The protected `/usage` route shows account-scoped photo storage, a percentage bar, used/remaining/limit values, and a Photos stored row marked unavailable because the existing API does not return a photo count. Deletion asks for the photo policy and then confirms the irreversible action. Username and avatar uploads are not supported by the profile API. Change Password is available for Auth0 database identities (`auth0|…`): the app mints a ticket from `POST /users/me/password-change-ticket`, opens Auth0's hosted page in the system auth browser, and clears the local session if credentials die afterward. Social identities do not see the Change Password row. Signed-out password reset is Auth0 Universal Login’s own link (opened by Log In); the app does not duplicate it on the home screen (see [Credential changes](../../docs/credential-changes.md)). Profile email edits do not change the Auth0 sign-in email.
 
 ## Shared folders outside `features/`
 
@@ -169,7 +169,7 @@ Use the `@/` path alias for cross-folder imports. Use relative imports only for 
 
 ## ESLint enforcement
 
-`mobile/eslint.config.js` layers rules on top of each other. Run `npm run lint` locally and in CI to catch violations early. The script runs ESLint across all app source folders (not only `app/` and `components/`). See [Code conventions](./code-conventions.md) for the full hierarchy.
+`mobile/eslint.config.js` layers rules on top of each other. Run `pnpm lint` locally and in CI to catch violations early. The script runs ESLint across all app source folders (not only `app/` and `components/`). See [Code conventions](./code-conventions.md) for the full hierarchy.
 
 ### Codebase rules (all linted source)
 

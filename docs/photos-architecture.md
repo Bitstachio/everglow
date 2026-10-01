@@ -64,7 +64,7 @@ We create the row _before_ the upload happens (so we have a `photoId` to sign ag
 
 `GET /events/:eventId/photos?cursor=<opaque>&limit=50`
 
-- **Cursor-based pagination** (not offset). The cursor is the `createdAt` + `id` of the last photo returned, base64url-encoded and opaque to clients (`src/common/pagination/keyset-cursor.ts`, shared with the report list). Cheaper than `OFFSET N` at large N, and stable when new photos are added mid-scroll.
+- **Cursor-based pagination** (not offset). The cursor is the `createdAt` + `id` of the last photo returned, base64url-encoded and opaque to clients (`api/src/common/pagination/keyset-cursor.ts`, shared with the report list). Cheaper than `OFFSET N` at large N, and stable when new photos are added mid-scroll.
 - **Applied as a keyset `WHERE`**, not as Prisma's `cursor: { id }`. Prisma resolves the cursor row's sort values at query time, so once that photo is deleted the next page comes back empty and the client thinks the list ended; `(createdAt, id) < (cursorCreatedAt, cursorId)` does not need the row to exist and hits the `(eventId, status, createdAt)` index directly.
 - **Malformed cursor** (anything but a `nextCursor` this API produced) → **400** `Invalid cursor`, never an empty page.
 - **Filters to `status = READY`** automatically. Pending/failed photos are invisible.
@@ -159,7 +159,7 @@ Order matters: if step 2 fails, row stays — operation is retry-safe. If step 3
 
 ### Event delete
 
-`DELETE /events/:eventId` takes every photo of the event with it, objects included, and the event's cover image ([image-uploads.md §5](./image-uploads.md#5-event-covers-srcevents)):
+`DELETE /events/:eventId` takes every photo of the event with it, objects included, and the event's cover image ([image-uploads.md §5](./image-uploads.md#5-event-covers-apisrcevents)):
 
 1. In one transaction: read the `s3Key` of every `Photo` row of the event, then delete the event (`onDelete: Cascade` removes the rows). The deleted row carries the cover key, which joins the list.
 2. After the commit: `PhotoPurgeService.purgeObjects()` deletes the objects with S3 `DeleteObjects`, 1000 keys per request (`S3Service.deleteObjects`).
@@ -246,7 +246,7 @@ In order of implementation:
 - [x] **Rejected slots released at confirm** — MISSING deletes the row, MISMATCHED deletes the object and the row; quota returns immediately instead of after the sweep. Confirm is scoped to the caller's own rows, and uploaders can delete their own PENDING rows without event access.
 - [x] **Expired empty slots released early** — the sweeper drops PENDING rows whose URL has expired and whose key holds no object on its next run, instead of at the 24h cutoff (#48).
 - [x] **Unit tests** — service-level, mock `S3Service` and `PrismaService`.
-- [x] **Integration tests** — HTTP/controller-level, with auth + CASL (see [Testing](./testing.md)).
+- [x] **Integration tests** — HTTP/controller-level, with auth + CASL (see [Testing](../api/docs/testing.md)).
 - [x] **OpenAPI regen** — `pnpm run openapi:generate` so mobile picks up the new contract. (Regenerated alongside each endpoint; request DTOs need explicit `@ApiProperty` — the swagger CLI plugin does not run under the ts-node openapi script.)
 - [x] **README update** — implementation status is tracked in this checklist.
 
@@ -264,7 +264,7 @@ In order of implementation:
 
 ## 9. Per-user storage quota (free tier)
 
-Each uploader has their own storage cap, `User.storageLimitBytes` (default **5 GiB**), enforced when upload slots are minted.
+Each uploader has their own storage cap, `User.storageLimitBytes` (default **5 GiB**), enforced when upload slots are minted. The product plan in [event-quotas.md](./event-quotas.md) replaces this with per-event limits (EV-64); this section is what ships today.
 
 - **Usage:** `SUM(sizeBytes)` over the caller's photos with `status IN (PENDING, READY)`. Pending rows count so clients cannot bypass the cap by minting slots without confirming.
 - **Enforcement:** `PhotoStorageService.reserveUploadBytes()` in `PhotosService.createUploadSlots()`, after CASL authorization. The limit lookup, the usage query, and the `createMany` of the batch's PENDING rows run in **one Prisma transaction at `Serializable` isolation**; presigned URLs are minted only after it commits.
@@ -331,7 +331,7 @@ Because `PENDING` rows count toward usage, an upload slot holds quota from the m
 Usage counts everything a person uploaded, including photos in events they left or were removed from with their photos kept. So those photos stay theirs to delete:
 
 - **Uploaders can always delete their own photos,** whether or not they are still a member (`DELETE /photos/:photoId`, CASL `addedById`).
-- **Leaving asks.** `POST /events/:eventId/leave?photos=KEEP|DELETE`: `KEEP` (the default) leaves the photos in the event, still theirs and still counted; `DELETE` removes them and frees the space. An organizer removing someone chooses the same way (docs/moderation.md).
+- **Leaving asks.** `POST /events/:eventId/leave?photos=KEEP|DELETE`: `KEEP` (the default) leaves the photos in the event, still theirs and still counted; `DELETE` removes them and frees the space. An organizer removing someone chooses the same way ([moderation.md](./moderation.md)).
 - **The storage screen shows where the space goes and lets them take it back.**
 
   | Endpoint                                                               | Result                                                                                                                                                                                                                            |
@@ -367,7 +367,7 @@ This job is what makes the quota in §9 self-correcting. Without it an abandoned
 
 The database is the source of truth for photos, so a row can disappear while its object stays in the bucket: an event delete whose post-commit purge failed or raced an in-flight upload (§5), an account delete whose purge failed, a row removed by hand, or objects left under the pre-#38 `photos/{eventId}/{photoId}` layout. Orphans never count toward quota (usage is a `SUM` over rows) but they are billed, so a daily job reclaims them.
 
-The job is not specific to photos. It lives in `src/storage` and walks a registry of owned prefixes (`OrphanSourceRegistry`); `photos/` is the source `PhotoOrphanSource` registers, and single-image prefixes such as `avatars/` and `event-covers/` register theirs ([image-uploads.md §6](./image-uploads.md#6-orphan-reconciler)). What follows describes the shared job and the photos source.
+The job is not specific to photos. It lives in `api/src/storage` and walks a registry of owned prefixes (`OrphanSourceRegistry`); `photos/` is the source `PhotoOrphanSource` registers, and single-image prefixes such as `avatars/` and `event-covers/` register theirs ([image-uploads.md §6](./image-uploads.md#6-orphan-reconciler)). What follows describes the shared job and the photos source.
 
 - **Service:** `S3OrphanReconcilerService.reconcileOrphanedObjects()`
 - **Schedule:** daily at 03:00 via `S3OrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists every registered prefix end to end, which is not worth doing hourly, and orphans cost money rather than correctness.
@@ -379,12 +379,12 @@ The job is not specific to photos. It lives in `src/storage` and walks a registr
   when `photos/` was the only prefix; renaming an opt-in flag would silently switch the job off where it
   is on). Off unless set to exactly that, because the
   job decides what to delete from `AWS_S3_BUCKET` using rows in `DATABASE_URL`, and the two are only
-  paired in a deployed environment. `docker-compose.yml` overrides `DATABASE_URL` to its own empty
+  paired in a deployed environment. `api/docker-compose.yml` overrides `DATABASE_URL` to its own empty
   database while still loading the shared bucket credentials from `.env`, and local dev does the same,
   so an on-by-default sweep would delete another environment's live photos. The bucket has no
   versioning, so those deletes are final. Gating on `NODE_ENV` would not help: compose sets it to
   `production`.
-- **IAM:** needs `s3:ListBucket` on the bucket, which Terraform already grants (`infra/main.tf`).
+- **IAM:** needs `s3:ListBucket` on the bucket, which Terraform already grants (`api/infra/main.tf`).
 
 Every deletion logs `storage.orphan_reconcile.deleted` with `audit: true` and the `prefix` it came from; every run ends with `storage.orphan_reconcile.completed` carrying the counts, so a quiet bucket still leaves a daily trace. (These events were named `photo.orphan_reconcile.*` while the job only walked `photos/`.)
 

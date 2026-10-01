@@ -1,8 +1,8 @@
 # Moderation: reports and blocks
 
-Everglow albums are invite-only, but the photos in them are still user-generated content. App Store guideline 1.2 asks three things of such an app: a way to **report** objectionable content, a way to **block** abusive users, and a developer who **acts on reports**. This document covers how the API does each, and what it deliberately leaves out.
+Everglow albums are invite-only, but the photos in them are still user-generated content. App Store guideline 1.2 asks three things of such an app: a way to **report** objectionable content, a way to **block** abusive users, and a developer who **acts on reports**. This document covers how Everglow does each, and what it deliberately leaves out.
 
-Everything lives in `src/moderation/`. The `events` and `photos` modules gain only read filters:
+Everything lives in `api/src/moderation/`. The `events` and `photos` modules gain only read filters:
 
 - `PhotosService.listPhotos` and `PhotosService.findOne` apply `PhotoVisibilityService.whereVisibleTo` (§3)
 - the participants list carries `isBlockedByCaller` (§4)
@@ -106,7 +106,7 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 
 Rules:
 
-- **Any member may report**, viewers included. Authorization is CASL (`reports.abilities.ts`): `create` for members filing in their own name, `read` and `update` for organizers of the report's event.
+- **Any member may report**, viewers included. Authorization is CASL (`api/src/moderation/reports.abilities.ts`): `create` for members filing in their own name, `read` and `update` for organizers of the report's event.
 - **Not yourself**, and not your own photo: 403.
 - **The photo must be visible to the reporter.** A photo they cannot see (a blocked uploader, or one already hidden from everyone) is a 404, exactly as `GET /photos/:photoId` would answer. The one exception is a photo hidden by their own OPEN report: that is a repeat, and it gets the report back.
 - **Repeats are idempotent.** While the caller's earlier report on the same target is OPEN, `POST` returns that report with 201 and creates nothing. The reason and note of the first submission stand.
@@ -126,7 +126,7 @@ Rules:
 - **A removal needs something to remove.** `REMOVE_PHOTO` when the photo is already gone, or `REMOVE_MEMBER` when the account is gone, is a 422; `DISMISS` closes such a report. The photo's S3 object is deleted after the transaction commits. If that fails the call still succeeds, a `report.photo_object_retained` warning is logged, and the orphan reconciler removes the object later.
 - **An organizer cannot resolve a report about themselves** or about their own photo: 403. Another organizer has to. If there is none, the report stays OPEN, which is one reason such reports are escalated at creation (§5).
 - **A report is resolved once.** The update is guarded on `status = OPEN`; a second verdict, including one racing the first, gets 409 and removes nothing.
-- The list uses the same keyset pagination as the photo list (`src/common/pagination`).
+- The list uses the same keyset pagination as the photo list (`api/src/common/pagination`).
 
 ### Reporting the event itself
 
@@ -137,7 +137,7 @@ Rules:
 - Until the Admin dashboard exists (EV-58), event reports are resolved in the database.
 - **Who set the cover** is recorded on the event (`Event.coverUpdatedById`, set with the cover and cleared with it) and included in the report's `report.created` and `report.escalated` lines, so the reviewer knows whose image it is.
 
-**The cover is hidden, the text is not.** The cover is the one image of an event that photo reports don't cover, so it is hidden the way photos are (`hiddenEventCoverIds`, `moderation/event-cover-visibility.ts`), wherever an event's `coverUrl` is returned:
+**The cover is hidden, the text is not.** The cover is the one image of an event that photo reports don't cover, so it is hidden the way photos are (`hiddenEventCoverIds`, `api/src/moderation/event-cover-visibility.ts`), wherever an event's `coverUrl` is returned:
 
 - from the member who reported the event, while their report is OPEN;
 - from every non-organizer while any OPEN event report is for nudity or violence (`SEVERE_REPORT_REASONS`). Organizers keep seeing it, as they keep seeing reported photos.
@@ -265,7 +265,7 @@ An organizer removes a member either with `DELETE /events/:eventId/participants/
 
    | `photos`         | Effect                                                                                                                                                                         |
    | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-   | `KEEP` (default) | They stay in the event, still credited to the member and counted against their storage. The member can delete them later from their storage screen (photos-architecture.md §9) |
+   | `KEEP` (default) | They stay in the event, still credited to the member and counted against their storage. The member can delete them later from their storage screen ([photos-architecture.md](./photos-architecture.md) §9) |
    | `DELETE`         | Every photo they uploaded to the event is deleted. Its OPEN reports are closed first (§2), and the objects are purged after the commit (`event.member.photos_purged`)          |
 
    It is a query parameter on the participant route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
@@ -292,7 +292,7 @@ Organizers moderate their own events, but the platform owner has to be able to a
 | `report.stale`                             | `warn` | hourly, while any report has been OPEN over 24 hours | `stale` (the count), `reportIds` and `eventIds` of the 20 oldest, `oldestCreatedAt`, `audit`                                                                        |
 | `user.block.created`, `user.block.removed` | `info` | the block list changed                               | `callerId`, `blockedUserId`, `audit`                                                                                                                                |
 
-**`report.escalated` and `report.stale` are the alerts** (tickets, see [alerting.md §3](./alerting.md#3-events-to-alert-on)); the rest are audit records. `report.stale` catches the organizer who does not act: `StaleReportCheckScheduler` runs every hour (`STALE_REPORT_AFTER_HOURS` = 24) with the usual `report.stale_check.run_completed` / `run_failed` heartbeat. `escalationReasons` holds one or more of:
+**`report.escalated` and `report.stale` are the alerts** (tickets, see [alerting.md §3](../api/docs/alerting.md#3-events-to-alert-on)); the rest are audit records. `report.stale` catches the organizer who does not act: `StaleReportCheckScheduler` runs every hour (`STALE_REPORT_AFTER_HOURS` = 24) with the usual `report.stale_check.run_completed` / `run_failed` heartbeat. `escalationReasons` holds one or more of:
 
 | Reason                     | Meaning                                                                                                                          |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -303,7 +303,7 @@ Organizers moderate their own events, but the platform owner has to be able to a
 | `hide_threshold_reached`   | This report is the one that hid the photo from the event. It stays hidden until an organizer resolves it.                        |
 | `event_under_review`       | This report put the event under review (§2): joins and new photos are refused until the platform lifts it. Urgent.               |
 
-A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged ([logging-conventions.md §3](./logging-conventions.md#3-redaction--pii-the-non-negotiable-rule)).
+A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged ([logging-conventions.md §3](../api/docs/logging-conventions.md#3-redaction--pii-the-non-negotiable-rule)).
 
 ---
 

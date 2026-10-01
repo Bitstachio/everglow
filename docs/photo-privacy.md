@@ -2,7 +2,7 @@
 
 Users' photos are theirs. The API needs to read them to serve the app, but no person with AWS access should be able to browse them. The owner of an AWS account can never be locked out completely, since they can always change the rules. So the goal is that **nobody reads a photo by accident, and every deliberate read is recorded and reported**.
 
-The Terraform is in `infra/`: the bucket policy in `main.tf`, the rest in `photo-privacy.tf`.
+The Terraform is in `api/infra/`: the bucket policy in `main.tf`, the rest in `photo-privacy.tf`.
 
 ## The layers
 
@@ -27,7 +27,7 @@ Each one is itself alerted.
 
 In dev:
 
-- **The API's key is shared with the mobile developers** (`docs/local-setup.md`). Anyone with it can read photos, and to AWS they look like the API, so no alert fires. This is acceptable for test photos. In production the API's credentials never leave the server.
+- **The API's key is shared with the mobile developers** ([local-setup.md](../api/docs/local-setup.md)). Anyone with it can read photos, and to AWS they look like the API, so no alert fires. This is acceptable for test photos. In production the API's credentials never leave the server.
 - **`allow_human_photo_reads = true`** in `terraform.tfvars` lifts the read block for debugging. Applying it changes the bucket policy, which raises an alert. It only opens photos from before the KMS key: newer ones stay unreadable to people, because only the API may decrypt them. To see one of your own test photos, open it in the app.
 - **Files can still be listed, and the bucket policy is not locked,** so Terraform can keep changing it.
 - **Photos uploaded before the KMS key existed** keep S3-managed encryption. The bucket policy still blocks reading them.

@@ -1,8 +1,8 @@
 # Rate Limiting
 
-How the API limits request rates, and how to put a limit on a new endpoint. Everything lives in
-[`src/common/rate-limit/`](../src/common/rate-limit) plus one config file,
-[`src/config/rate-limit.config.ts`](../src/config/rate-limit.config.ts). It is built on
+How the API limits request rates, the 429 envelope clients handle, and how to put a limit on a new endpoint. Implementation lives in
+[`api/src/common/rate-limit/`](../api/src/common/rate-limit) plus one config file,
+[`api/src/config/rate-limit.config.ts`](../api/src/config/rate-limit.config.ts). It is built on
 [`@nestjs/throttler`](https://github.com/nestjs/throttler).
 
 ## Adding a limit to an endpoint
@@ -28,8 +28,8 @@ getHello() {}
 ```
 
 To add a tier, add one entry to `RATE_LIMIT_TIER_DEFAULTS` in
-[`rate-limit.constants.ts`](../src/common/rate-limit/rate-limit.constants.ts). The `@RateLimit` argument type,
-the env override names, and the config all derive from that object. Document the new env pair in `.env.example`.
+[`rate-limit.constants.ts`](../api/src/common/rate-limit/rate-limit.constants.ts). The `@RateLimit` argument type,
+the env override names, and the config all derive from that object. Document the new env pair in `api/.env.example`.
 
 ## Tiers
 
@@ -53,7 +53,7 @@ A route with `@RateLimit` is subject to both its tier and the global default. Th
 
 ## Not a tier: the username change limit
 
-Changing a username after onboarding is limited to **2 changes per 14 days**, like Instagram (`USERNAME_CHANGE_LIMIT` and `USERNAME_CHANGE_WINDOW_DAYS` in `users.constants.ts`). That is a product rule over days, not request throttling, so it is not a tier. It lives in `UsersService.update`:
+Changing a username after onboarding is limited to **2 changes per 14 days**, like Instagram (`USERNAME_CHANGE_LIMIT` and `USERNAME_CHANGE_WINDOW_DAYS` in `api/src/users/users.constants.ts`). That is a product rule over days, not request throttling, so it is not a tier. It lives in `UsersService.update`:
 
 - Each real change is recorded in `UsernameChange` (user, old and new username, time). Choosing the first username at onboarding and saving the same username do not count, and name-only updates are never limited.
 - Inside the update's transaction the user's row is locked (`SELECT … FOR UPDATE`) before counting, so changes sent at the same moment are counted one after another. On real Postgres, five simultaneous changes record exactly two; without the lock all five got through.
@@ -154,7 +154,7 @@ when the topology is known, and verify with a request through the real load bala
 ## Storage, and the multi-instance caveat
 
 Counters live behind throttler's `ThrottlerStorage` interface. The only place that chooses an implementation is
-`createRateLimitStorage()` in [`rate-limit.storage.ts`](../src/common/rate-limit/rate-limit.storage.ts), which
+`createRateLimitStorage()` in [`rate-limit.storage.ts`](../api/src/common/rate-limit/rate-limit.storage.ts), which
 `RateLimitModule` hands to `ThrottlerModule`. Today it returns throttler's in-memory store.
 
 In-memory counters are per process. With N API instances behind a load balancer each keeps its own count, so a
@@ -165,10 +165,10 @@ de-duplication is also per process, so N instances may each log a blocked bucket
 
 ## Testing
 
-- **One switch.** `test/integration/jest-integration.setup.ts` sets `RATE_LIMIT_ENABLED=false`, so every
+- **One switch.** `api/test/integration/jest-integration.setup.ts` sets `RATE_LIMIT_ENABLED=false`, so every
   integration suite runs unthrottled with no per-suite overrides. With the switch off the guards return before
   touching storage, which also means no throttler timers are left pending.
-- **Opting back in.** `test/integration/rate-limit.integration.spec.ts` overrides the config provider through
+- **Opting back in.** `api/test/integration/rate-limit.integration.spec.ts` overrides the config provider through
   `createTestApp`'s existing hook, with small limits:
 
   ```ts
