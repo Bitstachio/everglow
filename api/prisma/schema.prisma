@@ -200,6 +200,9 @@ model Event {
   @@index([creatorId])
   @@index([coverUpdatedById])
   @@index([planId])
+  // The close job's hourly lookups: open galleries past their close time, and
+  // closed galleries still holding photos (docs/photos-architecture.md §12).
+  @@index([galleryClosedAt, galleryClosesAt])
 }
 
 /// One shareable join token per access level for an event. Joining via the
@@ -242,7 +245,7 @@ model Photo {
   sizeBytes   Int
   status      PhotoStatus @default(PENDING)
   // Null once the uploader's account is deleted and the photo was kept for the
-  // event. Usage is summed per uploader, so such photos count toward nobody's quota.
+  // event. It still counts toward the event's gallery storage.
   addedById   String?     @db.Uuid
   eventId     String      @db.Uuid
   createdAt   DateTime    @default(now())

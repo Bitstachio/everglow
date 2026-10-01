@@ -69,6 +69,15 @@ export const DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS = 24;
 
 export const DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE = 100;
 
+// Galleries the close job closes per run, and closed galleries it sweeps per
+// run. A backlog drains at this many an hour; raise GALLERY_CLOSE_BATCH_SIZE
+// for a spike.
+export const DEFAULT_GALLERY_CLOSE_BATCH_SIZE = 100;
+
+// Photos removed from one gallery per round: one delete statement and one S3
+// DeleteObjects batch each, so a large gallery never holds a long transaction.
+export const GALLERY_CLOSE_PHOTO_CHUNK_SIZE = 500;
+
 // Per-photo outcome of a confirm call. READY flips the row; MISSING and
 // MISMATCHED are final verdicts that release the slot (row, and object if one
 // landed) so the client mints a fresh one; NOT_FOUND names an id that is not a
