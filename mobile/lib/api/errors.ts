@@ -1,4 +1,6 @@
-const CLIENT_SAFE_SERVER_ERROR = "Something went wrong. Please try again.";
+import { messageForApiErrorCode } from "@/lib/api/error-messages";
+
+const CLIENT_SAFE_ERROR = "Something went wrong. Please try again.";
 
 type ApiErrorShape = {
   response?: {
@@ -16,12 +18,6 @@ export type ApiError = Error & {
   retryAfterSeconds?: number;
 };
 
-const messageFromResponse = (data: ApiErrorShape["response"]): string | undefined => {
-  const raw = data?.data?.message ?? data?.data?.error;
-  if (raw == null) return undefined;
-  return Array.isArray(raw) ? raw.join(", ") : raw;
-};
-
 const headerValue = (headers: Record<string, unknown> | undefined, name: string): string | undefined => {
   if (!headers) return undefined;
   const direct = headers[name] ?? headers[name.toLowerCase()];
@@ -36,6 +32,9 @@ const parseRetryAfterSeconds = (headers: Record<string, unknown> | undefined): n
   const seconds = Number.parseInt(raw, 10);
   return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 };
+
+const messageForHttpFailure = (status: number, code: string | undefined): string =>
+  status >= 500 ? CLIENT_SAFE_ERROR : (messageForApiErrorCode(code) ?? CLIENT_SAFE_ERROR);
 
 /** Transport/API failure with optional status, machine code, and Retry-After. */
 export const createApiError = (
@@ -55,10 +54,10 @@ export const isApiError = (error: unknown): error is ApiError => error instanceo
 export const getErrorCode = (error: unknown): string | undefined => (isApiError(error) ? error.code : undefined);
 
 /**
- * Maps transport failures into Error instances. 5xx bodies often contain
- * internal details (Auth0 ids, stack hints) — never surface those to the UI.
- * 4xx messages are treated as intentional client-facing copy. Status, `code`,
- * and `Retry-After` are preserved on ApiError so callers can branch.
+ * Maps transport failures into Error instances. UI copy comes from `code` via
+ * `messageForApiErrorCode` — Nest response bodies are never shown (they often
+ * include ids and internal detail). Status, `code`, and `Retry-After` are
+ * preserved on ApiError so callers can branch.
  */
 export const toApiError = (error: unknown): ApiError => {
   const err = error as ApiErrorShape;
@@ -67,12 +66,7 @@ export const toApiError = (error: unknown): ApiError => {
     const status = err.response.status ?? 0;
     const code = typeof err.response.data?.code === "string" ? err.response.data.code : undefined;
     const retryAfterSeconds = parseRetryAfterSeconds(err.response.headers);
-
-    if (status >= 500) {
-      return createApiError(CLIENT_SAFE_SERVER_ERROR, { status, code, retryAfterSeconds, cause: error });
-    }
-
-    const message = messageFromResponse(err.response) || "An error occurred";
+    const message = messageForHttpFailure(status, code);
     return createApiError(message, { status, code, retryAfterSeconds, cause: error });
   }
 
@@ -92,4 +86,4 @@ export const toApiError = (error: unknown): ApiError => {
 };
 
 export const getErrorMessage = (error: unknown, fallback = "An unexpected error occurred"): string =>
-  error instanceof Error ? error.message : fallback;
+  isApiError(error) ? error.message : fallback;

@@ -1,4 +1,6 @@
 import { FormField } from "@/components/ui/form-field";
+import { createApiError } from "@/lib/api/errors";
+import { API_ERROR_MESSAGES } from "@/lib/api/error-messages";
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert, Button, View } from "react-native";
 import { useJoinEventForm } from "./use-join-event-form";
@@ -52,8 +54,24 @@ test("retains the invitation and displays API errors for retry", async () => {
   const user = userEvent.setup();
   await user.paste(screen.getByPlaceholderText("Invitation"), "invite-token");
   await user.press(screen.getByRole("button", { name: "Join" }));
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Invitation expired"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to join event"));
   expect(screen.getByPlaceholderText("Invitation")).toHaveDisplayValue("invite-token");
+  expect(mockSuccess).not.toHaveBeenCalled();
+});
+
+test("shows coded join failures on the invitation field", async () => {
+  mockMutateAsync.mockRejectedValue(
+    createApiError(API_ERROR_MESSAGES.EVENT_UNDER_REVIEW, {
+      status: 403,
+      code: "EVENT_UNDER_REVIEW",
+    }),
+  );
+  await render(<JoinFormProbe />);
+  const user = userEvent.setup();
+  await user.paste(screen.getByPlaceholderText("Invitation"), "invite-token");
+  await user.press(screen.getByRole("button", { name: "Join" }));
+  expect(await screen.findByText(API_ERROR_MESSAGES.EVENT_UNDER_REVIEW)).toBeOnTheScreen();
+  expect(Alert.alert).not.toHaveBeenCalled();
   expect(mockSuccess).not.toHaveBeenCalled();
 });
 

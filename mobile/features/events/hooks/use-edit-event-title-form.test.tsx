@@ -56,7 +56,7 @@ test("surfaces server errors and keeps values for retry", async () => {
   const user = userEvent.setup();
   await user.paste(screen.getByPlaceholderText("Title"), "Retry title");
   await user.press(screen.getByRole("button", { name: "Save" }));
-  expect(await screen.findByText("Network unavailable")).toBeOnTheScreen();
+  expect(await screen.findByText("Failed to update event title")).toBeOnTheScreen();
   expect(screen.getByPlaceholderText("Title")).toHaveDisplayValue("Retry title");
   expect(mockSuccess).not.toHaveBeenCalled();
   await user.press(screen.getByRole("button", { name: "Save" }));

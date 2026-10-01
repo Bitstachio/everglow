@@ -1,14 +1,9 @@
+import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getErrorCode, getErrorMessage, isApiError } from "@/lib/api/errors";
 import { useEffect, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useUpdateProfileMutation } from "../api/mutations";
-import {
-  editUsernameSchema,
-  normalizeUsername,
-  usernameAvailabilityMessage,
-  type EditUsernameValues,
-} from "../lib/username";
+import { editUsernameSchema, normalizeUsername, type EditUsernameValues } from "../lib/username";
 import { useUsernameAvailability } from "./use-username-availability";
 
 export type { EditUsernameValues };
@@ -53,15 +48,7 @@ export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsern
         onSuccess();
       } catch (error) {
         if (getErrorCode(error) === "USERNAME_TAKEN") {
-          form.setError("username", {
-            message: usernameAvailabilityMessage("TAKEN") ?? "This username is taken",
-          });
-          return;
-        }
-        if (isApiError(error) && error.status === 400) {
-          form.setError("username", {
-            message: getErrorMessage(error, usernameAvailabilityMessage("INVALID_FORMAT") ?? "Invalid username"),
-          });
+          form.setError("username", { message: getErrorMessage(error) });
           return;
         }
         form.setError("root.server", {

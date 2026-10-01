@@ -125,7 +125,7 @@ test("preserves failed invitations and permits retry", async () => {
   await openJoin();
   await enterInvitation();
   await userEvent.setup().press(screen.getByText("Join with Link"));
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Invitation expired"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to join event"));
   expect(screen.getByLabelText("Invitation URL or token")).toHaveDisplayValue("invite-token");
   await userEvent.setup().press(screen.getByText("Join with Link"));
   await waitFor(() => expect(screen.queryByText("Join an Event")).not.toBeOnTheScreen());
@@ -227,7 +227,7 @@ test("pull-to-refresh retains current events until the refreshed list arrives", 
 test("reports initial fetch errors and recovers on refresh", async () => {
   mockFindAll.mockRejectedValue(new Error("Offline"));
   await renderScreen();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Offline"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to fetch events"));
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent()] } });
   await fireEvent(screen.getByTestId("events-refresh"), "refresh");
   expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
@@ -239,7 +239,7 @@ test("retains cached events after a refresh failure", async () => {
   await screen.findByText("Weekend meetup");
   mockFindAll.mockRejectedValue(new Error("Refresh failed"));
   await fireEvent(screen.getByTestId("events-refresh"), "refresh");
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Refresh failed"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to fetch events"));
   expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
   expect(screen.getByTestId("events-refresh")).toHaveProp("refreshing", false);
 });

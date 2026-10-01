@@ -120,7 +120,7 @@ test("ticket failures surface an alert without opening the browser", async () =>
   await userEvent.setup().press(screen.getByRole("button", { name: "Change Password" }));
 
   await waitFor(() => {
-    expect(alert).toHaveBeenCalledWith("Could not change password", "Auth0 unavailable");
+    expect(alert).toHaveBeenCalledWith("Could not change password", "Please try again.");
   });
   expect(mockOpenTicket).not.toHaveBeenCalled();
 });

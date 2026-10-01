@@ -72,11 +72,11 @@ test("joining shows the normalized API error", async () => {
   await renderEvents();
   await screen.findByText("Loaded");
   await userEvent.setup().press(screen.getByRole("button", { name: "Join" }));
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Invitation has expired"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to join event"));
 });
 
 test("list failures show the normalized API error", async () => {
   mockFindAll.mockRejectedValue(new Error("Network unavailable"));
   await renderEvents();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Network unavailable"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to fetch events"));
 });
