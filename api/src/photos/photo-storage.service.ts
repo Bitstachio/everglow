@@ -74,8 +74,8 @@ export class PhotoStorageService {
 
   /**
    * Atomically checks the event's gallery has room and inserts the given
-   * PENDING rows (docs/event-quotas.md: photos and the hidden byte cap, from
-   * the event's plan).
+   * PENDING rows (docs/event-quotas.md: the gallery storage of the event's
+   * plan).
    *
    * The usage query and the insert run in one Serializable transaction, so
    * overlapping reservations for the same gallery cannot all slip under the
@@ -92,7 +92,7 @@ export class PhotoStorageService {
       try {
         await this.prisma.$transaction(
           async (tx) => {
-            await this.eventPlanService.assertGalleryHasRoom(tx, event, rows.length, requestedBytes);
+            await this.eventPlanService.assertGalleryHasRoom(tx, event, requestedBytes);
             await tx.photo.createMany({ data: rows });
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

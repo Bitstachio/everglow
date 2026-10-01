@@ -257,13 +257,12 @@ describe("PhotoStorageService", () => {
     };
     const galleryUsageQuery = {
       where: { eventId, status: { in: [PhotoStatus.PENDING, PhotoStatus.READY] } },
-      _count: { _all: true },
       _sum: { sizeBytes: true },
     };
-    /** What the gallery already holds. */
-    const held = (photos: number, bytes: number | bigint | null) =>
-      ({ _count: { _all: photos }, _sum: { sizeBytes: bytes === null ? null : Number(bytes) } }) as never;
-    const { maxPhotos, maxGalleryBytes } = EVENT_PLAN_LIMITS.FREE;
+    /** The storage the gallery already uses. */
+    const held = (bytes: number | bigint | null) =>
+      ({ _sum: { sizeBytes: bytes === null ? null : Number(bytes) } }) as never;
+    const { maxGalleryBytes } = EVENT_PLAN_LIMITS.FREE;
 
     beforeEach(() => {
       tx = mockDeep<Prisma.TransactionClient>();
@@ -271,7 +270,7 @@ describe("PhotoStorageService", () => {
     });
 
     it("checks the gallery and inserts the rows inside one serializable transaction", async () => {
-      tx.photo.aggregate.mockResolvedValue(held(3, 100));
+      tx.photo.aggregate.mockResolvedValue(held(100));
       tx.photo.createMany.mockResolvedValue({ count: 2 });
       const rows = [buildRow(1024), buildRow(2048)];
 
@@ -292,38 +291,27 @@ describe("PhotoStorageService", () => {
       expect(tx.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it("fills the gallery exactly up to its photo limit", async () => {
-      tx.photo.aggregate.mockResolvedValue(held(maxPhotos! - 2, 0));
+    it("fills the gallery exactly up to its storage, however many photos that is", async () => {
+      tx.photo.aggregate.mockResolvedValue(held(maxGalleryBytes! - 300n));
       tx.photo.createMany.mockResolvedValue({ count: 2 });
 
-      await expect(service.reserveUploadBytes(event, [buildRow(1), buildRow(1)])).resolves.toBeUndefined();
+      await expect(service.reserveUploadBytes(event, [buildRow(100), buildRow(200)])).resolves.toBeUndefined();
     });
 
-    it("refuses a batch that would pass the photo limit, with 403 and the numbers, inserting nothing", async () => {
-      tx.photo.aggregate.mockResolvedValue(held(maxPhotos! - 1, 0));
+    it("refuses a batch that would pass the gallery's storage, with 403, inserting nothing", async () => {
+      tx.photo.aggregate.mockResolvedValue(held(maxGalleryBytes! - 100n));
 
-      const reservation = service.reserveUploadBytes(event, [buildRow(1), buildRow(1)]);
+      const reservation = service.reserveUploadBytes(event, [buildRow(50), buildRow(51)]);
 
       await expect(reservation).rejects.toBeInstanceOf(ForbiddenException);
-      await expect(reservation).rejects.toMatchObject({
-        response: { code: "EVENT_PHOTO_LIMIT_REACHED" },
-      });
+      await expect(reservation).rejects.toMatchObject({ response: { code: "EVENT_STORAGE_LIMIT_REACHED" } });
       expect(tx.photo.createMany).not.toHaveBeenCalled();
       // A full gallery is a verdict, not a conflict: no retry.
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it("refuses a batch that would pass the hidden byte cap", async () => {
-      tx.photo.aggregate.mockResolvedValue(held(10, maxGalleryBytes! - 100n));
-
-      const reservation = service.reserveUploadBytes(event, [buildRow(101)]);
-
-      await expect(reservation).rejects.toMatchObject({ response: { code: "EVENT_STORAGE_LIMIT_REACHED" } });
-      expect(tx.photo.createMany).not.toHaveBeenCalled();
-    });
-
     it("treats an empty gallery (a null byte sum) as zero", async () => {
-      tx.photo.aggregate.mockResolvedValue(held(0, null));
+      tx.photo.aggregate.mockResolvedValue(held(null));
       tx.photo.createMany.mockResolvedValue({ count: 1 });
 
       await expect(service.reserveUploadBytes(event, [buildRow(1)])).resolves.toBeUndefined();
@@ -339,7 +327,7 @@ describe("PhotoStorageService", () => {
     });
 
     it("retries the whole transaction after a serialization failure and succeeds", async () => {
-      tx.photo.aggregate.mockResolvedValue(held(0, 0));
+      tx.photo.aggregate.mockResolvedValue(held(0));
       tx.photo.createMany.mockRejectedValueOnce(serializationFailure()).mockResolvedValue({ count: 1 });
       const rows = [buildRow(1024)];
 
@@ -383,7 +371,7 @@ describe("PhotoStorageService", () => {
         new Error("transaction failed", { cause: new Error("inner", { cause: { originalCode: "40001" } }) }),
       ],
     ])("also retries on %s", async (_shape, failure) => {
-      tx.photo.aggregate.mockResolvedValue(held(0, 0));
+      tx.photo.aggregate.mockResolvedValue(held(0));
       tx.photo.createMany.mockRejectedValueOnce(failure).mockResolvedValue({ count: 1 });
 
       await expect(service.reserveUploadBytes(event, [buildRow(1024)])).resolves.toBeUndefined();

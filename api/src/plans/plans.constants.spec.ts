@@ -5,7 +5,6 @@ describe("plans", () => {
     it("holds the free plan from docs/event-quotas.md", () => {
       expect(EVENT_PLAN_LIMITS.FREE).toEqual({
         maxMembers: 30,
-        maxPhotos: 500,
         maxGalleryBytes: 3n * 1024n ** 3n,
         galleryWindowDays: 30,
       });

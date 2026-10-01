@@ -20,14 +20,14 @@ describe("EventPlanService", () => {
     await expect(service.accountLimitsFor("user-1")).resolves.toEqual({ maxActiveEvents: 2 });
   });
 
-  it("counts members and in-flight or ready photos per event in two queries, zero for events with none", async () => {
+  it("counts members and the storage of in-flight or ready photos per event in two queries, zero for events with none", async () => {
     prisma.eventAccess.groupBy.mockResolvedValue([{ eventId: "a", _count: { _all: 3 } }] as never);
-    prisma.photo.groupBy.mockResolvedValue([{ eventId: "a", _count: { _all: 7 } }] as never);
+    prisma.photo.groupBy.mockResolvedValue([{ eventId: "a", _sum: { sizeBytes: 7340032 } }] as never);
 
     const usage = await service.usageFor(["a", "b"]);
 
-    expect(usage.get("a")).toEqual({ members: 3, photos: 7 });
-    expect(usage.get("b")).toEqual({ members: 0, photos: 0 });
+    expect(usage.get("a")).toEqual({ members: 3, storageBytes: 7340032n });
+    expect(usage.get("b")).toEqual({ members: 0, storageBytes: 0n });
     expect(prisma.photo.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({ where: { eventId: { in: ["a", "b"] }, status: { in: ["PENDING", "READY"] } } }),
     );

@@ -9,9 +9,11 @@ import { EventPlan } from "generated/prisma/client";
 export interface EventPlanLimits {
   /** Members of every role, organizers included. */
   maxMembers: number | null;
-  /** PENDING and READY photos, the same rows the upload reservation counts. */
-  maxPhotos: number | null;
-  /** A safety cap on the gallery's bytes; never shown to users. */
+  /**
+   * The gallery's storage, the one limit on what it holds: the bytes of its
+   * PENDING and READY photos, whoever uploaded them. Shown to users as
+   * storage ("1.2 GB of 3 GB"), never as a number of photos.
+   */
   maxGalleryBytes: bigint | null;
   /** Days after the event's date that its gallery stays open; null never closes. */
   galleryWindowDays: number | null;
@@ -20,7 +22,6 @@ export interface EventPlanLimits {
 export const EVENT_PLAN_LIMITS: Record<EventPlan, EventPlanLimits> = {
   FREE: {
     maxMembers: 30,
-    maxPhotos: 500,
     maxGalleryBytes: 3n * 1024n * 1024n * 1024n,
     galleryWindowDays: 30,
   },
@@ -53,7 +54,6 @@ export const ACCOUNT_PLAN_LIMITS: Record<AccountPlan, AccountPlanLimits> = {
 export const PLAN_LIMIT_CODES = {
   ACTIVE_EVENT_LIMIT_REACHED: "ACTIVE_EVENT_LIMIT_REACHED",
   EVENT_MEMBER_LIMIT_REACHED: "EVENT_MEMBER_LIMIT_REACHED",
-  EVENT_PHOTO_LIMIT_REACHED: "EVENT_PHOTO_LIMIT_REACHED",
   EVENT_STORAGE_LIMIT_REACHED: "EVENT_STORAGE_LIMIT_REACHED",
   EVENT_GALLERY_CLOSED: "EVENT_GALLERY_CLOSED",
 } as const;
@@ -62,8 +62,7 @@ export const PLAN_LIMIT_MESSAGES = {
   ACTIVE_EVENT_LIMIT_REACHED: (limit: number) =>
     `You already have ${limit} active events. One frees up when a gallery closes or you delete an event.`,
   EVENT_MEMBER_LIMIT_REACHED: (limit: number) => `This event is full: it has reached ${limit} members.`,
-  EVENT_PHOTO_LIMIT_REACHED: (limit: number) => `This gallery is full: it has reached ${limit} photos.`,
-  EVENT_STORAGE_LIMIT_REACHED: "This gallery is out of space.",
+  EVENT_STORAGE_LIMIT_REACHED: "This gallery is full: there isn't enough storage left for these photos.",
   EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
 };
 

@@ -41,8 +41,8 @@ export class EventMapper {
       plan: event.plan,
       galleryState: galleryStateOf(event),
       galleryClosesAt: event.galleryClosesAt,
-      limits: { members: limits.maxMembers, photos: limits.maxPhotos },
-      usage: { members: usage.members, photos: usage.photos },
+      limits: { members: limits.maxMembers, storageBytes: limits.maxGalleryBytes?.toString() ?? null },
+      usage: { members: usage.members, storageBytes: usage.storageBytes.toString() },
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
     };

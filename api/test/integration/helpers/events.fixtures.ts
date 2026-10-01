@@ -184,8 +184,8 @@ export const expectedEventResponse = (
   plan: event.plan,
   galleryState: "OPEN",
   galleryClosesAt: event.galleryClosesAt?.toISOString() ?? null,
-  limits: { members: 30, photos: 500 },
-  usage: { members: 0, photos: 0 },
+  limits: { members: 30, storageBytes: "3221225472" },
+  usage: { members: 0, storageBytes: "0" },
   createdAt: event.createdAt.toISOString(),
   updatedAt: event.updatedAt.toISOString(),
 });

@@ -28,15 +28,14 @@ It replaces the personal 5 GB storage limit ([photos-architecture.md](./photos-a
 
 ### When a limit is reached
 
-The API refuses with a 403 and a `code`. The app takes the numbers for its copy from the event's `limits` and `usage`, and from `GET /users/me/limits`.
+The API refuses with a 403 and a `code`. The app takes the numbers for its copy from the event's `limits` and `usage` (members, and storage in bytes), and from `GET /users/me/limits`.
 
-| Code                          | When                                                                                    |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| `ACTIVE_EVENT_LIMIT_REACHED`  | Creating a 3rd event while 2 you created are still open                                 |
-| `EVENT_MEMBER_LIMIT_REACHED`  | Joining an event that has 30 members, through any role's invite                         |
-| `EVENT_PHOTO_LIMIT_REACHED`   | An upload batch that would take the gallery past 500 photos (uploads in progress count) |
-| `EVENT_STORAGE_LIMIT_REACHED` | An upload batch that would take the gallery past its hidden 3 GB cap                    |
-| `EVENT_GALLERY_CLOSED`        | Uploading to a gallery whose close time has passed                                      |
+| Code                          | When                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `ACTIVE_EVENT_LIMIT_REACHED`  | Creating a 3rd event while 2 you created are still open                               |
+| `EVENT_MEMBER_LIMIT_REACHED`  | Joining an event that has 30 members, through any role's invite                       |
+| `EVENT_STORAGE_LIMIT_REACHED` | An upload batch that would take the gallery past its 3 GB (uploads in progress count) |
+| `EVENT_GALLERY_CLOSED`        | Uploading to a gallery whose close time has passed                                    |
 
 Concurrent requests can't slip past a limit. Creates by the same person, and joins to the same event, take a Postgres advisory lock for their count and insert. Upload batches share the reservation's Serializable transaction.
 

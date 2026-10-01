@@ -3270,15 +3270,16 @@
             "nullable": true,
             "description": "Members of every role, organizers included; null for no limit."
           },
-          "photos": {
-            "type": "number",
+          "storageBytes": {
+            "type": "string",
             "nullable": true,
-            "description": "Photos in the gallery; null for no limit."
+            "description": "The gallery's storage, in bytes as a decimal string; null for no limit.",
+            "example": "3221225472"
           }
         },
         "required": [
           "members",
-          "photos"
+          "storageBytes"
         ]
       },
       "EventUsageResponseDto": {
@@ -3288,14 +3289,15 @@
             "type": "number",
             "description": "Members of every role, organizers included."
           },
-          "photos": {
-            "type": "number",
-            "description": "Photos in the gallery, uploads in progress included."
+          "storageBytes": {
+            "type": "string",
+            "description": "Storage used by the gallery's photos, uploads in progress included, in bytes as a decimal string.",
+            "example": "1288490188"
           }
         },
         "required": [
           "members",
-          "photos"
+          "storageBytes"
         ]
       },
       "EventResponseDto": {
@@ -3560,7 +3562,6 @@
                     "ACTIVE_EVENT_LIMIT_REACHED",
                     "EVENT_GALLERY_CLOSED",
                     "EVENT_MEMBER_LIMIT_REACHED",
-                    "EVENT_PHOTO_LIMIT_REACHED",
                     "EVENT_STORAGE_LIMIT_REACHED",
                     "EVENT_UNDER_REVIEW",
                     "IMAGE_INVALID_SIZE",
