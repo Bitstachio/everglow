@@ -50,6 +50,7 @@ import {
   usersControllerCreatePasswordChangeTicket,
   usersControllerDeleteMyPhotosInEvent,
   usersControllerFindMe,
+  usersControllerGetMyLimits,
   usersControllerGetMyStorage,
   usersControllerGetMyStorageByEvent,
   usersControllerListMyPhotosInEvent,
@@ -170,6 +171,9 @@ import type {
   UsersControllerFindMeData,
   UsersControllerFindMeError,
   UsersControllerFindMeResponse,
+  UsersControllerGetMyLimitsData,
+  UsersControllerGetMyLimitsError,
+  UsersControllerGetMyLimitsResponse,
   UsersControllerGetMyStorageByEventData,
   UsersControllerGetMyStorageByEventError,
   UsersControllerGetMyStorageByEventResponse,
@@ -379,6 +383,33 @@ export const usersControllerUpdateMeMutation = (
   };
   return mutationOptions;
 };
+
+export const usersControllerGetMyLimitsQueryKey = (options?: Options<UsersControllerGetMyLimitsData>) =>
+  createQueryKey("usersControllerGetMyLimits", options);
+
+/**
+ * Get the current user's plan limits and usage
+ *
+ * The caller's active events (events they created whose galleries are still open) against their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: read the numbers here. Each event's own limits are on the event.
+ */
+export const usersControllerGetMyLimitsOptions = (options?: Options<UsersControllerGetMyLimitsData>) =>
+  queryOptions<
+    UsersControllerGetMyLimitsResponse,
+    AxiosError<UsersControllerGetMyLimitsError>,
+    UsersControllerGetMyLimitsResponse,
+    ReturnType<typeof usersControllerGetMyLimitsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await usersControllerGetMyLimits({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: usersControllerGetMyLimitsQueryKey(options),
+  });
 
 export const usersControllerGetMyStorageQueryKey = (options?: Options<UsersControllerGetMyStorageData>) =>
   createQueryKey("usersControllerGetMyStorage", options);

@@ -32,7 +32,10 @@ It replaces the personal 5 GB storage limit ([photos-architecture.md](./photos-a
 
 ### When a limit is reached
 
-The API refuses with a 403 and a `code`. The app takes the numbers for its copy from the event's `limits` and `usage` (members, and storage in bytes), and from `GET /users/me/limits`.
+The API refuses with a 403 and a `code`, and the error carries nothing else. The app takes the numbers for its copy from two places, which share one shape: a `plan`, its `limits` (null for no limit), and the `usage` counted the same way.
+
+- **An event** carries its own: `limits.members` and `limits.storageBytes`, with `usage` for both (storage in bytes, as a decimal string).
+- **`GET /users/me/limits`** has the account's: `limits.activeEvents` and `usage.activeEvents`, plus `nextClosingEvent` (`id`, `title`, `galleryClosesAt`), the active event whose gallery closes first and frees a place, or null.
 
 | Code                          | When                                                                                  |
 | ----------------------------- | ------------------------------------------------------------------------------------- |
@@ -78,7 +81,7 @@ Why per event first: the whole category charges this way (POV, Kululu, GuestPix,
 - **Plan rows never change.** A database trigger refuses updates. To change a plan's terms, insert its next version; new events get the highest version of their plan's code, and existing events keep the version they point at. A version that events use can't be deleted (foreign key, `RESTRICT`).
 - **`Event.planId`** points at that version. **`Event.bonusStorageBytes`** is storage given to that one event on top of its plan (an add-on, a support grant), added to the plan's storage limit.
 - **`EventPlanService`** runs every check and resolves an event's limits (`limitsOf`: its plan version's terms plus its bonus). Plan rows are cached by id, which is safe because they never change. Nothing else hard-codes 30, 3 GB or 30 days. The free plan's first version is seeded by migration `20261001210000_add_plan_catalog`.
-- **Account limits** (2 active events) stay a constant, `ACCOUNT_PLAN_LIMITS`, until a host subscription exists; that can become its own catalog then.
+- **Account limits** (2 active events) stay a constant, `ACCOUNT_PLAN_LIMITS`, until a host subscription exists; that can become its own catalog then. `EventPlanService.accountLimitsFor` and `accountUsageFor` answer for the account the way `limitsOf` and `usageFor` do for an event.
 - **`Event.galleryClosesAt`** is the event's date plus its plan version's window, moved with the date until the gallery closes. **`Event.galleryClosedAt`** is set when the photos are removed. Responses carry `galleryState` (`OPEN` or `CLOSED`), separate from the moderation `status`.
 
 Adding Plus later means a new `EventPlan` enum value and a `Plan` row for its first version. An upgrade points the event at that version and recomputes `galleryClosesAt`. An add-on only increases `bonusStorageBytes`.

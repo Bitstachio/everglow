@@ -30,6 +30,26 @@ export interface EventLimits {
 /** The fields of an event its limits depend on. */
 export type PlannedEvent = Pick<Event, "id" | "planId" | "bonusStorageBytes" | "galleryClosesAt" | "galleryClosedAt">;
 
+/** What an account may hold: its plan's terms. null means no limit. */
+export interface AccountLimits extends AccountPlanLimits {
+  plan: AccountPlan;
+}
+
+/** An active event and when its gallery closes, which frees its place. */
+export interface ClosingEvent {
+  id: string;
+  title: string;
+  galleryClosesAt: Date;
+}
+
+/** What an account holds now, measured the way its limits are. */
+export interface AccountUsage {
+  /** Events the account created whose galleries are still open. */
+  activeEvents: number;
+  /** The active event whose gallery closes first; null when none is set to close. */
+  nextClosingEvent: ClosingEvent | null;
+}
+
 const NO_USAGE: EventUsage = { members: 0, storageBytes: 0n };
 
 /** Photos that take room in a gallery: uploads in progress and finished ones. */
@@ -108,8 +128,33 @@ export class EventPlanService {
     return Promise.resolve(ACCOUNT_PLANS.FREE);
   }
 
-  async accountLimitsFor(userId: string): Promise<AccountPlanLimits> {
-    return ACCOUNT_PLAN_LIMITS[await this.accountPlanFor(userId)];
+  /** An account's limits: its plan's terms. */
+  async accountLimitsFor(userId: string): Promise<AccountLimits> {
+    const plan = await this.accountPlanFor(userId);
+    return { plan, ...ACCOUNT_PLAN_LIMITS[plan] };
+  }
+
+  /**
+   * An account's active events, counted the way the limit counts them, and the
+   * one whose gallery closes first: closing frees its place. Two queries.
+   */
+  async accountUsageFor(userId: string, now: Date = new Date()): Promise<AccountUsage> {
+    const active = activeEventsCreatedBy(userId, now);
+    const [activeEvents, next] = await Promise.all([
+      this.prisma.event.count({ where: active }),
+      this.prisma.event.findFirst({
+        where: { AND: [active, { galleryClosesAt: { not: null } }] },
+        orderBy: [{ galleryClosesAt: "asc" }, { id: "asc" }],
+        select: { id: true, title: true, galleryClosesAt: true },
+      }),
+    ]);
+
+    return {
+      activeEvents,
+      nextClosingEvent: next?.galleryClosesAt
+        ? { id: next.id, title: next.title, galleryClosesAt: next.galleryClosesAt }
+        : null,
+    };
   }
 
   /** Members and gallery storage per event, in two queries whatever the number of events. */
@@ -141,9 +186,10 @@ export class EventPlanService {
    * lock makes two creates by the same person count one after the other.
    */
   async assertCanCreateEvent(tx: Prisma.TransactionClient, userId: string): Promise<void> {
-    await lockForTransaction(tx, `event-plan:create:${userId}`);
-
     const { maxActiveEvents } = await this.accountLimitsFor(userId);
+    if (maxActiveEvents === null) return;
+
+    await lockForTransaction(tx, `event-plan:create:${userId}`);
     const active = await tx.event.count({ where: activeEventsCreatedBy(userId) });
     if (active < maxActiveEvents) return;
 

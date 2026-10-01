@@ -105,4 +105,30 @@ describe("UserMapper", () => {
       expect(result.details).not.toHaveProperty("avatarS3Key");
     });
   });
+
+  describe("toLimitsResponseDto", () => {
+    const limits = { plan: "FREE" as const, maxActiveEvents: 2 };
+
+    it("pairs the account's limits with its usage and the event that closes first", () => {
+      const galleryClosesAt = new Date("2026-10-20T18:00:00.000Z");
+      const nextClosingEvent = { id: "33333333-3333-3333-3333-333333333333", title: "Book Club", galleryClosesAt };
+
+      expect(UserMapper.toLimitsResponseDto(limits, { activeEvents: 1, nextClosingEvent })).toEqual({
+        plan: "FREE",
+        limits: { activeEvents: 2 },
+        usage: { activeEvents: 1 },
+        nextClosingEvent: { id: nextClosingEvent.id, title: "Book Club", galleryClosesAt },
+      });
+    });
+
+    it("keeps no limit and no closing event as null", () => {
+      const result = UserMapper.toLimitsResponseDto(
+        { plan: "FREE", maxActiveEvents: null },
+        { activeEvents: 0, nextClosingEvent: null },
+      );
+
+      expect(result.limits.activeEvents).toBeNull();
+      expect(result.nextClosingEvent).toBeNull();
+    });
+  });
 });

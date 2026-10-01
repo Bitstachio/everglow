@@ -10,8 +10,8 @@ export const ACCOUNT_PLANS = {
 export type AccountPlan = (typeof ACCOUNT_PLANS)[keyof typeof ACCOUNT_PLANS];
 
 export interface AccountPlanLimits {
-  /** Events the account created whose galleries are still open. Joining never counts. */
-  maxActiveEvents: number;
+  /** Events the account created whose galleries are still open; null for no limit. Joining never counts. */
+  maxActiveEvents: number | null;
 }
 
 export const ACCOUNT_PLAN_LIMITS: Record<AccountPlan, AccountPlanLimits> = {
@@ -20,8 +20,9 @@ export const ACCOUNT_PLAN_LIMITS: Record<AccountPlan, AccountPlanLimits> = {
 
 /**
  * Why a plan refused a request (docs/event-quotas.md). Every one is a 403. The
- * app takes the numbers for its copy from the event's `limits` and `usage`.
- * The event limits themselves live in the Plan table, not in code.
+ * app takes the numbers for its copy from the event's `limits` and `usage`, or
+ * from GET /users/me/limits for the account's. The event limits themselves
+ * live in the Plan table, not in code.
  */
 export const PLAN_LIMIT_CODES = {
   ACTIVE_EVENT_LIMIT_REACHED: "ACTIVE_EVENT_LIMIT_REACHED",

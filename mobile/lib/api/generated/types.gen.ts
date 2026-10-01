@@ -60,6 +60,47 @@ export type UsernameAvailabilityResponseDto = {
   reason: "INVALID_FORMAT" | "TAKEN" | "RESERVED";
 };
 
+/**
+ * The caller's account plan. Every account is FREE until a host subscription exists.
+ */
+export type AccountPlan = "FREE";
+
+export type AccountLimitsResponseDto = {
+  /**
+   * Events the caller created whose galleries are still open, at once; null for no limit. Joined events never count.
+   */
+  activeEvents: number | null;
+};
+
+export type AccountUsageResponseDto = {
+  /**
+   * Events the caller created whose galleries are still open.
+   */
+  activeEvents: number;
+};
+
+export type ClosingEventResponseDto = {
+  id: string;
+  title: string;
+  /**
+   * When the gallery closes; from then on the event no longer counts as active.
+   */
+  galleryClosesAt: string;
+};
+
+export type UserLimitsResponseDto = {
+  /**
+   * The caller's account plan. Every account is FREE until a host subscription exists.
+   */
+  plan: AccountPlan;
+  limits: AccountLimitsResponseDto;
+  usage: AccountUsageResponseDto;
+  /**
+   * The caller's active event whose gallery closes first, which frees a place for a new one; null when none of their active events is set to close.
+   */
+  nextClosingEvent: ClosingEventResponseDto | null;
+};
+
 export type UserStorageResponseDto = {
   /**
    * Bytes currently used by the caller's uploads
@@ -691,6 +732,39 @@ export type UsersControllerUpdateMeResponses = {
 };
 
 export type UsersControllerUpdateMeResponse = UsersControllerUpdateMeResponses[keyof UsersControllerUpdateMeResponses];
+
+export type UsersControllerGetMyLimitsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/limits";
+};
+
+export type UsersControllerGetMyLimitsErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type UsersControllerGetMyLimitsError = UsersControllerGetMyLimitsErrors[keyof UsersControllerGetMyLimitsErrors];
+
+export type UsersControllerGetMyLimitsResponses = {
+  /**
+   * Plan limits and usage
+   */
+  200: {
+    data: UserLimitsResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerGetMyLimitsResponse =
+  UsersControllerGetMyLimitsResponses[keyof UsersControllerGetMyLimitsResponses];
 
 export type UsersControllerGetMyStorageData = {
   body?: never;
