@@ -1,8 +1,9 @@
 import { AppIcon } from "@/components/ui/app-icon";
+import { Avatar } from "@/components/ui/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
-import { Trash2, User } from "lucide-react-native";
+import { Trash2 } from "lucide-react-native";
 import { ScrollView, View } from "react-native";
 import type { EventParticipantResponseDto } from "../types";
 import { getAccessLevelLabel } from "../utils";
@@ -31,9 +32,7 @@ export const EventMembersSheet = ({ visible, participants, onClose, onRemove }: 
             className="min-h-14 flex-row items-center justify-between gap-3 rounded-2xl border border-border bg-background p-4"
           >
             <View className="flex-1 flex-row items-center gap-3">
-              <View className="h-10 w-10 items-center justify-center rounded-full bg-surface">
-                <AppIcon icon={User} size="sm" className="text-accent" />
-              </View>
+              <Avatar userId={participant.userId} name={participant.name} uri={participant.avatarUrl} />
               <View className="flex-1 gap-1">
                 <ThemedText className="text-base font-semibold">{participant.name || "Unknown User"}</ThemedText>
                 {participant.username ? (
