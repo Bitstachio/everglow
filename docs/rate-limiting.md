@@ -116,13 +116,14 @@ Retry-After: 37
 
 ### OpenAPI
 
-The error envelope is its own schema, `#/components/schemas/ApiErrorDto`, written by `documentApiError`
-(`api/src/common/errors/api-error.swagger.ts`). `code` is the closed enum from `API_ERROR_CODES`. Changing
-that enum, or any other envelope field, is an edit to the errors module, then a spec and client regen. It does
-not belong in rate-limit Swagger.
+The error envelope is its own Nest DTO, `ApiErrorDto` (`api/src/common/errors/api-error.dto.ts`).
+`createOpenApiDocument` registers it with `extraModels` so Nest publishes `#/components/schemas/ApiErrorDto`.
+`code` is the closed enum from `API_ERROR_CODES`. Changing that enum, or any other envelope field, is an edit
+to the errors module, then a spec and client regen. It does not belong in rate-limit Swagger.
+`AllExceptionsFilter` types its body as that same DTO.
 
 The 429 is documented separately. `documentRateLimitResponses` (`rate-limit.swagger.ts`) runs inside
-`createOpenApiDocument` after the envelope is registered, adds `#/components/responses/TooManyRequests`
+`createOpenApiDocument` after Nest builds the document, adds `#/components/responses/TooManyRequests`
 (`Retry-After`, and a JSON body that `$ref`s `ApiErrorDto` with a rate-limit example), and references that
 response from every operation except those marked `@SkipRateLimit()`. Controllers declare nothing.
 

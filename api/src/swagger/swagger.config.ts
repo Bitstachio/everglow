@@ -1,6 +1,6 @@
 import { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from "@nestjs/swagger";
-import { documentApiError } from "src/common/errors/api-error.swagger";
+import { ApiErrorDto } from "src/common/errors/api-error.dto";
 import { documentRateLimitResponses } from "src/common/rate-limit/rate-limit.swagger";
 
 export const API_GLOBAL_PREFIX = "api/v2";
@@ -23,7 +23,12 @@ export const buildSwaggerConfig = () =>
     .build();
 
 export const createOpenApiDocument = (app: INestApplication): OpenAPIObject =>
-  documentRateLimitResponses(documentApiError(SwaggerModule.createDocument(app, buildSwaggerConfig())));
+  documentRateLimitResponses(
+    SwaggerModule.createDocument(app, buildSwaggerConfig(), {
+      // Not referenced by any controller decorator; register so the schema is published.
+      extraModels: [ApiErrorDto],
+    }),
+  );
 
 export const setupSwagger = (app: INestApplication): OpenAPIObject => {
   const document = createOpenApiDocument(app);

@@ -3530,16 +3530,12 @@
       },
       "ApiErrorDto": {
         "type": "object",
-        "required": [
-          "meta"
-        ],
         "properties": {
           "message": {
             "type": "string"
           },
           "code": {
             "type": "string",
-            "description": "Stable machine-readable error code, when the error has one",
             "enum": [
               "EVENT_UNDER_REVIEW",
               "IMAGE_INVALID_SIZE",
@@ -3554,12 +3550,16 @@
               "STORAGE_RESERVATION_CONFLICT",
               "USERNAME_CHANGE_LIMITED",
               "USERNAME_TAKEN"
-            ]
+            ],
+            "description": "Stable machine-readable error code, when the error has one"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
           }
-        }
+        },
+        "required": [
+          "meta"
+        ]
       }
     },
     "responses": {

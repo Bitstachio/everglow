@@ -1,6 +1,6 @@
 import { HttpStatus } from "@nestjs/common";
 import { OpenAPIObject } from "@nestjs/swagger";
-import { API_ERROR_SCHEMA_REF } from "../errors/api-error.swagger";
+import { API_ERROR_SCHEMA_REF } from "../errors/api-error.dto";
 import {
   RATE_LIMIT_EXCEEDED_CODE,
   RATE_LIMIT_EXCEEDED_MESSAGE,
