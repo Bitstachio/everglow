@@ -147,7 +147,7 @@ test("locks editing and picker controls until creation completes", async () => {
   expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
 });
 
-test("copies and shares the selected role invite and Share later returns", async () => {
+test("copies and shares the selected role invite and Done returns", async () => {
   await renderScreen();
   await submit();
   await screen.findByText("Your event is live");
@@ -155,12 +155,12 @@ test("copies and shares the selected role invite and Share later returns", async
   await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
   expect(Clipboard.setString).toHaveBeenCalledWith(buildEvent().invitationUrl);
   expect(Alert.alert).toHaveBeenCalledWith("Copied!", "Invitation link copied to clipboard");
-  await user.press(screen.getByText("Share Participant Invite"));
+  await user.press(screen.getByText("Share"));
   expect(Share.share).toHaveBeenCalledWith({
     message: `Join "${buildEvent().title}" as Participant via ${buildEvent().invitationUrl}`,
   });
   expect(mockBack).not.toHaveBeenCalled();
-  await user.press(screen.getByText("Share later"));
+  await user.press(screen.getByText("Done"));
   expect(mockBack).toHaveBeenCalledTimes(1);
 });
 
@@ -171,7 +171,7 @@ test.each([new Error("Share unavailable"), "unknown failure"])(
     await renderScreen();
     await submit();
     await screen.findByText("Your event is live");
-    await userEvent.setup().press(screen.getByText("Share Participant Invite"));
+    await userEvent.setup().press(screen.getByText("Share"));
     await waitFor(() =>
       expect(Alert.alert).toHaveBeenCalledWith(
         "Error",
@@ -188,7 +188,7 @@ test("dismisses native sharing without treating it as an error", async () => {
   await renderScreen();
   await submit();
   await screen.findByText("Your event is live");
-  await userEvent.setup().press(screen.getByText("Share Participant Invite"));
+  await userEvent.setup().press(screen.getByText("Share"));
   expect(Alert.alert).not.toHaveBeenCalled();
   expect(screen.getByText("Your event is live")).toBeOnTheScreen();
 });

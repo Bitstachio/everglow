@@ -134,9 +134,9 @@ test("supports missing descriptions and dispatches each success action", async (
   );
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "Copy invitation link" }));
-  await user.press(screen.getByText("Share Participant Invite"));
+  await user.press(screen.getByText("Share"));
   await user.press(screen.getByText("Go to Event"));
-  await user.press(screen.getByText("Share later"));
+  await user.press(screen.getByText("Done"));
   expect(handleCopyLink).toHaveBeenCalledWith(event.invitationUrl);
   expect(handleShareLink).toHaveBeenCalledWith(event.invitationUrl, "PARTICIPANT");
   expect(handleGoToEvent).toHaveBeenCalledTimes(1);
@@ -152,9 +152,9 @@ test("switches invite link and share label when a role tab is selected", async (
   expect(screen.getByRole("tab", { name: "Invite as Viewer" })).toBeOnTheScreen();
   expect(screen.queryByRole("tab", { name: "Invite as Organizer" })).toBeNull();
   await user.press(screen.getByRole("tab", { name: "Invite as Viewer" }));
-  expect(screen.getByText("Share Viewer Invite")).toBeOnTheScreen();
+  expect(screen.getByText("Share")).toBeOnTheScreen();
   expect(screen.getByText("View only — no uploads")).toBeOnTheScreen();
-  await user.press(screen.getByText("Share Viewer Invite"));
+  await user.press(screen.getByText("Share"));
   expect(handleShareLink).toHaveBeenCalledWith(event.invites[1].invitationUrl, "VIEWER");
 });
 

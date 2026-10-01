@@ -75,7 +75,12 @@ export const EventCreatedConfirmation = ({
       <View className="min-h-0 flex-1 gap-3 px-4 pt-4">
         <View className="items-center gap-1">
           <View className="h-11 w-11 items-center justify-center rounded-full bg-accent">
-            <AppIcon icon={Check} size="sm" className="text-accent-foreground" />
+            <AppIcon
+              icon={Check}
+              size="sm"
+              color={colorTokens[colorScheme].accentForeground}
+              className="text-accent-foreground"
+            />
           </View>
           <ThemedText className="text-center text-sm font-semibold" tone="muted">
             Your event is live
@@ -183,9 +188,9 @@ export const EventCreatedConfirmation = ({
       </View>
 
       <View className="gap-2 px-4 pt-3 pb-4">
-        <Button title={`Share ${roleLabel} Invite`} icon={Share} onPress={() => onShare(invitationUrl, activeRole)} />
+        <Button title="Share" icon={Share} onPress={() => onShare(invitationUrl, activeRole)} />
         <Button title="Go to Event" onPress={onGoToEvent} variant="outline" />
-        <Button title="Share later" onPress={onShareLater} variant="ghost" />
+        <Button title="Done" onPress={onShareLater} variant="ghost" />
       </View>
 
       <EventRolesSheet visible={rolesSheetVisible} onClose={() => setRolesSheetVisible(false)} />

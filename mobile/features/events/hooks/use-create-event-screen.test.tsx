@@ -26,7 +26,7 @@ const ScreenProbe = () => {
         onPress={() => state.handleShareLink(buildEvent().invitationUrl, "PARTICIPANT" as AccessLevel)}
       />
       <Button title="Go to event" onPress={state.handleGoToEvent} />
-      <Button title="Share later" onPress={state.handleShareLater} />
+      <Button title="Done" onPress={state.handleShareLater} />
     </View>
   );
 };
@@ -68,8 +68,8 @@ test("Go to event replaces to the event detail route", async () => {
   expect(mockReplace).toHaveBeenCalledWith(`/events/${buildEvent().id}`);
 });
 
-test("Share later goes back once", async () => {
+test("Done goes back once", async () => {
   await render(<ScreenProbe />);
-  await userEvent.setup().press(screen.getByRole("button", { name: "Share later" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Done" }));
   expect(mockBack).toHaveBeenCalledTimes(1);
 });
