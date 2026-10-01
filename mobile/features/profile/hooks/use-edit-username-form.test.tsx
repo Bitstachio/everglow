@@ -89,9 +89,7 @@ test("rejects unsupported username characters", async () => {
 });
 
 test("shows taken when save loses a uniqueness race", async () => {
-  mockSave.mockRejectedValueOnce(
-    createApiError("This username is taken", { status: 409, code: "USERNAME_TAKEN" }),
-  );
+  mockSave.mockRejectedValueOnce(createApiError("This username is taken", { status: 409, code: "USERNAME_TAKEN" }));
   const onSuccess = jest.fn();
   await render(<EditUsernameFormProbe onSuccess={onSuccess} />);
 
