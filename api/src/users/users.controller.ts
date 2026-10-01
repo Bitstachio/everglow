@@ -105,13 +105,7 @@ export class UsersController {
   }
 
   @Get("me/storage")
-  @ApiOperation({
-    summary: "Get current user photo storage quota",
-    description:
-      "Deprecated: there is no personal storage limit any more. Each gallery has its own (an event's limits and " +
-      "usage), and GET /users/me/limits has the account's. Removed once the app no longer calls it.",
-    deprecated: true,
-  })
+  @ApiOperation({ summary: "Get current user photo storage quota" })
   @ApiWrappedResponse(UserStorageResponseDto, "Photo storage usage")
   async getMyStorage(@CurrentUser() user: AuthenticatedUser): Promise<UserStorageResponseDto> {
     return this.photoStorageService.getStorageForUser(user.id);
