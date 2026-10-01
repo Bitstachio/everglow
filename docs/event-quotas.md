@@ -23,7 +23,11 @@ It replaces the personal 5 GB storage limit ([photos-architecture.md](./photos-a
 - **Gallery storage** is the one limit on what a gallery holds: everything uploaded to the event, by everyone, counts toward its 3 GB. There's no limit on the number of photos. The app shows storage as it is, "1.2 GB of 3 GB", and never turns it into an estimated number of photos.
 - Photos upload as they are. Whether to compress some of them before upload is undecided ([EV-94](https://linear.app/mehrshadfb/issue/EV-94)).
 - **The window** ends 30 days after the event's date. After that, uploads stop and the photos are removed. The event stays, doesn't count toward the 2 anymore, and can't be reopened.
-- **A closed event** stays in its members' lists, marked closed, with its details and members. **It can't be joined**, so its invite links stop working. Members can remove it from their list (leaving it), and organizers can delete it for everyone.
+- **A closed event** stays in its members' lists, marked closed, with its details and members. Members can remove it from their list (leaving it), and organizers can delete it for everyone. What it no longer allows:
+  - **joining**: the invite links stop working (`EVENT_GALLERY_CLOSED`), and event responses list no invites;
+  - **new invite links**: regenerating one is refused;
+  - **a new date**: it would imply reopening the gallery. The title, description and cover can still change;
+  - **deleting photos on leave**: `?photos=DELETE` is ignored, so photos kept as evidence (open reports) can't be removed by a member.
 - **Members** counts every role, organizers included.
 
 ### When a limit is reached
