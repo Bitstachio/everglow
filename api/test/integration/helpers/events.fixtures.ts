@@ -1,5 +1,6 @@
-import { AccessLevel, Event, EventAccess } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess, EventInvite } from "generated/prisma/client";
 import { CreateEventDto } from "src/events/dto/create-event.dto";
+import { EventInviteResponseDto } from "src/events/dto/event-invite-response.dto";
 import { UpdateEventDto } from "src/events/dto/update-event.dto";
 import { buildInvitationUrl } from "src/events/events.invitation";
 import { EventAccessWithUser } from "src/events/events.types";
@@ -11,6 +12,9 @@ export const TEST_EVENT_ID = "66666666-6666-6666-6666-666666666666";
 export const TEST_OTHER_EVENT_ID = "77777777-7777-7777-7777-777777777777";
 export const TEST_INVITE_TOKEN = "invite-created";
 export const TEST_OTHER_INVITE_TOKEN = "invite-access";
+export const TEST_VIEWER_INVITE_TOKEN = "invite-viewer";
+export const TEST_EVENT_INVITE_ID = "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1";
+export const TEST_VIEWER_INVITE_ID = "d2d2d2d2-d2d2-d2d2-d2d2-d2d2d2d2d2d2";
 
 export const createEventPayload = (overrides: Partial<CreateEventDto> = {}): CreateEventDto => ({
   title: "Summer BBQ",
@@ -82,6 +86,24 @@ export const buildViewerAccess = (overrides: Partial<EventAccess> = {}): EventAc
   ...overrides,
 });
 
+export const buildEventInvite = (overrides: Partial<EventInvite> = {}): EventInvite => ({
+  id: TEST_EVENT_INVITE_ID,
+  eventId: TEST_EVENT_ID,
+  token: TEST_INVITE_TOKEN,
+  accessLevel: AccessLevel.PARTICIPANT,
+  createdAt: TEST_NOW,
+  updatedAt: TEST_NOW,
+  ...overrides,
+});
+
+export const buildViewerEventInvite = (overrides: Partial<EventInvite> = {}): EventInvite =>
+  buildEventInvite({
+    id: TEST_VIEWER_INVITE_ID,
+    token: TEST_VIEWER_INVITE_TOKEN,
+    accessLevel: AccessLevel.VIEWER,
+    ...overrides,
+  });
+
 export const buildTargetParticipantAccess = (overrides: Partial<EventAccess> = {}): EventAccess => ({
   id: "10101010-1010-1010-1010-101010101010",
   userId: TEST_TARGET_USER_ID,
@@ -139,13 +161,18 @@ export const buildTargetUserWithDetails = (overrides: Partial<UserWithDetails> =
     ...overrides,
   });
 
-export const expectedEventResponse = (event: Event, coverUrl: string | null = null) => ({
+export const expectedEventResponse = (
+  event: Event,
+  coverUrl: string | null = null,
+  invites: EventInviteResponseDto[] = [],
+) => ({
   id: event.id,
   title: event.title,
   description: event.description,
   date: event.date.toISOString(),
   creatorId: event.creatorId,
   invitationUrl: buildInvitationUrl(event.invitationUrl),
+  invites,
   coverUrl,
   status: event.underReviewAt ? "UNDER_REVIEW" : "ACTIVE",
   createdAt: event.createdAt.toISOString(),

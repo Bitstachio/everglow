@@ -8,7 +8,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { AccessLevel, Event, Prisma } from "generated/prisma/client";
+import { AccessLevel, Event, EventInvite, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -63,20 +63,27 @@ export class EventsService {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.CREATE_FORBIDDEN);
     }
 
-    const invitationUrl = randomUUID();
+    const participantToken = randomUUID();
 
     const event = await this.prisma.event.create({
       data: {
         title: dto.title,
         date: new Date(dto.date),
         creatorId,
-        invitationUrl,
+        invitationUrl: participantToken,
         ...(dto.description !== undefined && { description: dto.description }),
         eventAccesses: {
           create: {
             userId: creatorId,
             accessLevel: AccessLevel.ORGANIZER,
           },
+        },
+        invites: {
+          create: [
+            { token: participantToken, accessLevel: AccessLevel.PARTICIPANT },
+            { token: randomUUID(), accessLevel: AccessLevel.VIEWER },
+            { token: randomUUID(), accessLevel: AccessLevel.ORGANIZER },
+          ],
         },
       },
     });
@@ -107,7 +114,10 @@ export class EventsService {
     if (!caller) throw new NotFoundException(EVENT_SERVICE_ERRORS.CALLER_NOT_FOUND(callerId));
     if (!caller.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
 
-    const event = await this.prisma.event.findUnique({ where: { invitationUrl } });
+    const invite = await this.prisma.eventInvite.findUnique({ where: { token: invitationUrl } });
+    if (!invite) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+
+    const event = await this.prisma.event.findUnique({ where: { id: invite.eventId } });
     if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
 
     const existing = await this.prisma.eventAccess.findUnique({
@@ -136,12 +146,12 @@ export class EventsService {
       data: {
         userId: callerId,
         eventId: event.id,
-        accessLevel: AccessLevel.PARTICIPANT,
+        accessLevel: invite.accessLevel,
       },
     });
 
     this.logger.info(
-      { event: "event.joined", eventId: event.id, callerId, accessLevel: AccessLevel.PARTICIPANT },
+      { event: "event.joined", eventId: event.id, callerId, accessLevel: invite.accessLevel },
       "User joined event via invitation URL",
     );
 
@@ -240,20 +250,59 @@ export class EventsService {
   }
 
   async regenerateInvitationUrl(eventId: string, callerId: string): Promise<Event> {
+    return this.regenerateInvite(eventId, callerId, AccessLevel.PARTICIPANT);
+  }
+
+  /**
+   * Rotates the invite token for one access level. Other roles' links stay
+   * valid. The PARTICIPANT token also updates Event.invitationUrl so older
+   * clients that only know that field keep working.
+   */
+  async regenerateInvite(eventId: string, callerId: string, accessLevel: AccessLevel): Promise<Event> {
     await this.getUpdatable(eventId, callerId);
 
-    const invitationUrl = randomUUID();
-    const updated = await this.prisma.event.update({
-      where: { id: eventId },
-      data: { invitationUrl },
+    const invite = await this.prisma.eventInvite.findUnique({
+      where: { eventId_accessLevel: { eventId, accessLevel } },
+    });
+    if (!invite) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITE_NOT_FOUND(eventId, accessLevel));
+
+    const token = randomUUID();
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.eventInvite.update({
+        where: { id: invite.id },
+        data: { token },
+      });
+
+      if (accessLevel === AccessLevel.PARTICIPANT) {
+        return tx.event.update({
+          where: { id: eventId },
+          data: { invitationUrl: token },
+        });
+      }
+
+      return tx.event.findUniqueOrThrow({ where: { id: eventId } });
     });
 
     this.logger.info(
-      { event: "event.invitation_url.regenerated", eventId, callerId, audit: true },
-      "Event invitation URL regenerated",
+      { event: "event.invite.regenerated", eventId, callerId, accessLevel, audit: true },
+      "Event invitation regenerated",
     );
 
     return updated;
+  }
+
+  /**
+   * Invite rows for organizers only. Non-organizers get an empty list so
+   * invite tokens are not leaked on event responses.
+   */
+  async listInvitesForCaller(eventId: string, callerId: string): Promise<EventInvite[]> {
+    const access = await this.prisma.eventAccess.findUnique({
+      where: { userId_eventId: { userId: callerId, eventId } },
+    });
+    if (!access || access.accessLevel !== AccessLevel.ORGANIZER) return [];
+
+    return this.prisma.eventInvite.findMany({ where: { eventId } });
   }
 
   /**

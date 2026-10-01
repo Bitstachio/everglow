@@ -2077,6 +2077,7 @@
     },
     "/api/v2/events/{eventId}/regenerate-url": {
       "post": {
+        "description": "Rotates the Participant invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.",
         "operationId": "EventsController_regenerateInvitationUrl",
         "parameters": [
           {
@@ -2090,7 +2091,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Event with new invitation URL",
+            "description": "Event with new participant invitation URL",
             "content": {
               "application/json": {
                 "schema": {
@@ -2123,7 +2124,70 @@
             "access-token": []
           }
         ],
-        "summary": "Regenerate the event invitation URL",
+        "summary": "Regenerate the participant invitation URL",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate": {
+      "post": {
+        "description": "Organizers only. Other roles' invite links stay valid.",
+        "operationId": "EventsController_regenerateInvite",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accessLevel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event with the rotated invite",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Regenerate an invitation URL for one access level",
         "tags": [
           "events"
         ]
@@ -3147,6 +3211,34 @@
           "items"
         ]
       },
+      "AccessLevel": {
+        "type": "string",
+        "enum": [
+          "ORGANIZER",
+          "PARTICIPANT",
+          "VIEWER"
+        ]
+      },
+      "EventInviteResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessLevel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessLevel"
+              }
+            ]
+          },
+          "invitationUrl": {
+            "type": "string",
+            "description": "Shareable invitation link for this access level"
+          }
+        },
+        "required": [
+          "accessLevel",
+          "invitationUrl"
+        ]
+      },
       "EventStatus": {
         "type": "string",
         "enum": [
@@ -3182,7 +3274,14 @@
           },
           "invitationUrl": {
             "type": "string",
-            "description": "Shareable invitation link composed from the stored invite token"
+            "description": "Participant invitation link. Prefer `invites` when present; kept for older clients that expect a single URL."
+          },
+          "invites": {
+            "description": "Per-role invitation links. Populated for organizers; empty for other members so invite tokens are not leaked.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventInviteResponseDto"
+            }
           },
           "coverUrl": {
             "type": "string",
@@ -3214,6 +3313,7 @@
           "date",
           "creatorId",
           "invitationUrl",
+          "invites",
           "coverUrl",
           "status",
           "createdAt",
@@ -3240,14 +3340,6 @@
       "UpdateEventDto": {
         "type": "object",
         "properties": {}
-      },
-      "AccessLevel": {
-        "type": "string",
-        "enum": [
-          "ORGANIZER",
-          "PARTICIPANT",
-          "VIEWER"
-        ]
       },
       "EventParticipantResponseDto": {
         "type": "object",

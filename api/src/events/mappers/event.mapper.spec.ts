@@ -43,6 +43,7 @@ describe("EventMapper", () => {
         date: event.date,
         creatorId: event.creatorId,
         invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}`,
+        invites: [],
         coverUrl,
         status: "ACTIVE",
         createdAt: event.createdAt,
@@ -54,6 +55,41 @@ describe("EventMapper", () => {
       const underReview = { ...event, underReviewAt: new Date("2026-09-20T12:00:00.000Z") };
 
       expect(EventMapper.toResponseDto(underReview, coverUrl).status).toBe("UNDER_REVIEW");
+    });
+
+    it("maps organizer invites into shareable URLs in role order", () => {
+      const invites = [
+        {
+          id: "1",
+          eventId: event.id,
+          token: "org-token",
+          accessLevel: AccessLevel.ORGANIZER,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "2",
+          eventId: event.id,
+          token: "viewer-token",
+          accessLevel: AccessLevel.VIEWER,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "3",
+          eventId: event.id,
+          token: inviteToken,
+          accessLevel: AccessLevel.PARTICIPANT,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ];
+
+      expect(EventMapper.toResponseDto(event, null, invites).invites).toEqual([
+        { accessLevel: AccessLevel.PARTICIPANT, invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}` },
+        { accessLevel: AccessLevel.VIEWER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/viewer-token` },
+        { accessLevel: AccessLevel.ORGANIZER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/org-token` },
+      ]);
     });
 
     it("reports a null coverUrl for an event without a cover", () => {

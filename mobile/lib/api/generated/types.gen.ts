@@ -332,6 +332,16 @@ export type BlockedUserListResponseDto = {
   items: Array<BlockedUserResponseDto>;
 };
 
+export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
+
+export type EventInviteResponseDto = {
+  accessLevel: AccessLevel;
+  /**
+   * Shareable invitation link for this access level
+   */
+  invitationUrl: string;
+};
+
 /**
  * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.
  */
@@ -347,9 +357,13 @@ export type EventResponseDto = {
    */
   creatorId: string | null;
   /**
-   * Shareable invitation link composed from the stored invite token
+   * Participant invitation link. Prefer `invites` when present; kept for older clients that expect a single URL.
    */
   invitationUrl: string;
+  /**
+   * Per-role invitation links. Populated for organizers; empty for other members so invite tokens are not leaked.
+   */
+  invites: Array<EventInviteResponseDto>;
   /**
    * Short-lived presigned URL of the event cover image; null when none is set, or while it is hidden from the caller after a report of the event
    */
@@ -376,8 +390,6 @@ export type JoinEventDto = {
 export type UpdateEventDto = {
   [key: string]: unknown;
 };
-
-export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
 
 export type EventParticipantResponseDto = {
   userId: string;
@@ -2063,7 +2075,7 @@ export type EventsControllerRegenerateInvitationUrlError =
 
 export type EventsControllerRegenerateInvitationUrlResponses = {
   /**
-   * Event with new invitation URL
+   * Event with new participant invitation URL
    */
   200: {
     data: EventResponseDto;
@@ -2073,6 +2085,50 @@ export type EventsControllerRegenerateInvitationUrlResponses = {
 
 export type EventsControllerRegenerateInvitationUrlResponse =
   EventsControllerRegenerateInvitationUrlResponses[keyof EventsControllerRegenerateInvitationUrlResponses];
+
+export type EventsControllerRegenerateInviteData = {
+  body?: never;
+  path: {
+    eventId: string;
+    accessLevel: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate";
+};
+
+export type EventsControllerRegenerateInviteErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: {
+    message?: string;
+    /**
+     * Stable machine-readable error code, when the error has one
+     */
+    code?: string;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerRegenerateInviteError =
+  EventsControllerRegenerateInviteErrors[keyof EventsControllerRegenerateInviteErrors];
+
+export type EventsControllerRegenerateInviteResponses = {
+  /**
+   * Event with the rotated invite
+   */
+  200: {
+    data: EventResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerRegenerateInviteResponse =
+  EventsControllerRegenerateInviteResponses[keyof EventsControllerRegenerateInviteResponses];
 
 export type EventsControllerCreateCoverUploadUrlData = {
   body: CreateImageUploadDto;

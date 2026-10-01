@@ -47,6 +47,9 @@ import type {
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlErrors,
   EventsControllerRegenerateInvitationUrlResponses,
+  EventsControllerRegenerateInviteData,
+  EventsControllerRegenerateInviteErrors,
+  EventsControllerRegenerateInviteResponses,
   EventsControllerRemoveCoverData,
   EventsControllerRemoveCoverErrors,
   EventsControllerRemoveCoverResponses,
@@ -786,7 +789,9 @@ export const eventsControllerLiftBan = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Regenerate the event invitation URL
+ * Regenerate the participant invitation URL
+ *
+ * Rotates the Participant invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.
  */
 export const eventsControllerRegenerateInvitationUrl = <ThrowOnError extends boolean = false>(
   options: Options<EventsControllerRegenerateInvitationUrlData, ThrowOnError>,
@@ -802,6 +807,24 @@ export const eventsControllerRegenerateInvitationUrl = <ThrowOnError extends boo
   >({
     responseType: "json",
     url: "/api/v2/events/{eventId}/regenerate-url",
+    ...options,
+  });
+
+/**
+ * Regenerate an invitation URL for one access level
+ *
+ * Organizers only. Other roles' invite links stay valid.
+ */
+export const eventsControllerRegenerateInvite = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerRegenerateInviteData, ThrowOnError>,
+): RequestResult<EventsControllerRegenerateInviteResponses, EventsControllerRegenerateInviteErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    EventsControllerRegenerateInviteResponses,
+    EventsControllerRegenerateInviteErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate",
     ...options,
   });
 

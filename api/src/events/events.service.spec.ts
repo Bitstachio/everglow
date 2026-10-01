@@ -1,7 +1,7 @@
 import { accessibleBy } from "@casl/prisma";
 import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { AccessLevel, Event, EventAccess, Prisma, PrismaClient } from "generated/prisma/client";
+import { AccessLevel, Event, EventAccess, EventInvite, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
@@ -174,6 +174,33 @@ describe("EventsService", () => {
     updatedAt: now,
   };
 
+  const participantInvite: EventInvite = {
+    id: "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
+    eventId,
+    token: invitationUrl,
+    accessLevel: AccessLevel.PARTICIPANT,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const viewerInvite: EventInvite = {
+    id: "d2d2d2d2-d2d2-d2d2-d2d2-d2d2d2d2d2d2",
+    eventId,
+    token: "viewer-invite-token",
+    accessLevel: AccessLevel.VIEWER,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const organizerInvite: EventInvite = {
+    id: "d3d3d3d3-d3d3-d3d3-d3d3-d3d3d3d3d3d3",
+    eventId,
+    token: "organizer-invite-token",
+    accessLevel: AccessLevel.ORGANIZER,
+    createdAt: now,
+    updatedAt: now,
+  };
+
   const organizerAccess: EventAccess = {
     id: "88888888-8888-8888-8888-888888888888",
     userId: callerId,
@@ -254,6 +281,22 @@ describe("EventsService", () => {
         accessLevel: AccessLevel.ORGANIZER,
       },
     },
+  };
+
+  const expectThreeRoleInvites = (createData: unknown) => {
+    const data = createData as {
+      invitationUrl: string;
+      invites?: { create?: Array<{ token: string; accessLevel: AccessLevel }> };
+    };
+    expect(data.invites?.create).toHaveLength(3);
+    const invites = data.invites!.create!;
+    const byLevel = Object.fromEntries(invites.map((invite) => [invite.accessLevel, invite]));
+    expect(byLevel[AccessLevel.PARTICIPANT]?.token).toBe(data.invitationUrl);
+    expect(byLevel[AccessLevel.VIEWER]?.token).toEqual(expect.any(String));
+    expect(byLevel[AccessLevel.ORGANIZER]?.token).toEqual(expect.any(String));
+    expect(byLevel[AccessLevel.VIEWER]?.token).not.toBe(data.invitationUrl);
+    expect(byLevel[AccessLevel.ORGANIZER]?.token).not.toBe(data.invitationUrl);
+    expect(byLevel[AccessLevel.VIEWER]?.token).not.toBe(byLevel[AccessLevel.ORGANIZER]?.token);
   };
 
   const eventWithCallerAccess = (event: Event, access: EventAccess[]) => ({
@@ -345,6 +388,7 @@ describe("EventsService", () => {
       expect(typeof createPayload.data.invitationUrl).toBe("string");
       expect(createPayload.data.invitationUrl).not.toBe("");
       expect(createPayload.data.invitationUrl.length).toBeLessThanOrEqual(100);
+      expectThreeRoleInvites(createPayload.data);
       expect(result).toEqual(createdEvent);
       expect(logger.info).toHaveBeenCalledWith(
         { event: "event.created", eventId: createdEvent.id, creatorId },
@@ -359,6 +403,15 @@ describe("EventsService", () => {
       await service.create(creatorId, createEventDto);
 
       expect(prisma.event.create.mock.calls[0][0].data).toMatchObject(creatorOrganizerAccessGrant);
+    });
+
+    it("creates PARTICIPANT, VIEWER, and ORGANIZER invite rows nested under the event", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(creatorId, createEventDto);
+
+      expectThreeRoleInvites(prisma.event.create.mock.calls[0][0].data);
     });
 
     it("creates an event with a description when description is provided", async () => {
@@ -426,12 +479,14 @@ describe("EventsService", () => {
       await service.create(creatorId, createEventDto);
       await service.create(creatorId, createEventDto);
 
-      const firstInvitationUrl = prisma.event.create.mock.calls[0][0].data.invitationUrl;
-      const secondInvitationUrl = prisma.event.create.mock.calls[1][0].data.invitationUrl;
+      const firstCreate = prisma.event.create.mock.calls[0][0].data;
+      const secondCreate = prisma.event.create.mock.calls[1][0].data;
 
-      expect(firstInvitationUrl).not.toEqual(secondInvitationUrl);
-      expect(firstInvitationUrl.length).toBeLessThanOrEqual(100);
-      expect(secondInvitationUrl.length).toBeLessThanOrEqual(100);
+      expect(firstCreate.invitationUrl).not.toEqual(secondCreate.invitationUrl);
+      expect(firstCreate.invitationUrl.length).toBeLessThanOrEqual(100);
+      expect(secondCreate.invitationUrl.length).toBeLessThanOrEqual(100);
+      expectThreeRoleInvites(firstCreate);
+      expectThreeRoleInvites(secondCreate);
     });
 
     it("throws when the creator does not exist", async () => {
@@ -583,11 +638,33 @@ describe("EventsService", () => {
   });
 
   describe("joinByInvitationUrl", () => {
-    const setupSuccessfulJoin = () => {
+    const inviteFor = (invite: EventInvite, event: Event = eventCreatedByUser): EventInvite => ({
+      ...invite,
+      eventId: event.id,
+      token: invite.token,
+    });
+
+    const setupSuccessfulJoin = (
+      accessLevel: AccessLevel = AccessLevel.PARTICIPANT,
+      event: Event = eventCreatedByUser,
+      token: string = invitationUrl,
+    ) => {
+      const invite: EventInvite = {
+        ...participantInvite,
+        eventId: event.id,
+        token,
+        accessLevel,
+      };
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
+      prisma.eventInvite.findUnique.mockResolvedValue(invite);
+      prisma.event.findUnique.mockResolvedValue(event);
       prisma.eventAccess.findUnique.mockResolvedValue(null);
-      prisma.eventAccess.create.mockResolvedValue(newParticipantAccess);
+      prisma.eventAccess.create.mockResolvedValue({
+        ...newParticipantAccess,
+        eventId: event.id,
+        accessLevel,
+      });
+      return invite;
     };
 
     it("joins the event when the caller is onboarded and the invitation URL is valid", async () => {
@@ -599,7 +676,8 @@ describe("EventsService", () => {
         where: { id: callerId },
         include: userWithDetailsInclude,
       });
-      expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { invitationUrl } });
+      expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({ where: { token: invitationUrl } });
+      expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: eventId } });
       expect(prisma.eventAccess.findUnique).toHaveBeenCalledWith({
         where: { userId_eventId: { userId: callerId, eventId } },
       });
@@ -613,12 +691,41 @@ describe("EventsService", () => {
       );
     });
 
-    it("grants participant access when joining via invitation URL", async () => {
-      setupSuccessfulJoin();
+    it("grants participant access when joining via a PARTICIPANT invite token", async () => {
+      setupSuccessfulJoin(AccessLevel.PARTICIPANT);
 
       await service.joinByInvitationUrl(callerId, invitationUrl);
 
       expect(prisma.eventAccess.create.mock.calls[0][0].data.accessLevel).toBe(AccessLevel.PARTICIPANT);
+    });
+
+    it("grants viewer access when joining via a VIEWER invite token", async () => {
+      setupSuccessfulJoin(AccessLevel.VIEWER, eventCreatedByUser, viewerInvite.token);
+
+      await service.joinByInvitationUrl(callerId, viewerInvite.token);
+
+      expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({ where: { token: viewerInvite.token } });
+      expect(prisma.eventAccess.create).toHaveBeenCalledWith({
+        data: { userId: callerId, eventId, accessLevel: AccessLevel.VIEWER },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.joined", eventId, callerId, accessLevel: AccessLevel.VIEWER },
+        "User joined event via invitation URL",
+      );
+    });
+
+    it("grants organizer access when joining via an ORGANIZER invite token", async () => {
+      setupSuccessfulJoin(AccessLevel.ORGANIZER, eventCreatedByUser, organizerInvite.token);
+
+      await service.joinByInvitationUrl(callerId, organizerInvite.token);
+
+      expect(prisma.eventAccess.create).toHaveBeenCalledWith({
+        data: { userId: callerId, eventId, accessLevel: AccessLevel.ORGANIZER },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.joined", eventId, callerId, accessLevel: AccessLevel.ORGANIZER },
+        "User joined event via invitation URL",
+      );
     });
 
     it("returns the joined event without event access relations", async () => {
@@ -643,13 +750,7 @@ describe("EventsService", () => {
     });
 
     it("allows a user who is not the creator to join via invitation URL", async () => {
-      prisma.user.findUnique.mockResolvedValue(userWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccessOnly);
-      prisma.eventAccess.findUnique.mockResolvedValue(null);
-      prisma.eventAccess.create.mockResolvedValue({
-        ...newParticipantAccess,
-        eventId: eventWithAccessOnly.id,
-      });
+      setupSuccessfulJoin(AccessLevel.PARTICIPANT, eventWithAccessOnly, eventWithAccessOnly.invitationUrl);
 
       const result = await service.joinByInvitationUrl(callerId, eventWithAccessOnly.invitationUrl);
 
@@ -678,6 +779,7 @@ describe("EventsService", () => {
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(UnprocessableEntityException);
 
       expect(prisma.user.findUnique).toHaveBeenCalled();
+      expect(prisma.eventInvite.findUnique).not.toHaveBeenCalled();
       expect(prisma.event.findUnique).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -689,7 +791,7 @@ describe("EventsService", () => {
         new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE),
       );
 
-      expect(prisma.event.findUnique).not.toHaveBeenCalled();
+      expect(prisma.eventInvite.findUnique).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -703,12 +805,25 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
-    it("throws when the invitation URL does not match any event", async () => {
+    it("throws when the invitation URL does not match any invite", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
-      prisma.event.findUnique.mockResolvedValue(null);
+      prisma.eventInvite.findUnique.mockResolvedValue(null);
 
       await expect(service.joinByInvitationUrl(callerId, invalidUrl)).rejects.toThrow(
         new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invalidUrl)),
+      );
+
+      expect(prisma.event.findUnique).not.toHaveBeenCalled();
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("throws when the invite exists but the event does not", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.eventInvite.findUnique.mockResolvedValue(inviteFor(participantInvite));
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -716,6 +831,7 @@ describe("EventsService", () => {
 
     it("throws when the caller has already joined the event", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.eventInvite.findUnique.mockResolvedValue(inviteFor(participantInvite));
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(participantAccess);
 
@@ -815,6 +931,7 @@ describe("EventsService", () => {
 
     it("throws when the creator attempts to join via their own invitation link", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.eventInvite.findUnique.mockResolvedValue(inviteFor(participantInvite));
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
 
@@ -827,6 +944,7 @@ describe("EventsService", () => {
 
     it("throws when the caller already has organizer access", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.eventInvite.findUnique.mockResolvedValue(inviteFor(participantInvite));
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
 
@@ -837,6 +955,7 @@ describe("EventsService", () => {
 
     it("does not upgrade existing viewer access when joining again", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.eventInvite.findUnique.mockResolvedValue(inviteFor(participantInvite));
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(viewerAccess);
 
@@ -1438,6 +1557,8 @@ describe("EventsService", () => {
     const setupOrganizerRegenerate = (updatedInvitationUrl = newInvitationUrl) => {
       const updatedEvent: Event = { ...eventCreatedByUser, invitationUrl: updatedInvitationUrl };
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventInvite.findUnique.mockResolvedValue(participantInvite);
+      prisma.eventInvite.update.mockResolvedValue({ ...participantInvite, token: updatedInvitationUrl });
       prisma.event.update.mockResolvedValue(updatedEvent);
       return updatedEvent;
     };
@@ -1448,17 +1569,30 @@ describe("EventsService", () => {
       const result = await service.regenerateInvitationUrl(eventId, callerId);
 
       expect(prisma.event.findUnique).toHaveBeenCalledWith(eventLookup(eventId, callerId));
-      expect(prisma.event.update).toHaveBeenCalledTimes(1);
-      expect(prisma.event.update.mock.calls[0][0].where).toEqual({ id: eventId });
-      const updatedInvitationUrl = prisma.event.update.mock.calls[0][0].data.invitationUrl as string;
-      expect(updatedInvitationUrl).not.toBe("");
-      expect(updatedInvitationUrl.length).toBeLessThanOrEqual(100);
-      expect(updatedInvitationUrl).not.toBe(invitationUrl);
+      expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({
+        where: { eventId_accessLevel: { eventId, accessLevel: AccessLevel.PARTICIPANT } },
+      });
+      expect(prisma.eventInvite.update).toHaveBeenCalledTimes(1);
+      expect(prisma.eventInvite.update.mock.calls[0][0].where).toEqual({ id: participantInvite.id });
+      const updatedToken = prisma.eventInvite.update.mock.calls[0][0].data.token as string;
+      expect(updatedToken).not.toBe("");
+      expect(updatedToken.length).toBeLessThanOrEqual(100);
+      expect(updatedToken).not.toBe(invitationUrl);
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { invitationUrl: updatedToken },
+      });
       expect(result).toEqual(updatedEvent);
       expect(result.invitationUrl).toBe(newInvitationUrl);
       expect(logger.info).toHaveBeenCalledWith(
-        { event: "event.invitation_url.regenerated", eventId, callerId, audit: true },
-        "Event invitation URL regenerated",
+        {
+          event: "event.invite.regenerated",
+          eventId,
+          callerId,
+          accessLevel: AccessLevel.PARTICIPANT,
+          audit: true,
+        },
+        "Event invitation regenerated",
       );
     });
 
@@ -1472,10 +1606,21 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(
         eventWithCallerAccess(eventWithAccessOnly, [nonCreatorOrganizerAccess]),
       );
+      prisma.eventInvite.findUnique.mockResolvedValue({
+        ...participantInvite,
+        eventId: eventWithAccessOnly.id,
+        token: eventWithAccessOnly.invitationUrl,
+      });
+      prisma.eventInvite.update.mockResolvedValue({
+        ...participantInvite,
+        eventId: eventWithAccessOnly.id,
+        token: newInvitationUrl,
+      });
       prisma.event.update.mockResolvedValue(updatedEvent);
 
       const result = await service.regenerateInvitationUrl(eventWithAccessOnly.id, callerId);
 
+      expect(prisma.eventInvite.update).toHaveBeenCalled();
       expect(prisma.event.update).toHaveBeenCalled();
       expect(result.invitationUrl).toBe(newInvitationUrl);
     });
@@ -1497,6 +1642,9 @@ describe("EventsService", () => {
 
     it("generates a different invitation URL on each regeneration", async () => {
       setupOrganizerRegenerate();
+      prisma.eventInvite.update
+        .mockResolvedValueOnce({ ...participantInvite, token: "first-uuid" })
+        .mockResolvedValueOnce({ ...participantInvite, token: "second-uuid" });
       prisma.event.update
         .mockResolvedValueOnce({ ...eventCreatedByUser, invitationUrl: "first-uuid" })
         .mockResolvedValueOnce({ ...eventCreatedByUser, invitationUrl: "second-uuid" });
@@ -1504,34 +1652,40 @@ describe("EventsService", () => {
       await service.regenerateInvitationUrl(eventId, callerId);
       await service.regenerateInvitationUrl(eventId, callerId);
 
-      const firstUrl = prisma.event.update.mock.calls[0][0].data.invitationUrl as string;
-      const secondUrl = prisma.event.update.mock.calls[1][0].data.invitationUrl as string;
+      const firstUrl = prisma.eventInvite.update.mock.calls[0][0].data.token as string;
+      const secondUrl = prisma.eventInvite.update.mock.calls[1][0].data.token as string;
       expect(firstUrl).not.toBe(secondUrl);
     });
 
-    it("updates only the invitation URL in the database", async () => {
+    it("updates the PARTICIPANT invite token and mirrors it onto Event.invitationUrl", async () => {
       setupOrganizerRegenerate();
 
       await service.regenerateInvitationUrl(eventId, callerId);
 
-      const updatePayload = prisma.event.update.mock.calls[0][0];
-      expect(updatePayload.where).toEqual({ id: eventId });
-      expect(Object.keys(updatePayload.data)).toEqual(["invitationUrl"]);
-      expect(typeof updatePayload.data.invitationUrl).toBe("string");
+      const inviteUpdate = prisma.eventInvite.update.mock.calls[0][0];
+      const eventUpdate = prisma.event.update.mock.calls[0][0];
+      expect(inviteUpdate.where).toEqual({ id: participantInvite.id });
+      expect(Object.keys(inviteUpdate.data)).toEqual(["token"]);
+      expect(eventUpdate.where).toEqual({ id: eventId });
+      expect(Object.keys(eventUpdate.data)).toEqual(["invitationUrl"]);
+      expect(eventUpdate.data.invitationUrl).toBe(inviteUpdate.data.token);
     });
 
     it("does not attempt update when the caller lacks organizer access", async () => {
       prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
 
       prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
 
       prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, []));
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
     });
@@ -1543,6 +1697,7 @@ describe("EventsService", () => {
         new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
       );
 
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
     });
@@ -1554,6 +1709,7 @@ describe("EventsService", () => {
         new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
       );
 
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
@@ -1564,6 +1720,7 @@ describe("EventsService", () => {
         new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
       );
 
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
@@ -1574,6 +1731,7 @@ describe("EventsService", () => {
         new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
       );
 
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
@@ -1590,6 +1748,19 @@ describe("EventsService", () => {
 
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(NotFoundException);
 
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("throws when the PARTICIPANT invite row is missing", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventInvite.findUnique.mockResolvedValue(null);
+
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
+        new NotFoundException(EVENT_SERVICE_ERRORS.INVITE_NOT_FOUND(eventId, AccessLevel.PARTICIPANT)),
+      );
+
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
@@ -1601,7 +1772,7 @@ describe("EventsService", () => {
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(prismaError);
 
       expect(logger.info).not.toHaveBeenCalledWith(
-        expect.objectContaining({ event: "event.invitation_url.regenerated" }),
+        expect.objectContaining({ event: "event.invite.regenerated" }),
         expect.any(String),
       );
     });
@@ -1612,6 +1783,7 @@ describe("EventsService", () => {
       await expect(service.findOne(eventId, callerId)).resolves.toEqual(eventCreatedByUser);
 
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
@@ -1621,11 +1793,105 @@ describe("EventsService", () => {
       await service.regenerateInvitationUrl(eventId, callerId);
 
       prisma.user.findUnique.mockResolvedValue(otherUserWithDetails);
-      prisma.event.findUnique.mockResolvedValue(null);
+      prisma.eventInvite.findUnique.mockResolvedValue(null);
 
       await expect(service.joinByInvitationUrl(otherUserId, invitationUrl)).rejects.toThrow(
         new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
       );
+    });
+  });
+
+  describe("regenerateInvite", () => {
+    it("rotates a VIEWER invite token without updating Event.invitationUrl", async () => {
+      const rotatedToken = "rotated-viewer-token";
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventInvite.findUnique.mockResolvedValue(viewerInvite);
+      prisma.eventInvite.update.mockResolvedValue({ ...viewerInvite, token: rotatedToken });
+      prisma.event.findUniqueOrThrow.mockResolvedValue(eventCreatedByUser);
+
+      const result = await service.regenerateInvite(eventId, callerId, AccessLevel.VIEWER);
+
+      expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({
+        where: { eventId_accessLevel: { eventId, accessLevel: AccessLevel.VIEWER } },
+      });
+      expect(prisma.eventInvite.update).toHaveBeenCalledWith({
+        where: { id: viewerInvite.id },
+        data: { token: expect.any(String) as string },
+      });
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(prisma.event.findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: eventId } });
+      expect(result).toEqual(eventCreatedByUser);
+      expect(result.invitationUrl).toBe(eventCreatedByUser.invitationUrl);
+      expect(logger.info).toHaveBeenCalledWith(
+        {
+          event: "event.invite.regenerated",
+          eventId,
+          callerId,
+          accessLevel: AccessLevel.VIEWER,
+          audit: true,
+        },
+        "Event invitation regenerated",
+      );
+    });
+
+    it("delegates PARTICIPANT regeneration through regenerateInvitationUrl semantics", async () => {
+      const updatedEvent: Event = { ...eventCreatedByUser, invitationUrl: "new-participant-token" };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.eventInvite.findUnique.mockResolvedValue(participantInvite);
+      prisma.eventInvite.update.mockResolvedValue({ ...participantInvite, token: "new-participant-token" });
+      prisma.event.update.mockResolvedValue(updatedEvent);
+
+      const result = await service.regenerateInvite(eventId, callerId, AccessLevel.PARTICIPANT);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: eventId },
+        data: { invitationUrl: expect.any(String) as string },
+      });
+      expect(result.invitationUrl).toBe("new-participant-token");
+    });
+  });
+
+  describe("listInvitesForCaller", () => {
+    const invites = [participantInvite, viewerInvite, organizerInvite];
+
+    it("returns invites when the caller is an organizer", async () => {
+      prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
+      prisma.eventInvite.findMany.mockResolvedValue(invites);
+
+      const result = await service.listInvitesForCaller(eventId, callerId);
+
+      expect(prisma.eventAccess.findUnique).toHaveBeenCalledWith({
+        where: { userId_eventId: { userId: callerId, eventId } },
+      });
+      expect(prisma.eventInvite.findMany).toHaveBeenCalledWith({ where: { eventId } });
+      expect(result).toEqual(invites);
+    });
+
+    it("returns an empty array when the caller is a participant", async () => {
+      prisma.eventAccess.findUnique.mockResolvedValue(participantAccess);
+
+      const result = await service.listInvitesForCaller(eventId, callerId);
+
+      expect(result).toEqual([]);
+      expect(prisma.eventInvite.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns an empty array when the caller is a viewer", async () => {
+      prisma.eventAccess.findUnique.mockResolvedValue(viewerAccess);
+
+      const result = await service.listInvitesForCaller(eventId, callerId);
+
+      expect(result).toEqual([]);
+      expect(prisma.eventInvite.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns an empty array when the caller has no access", async () => {
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+
+      const result = await service.listInvitesForCaller(eventId, callerId);
+
+      expect(result).toEqual([]);
+      expect(prisma.eventInvite.findMany).not.toHaveBeenCalled();
     });
   });
 

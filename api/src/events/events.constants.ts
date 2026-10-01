@@ -8,6 +8,8 @@ export const EVENT_SERVICE_ERRORS = {
   CALLER_NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(userEntity, "ID", id),
   NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(eventEntity, "ID", id),
   INVITATION_NOT_FOUND: (invitationUrl: string) => `Event with invitation URL "${invitationUrl}" not found`,
+  INVITE_NOT_FOUND: (eventId: string, accessLevel: string) =>
+    `Invite for access level "${accessLevel}" on event with ID "${eventId}" not found`,
   ALREADY_JOINED: (eventId: string) => `User has already joined event with ID "${eventId}"`,
   CREATE_FORBIDDEN: "Not authorized to create events",
   DELETE_FORBIDDEN: (eventId: string) => `Not authorized to delete event with ID "${eventId}"`,

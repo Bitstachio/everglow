@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseEnumPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -14,7 +15,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
-import { Event } from "generated/prisma/client";
+import { AccessLevel, Event } from "generated/prisma/client";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
@@ -61,7 +62,15 @@ export class EventsController {
   async findAll(@CurrentUser() user: AuthenticatedUser): Promise<EventResponseDto[]> {
     const events = await this.eventsService.findAllForUser(user.id);
     const coverUrls = await this.eventCoverService.getCoverUrls(events, user.id);
-    return events.map((event) => EventMapper.toResponseDto(event, coverUrls.get(event.id) ?? null));
+    return Promise.all(
+      events.map(async (event) =>
+        EventMapper.toResponseDto(
+          event,
+          coverUrls.get(event.id) ?? null,
+          await this.eventsService.listInvitesForCaller(event.id, user.id),
+        ),
+      ),
+    );
   }
 
   @Post("join")
@@ -188,13 +197,32 @@ export class EventsController {
 
   @Post(":eventId/regenerate-url")
   @RateLimit("sensitive")
-  @ApiOperation({ summary: "Regenerate the event invitation URL" })
-  @ApiWrappedResponse(EventResponseDto, "Event with new invitation URL")
+  @ApiOperation({
+    summary: "Regenerate the participant invitation URL",
+    description:
+      "Rotates the Participant invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.",
+  })
+  @ApiWrappedResponse(EventResponseDto, "Event with new participant invitation URL")
   async regenerateInvitationUrl(
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
   ): Promise<EventResponseDto> {
     return this.toResponseDto(await this.eventsService.regenerateInvitationUrl(eventId, user.id), user.id);
+  }
+
+  @Post(":eventId/invites/:accessLevel/regenerate")
+  @RateLimit("sensitive")
+  @ApiOperation({
+    summary: "Regenerate an invitation URL for one access level",
+    description: "Organizers only. Other roles' invite links stay valid.",
+  })
+  @ApiWrappedResponse(EventResponseDto, "Event with the rotated invite")
+  async regenerateInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+    @Param("accessLevel", new ParseEnumPipe(AccessLevel)) accessLevel: AccessLevel,
+  ): Promise<EventResponseDto> {
+    return this.toResponseDto(await this.eventsService.regenerateInvite(eventId, user.id, accessLevel), user.id);
   }
 
   @Post(":eventId/cover/upload-url")
@@ -232,6 +260,10 @@ export class EventsController {
   }
 
   private async toResponseDto(event: Event, viewerId: string): Promise<EventResponseDto> {
-    return EventMapper.toResponseDto(event, await this.eventCoverService.getCoverUrl(event, viewerId));
+    const [coverUrl, invites] = await Promise.all([
+      this.eventCoverService.getCoverUrl(event, viewerId),
+      this.eventsService.listInvitesForCaller(event.id, viewerId),
+    ]);
+    return EventMapper.toResponseDto(event, coverUrl, invites);
   }
 }

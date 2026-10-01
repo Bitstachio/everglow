@@ -155,11 +155,29 @@ model Event {
   coverUpdatedBy User?         @relation("EventCoversSet", fields: [coverUpdatedById], references: [id], onDelete: SetNull)
   photos         Photo[]
   eventAccesses  EventAccess[]
+  invites        EventInvite[]
   reports        Report[]
   bans           EventBan[]
 
   @@index([creatorId])
   @@index([coverUpdatedById])
+}
+
+/// One shareable join token per access level for an event. Joining via the
+/// token grants that accessLevel. Event.invitationUrl stays in sync with the
+/// PARTICIPANT token for older clients that only know a single invite URL.
+model EventInvite {
+  id          String      @id @default(uuid()) @db.Uuid
+  eventId     String      @db.Uuid
+  token       String      @unique @db.VarChar(100)
+  accessLevel AccessLevel
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, accessLevel])
+  @@index([eventId])
 }
 
 model EventAccess {
