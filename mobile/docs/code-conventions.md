@@ -19,7 +19,7 @@ This document is the entry point for how we write TypeScript and React Native co
 | Component / hook tests (Jest + RNTL)          | [Testing](./testing.md)                                     |
 | E2E tests (Maestro)                           | [E2E](./e2e.md)                                             |
 | PR review judgments                           | [Code review checklist](./code-review-checklist.md)         |
-| Shared product / architecture                 | [Repo `docs/`](../../docs/)                             |
+| Shared product / architecture                 | [Repo `docs/`](../../docs/)                                 |
 
 ## Convention hierarchy
 

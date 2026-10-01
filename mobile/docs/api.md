@@ -8,13 +8,13 @@ This document covers server communication in the Everglow mobile app: the shared
 
 ## Shared client (`lib/api/`)
 
-| Path                | Role                                                                                                                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Path                | Role                                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `generated/`        | Auto-generated SDK, types, and React Query helpers. **Do not edit by hand.** Regenerate with `pnpm openapi:generate`. |
-| `axios-instance.ts` | Axios instance with auth token injection and 401 handling                                                                |
-| `hey-api.config.ts` | Wires the generated client to our Axios instance                                                                         |
-| `envelope.ts`       | `unwrapEnvelope` for the `{ data, meta }` API response shape                                                             |
-| `errors.ts`         | `toApiError` (used by the Axios interceptor) and `getErrorMessage` (for UI error messages)                               |
+| `axios-instance.ts` | Axios instance with auth token injection and 401 handling                                                             |
+| `hey-api.config.ts` | Wires the generated client to our Axios instance                                                                      |
+| `envelope.ts`       | `unwrapEnvelope` for the `{ data, meta }` API response shape                                                          |
+| `errors.ts`         | `toApiError` (used by the Axios interceptor) and `getErrorMessage` (for UI error messages)                            |
 
 Generated SDK functions are imported from `@/lib/api/generated`. Query key helpers and `*Options` / `*Mutation` factories are in `@/lib/api/generated/@tanstack/react-query.gen`.
 
