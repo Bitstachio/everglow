@@ -195,6 +195,8 @@ Hiding is a **filter in the photo read paths**. `PhotoStatus` is untouched and n
 
 "Everyone" includes the uploader. Organizers always see the photo, because they are the ones who have to look at it.
 
+**A closed gallery shows nothing, to anyone.** Once an event's gallery has closed ([event-quotas.md](./event-quotas.md)), no photo of it is listed or opened, organizers included, and none can be reported. The close job removes them, and the ones it keeps because of OPEN reports are kept for the platform, not the event.
+
 The threshold is evaluated when photos are read, not stored on the photo. Members joining or leaving can move an event across the 3/4 boundary, and a stored flag would then be stale.
 
 ### The shared filter
@@ -202,6 +204,8 @@ The threshold is evaluated when photos are read, not stored on the photo. Member
 `PhotoVisibilityService.whereVisibleTo(callerId, event)` returns one `Prisma.PhotoWhereInput`, and it is the only place these rules exist:
 
 ```ts
+{ id: { in: [] } } // once the gallery has closed: matches nothing, for anyone
+
 {} // for an organizer of the event
 
 {

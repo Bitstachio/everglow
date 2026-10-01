@@ -1,8 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { AccessLevel, Prisma, ReportStatus } from "generated/prisma/client";
+import { GALLERY_STATES, galleryStateOf } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { SEVERE_REPORT_REASONS, reportHideThreshold } from "./moderation.constants";
 import { EventForPhotoVisibility } from "./moderation.types";
+
+/** Matches no photo: Prisma compiles an empty `in` to a false condition. */
+const NO_PHOTOS: Prisma.PhotoWhereInput = { id: { in: [] } };
 
 /**
  * The single definition of "which photos of this event may this caller see"
@@ -15,8 +19,12 @@ export class PhotoVisibilityService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * A `Photo` filter to AND into a query scoped to `event`. Organizers get an
-   * empty filter: they moderate, so they see everything. Everyone else loses
+   * A `Photo` filter to AND into a query scoped to `event`. Once the event's
+   * gallery has closed, nobody sees its photos, organizers included: the close
+   * job removes them, and the ones it keeps for open reports are kept for the
+   * platform, not the event (docs/event-quotas.md). While it is open,
+   * organizers get an empty filter: they moderate, so they see everything.
+   * Everyone else loses
    *
    * 1. photos they have an OPEN report on,
    * 2. photos with an OPEN report for a severe reason (nudity, violence),
@@ -27,6 +35,7 @@ export class PhotoVisibilityService {
    * subqueries inside the photo query itself.
    */
   async whereVisibleTo(callerId: string, event: EventForPhotoVisibility): Promise<Prisma.PhotoWhereInput> {
+    if (galleryStateOf(event) === GALLERY_STATES.CLOSED) return NO_PHOTOS;
     if (event.eventAccesses.some((access) => access.accessLevel === AccessLevel.ORGANIZER)) return {};
 
     const overThreshold = await this.prisma.report.groupBy({

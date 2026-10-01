@@ -470,6 +470,20 @@ describe("PhotosController (integration)", () => {
       expect(prisma.report.groupBy).not.toHaveBeenCalled();
     });
 
+    it("returns 200 with no photos once the gallery has closed, even for an organizer", async () => {
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventWithAccess([buildOrganizerAccess()]),
+        galleryClosesAt: new Date(Date.now() - 60 * 1000),
+      } as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+
+      const response = await request(httpServer).get(photosListPath()).set(authHeader()).expect(200);
+
+      expect((response.body as WrappedResponse<{ items: unknown[] }>).data.items).toEqual([]);
+      const [args] = prisma.photo.findMany.mock.calls[0];
+      expect(JSON.stringify(args?.where)).toContain(JSON.stringify({ id: { in: [] } }));
+    });
+
     it("returns 401 when the access token is missing", async () => {
       await request(httpServer).get(photosListPath()).expect(401);
     });
@@ -512,6 +526,19 @@ describe("PhotosController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body.message).toBe(PHOTO_SERVICE_ERRORS.NOT_FOUND(TEST_PHOTO_ID));
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 once the photo's gallery has closed, even for an organizer", async () => {
+      prisma.photo.findUnique.mockResolvedValue({
+        ...buildPhoto(),
+        event: { ...eventWithAccess([buildOrganizerAccess()]), galleryClosedAt: new Date() },
+      } as never);
+      prisma.photo.count.mockResolvedValue(0);
+
+      await request(httpServer).get(photoPath()).set(authHeader()).expect(404);
+
+      expect(prisma.photo.count).toHaveBeenCalledWith({ where: { AND: [{ id: TEST_PHOTO_ID }, { id: { in: [] } }] } });
       expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
     });
 
@@ -578,7 +605,7 @@ describe("PhotosController (integration)", () => {
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
     });
 
-    it("returns 204 when a former member deletes their own READY photo, freeing their storage", async () => {
+    it("returns 204 when a former member deletes their own READY photo", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoWithAccess([]) as never);
       prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
 
