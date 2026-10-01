@@ -151,7 +151,7 @@ Once the Linear GitHub integration is connected, Linear attaches PRs and closes 
 
 # Writing rules
 
-- Ground every claim in the code or docs. Cite paths like `api/docs/uploads.md` or `src/photos/photos.service.ts` rather than paraphrasing from memory. Say "unverified" when it is.
+- Ground every claim in the code or docs. Cite paths like `docs/uploads.md` or `api/src/photos/photos.service.ts` rather than paraphrasing from memory. Say "unverified" when it is.
 - State facts and decisions, not reasoning narration. Short sentences.
 - Link related GitHub PRs and Linear issues.
 - No AI attribution anywhere in the issue: no "Generated with" / "Created by" footers, no tool or model names as authorship. Same rule as PRs and commits in [AGENTS.md](../AGENTS.md).

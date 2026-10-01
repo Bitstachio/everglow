@@ -13,7 +13,7 @@
  *
  * Does not enable Classic password reset. If the tenant still has
  * change_password.enabled, the theme will not paint the reset page — fix that
- * in the Auth0 dashboard (see mobile/docs/credential-changes.md §4.2).
+ * in the Auth0 dashboard (see docs/credential-changes.md §4.2).
  */
 
 import { ManagementClient } from "auth0";

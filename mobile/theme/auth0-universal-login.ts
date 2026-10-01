@@ -3,7 +3,7 @@ import type { ColorTokenName } from "./tokens";
 /**
  * Auth0 Universal Login theme derived from the app's light color tokens.
  * Source of truth: `app/global.css` light values, mirrored in `theme/tokens.ts`.
- * See mobile/docs/credential-changes.md §4.
+ * See docs/credential-changes.md §4.
  *
  * Auth0's theme API is a single palette (no dark mode). Always map light tokens.
  */

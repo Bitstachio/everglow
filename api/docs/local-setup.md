@@ -15,7 +15,7 @@ On a fresh clone the first run creates `api/.env` and stops, listing the values 
 ## Prerequisites
 
 - **Node 22** or newer (CI runs 22).
-- **pnpm 11.25.0**. Easiest: `corepack enable` once; it picks the version pinned in `package.json`. The setup script says so if pnpm is missing.
+- **pnpm 11.25.0**. Easiest: `corepack enable` once; it picks the version pinned in `package.json`. The setup script says so if pnpm is missing. The API keeps pnpm's default **isolated** linker (`api/pnpm-workspace.yaml` has no `nodeLinker`). Do not copy mobile's `nodeLinker: hoisted`.
 - **Docker Desktop**, running, for the database. Without Docker, run PostgreSQL yourself and point `DATABASE_URL` at it; the script then leaves the database alone.
 
 ## What the script does

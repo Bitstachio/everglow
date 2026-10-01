@@ -61,3 +61,4 @@ When a production waitlist endpoint exists, set the repo Actions variable `NEXT_
 - Scope is this folder only; it does not talk to the API or mobile app.
 - `next-intl` is wired with English as the starting locale. Add locales under `src/messages/` when needed. Middleware does not run on GitHub Pages; locale routes come from the static `out/` files.
 - TypeScript and React conventions: [docs/code-conventions.md](./docs/code-conventions.md).
+- Shared product docs (auth, uploads, event quotas, …): [../docs/](../docs/).

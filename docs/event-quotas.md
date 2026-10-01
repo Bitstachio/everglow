@@ -2,7 +2,7 @@
 
 The business model Everglow is going forward with. The **free plan is decided**. The **paid plans are proposed**: they come later, and their prices will be set from real usage.
 
-It replaces the personal 5 GB storage limit with limits per event. Implementation is [EV-64](https://linear.app/mehrshadfb/issue/EV-64); this doc is [EV-67](https://linear.app/mehrshadfb/issue/EV-67).
+It replaces the personal 5 GB storage limit ([photos-architecture.md](./photos-architecture.md) §9) with limits per event. Implementation is [EV-64](https://linear.app/mehrshadfb/issue/EV-64); this doc is [EV-67](https://linear.app/mehrshadfb/issue/EV-67).
 
 ## Principles
 

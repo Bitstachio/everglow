@@ -1,7 +1,6 @@
 # Logging Conventions
 
-This is the practical, project-specific companion to [`architectural-logging.md`](./architectural-logging.md).
-That article explains _why_ we log the way we do; this document explains _how_ to do it in this codebase.
+How to log in this API: nestjs-pino, redaction, levels, structured `event` fields, and where a line belongs.
 The `users` domain (`src/users`) is the reference implementation: copy its patterns into new domains.
 
 ---

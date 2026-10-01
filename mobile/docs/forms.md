@@ -283,7 +283,7 @@ Everything else here is review-only. Use the [code review checklist](./code-revi
 5. Build the component to accept `control` plus `isSubmitting`, `isDirty`, and callbacks.
 6. Render each string field with `FormField`; use `Controller` directly only for non-text inputs.
 7. Add `use-<form>-form.test.tsx` with a probe: one valid submission and one validation failure (see [Testing](#testing)).
-8. Run `npm run lint` and `npx tsc --noEmit`.
+8. Run `pnpm lint` and `pnpm exec tsc --noEmit`.
 
 ## Review checklist
 

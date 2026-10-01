@@ -140,7 +140,7 @@ See [API](./api.md). Spot-check:
 
 ## Shared infrastructure
 
-- [ ] No hand-edits under `lib/api/generated/` (regenerate with `npm run openapi:generate`)
+- [ ] No hand-edits under `lib/api/generated/` (regenerate with `pnpm openapi:generate`)
 - [ ] New endpoints are consumed through feature `api/` wrappers, not ad hoc Axios calls
 - [ ] Global hooks stay in `hooks/`; feature screen/form hooks stay in `features/<name>/hooks/`; component-private hooks colocate with their component in a same-named folder
 
@@ -155,7 +155,7 @@ Legacy areas are exempt from some ESLint rules so existing code keeps passing. T
 
 ## Quick review flow
 
-1. Run `npm run lint` and fix automated violations first.
+1. Run `pnpm lint` and fix automated violations first.
 2. Confirm the feature folder layout and naming match the profile reference.
 3. Trace data flow: route → screen → hook → `api/` → generated SDK.
 4. For API work, check [API](./api.md); for forms, check [Forms](./forms.md).

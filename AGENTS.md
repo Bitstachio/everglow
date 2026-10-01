@@ -8,6 +8,7 @@ Shared process docs live in [`.context/`](.context/). Read the matching file in 
 | Split work into reviewable PRs or open more than one PR for an issue               | [`.context/stacked-prs.md`](.context/stacked-prs.md)                                   |
 | Write a PR title/body or run `gh pr create` / `gh stack submit` (title = subject)  | [`.context/pr-description-generator.md`](.context/pr-description-generator.md)         |
 | Write the squash-merge commit **body** (under the PR title; no new subject line)   | [`.context/commit-description-generator.md`](.context/commit-description-generator.md) |
+| Look up product or architecture that spans packages                                | [`docs/`](docs/)                                                                           |
 
 ## Non-negotiables
 
