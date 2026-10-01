@@ -37,6 +37,7 @@ import { EventCoverService } from "./event-cover.service";
 import { extractInvitationToken } from "./events.invitation";
 import { EventsService } from "./events.service";
 import { EventMapper } from "./mappers/event.mapper";
+import { EventPlanService } from "src/plans/event-plan.service";
 
 @ApiTags("events")
 @ApiBearerAuth("access-token")
@@ -47,6 +48,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly eventCoverService: EventCoverService,
+    private readonly eventPlanService: EventPlanService,
   ) {}
 
   @Post()
@@ -61,12 +63,16 @@ export class EventsController {
   @ApiWrappedResponse(EventResponseDto, "Events the user can read", 200)
   async findAll(@CurrentUser() user: AuthenticatedUser): Promise<EventResponseDto[]> {
     const events = await this.eventsService.findAllForUser(user.id);
-    const coverUrls = await this.eventCoverService.getCoverUrls(events, user.id);
+    const [coverUrls, usage] = await Promise.all([
+      this.eventCoverService.getCoverUrls(events, user.id),
+      this.eventPlanService.usageFor(events.map((event) => event.id)),
+    ]);
     return Promise.all(
       events.map(async (event) =>
         EventMapper.toResponseDto(
           event,
           coverUrls.get(event.id) ?? null,
+          usage.get(event.id)!,
           await this.eventsService.listInvitesForCaller(event.id, user.id),
         ),
       ),
@@ -260,10 +266,11 @@ export class EventsController {
   }
 
   private async toResponseDto(event: Event, viewerId: string): Promise<EventResponseDto> {
-    const [coverUrl, invites] = await Promise.all([
+    const [coverUrl, invites, usage] = await Promise.all([
       this.eventCoverService.getCoverUrl(event, viewerId),
       this.eventsService.listInvitesForCaller(event.id, viewerId),
+      this.eventPlanService.usageFor([event.id]),
     ]);
-    return EventMapper.toResponseDto(event, coverUrl, invites);
+    return EventMapper.toResponseDto(event, coverUrl, usage.get(event.id)!, invites);
   }
 }

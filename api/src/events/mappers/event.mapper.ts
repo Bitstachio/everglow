@@ -1,4 +1,6 @@
 import { Event, EventInvite } from "generated/prisma/client";
+import { EventUsage } from "src/plans/event-plan.service";
+import { EVENT_PLAN_LIMITS, galleryStateOf } from "src/plans/plans.constants";
 import { EventBanListResponseDto } from "../dto/event-ban-list-response.dto";
 import { EventBanResponseDto } from "../dto/event-ban-response.dto";
 import { EventInviteResponseDto } from "../dto/event-invite-response.dto";
@@ -15,8 +17,17 @@ const INVITE_SORT_ORDER: Record<string, number> = {
 };
 
 export class EventMapper {
-  /** `coverUrl` is presigned by the caller; the mapper never sees S3, and the key is never returned. */
-  static toResponseDto(event: Event, coverUrl: string | null, invites: EventInvite[] = []): EventResponseDto {
+  /**
+   * `coverUrl` is presigned by the caller; the mapper never sees S3, and the key is never returned.
+   * `usage` comes from EventPlanService.usageFor.
+   */
+  static toResponseDto(
+    event: Event,
+    coverUrl: string | null,
+    usage: EventUsage,
+    invites: EventInvite[] = [],
+  ): EventResponseDto {
+    const limits = EVENT_PLAN_LIMITS[event.plan];
     return {
       id: event.id,
       title: event.title,
@@ -27,6 +38,11 @@ export class EventMapper {
       invites: EventMapper.toInviteResponseDtoList(invites),
       coverUrl,
       status: event.underReviewAt ? EVENT_STATUSES.UNDER_REVIEW : EVENT_STATUSES.ACTIVE,
+      plan: event.plan,
+      galleryState: galleryStateOf(event),
+      galleryClosesAt: event.galleryClosesAt,
+      limits: { members: limits.maxMembers, photos: limits.maxPhotos },
+      usage: { members: usage.members, photos: usage.photos },
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
     };

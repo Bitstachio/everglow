@@ -56,6 +56,9 @@ describe("EventCoverService", () => {
     coverS3Key,
     coverUpdatedById: coverS3Key ? callerId : null,
     underReviewAt: null,
+    plan: "FREE",
+    galleryClosesAt: null,
+    galleryClosedAt: null,
     createdAt: now,
     updatedAt: now,
   });

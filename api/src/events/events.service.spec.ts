@@ -101,6 +101,9 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    plan: "FREE",
+    galleryClosesAt: null,
+    galleryClosedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -118,6 +121,9 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    plan: "FREE",
+    galleryClosesAt: null,
+    galleryClosedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -132,6 +138,9 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    plan: "FREE",
+    galleryClosesAt: null,
+    galleryClosedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -743,6 +752,9 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
+        plan: "FREE",
+        galleryClosesAt: null,
+        galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -1066,6 +1078,9 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
+        plan: "FREE",
+        galleryClosesAt: null,
+        galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -1200,6 +1215,7 @@ describe("EventsService", () => {
         data: {
           title: updateAllFieldsDto.title,
           date: new Date(updateAllFieldsDto.date!),
+          galleryClosesAt: new Date(new Date(updateAllFieldsDto.date!).getTime() + 30 * 24 * 60 * 60 * 1000),
           description: updateAllFieldsDto.description,
         },
       });
@@ -1231,7 +1247,10 @@ describe("EventsService", () => {
 
       expect(prisma.event.update).toHaveBeenCalledWith({
         where: { id: eventId },
-        data: { date: new Date("2026-10-01T18:00:00.000Z") },
+        data: {
+          date: new Date("2026-10-01T18:00:00.000Z"),
+          galleryClosesAt: new Date("2026-10-31T18:00:00.000Z"),
+        },
       });
       const updateData = prisma.event.update.mock.calls[0][0].data;
       expect(updateData).not.toHaveProperty("title");
@@ -1284,7 +1303,7 @@ describe("EventsService", () => {
 
       expect(prisma.event.update).toHaveBeenCalledWith({
         where: { id: eventId },
-        data: { date: new Date("2026-10-01") },
+        data: { date: new Date("2026-10-01"), galleryClosesAt: new Date("2026-10-31") },
       });
     });
 

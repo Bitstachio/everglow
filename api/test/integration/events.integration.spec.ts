@@ -114,6 +114,9 @@ describe("EventsController (integration)", () => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
     prisma.userBlock.findMany.mockResolvedValue([]);
+    // Usage on event responses: nothing counted unless a test says so.
+    prisma.eventAccess.groupBy.mockResolvedValue([] as never);
+    prisma.photo.groupBy.mockResolvedValue([] as never);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     // No open event reports: covers are visible.
