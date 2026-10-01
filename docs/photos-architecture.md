@@ -268,7 +268,7 @@ Each uploader has their own storage cap, `User.storageLimitBytes` (default **5 G
 
 - **Usage:** `SUM(sizeBytes)` over the caller's photos with `status IN (PENDING, READY)`. Pending rows count so clients cannot bypass the cap by minting slots without confirming.
 - **Enforcement:** `PhotoStorageService.reserveUploadBytes()` in `PhotosService.createUploadSlots()`, after CASL authorization. The limit lookup, the usage query, and the `createMany` of the batch's PENDING rows run in **one Prisma transaction at `Serializable` isolation**; presigned URLs are minted only after it commits.
-- **Read API:** `GET /users/me/storage` returns `usedBytes`, `limitBytes`, and `remainingBytes` as strings (bigint-safe JSON). It is deprecated: the app moves to `GET /users/me/limits` and each event's `limits` and `usage` ([event-quotas.md](./event-quotas.md)), and the route goes once it no longer calls it.
+- **Read API:** `GET /users/me/storage` returns `usedBytes`, `limitBytes`, and `remainingBytes` as strings (bigint-safe JSON). It runs the same usage query outside a transaction, so `remainingBytes` is the room left before the next reservation.
 - **Limit:** `User.storageLimitBytes` (`BigInt`; the Prisma `@default` and `FREE_TIER_STORAGE_LIMIT_BYTES` must stay in sync at 5 GiB). It is read inside the reservation transaction so it shares the snapshot with the usage query. There is no env override: raising a limit is a row update, not a redeploy. Usage remains computed from `Photo` rows.
 
 Over-quota uploads return **413 Payload Too Large** with message `Storage quota exceeded`.

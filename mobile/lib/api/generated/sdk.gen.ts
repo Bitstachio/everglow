@@ -260,10 +260,6 @@ export const usersControllerGetMyLimits = <ThrowOnError extends boolean = false>
 
 /**
  * Get current user photo storage quota
- *
- * Deprecated: there is no personal storage limit any more. Each gallery has its own (an event's limits and usage), and GET /users/me/limits has the account's. Removed once the app no longer calls it.
- *
- * @deprecated
  */
 export const usersControllerGetMyStorage = <ThrowOnError extends boolean = false>(
   options?: Options<UsersControllerGetMyStorageData, ThrowOnError>,

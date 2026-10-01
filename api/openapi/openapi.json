@@ -311,8 +311,6 @@
     },
     "/api/v2/users/me/storage": {
       "get": {
-        "deprecated": true,
-        "description": "Deprecated: there is no personal storage limit any more. Each gallery has its own (an event's limits and usage), and GET /users/me/limits has the account's. Removed once the app no longer calls it.",
         "operationId": "UsersController_getMyStorage",
         "parameters": [],
         "responses": {
