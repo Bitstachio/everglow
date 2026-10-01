@@ -252,6 +252,8 @@ describe("PhotoStorageService", () => {
     const event = {
       id: eventId,
       plan: "FREE" as const,
+      memberLimit: 30,
+      storageLimitBytes: EVENT_PLAN_LIMITS.FREE.maxGalleryBytes,
       galleryClosesAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       galleryClosedAt: null,
     };
@@ -262,7 +264,7 @@ describe("PhotoStorageService", () => {
     /** The storage the gallery already uses. */
     const held = (bytes: number | bigint | null) =>
       ({ _sum: { sizeBytes: bytes === null ? null : Number(bytes) } }) as never;
-    const { maxGalleryBytes } = EVENT_PLAN_LIMITS.FREE;
+    const maxGalleryBytes = event.storageLimitBytes;
 
     beforeEach(() => {
       tx = mockDeep<Prisma.TransactionClient>();
@@ -308,6 +310,23 @@ describe("PhotoStorageService", () => {
       expect(tx.photo.createMany).not.toHaveBeenCalled();
       // A full gallery is a verdict, not a conflict: no retry.
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("checks the event's own storage limit, not its plan's default", async () => {
+      const upgraded = { ...event, storageLimitBytes: maxGalleryBytes! + 5n * 1024n ** 3n };
+      tx.photo.aggregate.mockResolvedValue(held(maxGalleryBytes! + 1n));
+      tx.photo.createMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.reserveUploadBytes(upgraded, [buildRow(1024)])).resolves.toBeUndefined();
+    });
+
+    it("never refuses a gallery without a storage limit", async () => {
+      tx.photo.createMany.mockResolvedValue({ count: 1 });
+
+      await expect(
+        service.reserveUploadBytes({ ...event, storageLimitBytes: null }, [buildRow(1)]),
+      ).resolves.toBeUndefined();
+      expect(tx.photo.aggregate).not.toHaveBeenCalled();
     });
 
     it("treats an empty gallery (a null byte sum) as zero", async () => {

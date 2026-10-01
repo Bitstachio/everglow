@@ -10,7 +10,7 @@ import {
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, EventPlan, Prisma } from "generated/prisma/client";
 import { EventPlanService } from "src/plans/event-plan.service";
-import { GALLERY_STATES, galleryClosesAt, galleryStateOf } from "src/plans/plans.constants";
+import { GALLERY_STATES, galleryClosesAt, galleryStateOf, planLimitsForEvent } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -77,7 +77,7 @@ export class EventsService {
         data: {
           title: dto.title,
           date,
-          plan: EventPlan.FREE,
+          ...planLimitsForEvent(EventPlan.FREE),
           galleryClosesAt: galleryClosesAt(date, EventPlan.FREE),
           creatorId,
           invitationUrl: participantToken,
