@@ -1,0 +1,76 @@
+import { EventPlan } from "generated/prisma/client";
+
+/**
+ * What one event may hold on its plan (docs/event-quotas.md). Every limit is
+ * read from here through EventPlanService, never hard-coded elsewhere, so a
+ * paid plan is a new EventPlan value plus its row: the Record type refuses to
+ * compile until every plan has one. `null` means no limit.
+ */
+export interface EventPlanLimits {
+  /** Members of every role, organizers included. */
+  maxMembers: number | null;
+  /** PENDING and READY photos, the same rows the upload reservation counts. */
+  maxPhotos: number | null;
+  /** A safety cap on the gallery's bytes; never shown to users. */
+  maxGalleryBytes: bigint | null;
+  /** Days after the event's date that its gallery stays open; null never closes. */
+  galleryWindowDays: number | null;
+}
+
+export const EVENT_PLAN_LIMITS: Record<EventPlan, EventPlanLimits> = {
+  FREE: {
+    maxMembers: 30,
+    maxPhotos: 500,
+    maxGalleryBytes: 3n * 1024n * 1024n * 1024n,
+    galleryWindowDays: 30,
+  },
+};
+
+/**
+ * What an account may do whatever its events' plans are. Everyone is on FREE
+ * until a host subscription exists; it is the seam that subscription plugs
+ * into (EventPlanService.accountPlanFor).
+ */
+export const ACCOUNT_PLANS = {
+  FREE: "FREE",
+} as const;
+
+export type AccountPlan = (typeof ACCOUNT_PLANS)[keyof typeof ACCOUNT_PLANS];
+
+export interface AccountPlanLimits {
+  /** Events the account created whose galleries are still open. Joining never counts. */
+  maxActiveEvents: number;
+}
+
+export const ACCOUNT_PLAN_LIMITS: Record<AccountPlan, AccountPlanLimits> = {
+  FREE: { maxActiveEvents: 2 },
+};
+
+/** Whether an event's gallery still takes photos; see galleryStateOf. */
+export const GALLERY_STATES = {
+  OPEN: "OPEN",
+  CLOSED: "CLOSED",
+} as const;
+
+export type GalleryState = (typeof GALLERY_STATES)[keyof typeof GALLERY_STATES];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** When a gallery on `plan` closes for an event on `date`; null when the plan never closes it. */
+export const galleryClosesAt = (date: Date, plan: EventPlan): Date | null => {
+  const days = EVENT_PLAN_LIMITS[plan].galleryWindowDays;
+  return days === null ? null : new Date(date.getTime() + days * DAY_MS);
+};
+
+/**
+ * CLOSED once the close job has run, or once the close time has passed: the
+ * job runs hourly, and a gallery must not take photos in the gap.
+ */
+export const galleryStateOf = (
+  event: { galleryClosesAt: Date | null; galleryClosedAt: Date | null },
+  now: Date = new Date(),
+): GalleryState => {
+  if (event.galleryClosedAt) return GALLERY_STATES.CLOSED;
+  if (event.galleryClosesAt && event.galleryClosesAt.getTime() <= now.getTime()) return GALLERY_STATES.CLOSED;
+  return GALLERY_STATES.OPEN;
+};

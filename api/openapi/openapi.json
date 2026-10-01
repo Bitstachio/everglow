@@ -3247,6 +3247,57 @@
         ],
         "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review."
       },
+      "EventPlan": {
+        "type": "string",
+        "enum": [
+          "FREE"
+        ],
+        "description": "The plan whose limits apply to this event."
+      },
+      "GalleryState": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "CLOSED"
+        ],
+        "description": "OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state."
+      },
+      "EventLimitsResponseDto": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "number",
+            "nullable": true,
+            "description": "Members of every role, organizers included; null for no limit."
+          },
+          "photos": {
+            "type": "number",
+            "nullable": true,
+            "description": "Photos in the gallery; null for no limit."
+          }
+        },
+        "required": [
+          "members",
+          "photos"
+        ]
+      },
+      "EventUsageResponseDto": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "number",
+            "description": "Members of every role, organizers included."
+          },
+          "photos": {
+            "type": "number",
+            "description": "Photos in the gallery, uploads in progress included."
+          }
+        },
+        "required": [
+          "members",
+          "photos"
+        ]
+      },
       "EventResponseDto": {
         "type": "object",
         "properties": {
@@ -3297,6 +3348,34 @@
               }
             ]
           },
+          "plan": {
+            "description": "The plan whose limits apply to this event.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EventPlan"
+              }
+            ]
+          },
+          "galleryState": {
+            "description": "OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GalleryState"
+              }
+            ]
+          },
+          "galleryClosesAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the gallery closes: the event's date plus its plan's window. Null on a plan that never closes."
+          },
+          "limits": {
+            "$ref": "#/components/schemas/EventLimitsResponseDto"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/EventUsageResponseDto"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -3316,6 +3395,11 @@
           "invites",
           "coverUrl",
           "status",
+          "plan",
+          "galleryState",
+          "galleryClosesAt",
+          "limits",
+          "usage",
           "createdAt",
           "updatedAt"
         ]

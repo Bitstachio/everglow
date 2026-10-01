@@ -128,6 +128,12 @@ model UserDetails {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// The plan an event is on (docs/event-quotas.md); its limits live in
+// src/plans/plans.constants.ts. Paid plans are added here later.
+enum EventPlan {
+  FREE
+}
+
 model Event {
   id               String   @id @default(uuid()) @db.Uuid
   title            String   @db.VarChar(100)
@@ -148,6 +154,12 @@ model Event {
   // "Under review"): no one can join and no photos can be added. Only the
   // platform clears it.
   underReviewAt    DateTime?
+  plan             EventPlan @default(FREE)
+  // When the gallery closes: the event's date plus its plan's window, moved
+  // with the date until it has closed. Null on a plan that never closes.
+  galleryClosesAt  DateTime?
+  // When the close job removed the gallery's photos. The event stays.
+  galleryClosedAt  DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
