@@ -514,6 +514,11 @@ export type UsersControllerCompleteOnboardingErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -573,6 +578,11 @@ export type UsersControllerCheckUsernameAvailabilityErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -632,6 +642,11 @@ export type UsersControllerRemoveMeErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -681,6 +696,11 @@ export type UsersControllerFindMeErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -733,6 +753,11 @@ export type UsersControllerUpdateMeErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -785,6 +810,11 @@ export type UsersControllerGetMyStorageErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -839,6 +869,11 @@ export type UsersControllerGetMyStorageByEventErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -901,6 +936,11 @@ export type UsersControllerListMyPhotosInEventErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -957,6 +997,11 @@ export type UsersControllerDeleteMyPhotosInEventErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1011,6 +1056,11 @@ export type UsersControllerCreateAvatarUploadUrlErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1065,6 +1115,11 @@ export type UsersControllerRemoveAvatarErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1116,6 +1171,11 @@ export type UsersControllerConfirmAvatarUploadErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1174,6 +1234,11 @@ export type UsersControllerCreatePasswordChangeTicketErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1230,6 +1295,11 @@ export type PhotosControllerCreateUploadUrlsErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1286,6 +1356,11 @@ export type PhotosControllerConfirmUploadsErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1348,6 +1423,11 @@ export type PhotosControllerListPhotosErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1403,6 +1483,11 @@ export type PhotosControllerRemoveErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1454,6 +1539,11 @@ export type PhotosControllerFindOneErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1508,6 +1598,11 @@ export type ReportsControllerReportPhotoErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1565,6 +1660,11 @@ export type ReportsControllerReportMemberErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1631,6 +1731,11 @@ export type ReportsControllerListReportsErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1687,6 +1792,11 @@ export type ReportsControllerReportEventErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1743,6 +1853,11 @@ export type ReportsControllerResolveReportErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1797,6 +1912,11 @@ export type BlocksControllerListErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1851,6 +1971,11 @@ export type BlocksControllerUnblockErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1902,6 +2027,11 @@ export type BlocksControllerBlockErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -1954,6 +2084,11 @@ export type EventsControllerFindAllErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2006,6 +2141,11 @@ export type EventsControllerCreateErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2058,6 +2198,11 @@ export type EventsControllerJoinErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2112,6 +2257,11 @@ export type EventsControllerRemoveErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2163,6 +2313,11 @@ export type EventsControllerFindOneErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2217,6 +2372,11 @@ export type EventsControllerUpdateErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2276,6 +2436,11 @@ export type EventsControllerLeaveErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2327,6 +2492,11 @@ export type EventsControllerGetParticipantsErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2384,6 +2554,11 @@ export type EventsControllerUpdateParticipantAccessErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2446,6 +2621,11 @@ export type EventsControllerRemoveParticipantErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2499,6 +2679,11 @@ export type EventsControllerListBansErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2555,6 +2740,11 @@ export type EventsControllerLiftBanErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2606,6 +2796,11 @@ export type EventsControllerRegenerateInvitationUrlErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2663,6 +2858,11 @@ export type EventsControllerRegenerateInviteErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2719,6 +2919,11 @@ export type EventsControllerCreateCoverUploadUrlErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2775,6 +2980,11 @@ export type EventsControllerRemoveCoverErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2828,6 +3038,11 @@ export type EventsControllerConfirmCoverUploadErrors = {
      * Stable machine-readable error code, when the error has one
      */
     code?:
+      | "ACTIVE_EVENT_LIMIT_REACHED"
+      | "EVENT_GALLERY_CLOSED"
+      | "EVENT_MEMBER_LIMIT_REACHED"
+      | "EVENT_PHOTO_LIMIT_REACHED"
+      | "EVENT_STORAGE_LIMIT_REACHED"
       | "EVENT_UNDER_REVIEW"
       | "IMAGE_INVALID_SIZE"
       | "IMAGE_UNSUPPORTED_CONTENT_TYPE"

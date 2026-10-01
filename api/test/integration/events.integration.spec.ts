@@ -119,6 +119,9 @@ describe("EventsController (integration)", () => {
     prisma.photo.groupBy.mockResolvedValue([] as never);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    // Plan limits: no active events and a nearly empty event, unless a test says otherwise.
+    prisma.event.count.mockResolvedValue(0);
+    prisma.eventAccess.count.mockResolvedValue(1);
     // No open event reports: covers are visible.
     prisma.report.findMany.mockResolvedValue([]);
     prisma.eventAccess.findMany.mockResolvedValue([]);
@@ -133,6 +136,15 @@ describe("EventsController (integration)", () => {
 
   describe("POST /events", () => {
     const path = EVENTS_BASE_PATH;
+
+    it("returns 403 ACTIVE_EVENT_LIMIT_REACHED when the caller already has 2 active events", async () => {
+      prisma.event.count.mockResolvedValue(2);
+
+      const response = await request(httpServer).post(path).set(authHeader()).send(createEventPayload()).expect(403);
+
+      expect(response.body).toMatchObject({ code: "ACTIVE_EVENT_LIMIT_REACHED" });
+      expect(prisma.event.create).not.toHaveBeenCalled();
+    });
 
     it("returns 201 and a mapped event response on success", async () => {
       const payload = createEventPayload();
@@ -355,6 +367,23 @@ describe("EventsController (integration)", () => {
         code: REMOVED_FROM_EVENT_CODE,
         message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
       });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 EVENT_MEMBER_LIMIT_REACHED when the event already has 30 members", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
+      setupJoinableInvite(buildEvent(), "invite-token");
+      prisma.eventBan.findUnique.mockResolvedValue(null);
+      prisma.userBlock.findMany.mockResolvedValue([]);
+      prisma.eventAccess.count.mockResolvedValue(30);
+
+      const response = await request(httpServer)
+        .post(path)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .send({ invitationUrl: "invite-token" })
+        .expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_MEMBER_LIMIT_REACHED" });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 

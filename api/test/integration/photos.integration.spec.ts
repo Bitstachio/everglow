@@ -4,11 +4,7 @@ import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { PAGINATION_ERRORS } from "src/common/pagination/pagination.constants";
 import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
-import {
-  PHOTO_SERVICE_ERRORS,
-  FREE_TIER_STORAGE_LIMIT_BYTES,
-  STORAGE_RESERVATION_MAX_ATTEMPTS,
-} from "src/photos/photos.constants";
+import { PHOTO_SERVICE_ERRORS, STORAGE_RESERVATION_MAX_ATTEMPTS } from "src/photos/photos.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
@@ -36,9 +32,6 @@ const uploadUrlsPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/event
 const confirmPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos/confirm`;
 const photosListPath = (eventId = TEST_EVENT_ID) => `/${API_GLOBAL_PREFIX}/events/${eventId}/photos`;
 const photoPath = (photoId = TEST_PHOTO_ID) => `/${API_GLOBAL_PREFIX}/photos/${photoId}`;
-
-const ONE_GIB = 1024n ** 3n;
-const TEN_GIB = 10n * ONE_GIB;
 
 type WrappedResponse<T> = {
   data: T;
@@ -104,7 +97,8 @@ describe("PhotosController (integration)", () => {
   beforeEach(() => {
     mockReset(prisma);
     prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-    prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } } as never);
+    // An empty gallery, unless a test says otherwise.
+    prisma.photo.aggregate.mockResolvedValue({ _count: { _all: 0 }, _sum: { sizeBytes: 0 } } as never);
     // Moderation defaults: no photo is over the report threshold, and a photo read one by one is visible.
     prisma.report.groupBy.mockResolvedValue([]);
     prisma.photo.count.mockResolvedValue(1);
@@ -171,21 +165,20 @@ describe("PhotosController (integration)", () => {
       });
     });
 
-    it("mints slots against the caller's own limit when usage is already above the free tier", async () => {
+    it("counts the event's gallery, not the uploader's own photos elsewhere", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
-      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ storageLimitBytes: TEN_GIB }));
-      prisma.photo.aggregate.mockResolvedValue({
-        _sum: { sizeBytes: Number(FREE_TIER_STORAGE_LIMIT_BYTES + 1024n) },
-      } as never);
       prisma.photo.createMany.mockResolvedValue({ count: 1 });
 
       await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(201);
 
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: TEST_USER_ID },
-        select: { storageLimitBytes: true },
+      expect(prisma.photo.aggregate).toHaveBeenCalledWith({
+        where: { eventId: TEST_EVENT_ID, status: { in: ["PENDING", "READY"] } },
+        _count: { _all: true },
+        _sum: { sizeBytes: true },
       });
-      expect(prisma.photo.createMany).toHaveBeenCalledTimes(1);
+      expect(prisma.user.findUnique).not.toHaveBeenCalledWith(
+        expect.objectContaining({ select: { storageLimitBytes: true } }),
+      );
     });
 
     it("returns 400 for a disallowed contentType", async () => {
@@ -230,22 +223,27 @@ describe("PhotosController (integration)", () => {
       expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
     });
 
-    it("returns 413 when the upload would exceed the caller's own storage limit", async () => {
+    it("returns 403 EVENT_PHOTO_LIMIT_REACHED when the gallery has no room for the batch", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
-      // A limit below the free tier proves the ceiling comes from the user row, not the constant.
-      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ storageLimitBytes: ONE_GIB }));
-      prisma.photo.aggregate.mockResolvedValue({ _sum: { sizeBytes: Number(ONE_GIB - 512n) } } as never);
+      prisma.photo.aggregate.mockResolvedValue({ _count: { _all: 500 }, _sum: { sizeBytes: 1024 } } as never);
 
-      const response = await request(httpServer)
-        .post(uploadUrlsPath())
-        .set(authHeader())
-        .send({ files: [{ contentType: "image/jpeg", sizeBytes: 1024 }] })
-        .expect(413);
+      const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
 
-      const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED);
+      expect(response.body).toMatchObject({ code: "EVENT_PHOTO_LIMIT_REACHED" });
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 EVENT_GALLERY_CLOSED once the gallery's close time has passed", async () => {
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventWithAccess([buildOrganizerAccess()]),
+        galleryClosesAt: new Date(Date.now() - 60_000),
+      } as never);
+
+      const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
     it("returns 409 when the quota reservation keeps losing serialization conflicts", async () => {
