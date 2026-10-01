@@ -1,21 +1,14 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  PayloadTooLargeException,
-} from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { jitteredLinearBackoffMs, sleep } from "src/common/utils/async.utils";
 import { EventPlanService, PlannedEvent } from "src/plans/event-plan.service";
-import { isRecordNotFound, isSerializationFailure } from "src/prisma/prisma.errors";
+import { isSerializationFailure } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import {
   PHOTO_SERVICE_ERRORS,
-  STORAGE_QUOTA_EXCEEDED_CODE,
   STORAGE_RESERVATION_CONFLICT_CODE,
   STORAGE_RESERVATION_MAX_ATTEMPTS,
   STORAGE_RESERVATION_RETRY_DELAY_MS,
@@ -40,18 +33,11 @@ export class PhotoStorageService {
     this.logger.setContext(this.constructor.name);
   }
 
-  async getUsedBytes(userId: string, db: Prisma.TransactionClient = this.prisma): Promise<bigint> {
-    const result = await db.photo.aggregate({
-      where: {
-        addedById: userId,
-        status: { in: [PhotoStatus.PENDING, PhotoStatus.READY] },
-      },
-      _sum: { sizeBytes: true },
-    });
-
-    return BigInt(result._sum.sizeBytes ?? 0);
-  }
-
+  /**
+   * A person's uploads against the old personal limit, for the deprecated GET
+   * /users/me/storage only. Nothing enforces that limit: each gallery's
+   * storage is limited by its event's plan (reserveUploadBytes).
+   */
   async getStorageForUser(userId: string): Promise<UserStorageSnapshot> {
     const [limitBytes, usedBytes] = await Promise.all([this.getLimitBytes(userId), this.getUsedBytes(userId)]);
     const remainingBytes = usedBytes >= limitBytes ? 0n : limitBytes - usedBytes;
@@ -63,13 +49,17 @@ export class PhotoStorageService {
     };
   }
 
-  /**
-   * Read-only quota check. It is not race-safe on its own: two concurrent
-   * callers can both pass it before either inserts a row, so never rely on it
-   * to gate an insert — use reserveUploadBytes() for that.
-   */
-  async assertCanUpload(userId: string, requestedBytes: number): Promise<void> {
-    await this.assertWithinQuota(this.prisma, userId, BigInt(requestedBytes));
+  /** Bytes of everything a person uploaded, in progress or ready. */
+  private async getUsedBytes(userId: string): Promise<bigint> {
+    const result = await this.prisma.photo.aggregate({
+      where: {
+        addedById: userId,
+        status: { in: [PhotoStatus.PENDING, PhotoStatus.READY] },
+      },
+      _sum: { sizeBytes: true },
+    });
+
+    return BigInt(result._sum.sizeBytes ?? 0);
   }
 
   /**
@@ -123,59 +113,9 @@ export class PhotoStorageService {
     }
   }
 
-  /**
-   * Raises the account's ceiling by `additionalBytes` and returns the new limit.
-   *
-   * Additive on purpose: a purchase grants capacity rather than declaring a
-   * total, so two grants that overlap accumulate instead of overwriting each
-   * other. Prisma's `increment` is one UPDATE, so there is no read-modify-write
-   * window to lose a grant in, and no transaction is needed.
-   *
-   * Internal only. Billing calls this; nothing routes to it over HTTP, and
-   * lowering a limit is deliberately not offered here.
-   */
-  async addStorageLimit(userId: string, additionalBytes: bigint | number): Promise<bigint> {
-    if (typeof additionalBytes === "number" && !Number.isInteger(additionalBytes)) {
-      throw new BadRequestException(PHOTO_SERVICE_ERRORS.INVALID_STORAGE_INCREMENT(String(additionalBytes)));
-    }
-
-    const increment = BigInt(additionalBytes);
-    if (increment <= 0n) {
-      throw new BadRequestException(PHOTO_SERVICE_ERRORS.INVALID_STORAGE_INCREMENT(increment.toString()));
-    }
-
-    try {
-      const { storageLimitBytes } = await this.prisma.user.update({
-        where: { id: userId },
-        data: { storageLimitBytes: { increment } },
-        select: { storageLimitBytes: true },
-      });
-
-      this.logger.info(
-        {
-          event: "user.storage_limit.increased",
-          userId,
-          additionalBytes: increment.toString(),
-          newLimitBytes: storageLimitBytes.toString(),
-          audit: true,
-        },
-        "User storage limit increased",
-      );
-
-      return storageLimitBytes;
-    } catch (error) {
-      if (isRecordNotFound(error)) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId));
-      throw error;
-    }
-  }
-
-  /**
-   * The uploader's own ceiling (`User.storageLimitBytes`). Billing raises it
-   * per account; there is no global override. Read through `db` so that inside
-   * a transaction it shares the snapshot with the usage query.
-   */
-  private async getLimitBytes(userId: string, db: Prisma.TransactionClient = this.prisma): Promise<bigint> {
-    const user = await db.user.findUnique({
+  /** The old personal limit, `User.storageLimitBytes`, for the deprecated GET /users/me/storage. */
+  private async getLimitBytes(userId: string): Promise<bigint> {
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { storageLimitBytes: true },
     });
@@ -183,20 +123,5 @@ export class PhotoStorageService {
     if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId));
 
     return user.storageLimitBytes;
-  }
-
-  private async assertWithinQuota(db: Prisma.TransactionClient, userId: string, requested: bigint): Promise<void> {
-    const limitBytes = await this.getLimitBytes(userId, db);
-    const usedBytes = await this.getUsedBytes(userId, db);
-
-    if (usedBytes + requested <= limitBytes) return;
-
-    throw new PayloadTooLargeException({
-      code: STORAGE_QUOTA_EXCEEDED_CODE,
-      message: PHOTO_SERVICE_ERRORS.STORAGE_QUOTA_EXCEEDED,
-      usedBytes: usedBytes.toString(),
-      limitBytes: limitBytes.toString(),
-      requestedBytes: requested.toString(),
-    });
   }
 }

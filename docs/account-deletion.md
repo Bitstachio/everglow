@@ -224,7 +224,7 @@ Two things fix it, and both are needed.
 | ------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `EventAccess.userId`                                                | `Cascade` | A membership has no meaning without its member.                                                                                                                          |
 | `Event.creatorId`                                                   | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                                                                                           |
-| `Photo.addedById`                                                   | `SetNull` | A photo may outlive its uploader; usage is summed per uploader, so it then counts toward nobody's quota.                                                                 |
+| `Photo.addedById`                                                   | `SetNull` | A photo may outlive its uploader; it still counts toward its event's gallery storage until the gallery closes.                                                           |
 | `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence that belongs to the event; it outlives whoever filed it, was named in it, or resolved it ([moderation.md](./moderation.md#what-happens-on-delete)). |
 | `EventBan.userId`                                                   | `Cascade` | A ban from an event means nothing once the account is gone. `EventBan.bannedById` is `SetNull`: the ban outlives the organizer who issued it.                            |
 | `Event.coverUpdatedById`                                            | `SetNull` | Attribution of the current cover only; the cover stays.                                                                                                                  |
@@ -259,7 +259,6 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 | `Event.creatorId` on surviving events         | Null.                                                                          |
 | Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere.   |
 | Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                              |
-| Storage quota, purchased limit                | Gone with the row. Kept photos count toward nobody's quota.                    |
 | Reports filed, received or resolved           | Kept in their event with the account's id nulled; they go when the event does. |
 | Blocks, in either direction                   | Deleted by cascade.                                                            |
 

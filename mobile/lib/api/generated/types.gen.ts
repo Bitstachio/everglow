@@ -116,82 +116,6 @@ export type UserStorageResponseDto = {
   remainingBytes: string;
 };
 
-/**
- * MEMBER: still in the event. LEFT: left on their own (can rejoin through the link). REMOVED: an organizer removed them. Photos count toward storage in every case.
- */
-export type EventMembership = "MEMBER" | "LEFT" | "REMOVED";
-
-export type EventStorageUsageResponseDto = {
-  eventId: string;
-  title: string;
-  /**
-   * Short-lived presigned URL of the event cover; null when none is set
-   */
-  coverUrl: string | null;
-  /**
-   * MEMBER: still in the event. LEFT: left on their own (can rejoin through the link). REMOVED: an organizer removed them. Photos count toward storage in every case.
-   */
-  membership: EventMembership;
-  /**
-   * Photos the caller uploaded to this event, including uploads still in progress
-   */
-  photoCount: number;
-  /**
-   * Bytes those photos use; the rows add up to usedBytes
-   */
-  bytes: string;
-};
-
-export type EventStorageUsageListResponseDto = {
-  /**
-   * Largest first
-   */
-  items: Array<EventStorageUsageResponseDto>;
-};
-
-export type OwnPhotoResponseDto = {
-  id: string;
-  /**
-   * Presigned S3 GET URL, valid for a short period
-   */
-  url: string;
-  contentType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
-  /**
-   * Bytes this photo uses
-   */
-  sizeBytes: number;
-  createdAt: string;
-};
-
-export type OwnPhotoListResponseDto = {
-  /**
-   * Newest first
-   */
-  items: Array<OwnPhotoResponseDto>;
-  /**
-   * Opaque cursor for the next page; pass it as ?cursor=. Null on the last page.
-   */
-  nextCursor: string | null;
-};
-
-export type DeleteOwnPhotosResponseDto = {
-  /**
-   * Photos actually deleted
-   */
-  photosDeleted: number;
-  /**
-   * Bytes returned to the caller's storage
-   */
-  bytesFreed: string;
-};
-
-export type DeleteOwnPhotosDto = {
-  /**
-   * The photos to delete. Omit it to delete all of your photos in the event. Ids that are not your photos in this event are ignored.
-   */
-  photoIds?: Array<string>;
-};
-
 export type UpdateUserDto = {
   name?: string;
   /**
@@ -570,7 +494,6 @@ export type UsersControllerCompleteOnboardingErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -633,7 +556,6 @@ export type UsersControllerCheckUsernameAvailabilityErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -696,7 +618,6 @@ export type UsersControllerRemoveMeErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -749,7 +670,6 @@ export type UsersControllerFindMeErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -805,7 +725,6 @@ export type UsersControllerUpdateMeErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -861,7 +780,6 @@ export type UsersControllerGetMyLimitsErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -918,7 +836,6 @@ export type UsersControllerGetMyStorageErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -941,190 +858,6 @@ export type UsersControllerGetMyStorageResponses = {
 
 export type UsersControllerGetMyStorageResponse =
   UsersControllerGetMyStorageResponses[keyof UsersControllerGetMyStorageResponses];
-
-export type UsersControllerGetMyStorageByEventData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/v2/users/me/storage/events";
-};
-
-export type UsersControllerGetMyStorageByEventErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-  /**
-   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
-   */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
-};
-
-export type UsersControllerGetMyStorageByEventError =
-  UsersControllerGetMyStorageByEventErrors[keyof UsersControllerGetMyStorageByEventErrors];
-
-export type UsersControllerGetMyStorageByEventResponses = {
-  /**
-   * Storage used per event
-   */
-  200: {
-    data: EventStorageUsageListResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type UsersControllerGetMyStorageByEventResponse =
-  UsersControllerGetMyStorageByEventResponses[keyof UsersControllerGetMyStorageByEventResponses];
-
-export type UsersControllerListMyPhotosInEventData = {
-  body?: never;
-  path: {
-    eventId: string;
-  };
-  query?: {
-    /**
-     * Opaque cursor: the nextCursor value from the previous page. Omit for the first page.
-     */
-    cursor?: string;
-    limit?: number;
-  };
-  url: "/api/v2/users/me/storage/events/{eventId}/photos";
-};
-
-export type UsersControllerListMyPhotosInEventErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-  /**
-   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
-   */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
-};
-
-export type UsersControllerListMyPhotosInEventError =
-  UsersControllerListMyPhotosInEventErrors[keyof UsersControllerListMyPhotosInEventErrors];
-
-export type UsersControllerListMyPhotosInEventResponses = {
-  /**
-   * The caller's photos in the event
-   */
-  200: {
-    data: OwnPhotoListResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type UsersControllerListMyPhotosInEventResponse =
-  UsersControllerListMyPhotosInEventResponses[keyof UsersControllerListMyPhotosInEventResponses];
-
-export type UsersControllerDeleteMyPhotosInEventData = {
-  body: DeleteOwnPhotosDto;
-  path: {
-    eventId: string;
-  };
-  query?: never;
-  url: "/api/v2/users/me/storage/events/{eventId}/photos/delete";
-};
-
-export type UsersControllerDeleteMyPhotosInEventErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-  /**
-   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
-   */
-  429: {
-    message?: string;
-    /**
-     * Stable machine-readable error code, when the error has one
-     */
-    code?:
-      | "ACTIVE_EVENT_LIMIT_REACHED"
-      | "EVENT_GALLERY_CLOSED"
-      | "EVENT_MEMBER_LIMIT_REACHED"
-      | "EVENT_STORAGE_LIMIT_REACHED"
-      | "EVENT_UNDER_REVIEW"
-      | "IMAGE_INVALID_SIZE"
-      | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
-      | "IMAGE_UPLOAD_EXPIRED"
-      | "IMAGE_UPLOAD_NOT_FOUND"
-      | "IMAGE_UPLOAD_REJECTED"
-      | "ORGANIZER_BLOCKED_BY_CALLER"
-      | "RATE_LIMIT_EXCEEDED"
-      | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
-      | "STORAGE_RESERVATION_CONFLICT"
-      | "USERNAME_CHANGE_LIMITED"
-      | "USERNAME_TAKEN";
-    meta: ResponseMetaDto;
-  };
-};
-
-export type UsersControllerDeleteMyPhotosInEventError =
-  UsersControllerDeleteMyPhotosInEventErrors[keyof UsersControllerDeleteMyPhotosInEventErrors];
-
-export type UsersControllerDeleteMyPhotosInEventResponses = {
-  /**
-   * What was deleted and how much space it freed
-   */
-  200: {
-    data: DeleteOwnPhotosResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type UsersControllerDeleteMyPhotosInEventResponse =
-  UsersControllerDeleteMyPhotosInEventResponses[keyof UsersControllerDeleteMyPhotosInEventResponses];
 
 export type UsersControllerCreateAvatarUploadUrlData = {
   body: CreateImageUploadDto;
@@ -1160,7 +893,6 @@ export type UsersControllerCreateAvatarUploadUrlErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1218,7 +950,6 @@ export type UsersControllerRemoveAvatarErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1273,7 +1004,6 @@ export type UsersControllerConfirmAvatarUploadErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1335,7 +1065,6 @@ export type UsersControllerCreatePasswordChangeTicketErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1395,7 +1124,6 @@ export type PhotosControllerCreateUploadUrlsErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1455,7 +1183,6 @@ export type PhotosControllerConfirmUploadsErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1521,7 +1248,6 @@ export type PhotosControllerListPhotosErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1580,7 +1306,6 @@ export type PhotosControllerRemoveErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1635,7 +1360,6 @@ export type PhotosControllerFindOneErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1693,7 +1417,6 @@ export type ReportsControllerReportPhotoErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1754,7 +1477,6 @@ export type ReportsControllerReportMemberErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1824,7 +1546,6 @@ export type ReportsControllerListReportsErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1884,7 +1605,6 @@ export type ReportsControllerReportEventErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -1944,7 +1664,6 @@ export type ReportsControllerResolveReportErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2002,7 +1721,6 @@ export type BlocksControllerListErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2060,7 +1778,6 @@ export type BlocksControllerUnblockErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2115,7 +1832,6 @@ export type BlocksControllerBlockErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2171,7 +1887,6 @@ export type EventsControllerFindAllErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2227,7 +1942,6 @@ export type EventsControllerCreateErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2283,7 +1997,6 @@ export type EventsControllerJoinErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2341,7 +2054,6 @@ export type EventsControllerRemoveErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2396,7 +2108,6 @@ export type EventsControllerFindOneErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2454,7 +2165,6 @@ export type EventsControllerUpdateErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2483,7 +2193,7 @@ export type EventsControllerLeaveData = {
   };
   query?: {
     /**
-     * What happens to the photos you uploaded to this event. KEEP (default): they stay in the event and keep counting toward your storage; you can still delete them later from GET /users/me/storage/events. DELETE: they are all deleted now and the space is freed.
+     * What happens to the photos you uploaded to this event. KEEP (default): they stay in the event, credited to you, until its gallery closes. DELETE: they are all deleted now, unless the gallery has already closed, in which case nothing is deleted.
      */
     photos?: MemberPhotos;
   };
@@ -2517,7 +2227,6 @@ export type EventsControllerLeaveErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2572,7 +2281,6 @@ export type EventsControllerGetParticipantsErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2633,7 +2341,6 @@ export type EventsControllerUpdateParticipantAccessErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2699,7 +2406,6 @@ export type EventsControllerRemoveParticipantErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2756,7 +2462,6 @@ export type EventsControllerListBansErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2816,7 +2521,6 @@ export type EventsControllerLiftBanErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2871,7 +2575,6 @@ export type EventsControllerRegenerateInvitationUrlErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2932,7 +2635,6 @@ export type EventsControllerRegenerateInviteErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -2992,7 +2694,6 @@ export type EventsControllerCreateCoverUploadUrlErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -3052,7 +2753,6 @@ export type EventsControllerRemoveCoverErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";
@@ -3109,7 +2809,6 @@ export type EventsControllerConfirmCoverUploadErrors = {
       | "ORGANIZER_BLOCKED_BY_CALLER"
       | "RATE_LIMIT_EXCEEDED"
       | "REMOVED_FROM_EVENT"
-      | "STORAGE_QUOTA_EXCEEDED"
       | "STORAGE_RESERVATION_CONFLICT"
       | "USERNAME_CHANGE_LIMITED"
       | "USERNAME_TAKEN";

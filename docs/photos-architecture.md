@@ -20,7 +20,7 @@ The three-step protocol this shares with avatars and event covers, and the per-p
    For each file, API:
    - validates contentType allowlist + size cap
    - generates a `photoId` (uuid) and `s3Key = photos/{userId}/{eventId}/{photoId}` (one bucket, one prefix per uploader)
-   - reserves the batch against the uploader's storage quota and inserts a `Photo` row with `status: PENDING` per file — both in one Serializable transaction (see §9)
+   - reserves the batch against the event's gallery storage and inserts a `Photo` row with `status: PENDING` per file — both in one Serializable transaction (see §9)
    - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular), after the transaction has committed. The URL is bound to the key, the declared `contentType`, and the declared `sizeBytes`. S3 rejects a PUT whose `Content-Type` differs; whether it enforces a signed `Content-Length` is unverified against a real bucket (public reports say it does not), so the size guarantee is confirm's `HeadObject` check
    - if presigning fails after the commit, deletes the batch's `PENDING` rows again so no quota is held for URLs that never reached the client
 3. **API responds** with `[{ photoId, uploadUrl }, ...]`.
@@ -183,7 +183,7 @@ The order is the reverse of the single-photo delete, on purpose. A manual delete
 | Event deleted with pending uploads                              | `onDelete: Cascade` removes rows; the objects of every photo of the event are purged right after the commit (§5). Anything that fails, or lands later, is an orphan for the reconciler (§11).                          |
 | App killed mid-upload                                           | OS background uploader resumes. Presigned URL TTL is 1h to give it room.                                                                                                                                               |
 | Two devices upload simultaneously                               | Each has its own photoId. No conflict.                                                                                                                                                                                 |
-| Two `upload-urls` calls for the same uploader race near the cap | Quota check + insert run in one Serializable transaction; the database aborts the loser, which retries and eventually gets 409 (see §9).                                                                               |
+| Two `upload-urls` calls for the same gallery race near its limit| Usage check + insert run in one Serializable transaction; the database aborts the loser, which retries and eventually gets 409 (see §9).                                                                               |
 | Presigned URL leaked                                            | TTL 1h, limited to one key, content type, and length. Worst case: attacker uploads a file of exactly the declared shape to one key the owner already reserved.                                                         |
 
 ---
@@ -199,8 +199,8 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 - **Async processing queue** (SQS) for any post-upload work (EXIF strip, virus scan, ML tagging).
 - **S3 lifecycle rule** to auto-delete `pending/*` keys after 24h. One-time bucket config, no code. (Could ship as part of v1 if we add a `pending/` prefix.)
 - **Idempotency keys** on `/upload-urls` so retried requests don't mint duplicate rows.
-- **Per-event quota** checks (count and total bytes) before issuing upload slots.
-- **Denormalized storage counter** (`storageUsedBytes` next to `storageLimitBytes` on the user row, bumped under `SELECT … FOR UPDATE`) if `SUM(sizeBytes)` per reservation becomes too expensive. Same transaction shape as today, more places to keep in sync (delete, cleanup).
+- ~~**Per-event quota** checks before issuing upload slots.~~ Implemented: each gallery's storage limit comes from its event's plan (§9).
+- **Denormalized storage counter** (`storageUsedBytes` on the event row, bumped under `SELECT … FOR UPDATE`) if `SUM(sizeBytes)` per reservation becomes too expensive. Same transaction shape as today, more places to keep in sync (delete, cleanup).
 - **Rate limiting** on `/upload-urls` to prevent abuse.
 
 ### Reads / performance
@@ -236,11 +236,11 @@ In order of implementation:
 - [x] **`GET /events/:eventId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
 - [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
-- [x] **Per-user storage quota** — 5 GiB free tier enforced at upload-urls; `GET /users/me/storage` for usage.
+- [x] ~~**Per-user storage quota**~~ — replaced by gallery storage per event (§9); `GET /users/me/storage` is deprecated.
 - [x] **Race-safe quota reservation** — usage check + PENDING insert in one Serializable transaction, retried on serialization failure.
 - [x] **Pending photo cleanup** — hourly sweeper deletes stale `PENDING` rows and S3 objects (default age: 24h).
-- [x] **Per-user storage limit** — `User.storageLimitBytes` (default 5 GiB) replaces the global env cap, so billing can raise one account without a redeploy.
-- [x] **Storage limit grants** — internal `PhotoStorageService.addStorageLimit()` for billing to raise one account. No HTTP route, no Stripe yet.
+- [x] ~~**Per-user storage limit**~~ — `User.storageLimitBytes`; no longer enforced, and removed with `GET /users/me/storage`.
+- [x] ~~**Storage limit grants**~~ — removed; storage added to one gallery is `Event.bonusStorageBytes`.
 - [x] **Orphan reconciler** — daily scan deletes S3 objects under `photos/` that no `Photo` row references (§11).
 - [x] **Signed upload shape** — `Content-Type` and `Content-Length` are signed into the PUT URL. S3 enforces the type; size enforcement on PUT is unverified, so confirm remains the size guarantee.
 - [x] **Rejected slots released at confirm** — MISSING deletes the row, MISMATCHED deletes the object and the row; quota returns immediately instead of after the sweep. Confirm is scoped to the caller's own rows, and uploaders can delete their own PENDING rows without event access.
@@ -254,7 +254,7 @@ In order of implementation:
 
 - ~~Cleanup sweeper for PENDING rows~~ (hourly job deletes PENDING rows older than 24h and their S3 objects)
 - Idempotency keys
-- Per-user paid storage upgrades — the internal grant method is in place (§9); the Stripe webhook and its idempotency are still future work
+- Paid plans and storage add-ons per event ([event-quotas.md](./event-quotas.md)); the payment webhook and its idempotency are still future work
 - Thumbnails
 - CloudFront
 - S3 Event-driven confirm
@@ -262,87 +262,58 @@ In order of implementation:
 
 ---
 
-## 9. Per-user storage quota (free tier)
+## 9. Gallery storage
 
-Each uploader has their own storage cap, `User.storageLimitBytes` (default **5 GiB**), enforced when upload slots are minted. The product plan in [event-quotas.md](./event-quotas.md) replaces this with per-event limits (EV-64); this section is what ships today.
+Each event's gallery has a storage limit: its plan's `storageLimitBytes` (3 GB on the free plan) plus `Event.bonusStorageBytes`. Everything uploaded to the event counts, whoever uploaded it. The plans, and what happens when a limit is reached, are in [event-quotas.md](./event-quotas.md). There is no personal storage limit.
 
-- **Usage:** `SUM(sizeBytes)` over the caller's photos with `status IN (PENDING, READY)`. Pending rows count so clients cannot bypass the cap by minting slots without confirming.
-- **Enforcement:** `PhotoStorageService.reserveUploadBytes()` in `PhotosService.createUploadSlots()`, after CASL authorization. The limit lookup, the usage query, and the `createMany` of the batch's PENDING rows run in **one Prisma transaction at `Serializable` isolation**; presigned URLs are minted only after it commits.
-- **Read API:** `GET /users/me/storage` returns `usedBytes`, `limitBytes`, and `remainingBytes` as strings (bigint-safe JSON). It is deprecated: the app moves to `GET /users/me/limits` and each event's `limits` and `usage` ([event-quotas.md](./event-quotas.md)), and the route goes once it no longer calls it.
-- **Limit:** `User.storageLimitBytes` (`BigInt`; the Prisma `@default` and `FREE_TIER_STORAGE_LIMIT_BYTES` must stay in sync at 5 GiB). It is read inside the reservation transaction so it shares the snapshot with the usage query. There is no env override: raising a limit is a row update, not a redeploy. Usage remains computed from `Photo` rows.
+- **Usage:** `SUM(sizeBytes)` over the gallery's photos with `status IN (PENDING, READY)`. Pending rows count so clients cannot bypass the limit by minting slots without confirming.
+- **Enforcement:** `PhotoStorageService.reserveUploadBytes()` in `PhotosService.createUploadSlots()`, after CASL authorization. It refuses a closed gallery (`EVENT_GALLERY_CLOSED`), then runs `EventPlanService.assertGalleryHasRoom()` (the usage query) and the `createMany` of the batch's PENDING rows in **one Prisma transaction at `Serializable` isolation**; presigned URLs are minted only after it commits.
+- **Over the limit:** **403** with `EVENT_STORAGE_LIMIT_REACHED`.
+- **Read API:** each event's `limits.storageBytes` and `usage.storageBytes`, as decimal strings (bigint-safe JSON).
+- **Raising one gallery's limit** is a row update, not a redeploy: `UPDATE "Event" SET "bonusStorageBytes" = "bonusStorageBytes" + 5368709120 WHERE id = '…';` Paid add-ons will do the same.
 
-Over-quota uploads return **413 Payload Too Large** with message `Storage quota exceeded`.
-
-### Raising a user's limit
-
-`PhotoStorageService.addStorageLimit(userId, additionalBytes)` raises one account's ceiling and returns the new limit. It is an internal method: no HTTP route reaches it, and the service that owns the quota read owns the grant.
-
-```ts
-// Future: BillingService, driven by a payment webhook
-const newLimitBytes = await photoStorageService.addStorageLimit(userId, purchasedBytes);
-```
-
-- **Additive, never absolute.** A purchase grants capacity rather than declaring a total, so two overlapping grants accumulate. Prisma's `increment` compiles to one `UPDATE`, so there is no read-modify-write window for a grant to be lost in and no transaction is needed.
-- **Rejects a non-positive or fractional increment** with 400 before touching the row. Lowering a limit is deliberately not offered; a downgrade needs its own method with its own rules about usage already above the new ceiling.
-- **Unknown user** surfaces as 404: Prisma reports `P2025` for an update whose row is missing, recognised through the wrapped cause chain like the serialization failures above.
-- **Every grant logs** `user.storage_limit.increased` with `audit: true` and both byte counts as strings, since bigints are not JSON-serializable.
-- **Idempotency belongs to the caller.** A webhook redelivered twice grants twice; the payment layer must dedupe by event id.
-
-Support can still do it by hand: `UPDATE "User" SET "storageLimitBytes" = 10737418240 WHERE id = '…';`
-
-- **New accounts:** JIT provisioning in `UsersService.resolveByProviderSub()` relies on the column default; no code sets the limit.
-- **Limit lowered below current usage:** new uploads fail with 413 until usage drops; existing photos stay.
-- **Account deleted:** the row goes with it and photos cascade, so there is nothing to reconcile.
+`GET /users/me/storage` still reports a person's uploads against the old personal limit (`User.storageLimitBytes`, 5 GiB). Nothing enforces it; it is deprecated, and goes with the column once the app no longer calls it.
 
 ### Why the check and the insert share a transaction
 
 A plain check-then-insert is two statements, and nothing stops two requests from interleaving them:
 
 ```
-limit 5 GiB, used 4.9 GiB, each request wants 200 MiB
+limit 3 GiB, used 2.9 GiB, each request wants 200 MiB
 
-A: SUM → 4.9 GiB → ok → INSERT 200 MiB
-B: SUM → 4.9 GiB → ok → INSERT 200 MiB   (A's rows are not visible yet)
-→ 5.3 GiB used, ~300 MiB over quota
+A: SUM → 2.9 GiB → ok → INSERT 200 MiB
+B: SUM → 2.9 GiB → ok → INSERT 200 MiB   (A's rows are not visible yet)
+→ 3.3 GiB used, ~300 MiB over the limit
 ```
 
-The same interleaving happens across two API instances behind a load balancer. Under `Serializable` isolation the database tracks the read/write dependencies between the two transactions (each reads the uploader's usage, each inserts rows the other's read should have seen) and aborts one of them with a serialization failure (SQLSTATE `40001`). The survivor commits; the loser re-runs the whole transaction, re-reads usage, and is rejected with 413 if the survivor used up the room.
+The same interleaving happens across two API instances behind a load balancer. Under `Serializable` isolation the database tracks the read/write dependencies between the two transactions (each reads the gallery's usage, each inserts rows the other's read should have seen) and aborts one of them with a serialization failure (SQLSTATE `40001`). The survivor commits; the loser re-runs the whole transaction, re-reads usage, and is refused with `EVENT_STORAGE_LIMIT_REACHED` if the survivor used up the room.
 
 - **Error shapes:** Prisma maps `40001` to `P2034` when a statement inside the callback fails, but a failure raised at `COMMIT` is rethrown as the driver adapter's own error (`{ cause: { kind: "TransactionWriteConflict", originalCode: "40001" } }`). In our measurements roughly a third of conflicts came back in the second shape, so `PhotoStorageService` recognises both (walking the `cause` chain) before deciding to retry.
 - **Retries:** up to `STORAGE_RESERVATION_MAX_ATTEMPTS` (5) attempts with a jittered linear backoff (`STORAGE_RESERVATION_RETRY_DELAY_MS` × attempt, plus up to one delay of jitter). Every lost conflict logs `photo.storage.reservation_conflict` at `warn` with the attempt number.
-- **Giving up:** after the last attempt the request fails with **409 Conflict** (`Storage reservation conflicted with a concurrent upload, please retry`). SSI lets roughly one same-user reservation commit per round, so a burst of N parallel in-quota batches needs about N attempts for the last one; in our measurements, five attempts cleared bursts of eight without a 409, while three started giving up at four. Beyond that the client can retry the same request.
-- **Cost:** no blocking locks. SSI only adds predicate tracking, and the `addedById` index keeps the tracked range narrow. Serializable transactions can also abort spuriously (unrelated rows on a shared index page); the same retry absorbs that.
+- **Giving up:** after the last attempt the request fails with **409 Conflict** (`Storage reservation conflicted with a concurrent upload, please retry`). SSI lets roughly one reservation per gallery commit per round, so a burst of N parallel in-quota batches needs about N attempts for the last one; in our measurements, five attempts cleared bursts of eight without a 409, while three started giving up at four. Beyond that the client can retry the same request.
+- **Cost:** no blocking locks. SSI only adds predicate tracking, and the `(eventId, status, createdAt)` index keeps the tracked range narrow. Serializable transactions can also abort spuriously (unrelated rows on a shared index page); the same retry absorbs that.
 - **Scope:** only the usage query and the insert are inside the transaction. Event lookup and CASL run before it; S3 presigning runs after commit, so a slow S3 call never holds a database transaction open.
-- **Alternative if bursts grow:** a per-uploader `pg_advisory_xact_lock` taken as the first statement of a `READ COMMITTED` transaction makes same-user reservations queue instead of abort — deterministic, no retries, still no schema change. It must not be combined with `Serializable`: that level takes its snapshot before the lock wait ends, so the waiter reads stale usage and aborts anyway.
-
-`PhotoStorageService.assertCanUpload()` remains as a read-only pre-check. It must never gate an insert on its own.
+- **Alternative if bursts grow:** a per-gallery `pg_advisory_xact_lock` (`lockForTransaction`, as joins take for their event) taken as the first statement of a `READ COMMITTED` transaction makes a gallery's reservations queue instead of abort — deterministic, no retries, still no schema change. It must not be combined with `Serializable`: that level takes its snapshot before the lock wait ends, so the waiter reads stale usage and aborts anyway.
 
 ### What it does not cover
 
 - A client under-reporting `sizeBytes` — `Content-Length` is signed into the URL, but S3 enforcing it on a PUT is unverified (a presigned POST with a `content-length-range` policy is the documented way to enforce size). An object of the wrong size that lands is deleted at confirm together with its row, so usage stays right.
 - Orphaned S3 objects — reclaimed by the daily reconciler (§11). Stuck PENDING rows are swept hourly (§10).
 - Multi-region deployments without a shared database — there is no cross-region serialization.
-- Cheaper reads — usage is still `SUM(sizeBytes)` on every reservation. If that becomes a hotspot, the follow-up is a denormalized `storageUsedBytes` counter next to the limit on the user row, updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
+- Cheaper reads — usage is still `SUM(sizeBytes)` on every reservation. If that becomes a hotspot, the follow-up is a denormalized `storageUsedBytes` counter on the event row, updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
 
-Because `PENDING` rows count toward usage, an upload slot holds quota from the moment it is minted. Three things release it early: a confirm that reports `MISSING` or `MISMATCHED` (the verdict deletes the slot), a presign failure (the batch is rolled back), or the uploader calling `DELETE /photos/:photoId` with the id from `upload-urls`, which is allowed for their own `PENDING` rows even after they lose event access. A slot that is neither confirmed nor deleted waits for §10, which has two cutoffs: once the upload URL has expired, a slot with no object at its key is released on the next hourly run, since nothing can ever land on it; a slot whose object did land keeps its quota until the 24h cutoff, because the uploader may still confirm it. Reads still filter to `READY`, so a pending slot never shows up in a list.
-
-### Photos in events you no longer belong to
-
-Usage counts everything a person uploaded, including photos in events they left or were removed from with their photos kept. So those photos stay theirs to delete:
-
-- **Uploaders can always delete their own photos,** whether or not they are still a member (`DELETE /photos/:photoId`, CASL `addedById`).
-- **Leaving asks.** `POST /events/:eventId/leave?photos=KEEP|DELETE`: `KEEP` (the default) leaves the photos in the event, still theirs and still counted; `DELETE` removes them and frees the space. An organizer removing someone chooses the same way ([moderation.md](./moderation.md)).
-- **The storage screen shows where the space goes and lets them take it back.**
-
-  | Endpoint                                                               | Result                                                                                                                                                                                                                            |
-  | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `GET /users/me/storage/events`                                         | One row per event they have photos in, largest first: title, cover, `membership` (`MEMBER`, `LEFT` or `REMOVED`), photo count and bytes. It counts the same statuses as usage, so the rows add up to `usedBytes`                  |
-  | `GET /users/me/storage/events/:eventId/photos`                         | Their own photos in that event, newest first, with sizes; cursor-paginated. Moderation hiding does not apply: these are their own photos                                                                                          |
-  | `POST /users/me/storage/events/:eventId/photos/delete` `{ photoIds? }` | Deletes the given photos (up to 100) or, with no ids, all of theirs in the event. Returns `{ photosDeleted, bytesFreed }`; open reports on them are closed and the objects purged after the commit (`user.storage.photos_purged`) |
-
-Leaving, being removed and the storage screen all delete through one routine (`deleteUploadsInTransaction`), so they close reports and free quota the same way.
+Because `PENDING` rows count toward usage, an upload slot holds gallery storage from the moment it is minted. Three things release it early: a confirm that reports `MISSING` or `MISMATCHED` (the verdict deletes the slot), a presign failure (the batch is rolled back), or the uploader calling `DELETE /photos/:photoId` with the id from `upload-urls`, which is allowed for their own `PENDING` rows even after they lose event access. A slot that is neither confirmed nor deleted waits for §10, which has two cutoffs: once the upload URL has expired, a slot with no object at its key is released on the next hourly run, since nothing can ever land on it; a slot whose object did land keeps its storage until the 24h cutoff, because the uploader may still confirm it. Reads still filter to `READY`, so a pending slot never shows up in a list.
 
 Charging at mint rather than at confirm is deliberate. Not counting pending rows would let a client mint slots past the cap and confirm them later; the reservation in the transaction above is what makes the cap hold. The cost is the window between an abandoned slot and its release, which the expired-slot tier keeps to about an hour and a quarter plus the wait for the next run.
+
+### Photos of people who left
+
+A gallery holds everything uploaded to it until it closes, including photos by people who have since left or been removed:
+
+- **Leaving asks.** `POST /events/:eventId/leave?photos=KEEP|DELETE`: `KEEP` (the default) leaves the photos in the event, still credited to them and counted in its gallery; `DELETE` removes them now. An organizer removing someone chooses the same way ([moderation.md](./moderation.md)). Once the gallery has closed, `DELETE` deletes nothing.
+- **The choice is final in the app.** Nothing lists a person's photos in events they are no longer in, and kept photos go when the gallery closes. The uploader can still delete one by id (`DELETE /photos/:photoId`, CASL `addedById`), member or not.
+
+Leaving and being removed delete through one routine (`deleteUploadsInTransaction`), so they close reports and free gallery storage the same way.
 
 ---
 
@@ -359,7 +330,7 @@ Upload slots that are never confirmed leave `PENDING` rows (and may leave S3 obj
 
 Failed per-photo deletes are logged and retried on the next run; successful deletes are not rolled back. Each tier logs its own completion event (`photo.pending_cleanup.completed`, `photo.pending_cleanup.expired_completed`) with counts.
 
-This job is what makes the quota in §9 self-correcting. Without it an abandoned upload holds its bytes against the uploader's cap permanently; without the expired tier it held them for a day while charging for bytes that never existed. The residual window is the grace plus the wait for the next run, and `DELETE /photos/:photoId` closes it for a client that knows it gave up.
+This job is what makes the gallery storage in §9 self-correcting. Without it an abandoned upload holds its bytes against its gallery's limit permanently; without the expired tier it held them for a day while charging for bytes that never existed. The residual window is the grace plus the wait for the next run, and `DELETE /photos/:photoId` closes it for a client that knows it gave up.
 
 ---
 

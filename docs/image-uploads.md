@@ -33,7 +33,7 @@ interface ImageSlot {
 
 - **Content types:** `image/jpeg`, `image/png`, `image/webp`. Display images are shown to other people on every platform, so only formats every client decodes are accepted (no HEIC/HEIF, unlike event photos); clients re-encode after cropping anyway.
 - **Size:** at most `MAX_IMAGE_SIZE_BYTES` (**5 MB**). Event photos keep their own 25 MB cap.
-- **No storage quota.** Images are not `Photo` rows, so they never count toward `GET /users/me/storage` or the 5 GiB photo quota. One small object per entity does not need one.
+- **No storage limit.** Images are not `Photo` rows, so they never count toward a gallery's storage. One small object per entity does not need a limit.
 
 ### Key layout
 

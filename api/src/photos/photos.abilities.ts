@@ -36,9 +36,9 @@ export const definePhotoAbilities = (can: AbilityBuilder<AppAbility>["can"], use
     event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } },
   });
 
-  // Uploaders can always delete their own photos, membership or not. Photos
-  // kept in an event they left or were removed from still count toward their
-  // storage, so they must be able to take them back (docs/photos-architecture.md
-  // §9). This also covers releasing their own unconfirmed PENDING slots.
+  // Uploaders can always delete their own photos, membership or not: a photo
+  // kept in an event they left or were removed from is still theirs to take
+  // back (docs/photos-architecture.md §9). This also covers releasing their own
+  // unconfirmed PENDING slots.
   can(PHOTO_ACTIONS.DELETE, PHOTO_SUBJECT, { addedById: user.id });
 };

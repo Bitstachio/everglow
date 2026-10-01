@@ -20,19 +20,6 @@ export const UPLOAD_URL_TTL_SECONDS = 3600; // 1 hour to upload a photo
 
 export const DOWNLOAD_URL_TTL_SECONDS = 900; // 15 minutes to download a photo
 
-/** The caller's relation to an event they have photos in, for the storage screen. */
-export const EVENT_MEMBERSHIP = {
-  MEMBER: "MEMBER",
-  /** Left on their own; they can rejoin through the link. */
-  LEFT: "LEFT",
-  /** An organizer removed them, which bans rejoining until lifted. */
-  REMOVED: "REMOVED",
-} as const;
-export type EventMembership = (typeof EVENT_MEMBERSHIP)[keyof typeof EVENT_MEMBERSHIP];
-
-// Photos one storage-screen delete may name; "delete all" sends none.
-export const MAX_OWN_PHOTOS_DELETE_BATCH = 100;
-
 // S3 checks a presigned URL's expiry when the PUT arrives, not when its body
 // finishes, so a PUT that started just before the TTL ran out can still be
 // streaming after it. A slot only counts as expired this long after the TTL.
@@ -61,14 +48,14 @@ const PHOTO_S3_KEY_PATTERNS = [
 /** True for keys the API could have minted; anything else under the prefix is not ours to touch. */
 export const isPhotoS3Key = (key: string): boolean => PHOTO_S3_KEY_PATTERNS.some((pattern) => pattern.test(key));
 
+// The old personal limit, still reported by the deprecated GET /users/me/storage.
+// Nothing enforces it: each gallery's storage is limited by its event's plan.
 export const FREE_TIER_STORAGE_LIMIT_BYTES = 5n * 1024n * 1024n * 1024n; // 5 GiB
-
-export const STORAGE_QUOTA_EXCEEDED_CODE = "STORAGE_QUOTA_EXCEEDED";
 
 export const STORAGE_RESERVATION_CONFLICT_CODE = "STORAGE_RESERVATION_CONFLICT";
 
-// Quota reservation runs as a Serializable transaction. When reservations for
-// the same uploader overlap, Postgres aborts all but one per round with a
+// Upload reservation runs as a Serializable transaction. When reservations for
+// the same gallery overlap, Postgres aborts all but one per round with a
 // serialization failure (SQLSTATE 40001); the losers retry with a short
 // jittered linear backoff before giving up with 409. Five attempts cleared
 // bursts of eight parallel in-quota batches without a 409 when measured
@@ -81,7 +68,7 @@ export const STORAGE_RESERVATION_RETRY_DELAY_MS = 25;
 
 // Stale PENDING rows (never confirmed) are swept after this age. Must exceed
 // UPLOAD_URL_TTL_SECONDS so in-flight background uploads can finish and confirm.
-// Sweeping them is also what releases the quota they hold.
+// Sweeping them is also what releases the gallery storage they hold.
 export const DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS = 24;
 
 export const DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE = 100;
@@ -106,8 +93,5 @@ export const PHOTO_SERVICE_ERRORS = {
   LIST_FORBIDDEN: (eventId: string) => `Not authorized to list photos of event with ID "${eventId}"`,
   READ_FORBIDDEN: (photoId: string) => `Not authorized to read photo with ID "${photoId}"`,
   DELETE_FORBIDDEN: (photoId: string) => `Not authorized to delete photo with ID "${photoId}"`,
-  STORAGE_QUOTA_EXCEEDED: "Storage quota exceeded",
-  INVALID_STORAGE_INCREMENT: (value: string) =>
-    `Storage limit increase must be a positive whole number of bytes, received "${value}"`,
   STORAGE_RESERVATION_CONFLICT: "Storage reservation conflicted with a concurrent upload, please retry",
 };
