@@ -1,3 +1,4 @@
+import { API_ERROR_MESSAGES } from "./error-messages";
 import { createApiError, getErrorCode, getErrorMessage, isApiError, toApiError } from "./errors";
 
 describe("toApiError", () => {
@@ -14,7 +15,20 @@ describe("toApiError", () => {
     expect(error.status).toBe(500);
   });
 
-  it("keeps intentional 4xx messages", () => {
+  it("maps known 4xx codes to product copy instead of Nest messages", () => {
+    const error = toApiError({
+      response: {
+        status: 409,
+        data: { message: 'User with username "jane.doe" already exists', code: "USERNAME_TAKEN" },
+      },
+    });
+
+    expect(error.message).toBe(API_ERROR_MESSAGES.USERNAME_TAKEN);
+    expect(error.status).toBe(409);
+    expect(error.code).toBe("USERNAME_TAKEN");
+  });
+
+  it("hides uncoded 4xx Nest messages behind a generic fallback", () => {
     const error = toApiError({
       response: {
         status: 403,
@@ -22,7 +36,7 @@ describe("toApiError", () => {
       },
     });
 
-    expect(error.message).toBe("Password changes are only available for email and password accounts.");
+    expect(error.message).toBe("Something went wrong. Please try again.");
     expect(error.status).toBe(403);
   });
 
@@ -38,6 +52,7 @@ describe("toApiError", () => {
     expect(error.code).toBe("RATE_LIMIT_EXCEEDED");
     expect(error.retryAfterSeconds).toBe(37);
     expect(getErrorCode(error)).toBe("RATE_LIMIT_EXCEEDED");
+    expect(error.message).toBe(API_ERROR_MESSAGES.RATE_LIMIT_EXCEEDED);
   });
 
   it("maps network failures without a response", () => {
@@ -50,6 +65,11 @@ describe("getErrorMessage", () => {
   it("returns the Error message or the fallback", () => {
     expect(getErrorMessage(new Error("Offline"), "Please try again.")).toBe("Offline");
     expect(getErrorMessage("nope", "Please try again.")).toBe("Please try again.");
+  });
+
+  it("prefers mapped copy when ApiError has a known code", () => {
+    const error = createApiError("raw backend text", { status: 409, code: "USERNAME_TAKEN" });
+    expect(getErrorMessage(error)).toBe(API_ERROR_MESSAGES.USERNAME_TAKEN);
   });
 });
 
