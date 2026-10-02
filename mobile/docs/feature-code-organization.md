@@ -220,21 +220,39 @@ retry. The email action continues to use the existing profile modal.
 ## Profile photo
 
 `useChangeAvatar` owns the flow: pick or take a photo with the picker's square
-crop, then `prepareAvatarImage` (`lib/avatar-image.ts`) centre-crops anything
-still not square, downscales to 1024px and re-encodes as JPEG. Re-encoding is
-what makes HEIC from the camera roll work, since the API only accepts JPEG,
-PNG and WebP up to 5 MB. The upload itself goes through the shared
-`uploadFile` helper (`lib/api/upload-file.ts`), which photos use too; the
-protocol is in `api/docs/uploads.md`.
+crop, then `prepareAvatarImage` hands it to the shared `prepareImage`
+(`lib/prepare-image.ts`), which centre-crops anything still not square,
+downscales to 1024px and re-encodes as JPEG. Re-encoding is what makes HEIC
+from the camera roll work, since the API only accepts JPEG, PNG and WebP up to
+5 MB. The upload goes through `uploadImage` (`lib/api/upload-image.ts`), which
+the event cover uses too; it wraps the `uploadFile` helper
+(`lib/api/upload-file.ts`) that photos also use. The protocol is in
+`docs/uploads.md`.
 
-`useSetAvatarMutation` starts over with a new upload URL once on
-`IMAGE_UPLOAD_EXPIRED` / `IMAGE_UPLOAD_REJECTED`, retries a `409` (another
-device changed the avatar at the same moment) once, and refetches the user if
-the conflict persists. A `429` blocks further attempts until `Retry-After` has
-passed. The shared `Avatar` component (`components/ui/avatar.tsx`) shows the
-photo in settings and the members list with an initial as the fallback, and
-caches by user id and uploaded object rather than by the presigned URL, which
-changes on every fetch.
+`uploadImage` starts over with a new upload URL once on
+`IMAGE_UPLOAD_EXPIRED` / `IMAGE_UPLOAD_REJECTED` and retries a `409` (another
+device changed the avatar at the same moment) once; `useSetAvatarMutation`
+refetches the user if the conflict persists. A `429` blocks further attempts
+until `Retry-After` has passed. The shared `Avatar` component
+(`components/ui/avatar.tsx`) shows the photo in settings and the members list
+with an initial as the fallback, and caches by user id and uploaded object
+rather than by the presigned URL, which changes on every fetch.
+
+## Event cover
+
+Organizers set, change or remove an event's cover from the Cover Photo row in
+event settings, which non-organizers never reach (the screen sends them back).
+`useChangeEventCover` mirrors the avatar flow: the picker crops to 16:9, and
+`prepareCoverImage` (`features/events/lib/cover-image.ts`) centre-crops anything still not
+16:9, downscales to 1920px wide and re-encodes as JPEG before `uploadImage`.
+
+`useSetEventCoverMutation` and `useRemoveEventCoverMutation` put the returned
+event in the detail cache and refresh the list. After a `409` that survives
+the retry, or a `403` because the caller is no longer an organizer, they
+refetch the event and its members so the screen reflects the change. The
+`EventCover` component shows the cover at 16:9 at the top of event cards and
+the detail screen, renders nothing when `coverUrl` is null, and caches by
+event id and uploaded object like `Avatar`.
 
 ## Legal pages
 

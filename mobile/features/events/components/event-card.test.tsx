@@ -28,3 +28,11 @@ test("sharing invokes only the share callback", async () => {
   expect(onShare).toHaveBeenCalledTimes(1);
   expect(onPress).not.toHaveBeenCalled();
 });
+
+test.each([
+  ["https://bucket.example.com/event-covers/event-1/upload-1?sig=a", true],
+  [null, false],
+])("shows the cover %s only when the event has one", async (coverUrl, shown) => {
+  await render(<EventCard event={buildEvent({ coverUrl })} onPress={jest.fn()} />);
+  expect(screen.queryByTestId("event-cover-image", { includeHiddenElements: true }) !== null).toBe(shown);
+});
