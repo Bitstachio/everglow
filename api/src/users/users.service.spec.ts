@@ -3,6 +3,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AccountDeletionPhotoPolicy, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { ApiException } from "src/common/errors/api.exception";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -209,7 +210,7 @@ describe("UsersService", () => {
       await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toMatchObject({
         response: {
           code: DETAILS_ALREADY_EXIST_CODE,
-          message: USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(userId),
+          message: resolveApiErrorMessage(DETAILS_ALREADY_EXIST_CODE),
         },
       });
       expect(prisma.user.update).not.toHaveBeenCalled();
@@ -231,7 +232,7 @@ describe("UsersService", () => {
         {
           response: {
             code: USERNAME_RESERVED_CODE,
-            message: USER_SERVICE_ERRORS.USERNAME_RESERVED("admin"),
+            message: resolveApiErrorMessage(USERNAME_RESERVED_CODE, { username: "admin" }),
           },
         },
       );
@@ -245,7 +246,7 @@ describe("UsersService", () => {
       await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toMatchObject({
         response: {
           code: USERNAME_TAKEN_CODE,
-          message: USER_SERVICE_ERRORS.USERNAME_TAKEN("jane.doe"),
+          message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: "jane.doe" }),
         },
       });
     });
@@ -301,7 +302,7 @@ describe("UsersService", () => {
       await expect(service.getOnboardedById(userId)).rejects.toMatchObject({
         response: {
           code: ONBOARDING_INCOMPLETE_CODE,
-          message: USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE,
+          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
         },
       });
     });
@@ -386,7 +387,9 @@ describe("UsersService", () => {
         expect((failure as ApiException).getStatus()).toBe(429);
         expect((failure as ApiException).getResponse()).toEqual({
           code: USERNAME_CHANGE_LIMITED_CODE,
-          message: USER_SERVICE_ERRORS.USERNAME_CHANGE_LIMITED(new Date(oldest.getTime() + 14 * day)),
+          message: resolveApiErrorMessage(USERNAME_CHANGE_LIMITED_CODE, {
+            availableAt: new Date(oldest.getTime() + 14 * day),
+          }),
         });
         expect(prisma.usernameChange.create).not.toHaveBeenCalled();
         expect(prisma.user.update).not.toHaveBeenCalled();
@@ -491,7 +494,7 @@ describe("UsersService", () => {
       await expect(service.update(userId, updateDto)).rejects.toMatchObject({
         response: {
           code: ONBOARDING_INCOMPLETE_CODE,
-          message: USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE,
+          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
         },
       });
       expect(prisma.user.update).not.toHaveBeenCalled();
@@ -521,7 +524,7 @@ describe("UsersService", () => {
       await expect(service.update(userId, { username: "taken.name" })).rejects.toMatchObject({
         response: {
           code: USERNAME_TAKEN_CODE,
-          message: USER_SERVICE_ERRORS.USERNAME_TAKEN("taken.name"),
+          message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: "taken.name" }),
         },
       });
     });

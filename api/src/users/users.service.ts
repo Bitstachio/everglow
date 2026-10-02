@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpStatus,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -56,11 +55,7 @@ export class UsersService {
     const user = await this.getById(id);
 
     if (user.details) {
-      throw new ApiException(
-        HttpStatus.CONFLICT,
-        DETAILS_ALREADY_EXIST_CODE,
-        USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id),
-      );
+      throw new ApiException(DETAILS_ALREADY_EXIST_CODE);
     }
 
     const username = this.requireWritableUsername(dto.username);
@@ -109,11 +104,7 @@ export class UsersService {
     const user = await this.getById(id);
 
     if (!user.details) {
-      throw new ApiException(
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        ONBOARDING_INCOMPLETE_CODE,
-        USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE,
-      );
+      throw new ApiException(ONBOARDING_INCOMPLETE_CODE);
     }
 
     return user as OnboardedUser;
@@ -394,11 +385,7 @@ export class UsersService {
       throw new BadRequestException(`Username "${username}" is not a valid format`);
     }
     if (reason === "RESERVED") {
-      throw new ApiException(
-        HttpStatus.BAD_REQUEST,
-        USERNAME_RESERVED_CODE,
-        USER_SERVICE_ERRORS.USERNAME_RESERVED(username),
-      );
+      throw new ApiException(USERNAME_RESERVED_CODE, { username });
     }
     return username;
   }
@@ -437,11 +424,7 @@ export class UsersService {
 
     const availableAt = await this.usernameChangeAvailableAt(userId, tx);
     if (availableAt) {
-      throw new ApiException(
-        HttpStatus.TOO_MANY_REQUESTS,
-        USERNAME_CHANGE_LIMITED_CODE,
-        USER_SERVICE_ERRORS.USERNAME_CHANGE_LIMITED(availableAt),
-      );
+      throw new ApiException(USERNAME_CHANGE_LIMITED_CODE, { availableAt });
     }
 
     await tx.usernameChange.create({ data: { userId, oldUsername, newUsername } });
@@ -449,6 +432,6 @@ export class UsersService {
 
   private rethrowUsernameTaken(error: unknown, username: string): void {
     if (!isUniqueConstraintViolation(error)) return;
-    throw new ApiException(HttpStatus.CONFLICT, USERNAME_TAKEN_CODE, USER_SERVICE_ERRORS.USERNAME_TAKEN(username));
+    throw new ApiException(USERNAME_TAKEN_CODE, { username });
   }
 }
