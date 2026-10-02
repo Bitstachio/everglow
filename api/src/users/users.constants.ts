@@ -30,6 +30,15 @@ export const USERNAME_CHANGE_LIMITED_CODE = "USERNAME_CHANGE_LIMITED";
 /** Coded 409 when a username write loses a uniqueness race (or is already taken). */
 export const USERNAME_TAKEN_CODE = "USERNAME_TAKEN";
 
+/** Coded 400 when a username write targets a reserved handle. */
+export const USERNAME_RESERVED_CODE = "USERNAME_RESERVED";
+
+/** Coded 409 when createDetails is called after onboarding already finished. */
+export const DETAILS_ALREADY_EXIST_CODE = "DETAILS_ALREADY_EXIST";
+
+/** Coded 422 when an action requires a completed profile and onboarding is unfinished. */
+export const ONBOARDING_INCOMPLETE_CODE = "ONBOARDING_INCOMPLETE";
+
 /** Matches mobile `use-edit-username-form.ts`: lowercase letters, digits, `.`, `_`. */
 export const USERNAME_PATTERN = /^[a-z0-9._]+$/;
 

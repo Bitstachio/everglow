@@ -16,6 +16,7 @@ export type ApiErrorCode = NonNullable<ApiErrorDto["code"]>;
 export const API_ERROR_MESSAGES = {
   ACTIVE_EVENT_LIMIT_REACHED:
     "You already have 2 active events on the free plan. One frees up when a gallery closes or you deactivate an event.",
+  DETAILS_ALREADY_EXIST: "You've already finished setting up your profile.",
   EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
   EVENT_GALLERY_NOT_OPEN: "This event's gallery hasn't opened yet. Photos can be added from the event's date.",
   EVENT_MEMBER_LIMIT_REACHED: "This event is full.",
@@ -28,11 +29,13 @@ export const API_ERROR_MESSAGES = {
   IMAGE_UPLOAD_EXPIRED: "That upload expired. Please request a new upload and try again.",
   IMAGE_UPLOAD_NOT_FOUND: "We couldn't find that upload. Please try uploading again.",
   IMAGE_UPLOAD_REJECTED: "That image couldn't be accepted. Please try a different file.",
+  ONBOARDING_INCOMPLETE: "Please finish setting up your profile to continue.",
   ORGANIZER_BLOCKED_BY_CALLER: "This event is organized by someone you blocked. Unblock them to join.",
   RATE_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
   REMOVED_FROM_EVENT: "You were removed from this event by an organizer.",
   STORAGE_RESERVATION_CONFLICT: "Another upload is in progress. Please try again.",
   USERNAME_CHANGE_LIMITED: "You've changed your username too many times recently. Please try again later.",
+  USERNAME_RESERVED: "This username is reserved",
   USERNAME_TAKEN: "This username is taken",
 } as const satisfies Record<ApiErrorCode, string>;
 

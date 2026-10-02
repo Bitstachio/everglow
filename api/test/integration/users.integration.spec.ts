@@ -9,9 +9,12 @@ import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { hashProviderSub } from "src/users/deleted-provider-sub";
 import {
+  DETAILS_ALREADY_EXIST_CODE,
+  ONBOARDING_INCOMPLETE_CODE,
   USER_AVATAR_S3_KEY_PREFIX,
   USER_SERVICE_ERRORS,
   USERNAME_CHANGE_LIMITED_CODE,
+  USERNAME_RESERVED_CODE,
   USERNAME_TAKEN_CODE,
 } from "src/users/users.constants";
 import { UsersService } from "src/users/users.service";
@@ -181,7 +184,10 @@ describe("UsersController (integration)", () => {
         .expect(400);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.USERNAME_RESERVED("admin"));
+      expect(body).toMatchObject({
+        code: USERNAME_RESERVED_CODE,
+        message: USER_SERVICE_ERRORS.USERNAME_RESERVED("admin"),
+      });
     });
 
     it("returns 409 with USERNAME_TAKEN when username create races", async () => {
@@ -298,7 +304,10 @@ describe("UsersController (integration)", () => {
         .expect(409);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(TEST_USER_ID));
+      expect(body).toMatchObject({
+        code: DETAILS_ALREADY_EXIST_CODE,
+        message: USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(TEST_USER_ID),
+      });
       expect(body.meta.path).toBe(path);
     });
   });
@@ -514,7 +523,10 @@ describe("UsersController (integration)", () => {
 
         const response = await request(httpServer).post(uploadUrlPath).set(authHeader()).send(payload).expect(422);
 
-        expect((response.body as ErrorResponse).message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+        expect(response.body).toMatchObject({
+          code: ONBOARDING_INCOMPLETE_CODE,
+          message: USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE,
+        });
         expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
       });
 
@@ -581,7 +593,10 @@ describe("UsersController (integration)", () => {
 
         const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(422);
 
-        expect((response.body as ErrorResponse).message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+        expect(response.body).toMatchObject({
+          code: ONBOARDING_INCOMPLETE_CODE,
+          message: USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE,
+        });
         expect(s3Service.headObject).not.toHaveBeenCalled();
       });
 
@@ -865,7 +880,10 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer).patch(path).set(authHeader()).send(updateUserPayload()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+      expect(body).toMatchObject({
+        code: ONBOARDING_INCOMPLETE_CODE,
+        message: USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE,
+      });
       expect(body.meta.path).toBe(path);
     });
   });

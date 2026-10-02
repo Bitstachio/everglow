@@ -3447,6 +3447,7 @@
             "type": "string",
             "enum": [
               "ACTIVE_EVENT_LIMIT_REACHED",
+              "DETAILS_ALREADY_EXIST",
               "EVENT_GALLERY_CLOSED",
               "EVENT_GALLERY_NOT_OPEN",
               "EVENT_MEMBER_LIMIT_REACHED",
@@ -3459,11 +3460,13 @@
               "IMAGE_UPLOAD_EXPIRED",
               "IMAGE_UPLOAD_NOT_FOUND",
               "IMAGE_UPLOAD_REJECTED",
+              "ONBOARDING_INCOMPLETE",
               "ORGANIZER_BLOCKED_BY_CALLER",
               "RATE_LIMIT_EXCEEDED",
               "REMOVED_FROM_EVENT",
               "STORAGE_RESERVATION_CONFLICT",
               "USERNAME_CHANGE_LIMITED",
+              "USERNAME_RESERVED",
               "USERNAME_TAKEN"
             ],
             "description": "Stable machine-readable error code, when the error has one"
