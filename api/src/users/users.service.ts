@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { AccountDeletionPhotoPolicy, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ApiException } from "src/common/errors/api.exception";

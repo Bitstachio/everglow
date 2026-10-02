@@ -1,10 +1,6 @@
 import { HttpStatus } from "@nestjs/common";
 import type { ApiErrorDefinition, ApiErrorParams } from "src/common/errors/api-error.types";
-import {
-  EVENT_UNDER_REVIEW_CODE,
-  ORGANIZER_BLOCKED_BY_CALLER_CODE,
-  REMOVED_FROM_EVENT_CODE,
-} from "./events.constants";
+import { EVENT_UNDER_REVIEW_CODE, ORGANIZER_BLOCKED_BY_CALLER_CODE, REMOVED_FROM_EVENT_CODE } from "./events.constants";
 
 export const EVENT_API_ERRORS = {
   [EVENT_UNDER_REVIEW_CODE]: {
