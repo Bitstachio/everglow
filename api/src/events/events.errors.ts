@@ -9,8 +9,10 @@ export const EVENT_API_ERRORS = {
   },
   [ORGANIZER_BLOCKED_BY_CALLER_CODE]: {
     status: HttpStatus.FORBIDDEN,
-    message: ({ organizerName }: ApiErrorParams) =>
-      `Caller blocked event organizer${organizerName == null ? "" : ` "${String(organizerName)}"`}`,
+    message: ({ organizerName }: ApiErrorParams) => {
+      const name = typeof organizerName === "string" ? organizerName : undefined;
+      return `Caller blocked event organizer${name == null ? "" : ` "${name}"`}`;
+    },
   },
   [REMOVED_FROM_EVENT_CODE]: {
     status: HttpStatus.FORBIDDEN,

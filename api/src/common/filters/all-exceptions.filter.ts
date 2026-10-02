@@ -22,9 +22,9 @@ const errorCodeOf = (exception: HttpException): ApiErrorCode | undefined => {
 
 /** Status → HTTP generic code; unknown 5xx → INTERNAL_ERROR; other unmapped → BAD_REQUEST. */
 const genericCodeForStatus = (statusCode: number): ApiErrorCode => {
-  const match = Object.entries(HTTP_API_ERRORS).find(([, definition]) => definition.status === statusCode);
+  const match = Object.entries(HTTP_API_ERRORS).find(([, definition]) => Number(definition.status) === statusCode);
   if (match) return match[0] as ApiErrorCode;
-  if (statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) return INTERNAL_ERROR_CODE;
+  if (statusCode >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) return INTERNAL_ERROR_CODE;
   return BAD_REQUEST_CODE;
 };
 
