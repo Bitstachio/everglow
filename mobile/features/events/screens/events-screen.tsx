@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/avatar";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { EventActionCard } from "../components/event-action-card";
 import { EventInvitationModal } from "../components/event-invitation-modal";
@@ -17,7 +18,7 @@ const EventsScreen = () => {
     isLoading,
     refreshing,
     currentUserId,
-    profileInitial,
+    profileAvatar,
     handleOpenAccountSettings,
     joinSheetVisible,
     selectedEvent,
@@ -46,7 +47,7 @@ const EventsScreen = () => {
           onPress={handleOpenAccountSettings}
           style={styles.profileControl}
         >
-          <Text style={styles.profileInitial}>{profileInitial}</Text>
+          <Avatar {...profileAvatar} size="header" />
         </TouchableOpacity>
       </View>
       <ScrollView
@@ -140,14 +141,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#6366F1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  profileInitial: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#FFFFFF",
   },
   subtitle: {
     fontSize: 16,

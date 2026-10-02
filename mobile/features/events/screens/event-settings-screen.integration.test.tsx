@@ -11,6 +11,7 @@ import { formatEventDateTime } from "../utils";
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
 const mockRemove = jest.fn();
+const mockRemoveCover = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -23,6 +24,7 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
   eventsControllerRemove: (...args: unknown[]) => mockRemove(...args),
+  eventsControllerRemoveCover: (...args: unknown[]) => mockRemoveCover(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
@@ -61,6 +63,7 @@ beforeEach(() => {
   mockFindOne.mockReset();
   mockGetParticipants.mockReset();
   mockRemove.mockReset().mockResolvedValue({});
+  mockRemoveCover.mockReset().mockResolvedValue({});
   mockBack.mockReset();
   mockReplace.mockReset();
   mockPush.mockReset();
@@ -128,4 +131,35 @@ test("sends non-organizers back", async () => {
   );
 
   await waitFor(() => expect(mockBack).toHaveBeenCalled());
+});
+
+const lastAlertButtonLabels = () => {
+  const calls = jest.mocked(Alert.alert).mock.calls;
+  const buttons = calls[calls.length - 1]?.[2] as { text?: string }[] | undefined;
+  return buttons?.map((button) => button.text);
+};
+
+test("offers to add a cover when the event has none", async () => {
+  await renderScreen();
+  expect(await screen.findByText("Cover Photo")).toBeOnTheScreen();
+  expect(screen.getAllByText("Not set").length).toBeGreaterThan(0);
+  expect(screen.queryByTestId("event-cover-image", { includeHiddenElements: true })).toBeNull();
+
+  await userEvent.setup().press(screen.getByLabelText("Cover Photo"));
+  expect(lastAlertButtonLabels()).toEqual(["Take Photo", "Choose from Library", "Cancel"]);
+});
+
+test("shows the current cover and removes it", async () => {
+  await renderScreen(buildEvent({ coverUrl: "https://bucket.example.com/event-covers/event-1/upload-1?sig=a" }));
+  expect(await screen.findByText("Change or remove the cover")).toBeOnTheScreen();
+  expect(screen.getByTestId("event-cover-image", { includeHiddenElements: true })).toBeOnTheScreen();
+
+  await userEvent.setup().press(screen.getByLabelText("Cover Photo"));
+  expect(lastAlertButtonLabels()).toContain("Remove Cover");
+  confirmDestructiveAlert();
+
+  await waitFor(() =>
+    expect(mockRemoveCover).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }),
+  );
+  expect(await screen.findByText("Not set")).toBeOnTheScreen();
 });

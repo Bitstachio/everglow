@@ -3,6 +3,7 @@ import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { SettingsRow } from "@/components/ui/settings-row";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollView, View } from "react-native";
+import { EventCover } from "../components/event-cover";
 import { useEventSettingsScreen } from "../hooks/use-event-settings-screen";
 
 const EventSettingsScreen = () => {
@@ -11,6 +12,9 @@ const EventSettingsScreen = () => {
     isLoading,
     isDeleting,
     dateSummary,
+    coverSummary,
+    isUpdatingCover,
+    handleChangeCover,
     handleOpenTitle,
     handleOpenDescription,
     handleOpenDate,
@@ -28,6 +32,17 @@ const EventSettingsScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
       <ScrollView className="flex-1" contentContainerClassName="gap-6 px-4 pt-4 pb-6">
+        <View className="overflow-hidden rounded-2xl border border-border bg-surface">
+          <EventCover eventId={event.id} uri={event.coverUrl} />
+          <SettingsRow
+            title="Cover Photo"
+            description={coverSummary}
+            icon="image-outline"
+            onPress={handleChangeCover}
+            disabled={isDeleting || isUpdatingCover}
+          />
+        </View>
+
         <View className="overflow-hidden rounded-2xl border border-border bg-surface">
           <SettingsRow
             title="Title"
