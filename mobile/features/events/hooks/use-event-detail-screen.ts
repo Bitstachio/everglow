@@ -15,6 +15,32 @@ import {
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
 import type { PhotoResponseDto } from "../types";
 
+// Event photos upload as picked: no crop step and no re-encode, so group shots
+// and portraits keep their original aspect ratio. Only avatars and covers crop.
+const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ["images"],
+  quality: 1,
+};
+
+const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+/**
+ * The picker's own mimeType when it reports one. Otherwise the file extension,
+ * case-insensitively: iOS names camera-roll files `IMG_0001.HEIC`.
+ */
+const photoMimeType = (asset: ImagePicker.ImagePickerAsset): string => {
+  if (asset.mimeType) return asset.mimeType.toLowerCase();
+  const extension = asset.uri.split(".").pop()?.toLowerCase() ?? "";
+  return MIME_TYPES_BY_EXTENSION[extension] ?? "image/jpeg";
+};
+
 export const useEventDetailScreen = () => {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -67,20 +93,13 @@ export const useEventDetailScreen = () => {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
+      const result = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
 
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
-      const uriParts = asset.uri.split(".");
-      const fileType = uriParts[uriParts.length - 1] || "jpg";
-      const fileName = `event_photo_${Date.now()}.${fileType}`;
-      const mimeType = `image/${fileType}`;
+      const mimeType = photoMimeType(asset);
+      const fileName = `event_photo_${Date.now()}.${mimeType.split("/")[1]}`;
 
       await uploadPhotoMutation.mutateAsync({
         eventId,

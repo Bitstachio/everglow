@@ -11,6 +11,7 @@ import { colorTokens } from "@/theme/tokens";
 import { ChevronRight, Settings } from "lucide-react-native";
 import { Stack } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { EventCover } from "../components/event-cover";
 import { EventDetailInfo } from "../components/event-detail-info";
 import { EventMembersSheet } from "../components/event-members-sheet";
 import { EventPhotosSection } from "../components/event-photos-section";
@@ -78,6 +79,7 @@ const EventDetailScreen = () => {
             />
           }
         >
+          <EventCover eventId={event.id} uri={event.coverUrl} className="rounded-2xl" />
           <EventDetailInfo event={event} />
 
           {isAdmin ? (

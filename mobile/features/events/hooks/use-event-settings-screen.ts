@@ -6,6 +6,7 @@ import { Alert } from "react-native";
 import { useDeleteEventMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import { formatEventDateTime } from "../utils";
+import { useChangeEventCover } from "./use-change-event-cover";
 
 export const useEventSettingsScreen = () => {
   const router = useRouter();
@@ -16,6 +17,7 @@ export const useEventSettingsScreen = () => {
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
   const deleteEventMutation = useDeleteEventMutation();
+  const { isUpdatingCover, handleChangeCover } = useChangeEventCover(eventId ?? "", Boolean(eventQuery.data?.coverUrl));
 
   const event = eventQuery.data ?? null;
   const participants = participantsQuery.data ?? [];
@@ -41,11 +43,16 @@ export const useEventSettingsScreen = () => {
       })()
     : "";
 
+  const coverSummary = isUpdatingCover ? "Updating cover…" : event?.coverUrl ? "Change or remove the cover" : "Not set";
+
   return {
     event,
     isLoading: isLoading || !event || !isAdmin,
     isDeleting: deleteEventMutation.isPending,
     dateSummary,
+    coverSummary,
+    isUpdatingCover,
+    handleChangeCover,
     handleOpenTitle: () => {
       if (!eventId) return;
       router.push(`/events/${eventId}/edit-title`);

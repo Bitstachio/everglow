@@ -1,7 +1,6 @@
 import type { UsersControllerRemoveMeData } from "@/lib/api/generated";
 
 export type {
-  CreateImageUploadDto,
   PasswordChangeTicketResponseDto,
   UpdateUserDto,
   UserDetailsResponseDto,
