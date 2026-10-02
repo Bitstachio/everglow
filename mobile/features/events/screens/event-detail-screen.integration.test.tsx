@@ -233,6 +233,36 @@ test("uploads a selected photo and refreshes the photo list", async () => {
   await waitFor(() => expect(mockListPhotos.mock.calls.length).toBeGreaterThan(photoCallsBefore));
 });
 
+test("picks event photos without a crop step", async () => {
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Add photo"));
+
+  await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalled());
+  const options = mockLaunchLibrary.mock.calls[0][0];
+  expect(options).not.toHaveProperty("allowsEditing");
+  expect(options).not.toHaveProperty("aspect");
+});
+
+test.each([
+  ["the picker's mimeType", { uri: "file://IMG_0001.HEIC", mimeType: "image/heic" }],
+  ["an uppercase extension", { uri: "file://IMG_0001.HEIC" }],
+])("uploads a HEIC photo as image/heic from %s", async (_source, asset) => {
+  mockLaunchLibrary.mockResolvedValue({ canceled: false, assets: [asset] });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Add photo"));
+
+  await waitFor(() =>
+    expect(mockCreateUploadUrls).toHaveBeenCalledWith({
+      path: { eventId: "event-1" },
+      body: { files: [{ contentType: "image/heic", sizeBytes: "image-bytes".length }] },
+      throwOnError: true,
+    }),
+  );
+  expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo uploaded successfully!");
+});
+
 test("blocks upload when photo library permission is denied", async () => {
   mockRequestLibraryPermission.mockResolvedValue({ granted: false });
   await renderScreen();
