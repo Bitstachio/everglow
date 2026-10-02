@@ -1,9 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  eventsControllerConfirmCoverUpload,
   eventsControllerCreate,
+  eventsControllerCreateCoverUploadUrl,
   eventsControllerJoin,
   eventsControllerLeave,
   eventsControllerRemove,
+  eventsControllerRemoveCover,
   eventsControllerRemoveParticipant,
   eventsControllerUpdate,
   photosControllerConfirmUploads,
@@ -13,7 +16,10 @@ import {
 } from "@/lib/api/generated";
 import type { UploadFileDto } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
+import { isApiError } from "@/lib/api/errors";
 import { uploadFile } from "@/lib/api/upload-file";
+import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
+import type { CoverImage } from "../lib/cover-image";
 import { eventsKeys } from "./keys";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, PhotoResponseDto, UpdateEventDto } from "../types";
 
@@ -189,5 +195,75 @@ export const useDeleteEventPhotoMutation = () => {
     onSuccess: async (_data, { eventId }) => {
       await queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
     },
+  });
+};
+
+const uploadEventCover = (eventId: string, image: CoverImage): Promise<EventResponseDto> =>
+  uploadImage({
+    uri: image.uri,
+    contentType: image.contentType,
+    tooLargeMessage: "This photo is too large to use as a cover.",
+    mint: async (file) => {
+      const { data } = await eventsControllerCreateCoverUploadUrl({
+        path: { eventId },
+        body: file,
+        throwOnError: true,
+      });
+      return unwrapEnvelope(data);
+    },
+    confirm: async (uploadId) => {
+      const { data } = await eventsControllerConfirmCoverUpload({
+        path: { eventId },
+        body: { uploadId },
+        throwOnError: true,
+      });
+      return unwrapEnvelope(data);
+    },
+  });
+
+/**
+ * A 409 that survived the retry means another organizer keeps changing the
+ * cover, and a 403 means the caller is no longer an organizer. Either way the
+ * event on screen is stale: refetch it, and the members so the settings screen
+ * notices a lost role.
+ */
+const useRefreshEventAfterCoverError = (eventId: string) => {
+  const queryClient = useQueryClient();
+
+  return async (error: unknown) => {
+    if (!isConflict(error) && !(isApiError(error) && error.status === 403)) return;
+    await invalidateEventCaches(queryClient, eventId);
+  };
+};
+
+export const useSetEventCoverMutation = (eventId: string) => {
+  const queryClient = useQueryClient();
+  const refreshEventAfterCoverError = useRefreshEventAfterCoverError(eventId);
+
+  return useMutation<EventResponseDto, Error, CoverImage>({
+    mutationFn: (image) => uploadEventCover(eventId, image),
+    onSuccess: async (event) => {
+      queryClient.setQueryData(eventsKeys.detail(eventId), event);
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    },
+    onError: refreshEventAfterCoverError,
+  });
+};
+
+export const useRemoveEventCoverMutation = (eventId: string) => {
+  const queryClient = useQueryClient();
+  const refreshEventAfterCoverError = useRefreshEventAfterCoverError(eventId);
+
+  return useMutation<void, Error, void>({
+    mutationFn: async () => {
+      await retryOnceOnConflict(() => eventsControllerRemoveCover({ path: { eventId }, throwOnError: true }));
+    },
+    onSuccess: async () => {
+      queryClient.setQueryData<EventResponseDto>(eventsKeys.detail(eventId), (event) =>
+        event ? { ...event, coverUrl: null } : event,
+      );
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    },
+    onError: refreshEventAfterCoverError,
   });
 };
