@@ -1,6 +1,6 @@
 import type { ApiErrorDto } from "@/lib/api/generated";
 
-export type ApiErrorCode = NonNullable<ApiErrorDto["code"]>;
+export type ApiErrorCode = ApiErrorDto["code"];
 
 export const API_ERROR_MESSAGES = {
   ACTIVE_EVENT_LIMIT_REACHED: "Active event limit reached on the free plan",

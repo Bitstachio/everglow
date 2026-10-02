@@ -1,8 +1,8 @@
-import { ArgumentsHost, Logger, NotFoundException } from "@nestjs/common";
+import { ArgumentsHost, HttpException, Logger, NotFoundException } from "@nestjs/common";
 import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "../rate-limit/rate-limit.constants";
 import { RateLimitExceededException } from "../rate-limit/rate-limit.exception";
 import { HttpAdapterHost } from "@nestjs/core";
-import { INTERNAL_ERROR_CODE, NOT_FOUND_CODE } from "../errors/http.errors";
+import { BAD_REQUEST_CODE, INTERNAL_ERROR_CODE, NOT_FOUND_CODE } from "../errors/http.errors";
 import { resolveApiErrorMessage } from "../errors/api-error-codes";
 import { AllExceptionsFilter, ErrorResponse } from "./all-exceptions.filter";
 
@@ -57,6 +57,18 @@ describe("AllExceptionsFilter", () => {
       meta: { timestamp: expect.any(String) as string, path },
     });
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("maps unmapped 4xx statuses to BAD_REQUEST so every response carries a code", () => {
+    filter.catch(new HttpException("I'm a teapot", 418), host);
+
+    const { body, statusCode } = replyArgs();
+    expect(statusCode).toBe(418);
+    expect(body).toEqual({
+      message: resolveApiErrorMessage(BAD_REQUEST_CODE),
+      code: BAD_REQUEST_CODE,
+      meta: { timestamp: expect.any(String) as string, path },
+    });
   });
 
   it("surfaces a machine-readable code and nothing else from a coded HttpException", () => {

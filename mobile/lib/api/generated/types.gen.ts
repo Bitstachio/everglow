@@ -496,11 +496,11 @@ export type EventBanListResponseDto = {
 export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
 
 export type ApiErrorDto = {
-  message?: string;
+  message: string;
   /**
-   * Stable machine-readable error code, when the error has one
+   * Stable machine-readable error code
    */
-  code?:
+  code:
     | "ACTIVE_EVENT_LIMIT_REACHED"
     | "BAD_REQUEST"
     | "CONFLICT"

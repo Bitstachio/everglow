@@ -8,11 +8,12 @@ describe("ApiErrorDto", () => {
     expect(API_ERROR_SCHEMA_REF).toBe("#/components/schemas/ApiErrorDto");
   });
 
-  it("documents code with the closed API_ERROR_CODES enum", () => {
+  it("documents code with the closed API_ERROR_CODES enum as required", () => {
     const codeMeta = Reflect.getMetadata("swagger/apiModelProperties", ApiErrorDto.prototype, "code") as
-      | { enum?: readonly string[] }
+      | { enum?: readonly string[]; required?: boolean }
       | undefined;
 
     expect(codeMeta?.enum).toEqual([...API_ERROR_CODES]);
+    expect(codeMeta?.required).not.toBe(false);
   });
 });

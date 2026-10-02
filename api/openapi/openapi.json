@@ -3476,13 +3476,15 @@
               "USERNAME_RESERVED",
               "USERNAME_TAKEN"
             ],
-            "description": "Stable machine-readable error code, when the error has one"
+            "description": "Stable machine-readable error code"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
           }
         },
         "required": [
+          "message",
+          "code",
           "meta"
         ]
       }

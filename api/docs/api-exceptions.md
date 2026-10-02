@@ -149,6 +149,7 @@ without a catalog `code`, the filter assigns one from status:
 | 409 | `CONFLICT` |
 | 429 | `TOO_MANY_REQUESTS` |
 | 500 (+ other 5xx) | `INTERNAL_ERROR` |
+| other 4xx | `BAD_REQUEST` |
 
 Definitions: [`src/common/errors/http.errors.ts`](../src/common/errors/http.errors.ts).
 
@@ -160,6 +161,8 @@ Rules:
   constructor strings (those are not a client contract).
 - Unhandled non-HTTP failures still log server-side; the client only sees
   `INTERNAL_ERROR` and the registry message (no stack / internal detail).
+- Every error response includes both `code` and `message` (`ApiErrorDto`
+  marks them required).
 
 Specific product codes remain `ApiException`. Generics stay plain Nest throws.
 
@@ -167,8 +170,8 @@ Specific product codes remain `ApiException`. Generics stay plain Nest throws.
 
 ## Envelope shape
 
-`AllExceptionsFilter` writes `ApiErrorDto`: `message`, `code`, and `meta`.
-Coded throws from `ApiException` always include both `code` and `message` from
-the registry. Uncoded Nest throws get a generic `code`/`message` as above. See
+`AllExceptionsFilter` writes `ApiErrorDto`: required `message`, required `code`,
+and `meta`. Coded throws from `ApiException` use registry values; uncoded Nest
+throws get a generic `code`/`message` as above. See
 [`src/common/errors/api-error.dto.ts`](../src/common/errors/api-error.dto.ts)
 and [`src/common/filters/all-exceptions.filter.ts`](../src/common/filters/all-exceptions.filter.ts).
