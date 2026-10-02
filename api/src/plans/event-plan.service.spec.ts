@@ -1,4 +1,4 @@
-import { ForbiddenException, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, InternalServerErrorException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { Plan, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -11,6 +11,7 @@ describe("EventPlanService", () => {
   let prisma: DeepMockProxy<PrismaClient>;
 
   const GIB = 1024n ** 3n;
+  const DAY_MS = 24 * 60 * 60 * 1000;
   const freeV1: Plan = {
     id: "f0000000-0000-4000-8000-000000000001",
     code: "FREE",
@@ -18,13 +19,22 @@ describe("EventPlanService", () => {
     memberLimit: 30,
     storageLimitBytes: 3n * GIB,
     galleryWindowDays: 30,
+    galleryWindowOptions: [],
     createdAt: new Date("2026-10-01T00:00:00.000Z"),
   };
+  const freeV2: Plan = {
+    ...freeV1,
+    id: "f0000000-0000-4000-8000-000000000002",
+    version: 2,
+    galleryWindowOptions: [3, 7, 14, 30],
+  };
+  /** An open gallery: opened a day ago, closes in a day. */
   const event: PlannedEvent = {
     id: "66666666-6666-6666-6666-666666666666",
     planId: freeV1.id,
     bonusStorageBytes: 0n,
-    galleryClosesAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    galleryOpensAt: new Date(Date.now() - DAY_MS),
+    galleryClosesAt: new Date(Date.now() + DAY_MS),
     galleryClosedAt: null,
   };
 
@@ -74,6 +84,7 @@ describe("EventPlanService", () => {
         plan: "FREE",
         memberLimit: 30,
         storageLimitBytes: 3n * GIB,
+        galleryWindowOptions: [30],
       });
     });
 
@@ -102,6 +113,108 @@ describe("EventPlanService", () => {
     });
   });
 
+  describe("gallery lengths", () => {
+    it("offers a version's options shortest first", () => {
+      expect(service.galleryWindowOptions({ ...freeV2, galleryWindowOptions: [30, 3, 14, 7] })).toEqual([3, 7, 14, 30]);
+    });
+
+    it("offers a version without options its one length", () => {
+      expect(service.galleryWindowOptions(freeV1)).toEqual([30]);
+    });
+
+    it("offers no length on a plan that never closes", () => {
+      expect(service.galleryWindowOptions({ ...freeV1, galleryWindowDays: null })).toEqual([]);
+    });
+
+    it("gives the plan's longest when no length is asked for", () => {
+      expect(service.resolveGalleryWindow(freeV2)).toBe(30);
+    });
+
+    it.each([3, 7, 14, 30])("takes %p days, one of the plan's options", (days) => {
+      expect(service.resolveGalleryWindow(freeV2, days)).toBe(days);
+    });
+
+    it("refuses a length the plan doesn't offer, naming the ones it does", () => {
+      expect(() => service.resolveGalleryWindow(freeV2, 10)).toThrow(
+        new BadRequestException("The gallery length must be one of 3, 7, 14, 30 days."),
+      );
+    });
+
+    it("holds an event on a version without options to its one length", () => {
+      expect(service.resolveGalleryWindow(freeV1, 30)).toBe(30);
+      expect(() => service.resolveGalleryWindow(freeV1, 7)).toThrow(BadRequestException);
+    });
+
+    it("gives no length on a plan that never closes, and refuses one asked for", () => {
+      const neverCloses = { ...freeV1, galleryWindowDays: null };
+
+      expect(service.resolveGalleryWindow(neverCloses)).toBeNull();
+      expect(() => service.resolveGalleryWindow(neverCloses, 30)).toThrow(BadRequestException);
+    });
+  });
+
+  describe("new events", () => {
+    const userId = "11111111-1111-1111-1111-111111111111";
+
+    it("puts a new event on the free plan's newest version", async () => {
+      prisma.plan.findFirst.mockResolvedValue(freeV2);
+
+      await expect(service.newEventPlan(userId)).resolves.toEqual(freeV2);
+      expect(prisma.plan.findFirst).toHaveBeenCalledWith({ where: { code: "FREE" }, orderBy: { version: "desc" } });
+    });
+
+    it("tells the create form the lengths, the default and the latest date", async () => {
+      prisma.plan.findFirst.mockResolvedValue(freeV2);
+
+      await expect(service.newEventTermsFor(userId, new Date("2026-10-01T12:00:00.000Z"))).resolves.toEqual({
+        plan: "FREE",
+        galleryWindowOptions: [3, 7, 14, 30],
+        defaultGalleryWindowDays: 30,
+        latestDate: new Date("2027-10-01T12:00:00.000Z"),
+      });
+    });
+  });
+
+  describe("gallery state", () => {
+    const upcoming = { ...event, galleryOpensAt: new Date(Date.now() + DAY_MS) };
+    const pastCloseTime = { ...event, galleryClosesAt: new Date(Date.now() - 60 * 1000) };
+    const closedByTheJob = { ...event, galleryClosedAt: new Date() };
+
+    /** The code a check refused the event with, or null when it let it through. */
+    const refusalOf = (check: () => void): string | null => {
+      try {
+        check();
+        return null;
+      } catch (error) {
+        expect(error).toBeInstanceOf(ForbiddenException);
+        return ((error as ForbiddenException).getResponse() as { code: string }).code;
+      }
+    };
+
+    it("takes photos while the gallery is open", () => {
+      expect(refusalOf(() => service.assertGalleryOpen(event))).toBeNull();
+    });
+
+    it("refuses photos before the gallery opens", () => {
+      expect(refusalOf(() => service.assertGalleryOpen(upcoming))).toBe(PLAN_LIMIT_CODES.EVENT_GALLERY_NOT_OPEN);
+    });
+
+    it.each([
+      ["its close time has passed", pastCloseTime],
+      ["the close job has run", closedByTheJob],
+    ])("refuses photos once %s", (_, closed) => {
+      expect(refusalOf(() => service.assertGalleryOpen(closed))).toBe(PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED);
+    });
+
+    it("lets people join an upcoming or open event, but not a closed one", () => {
+      expect(refusalOf(() => service.assertGalleryNotClosed(upcoming))).toBeNull();
+      expect(refusalOf(() => service.assertGalleryNotClosed(event))).toBeNull();
+      expect(refusalOf(() => service.assertGalleryNotClosed(pastCloseTime))).toBe(
+        PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED,
+      );
+    });
+  });
+
   describe("accounts", () => {
     const userId = "11111111-1111-1111-1111-111111111111";
 
@@ -109,7 +222,18 @@ describe("EventPlanService", () => {
       await expect(service.accountLimitsFor(userId)).resolves.toEqual({ plan: "FREE", maxActiveEvents: 2 });
     });
 
-    it("counts the account's events whose galleries are open, and finds the one that closes first", async () => {
+    it("counts every event the account created that hasn't closed, upcoming ones included", () => {
+      const now = new Date("2026-10-01T12:00:00.000Z");
+
+      // No condition on galleryOpensAt: an event counts from the moment it is created.
+      expect(activeEventsCreatedBy(userId, now)).toEqual({
+        creatorId: userId,
+        galleryClosedAt: null,
+        OR: [{ galleryClosesAt: null }, { galleryClosesAt: { gt: now } }],
+      });
+    });
+
+    it("counts the account's active events, and finds the one that closes first", async () => {
       const now = new Date("2026-10-01T12:00:00.000Z");
       const closesAt = new Date("2026-10-20T18:00:00.000Z");
       prisma.event.count.mockResolvedValue(2);

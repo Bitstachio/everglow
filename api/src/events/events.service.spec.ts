@@ -1,5 +1,11 @@
 import { accessibleBy } from "@casl/prisma";
-import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AccessLevel, Event, EventAccess, EventInvite, Plan, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -29,16 +35,20 @@ const buildReadAccessibleWhere = (lookupUserId: string): Prisma.EventWhereInput 
 };
 
 describe("EventsService", () => {
-  /** The free plan's first version, as the migration seeds it. */
+  /** The free plan's current version, as the migrations seed it. */
   const freePlan: Plan = {
     id: "f0000000-0000-4000-8000-000000000001",
     code: "FREE",
-    version: 1,
+    version: 2,
     memberLimit: 30,
     storageLimitBytes: 3n * 1024n ** 3n,
     galleryWindowDays: 30,
+    galleryWindowOptions: [3, 7, 14, 30],
     createdAt: new Date("2026-10-01T00:00:00.000Z"),
   };
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  /** The clock for creating and rescheduling, which place a gallery from it. */
+  const today = new Date("2026-10-01T12:00:00.000Z");
 
   let service: EventsService;
   let prisma: DeepMockProxy<PrismaClient>;
@@ -112,6 +122,8 @@ describe("EventsService", () => {
     underReviewAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
+    galleryWindowDays: null,
+    galleryOpensAt: new Date(createEventDto.date),
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -133,6 +145,8 @@ describe("EventsService", () => {
     underReviewAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
+    galleryWindowDays: null,
+    galleryOpensAt: new Date("2026-09-15T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -151,6 +165,8 @@ describe("EventsService", () => {
     underReviewAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
+    galleryWindowDays: null,
+    galleryOpensAt: new Date("2026-08-01T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -390,8 +406,13 @@ describe("EventsService", () => {
 
   describe("create", () => {
     beforeEach(() => {
+      jest.useFakeTimers({ now: today });
       // No active events yet, unless a test says otherwise.
       prisma.event.count.mockResolvedValue(0);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
     });
 
     it("refuses a third active event with 403 ACTIVE_EVENT_LIMIT_REACHED", async () => {
@@ -405,20 +426,70 @@ describe("EventsService", () => {
       expect(prisma.event.create).not.toHaveBeenCalled();
     });
 
-    it("creates the event on the free plan's newest version, closing after that version's window", async () => {
-      const freeV2 = { ...freePlan, id: "f0000000-0000-4000-8000-000000000002", version: 2, galleryWindowDays: 45 };
-      prisma.plan.findFirst.mockResolvedValue(freeV2);
-      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+    it("creates the event on the free plan's newest version, with that version's longest gallery by default", async () => {
+      const freeV3 = {
+        ...freePlan,
+        id: "f0000000-0000-4000-8000-000000000003",
+        version: 3,
+        galleryWindowDays: 45,
+        galleryWindowOptions: [15, 45],
+      };
+      prisma.plan.findFirst.mockResolvedValue(freeV3);
       prisma.event.create.mockResolvedValue(createdEvent);
 
       await service.create(callerId, createEventDto);
 
       expect(prisma.plan.findFirst).toHaveBeenCalledWith({ where: { code: "FREE" }, orderBy: { version: "desc" } });
-      const data = prisma.event.create.mock.calls[0][0].data;
-      expect(data.planId).toBe(freeV2.id);
-      expect(data.galleryClosesAt).toEqual(
-        new Date(new Date(createEventDto.date).getTime() + 45 * 24 * 60 * 60 * 1000),
+      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject({
+        planId: freeV3.id,
+        galleryWindowDays: 45,
+        galleryClosesAt: new Date(today.getTime() + 45 * DAY_MS),
+      });
+    });
+
+    it("opens the gallery on a future date, for the length the host picked", async () => {
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(callerId, { ...createEventDto, date: "2026-11-14T18:00:00.000Z", galleryWindowDays: 7 });
+
+      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject({
+        date: new Date("2026-11-14T18:00:00.000Z"),
+        galleryWindowDays: 7,
+        galleryOpensAt: new Date("2026-11-14T18:00:00.000Z"),
+        galleryClosesAt: new Date("2026-11-21T18:00:00.000Z"),
+      });
+    });
+
+    it("opens the gallery at once for a past date, so the date never shortens it", async () => {
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await service.create(callerId, createEventDto);
+
+      expect(prisma.event.create.mock.calls[0][0].data).toMatchObject({
+        date: new Date(createEventDto.date),
+        galleryWindowDays: 30,
+        galleryOpensAt: today,
+        galleryClosesAt: new Date(today.getTime() + 30 * DAY_MS),
+      });
+    });
+
+    it("refuses a gallery length the plan doesn't offer, creating nothing", async () => {
+      await expect(service.create(callerId, { ...createEventDto, galleryWindowDays: 10 })).rejects.toThrow(
+        new BadRequestException("The gallery length must be one of 3, 7, 14, 30 days."),
       );
+      expect(prisma.event.create).not.toHaveBeenCalled();
+    });
+
+    it("takes a date up to 12 months ahead, and refuses one further, creating nothing", async () => {
+      prisma.event.create.mockResolvedValue(createdEvent);
+
+      await expect(service.create(callerId, { ...createEventDto, date: "2027-10-01T12:00:00.000Z" })).resolves.toEqual(
+        createdEvent,
+      );
+      await expect(service.create(callerId, { ...createEventDto, date: "2027-10-01T12:00:00.001Z" })).rejects.toThrow(
+        new BadRequestException(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(12)),
+      );
+      expect(prisma.event.create).toHaveBeenCalledTimes(1);
     });
 
     it("allows a second active event", async () => {
@@ -429,7 +500,7 @@ describe("EventsService", () => {
       await expect(service.create(callerId, createEventDto)).resolves.toBeDefined();
     });
 
-    it("counts only the creator's events whose galleries are open, under a per-creator lock", async () => {
+    it("counts the creator's events that haven't closed, upcoming ones included, under a per-creator lock", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       prisma.event.create.mockResolvedValue(createdEvent);
 
@@ -472,7 +543,13 @@ describe("EventsService", () => {
       expectParticipantAndViewerInvites(createPayload.data);
       expect(result).toEqual(createdEvent);
       expect(logger.info).toHaveBeenCalledWith(
-        { event: "event.created", eventId: createdEvent.id, creatorId },
+        {
+          event: "event.created",
+          eventId: createdEvent.id,
+          creatorId,
+          galleryWindowDays: 30,
+          galleryOpensAt: createdEvent.galleryOpensAt,
+        },
         "Event created",
       );
     });
@@ -854,6 +931,8 @@ describe("EventsService", () => {
         underReviewAt: null,
         planId: "f0000000-0000-4000-8000-000000000001",
         bonusStorageBytes: 0n,
+        galleryWindowDays: null,
+        galleryOpensAt: eventCreatedByUser.date,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
@@ -987,6 +1066,14 @@ describe("EventsService", () => {
       // Before the ban, review and block checks: it applies to everyone.
       expect(prisma.eventBan.findUnique).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("lets people join an upcoming event, before its gallery opens", async () => {
+      const upcoming = { ...eventCreatedByUser, galleryOpensAt: new Date(Date.now() + DAY_MS) };
+      setupSuccessfulJoin(AccessLevel.PARTICIPANT, upcoming);
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).resolves.toEqual(upcoming);
+      expect(prisma.eventAccess.create).toHaveBeenCalledTimes(1);
     });
 
     it("refuses anyone new while the event is under review", async () => {
@@ -1197,6 +1284,8 @@ describe("EventsService", () => {
         underReviewAt: null,
         planId: "f0000000-0000-4000-8000-000000000001",
         bonusStorageBytes: 0n,
+        galleryWindowDays: null,
+        galleryOpensAt: eventCreatedByUser.date,
         galleryClosesAt: null,
         galleryClosedAt: null,
         createdAt: eventCreatedByUser.createdAt,
@@ -1276,22 +1365,172 @@ describe("EventsService", () => {
   });
 
   describe("update", () => {
-    describe("once the gallery has closed", () => {
-      const closedEvent: Event = { ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) };
+    /** Upcoming: its gallery opens on its date, a month from today, for 30 days. */
+    const upcomingEvent: Event = {
+      ...eventCreatedByUser,
+      date: new Date("2026-11-01T18:00:00.000Z"),
+      galleryWindowDays: 30,
+      galleryOpensAt: new Date("2026-11-01T18:00:00.000Z"),
+      galleryClosesAt: new Date("2026-12-01T18:00:00.000Z"),
+    };
+    /** Open: its gallery opened on its date, two weeks ago, for 30 days. */
+    const openEvent: Event = {
+      ...eventCreatedByUser,
+      galleryWindowDays: 30,
+      galleryClosesAt: new Date("2026-10-15T18:00:00.000Z"),
+    };
+    const asOrganizerOf = (event: Event) =>
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [organizerAccess]));
 
-      it("refuses a new date, which would imply reopening it", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedEvent, [organizerAccess]));
+    beforeEach(() => {
+      jest.useFakeTimers({ now: today });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    describe("while the event is upcoming", () => {
+      beforeEach(() => {
+        asOrganizerOf(upcomingEvent);
+        prisma.event.update.mockResolvedValue(upcomingEvent);
+      });
+
+      it("moves the date, and the gallery opens on the new one for the same length", async () => {
+        await service.update(eventId, callerId, { date: "2026-11-14T18:00:00.000Z" });
+
+        expect(prisma.event.update).toHaveBeenCalledWith({
+          where: { id: eventId },
+          data: {
+            date: new Date("2026-11-14T18:00:00.000Z"),
+            galleryWindowDays: 30,
+            galleryOpensAt: new Date("2026-11-14T18:00:00.000Z"),
+            galleryClosesAt: new Date("2026-12-14T18:00:00.000Z"),
+          },
+        });
+      });
+
+      it("changes the gallery length to another of its plan's options, keeping the date", async () => {
+        await service.update(eventId, callerId, { galleryWindowDays: 7 });
+
+        expect(prisma.event.update).toHaveBeenCalledWith({
+          where: { id: eventId },
+          data: {
+            date: upcomingEvent.date,
+            galleryWindowDays: 7,
+            galleryOpensAt: upcomingEvent.date,
+            galleryClosesAt: new Date("2026-11-08T18:00:00.000Z"),
+          },
+        });
+      });
+
+      it("opens the gallery right away when the new date has passed", async () => {
+        await service.update(eventId, callerId, { date: "2026-09-20T18:00:00.000Z" });
+
+        expect(prisma.event.update.mock.calls[0][0].data).toMatchObject({
+          date: new Date("2026-09-20T18:00:00.000Z"),
+          galleryOpensAt: today,
+          galleryClosesAt: new Date(today.getTime() + 30 * DAY_MS),
+        });
+      });
+
+      it("accepts a date-only ISO string", async () => {
+        await service.update(eventId, callerId, { date: "2026-11-14" });
+
+        expect(prisma.event.update.mock.calls[0][0].data).toMatchObject({
+          date: new Date("2026-11-14"),
+          galleryOpensAt: new Date("2026-11-14"),
+          galleryClosesAt: new Date("2026-12-14"),
+        });
+      });
+
+      it("updates every field it is given together", async () => {
+        await service.update(eventId, callerId, updateAllFieldsDto);
+
+        expect(prisma.event.update).toHaveBeenCalledWith({
+          where: { id: eventId },
+          data: {
+            title: updateAllFieldsDto.title,
+            description: updateAllFieldsDto.description,
+            date: new Date(updateAllFieldsDto.date!),
+            galleryWindowDays: 30,
+            galleryOpensAt: new Date(updateAllFieldsDto.date!),
+            galleryClosesAt: new Date(new Date(updateAllFieldsDto.date!).getTime() + 30 * DAY_MS),
+          },
+        });
+      });
+
+      it("takes a date up to 12 months ahead, and refuses one further", async () => {
+        await expect(service.update(eventId, callerId, { date: "2027-10-01T12:00:00.000Z" })).resolves.toBeDefined();
+        await expect(service.update(eventId, callerId, { date: "2027-10-01T12:00:00.001Z" })).rejects.toThrow(
+          new BadRequestException(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(12)),
+        );
+        expect(prisma.event.update).toHaveBeenCalledTimes(1);
+      });
+
+      it("refuses a length the event's plan doesn't offer", async () => {
+        await expect(service.update(eventId, callerId, { galleryWindowDays: 10 })).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+        expect(prisma.event.update).not.toHaveBeenCalled();
+      });
+
+      it("checks the length against the event's own plan version, not the newest", async () => {
+        prisma.plan.findUnique.mockResolvedValue({ ...freePlan, version: 1, galleryWindowOptions: [] });
+
+        await expect(service.update(eventId, callerId, { galleryWindowDays: 7 })).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+        expect(prisma.plan.findUnique).toHaveBeenCalledWith({ where: { id: upcomingEvent.planId } });
+        expect(prisma.plan.findFirst).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("once the gallery has opened", () => {
+      beforeEach(() => {
+        asOrganizerOf(openEvent);
+      });
+
+      it.each<[string, UpdateEventDto]>([
+        ["date", { date: "2026-12-01T18:00:00.000Z" }],
+        ["gallery length", { galleryWindowDays: 7 }],
+      ])("refuses a new %s with 403 EVENT_SCHEDULE_LOCKED", async (_, dto) => {
+        const failure = await service.update(eventId, callerId, dto).catch((e: unknown) => e);
+
+        expect(failure).toBeInstanceOf(ForbiddenException);
+        expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_SCHEDULE_LOCKED" });
+        expect(prisma.event.update).not.toHaveBeenCalled();
+      });
+
+      it("takes the current date and length as no change, so a form that sends every field still works", async () => {
+        prisma.event.update.mockResolvedValue({ ...openEvent, title: "Renamed" });
+
+        await service.update(eventId, callerId, {
+          title: "Renamed",
+          date: openEvent.date.toISOString(),
+          galleryWindowDays: 30,
+        });
+
+        expect(prisma.event.update).toHaveBeenCalledWith({ where: { id: eventId }, data: { title: "Renamed" } });
+      });
+    });
+
+    describe("once the gallery has closed", () => {
+      const closedEvent: Event = { ...openEvent, galleryClosesAt: new Date("2026-09-30T18:00:00.000Z") };
+
+      it("refuses a new date: a closed gallery never reopens", async () => {
+        asOrganizerOf(closedEvent);
 
         const failure = await service
           .update(eventId, callerId, { date: "2026-12-01T18:00:00.000Z" })
           .catch((e: unknown) => e);
 
-        expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+        expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_SCHEDULE_LOCKED" });
         expect(prisma.event.update).not.toHaveBeenCalled();
       });
 
       it("still lets organizers change the title", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedEvent, [organizerAccess]));
+        asOrganizerOf(closedEvent);
         prisma.event.update.mockResolvedValue({ ...closedEvent, title: "Renamed" });
 
         await service.update(eventId, callerId, { title: "Renamed" });
@@ -1340,29 +1579,6 @@ describe("EventsService", () => {
       expect(result).toEqual(updatedEvent);
     });
 
-    it("updates only the fields provided in the dto", async () => {
-      const updatedEvent: Event = {
-        ...eventCreatedByUser,
-        title: updateAllFieldsDto.title!,
-        date: new Date(updateAllFieldsDto.date!),
-        description: updateAllFieldsDto.description!,
-      };
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
-      prisma.event.update.mockResolvedValue(updatedEvent);
-
-      await service.update(eventId, callerId, updateAllFieldsDto);
-
-      expect(prisma.event.update).toHaveBeenCalledWith({
-        where: { id: eventId },
-        data: {
-          title: updateAllFieldsDto.title,
-          date: new Date(updateAllFieldsDto.date!),
-          galleryClosesAt: new Date(new Date(updateAllFieldsDto.date!).getTime() + 30 * 24 * 60 * 60 * 1000),
-          description: updateAllFieldsDto.description,
-        },
-      });
-    });
-
     it("updates title when only title is provided", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
       prisma.event.update.mockResolvedValue({ ...eventCreatedByUser, title: updateTitleDto.title! });
@@ -1379,22 +1595,13 @@ describe("EventsService", () => {
     });
 
     it("updates date when only date is provided", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
-      prisma.event.update.mockResolvedValue({
-        ...eventCreatedByUser,
-        date: new Date(updateDateDto.date!),
-      });
+      asOrganizerOf(upcomingEvent);
+      prisma.event.update.mockResolvedValue({ ...upcomingEvent, date: new Date(updateDateDto.date!) });
 
       await service.update(eventId, callerId, updateDateDto);
 
-      expect(prisma.event.update).toHaveBeenCalledWith({
-        where: { id: eventId },
-        data: {
-          date: new Date("2026-10-01T18:00:00.000Z"),
-          galleryClosesAt: new Date("2026-10-31T18:00:00.000Z"),
-        },
-      });
       const updateData = prisma.event.update.mock.calls[0][0].data;
+      expect(updateData).toMatchObject({ date: new Date("2026-10-01T18:00:00.000Z") });
       expect(updateData).not.toHaveProperty("title");
       expect(updateData).not.toHaveProperty("description");
     });
@@ -1430,22 +1637,6 @@ describe("EventsService", () => {
       expect(prisma.event.update).toHaveBeenCalledWith({
         where: { id: eventId },
         data: { description: firstDescriptionDto.description },
-      });
-    });
-
-    it("accepts a date-only ISO string", async () => {
-      const dateOnlyDto: UpdateEventDto = { date: "2026-10-01" };
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
-      prisma.event.update.mockResolvedValue({
-        ...eventCreatedByUser,
-        date: new Date("2026-10-01"),
-      });
-
-      await service.update(eventId, callerId, dateOnlyDto);
-
-      expect(prisma.event.update).toHaveBeenCalledWith({
-        where: { id: eventId },
-        data: { date: new Date("2026-10-01"), galleryClosesAt: new Date("2026-10-31") },
       });
     });
 
@@ -1978,6 +2169,17 @@ describe("EventsService", () => {
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
     });
 
+    it("rotates links of an upcoming event, which people can join", async () => {
+      const upcoming = { ...eventCreatedByUser, galleryOpensAt: new Date(Date.now() + DAY_MS) };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(upcoming, [organizerAccess]));
+      prisma.eventInvite.findUnique.mockResolvedValue({ ...viewerInvite, eventId });
+      prisma.eventInvite.update.mockResolvedValue({ ...viewerInvite, eventId });
+      prisma.event.findUniqueOrThrow.mockResolvedValue(upcoming);
+
+      await expect(service.regenerateInvite(eventId, callerId, AccessLevel.VIEWER)).resolves.toEqual(upcoming);
+      expect(prisma.eventInvite.update).toHaveBeenCalledTimes(1);
+    });
+
     it("rotates a VIEWER invite token without updating Event.invitationUrl", async () => {
       const rotatedToken = "rotated-viewer-token";
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
@@ -2030,7 +2232,14 @@ describe("EventsService", () => {
   describe("listInvitesForCaller", () => {
     const invites = [participantInvite, viewerInvite];
 
-    const openGallery = { event: { galleryClosesAt: new Date(Date.now() + 60_000), galleryClosedAt: null } };
+    const gallery = (opensInMs: number, closesInMs: number) => ({
+      event: {
+        galleryOpensAt: new Date(Date.now() + opensInMs),
+        galleryClosesAt: new Date(Date.now() + closesInMs),
+        galleryClosedAt: null,
+      },
+    });
+    const openGallery = gallery(-60_000, 60_000);
 
     it("returns invites when the caller is an organizer", async () => {
       prisma.eventAccess.findUnique.mockResolvedValue({ ...organizerAccess, ...openGallery } as never);
@@ -2040,7 +2249,7 @@ describe("EventsService", () => {
 
       expect(prisma.eventAccess.findUnique).toHaveBeenCalledWith({
         where: { userId_eventId: { userId: callerId, eventId } },
-        include: { event: { select: { galleryClosesAt: true, galleryClosedAt: true } } },
+        include: { event: { select: { galleryOpensAt: true, galleryClosesAt: true, galleryClosedAt: true } } },
       });
       expect(prisma.eventInvite.findMany).toHaveBeenCalledWith({
         where: { eventId, accessLevel: { in: ["PARTICIPANT", "VIEWER"] } },
@@ -2048,11 +2257,15 @@ describe("EventsService", () => {
       expect(result).toEqual(invites);
     });
 
+    it("returns invites for an upcoming event, which people can join", async () => {
+      prisma.eventAccess.findUnique.mockResolvedValue({ ...organizerAccess, ...gallery(60_000, DAY_MS) } as never);
+      prisma.eventInvite.findMany.mockResolvedValue(invites);
+
+      await expect(service.listInvitesForCaller(eventId, callerId)).resolves.toEqual(invites);
+    });
+
     it("returns no invites for a closed event, even to an organizer", async () => {
-      prisma.eventAccess.findUnique.mockResolvedValue({
-        ...organizerAccess,
-        event: { galleryClosesAt: new Date(Date.now() - 60_000), galleryClosedAt: null },
-      } as never);
+      prisma.eventAccess.findUnique.mockResolvedValue({ ...organizerAccess, ...gallery(-DAY_MS, -60_000) } as never);
 
       await expect(service.listInvitesForCaller(eventId, callerId)).resolves.toEqual([]);
       expect(prisma.eventInvite.findMany).not.toHaveBeenCalled();

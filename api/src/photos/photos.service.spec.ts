@@ -71,6 +71,8 @@ describe("PhotosService", () => {
     underReviewAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
+    galleryWindowDays: null,
+    galleryOpensAt: new Date("2026-08-15T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,

@@ -105,16 +105,23 @@ describe("UserMapper", () => {
 
   describe("toLimitsResponseDto", () => {
     const limits = { plan: "FREE" as const, maxActiveEvents: 2 };
+    const newEvent = {
+      plan: "FREE" as const,
+      galleryWindowOptions: [3, 7, 14, 30],
+      defaultGalleryWindowDays: 30,
+      latestDate: new Date("2027-10-01T12:00:00.000Z"),
+    };
 
-    it("pairs the account's limits with its usage and the event that closes first", () => {
+    it("pairs the account's limits with its usage, the event that closes first and what a new event gets", () => {
       const galleryClosesAt = new Date("2026-10-20T18:00:00.000Z");
       const nextClosingEvent = { id: "33333333-3333-3333-3333-333333333333", title: "Book Club", galleryClosesAt };
 
-      expect(UserMapper.toLimitsResponseDto(limits, { activeEvents: 1, nextClosingEvent })).toEqual({
+      expect(UserMapper.toLimitsResponseDto(limits, { activeEvents: 1, nextClosingEvent }, newEvent)).toEqual({
         plan: "FREE",
         limits: { activeEvents: 2 },
         usage: { activeEvents: 1 },
         nextClosingEvent: { id: nextClosingEvent.id, title: "Book Club", galleryClosesAt },
+        newEvent,
       });
     });
 
@@ -122,6 +129,7 @@ describe("UserMapper", () => {
       const result = UserMapper.toLimitsResponseDto(
         { plan: "FREE", maxActiveEvents: null },
         { activeEvents: 0, nextClosingEvent: null },
+        newEvent,
       );
 
       expect(result.limits.activeEvents).toBeNull();

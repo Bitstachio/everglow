@@ -19,6 +19,7 @@ import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
 import { TEST_EVENT_ID } from "./helpers/events.fixtures";
 import { TEST_PHOTO_ID } from "./helpers/photos.fixtures";
+import { buildFreePlan } from "./helpers/plans.fixtures";
 import { authHeader, TEST_APPLE_ACCESS_TOKEN } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
@@ -647,10 +648,17 @@ describe("UsersController (integration)", () => {
       limits: { activeEvents: number | null };
       usage: { activeEvents: number };
       nextClosingEvent: { id: string; title: string; galleryClosesAt: string } | null;
+      newEvent: {
+        plan: string;
+        galleryWindowOptions: number[];
+        defaultGalleryWindowDays: number | null;
+        latestDate: string;
+      };
     };
 
     beforeEach(() => {
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.plan.findFirst.mockResolvedValue(buildFreePlan());
     });
 
     it("returns the plan's active-event limit, the caller's active events and the one that closes first", async () => {
@@ -666,11 +674,32 @@ describe("UsersController (integration)", () => {
         limits: { activeEvents: 2 },
         usage: { activeEvents: 1 },
         nextClosingEvent: { id: TEST_EVENT_ID, title: "Book Club", galleryClosesAt: galleryClosesAt.toISOString() },
+        newEvent: expect.any(Object) as unknown,
       });
       expect(body.meta.path).toBe(path);
     });
 
-    it("counts only events the caller created whose galleries are still open", async () => {
+    it("tells the create form the gallery lengths, the default and the latest date a new event can have", async () => {
+      const day = 24 * 60 * 60 * 1000;
+      prisma.event.count.mockResolvedValue(0);
+      prisma.event.findFirst.mockResolvedValue(null);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+      const { newEvent } = (response.body as WrappedResponse<LimitsBody>).data;
+      expect(newEvent).toEqual({
+        plan: "FREE",
+        galleryWindowOptions: [3, 7, 14, 30],
+        defaultGalleryWindowDays: 30,
+        latestDate: expect.any(String) as unknown,
+      });
+      // 12 months from the request: a year, whatever the month.
+      expect(new Date(newEvent.latestDate).getTime() - Date.now()).toBeGreaterThan(364 * day);
+      expect(new Date(newEvent.latestDate).getTime() - Date.now()).toBeLessThanOrEqual(366 * day);
+      expect(prisma.plan.findFirst).toHaveBeenCalledWith({ where: { code: "FREE" }, orderBy: { version: "desc" } });
+    });
+
+    it("counts only events the caller created that haven't closed", async () => {
       prisma.event.count.mockResolvedValue(0);
       prisma.event.findFirst.mockResolvedValue(null);
 

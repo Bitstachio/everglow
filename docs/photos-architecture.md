@@ -383,11 +383,11 @@ S3 Inventory or Athena-based reconciliation for very large buckets, and an endpo
 
 ## 12. Gallery close
 
-A gallery closes at `Event.galleryClosesAt`, the event's date plus its plan's window ([event-quotas.md](./event-quotas.md)). From that moment uploads are refused and its photos are hidden from everyone, organizers included (`PhotoVisibilityService`, [moderation.md](./moderation.md) §3). This job then removes them. The event, its members and its cover stay.
+A gallery closes at `Event.galleryClosesAt`: it opens on the event's date, or when the event is created if that date has passed, and stays open for the length the host picked ([event-quotas.md](./event-quotas.md)). From that moment uploads are refused and its photos are hidden from everyone, organizers included (`PhotoVisibilityService`, [moderation.md](./moderation.md) §3). This job then removes them. The event, its members and its cover stay.
 
 - **Service:** `GalleryCloseService.closeDueGalleries()`
 - **Schedule:** hourly via `GalleryCloseScheduler`, so a gallery is emptied within an hour of its close time.
-- **Close pass:** open galleries whose close time has passed, longest overdue first, up to `GALLERY_CLOSE_BATCH_SIZE` (default **100**). Each is claimed with a conditional update that sets `galleryClosedAt` only while the gallery is still open and due, so a date moved later in the meantime, or another instance closing it first, leaves it alone.
+- **Close pass:** open galleries whose close time has passed, longest overdue first, up to `GALLERY_CLOSE_BATCH_SIZE` (default **100**). Each is claimed with a conditional update that sets `galleryClosedAt` only while the gallery is still open and due, so a close time moved later in the meantime, or another instance closing it first, leaves it alone.
 - **Sweep pass:** galleries closed earlier that still hold photos no OPEN report needs, up to the same batch size: their reports were resolved since, an upload landed late, or a run stopped half way.
 - **Removal:** every photo without an OPEN report, `PENDING` slots included, `GALLERY_CLOSE_PHOTO_CHUNK_SIZE` (500) at a time: the rows are deleted, then their objects purged (`event.gallery.photos_purged`), the order an event delete uses (§5). There is no long transaction. A run that stops half way leaves the rest to the next sweep, and an object that cannot be deleted is an orphan for §11.
 - **Kept photos:** a photo with an OPEN report stays, hidden, as evidence. The job never closes its reports; once they are resolved, the next sweep removes it. How long evidence may be kept is [EV-61](https://linear.app/mehrshadfb/issue/EV-61).

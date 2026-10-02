@@ -137,16 +137,20 @@ enum EventPlan {
 // version of their plan's code. A new kind of limit is a new column here,
 // never on Event.
 model Plan {
-  id                String    @id @default(uuid()) @db.Uuid
-  code              EventPlan
-  version           Int
+  id                   String    @id @default(uuid()) @db.Uuid
+  code                 EventPlan
+  version              Int
   // Members of every role, organizers included; null means no limit.
-  memberLimit       Int?
+  memberLimit          Int?
   // The gallery's storage, the one limit on what it holds; null means no limit.
-  storageLimitBytes BigInt?
-  // Days after the event's date that its gallery stays open; null never closes.
-  galleryWindowDays Int?
-  createdAt         DateTime  @default(now())
+  storageLimitBytes    BigInt?
+  // The longest a gallery on this plan stays open, in days; null never closes.
+  galleryWindowDays    Int?
+  // The lengths a host can pick when creating an event, in days. The longest
+  // is galleryWindowDays (a check constraint holds it). Empty means the one
+  // length above (the free plan before version 2).
+  galleryWindowOptions Int[]     @default([])
+  createdAt            DateTime  @default(now())
 
   events Event[]
 
@@ -179,8 +183,14 @@ model Event {
   // Storage given to this event on top of its plan, e.g. an add-on or a
   // support grant. Added to the plan's storage limit.
   bonusStorageBytes BigInt    @default(0)
-  // When the gallery closes: the event's date plus its plan's window, moved
-  // with the date until it has closed. Null on a plan that never closes.
+  // How long the host chose to keep the gallery open, in days: one of the
+  // plan's options. Null on a plan that never closes.
+  galleryWindowDays Int?
+  // When uploads open: the later of the event's date and when the event was
+  // created (or, while upcoming, rescheduled). Before this it is upcoming.
+  galleryOpensAt    DateTime
+  // When the gallery closes: galleryOpensAt plus galleryWindowDays. Fixed once
+  // the gallery opens. Null on a plan that never closes.
   galleryClosesAt   DateTime?
   // When the close job removed the gallery's photos. The event stays.
   galleryClosedAt   DateTime?

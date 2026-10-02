@@ -25,6 +25,18 @@ export const EVENT_SERVICE_ERRORS = {
     `This event is organized by ${organizerName ?? "someone"} you blocked. Unblock them to join.`,
   REMOVED_FROM_EVENT: "You were removed from this event by an organizer.",
   UNDER_REVIEW: "This event is under review. No one can join it or add photos until the review is over.",
+  DATE_TOO_FAR_AHEAD: (months: number) => `An event's date can be at most ${months} months ahead.`,
+};
+
+// How far ahead an event's date can be. Any past date is allowed: its gallery
+// opens when the event is created (docs/event-quotas.md).
+export const EVENT_DATE_MAX_MONTHS_AHEAD = 12;
+
+/** The latest date an event can have, EVENT_DATE_MAX_MONTHS_AHEAD months from `now`. */
+export const latestEventDate = (now: Date = new Date()): Date => {
+  const latest = new Date(now);
+  latest.setUTCMonth(latest.getUTCMonth() + EVENT_DATE_MAX_MONTHS_AHEAD);
+  return latest;
 };
 
 // The joiner blocked an organizer of the event they are joining; see docs/moderation.md.
