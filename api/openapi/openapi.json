@@ -3498,7 +3498,7 @@
               "$ref": "#/components/schemas/ApiErrorDto"
             },
             "example": {
-              "message": "Too many requests, please try again later",
+              "message": "Rate limit exceeded",
               "code": "RATE_LIMIT_EXCEEDED",
               "meta": {
                 "timestamp": "2026-06-03T12:00:00.000Z",
