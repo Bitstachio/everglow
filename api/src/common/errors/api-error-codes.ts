@@ -5,10 +5,12 @@ import { PHOTO_API_ERRORS } from "src/photos/photos.errors";
 import { PLAN_API_ERRORS } from "src/plans/plans.errors";
 import { USER_API_ERRORS } from "src/users/users.errors";
 import type { ApiErrorDefinition, ApiErrorParams } from "./api-error.types";
+import { HTTP_API_ERRORS } from "./http.errors";
 
 export type { ApiErrorDefinition, ApiErrorParams } from "./api-error.types";
 
 export const API_ERROR_REGISTRY = {
+  ...HTTP_API_ERRORS,
   ...USER_API_ERRORS,
   ...EVENT_API_ERRORS,
   ...IMAGE_API_ERRORS,

@@ -46,6 +46,7 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 
 | Domain | File |
 | --- | --- |
+| HTTP generics | `src/common/errors/http.errors.ts` |
 | Users | `src/users/users.errors.ts` |
 | Events | `src/events/events.errors.ts` |
 | Images | `src/images/images.errors.ts` |
@@ -73,8 +74,8 @@ Shared types (`ApiErrorDefinition`, `ApiErrorParams`):
 5. Throw with `new ApiException(CODE)` or `new ApiException(CODE, params)`.
 
 Do not invent a code unless a client will branch on it or needs distinct
-translated copy. Prefer fewer codes; HTTP status (and later filter-supplied
-generics) cover the rest.
+translated copy. Prefer fewer codes; HTTP status plus filter-supplied generics
+cover the rest.
 
 ---
 
@@ -101,10 +102,9 @@ When the status alone is enough, or the failure must stay opaque:
 - Other Nest exceptions for coarse “forbidden” / “conflict” when there is no
   catalog code and no client branch.
 
-These still become the shared error envelope via `AllExceptionsFilter`. They
-may omit `code` today; a filter-supplied generic code (e.g. `NOT_FOUND`) is the
-intended follow-up so every response carries a `code` without minting one per
-throw site.
+Do **not** convert these to `ApiException` just to attach a code.
+`AllExceptionsFilter` maps status → a generic catalog code when the exception
+has none (see below).
 
 ### Do not
 
@@ -129,16 +129,46 @@ That is no longer the model for **coded** failures:
   a parallel error-message table for every API failure.
 
 Legacy `USER_SERVICE_ERRORS`-style entries remain only where call sites still
-throw uncoded Nest exceptions (e.g. `NOT_FOUND`, or modules not yet migrated
-to `ApiException`). As those move to `ApiException` or filter generics, those
-string helpers should shrink away.
+throw uncoded Nest exceptions with local operator strings (e.g. modules not yet
+cleaned up). The filter already supplies generic `code`/`message` for those
+responses; shrink the string helpers as call sites stop needing them.
+
+---
+
+## Filter-supplied generic codes
+
+When an `HttpException` (or unhandled throw) reaches `AllExceptionsFilter`
+without a catalog `code`, the filter assigns one from status:
+
+| Status | Code |
+| --- | --- |
+| 400 | `BAD_REQUEST` |
+| 401 | `UNAUTHORIZED` |
+| 403 | `FORBIDDEN` |
+| 404 | `NOT_FOUND` |
+| 409 | `CONFLICT` |
+| 429 | `TOO_MANY_REQUESTS` |
+| 500 (+ other 5xx) | `INTERNAL_ERROR` |
+
+Definitions: [`src/common/errors/http.errors.ts`](../src/common/errors/http.errors.ts).
+
+Rules:
+
+- An existing catalog `code` on the exception body always wins (e.g.
+  `ApiException`, `RateLimitExceededException` → `RATE_LIMIT_EXCEEDED`).
+- For the generic fill-in, `message` comes from the registry — not from Nest
+  constructor strings (those are not a client contract).
+- Unhandled non-HTTP failures still log server-side; the client only sees
+  `INTERNAL_ERROR` and the registry message (no stack / internal detail).
+
+Specific product codes remain `ApiException`. Generics stay plain Nest throws.
 
 ---
 
 ## Envelope shape
 
-`AllExceptionsFilter` writes `ApiErrorDto`: optional `message`, optional
-`code`, and `meta`. Coded throws from `ApiException` always include both
-`code` and `message` from the registry. See
+`AllExceptionsFilter` writes `ApiErrorDto`: `message`, `code`, and `meta`.
+Coded throws from `ApiException` always include both `code` and `message` from
+the registry. Uncoded Nest throws get a generic `code`/`message` as above. See
 [`src/common/errors/api-error.dto.ts`](../src/common/errors/api-error.dto.ts)
 and [`src/common/filters/all-exceptions.filter.ts`](../src/common/filters/all-exceptions.filter.ts).

@@ -2,6 +2,8 @@ import { ArgumentsHost, Logger, NotFoundException } from "@nestjs/common";
 import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "../rate-limit/rate-limit.constants";
 import { RateLimitExceededException } from "../rate-limit/rate-limit.exception";
 import { HttpAdapterHost } from "@nestjs/core";
+import { INTERNAL_ERROR_CODE, NOT_FOUND_CODE } from "../errors/http.errors";
+import { resolveApiErrorMessage } from "../errors/api-error-codes";
 import { AllExceptionsFilter, ErrorResponse } from "./all-exceptions.filter";
 
 describe("AllExceptionsFilter", () => {
@@ -44,20 +46,17 @@ describe("AllExceptionsFilter", () => {
     return { body, statusCode };
   };
 
-  it("exposes the message for an HttpException without logging (ingress already records 4xx)", () => {
+  it("fills a generic catalog code and registry message for an uncoded HttpException", () => {
     filter.catch(new NotFoundException("User not found"), host);
 
     const { body, statusCode } = replyArgs();
     expect(statusCode).toBe(404);
-    expect(body.message).toBe("User not found");
-    expect(body.meta.path).toBe(path);
+    expect(body).toEqual({
+      message: resolveApiErrorMessage(NOT_FOUND_CODE),
+      code: NOT_FOUND_CODE,
+      meta: { timestamp: expect.any(String) as string, path },
+    });
     expect(errorSpy).not.toHaveBeenCalled();
-  });
-
-  it("omits the code when the HttpException carries none", () => {
-    filter.catch(new NotFoundException("User not found"), host);
-
-    expect(replyArgs().body).not.toHaveProperty("code");
   });
 
   it("surfaces a machine-readable code and nothing else from a coded HttpException", () => {
@@ -73,26 +72,32 @@ describe("AllExceptionsFilter", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it("logs a single error and returns a sanitized 500 for an unhandled Error", () => {
+  it("logs a single error and returns a sanitized 500 with INTERNAL_ERROR for an unhandled Error", () => {
     filter.catch(new Error("connection pool exhausted"), host);
 
     const { body, statusCode } = replyArgs();
     expect(statusCode).toBe(500);
-    // Internal failure detail must never leak to the client.
-    expect(body.message).toBeUndefined();
-    expect(body.meta.path).toBe(path);
+    expect(body).toEqual({
+      message: resolveApiErrorMessage(INTERNAL_ERROR_CODE),
+      code: INTERNAL_ERROR_CODE,
+      meta: { timestamp: expect.any(String) as string, path },
+    });
 
     expect(errorSpy).toHaveBeenCalledTimes(1);
     const [payload] = errorSpy.mock.calls[0] as [Record<string, unknown>];
     expect(payload).toMatchObject({ event: "request.unhandled_error" });
   });
 
-  it("logs a single error and returns a sanitized 500 for a non-Error throw", () => {
+  it("logs a single error and returns INTERNAL_ERROR for a non-Error throw", () => {
     filter.catch("boom", host);
 
     const { body, statusCode } = replyArgs();
     expect(statusCode).toBe(500);
-    expect(body.message).toBeUndefined();
+    expect(body).toEqual({
+      message: resolveApiErrorMessage(INTERNAL_ERROR_CODE),
+      code: INTERNAL_ERROR_CODE,
+      meta: { timestamp: expect.any(String) as string, path },
+    });
 
     expect(errorSpy).toHaveBeenCalledTimes(1);
     const [payload] = errorSpy.mock.calls[0] as [Record<string, unknown>];

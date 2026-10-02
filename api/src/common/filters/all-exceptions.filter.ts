@@ -2,7 +2,8 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logge
 import { HttpAdapterHost } from "@nestjs/core";
 import { Request } from "express";
 import { ApiErrorDto } from "src/common/errors/api-error.dto";
-import { ApiErrorCode } from "src/common/errors/api-error-codes";
+import { API_ERROR_REGISTRY, resolveApiErrorMessage, type ApiErrorCode } from "src/common/errors/api-error-codes";
+import { HTTP_API_ERRORS, INTERNAL_ERROR_CODE } from "src/common/errors/http.errors";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 
 /** Body this filter writes; same shape as the published `ApiErrorDto` contract. */
@@ -12,7 +13,18 @@ const errorCodeOf = (exception: HttpException): ApiErrorCode | undefined => {
   const response = exception.getResponse();
   if (typeof response !== "object" || !("code" in response)) return undefined;
 
-  return typeof response.code === "string" ? (response.code as ApiErrorCode) : undefined;
+  const code = response.code;
+  if (typeof code !== "string") return undefined;
+  if (!(code in API_ERROR_REGISTRY)) return undefined;
+
+  return code as ApiErrorCode;
+};
+
+const genericCodeForStatus = (statusCode: number): ApiErrorCode | undefined => {
+  const match = Object.entries(HTTP_API_ERRORS).find(([, definition]) => definition.status === statusCode);
+  if (match) return match[0] as ApiErrorCode;
+  if (statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) return INTERNAL_ERROR_CODE;
+  return undefined;
 };
 
 @Catch()
@@ -43,6 +55,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         { event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, thrown: exception },
         "Unhandled non-Error exception",
       );
+    }
+
+    if (!code) {
+      code = genericCodeForStatus(statusCode);
+      if (code) {
+        // Registry copy is stable; Nest constructor strings are not client contract
+        message = resolveApiErrorMessage(code);
+      }
     }
 
     const responseBody: ErrorResponse = {
