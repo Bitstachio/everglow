@@ -378,3 +378,21 @@ They cannot fight over an object: the reconciler deletes only when no row exists
 ### Out of scope
 
 S3 Inventory or Athena-based reconciliation for very large buckets, and an endpoint to trigger a run by hand.
+
+---
+
+## 12. Gallery close
+
+A gallery closes at `Event.galleryClosesAt`, the event's date plus its plan's window ([event-quotas.md](./event-quotas.md)). From that moment uploads are refused and its photos are hidden from everyone, organizers included (`PhotoVisibilityService`, [moderation.md](./moderation.md) §3). This job then removes them. The event, its members and its cover stay.
+
+- **Service:** `GalleryCloseService.closeDueGalleries()`
+- **Schedule:** hourly via `GalleryCloseScheduler`, so a gallery is emptied within an hour of its close time.
+- **Close pass:** open galleries whose close time has passed, longest overdue first, up to `GALLERY_CLOSE_BATCH_SIZE` (default **100**). Each is claimed with a conditional update that sets `galleryClosedAt` only while the gallery is still open and due, so a date moved later in the meantime, or another instance closing it first, leaves it alone.
+- **Sweep pass:** galleries closed earlier that still hold photos no OPEN report needs, up to the same batch size: their reports were resolved since, an upload landed late, or a run stopped half way.
+- **Removal:** every photo without an OPEN report, `PENDING` slots included, `GALLERY_CLOSE_PHOTO_CHUNK_SIZE` (500) at a time: the rows are deleted, then their objects purged (`event.gallery.photos_purged`), the order an event delete uses (§5). There is no long transaction. A run that stops half way leaves the rest to the next sweep, and an object that cannot be deleted is an orphan for §11.
+- **Kept photos:** a photo with an OPEN report stays, hidden, as evidence. The job never closes its reports; once they are resolved, the next sweep removes it. How long evidence may be kept is [EV-61](https://linear.app/mehrshadfb/issue/EV-61).
+- **Enable:** `GALLERY_CLOSE_ENABLED=true`. Off unless set to exactly that, for the orphan reconciler's reason (§11): the job deletes from `AWS_S3_BUCKET` for rows in `DATABASE_URL`, and a database copied from another environment would delete that environment's photos. When it is off the API warns at boot (`event.gallery_close.disabled`): closed galleries still show nothing, but their photos are never removed.
+
+Every close logs `event.gallery.closed` with `audit: true` and what the gallery held when it closed: the plan and its version, members, photos and bytes, and how many photos were removed and kept. That is the usage the paid plans' prices are set from. A sweep logs `event.gallery.swept`. A gallery that throws logs `event.gallery_close.failed` and is retried next run, and every run ends with the `event.gallery_close.run_completed` heartbeat and its totals (`closed`, `swept`, `photosRemoved`, `bytesRemoved`, `photosKept`, `failed`).
+
+Several API instances may run it at once. The claim lets only one of them close a gallery; two sweeps of the same gallery can purge the same keys twice, which S3 accepts. Both lookups use the `Event(galleryClosedAt, galleryClosesAt)` index. The sweep's lookup grows with the number of closed galleries; if that ever matters, removing a kept photo when its last OPEN report is resolved can replace it.

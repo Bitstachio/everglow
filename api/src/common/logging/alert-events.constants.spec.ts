@@ -19,6 +19,9 @@ describe("ALERT_EVENTS", () => {
       ACCOUNT_PHOTOS_PURGED: "user.account.photos_purged",
       EVENT_PHOTOS_PURGED: "event.photos.purged",
       EVENT_MEMBER_PHOTOS_PURGED: "event.member.photos_purged",
+      GALLERY_PHOTOS_PURGED: "event.gallery.photos_purged",
+      GALLERY_CLOSE_FAILED: "event.gallery_close.failed",
+      GALLERY_CLOSE_DISABLED: "event.gallery_close.disabled",
       STORAGE_RESERVATION_CONFLICT: "photo.storage.reservation_conflict",
       UPLOAD_SLOTS_PRESIGN_FAILED: "photo.upload_slots.presign_failed",
       UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",
@@ -34,6 +37,8 @@ describe("ALERT_EVENTS", () => {
       S3_ORPHAN_RECONCILE_RUN_FAILED: "storage.orphan_reconcile.run_failed",
       STALE_REPORT_CHECK_RUN_COMPLETED: "report.stale_check.run_completed",
       STALE_REPORT_CHECK_RUN_FAILED: "report.stale_check.run_failed",
+      GALLERY_CLOSE_RUN_COMPLETED: "event.gallery_close.run_completed",
+      GALLERY_CLOSE_RUN_FAILED: "event.gallery_close.run_failed",
     });
   });
 

@@ -22,7 +22,7 @@ It replaces the personal 5 GB storage limit with limits per event; [photos-archi
 - **Active** means the gallery is still open. Only events you created count; events you joined don't. When one closes or you delete it, you can start another. There's no weekly allowance, so a busy weekend is fine as long as no more than 2 are open at once.
 - **Gallery storage** is the one limit on what a gallery holds: everything uploaded to the event, by everyone, counts toward its 3 GB. There's no limit on the number of photos. The app shows storage as it is, "1.2 GB of 3 GB", and never turns it into an estimated number of photos.
 - Photos upload as they are. Whether to compress some of them before upload is undecided ([EV-94](https://linear.app/mehrshadfb/issue/EV-94)).
-- **The window** ends 30 days after the event's date. After that, uploads stop and the photos are removed. The event stays, doesn't count toward the 2 anymore, and can't be reopened.
+- **The window** ends 30 days after the event's date. After that, uploads stop and the photos are removed, by an hourly job ([photos-architecture.md](./photos-architecture.md) §12). A photo with an open report is kept, hidden, until the report is resolved. The event stays, doesn't count toward the 2 anymore, and can't be reopened.
 - **A closed event** stays in its members' lists, marked closed, with its details and members. Members can remove it from their list (leaving it), and organizers can delete it for everyone. What it no longer allows:
   - **seeing photos**: from the close time on, its photos aren't listed or opened for anyone, organizers included, even before the close job removes them;
   - **joining**: the invite links stop working (`EVENT_GALLERY_CLOSED`), and event responses list no invites;
@@ -83,7 +83,7 @@ Why per event first: the whole category charges this way (POV, Kululu, GuestPix,
 - **`Event.planId`** points at that version. **`Event.bonusStorageBytes`** is storage given to that one event on top of its plan (an add-on, a support grant), added to the plan's storage limit.
 - **`EventPlanService`** runs every check and resolves an event's limits (`limitsOf`: its plan version's terms plus its bonus). Plan rows are cached by id, which is safe because they never change. Nothing else hard-codes 30, 3 GB or 30 days. The free plan's first version is seeded by migration `20261001210000_add_plan_catalog`.
 - **Account limits** (2 active events) stay a constant, `ACCOUNT_PLAN_LIMITS`, until a host subscription exists; that can become its own catalog then. `EventPlanService.accountLimitsFor` and `accountUsageFor` answer for the account the way `limitsOf` and `usageFor` do for an event.
-- **`Event.galleryClosesAt`** is the event's date plus its plan version's window, moved with the date until the gallery closes. **`Event.galleryClosedAt`** is set when the photos are removed. Responses carry `galleryState` (`OPEN` or `CLOSED`), separate from the moderation `status`.
+- **`Event.galleryClosesAt`** is the event's date plus its plan version's window, moved with the date until the gallery closes. **`Event.galleryClosedAt`** is set when the close job (`GalleryCloseService`, hourly, on with `GALLERY_CLOSE_ENABLED=true`) removes the photos. Responses carry `galleryState` (`OPEN` or `CLOSED`), separate from the moderation `status`.
 
 Adding Plus later means a new `EventPlan` enum value and a `Plan` row for its first version. An upgrade points the event at that version and recomputes `galleryClosesAt`. An add-on only increases `bonusStorageBytes`.
 

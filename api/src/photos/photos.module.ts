@@ -4,6 +4,8 @@ import { ImagesModule } from "src/images/images.module";
 import { ModerationModule } from "src/moderation/moderation.module";
 import { PlansModule } from "src/plans/plans.module";
 import { StorageModule } from "src/storage/storage.module";
+import { GalleryCloseScheduler } from "./gallery-close.scheduler";
+import { GalleryCloseService } from "./gallery-close.service";
 import { PhotoOrphanSource } from "./photo-orphan-source";
 import { PhotoPendingCleanupScheduler } from "./photo-pending-cleanup.scheduler";
 import { PhotoPendingCleanupService } from "./photo-pending-cleanup.service";
@@ -22,6 +24,8 @@ import { PhotosService } from "./photos.service";
     PhotoPendingCleanupService,
     PhotoPendingCleanupScheduler,
     PhotoOrphanSource,
+    GalleryCloseService,
+    GalleryCloseScheduler,
   ],
   exports: [PhotosService, PhotoStorageService, PhotoPurgeService],
 })
