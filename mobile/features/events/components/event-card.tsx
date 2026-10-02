@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Calendar, Share2 } from "lucide-react-native";
 import { Pressable, View } from "react-native";
 import { Event } from "../types";
+import { EventCover } from "./event-cover";
 
 type EventCardProps = {
   event: Event;
@@ -36,9 +37,10 @@ export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
       accessibilityRole="button"
       accessibilityLabel={`Open ${event.title}`}
       onPress={onPress}
-      className="rounded-2xl border border-border bg-background p-4 active:opacity-80"
+      className="overflow-hidden rounded-2xl border border-border bg-background active:opacity-80"
     >
-      <View className="gap-3">
+      <EventCover eventId={event.id} uri={event.coverUrl} />
+      <View className="gap-3 p-4">
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1">
             <H3>{event.title}</H3>
