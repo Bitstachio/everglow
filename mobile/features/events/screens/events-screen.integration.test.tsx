@@ -2,7 +2,7 @@ import { mockCameraPermission, mockColorScheme } from "../testing/native-mocks";
 // Integration tests compose the real screen with its data provider.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 // Observe the native alert boundary without replacing screen hooks.
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
@@ -12,7 +12,7 @@ import { buildEvent, deferred } from "../testing/fixtures";
 const mockFindAll = jest.fn();
 const mockJoin = jest.fn();
 const mockPush = jest.fn();
-let mockUser: { id: string } | null = { id: "user-1" };
+let mockUser: { id: string; details?: { name?: string; avatarUrl?: string | null } } | null = { id: "user-1" };
 let mockFocused = true;
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
@@ -54,6 +54,10 @@ const renderScreen = async () => {
   const result = await render(tree());
   return { rerender: () => result.rerender(tree()) };
 };
+// The avatar is decorative, so it is hidden from accessibility queries by default.
+const hidden = { includeHiddenElements: true };
+const avatarUrl = (uploadId: string) =>
+  `https://bucket.example.com/avatars/user-1/${uploadId}?X-Amz-Signature=sig&X-Amz-Expires=900`;
 const openJoin = async () => userEvent.setup().press(screen.getByRole("button", { name: "Join Event" }));
 const enterInvitation = async (value = "invite-token") =>
   userEvent.setup().paste(screen.getByLabelText("Invitation URL or token"), value);
@@ -284,6 +288,45 @@ test("opens Account Settings from the Events header avatar", async () => {
   expect(screen.getByRole("header", { name: "Everglow" })).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Account Settings" }));
   expect(mockPush).toHaveBeenCalledWith("/account-settings");
+});
+
+test("shows the user's avatar photo in the Events header", async () => {
+  mockUser = { id: "user-1", details: { name: "Ada", avatarUrl: avatarUrl("upload-1") } };
+  await renderScreen();
+  const button = screen.getByRole("button", { name: "Account Settings" });
+  expect(within(button).getByTestId("avatar-image", hidden)).toHaveProp("source", [
+    expect.objectContaining({ uri: avatarUrl("upload-1") }),
+  ]);
+  expect(within(button).queryByText("A", hidden)).toBeNull();
+});
+
+test("shows the same initial as Account Settings without an avatar or when the photo fails", async () => {
+  mockUser = { id: "user-1", details: { name: " ada", avatarUrl: null } };
+  const { rerender } = await renderScreen();
+  const button = () => screen.getByRole("button", { name: "Account Settings" });
+  expect(within(button()).queryByTestId("avatar-image", hidden)).toBeNull();
+  expect(within(button()).getByText("A", hidden)).toBeOnTheScreen();
+  mockUser = { id: "user-1", details: { name: "Ada", avatarUrl: avatarUrl("upload-1") } };
+  await rerender();
+  await fireEvent(within(button()).getByTestId("avatar-image", hidden), "error", { nativeEvent: { error: "expired" } });
+  expect(within(button()).getByText("A", hidden)).toBeOnTheScreen();
+  mockUser = { id: "user-1", details: {} };
+  await rerender();
+  expect(within(button()).getByText("E", hidden)).toBeOnTheScreen();
+});
+
+test("updates the header avatar when it changes in Account Settings", async () => {
+  mockUser = { id: "user-1", details: { name: "Ada", avatarUrl: null } };
+  const { rerender } = await renderScreen();
+  mockUser = { id: "user-1", details: { name: "Ada", avatarUrl: avatarUrl("upload-2") } };
+  await rerender();
+  expect(screen.getByTestId("avatar-image", hidden)).toHaveProp("source", [
+    expect.objectContaining({ uri: avatarUrl("upload-2") }),
+  ]);
+  mockUser = { id: "user-1", details: { name: "Ada", avatarUrl: null } };
+  await rerender();
+  expect(screen.queryByTestId("avatar-image", hidden)).toBeNull();
+  expect(screen.getByText("A", hidden)).toBeOnTheScreen();
 });
 
 test("opens the My Events list from See all", async () => {

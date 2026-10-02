@@ -48,7 +48,7 @@ export const useEventsScreen = () => {
     isLoading,
     refreshing: isRefetching,
     currentUserId: user?.id,
-    profileInitial: user?.details?.name?.trim().charAt(0).toUpperCase() || "U",
+    profileAvatar: { userId: user?.id ?? "", name: user?.details?.name, uri: user?.details?.avatarUrl },
     handleOpenAccountSettings: () => router.push("/account-settings"),
     joinSheetVisible,
     selectedEvent,

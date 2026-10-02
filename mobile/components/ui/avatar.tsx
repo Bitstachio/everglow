@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { useState } from "react";
 import { View } from "react-native";
 
-type AvatarSize = "md" | "lg";
+type AvatarSize = "md" | "header" | "lg";
 
 type AvatarProps = {
   userId: string;
@@ -15,6 +15,7 @@ type AvatarProps = {
 
 const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string }> = {
   md: { container: "h-10 w-10", text: "text-base" },
+  header: { container: "h-11 w-11", text: "text-lg" },
   lg: { container: "h-20 w-20", text: "text-3xl" },
 };
 
