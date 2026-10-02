@@ -148,6 +148,7 @@ without a catalog `code`, the filter assigns one from status:
 | 404 | `NOT_FOUND` |
 | 409 | `CONFLICT` |
 | 429 | `TOO_MANY_REQUESTS` |
+| 422 | `UNPROCESSABLE_ENTITY` |
 | 500 (+ other 5xx) | `INTERNAL_ERROR` |
 | other 4xx | `BAD_REQUEST` |
 

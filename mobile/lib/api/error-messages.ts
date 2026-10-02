@@ -29,6 +29,7 @@ export const API_ERROR_MESSAGES = {
   STORAGE_RESERVATION_CONFLICT: "Storage reservation conflict",
   TOO_MANY_REQUESTS: "Too many requests. Please try again later.",
   UNAUTHORIZED: "Please sign in again",
+  UNPROCESSABLE_ENTITY: "This request cannot be completed",
   USERNAME_CHANGE_LIMITED: "Username change limit reached",
   USERNAME_RESERVED: "Username is reserved",
   USERNAME_TAKEN: "Username is taken",

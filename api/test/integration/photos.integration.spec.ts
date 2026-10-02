@@ -2,13 +2,14 @@ import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
-import { PAGINATION_ERRORS } from "src/common/pagination/pagination.constants";
 import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
 import { PHOTO_SERVICE_ERRORS, STORAGE_RESERVATION_MAX_ATTEMPTS } from "src/photos/photos.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
+import { expectApiError } from "./helpers/expect-api-error";
+import { BAD_REQUEST_CODE, FORBIDDEN_CODE, NOT_FOUND_CODE } from "src/common/errors/http.errors";
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, authHeader } from "./helpers/auth.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
@@ -211,7 +212,7 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -220,7 +221,7 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+      expectApiError(body, NOT_FOUND_CODE);
     });
 
     it("returns 403 EVENT_STORAGE_LIMIT_REACHED when the gallery's 3 GB has no room for the batch", async () => {
@@ -372,7 +373,7 @@ describe("PhotosController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
   });
 
@@ -448,7 +449,7 @@ describe("PhotosController (integration)", () => {
         .expect(400);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PAGINATION_ERRORS.INVALID_CURSOR);
+      expectApiError(body, BAD_REQUEST_CODE);
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
@@ -509,7 +510,7 @@ describe("PhotosController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.LIST_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -537,7 +538,7 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).get(photoPath()).set(authHeader()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.NOT_FOUND(TEST_PHOTO_ID));
+      expectApiError(body, NOT_FOUND_CODE);
       expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
     });
 
@@ -560,7 +561,7 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).get(photoPath()).set(authHeader()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.NOT_FOUND(TEST_PHOTO_ID));
+      expectApiError(body, NOT_FOUND_CODE);
     });
 
     it("returns 404 when the photo is still PENDING", async () => {
@@ -645,7 +646,7 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.DELETE_FORBIDDEN(TEST_PHOTO_ID));
+      expectApiError(body, FORBIDDEN_CODE);
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
     });
 

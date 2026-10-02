@@ -1,8 +1,13 @@
-import { ArgumentsHost, HttpException, Logger, NotFoundException } from "@nestjs/common";
+import { ArgumentsHost, HttpException, Logger, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "../rate-limit/rate-limit.constants";
 import { RateLimitExceededException } from "../rate-limit/rate-limit.exception";
 import { HttpAdapterHost } from "@nestjs/core";
-import { BAD_REQUEST_CODE, INTERNAL_ERROR_CODE, NOT_FOUND_CODE } from "../errors/http.errors";
+import {
+  BAD_REQUEST_CODE,
+  INTERNAL_ERROR_CODE,
+  NOT_FOUND_CODE,
+  UNPROCESSABLE_ENTITY_CODE,
+} from "../errors/http.errors";
 import { resolveApiErrorMessage } from "../errors/api-error-codes";
 import { AllExceptionsFilter, ErrorResponse } from "./all-exceptions.filter";
 
@@ -67,6 +72,18 @@ describe("AllExceptionsFilter", () => {
     expect(body).toEqual({
       message: resolveApiErrorMessage(BAD_REQUEST_CODE),
       code: BAD_REQUEST_CODE,
+      meta: { timestamp: expect.any(String) as string, path },
+    });
+  });
+
+  it("maps UnprocessableEntity to UNPROCESSABLE_ENTITY", () => {
+    filter.catch(new UnprocessableEntityException("Onboarding is incomplete"), host);
+
+    const { body, statusCode } = replyArgs();
+    expect(statusCode).toBe(422);
+    expect(body).toEqual({
+      message: resolveApiErrorMessage(UNPROCESSABLE_ENTITY_CODE),
+      code: UNPROCESSABLE_ENTITY_CODE,
       meta: { timestamp: expect.any(String) as string, path },
     });
   });

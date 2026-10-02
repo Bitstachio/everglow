@@ -3472,6 +3472,7 @@
               "STORAGE_RESERVATION_CONFLICT",
               "TOO_MANY_REQUESTS",
               "UNAUTHORIZED",
+              "UNPROCESSABLE_ENTITY",
               "USERNAME_CHANGE_LIMITED",
               "USERNAME_RESERVED",
               "USERNAME_TAKEN"

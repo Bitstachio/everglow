@@ -8,6 +8,7 @@ export const FORBIDDEN_CODE = "FORBIDDEN" as const;
 export const NOT_FOUND_CODE = "NOT_FOUND" as const;
 export const CONFLICT_CODE = "CONFLICT" as const;
 export const TOO_MANY_REQUESTS_CODE = "TOO_MANY_REQUESTS" as const;
+export const UNPROCESSABLE_ENTITY_CODE = "UNPROCESSABLE_ENTITY" as const;
 export const INTERNAL_ERROR_CODE = "INTERNAL_ERROR" as const;
 
 export const HTTP_API_ERRORS = {
@@ -34,6 +35,10 @@ export const HTTP_API_ERRORS = {
   [TOO_MANY_REQUESTS_CODE]: {
     status: HttpStatus.TOO_MANY_REQUESTS,
     message: "Too many requests",
+  },
+  [UNPROCESSABLE_ENTITY_CODE]: {
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    message: "Unprocessable entity",
   },
   [INTERNAL_ERROR_CODE]: {
     status: HttpStatus.INTERNAL_SERVER_ERROR,
