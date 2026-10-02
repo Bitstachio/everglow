@@ -1,42 +1,30 @@
 import type { ApiErrorDto } from "@/lib/api/generated";
 
-/**
- * Closed set of machine-readable API `code` values from the shared OpenAPI
- * error envelope (`ApiErrorDto`).
- */
 export type ApiErrorCode = NonNullable<ApiErrorDto["code"]>;
 
-/**
- * Client-facing copy for each OpenAPI error `code`.
- * Prefer these over Nest `message` bodies, which often include IDs and internal details.
- *
- * `satisfies Record<ApiErrorCode, string>` fails the build when the API adds a code
- * that this map does not cover (or when a key is mistyped).
- */
 export const API_ERROR_MESSAGES = {
-  ACTIVE_EVENT_LIMIT_REACHED:
-    "You already have 2 active events on the free plan. One frees up when a gallery closes or you deactivate an event.",
-  DETAILS_ALREADY_EXIST: "You've already finished setting up your profile.",
-  EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
-  EVENT_GALLERY_NOT_OPEN: "This event's gallery hasn't opened yet. Photos can be added from the event's date.",
-  EVENT_MEMBER_LIMIT_REACHED: "This event is full.",
-  EVENT_SCHEDULE_LOCKED: "The date and gallery length can only change before the gallery opens.",
-  EVENT_STILL_ACTIVE: "Deactivate this event before deleting it.",
-  EVENT_STORAGE_LIMIT_REACHED: "This gallery is full. There isn't enough storage left for these photos.",
-  EVENT_UNDER_REVIEW: "This event is under review. No one can join or add photos until the review is over.",
-  IMAGE_INVALID_SIZE: "That image is too large or empty. Choose a different file.",
-  IMAGE_UNSUPPORTED_CONTENT_TYPE: "That image type isn't supported. Use JPEG, PNG, or WebP.",
-  IMAGE_UPLOAD_EXPIRED: "That upload expired. Please request a new upload and try again.",
-  IMAGE_UPLOAD_NOT_FOUND: "We couldn't find that upload. Please try uploading again.",
-  IMAGE_UPLOAD_REJECTED: "That image couldn't be accepted. Please try a different file.",
-  ONBOARDING_INCOMPLETE: "Please finish setting up your profile to continue.",
-  ORGANIZER_BLOCKED_BY_CALLER: "This event is organized by someone you blocked. Unblock them to join.",
-  RATE_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
-  REMOVED_FROM_EVENT: "You were removed from this event by an organizer.",
-  STORAGE_RESERVATION_CONFLICT: "Another upload is in progress. Please try again.",
-  USERNAME_CHANGE_LIMITED: "You've changed your username too many times recently. Please try again later.",
-  USERNAME_RESERVED: "This username is reserved",
-  USERNAME_TAKEN: "This username is taken",
+  ACTIVE_EVENT_LIMIT_REACHED: "Active event limit reached on the free plan",
+  DETAILS_ALREADY_EXIST: "Profile setup already completed",
+  EVENT_GALLERY_CLOSED: "Event gallery is closed",
+  EVENT_GALLERY_NOT_OPEN: "Event gallery is not open",
+  EVENT_MEMBER_LIMIT_REACHED: "Event member limit reached",
+  EVENT_SCHEDULE_LOCKED: "Event schedule is locked",
+  EVENT_STILL_ACTIVE: "Event is still active",
+  EVENT_STORAGE_LIMIT_REACHED: "Event storage limit reached",
+  EVENT_UNDER_REVIEW: "Event is under review",
+  IMAGE_INVALID_SIZE: "Image size is invalid",
+  IMAGE_UNSUPPORTED_CONTENT_TYPE: "Image content type is unsupported",
+  IMAGE_UPLOAD_EXPIRED: "Image upload expired",
+  IMAGE_UPLOAD_NOT_FOUND: "Image upload not found",
+  IMAGE_UPLOAD_REJECTED: "Image upload rejected",
+  ONBOARDING_INCOMPLETE: "Profile setup is incomplete",
+  ORGANIZER_BLOCKED_BY_CALLER: "Event organizer is blocked by the caller",
+  RATE_LIMIT_EXCEEDED: "Rate limit exceeded",
+  REMOVED_FROM_EVENT: "Removed from event by an organizer",
+  STORAGE_RESERVATION_CONFLICT: "Storage reservation conflict",
+  USERNAME_CHANGE_LIMITED: "Username change limit reached",
+  USERNAME_RESERVED: "Username is reserved",
+  USERNAME_TAKEN: "Username is taken",
 } as const satisfies Record<ApiErrorCode, string>;
 
 export const messageForApiErrorCode = (code: string | undefined): string | undefined => {

@@ -5,15 +5,14 @@ const entity = "User";
 
 export const USER_SERVICE_ERRORS = {
   NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(entity, "ID", id),
-  DETAILS_ALREADY_EXIST: (id: string) => `User with ID "${id}" has already completed onboarding`,
-  USERNAME_TAKEN: (username: string) => RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(entity, "username", username),
-  USERNAME_RESERVED: (username: string) => `Username "${username}" is reserved`,
-  ONBOARDING_INCOMPLETE: "Onboarding is incomplete. Please complete the user onboarding to continue.",
+  DETAILS_ALREADY_EXIST: (id: string) => `User ${id} already onboarded`,
+  USERNAME_TAKEN: (username: string) => `Username taken: ${username}`,
+  USERNAME_RESERVED: (username: string) => `Username reserved: ${username}`,
+  ONBOARDING_INCOMPLETE: "Onboarding incomplete",
   AVATAR_CHANGED_CONCURRENTLY: "The avatar was changed by another request, please retry",
   ACCOUNT_DELETED: "This account has been deleted. Sign in again to start a new one.",
   USERNAME_CHANGE_LIMITED: (availableAt: Date) =>
-    `You can change your username ${USERNAME_CHANGE_LIMIT} times every ${USERNAME_CHANGE_WINDOW_DAYS} days. ` +
-    `You can change it again after ${availableAt.toISOString()}.`,
+    `Username change limit reached; available after ${availableAt.toISOString()}`,
 };
 
 /**

@@ -15,13 +15,7 @@ import {
   USERNAME_TAKEN_CODE,
 } from "src/users/users.constants";
 
-/**
- * Closed set of machine-readable `code` values the API may put on the error
- * envelope. Domain modules own each constant; `ApiErrorDto` publishes this
- * list as the OpenAPI `code` enum so clients can generate a typed union.
- *
- * Keep alphabetical by string value so reviews and diffs stay stable.
- */
+// Keep alphabetical by string value so reviews and diffs stay stable
 export const API_ERROR_CODES = [
   PLAN_LIMIT_CODES.ACTIVE_EVENT_LIMIT_REACHED,
   DETAILS_ALREADY_EXIST_CODE,
