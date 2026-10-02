@@ -80,6 +80,8 @@ type EventResponseBody = {
   galleryClosesAt: string | null;
   galleryWindowDays: number | null;
   galleryWindowOptions: number[];
+  deactivatedAt: string | null;
+  deactivatedById: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -656,11 +658,75 @@ describe("EventsController (integration)", () => {
     });
   });
 
+  describe("POST /events/:eventId/deactivate", () => {
+    const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/deactivate`;
+
+    it("returns 200 with the event, closed now and recording who deactivated it", async () => {
+      const deactivatedAt = new Date();
+      const deactivated = buildEvent({ galleryClosesAt: deactivatedAt, deactivatedAt, deactivatedById: TEST_USER_ID });
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.event.updateMany.mockResolvedValue({ count: 1 });
+      prisma.event.findUniqueOrThrow.mockResolvedValue(deactivated);
+
+      const response = await request(httpServer).post(path()).set(authHeader()).expect(200);
+
+      expect((response.body as WrappedResponse<EventResponseBody>).data).toMatchObject({
+        galleryState: "CLOSED",
+        galleryClosesAt: deactivatedAt.toISOString(),
+        deactivatedAt: deactivatedAt.toISOString(),
+        deactivatedById: TEST_USER_ID,
+        invites: [],
+      });
+      expect(prisma.event.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: TEST_EVENT_ID, galleryClosedAt: null }) as unknown,
+        data: {
+          galleryClosesAt: expect.any(Date) as unknown,
+          deactivatedAt: expect.any(Date) as unknown,
+          deactivatedById: TEST_USER_ID,
+        },
+      });
+    });
+
+    it("returns 403 when the caller is a participant", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+
+      const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
+
+      expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+      expect(prisma.event.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await request(httpServer).post(path()).set(authHeader()).expect(404);
+    });
+
+    it("returns 401 when the access token is missing", async () => {
+      await request(httpServer).post(path()).expect(401);
+    });
+  });
+
   describe("DELETE /events/:eventId", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}`;
+    /** Only a closed event can be deleted; this one was deactivated an hour ago. */
+    const deactivatedEvent = () => {
+      const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      return buildEvent({ galleryClosesAt: anHourAgo, deactivatedAt: anHourAgo, deactivatedById: TEST_USER_ID });
+    };
+
+    it("returns 403 EVENT_STILL_ACTIVE for an event that hasn't closed, deleting nothing", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+
+      const response = await request(httpServer).delete(path()).set(authHeader()).expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_STILL_ACTIVE" });
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
 
     it("returns 204 when the organizer deletes the event", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent(), [buildOrganizerAccess()]));
       prisma.event.delete.mockResolvedValue(buildEvent());
 
       await request(httpServer).delete(path()).set(authHeader()).expect(204);
@@ -671,7 +737,7 @@ describe("EventsController (integration)", () => {
 
     it("returns 204 and purges the event's photo objects from S3 after the rows are gone", async () => {
       const s3Keys = [`photos/${TEST_USER_ID}/${TEST_EVENT_ID}/a`, `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/b`];
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent(), [buildOrganizerAccess()]));
       prisma.photo.findMany.mockResolvedValue(s3Keys.map((s3Key) => ({ s3Key })) as never);
       prisma.event.delete.mockResolvedValue(buildEvent());
       s3Service.deleteObjects.mockResolvedValue({ deleted: s3Keys, failed: [] });
@@ -690,7 +756,7 @@ describe("EventsController (integration)", () => {
 
     it("returns 204 and purges the event's cover object along with its photos", async () => {
       const photoKey = `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/a`;
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent(), [buildOrganizerAccess()]));
       prisma.photo.findMany.mockResolvedValue([{ s3Key: photoKey }] as never);
       prisma.event.delete.mockResolvedValue(buildEvent({ coverS3Key: COVER_S3_KEY }));
 
@@ -701,7 +767,7 @@ describe("EventsController (integration)", () => {
     });
 
     it("returns 204 even when the S3 purge fails, leaving the objects to the reconciler", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent(), [buildOrganizerAccess()]));
       prisma.photo.findMany.mockResolvedValue([{ s3Key: `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/a` }] as never);
       prisma.event.delete.mockResolvedValue(buildEvent());
       s3Service.deleteObjects.mockRejectedValue(new Error("s3 down"));

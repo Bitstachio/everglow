@@ -31,16 +31,18 @@ export const PLAN_LIMIT_CODES = {
   EVENT_GALLERY_CLOSED: "EVENT_GALLERY_CLOSED",
   EVENT_GALLERY_NOT_OPEN: "EVENT_GALLERY_NOT_OPEN",
   EVENT_SCHEDULE_LOCKED: "EVENT_SCHEDULE_LOCKED",
+  EVENT_STILL_ACTIVE: "EVENT_STILL_ACTIVE",
 } as const;
 
 export const PLAN_LIMIT_MESSAGES = {
   ACTIVE_EVENT_LIMIT_REACHED: (limit: number) =>
-    `You already have ${limit} active events. One frees up when a gallery closes or you delete an event.`,
+    `You already have ${limit} active events. One frees up when a gallery closes or you deactivate an event.`,
   EVENT_MEMBER_LIMIT_REACHED: (limit: number) => `This event is full: it has reached ${limit} members.`,
   EVENT_STORAGE_LIMIT_REACHED: "This gallery is full: there isn't enough storage left for these photos.",
   EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
   EVENT_GALLERY_NOT_OPEN: "This event's gallery hasn't opened yet: photos can be added from the event's date.",
   EVENT_SCHEDULE_LOCKED: "The date and the gallery length can only change before the gallery opens.",
+  EVENT_STILL_ACTIVE: "Deactivate this event before deleting it.",
   // A 400 without a code: the app offers only the plan's options, which it
   // reads from GET /users/me/limits.
   INVALID_GALLERY_WINDOW: (options: readonly number[]) =>

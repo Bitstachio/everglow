@@ -383,7 +383,7 @@ S3 Inventory or Athena-based reconciliation for very large buckets, and an endpo
 
 ## 12. Gallery close
 
-A gallery closes at `Event.galleryClosesAt`: it opens on the event's date, or when the event is created if that date has passed, and stays open for the length the host picked ([event-quotas.md](./event-quotas.md)). From that moment uploads are refused and its photos are hidden from everyone, organizers included (`PhotoVisibilityService`, [moderation.md](./moderation.md) §3). This job then removes them. The event, its members and its cover stay.
+A gallery closes at `Event.galleryClosesAt`: it opens on the event's date, or when the event is created if that date has passed, and stays open for the length the host picked ([event-quotas.md](./event-quotas.md)). From that moment uploads are refused and its photos are hidden from everyone, organizers included (`PhotoVisibilityService`, [moderation.md](./moderation.md) §3). This job then removes them. The event, its members and its cover stay. Deactivating an event (`POST /events/:eventId/deactivate`) sets its close time to the moment it is deactivated, so the next run closes it like any other.
 
 - **Service:** `GalleryCloseService.closeDueGalleries()`
 - **Schedule:** hourly via `GalleryCloseScheduler`, so a gallery is emptied within an hour of its close time.

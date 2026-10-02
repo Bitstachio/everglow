@@ -72,6 +72,12 @@ const NO_USAGE: EventUsage = { members: 0, storageBytes: 0n };
 /** Photos that take room in a gallery: uploads in progress and finished ones. */
 const GALLERY_PHOTO_STATUSES = [PhotoStatus.PENDING, PhotoStatus.READY];
 
+/** Events whose gallery hasn't closed, upcoming or open: galleryStateOf is not CLOSED. */
+export const galleryNotClosed = (now: Date = new Date()): Prisma.EventWhereInput => ({
+  galleryClosedAt: null,
+  OR: [{ galleryClosesAt: null }, { galleryClosesAt: { gt: now } }],
+});
+
 /**
  * Events a user created that haven't closed: upcoming ones, from the moment
  * they are created, and open ones. These count toward the account's
@@ -79,8 +85,7 @@ const GALLERY_PHOTO_STATUSES = [PhotoStatus.PENDING, PhotoStatus.READY];
  */
 export const activeEventsCreatedBy = (userId: string, now: Date = new Date()): Prisma.EventWhereInput => ({
   creatorId: userId,
-  galleryClosedAt: null,
-  OR: [{ galleryClosesAt: null }, { galleryClosesAt: { gt: now } }],
+  ...galleryNotClosed(now),
 });
 
 /**

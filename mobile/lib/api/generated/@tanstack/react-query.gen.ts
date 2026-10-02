@@ -18,6 +18,7 @@ import {
   eventsControllerConfirmCoverUpload,
   eventsControllerCreate,
   eventsControllerCreateCoverUploadUrl,
+  eventsControllerDeactivate,
   eventsControllerFindAll,
   eventsControllerFindOne,
   eventsControllerGetParticipants,
@@ -74,6 +75,9 @@ import type {
   EventsControllerCreateData,
   EventsControllerCreateError,
   EventsControllerCreateResponse,
+  EventsControllerDeactivateData,
+  EventsControllerDeactivateError,
+  EventsControllerDeactivateResponse,
   EventsControllerFindAllData,
   EventsControllerFindAllError,
   EventsControllerFindAllResponse,
@@ -1064,6 +1068,8 @@ export const eventsControllerJoinMutation = (
 
 /**
  * Delete an event
+ *
+ * Organizers only, and only once the event is closed: deactivate it first, or wait for its gallery to close. Otherwise 403 EVENT_STILL_ACTIVE.
  */
 export const eventsControllerRemoveMutation = (
   options?: Partial<Options<EventsControllerRemoveData>>,
@@ -1131,6 +1137,35 @@ export const eventsControllerUpdateMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await eventsControllerUpdate({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Deactivate an event
+ *
+ * Organizers only. Closes the gallery now: uploads, joins and invite links stop, the photos are hidden at once and removed within the hour, and the event stops counting toward the caller's active events. It can't be undone. An event that has already closed is returned unchanged.
+ */
+export const eventsControllerDeactivateMutation = (
+  options?: Partial<Options<EventsControllerDeactivateData>>,
+): UseMutationOptions<
+  EventsControllerDeactivateResponse,
+  AxiosError<EventsControllerDeactivateError>,
+  Options<EventsControllerDeactivateData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    EventsControllerDeactivateResponse,
+    AxiosError<EventsControllerDeactivateError>,
+    Options<EventsControllerDeactivateData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await eventsControllerDeactivate({
         ...options,
         ...fnOptions,
         throwOnError: true,

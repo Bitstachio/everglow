@@ -23,6 +23,9 @@ import type {
   EventsControllerCreateData,
   EventsControllerCreateErrors,
   EventsControllerCreateResponses,
+  EventsControllerDeactivateData,
+  EventsControllerDeactivateErrors,
+  EventsControllerDeactivateResponses,
   EventsControllerFindAllData,
   EventsControllerFindAllErrors,
   EventsControllerFindAllResponses,
@@ -590,6 +593,8 @@ export const eventsControllerJoin = <ThrowOnError extends boolean = false>(
 
 /**
  * Delete an event
+ *
+ * Organizers only, and only once the event is closed: deactivate it first, or wait for its gallery to close. Otherwise 403 EVENT_STILL_ACTIVE.
  */
 export const eventsControllerRemove = <ThrowOnError extends boolean = false>(
   options: Options<EventsControllerRemoveData, ThrowOnError>,
@@ -625,6 +630,20 @@ export const eventsControllerUpdate = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * Deactivate an event
+ *
+ * Organizers only. Closes the gallery now: uploads, joins and invite links stop, the photos are hidden at once and removed within the hour, and the event stops counting toward the caller's active events. It can't be undone. An event that has already closed is returned unchanged.
+ */
+export const eventsControllerDeactivate = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerDeactivateData, ThrowOnError>,
+): RequestResult<EventsControllerDeactivateResponses, EventsControllerDeactivateErrors, ThrowOnError> =>
+  (options.client ?? client).post<EventsControllerDeactivateResponses, EventsControllerDeactivateErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/events/{eventId}/deactivate",
+    ...options,
   });
 
 /**

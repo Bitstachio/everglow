@@ -74,21 +74,22 @@ model User {
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
 
-  details         UserDetails?
-  createdEvents   Event[]          @relation("CreatedEvents")
-  eventAccesses   EventAccess[]
-  photos          Photo[]
+  details           UserDetails?
+  createdEvents     Event[]          @relation("CreatedEvents")
+  eventAccesses     EventAccess[]
+  photos            Photo[]
   // Moderation (see docs/moderation.md). Every relation below is SET NULL or
   // CASCADE, so none of them can block the account-deletion saga.
-  reportsFiled    Report[]         @relation("ReportsFiled")
-  reportsReceived Report[]         @relation("ReportsReceived")
-  reportsResolved Report[]         @relation("ReportsResolved")
-  blocksInitiated UserBlock[]      @relation("BlocksInitiated")
-  blocksReceived  UserBlock[]      @relation("BlocksReceived")
-  eventBans       EventBan[]       @relation("EventBansReceived")
-  usernameChanges UsernameChange[]
-  eventCoversSet  Event[]          @relation("EventCoversSet")
-  eventBansIssued EventBan[]       @relation("EventBansIssued")
+  reportsFiled      Report[]         @relation("ReportsFiled")
+  reportsReceived   Report[]         @relation("ReportsReceived")
+  reportsResolved   Report[]         @relation("ReportsResolved")
+  blocksInitiated   UserBlock[]      @relation("BlocksInitiated")
+  blocksReceived    UserBlock[]      @relation("BlocksReceived")
+  eventBans         EventBan[]       @relation("EventBansReceived")
+  usernameChanges   UsernameChange[]
+  eventCoversSet    Event[]          @relation("EventCoversSet")
+  eventsDeactivated Event[]          @relation("EventsDeactivated")
+  eventBansIssued   EventBan[]       @relation("EventBansIssued")
 
   // Reconciler looks up users mid-deletion; only those rows are indexed.
   @@index([deletionStartedAt], where: { deletionStartedAt: { not: null } })
@@ -194,11 +195,17 @@ model Event {
   galleryClosesAt   DateTime?
   // When the close job removed the gallery's photos. The event stays.
   galleryClosedAt   DateTime?
+  // When an organizer deactivated the event, which set galleryClosesAt to
+  // that moment. Null when the gallery closes on schedule.
+  deactivatedAt     DateTime?
+  // The organizer who deactivated it; null once that account is deleted.
+  deactivatedById   String?   @db.Uuid
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   creator        User?         @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: SetNull)
   coverUpdatedBy User?         @relation("EventCoversSet", fields: [coverUpdatedById], references: [id], onDelete: SetNull)
+  deactivatedBy  User?         @relation("EventsDeactivated", fields: [deactivatedById], references: [id], onDelete: SetNull)
   // Restrict: a plan version some event uses can never be deleted.
   plan           Plan          @relation(fields: [planId], references: [id], onDelete: Restrict)
   photos         Photo[]
@@ -209,6 +216,7 @@ model Event {
 
   @@index([creatorId])
   @@index([coverUpdatedById])
+  @@index([deactivatedById])
   @@index([planId])
   // The close job's hourly lookups: open galleries past their close time, and
   // closed galleries still holding photos (docs/photos-architecture.md §12).

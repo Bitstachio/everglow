@@ -15,11 +15,12 @@ export type ApiErrorCode = NonNullable<ApiErrorDto["code"]>;
  */
 export const API_ERROR_MESSAGES = {
   ACTIVE_EVENT_LIMIT_REACHED:
-    "You already have 2 active events on the free plan. One frees up when a gallery closes or you delete an event.",
+    "You already have 2 active events on the free plan. One frees up when a gallery closes or you deactivate an event.",
   EVENT_GALLERY_CLOSED: "This event's gallery has closed.",
   EVENT_GALLERY_NOT_OPEN: "This event's gallery hasn't opened yet. Photos can be added from the event's date.",
   EVENT_MEMBER_LIMIT_REACHED: "This event is full.",
   EVENT_SCHEDULE_LOCKED: "The date and gallery length can only change before the gallery opens.",
+  EVENT_STILL_ACTIVE: "Deactivate this event before deleting it.",
   EVENT_STORAGE_LIMIT_REACHED: "This gallery is full. There isn't enough storage left for these photos.",
   EVENT_UNDER_REVIEW: "This event is under review. No one can join or add photos until the review is over.",
   IMAGE_INVALID_SIZE: "That image is too large or empty. Choose a different file.",

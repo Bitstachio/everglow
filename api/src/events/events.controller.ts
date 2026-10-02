@@ -118,9 +118,31 @@ export class EventsController {
     return this.toResponseDto(await this.eventsService.update(eventId, user.id, dto), user.id);
   }
 
+  @Post(":eventId/deactivate")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Deactivate an event",
+    description:
+      "Organizers only. Closes the gallery now: uploads, joins and invite links stop, the photos are hidden " +
+      "at once and removed within the hour, and the event stops counting toward the caller's active events. " +
+      "It can't be undone. An event that has already closed is returned unchanged.",
+  })
+  @ApiWrappedResponse(EventResponseDto, "The event, now closed")
+  async deactivate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+  ): Promise<EventResponseDto> {
+    return this.toResponseDto(await this.eventsService.deactivate(eventId, user.id), user.id);
+  }
+
   @Delete(":eventId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Delete an event" })
+  @ApiOperation({
+    summary: "Delete an event",
+    description:
+      "Organizers only, and only once the event is closed: deactivate it first, or wait for its gallery " +
+      "to close. Otherwise 403 EVENT_STILL_ACTIVE.",
+  })
   @ApiNoContentResponse({ description: "Event deleted (empty data envelope at runtime)" })
   async remove(
     @CurrentUser() user: AuthenticatedUser,

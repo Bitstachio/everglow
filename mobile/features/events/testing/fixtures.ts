@@ -20,6 +20,8 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   galleryClosesAt: "2026-10-20T15:30:00.000Z",
   galleryWindowDays: 30,
   galleryWindowOptions: [3, 7, 14, 30],
+  deactivatedAt: null,
+  deactivatedById: null,
   limits: { members: 30, storageBytes: "3221225472" },
   usage: { members: 1, storageBytes: "0" },
   createdAt: "2026-09-01T12:00:00.000Z",
