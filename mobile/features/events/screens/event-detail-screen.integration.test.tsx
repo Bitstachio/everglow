@@ -281,6 +281,20 @@ test("picks event photos without a crop step", async () => {
   expect(options).toMatchObject({ allowsMultipleSelection: true });
 });
 
+test("shows the upload as preparing until the picker hands the photos over, and clears it on cancel", async () => {
+  const picked = deferred<unknown>();
+  mockLaunchLibrary.mockReturnValue(picked.promise);
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+
+  expect(await screen.findByText("Preparing photos…")).toBeOnTheScreen();
+  picked.resolve({ canceled: true, assets: null });
+
+  expect(await screen.findByLabelText("Add photos")).toBeOnTheScreen();
+  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+});
+
 test("uploads many photos in batches of 20 with one progress label and one result", async () => {
   pickPhotos(25);
   mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
@@ -414,9 +428,14 @@ test("blocks upload when photo library permission is denied", async () => {
   expect(mockCreateUploadUrls).not.toHaveBeenCalled();
 });
 
-test("deletes a photo after confirmation", async () => {
-  await renderScreen({ photos: [buildPhoto()] });
+test("deletes a photo after confirmation and refreshes the gallery's storage", async () => {
+  await renderScreen({
+    photos: [buildPhoto()],
+    event: buildEvent({ usage: { members: 1, storageBytes: String(18 * 1024 ** 2) } }),
+  });
   await screen.findByLabelText("Event photo photo-1");
+  expect(screen.getByText("18 MB of 3 GB used")).toBeOnTheScreen();
+  mockDetailResponses({ photos: [] });
   await userEvent.setup().press(screen.getByLabelText("Delete photo photo-1"));
   confirmDestructiveAlert();
 
@@ -424,6 +443,7 @@ test("deletes a photo after confirmation", async () => {
     expect(mockRemovePhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true }),
   );
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo deleted successfully");
+  expect(await screen.findByText("0 B of 3 GB used")).toBeOnTheScreen();
 });
 
 test("downloads a photo to the media library", async () => {

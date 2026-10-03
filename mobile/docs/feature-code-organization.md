@@ -268,7 +268,10 @@ a number of photos.
 selection in batches of 20, the API's `MAX_UPLOAD_BATCH_SIZE`, one batch after
 another: mint the batch's upload URLs, PUT up to four files at once, then
 confirm the ones that landed. The button shows one count for the whole
-selection ("Uploading 34 of 120"), and one alert reports the result.
+selection ("Uploading 34 of 120"), and one alert reports the result. Before
+that it reads "Preparing photos…" from the moment the picker opens: once the
+member taps Add, iOS copies every selected photo into the app before the picker
+returns, which takes seconds for a large selection.
 
 - A file whose PUT fails, or whose confirm verdict is not `READY`, is counted
   as not uploaded and the rest carry on. A confirm whose response is lost is
@@ -280,6 +283,7 @@ selection ("Uploading 34 of 120"), and one alert reports the result.
 
 `useUploadEventPhotosMutation` refetches the photos and the event when it
 settles, so the storage line and a gallery that closed mid-upload are current.
+Deleting a photo refetches the event too, since it frees storage.
 
 ## Legal pages
 

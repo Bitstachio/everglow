@@ -5,16 +5,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
 import { CirclePlus, Download, Images, Trash2 } from "lucide-react-native";
 import { Image, Pressable, View } from "react-native";
-import type { Photo } from "../types";
-
-type UploadProgress = { done: number; total: number };
+import type { Photo, PhotoUploadStatus } from "../types";
 
 type EventPhotosSectionProps = {
   photos: Photo[];
   currentUserId?: string;
   isAdmin: boolean;
   /** Null while nothing is uploading. */
-  uploadProgress: UploadProgress | null;
+  uploadStatus: PhotoUploadStatus | null;
   /** The gallery's storage, e.g. "1.2 GB of 3 GB used". */
   storageLabel: string | null;
   onUpload: () => void;
@@ -26,14 +24,18 @@ export const EventPhotosSection = ({
   photos,
   currentUserId,
   isAdmin,
-  uploadProgress,
+  uploadStatus,
   storageLabel,
   onUpload,
   onDownload,
   onDelete,
 }: EventPhotosSectionProps) => {
-  const isUploading = uploadProgress !== null;
-  const progressLabel = uploadProgress ? `Uploading ${uploadProgress.done} of ${uploadProgress.total}` : "";
+  const isUploading = uploadStatus !== null;
+  const progressLabel = !uploadStatus
+    ? ""
+    : uploadStatus.phase === "preparing"
+      ? "Preparing photos…"
+      : `Uploading ${uploadStatus.done} of ${uploadStatus.total}`;
 
   return (
     <View className="gap-4">

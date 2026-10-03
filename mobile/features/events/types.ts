@@ -20,3 +20,10 @@ export type Event = EventResponseDto & {
 };
 
 export type Photo = PhotoResponseDto;
+
+/**
+ * The Add Photos button while an upload runs. `preparing` covers the picker
+ * being open and the seconds after it closes while iOS copies the selected
+ * photos into the app, before anything is sent.
+ */
+export type PhotoUploadStatus = { phase: "preparing" } | { phase: "uploading"; done: number; total: number };

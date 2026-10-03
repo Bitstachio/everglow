@@ -12,9 +12,9 @@ import {
   useRemoveEventParticipantMutation,
   useUploadEventPhotosMutation,
 } from "../api/mutations";
-import type { EventPhotoFile, EventPhotoUploadProgress } from "../api/upload-event-photos";
+import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
-import type { PhotoResponseDto } from "../types";
+import type { PhotoResponseDto, PhotoUploadStatus } from "../types";
 import { eventStorageLeftBytes, formatEventStorage, formatStorageBytes } from "../utils";
 
 // Event photos upload as picked: no crop step and no re-encode, so group shots
@@ -91,7 +91,7 @@ export const useEventDetailScreen = () => {
   const deletePhotoMutation = useDeleteEventPhotoMutation();
 
   const [membersSheetVisible, setMembersSheetVisible] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<EventPhotoUploadProgress | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<PhotoUploadStatus | null>(null);
 
   const event = eventQuery.data ?? null;
   const photos = photosQuery.data ?? [];
@@ -128,6 +128,11 @@ export const useEventDetailScreen = () => {
         return;
       }
 
+      // Set before the picker opens: once the member taps Add, iOS copies every
+      // selected photo into the app before the picker returns, which takes
+      // seconds for a large selection. The button shows it from the moment the
+      // picker closes.
+      setUploadStatus({ phase: "preparing" });
       const result = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
       if (result.canceled || !result.assets?.length) return;
 
@@ -146,12 +151,12 @@ export const useEventDetailScreen = () => {
         return;
       }
 
-      setUploadProgress({ done: 0, total });
+      setUploadStatus({ phase: "uploading", done: 0, total });
       const { uploaded, error } = await uploadPhotosMutation.mutateAsync({
         eventId,
         files,
         // Files that could not be measured were never sent, so they count as done.
-        onProgress: ({ done }) => setUploadProgress({ done: done + total - files.length, total }),
+        onProgress: ({ done }) => setUploadStatus({ phase: "uploading", done: done + total - files.length, total }),
       });
 
       if (error) {
@@ -172,7 +177,7 @@ export const useEventDetailScreen = () => {
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error, "Failed to upload photos"));
     } finally {
-      setUploadProgress(null);
+      setUploadStatus(null);
     }
   };
 
@@ -283,7 +288,7 @@ export const useEventDetailScreen = () => {
     refreshing,
     isAdmin,
     currentUserId: user?.id,
-    uploadProgress,
+    uploadStatus,
     storageLabel: event ? formatEventStorage(event) : null,
     membersSheetVisible,
     onRefresh,

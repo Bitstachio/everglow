@@ -27,7 +27,7 @@ const EventDetailScreen = () => {
     refreshing,
     isAdmin,
     currentUserId,
-    uploadProgress,
+    uploadStatus,
     storageLabel,
     membersSheetVisible,
     onRefresh,
@@ -105,7 +105,7 @@ const EventDetailScreen = () => {
             photos={photos}
             currentUserId={currentUserId}
             isAdmin={isAdmin}
-            uploadProgress={uploadProgress}
+            uploadStatus={uploadStatus}
             storageLabel={storageLabel}
             onUpload={handleUploadImage}
             onDownload={handleDownloadPhoto}

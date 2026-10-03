@@ -150,8 +150,12 @@ export const useDeleteEventPhotoMutation = () => {
     mutationFn: async ({ photoId }) => {
       await photosControllerRemove({ path: { photoId }, throwOnError: true });
     },
+    // Refetch the event too: deleting a photo frees its storage.
     onSuccess: async (_data, { eventId }) => {
-      await queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }),
+        queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }),
+      ]);
     },
   });
 };

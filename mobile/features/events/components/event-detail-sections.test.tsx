@@ -31,7 +31,7 @@ test("photos section shows empty state and upload control", async () => {
     <EventPhotosSection
       photos={[]}
       isAdmin
-      uploadProgress={null}
+      uploadStatus={null}
       storageLabel={null}
       onUpload={onUpload}
       onDownload={jest.fn()}
@@ -49,7 +49,7 @@ test("photos section shows the gallery's storage and one progress label while up
     <EventPhotosSection
       photos={[]}
       isAdmin
-      uploadProgress={{ done: 34, total: 120 }}
+      uploadStatus={{ phase: "uploading", done: 34, total: 120 }}
       storageLabel="1.2 GB of 3 GB used"
       onUpload={onUpload}
       onDownload={jest.fn()}
@@ -73,7 +73,7 @@ test("photos section wires download and delete for own photos", async () => {
       photos={[photo]}
       currentUserId="user-1"
       isAdmin={false}
-      uploadProgress={null}
+      uploadStatus={null}
       storageLabel={null}
       onUpload={jest.fn()}
       onDownload={onDownload}
@@ -93,7 +93,7 @@ test("photos section hides delete for other members' photos", async () => {
       photos={[buildPhoto({ addedById: "user-9" })]}
       currentUserId="user-2"
       isAdmin={false}
-      uploadProgress={null}
+      uploadStatus={null}
       storageLabel={null}
       onUpload={jest.fn()}
       onDownload={jest.fn()}
@@ -101,6 +101,22 @@ test("photos section hides delete for other members' photos", async () => {
     />,
   );
   expect(screen.queryByLabelText("Delete photo photo-1")).not.toBeOnTheScreen();
+});
+
+test("photos section shows that the selection is being prepared before the upload starts", async () => {
+  await render(
+    <EventPhotosSection
+      photos={[]}
+      isAdmin
+      uploadStatus={{ phase: "preparing" }}
+      storageLabel={null}
+      onUpload={jest.fn()}
+      onDownload={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  );
+  expect(screen.getByText("Preparing photos…")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Preparing photos…" })).toBeDisabled();
 });
 
 test("members sheet lists roles and allows removing non-organizers", async () => {
