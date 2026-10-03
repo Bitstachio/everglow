@@ -6,6 +6,7 @@ import { ExtractJwt, Strategy } from "passport-jwt";
 import { UsersService } from "src/users/users.service";
 import { AuthenticatedUser } from "./auth.types";
 import { JwtPayloadDto } from "./jwt-payload.dto";
+import { SigningKeysUnavailableError } from "./signing-keys-unavailable.error";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -24,10 +25,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         rateLimit: true,
         jwksRequestsPerMinute: 5,
         jwksUri,
-        // Refuse a key id the key set doesn't have with that reason. The default
-        // drops it, and jsonwebtoken then says "secret or public key must be
-        // provided", which reads like our misconfiguration.
-        handleSigningKeyError: (err, cb) => cb(err),
+        // A key id the key set doesn't have is the token's fault: refuse it with
+        // that reason. The default drops it, and jsonwebtoken then says "secret
+        // or public key must be provided", which reads like our misconfiguration.
+        // Failing to fetch the key set at all is ours, and the guard answers 503.
+        handleSigningKeyError: (err, cb) =>
+          cb(err && err.name !== "SigningKeyNotFoundError" ? new SigningKeysUnavailableError(err) : err),
       }),
       audience,
       issuer: `https://${domain}/`,

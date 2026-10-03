@@ -183,6 +183,10 @@ opaque:
   `RESPONSE_TEMPLATES.TOKEN_REJECTED(reason)`: `JwtAuthGuard` gives
   passport's reason for every token it refuses, and `UsersService` the
   account's.
+- `ServiceUnavailableException` — only `JwtAuthGuard`, when Auth0's signing
+  keys can't be fetched to check a token, with
+  `RESPONSE_TEMPLATES.SIGNING_KEYS_UNAVAILABLE(reason)`. The client gets
+  `INTERNAL_ERROR` and keeps its session; a 401 would sign it out.
 
 There is no generic 403, 409 or 422 to throw. A 403 is `authorize()` or an
 `ApiException`, and a 409 or 422 always means a product rule the app explains,

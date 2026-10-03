@@ -42,7 +42,8 @@ them** in controllers or services:
   issuer and audience it claims: `Bearer token rejected: TokenExpiredError: jwt expired at 2026-10-03T18:00:00.000Z
   (token claims issuer https://…/, audience …)`.
 - **Unhandled exceptions.** `AllExceptionsFilter` (`src/common/filters`) emits one authoritative `error` with the
-  stack for anything non-HTTP that escapes, and for an `InternalServerErrorException` without a catalogue code.
+  stack for anything non-HTTP that escapes, and for a 5xx `HttpException` without a catalogue code: an
+  `InternalServerErrorException`, or `JwtAuthGuard`'s 503 when Auth0's signing keys can't be fetched.
   **Do not catch-and-log-and-rethrow** just to record an error; you will create duplicate entries. Let it
   propagate.
 

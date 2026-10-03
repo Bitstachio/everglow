@@ -1,8 +1,9 @@
-import { ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import { ExecutionContext, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { Request } from "express";
 import { ExtractJwt } from "passport-jwt";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { SigningKeysUnavailableError } from "./signing-keys-unavailable.error";
 
 /**
  * Why passport refused the token: "No auth token", jsonwebtoken's verdict
@@ -39,7 +40,8 @@ const claimedOriginOf = (token: string): string | undefined => {
  * `AuthGuard("jwt")` with a reason on every 401. Passport tells the guard why
  * it refused the token, and the default `handleRequest` drops that for a bare
  * 401. The reason only reaches the request's log line: the client gets
- * `UNAUTHORIZED` and signs in again.
+ * `UNAUTHORIZED` and signs in again. A token we couldn't check at all is a 503
+ * instead, so an Auth0 outage doesn't sign everyone out.
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard("jwt") {
@@ -47,6 +49,12 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     // validate() threw: a 401 that already has its reason, or a server failure.
     if (err) throw err;
     if (user) return user;
+
+    if (info instanceof SigningKeysUnavailableError) {
+      throw new ServiceUnavailableException(RESPONSE_TEMPLATES.SIGNING_KEYS_UNAVAILABLE(info.message), {
+        cause: info.cause,
+      });
+    }
 
     const token = ExtractJwt.fromAuthHeaderAsBearerToken()(context.switchToHttp().getRequest<Request>());
     const origin = token ? claimedOriginOf(token) : undefined;

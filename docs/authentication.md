@@ -42,6 +42,8 @@ Controllers then use `@CurrentUser()` for the app user id. Authorization (CASL, 
 
 If any step fails, the answer is 401 `UNAUTHORIZED` and the app signs the user out. The request's log line says why in `errorReason`. It is either passport's reason, with the issuer and audience the token claims, or the account's reason from step 4. Passport's reasons are: no token, expired (and when), malformed, bad signature, a key id the key set doesn't have, wrong audience, or wrong issuer. The account's reasons are a deletion in progress, or a token issued before the deletion.
 
+The one exception is a token the API couldn't check at all, because Auth0's signing keys couldn't be fetched: Auth0 or the network is down, or jwks-rsa's limit of 5 key fetches a minute is spent. That answers 503 with the generic `INTERNAL_ERROR`, so the app keeps the session and offers a retry. A 401 there would sign everyone out during an Auth0 outage. The 503 is logged as `request.unhandled_error`, which pages (`api/docs/alerting.md`).
+
 ```text
 Request + Bearer JWT
   → signature / aud / iss / exp checks

@@ -12,4 +12,6 @@ export const RESPONSE_TEMPLATES = {
   INVALID_VALUE: (field: string, value: string | number, expected: string) => `${field} "${value}" must be ${expected}`,
   ACCESS_DENIED: (action: string, subject: string) => `Caller may not ${action} this ${subject}`,
   TOKEN_REJECTED: (reason: string) => `Bearer token rejected: ${reason}`,
+  SIGNING_KEYS_UNAVAILABLE: (reason: string) =>
+    `Couldn't fetch Auth0's signing keys to check the bearer token: ${reason}`,
 } as const;
