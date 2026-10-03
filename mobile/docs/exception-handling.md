@@ -98,12 +98,21 @@ Alert.alert("Error", getErrorMessage(error, "Failed to update profile"));
 form.setError("username", { message: getErrorMessage(error) });
 ```
 
-- Use **`getErrorMessage(error, fallback)`** for display.
-- Use **`getErrorCode(error)`** when behavior depends on a specific code
-  (e.g. map `USERNAME_TAKEN` onto a field).
+- Use **`getErrorMessage(error, fallback)`** for display. Copy comes from
+  `API_ERROR_MESSAGES` via the interceptor; do not re-implement product prose
+  in the feature.
+- Use **`getErrorCode(error)`** only when **behavior** depends on a specific
+  code (e.g. map `USERNAME_TAKEN` onto a field, or read `Retry-After` for
+  `RATE_LIMIT_EXCEEDED`). Do not switch on `status` or `code` just to pick a
+  display string—that means the API needs a catalog code and a translation
+  entry (see [api-exceptions](../../api/docs/api-exceptions.md)).
 - Do **not** read `error.response?.data`, Nest `message`, or raw
   `error.message` in screens for API failures (`getErrorMessage` returns the
   fallback for non-`ApiError` values).
+
+Retry / refetch heuristics may still key off status when that is the shared
+protocol (e.g. one retry on 409 for optimistic image confirms). **Display**
+still goes through the translation table for the specific code.
 
 Form submit feedback lives in form hooks; see [Forms](./forms.md). Screens
 must not call `Alert` directly where ESLint bans it under `features/**/screens/**`.

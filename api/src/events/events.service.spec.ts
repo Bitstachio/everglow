@@ -11,11 +11,11 @@ import { AccessLevel, Event, EventAccess, EventInvite, Plan, Prisma, PrismaClien
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { ApiException } from "src/common/errors/api.exception";
 import { EventPlanService } from "src/plans/event-plan.service";
 import { ImageUploadService } from "src/images/image-upload.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
-import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
@@ -667,7 +667,7 @@ describe("EventsService", () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
 
       await expect(service.create(creatorId, createEventDto)).rejects.toThrow(
-        new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE),
+        new ApiException("ONBOARDING_INCOMPLETE"),
       );
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: creatorId },
@@ -976,7 +976,7 @@ describe("EventsService", () => {
     it("checks onboarding before looking up the invitation URL", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(UnprocessableEntityException);
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(ApiException);
 
       expect(prisma.user.findUnique).toHaveBeenCalled();
       expect(prisma.eventInvite.findUnique).not.toHaveBeenCalled();
@@ -988,7 +988,7 @@ describe("EventsService", () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
 
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE),
+        new ApiException("ONBOARDING_INCOMPLETE"),
       );
 
       expect(prisma.eventInvite.findUnique).not.toHaveBeenCalled();

@@ -3447,6 +3447,7 @@
             "type": "string",
             "enum": [
               "ACTIVE_EVENT_LIMIT_REACHED",
+              "AVATAR_CHANGED_CONCURRENTLY",
               "BAD_REQUEST",
               "CONFLICT",
               "DETAILS_ALREADY_EXIST",
@@ -3467,6 +3468,7 @@
               "NOT_FOUND",
               "ONBOARDING_INCOMPLETE",
               "ORGANIZER_BLOCKED_BY_CALLER",
+              "PASSWORD_CHANGE_NOT_AVAILABLE",
               "RATE_LIMIT_EXCEEDED",
               "REMOVED_FROM_EVENT",
               "STORAGE_RESERVATION_CONFLICT",
