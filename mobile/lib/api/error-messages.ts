@@ -38,14 +38,6 @@ type ExclusiveMergeAll<Domains extends readonly Record<string, string>[]> = Doma
 
 type MergedErrorMessages = ExclusiveMergeAll<typeof API_ERROR_MESSAGE_DOMAINS>;
 
-/**
- * Client-facing copy for each OpenAPI error `code`.
- * Prefer these over Nest `message` bodies, which often include IDs and internal details.
- *
- * Each file under `error-message-domains/` matches an API `*.errors.ts` domain.
- * - `Record<ApiErrorCode, string>` fails the build when a code is missing or mistyped.
- * - `MergedErrorMessages` fails the build when two domains define the same key.
- */
 export const API_ERROR_MESSAGES = {
   ...HTTP_ERROR_MESSAGES,
   ...USER_ERROR_MESSAGES,
