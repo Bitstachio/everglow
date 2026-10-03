@@ -87,10 +87,11 @@ domain files (see [Mobile UI copy](#mobile-ui-copy)).
 6. Throw with `new ApiException("THE_CODE")` or
    `new ApiException("THE_CODE", params)`.
 
-Do not invent a code with neither a client branch nor distinct translated copy.
-Prefer fewer codes; filter-supplied generics cover true generics. When in doubt
-about copy, check whether mobile would need a status/`getErrorMessage` workaround—
-if yes, add a code.
+Do not invent a code with neither a (current or expected) client branch nor
+distinct translated copy. Prefer fewer codes; filter-supplied generics cover
+true generics. When in doubt about copy, ask whether a client would need a
+status/`getErrorMessage` workaround for this outcome—if yes, add a code even
+if that screen is not built yet.
 
 ---
 
@@ -111,7 +112,8 @@ the OpenAPI client.
 
 ### Use `ApiException`
 
-When **any** of these is true:
+When **any** of these is true (judge the **product outcome**, not only what
+mobile already implements):
 
 - The client must **branch** on this outcome vs other failures with the same
   status (e.g. `USERNAME_TAKEN` vs a generic 409).
@@ -120,6 +122,13 @@ When **any** of these is true:
   would otherwise special-case `status` or override `getErrorMessage` to show
   product prose, that prose belongs in `API_ERROR_MESSAGES` and the API must
   throw a catalog code.
+
+A pathway in today’s frontend that shows a meaningful message is a strong
+signal to code the error—but it is **not** the only signal. The mobile app is
+incomplete: an endpoint may throw a product-specific failure before any screen
+handles it. Ask whether a future (or existing) client **would** need a distinct
+`code` and translation entry for that outcome. If yes, add the catalog code and
+mobile copy now; do not leave it uncoded just because no hook reads it yet.
 
 Hiding a control in the UI (e.g. Change Password for social identities) does
 **not** mean the API may stay uncoded: if the failure can still reach

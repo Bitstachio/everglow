@@ -129,3 +129,9 @@ must not call `Alert` directly where ESLint bans it under `features/**/screens/*
    `error-messages.ts`.
 4. Prefer `getErrorCode` in the feature only when the UI must branch; otherwise
    the interceptor + translation table is enough.
+
+When migrating API errors, do not treat “no feature code references this yet”
+as proof the outcome should stay a generic Nest throw. If the product outcome
+will need distinct copy or a branch once the screen exists, the API should
+already throw a catalog code and this table should already have an entry
+(see [When to throw what](../../api/docs/api-exceptions.md#when-to-throw-what)).
