@@ -1,4 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { ApiException } from "src/common/errors/api.exception";
 import { Event, EventPlan, PhotoStatus, Plan, Prisma } from "generated/prisma/client";
 import { latestEventDate } from "src/events/events.constants";
 import { lockForTransaction } from "src/prisma/advisory-lock";
@@ -10,8 +11,6 @@ import {
   AccountPlanLimits,
   GALLERY_STATES,
   galleryStateOf,
-  PLAN_LIMIT_CODES,
-  PLAN_LIMIT_MESSAGES,
 } from "./plans.constants";
 
 /** What an event holds now, measured the way its limits are. */
@@ -168,7 +167,7 @@ export class EventPlanService {
     if (requested === undefined) return plan.galleryWindowDays;
     const options = this.galleryWindowOptions(plan);
     if (options.includes(requested)) return requested;
-    throw new BadRequestException(PLAN_LIMIT_MESSAGES.INVALID_GALLERY_WINDOW(options));
+    throw new BadRequestException();
   }
 
   /** An event's limits: its plan version's terms, with its bonus storage added. */
@@ -261,10 +260,7 @@ export class EventPlanService {
 
     // The error envelope carries only code and message; the app reads the
     // counts and the next event to close from GET /users/me/limits.
-    throw new ForbiddenException({
-      code: PLAN_LIMIT_CODES.ACTIVE_EVENT_LIMIT_REACHED,
-      message: PLAN_LIMIT_MESSAGES.ACTIVE_EVENT_LIMIT_REACHED(maxActiveEvents),
-    });
+    throw new ApiException("ACTIVE_EVENT_LIMIT_REACHED", { limit: maxActiveEvents });
   }
 
   /**
@@ -280,10 +276,7 @@ export class EventPlanService {
     const members = await tx.eventAccess.count({ where: { eventId: event.id } });
     if (members < memberLimit) return;
 
-    throw new ForbiddenException({
-      code: PLAN_LIMIT_CODES.EVENT_MEMBER_LIMIT_REACHED,
-      message: PLAN_LIMIT_MESSAGES.EVENT_MEMBER_LIMIT_REACHED(memberLimit),
-    });
+    throw new ApiException("EVENT_MEMBER_LIMIT_REACHED", { limit: memberLimit });
   }
 
   /** Refuses photos for a gallery that hasn't opened yet, or has closed. */
@@ -291,10 +284,7 @@ export class EventPlanService {
     const state = galleryStateOf(event);
     if (state === GALLERY_STATES.OPEN) return;
     if (state === GALLERY_STATES.UPCOMING) {
-      throw new ForbiddenException({
-        code: PLAN_LIMIT_CODES.EVENT_GALLERY_NOT_OPEN,
-        message: PLAN_LIMIT_MESSAGES.EVENT_GALLERY_NOT_OPEN,
-      });
+      throw new ApiException("EVENT_GALLERY_NOT_OPEN");
     }
     this.throwGalleryClosed();
   }
@@ -309,10 +299,7 @@ export class EventPlanService {
   }
 
   private throwGalleryClosed(): never {
-    throw new ForbiddenException({
-      code: PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED,
-      message: PLAN_LIMIT_MESSAGES.EVENT_GALLERY_CLOSED,
-    });
+    throw new ApiException("EVENT_GALLERY_CLOSED");
   }
 
   /**
@@ -331,9 +318,6 @@ export class EventPlanService {
     const bytes = BigInt(held._sum.sizeBytes ?? 0);
     if (bytes + requestedBytes <= storageLimitBytes) return;
 
-    throw new ForbiddenException({
-      code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,
-      message: PLAN_LIMIT_MESSAGES.EVENT_STORAGE_LIMIT_REACHED,
-    });
+    throw new ApiException("EVENT_STORAGE_LIMIT_REACHED");
   }
 }

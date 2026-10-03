@@ -2,8 +2,8 @@ import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
-import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
-import { PHOTO_SERVICE_ERRORS, STORAGE_RESERVATION_MAX_ATTEMPTS } from "src/photos/photos.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { STORAGE_RESERVATION_MAX_ATTEMPTS } from "src/photos/photos.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
@@ -149,10 +149,7 @@ describe("PhotosController (integration)", () => {
 
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
 
-      expect(response.body).toMatchObject({
-        code: EVENT_UNDER_REVIEW_CODE,
-        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
-      });
+      expectApiError(response.body, "EVENT_UNDER_REVIEW");
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });
@@ -271,7 +268,10 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(409);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(PHOTO_SERVICE_ERRORS.STORAGE_RESERVATION_CONFLICT);
+      expect(body).toMatchObject({
+        code: "STORAGE_RESERVATION_CONFLICT",
+        message: resolveApiErrorMessage("STORAGE_RESERVATION_CONFLICT"),
+      });
       expect(prisma.$transaction).toHaveBeenCalledTimes(STORAGE_RESERVATION_MAX_ATTEMPTS);
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });

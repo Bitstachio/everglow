@@ -1,4 +1,7 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { ApiException } from "src/common/errors/api.exception";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Event, EventAccess, Photo, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -6,13 +9,11 @@ import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
-import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
-import { PLAN_LIMIT_CODES, PLAN_LIMIT_MESSAGES } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
-import { buildPhotoS3Key, PHOTO_SERVICE_ERRORS, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
+import { buildPhotoS3Key, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosService } from "./photos.service";
 
@@ -181,10 +182,10 @@ describe("PhotosService", () => {
 
       const failure = await service.createUploadSlots(eventId, callerId, files).catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toEqual({
-        code: EVENT_UNDER_REVIEW_CODE,
-        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toEqual({
+        code: "EVENT_UNDER_REVIEW",
+        message: resolveApiErrorMessage("EVENT_UNDER_REVIEW"),
       });
       expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
     });
@@ -201,28 +202,21 @@ describe("PhotosService", () => {
     it("propagates a full gallery and mints no URLs when the reservation is refused", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
-      photoStorageService.reserveUploadBytes.mockRejectedValue(
-        new ForbiddenException({
-          code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,
-          message: PLAN_LIMIT_MESSAGES.EVENT_STORAGE_LIMIT_REACHED,
-        }),
-      );
+      photoStorageService.reserveUploadBytes.mockRejectedValue(new ApiException("EVENT_STORAGE_LIMIT_REACHED"));
 
       await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toMatchObject({
-        response: { code: PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED },
+        response: { code: "EVENT_STORAGE_LIMIT_REACHED" },
       });
       expect(photoStorageService.reserveUploadBytes).toHaveBeenCalledTimes(1);
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });
 
-    it("propagates ConflictException and mints no URLs when the reservation keeps conflicting", async () => {
+    it("propagates ApiException and mints no URLs when the reservation keeps conflicting", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
-      photoStorageService.reserveUploadBytes.mockRejectedValue(
-        new ConflictException(PHOTO_SERVICE_ERRORS.STORAGE_RESERVATION_CONFLICT),
-      );
+      photoStorageService.reserveUploadBytes.mockRejectedValue(new ApiException("STORAGE_RESERVATION_CONFLICT"));
 
-      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ApiException);
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });
 
@@ -679,7 +673,9 @@ describe("PhotosService", () => {
       prisma.photo.findUnique.mockResolvedValue(photo as never);
       photoVisibilityService.isVisibleTo.mockResolvedValue(false);
 
-      await expect(service.findOne(photoId, callerId)).rejects.toThrow(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+      await expect(service.findOne(photoId, callerId)).rejects.toThrow(
+        RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId),
+      );
       expect(photoVisibilityService.isVisibleTo).toHaveBeenCalledWith(photoId, callerId, photo.event);
       expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
     });

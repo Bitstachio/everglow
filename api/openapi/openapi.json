@@ -3450,6 +3450,7 @@
               "AVATAR_CHANGED_CONCURRENTLY",
               "BAD_REQUEST",
               "CONFLICT",
+              "COVER_CHANGED_CONCURRENTLY",
               "DETAILS_ALREADY_EXIST",
               "EVENT_GALLERY_CLOSED",
               "EVENT_GALLERY_NOT_OPEN",

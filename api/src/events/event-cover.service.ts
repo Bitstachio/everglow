@@ -1,4 +1,5 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { ApiException } from "src/common/errors/api.exception";
 import { Event } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import {
@@ -10,7 +11,7 @@ import {
 } from "src/images/image-upload.service";
 import { hiddenEventCoverIds } from "src/moderation/event-cover-visibility";
 import { PrismaService } from "src/prisma/prisma.service";
-import { EVENT_COVER_S3_KEY_PREFIX, EVENT_SERVICE_ERRORS } from "./events.constants";
+import { EVENT_COVER_S3_KEY_PREFIX } from "./events.constants";
 import { EventsService } from "./events.service";
 
 /**
@@ -108,7 +109,7 @@ export class EventCoverService {
           // Who set it goes with it, and is cleared with it.
           data: { coverS3Key: key, coverUpdatedById: key ? callerId : null },
         });
-        if (count === 0) throw new ConflictException(EVENT_SERVICE_ERRORS.COVER_CHANGED_CONCURRENTLY);
+        if (count === 0) throw new ApiException("COVER_CHANGED_CONCURRENTLY");
       },
     };
   }

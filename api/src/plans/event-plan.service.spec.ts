@@ -1,10 +1,10 @@
-import { BadRequestException, ForbiddenException, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, InternalServerErrorException } from "@nestjs/common";
+import { ApiException } from "src/common/errors/api.exception";
 import { Test } from "@nestjs/testing";
 import { Plan, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PrismaService } from "src/prisma/prisma.service";
 import { activeEventsCreatedBy, EventPlanService, PlannedEvent } from "./event-plan.service";
-import { PLAN_LIMIT_CODES } from "./plans.constants";
 
 describe("EventPlanService", () => {
   let service: EventPlanService;
@@ -134,10 +134,8 @@ describe("EventPlanService", () => {
       expect(service.resolveGalleryWindow(freeV2, days)).toBe(days);
     });
 
-    it("refuses a length the plan doesn't offer, naming the ones it does", () => {
-      expect(() => service.resolveGalleryWindow(freeV2, 10)).toThrow(
-        new BadRequestException("The gallery length must be one of 3, 7, 14, 30 days."),
-      );
+    it("refuses a length the plan doesn't offer", () => {
+      expect(() => service.resolveGalleryWindow(freeV2, 10)).toThrow(new BadRequestException());
     });
 
     it("holds an event on a version without options to its one length", () => {
@@ -186,8 +184,8 @@ describe("EventPlanService", () => {
         check();
         return null;
       } catch (error) {
-        expect(error).toBeInstanceOf(ForbiddenException);
-        return ((error as ForbiddenException).getResponse() as { code: string }).code;
+        expect(error).toBeInstanceOf(ApiException);
+        return ((error as ApiException).getResponse() as { code: string }).code;
       }
     };
 
@@ -196,22 +194,20 @@ describe("EventPlanService", () => {
     });
 
     it("refuses photos before the gallery opens", () => {
-      expect(refusalOf(() => service.assertGalleryOpen(upcoming))).toBe(PLAN_LIMIT_CODES.EVENT_GALLERY_NOT_OPEN);
+      expect(refusalOf(() => service.assertGalleryOpen(upcoming))).toBe("EVENT_GALLERY_NOT_OPEN");
     });
 
     it.each([
       ["its close time has passed", pastCloseTime],
       ["the close job has run", closedByTheJob],
     ])("refuses photos once %s", (_, closed) => {
-      expect(refusalOf(() => service.assertGalleryOpen(closed))).toBe(PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED);
+      expect(refusalOf(() => service.assertGalleryOpen(closed))).toBe("EVENT_GALLERY_CLOSED");
     });
 
     it("lets people join an upcoming or open event, but not a closed one", () => {
       expect(refusalOf(() => service.assertGalleryNotClosed(upcoming))).toBeNull();
       expect(refusalOf(() => service.assertGalleryNotClosed(event))).toBeNull();
-      expect(refusalOf(() => service.assertGalleryNotClosed(pastCloseTime))).toBe(
-        PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED,
-      );
+      expect(refusalOf(() => service.assertGalleryNotClosed(pastCloseTime))).toBe("EVENT_GALLERY_CLOSED");
     });
   });
 
@@ -267,7 +263,7 @@ describe("EventPlanService", () => {
         prisma.event.count.mockResolvedValue(2);
 
         await expect(service.assertCanCreateEvent(prisma, userId)).rejects.toMatchObject({
-          response: { code: PLAN_LIMIT_CODES.ACTIVE_EVENT_LIMIT_REACHED },
+          response: { code: "ACTIVE_EVENT_LIMIT_REACHED" },
         });
       });
 
@@ -312,7 +308,7 @@ describe("EventPlanService", () => {
     it("refuses a member past the plan version's limit", async () => {
       prisma.eventAccess.count.mockResolvedValue(30);
 
-      await expect(service.assertCanJoin(prisma, event)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.assertCanJoin(prisma, event)).rejects.toBeInstanceOf(ApiException);
     });
 
     it("never counts members on a plan without a member limit", async () => {

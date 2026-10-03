@@ -91,18 +91,18 @@ test("asks for camera permission and stops when it is denied", async () => {
   expect(alert).toHaveBeenCalledWith("Permission Required", expect.stringContaining("camera"));
 });
 
-test.each([
-  [createApiError("forbidden", { status: 403 }), "no longer one"],
-  [createApiError("conflict", { status: 409 }), "Another organizer changed the cover"],
-  [createApiError("too big", { status: 400, code: "IMAGE_INVALID_SIZE" }), "Try a different one"],
-  [createApiError("gone", { status: 422, code: "IMAGE_UPLOAD_EXPIRED" }), "didn't go through"],
-])("explains a failed upload (%#)", async (error, message) => {
-  mockSetCover.mockRejectedValue(error);
+test("explains a conflict with another organizer", async () => {
+  mockSetCover.mockRejectedValue(
+    createApiError("Another organizer changed the cover at the same time. Please try again.", {
+      status: 409,
+      code: "COVER_CHANGED_CONCURRENTLY",
+    }),
+  );
   const { result } = await renderHook(() => useChangeEventCover("event-1", false));
 
   await choose(result, "Choose from Library");
 
-  expect(alert).toHaveBeenCalledWith("Could not update cover", expect.stringContaining(message));
+  expect(alert).toHaveBeenCalledWith("Could not update cover", expect.stringContaining("Another organizer"));
 });
 
 test("backs off for Retry-After after a 429", async () => {

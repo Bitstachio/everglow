@@ -42,25 +42,3 @@ export const buildImageS3KeyPattern = (prefix: string): RegExp => {
   const escapedPrefix = prefix.replace(REGEXP_SPECIAL_CHARACTERS, "\\$&");
   return new RegExp(`^${escapedPrefix}${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}$`, "i");
 };
-
-/** Stable machine-readable codes for image upload failures, surfaced as `code` in the error envelope. */
-export const IMAGE_UPLOAD_ERROR_CODES = {
-  UNSUPPORTED_CONTENT_TYPE: "IMAGE_UNSUPPORTED_CONTENT_TYPE",
-  INVALID_SIZE: "IMAGE_INVALID_SIZE",
-  UPLOAD_NOT_FOUND: "IMAGE_UPLOAD_NOT_FOUND",
-  UPLOAD_EXPIRED: "IMAGE_UPLOAD_EXPIRED",
-  UPLOAD_REJECTED: "IMAGE_UPLOAD_REJECTED",
-} as const;
-
-export const IMAGE_UPLOAD_ERRORS = {
-  UNSUPPORTED_CONTENT_TYPE: (contentType: string) =>
-    `Image content type "${contentType}" is not supported; use one of ${ALLOWED_IMAGE_CONTENT_TYPES.join(", ")}`,
-  INVALID_SIZE: (sizeBytes: number) =>
-    `Image size must be a whole number of bytes between 1 and ${MAX_IMAGE_SIZE_BYTES}, received ${sizeBytes}`,
-  UPLOAD_NOT_FOUND: (uploadId: string) =>
-    `No uploaded image found for upload with ID "${uploadId}"; upload the file before confirming`,
-  UPLOAD_EXPIRED: (uploadId: string) =>
-    `Upload with ID "${uploadId}" was not confirmed in time; request a new upload URL`,
-  UPLOAD_REJECTED: (uploadId: string) =>
-    `Uploaded image for upload with ID "${uploadId}" has an unsupported type or size and was discarded`,
-};

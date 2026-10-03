@@ -1,5 +1,4 @@
 import { BadRequestException } from "@nestjs/common";
-import { PAGINATION_ERRORS } from "./pagination.constants";
 
 /** The sort position a page ends at: the keyset for `createdAt DESC, id DESC`. */
 export interface KeysetCursor {
@@ -48,7 +47,7 @@ export const decodeKeysetCursor = (cursor: string): KeysetCursor => {
     // than silently landing on a slightly different page.
     createdAt.toISOString() === timestamp;
 
-  if (!valid) throw new BadRequestException(PAGINATION_ERRORS.INVALID_CURSOR);
+  if (!valid) throw new BadRequestException();
 
   return { createdAt, id };
 };

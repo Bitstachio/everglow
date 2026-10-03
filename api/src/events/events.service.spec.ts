@@ -11,6 +11,8 @@ import { AccessLevel, Event, EventAccess, EventInvite, Plan, Prisma, PrismaClien
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { ApiException } from "src/common/errors/api.exception";
 import { EventPlanService } from "src/plans/event-plan.service";
 import { ImageUploadService } from "src/images/image-upload.service";
@@ -20,12 +22,6 @@ import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import {
-  EVENT_SERVICE_ERRORS,
-  EVENT_UNDER_REVIEW_CODE,
-  ORGANIZER_BLOCKED_BY_CALLER_CODE,
-  REMOVED_FROM_EVENT_CODE,
-} from "./events.constants";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 
@@ -427,8 +423,8 @@ describe("EventsService", () => {
 
       const failure = await service.create(callerId, createEventDto).catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "ACTIVE_EVENT_LIMIT_REACHED" });
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toMatchObject({ code: "ACTIVE_EVENT_LIMIT_REACHED" });
       expect(prisma.event.create).not.toHaveBeenCalled();
     });
 
@@ -481,7 +477,7 @@ describe("EventsService", () => {
 
     it("refuses a gallery length the plan doesn't offer, creating nothing", async () => {
       await expect(service.create(callerId, { ...createEventDto, galleryWindowDays: 10 })).rejects.toThrow(
-        new BadRequestException("The gallery length must be one of 3, 7, 14, 30 days."),
+        new BadRequestException(),
       );
       expect(prisma.event.create).not.toHaveBeenCalled();
     });
@@ -493,7 +489,7 @@ describe("EventsService", () => {
         createdEvent,
       );
       await expect(service.create(callerId, { ...createEventDto, date: "2027-10-01T12:00:00.001Z" })).rejects.toThrow(
-        new BadRequestException(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(12)),
+        new BadRequestException(),
       );
       expect(prisma.event.create).toHaveBeenCalledTimes(1);
     });
@@ -657,7 +653,7 @@ describe("EventsService", () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.create(creatorId, createEventDto)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.CREATOR_NOT_FOUND(creatorId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", creatorId)),
       );
       expect(prisma.event.create).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
@@ -838,8 +834,8 @@ describe("EventsService", () => {
 
       const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_MEMBER_LIMIT_REACHED" });
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toMatchObject({ code: "EVENT_MEMBER_LIMIT_REACHED" });
       expect(prisma.eventAccess.count).toHaveBeenCalledWith({ where: { eventId } });
       expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -915,7 +911,7 @@ describe("EventsService", () => {
       setupSuccessfulJoin(AccessLevel.ORGANIZER, eventCreatedByUser, organizerInvite.token);
 
       await expect(service.joinByInvitationUrl(callerId, organizerInvite.token)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(organizerInvite.token)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", organizerInvite.token)),
       );
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -999,7 +995,7 @@ describe("EventsService", () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.CALLER_NOT_FOUND(callerId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", callerId)),
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -1010,7 +1006,7 @@ describe("EventsService", () => {
       prisma.eventInvite.findUnique.mockResolvedValue(null);
 
       await expect(service.joinByInvitationUrl(callerId, invalidUrl)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invalidUrl)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invalidUrl)),
       );
 
       expect(prisma.event.findUnique).not.toHaveBeenCalled();
@@ -1023,7 +1019,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -1036,7 +1032,7 @@ describe("EventsService", () => {
       prisma.eventAccess.findUnique.mockResolvedValue(participantAccess);
 
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(eventId)),
+        new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", eventId)),
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -1051,10 +1047,10 @@ describe("EventsService", () => {
       expect(prisma.eventBan.findUnique).toHaveBeenCalledWith({
         where: { eventId_userId: { eventId, userId: callerId } },
       });
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toEqual({
-        code: REMOVED_FROM_EVENT_CODE,
-        message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toEqual({
+        code: "REMOVED_FROM_EVENT",
+        message: resolveApiErrorMessage("REMOVED_FROM_EVENT"),
       });
       expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -1069,8 +1065,8 @@ describe("EventsService", () => {
 
       const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
       // Before the ban, review and block checks: it applies to everyone.
       expect(prisma.eventBan.findUnique).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -1090,10 +1086,10 @@ describe("EventsService", () => {
 
       const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toEqual({
-        code: EVENT_UNDER_REVIEW_CODE,
-        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toEqual({
+        code: "EVENT_UNDER_REVIEW",
+        message: resolveApiErrorMessage("EVENT_UNDER_REVIEW"),
       });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1103,7 +1099,7 @@ describe("EventsService", () => {
       prisma.userBlock.findMany.mockResolvedValue([{ blockerId: "organizer-id", blocked: { details: null } }] as never);
 
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
       );
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1116,10 +1112,10 @@ describe("EventsService", () => {
 
       const failure = await service.joinByInvitationUrl(callerId, invitationUrl).catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toEqual({
-        code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
-        message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER("Sam"),
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toEqual({
+        code: "ORGANIZER_BLOCKED_BY_CALLER",
+        message: resolveApiErrorMessage("ORGANIZER_BLOCKED_BY_CALLER", { organizerName: "Sam" }),
       });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1160,7 +1156,7 @@ describe("EventsService", () => {
       prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
 
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(eventId)),
+        new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", eventId)),
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -1184,7 +1180,7 @@ describe("EventsService", () => {
       prisma.eventAccess.findUnique.mockResolvedValue(viewerAccess);
 
       await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(eventId)),
+        new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", eventId)),
       );
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
@@ -1307,16 +1303,14 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(eventId, callerId)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
     });
 
     it("throws when the caller has no relationship to the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.findOne(eventId, otherUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
-      );
+      await expect(service.findOne(eventId, otherUserId)).rejects.toThrow(new ForbiddenException());
     });
 
     it("checks that the event exists before evaluating read access", async () => {
@@ -1357,7 +1351,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
     });
 
@@ -1368,9 +1362,7 @@ describe("EventsService", () => {
     ])("throws 403 when the caller is %s", async (_label, accesses) => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, accesses()));
 
-      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(new ForbiddenException());
     });
   });
 
@@ -1473,7 +1465,7 @@ describe("EventsService", () => {
       it("takes a date up to 12 months ahead, and refuses one further", async () => {
         await expect(service.update(eventId, callerId, { date: "2027-10-01T12:00:00.000Z" })).resolves.toBeDefined();
         await expect(service.update(eventId, callerId, { date: "2027-10-01T12:00:00.001Z" })).rejects.toThrow(
-          new BadRequestException(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(12)),
+          new BadRequestException(),
         );
         expect(prisma.event.update).toHaveBeenCalledTimes(1);
       });
@@ -1507,8 +1499,8 @@ describe("EventsService", () => {
       ])("refuses a new %s with 403 EVENT_SCHEDULE_LOCKED", async (_, dto) => {
         const failure = await service.update(eventId, callerId, dto).catch((e: unknown) => e);
 
-        expect(failure).toBeInstanceOf(ForbiddenException);
-        expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_SCHEDULE_LOCKED" });
+        expect(failure).toBeInstanceOf(ApiException);
+        expect((failure as ApiException).getResponse()).toMatchObject({ code: "EVENT_SCHEDULE_LOCKED" });
         expect(prisma.event.update).not.toHaveBeenCalled();
       });
 
@@ -1535,7 +1527,7 @@ describe("EventsService", () => {
           .update(eventId, callerId, { date: "2026-12-01T18:00:00.000Z" })
           .catch((e: unknown) => e);
 
-        expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_SCHEDULE_LOCKED" });
+        expect((failure as ApiException).getResponse()).toMatchObject({ code: "EVENT_SCHEDULE_LOCKED" });
         expect(prisma.event.update).not.toHaveBeenCalled();
       });
 
@@ -1684,7 +1676,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
@@ -1693,9 +1685,7 @@ describe("EventsService", () => {
     it("throws when the caller has no event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(new ForbiddenException());
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
     });
@@ -1703,18 +1693,14 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(new ForbiddenException());
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
     it("throws when the caller is a viewer", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(new ForbiddenException());
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
@@ -1801,9 +1787,7 @@ describe("EventsService", () => {
     ])("refuses a %s, changing nothing", async (_, access) => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [access]));
 
-      await expect(service.deactivate(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.deactivate(eventId, callerId)).rejects.toThrow(new ForbiddenException());
       expect(prisma.event.updateMany).not.toHaveBeenCalled();
     });
 
@@ -1834,8 +1818,8 @@ describe("EventsService", () => {
 
       const failure = await service.delete(eventId, callerId).catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(ForbiddenException);
-      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_STILL_ACTIVE" });
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toMatchObject({ code: "EVENT_STILL_ACTIVE" });
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
     });
@@ -1972,7 +1956,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.delete(eventId, callerId)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
       expect(prisma.event.delete).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
@@ -1981,9 +1965,7 @@ describe("EventsService", () => {
     it("throws when the caller has no event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId)),
-      );
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(new ForbiddenException());
       expect(prisma.event.delete).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
     });
@@ -1991,18 +1973,14 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId)),
-      );
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(new ForbiddenException());
       expect(prisma.event.delete).not.toHaveBeenCalled();
     });
 
     it("throws when the caller is a viewer", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
 
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId)),
-      );
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(new ForbiddenException());
       expect(prisma.event.delete).not.toHaveBeenCalled();
     });
 
@@ -2168,7 +2146,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
@@ -2179,9 +2157,7 @@ describe("EventsService", () => {
     it("throws when the caller has no event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
@@ -2190,9 +2166,7 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
@@ -2201,9 +2175,7 @@ describe("EventsService", () => {
     it("throws when the caller is a viewer", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
@@ -2212,9 +2184,7 @@ describe("EventsService", () => {
     it("throws when the creator has no organizer event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
     });
 
     it("checks that the event exists before checking access", async () => {
@@ -2231,7 +2201,13 @@ describe("EventsService", () => {
       prisma.eventInvite.findUnique.mockResolvedValue(null);
 
       await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.INVITE_NOT_FOUND(eventId, AccessLevel.PARTICIPANT)),
+        new NotFoundException(
+          RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(
+            "Event invite",
+            "access level",
+            `${eventId}:${AccessLevel.PARTICIPANT}`,
+          ),
+        ),
       );
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
@@ -2270,7 +2246,7 @@ describe("EventsService", () => {
       prisma.eventInvite.findUnique.mockResolvedValue(null);
 
       await expect(service.joinByInvitationUrl(otherUserId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
       );
     });
   });
@@ -2287,7 +2263,7 @@ describe("EventsService", () => {
         .regenerateInvite(eventId, callerId, AccessLevel.PARTICIPANT)
         .catch((e: unknown) => e);
 
-      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
+      expect((failure as ApiException).getResponse()).toMatchObject({ code: "EVENT_GALLERY_CLOSED" });
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
     });
 
@@ -2530,9 +2506,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
       prisma.eventAccess.count.mockResolvedValue(1);
 
-      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(
-        new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId)),
-      );
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(new UnprocessableEntityException());
 
       expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
     });
@@ -2540,9 +2514,7 @@ describe("EventsService", () => {
     it("treats the creator without an event access row as not a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, callerId)),
-      );
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(new ForbiddenException());
 
       expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
     });
@@ -2551,7 +2523,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
 
       expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
@@ -2585,9 +2557,7 @@ describe("EventsService", () => {
 
       prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
-      );
+      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(new ForbiddenException());
     });
   });
 
@@ -2744,7 +2714,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.getEventParticipants(eventId, callerId)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
 
       expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
@@ -2753,9 +2723,7 @@ describe("EventsService", () => {
     it("throws when the caller is unrelated to the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.getEventParticipants(eventId, otherUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
-      );
+      await expect(service.getEventParticipants(eventId, otherUserId)).rejects.toThrow(new ForbiddenException());
 
       expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
     });
@@ -2877,7 +2845,7 @@ describe("EventsService", () => {
 
       await expect(
         service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.PARTICIPANT),
-      ).rejects.toThrow(new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId)));
+      ).rejects.toThrow(new UnprocessableEntityException());
 
       expect(prisma.eventAccess.update).not.toHaveBeenCalled();
     });
@@ -2886,7 +2854,7 @@ describe("EventsService", () => {
       setupOrganizerUpdate();
 
       await expect(service.updateUserAccessLevel(eventId, callerId, callerId, AccessLevel.PARTICIPANT)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_MODIFY_OWN_ACCESS),
+        new ForbiddenException(),
       );
 
       expect(prisma.eventAccess.update).not.toHaveBeenCalled();
@@ -2922,7 +2890,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
       await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+        new ForbiddenException(),
       );
     });
 
@@ -2931,7 +2899,7 @@ describe("EventsService", () => {
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
       await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId)),
+        new ForbiddenException(),
       );
     });
 
@@ -2985,9 +2953,7 @@ describe("EventsService", () => {
     it("is for organizers only", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.listBans(eventId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.listBans(eventId, callerId)).rejects.toThrow(new ForbiddenException());
       expect(prisma.eventBan.findMany).not.toHaveBeenCalled();
     });
   });
@@ -3017,9 +2983,7 @@ describe("EventsService", () => {
     it("is for organizers only", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.liftBan(eventId, callerId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.liftBan(eventId, callerId, targetUserId)).rejects.toThrow(new ForbiddenException());
       expect(prisma.eventBan.deleteMany).not.toHaveBeenCalled();
     });
   });
@@ -3149,7 +3113,7 @@ describe("EventsService", () => {
       prisma.eventAccess.count.mockResolvedValue(1);
 
       await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
-        new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId)),
+        new UnprocessableEntityException(),
       );
 
       expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
@@ -3158,9 +3122,7 @@ describe("EventsService", () => {
     it("blocks self-removal via removeUserFromEvent", async () => {
       setupOrganizerRemove();
 
-      await expect(service.removeUserFromEvent(eventId, callerId, callerId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF),
-      );
+      await expect(service.removeUserFromEvent(eventId, callerId, callerId)).rejects.toThrow(new ForbiddenException());
 
       expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
     });
@@ -3184,7 +3146,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
       await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+        new ForbiddenException(),
       );
     });
 
@@ -3193,7 +3155,7 @@ describe("EventsService", () => {
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
       await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId)),
+        new ForbiddenException(),
       );
     });
 
@@ -3215,9 +3177,7 @@ describe("EventsService", () => {
 
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId)),
-      );
+      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(new ForbiddenException());
     });
 
     it("uses leaveEvent for self-removal instead of removeUserFromEvent", async () => {
@@ -3239,7 +3199,7 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [targetOrganizerAccess]));
 
       await expect(service.removeUserFromEvent(eventId, targetUserId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF),
+        new ForbiddenException(),
       );
     });
   });

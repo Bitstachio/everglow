@@ -2,7 +2,7 @@ import { INestApplication, InternalServerErrorException, UnauthorizedException }
 import { AccountDeletionPhotoPolicy, PhotoStatus, Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockDeep, mockReset } from "jest-mock-extended";
-import { buildImageS3Key, IMAGE_UPLOAD_ERRORS, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
+import { buildImageS3Key, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
 import { AppleSiwaService, AppleTokenRevocationError } from "src/sdk/apple/apple-siwa.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
@@ -558,7 +558,9 @@ describe("UsersController (integration)", () => {
 
         const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(404);
 
-        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(AVATAR_UPLOAD_ID));
+        expect((response.body as ErrorResponse).message).toBe(
+          resolveApiErrorMessage("IMAGE_UPLOAD_NOT_FOUND", { uploadId: AVATAR_UPLOAD_ID }),
+        );
         expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();
       });
 
@@ -568,7 +570,9 @@ describe("UsersController (integration)", () => {
 
         const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(422);
 
-        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(AVATAR_UPLOAD_ID));
+        expect((response.body as ErrorResponse).message).toBe(
+          resolveApiErrorMessage("IMAGE_UPLOAD_REJECTED", { uploadId: AVATAR_UPLOAD_ID }),
+        );
         expect(s3Service.deleteObject).toHaveBeenCalledWith(AVATAR_S3_KEY);
         expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();
       });

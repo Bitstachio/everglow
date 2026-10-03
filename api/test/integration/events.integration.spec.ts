@@ -2,16 +2,11 @@ import { INestApplication } from "@nestjs/common";
 import { AccessLevel, Event, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
-import {
-  EVENT_COVER_S3_KEY_PREFIX,
-  EVENT_SERVICE_ERRORS,
-  EVENT_UNDER_REVIEW_CODE,
-  ORGANIZER_BLOCKED_BY_CALLER_CODE,
-  REMOVED_FROM_EVENT_CODE,
-} from "src/events/events.constants";
+import { EVENT_COVER_S3_KEY_PREFIX } from "src/events/events.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { buildInvitationUrl } from "src/events/events.invitation";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "src/events/events.types";
-import { buildImageS3Key, IMAGE_UPLOAD_ERRORS, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
+import { buildImageS3Key, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -411,8 +406,8 @@ describe("EventsController (integration)", () => {
         .expect(403);
 
       expect(response.body).toMatchObject({
-        code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
-        message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER("Jane Doe"),
+        code: "ORGANIZER_BLOCKED_BY_CALLER",
+        message: resolveApiErrorMessage("ORGANIZER_BLOCKED_BY_CALLER", { organizerName: "Jane Doe" }),
       });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -434,10 +429,7 @@ describe("EventsController (integration)", () => {
         .send({ invitationUrl: "invite-token" })
         .expect(403);
 
-      expect(response.body).toMatchObject({
-        code: REMOVED_FROM_EVENT_CODE,
-        message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT,
-      });
+      expectApiError(response.body, "REMOVED_FROM_EVENT");
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -483,10 +475,7 @@ describe("EventsController (integration)", () => {
         .send({ invitationUrl: "invite-token" })
         .expect(403);
 
-      expect(response.body).toMatchObject({
-        code: EVENT_UNDER_REVIEW_CODE,
-        message: EVENT_SERVICE_ERRORS.UNDER_REVIEW,
-      });
+      expectApiError(response.body, "EVENT_UNDER_REVIEW");
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -1418,7 +1407,9 @@ describe("EventsController (integration)", () => {
 
         const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(404);
 
-        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(COVER_UPLOAD_ID));
+        expect((response.body as ErrorResponse).message).toBe(
+          resolveApiErrorMessage("IMAGE_UPLOAD_NOT_FOUND", { uploadId: COVER_UPLOAD_ID }),
+        );
         expect(prisma.event.updateMany).not.toHaveBeenCalled();
       });
 
@@ -1429,7 +1420,7 @@ describe("EventsController (integration)", () => {
 
         const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(409);
 
-        expectApiError(response.body, CONFLICT_CODE);
+        expectApiError(response.body, "COVER_CHANGED_CONCURRENTLY");
       });
 
       it("returns 422 and discards an object of a disallowed type", async () => {
@@ -1438,7 +1429,9 @@ describe("EventsController (integration)", () => {
 
         const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(422);
 
-        expect((response.body as ErrorResponse).message).toBe(IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(COVER_UPLOAD_ID));
+        expect((response.body as ErrorResponse).message).toBe(
+          resolveApiErrorMessage("IMAGE_UPLOAD_REJECTED", { uploadId: COVER_UPLOAD_ID }),
+        );
         expect(s3Service.deleteObject).toHaveBeenCalledWith(COVER_S3_KEY);
         expect(prisma.event.updateMany).not.toHaveBeenCalled();
       });

@@ -1,25 +1,19 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  InternalServerErrorException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { ForbiddenException, InternalServerErrorException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Event, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { ApiException } from "src/common/errors/api.exception";
 import { ImageUploadService } from "src/images/image-upload.service";
 import {
   buildImageS3Key,
   IMAGE_UPLOAD_CONFIRM_WINDOW_SECONDS,
-  IMAGE_UPLOAD_ERRORS,
   MAX_IMAGE_SIZE_BYTES,
 } from "src/images/images.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { EventCoverService } from "./event-cover.service";
-import { EVENT_COVER_S3_KEY_PREFIX, EVENT_SERVICE_ERRORS } from "./events.constants";
+import { EVENT_COVER_S3_KEY_PREFIX } from "./events.constants";
 import { EventsService } from "./events.service";
 
 // The real ImageUploadService runs against a stubbed S3Service: what matters
@@ -76,7 +70,7 @@ describe("EventCoverService", () => {
     ...overrides,
   });
 
-  const notAnOrganizer = new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
+  const notAnOrganizer = new ForbiddenException();
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
@@ -204,7 +198,7 @@ describe("EventCoverService", () => {
       s3Service.headObject.mockResolvedValue({ exists: false });
 
       await expect(service.confirmUpload(eventId, callerId, uploadId)).rejects.toThrow(
-        new NotFoundException(IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(uploadId)),
+        new ApiException("IMAGE_UPLOAD_NOT_FOUND", { uploadId }),
       );
 
       expect(prisma.event.updateMany).not.toHaveBeenCalled();
@@ -218,7 +212,7 @@ describe("EventCoverService", () => {
       s3Service.headObject.mockResolvedValue(uploadedObject(overrides));
 
       await expect(service.confirmUpload(eventId, callerId, uploadId)).rejects.toThrow(
-        new UnprocessableEntityException(IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(uploadId)),
+        new ApiException("IMAGE_UPLOAD_REJECTED", { uploadId }),
       );
 
       expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
@@ -231,7 +225,7 @@ describe("EventCoverService", () => {
       s3Service.headObject.mockResolvedValue(uploadedObject({ lastModified }));
 
       await expect(service.confirmUpload(eventId, callerId, uploadId)).rejects.toThrow(
-        new UnprocessableEntityException(IMAGE_UPLOAD_ERRORS.UPLOAD_EXPIRED(uploadId)),
+        new ApiException("IMAGE_UPLOAD_EXPIRED", { uploadId }),
       );
 
       expect(prisma.event.updateMany).not.toHaveBeenCalled();
@@ -241,7 +235,7 @@ describe("EventCoverService", () => {
       prisma.event.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.confirmUpload(eventId, callerId, uploadId)).rejects.toThrow(
-        new ConflictException(EVENT_SERVICE_ERRORS.COVER_CHANGED_CONCURRENTLY),
+        new ApiException("COVER_CHANGED_CONCURRENTLY"),
       );
 
       expect(logger.info).not.toHaveBeenCalled();

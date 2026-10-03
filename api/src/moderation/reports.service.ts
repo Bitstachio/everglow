@@ -20,14 +20,13 @@ import {
 } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { MEMBER_PHOTOS, type MemberPhotos, removeMemberInTransaction } from "src/events/event-membership";
-import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
 import { eventWithCallerAccessInclude } from "src/events/events.types";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
-import { PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { CreateReportDto } from "./dto/create-report.dto";
@@ -35,7 +34,6 @@ import { ListReportsQueryDto } from "./dto/list-reports-query.dto";
 import {
   REPORT_ESCALATION_REASONS,
   REPORT_RESOLUTION_ACTIONS,
-  REPORT_SERVICE_ERRORS,
   RESOLUTION_STATUS,
   ReportEscalationReason,
   ReportResolutionAction,
@@ -91,11 +89,11 @@ export class ReportsService {
     });
     // Unverified photos are invisible, same as in the photo read paths.
     if (!photo || photo.status !== PhotoStatus.READY) {
-      throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId));
     }
 
     await this.assertCanReportIn(photo.event, callerId);
-    if (photo.addedById === callerId) throw new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_REPORT_SELF);
+    if (photo.addedById === callerId) throw new ForbiddenException();
 
     const target: ReportTarget = {
       eventId: photo.eventId,
@@ -110,7 +108,7 @@ export class ReportsService {
     // and it gets the report back.
     if (!(await this.photoVisibilityService.isVisibleTo(photoId, callerId, photo.event))) {
       const existing = await this.findOpenReport(callerId, target);
-      if (!existing) throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+      if (!existing) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId));
       return existing;
     }
 
@@ -131,15 +129,15 @@ export class ReportsService {
       where: { id: eventId },
       include: eventWithCallerAccessInclude(callerId),
     });
-    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     await this.assertCanReportIn(event, callerId);
-    if (targetUserId === callerId) throw new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_REPORT_SELF);
+    if (targetUserId === callerId) throw new ForbiddenException();
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
     });
-    if (!targetAccess) throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId));
+    if (!targetAccess) throw new ForbiddenException();
 
     const target: ReportTarget = {
       eventId,
@@ -161,7 +159,7 @@ export class ReportsService {
       where: { id: eventId },
       include: { ...eventWithCallerAccessInclude(callerId), _count: { select: { eventAccesses: true } } },
     });
-    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     await this.assertCanReportIn(event, callerId);
 
@@ -180,7 +178,7 @@ export class ReportsService {
       where: { id: eventId },
       include: eventWithCallerAccessInclude(callerId),
     });
-    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     // Listing is reading reports of the event; authorize against a prospective
@@ -192,7 +190,7 @@ export class ReportsService {
       targetType: ReportTargetType.PHOTO,
     } as unknown as Report);
     if (!ability.can(REPORT_ACTIONS.READ, prospectiveReport)) {
-      throw new ForbiddenException(REPORT_SERVICE_ERRORS.LIST_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
 
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
@@ -223,29 +221,29 @@ export class ReportsService {
     memberPhotos?: MemberPhotos,
   ): Promise<Report> {
     if (memberPhotos && action !== REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER) {
-      throw new BadRequestException(REPORT_SERVICE_ERRORS.PHOTOS_ONLY_WITH_REMOVE_MEMBER);
+      throw new BadRequestException();
     }
 
     const loaded = await this.prisma.report.findUnique({
       where: { id: reportId },
       include: { event: { include: eventWithCallerAccessInclude(callerId) } },
     });
-    if (!loaded) throw new NotFoundException(REPORT_SERVICE_ERRORS.NOT_FOUND(reportId));
+    if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Report", "ID", reportId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(REPORT_ACTIONS.UPDATE, subject(REPORT_SUBJECT, loaded))) {
-      throw new ForbiddenException(REPORT_SERVICE_ERRORS.RESOLVE_FORBIDDEN(reportId));
+      throw new ForbiddenException();
     }
 
     // An organizer must not be the judge of a report about themselves or their
     // own photo. With no other organizer it stays open: `report.escalated`
     // already told the platform owner about it, and `report.stale` repeats it.
-    if (loaded.reportedUserId === callerId) throw new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_RESOLVE_OWN);
+    if (loaded.reportedUserId === callerId) throw new ForbiddenException();
 
     const photo = await this.photoToRemove(loaded, action);
     const removedMemberId = action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER ? loaded.reportedUserId : null;
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER && !removedMemberId) {
-      throw new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_MEMBER_GONE);
+      throw new UnprocessableEntityException();
     }
 
     const resolution = { status: RESOLUTION_STATUS[action], resolvedById: callerId, resolvedAt: new Date() };
@@ -258,7 +256,7 @@ export class ReportsService {
         where: { id: reportId, status: ReportStatus.OPEN },
         data: resolution,
       });
-      if (!acted) throw new ConflictException(REPORT_SERVICE_ERRORS.ALREADY_RESOLVED(reportId));
+      if (!acted) throw new ConflictException();
 
       const others = sameTarget
         ? await tx.report.updateMany({
@@ -367,7 +365,7 @@ export class ReportsService {
     action: ReportResolutionAction,
   ): Promise<{ id: string; s3Key: string } | null> {
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO && report.targetType !== ReportTargetType.PHOTO) {
-      throw new BadRequestException(REPORT_SERVICE_ERRORS.REMOVE_PHOTO_NOT_A_PHOTO_REPORT);
+      throw new BadRequestException();
     }
     if (action === REPORT_RESOLUTION_ACTIONS.DISMISS || report.targetType !== ReportTargetType.PHOTO) return null;
 
@@ -375,7 +373,7 @@ export class ReportsService {
       ? await this.prisma.photo.findUnique({ where: { id: report.photoId }, select: { id: true, s3Key: true } })
       : null;
     if (!photo && action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO) {
-      throw new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_PHOTO_GONE);
+      throw new UnprocessableEntityException();
     }
     return photo;
   }
@@ -419,7 +417,7 @@ export class ReportsService {
       event,
     } as unknown as Report);
     if (!ability.can(REPORT_ACTIONS.CREATE, prospectiveReport)) {
-      throw new ForbiddenException(REPORT_SERVICE_ERRORS.CREATE_FORBIDDEN(event.id));
+      throw new ForbiddenException();
     }
   }
 
@@ -458,7 +456,7 @@ export class ReportsService {
     if (!created) {
       const existing = await this.findOpenReport(callerId, target);
       // Only when that report was resolved between the insert and this lookup.
-      if (!existing) throw new ConflictException(REPORT_SERVICE_ERRORS.CREATE_CONFLICT);
+      if (!existing) throw new ConflictException();
       return existing;
     }
 
