@@ -65,8 +65,8 @@ network fallbacks above).
 
 ## Translation table layout
 
-| Piece      | Path                                                                         |
-| ---------- | ---------------------------------------------------------------------------- |
+| Piece      | Path                                                                             |
+| ---------- | -------------------------------------------------------------------------------- |
 | Aggregator | `lib/api/error-messages.ts` (`API_ERROR_MESSAGE_DOMAINS` → `API_ERROR_MESSAGES`) |
 | Domains    | `lib/api/error-message-domains/`                                                 |
 

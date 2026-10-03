@@ -45,15 +45,15 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 **Domains** own the entries for their codes. List each domain object once in
 `API_ERROR_DOMAINS`; the aggregator merges that list into one flat registry:
 
-| Domain | File |
-| --- | --- |
-| HTTP generics | `src/common/errors/http.errors.ts` |
-| Users | `src/users/users.errors.ts` |
-| Events | `src/events/events.errors.ts` |
-| Images | `src/images/images.errors.ts` |
-| Plans | `src/plans/plans.errors.ts` |
-| Photos | `src/photos/photos.errors.ts` |
-| Rate limit | `src/common/rate-limit/rate-limit.errors.ts` |
+| Domain        | File                                         |
+| ------------- | -------------------------------------------- |
+| HTTP generics | `src/common/errors/http.errors.ts`           |
+| Users         | `src/users/users.errors.ts`                  |
+| Events        | `src/events/events.errors.ts`                |
+| Images        | `src/images/images.errors.ts`                |
+| Plans         | `src/plans/plans.errors.ts`                  |
+| Photos        | `src/photos/photos.errors.ts`                |
+| Rate limit    | `src/common/rate-limit/rate-limit.errors.ts` |
 
 **Aggregator** merges the domains into `API_ERROR_REGISTRY`, derives
 `ApiErrorCode` / sorted `API_ERROR_CODES` (OpenAPI enum), and exposes
@@ -163,17 +163,17 @@ responses; shrink the string helpers as call sites stop needing them.
 When an `HttpException` (or unhandled throw) reaches `AllExceptionsFilter`
 without a catalog `code`, the filter assigns one from status:
 
-| Status | Code |
-| --- | --- |
-| 400 | `BAD_REQUEST` |
-| 401 | `UNAUTHORIZED` |
-| 403 | `FORBIDDEN` |
-| 404 | `NOT_FOUND` |
-| 409 | `CONFLICT` |
-| 429 | `TOO_MANY_REQUESTS` |
-| 422 | `UNPROCESSABLE_ENTITY` |
-| 500 (+ other 5xx) | `INTERNAL_ERROR` |
-| other 4xx | `BAD_REQUEST` |
+| Status            | Code                   |
+| ----------------- | ---------------------- |
+| 400               | `BAD_REQUEST`          |
+| 401               | `UNAUTHORIZED`         |
+| 403               | `FORBIDDEN`            |
+| 404               | `NOT_FOUND`            |
+| 409               | `CONFLICT`             |
+| 429               | `TOO_MANY_REQUESTS`    |
+| 422               | `UNPROCESSABLE_ENTITY` |
+| 500 (+ other 5xx) | `INTERNAL_ERROR`       |
+| other 4xx         | `BAD_REQUEST`          |
 
 Definitions: [`src/common/errors/http.errors.ts`](../src/common/errors/http.errors.ts).
 

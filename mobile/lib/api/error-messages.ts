@@ -23,10 +23,10 @@ type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) exten
 
 type MergedErrorMessages = UnionToIntersection<(typeof API_ERROR_MESSAGE_DOMAINS)[number]>;
 
-export const API_ERROR_MESSAGES = Object.assign({}, ...API_ERROR_MESSAGE_DOMAINS) as MergedErrorMessages satisfies Record<
-  ApiErrorCode,
-  string
->;
+export const API_ERROR_MESSAGES = Object.assign(
+  {},
+  ...API_ERROR_MESSAGE_DOMAINS,
+) as MergedErrorMessages satisfies Record<ApiErrorCode, string>;
 
 export const messageForApiErrorCode = (code: string | undefined): string | undefined => {
   if (code == null) return undefined;

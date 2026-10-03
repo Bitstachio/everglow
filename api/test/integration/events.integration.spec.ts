@@ -17,6 +17,7 @@ import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { expectApiError } from "./helpers/expect-api-error";
 import {
+  BAD_REQUEST_CODE,
   CONFLICT_CODE,
   FORBIDDEN_CODE,
   NOT_FOUND_CODE,
@@ -207,7 +208,7 @@ describe("EventsController (integration)", () => {
           .send(createEventPayload({ galleryWindowDays: 10 }))
           .expect(400);
 
-        expect((response.body as ErrorResponse).message).toBe("The gallery length must be one of 3, 7, 14, 30 days.");
+        expectApiError(response.body, BAD_REQUEST_CODE);
         expect(prisma.event.create).not.toHaveBeenCalled();
       });
 
@@ -228,7 +229,7 @@ describe("EventsController (integration)", () => {
           .send(createEventPayload({ date: new Date(Date.now() + 400 * day).toISOString() }))
           .expect(400);
 
-        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(12));
+        expectApiError(response.body, BAD_REQUEST_CODE);
         expect(prisma.event.create).not.toHaveBeenCalled();
       });
     });
@@ -698,7 +699,7 @@ describe("EventsController (integration)", () => {
 
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
-      expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(response.body, FORBIDDEN_CODE);
       expect(prisma.event.updateMany).not.toHaveBeenCalled();
     });
 
