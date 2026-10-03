@@ -1,5 +1,5 @@
 import { HttpStatus } from "@nestjs/common";
-import type { ApiErrorDefinition, ApiErrorParams } from "src/common/errors/api-error.types";
+import type { ApiErrorDefinition } from "src/common/errors/api-error.types";
 import {
   DETAILS_ALREADY_EXIST_CODE,
   ONBOARDING_INCOMPLETE_CODE,
@@ -21,17 +21,15 @@ export const USER_API_ERRORS = {
   },
   [USERNAME_CHANGE_LIMITED_CODE]: {
     status: HttpStatus.TOO_MANY_REQUESTS,
-    message: ({ availableAt }: ApiErrorParams) => {
-      const when = availableAt instanceof Date ? availableAt.toISOString() : String(availableAt);
-      return `Username change limit reached (${USERNAME_CHANGE_LIMIT} per ${USERNAME_CHANGE_WINDOW_DAYS} days); available after ${when}`;
-    },
+    message: ({ availableAt }: { availableAt: Date }) =>
+      `Username change limit reached (${USERNAME_CHANGE_LIMIT} per ${USERNAME_CHANGE_WINDOW_DAYS} days); available after ${availableAt.toISOString()}`,
   },
   [USERNAME_RESERVED_CODE]: {
     status: HttpStatus.BAD_REQUEST,
-    message: ({ username }: ApiErrorParams) => `Username "${String(username)}" is reserved`,
+    message: ({ username }: { username: string }) => `Username "${username}" is reserved`,
   },
   [USERNAME_TAKEN_CODE]: {
     status: HttpStatus.CONFLICT,
-    message: ({ username }: ApiErrorParams) => `Username "${String(username)}" is taken`,
+    message: ({ username }: { username: string }) => `Username "${username}" is taken`,
   },
 } as const satisfies Record<string, ApiErrorDefinition>;
