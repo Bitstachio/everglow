@@ -11,6 +11,9 @@ export const TOO_MANY_REQUESTS_CODE = "TOO_MANY_REQUESTS" as const;
 export const UNPROCESSABLE_ENTITY_CODE = "UNPROCESSABLE_ENTITY" as const;
 export const INTERNAL_ERROR_CODE = "INTERNAL_ERROR" as const;
 
+/** A filter-supplied generic code: all of them have a plain message. */
+export type HttpApiErrorCode = keyof typeof HTTP_API_ERRORS;
+
 export const HTTP_API_ERRORS = {
   [BAD_REQUEST_CODE]: {
     status: HttpStatus.BAD_REQUEST,

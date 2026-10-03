@@ -2,6 +2,7 @@ import type { ApiErrorDto } from "@/lib/api/generated";
 import { EVENT_ERROR_MESSAGES } from "./error-message-domains/events";
 import { HTTP_ERROR_MESSAGES } from "./error-message-domains/http";
 import { IMAGE_ERROR_MESSAGES } from "./error-message-domains/images";
+import { MODERATION_ERROR_MESSAGES } from "./error-message-domains/moderation";
 import { PHOTO_ERROR_MESSAGES } from "./error-message-domains/photos";
 import { PLAN_ERROR_MESSAGES } from "./error-message-domains/plans";
 import { RATE_LIMIT_ERROR_MESSAGES } from "./error-message-domains/rate-limit";
@@ -16,6 +17,7 @@ export const API_ERROR_MESSAGE_DOMAINS = [
   IMAGE_ERROR_MESSAGES,
   PLAN_ERROR_MESSAGES,
   PHOTO_ERROR_MESSAGES,
+  MODERATION_ERROR_MESSAGES,
   RATE_LIMIT_ERROR_MESSAGES,
 ] as const;
 

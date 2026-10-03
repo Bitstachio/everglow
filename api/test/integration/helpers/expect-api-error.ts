@@ -1,4 +1,4 @@
-import { resolveApiErrorMessage, type ApiErrorCode } from "src/common/errors/api-error-codes";
+import { resolveApiErrorMessage, type ApiErrorArgs, type ApiErrorCode } from "src/common/errors/api-error-codes";
 
 export type ErrorResponse = {
   message: string;
@@ -9,10 +9,10 @@ export type ErrorResponse = {
   };
 };
 
-/** Assert the filter-supplied (or catalogued) envelope for an HTTP error. */
-export const expectApiError = (body: unknown, code: ApiErrorCode): void => {
+/** Assert the filter-supplied (or catalogued) envelope for an HTTP error, with the code's params if it takes any. */
+export const expectApiError = <C extends ApiErrorCode>(body: unknown, code: C, ...params: ApiErrorArgs<C>): void => {
   expect(body).toMatchObject({
     code,
-    message: resolveApiErrorMessage(code),
+    message: resolveApiErrorMessage(code, ...params),
   });
 };

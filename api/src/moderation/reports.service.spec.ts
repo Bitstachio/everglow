@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import {
   AccessLevel,
@@ -249,7 +243,9 @@ describe("ReportsService", () => {
     it("refuses a report of the caller's own photo", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT, { addedById: callerId }) as never);
 
-      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toMatchObject({
+        response: { code: "CANNOT_REPORT_SELF" },
+      });
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
     });
 
@@ -287,7 +283,9 @@ describe("ReportsService", () => {
       prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([]);
 
-      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toMatchObject({
+        response: { code: "REPORT_CHANGED_CONCURRENTLY" },
+      });
     });
 
     it("treats a photo the caller cannot see (blocked, or already hidden) as not found", async () => {
@@ -710,16 +708,18 @@ describe("ReportsService", () => {
     it("refuses a report of yourself", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
 
-      await expect(service.reportMember(eventId, callerId, callerId, dto)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.reportMember(eventId, callerId, callerId, dto)).rejects.toMatchObject({
+        response: { code: "CANNOT_REPORT_SELF" },
+      });
     });
 
     it("refuses a target who is not a member of the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
-      await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toMatchObject({
+        response: { code: "TARGET_NOT_A_MEMBER" },
+      });
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
     });
 
@@ -829,15 +829,24 @@ describe("ReportsService", () => {
       );
     });
 
-    it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER, null])(
-      "throws ForbiddenException for a caller whose access is %s",
+    it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER])(
+      "tells a %s that only organizers can read the reports",
       async (accessLevel) => {
         prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(accessLevel));
 
-        await expect(service.listReports(eventId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(service.listReports(eventId, callerId, {})).rejects.toMatchObject({
+          response: { code: "ORGANIZER_ONLY" },
+        });
         expect(prisma.report.findMany).not.toHaveBeenCalled();
       },
     );
+
+    it("gives a caller who isn't a member the bare 403", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(null));
+
+      await expect(service.listReports(eventId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.report.findMany).not.toHaveBeenCalled();
+    });
   });
 
   describe("resolveReport", () => {
@@ -927,9 +936,9 @@ describe("ReportsService", () => {
       it("answers 422 when the photo was already deleted, pointing the organizer at DISMISS", async () => {
         setup(reportFor(AccessLevel.ORGANIZER, { photoId: null }));
 
-        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toBeInstanceOf(
-          UnprocessableEntityException,
-        );
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toMatchObject({
+          response: { code: "REPORTED_PHOTO_GONE" },
+        });
         expect(prisma.$transaction).not.toHaveBeenCalled();
       });
     });
@@ -1036,9 +1045,9 @@ describe("ReportsService", () => {
           }),
         );
 
-        await expect(service.resolveReport(reportId, callerId, "REMOVE_MEMBER")).rejects.toBeInstanceOf(
-          UnprocessableEntityException,
-        );
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_MEMBER")).rejects.toMatchObject({
+          response: { code: "REPORTED_MEMBER_GONE" },
+        });
         expect(prisma.$transaction).not.toHaveBeenCalled();
       });
     });
@@ -1106,15 +1115,31 @@ describe("ReportsService", () => {
       );
     });
 
-    it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER, null])(
-      "throws ForbiddenException for a caller whose access is %s",
+    it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER])(
+      "tells a %s that only organizers can resolve reports",
       async (accessLevel) => {
         setup(reportFor(accessLevel));
 
-        await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toMatchObject({
+          response: { code: "ORGANIZER_ONLY" },
+        });
         expect(prisma.$transaction).not.toHaveBeenCalled();
       },
     );
+
+    it("gives a caller who isn't a member the bare 403", async () => {
+      setup(reportFor(null));
+
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("gives an organizer the bare 403 for a report about the event itself, which only the platform resolves", async () => {
+      setup(reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.EVENT, photoId: null }));
+
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
 
     it.each([
       ["a report about themselves", { targetType: ReportTargetType.MEMBER, photoId: null }],
@@ -1122,7 +1147,9 @@ describe("ReportsService", () => {
     ])("does not let an organizer resolve %s", async (_label, overrides) => {
       setup(reportFor(AccessLevel.ORGANIZER, { ...overrides, reportedUserId: callerId }));
 
-      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toMatchObject({
+        response: { code: "CANNOT_RESOLVE_OWN_REPORT" },
+      });
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
@@ -1131,7 +1158,9 @@ describe("ReportsService", () => {
       // The OPEN guard in the UPDATE matched nothing, which rolls the transaction back.
       prisma.report.updateManyAndReturn.mockResolvedValue([]);
 
-      await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toMatchObject({
+        response: { code: "REPORT_ALREADY_RESOLVED" },
+      });
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();

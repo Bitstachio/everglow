@@ -1,6 +1,7 @@
 import { RATE_LIMIT_API_ERRORS } from "src/common/rate-limit/rate-limit.errors";
 import { EVENT_API_ERRORS } from "src/events/events.errors";
 import { IMAGE_API_ERRORS } from "src/images/images.errors";
+import { MODERATION_API_ERRORS } from "src/moderation/moderation.errors";
 import { PHOTO_API_ERRORS } from "src/photos/photos.errors";
 import { PLAN_API_ERRORS } from "src/plans/plans.errors";
 import { USER_API_ERRORS } from "src/users/users.errors";
@@ -16,6 +17,7 @@ export const API_ERROR_DOMAINS = [
   IMAGE_API_ERRORS,
   PLAN_API_ERRORS,
   PHOTO_API_ERRORS,
+  MODERATION_API_ERRORS,
   RATE_LIMIT_API_ERRORS,
 ] as const;
 
@@ -30,10 +32,16 @@ export const API_ERROR_REGISTRY = Object.assign({}, ...API_ERROR_DOMAINS) as Api
 
 export type ApiErrorCode = keyof typeof API_ERROR_REGISTRY;
 
-export type ParamsOf<C extends ApiErrorCode> = (typeof API_ERROR_REGISTRY)[C]["message"] extends (
-  params: infer P,
-) => string
-  ? P
+/**
+ * The params a code's message takes, or never for a plain message. It
+ * distributes over a union, so a code typed as the whole `ApiErrorCode` still
+ * needs the params any of them takes, instead of compiling without them and
+ * failing when the message is built.
+ */
+export type ParamsOf<C extends ApiErrorCode> = C extends ApiErrorCode
+  ? (typeof API_ERROR_REGISTRY)[C]["message"] extends (params: infer P) => string
+    ? P
+    : never
   : never;
 
 export type ApiErrorArgs<C extends ApiErrorCode> = [ParamsOf<C>] extends [never] ? [] : [ParamsOf<C>];
