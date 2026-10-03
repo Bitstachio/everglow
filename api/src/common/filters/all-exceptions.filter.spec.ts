@@ -1,4 +1,11 @@
-import { ArgumentsHost, HttpException, Logger, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  ArgumentsHost,
+  HttpException,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "../rate-limit/rate-limit.constants";
 import { RateLimitExceededException } from "../rate-limit/rate-limit.exception";
 import { HttpAdapterHost } from "@nestjs/core";
@@ -9,6 +16,7 @@ import {
   UNPROCESSABLE_ENTITY_CODE,
 } from "../errors/http.errors";
 import { resolveApiErrorMessage } from "../errors/api-error-codes";
+import { ALERT_EVENTS } from "../logging/alert-events.constants";
 import { AllExceptionsFilter, ErrorResponse } from "./all-exceptions.filter";
 
 describe("AllExceptionsFilter", () => {
@@ -122,6 +130,32 @@ describe("AllExceptionsFilter", () => {
     expect(errorSpy).toHaveBeenCalledTimes(1);
     const [payload] = errorSpy.mock.calls[0] as [Record<string, unknown>];
     expect(payload).toMatchObject({ event: "request.unhandled_error" });
+  });
+
+  it("logs an uncoded 5xx HttpException at error like an unhandled throw", () => {
+    const exception = new InternalServerErrorException("Plan missing");
+    filter.catch(exception, host);
+
+    const { body, statusCode } = replyArgs();
+    expect(statusCode).toBe(500);
+    expect(body).toEqual({
+      message: resolveApiErrorMessage(INTERNAL_ERROR_CODE),
+      code: INTERNAL_ERROR_CODE,
+      meta: { timestamp: expect.any(String) as string, path },
+    });
+
+    expect(debugSpy).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      {
+        event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR,
+        err: exception,
+        statusCode: 500,
+        path,
+        message: "Plan missing",
+      },
+      "Uncoded 5xx HttpException",
+    );
   });
 
   it("logs a single error and returns INTERNAL_ERROR for a non-Error throw", () => {

@@ -60,12 +60,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (!code) {
-      // Nest / framework messages are hidden from clients; keep them in debug logs.
       if (exception instanceof HttpException) {
-        this.logger.debug(
-          { statusCode, path, message },
-          "Replacing uncoded HttpException message with catalog message",
-        );
+        if (statusCode >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) {
+          this.logger.error(
+            { event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, err: exception, statusCode, path, message },
+            "Uncoded 5xx HttpException",
+          );
+        } else {
+          this.logger.debug(
+            { statusCode, path, message },
+            "Replacing uncoded HttpException message with catalog message",
+          );
+        }
       }
       code = genericCodeForStatus(statusCode);
       message = resolveApiErrorMessage(code);

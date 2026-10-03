@@ -183,9 +183,11 @@ Rules:
   `ApiException`, `RateLimitExceededException` → `RATE_LIMIT_EXCEEDED`).
 - For the generic fill-in, the client-facing `message` comes from the registry —
   not from Nest constructor strings (those are not a client contract).
-- Before that replacement, the filter logs the original Nest `message` at
-  **debug** with `statusCode` and `path`, so 404/403 detail is still available
-  in server logs.
+- Before that replacement, the filter logs the original Nest `message`:
+  uncoded **4xx** at **debug** (expected client faults; detail stays available
+  when debug is on), uncoded **5xx** at **error** with
+  `REQUEST_UNHANDLED_ERROR` (same alert path as unhandled throws — debug is
+  off in production).
 - Unhandled non-HTTP failures still log server-side at **error**; the client
   only sees `INTERNAL_ERROR` and the registry message (no stack / internal
   detail).
