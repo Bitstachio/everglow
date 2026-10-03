@@ -4,6 +4,19 @@ import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+// Nest class/object methods are FunctionExpression in the AST; allow those.
+const arrowFunctionsOnly = {
+  selector: ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
+  message: 'Use an arrow function instead of the function keyword.',
+};
+
+const noInlineNestExceptionMessages = {
+  selector:
+    'NewExpression[callee.name=/^(BadRequest|Conflict|Forbidden|NotFound|Unauthorized|UnprocessableEntity)Exception$/][arguments.0.type=/^(Literal|TemplateLiteral)$/]',
+  message:
+    'Pass RESPONSE_TEMPLATES (or no message) to uncoded Nest HTTP exceptions. Do not inline a string.',
+};
+
 export default tseslint.config(
   {
     ignores: ['eslint.config.mjs'],
@@ -36,21 +49,15 @@ export default tseslint.config(
       'prefer-arrow-callback': 'error',
       'no-var': 'error',
       'prefer-const': 'error',
-      'no-restricted-syntax': [
-        'error',
-        {
-          // Nest class/object methods are FunctionExpression in the AST; allow those.
-          selector:
-            ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
-          message: 'Use an arrow function instead of the function keyword.',
-        },
-      ],
+      'no-restricted-syntax': ['error', arrowFunctionsOnly, noInlineNestExceptionMessages],
     },
   },
   {
     files: ['**/*.spec.ts'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',
+      // Filter specs pass raw Nest messages on purpose. Keep the arrow-function ban.
+      'no-restricted-syntax': ['error', arrowFunctionsOnly],
     },
   },
 );

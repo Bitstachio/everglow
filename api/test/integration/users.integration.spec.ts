@@ -8,14 +8,7 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { hashProviderSub } from "src/users/deleted-provider-sub";
-import {
-  ONBOARDING_INCOMPLETE_CODE,
-  USER_AVATAR_S3_KEY_PREFIX,
-  USERNAME_CHANGE_LIMITED_CODE,
-  USERNAME_RESERVED_CODE,
-  USERNAME_TAKEN_CODE,
-  DETAILS_ALREADY_EXIST_CODE,
-} from "src/users/users.constants";
+import { USER_AVATAR_S3_KEY_PREFIX } from "src/users/users.constants";
 import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
@@ -187,8 +180,8 @@ describe("UsersController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body).toMatchObject({
-        code: USERNAME_RESERVED_CODE,
-        message: resolveApiErrorMessage(USERNAME_RESERVED_CODE, { username: "admin" }),
+        code: "USERNAME_RESERVED",
+        message: resolveApiErrorMessage("USERNAME_RESERVED", { username: "admin" }),
       });
     });
 
@@ -206,8 +199,8 @@ describe("UsersController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body).toMatchObject({
-        code: USERNAME_TAKEN_CODE,
-        message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: payload.username }),
+        code: "USERNAME_TAKEN",
+        message: resolveApiErrorMessage("USERNAME_TAKEN", { username: payload.username }),
       });
     });
 
@@ -307,8 +300,8 @@ describe("UsersController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body).toMatchObject({
-        code: DETAILS_ALREADY_EXIST_CODE,
-        message: resolveApiErrorMessage(DETAILS_ALREADY_EXIST_CODE),
+        code: "DETAILS_ALREADY_EXIST",
+        message: resolveApiErrorMessage("DETAILS_ALREADY_EXIST"),
       });
       expect(body.meta.path).toBe(path);
     });
@@ -526,8 +519,8 @@ describe("UsersController (integration)", () => {
         const response = await request(httpServer).post(uploadUrlPath).set(authHeader()).send(payload).expect(422);
 
         expect(response.body).toMatchObject({
-          code: ONBOARDING_INCOMPLETE_CODE,
-          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+          code: "ONBOARDING_INCOMPLETE",
+          message: resolveApiErrorMessage("ONBOARDING_INCOMPLETE"),
         });
         expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
       });
@@ -596,8 +589,8 @@ describe("UsersController (integration)", () => {
         const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(422);
 
         expect(response.body).toMatchObject({
-          code: ONBOARDING_INCOMPLETE_CODE,
-          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+          code: "ONBOARDING_INCOMPLETE",
+          message: resolveApiErrorMessage("ONBOARDING_INCOMPLETE"),
         });
         expect(s3Service.headObject).not.toHaveBeenCalled();
       });
@@ -756,7 +749,7 @@ describe("UsersController (integration)", () => {
           .expect(429);
 
         const body = response.body as ErrorResponse;
-        expect(body.code).toBe(USERNAME_CHANGE_LIMITED_CODE);
+        expect(body.code).toBe("USERNAME_CHANGE_LIMITED");
         expect(prisma.user.update).not.toHaveBeenCalled();
         expect(prisma.usernameChange.create).not.toHaveBeenCalled();
       });
@@ -883,8 +876,8 @@ describe("UsersController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expect(body).toMatchObject({
-        code: ONBOARDING_INCOMPLETE_CODE,
-        message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+        code: "ONBOARDING_INCOMPLETE",
+        message: resolveApiErrorMessage("ONBOARDING_INCOMPLETE"),
       });
       expect(body.meta.path).toBe(path);
     });

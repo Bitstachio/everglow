@@ -20,11 +20,11 @@ import {
 } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { ImageUploadService } from "src/images/image-upload.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
-import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
@@ -69,7 +69,7 @@ export class EventsService {
     });
 
     if (!creator) throw new NotFoundException(EVENT_SERVICE_ERRORS.CREATOR_NOT_FOUND(creatorId));
-    if (!creator.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+    if (!creator.details) throw new ApiException("ONBOARDING_INCOMPLETE");
 
     const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: !!creator.details });
     if (!ability.can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT)) {
@@ -142,7 +142,7 @@ export class EventsService {
     });
 
     if (!caller) throw new NotFoundException(EVENT_SERVICE_ERRORS.CALLER_NOT_FOUND(callerId));
-    if (!caller.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+    if (!caller.details) throw new ApiException("ONBOARDING_INCOMPLETE");
 
     const invite = await this.prisma.eventInvite.findUnique({ where: { token: invitationUrl } });
     // Organizer links no longer exist; one that slipped through reads as unknown.

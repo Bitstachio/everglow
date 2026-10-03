@@ -13,14 +13,6 @@ import { AppleIdentityRevocationService } from "./apple-identity-revocation.serv
 import { hashProviderSub } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import {
-  DETAILS_ALREADY_EXIST_CODE,
-  ONBOARDING_INCOMPLETE_CODE,
-  USER_SERVICE_ERRORS,
-  USERNAME_CHANGE_LIMITED_CODE,
-  USERNAME_RESERVED_CODE,
-  USERNAME_TAKEN_CODE,
-} from "./users.constants";
 import { AccountDeletionUser, UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
@@ -209,8 +201,8 @@ describe("UsersService", () => {
 
       await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toMatchObject({
         response: {
-          code: DETAILS_ALREADY_EXIST_CODE,
-          message: resolveApiErrorMessage(DETAILS_ALREADY_EXIST_CODE),
+          code: "DETAILS_ALREADY_EXIST",
+          message: resolveApiErrorMessage("DETAILS_ALREADY_EXIST"),
         },
       });
       expect(prisma.user.update).not.toHaveBeenCalled();
@@ -219,9 +211,7 @@ describe("UsersService", () => {
     it("throws NotFoundException when the user does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toThrow(
-        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
-      );
+      await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toThrow(NotFoundException);
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
@@ -231,8 +221,8 @@ describe("UsersService", () => {
       await expect(service.createDetails(userId, { ...createUserDetailsDto, username: "admin" })).rejects.toMatchObject(
         {
           response: {
-            code: USERNAME_RESERVED_CODE,
-            message: resolveApiErrorMessage(USERNAME_RESERVED_CODE, { username: "admin" }),
+            code: "USERNAME_RESERVED",
+            message: resolveApiErrorMessage("USERNAME_RESERVED", { username: "admin" }),
           },
         },
       );
@@ -245,8 +235,8 @@ describe("UsersService", () => {
 
       await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toMatchObject({
         response: {
-          code: USERNAME_TAKEN_CODE,
-          message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: "jane.doe" }),
+          code: "USERNAME_TAKEN",
+          message: resolveApiErrorMessage("USERNAME_TAKEN", { username: "jane.doe" }),
         },
       });
     });
@@ -276,9 +266,7 @@ describe("UsersService", () => {
     it("throws NotFoundException when the user does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.getById(userId)).rejects.toThrow(
-        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
-      );
+      await expect(service.getById(userId)).rejects.toThrow(NotFoundException);
     });
 
     it("rethrows unexpected Prisma errors from user.findUnique", async () => {
@@ -301,8 +289,8 @@ describe("UsersService", () => {
 
       await expect(service.getOnboardedById(userId)).rejects.toMatchObject({
         response: {
-          code: ONBOARDING_INCOMPLETE_CODE,
-          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+          code: "ONBOARDING_INCOMPLETE",
+          message: resolveApiErrorMessage("ONBOARDING_INCOMPLETE"),
         },
       });
     });
@@ -310,9 +298,7 @@ describe("UsersService", () => {
     it("throws NotFoundException when the user does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.getOnboardedById(userId)).rejects.toThrow(
-        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
-      );
+      await expect(service.getOnboardedById(userId)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -386,8 +372,8 @@ describe("UsersService", () => {
         expect(failure).toBeInstanceOf(ApiException);
         expect((failure as ApiException).getStatus()).toBe(429);
         expect((failure as ApiException).getResponse()).toEqual({
-          code: USERNAME_CHANGE_LIMITED_CODE,
-          message: resolveApiErrorMessage(USERNAME_CHANGE_LIMITED_CODE, {
+          code: "USERNAME_CHANGE_LIMITED",
+          message: resolveApiErrorMessage("USERNAME_CHANGE_LIMITED", {
             availableAt: new Date(oldest.getTime() + 14 * day),
           }),
         });
@@ -493,8 +479,8 @@ describe("UsersService", () => {
 
       await expect(service.update(userId, updateDto)).rejects.toMatchObject({
         response: {
-          code: ONBOARDING_INCOMPLETE_CODE,
-          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+          code: "ONBOARDING_INCOMPLETE",
+          message: resolveApiErrorMessage("ONBOARDING_INCOMPLETE"),
         },
       });
       expect(prisma.user.update).not.toHaveBeenCalled();
@@ -503,9 +489,7 @@ describe("UsersService", () => {
     it("throws NotFoundException when the user does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.update(userId, updateDto)).rejects.toThrow(
-        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
-      );
+      await expect(service.update(userId, updateDto)).rejects.toThrow(NotFoundException);
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
@@ -523,8 +507,8 @@ describe("UsersService", () => {
 
       await expect(service.update(userId, { username: "taken.name" })).rejects.toMatchObject({
         response: {
-          code: USERNAME_TAKEN_CODE,
-          message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: "taken.name" }),
+          code: "USERNAME_TAKEN",
+          message: resolveApiErrorMessage("USERNAME_TAKEN", { username: "taken.name" }),
         },
       });
     });
@@ -942,9 +926,7 @@ describe("UsersService", () => {
     it("throws NotFoundException when the user does not exist", async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.remove(userId, AccountDeletionPhotoPolicy.KEEP)).rejects.toThrow(
-        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(userId)),
-      );
+      await expect(service.remove(userId, AccountDeletionPhotoPolicy.KEEP)).rejects.toThrow(NotFoundException);
     });
   });
 

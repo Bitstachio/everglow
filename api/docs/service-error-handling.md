@@ -14,7 +14,7 @@ async update(id: string, dto: UpdateUserDto): Promise<User> {
     return await this.prisma.user.update({ where: { id }, data: dto });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
-      throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id));
     }
     throw e;
   }
@@ -78,7 +78,7 @@ A `findOne` method acts as a guard, throwing a `NotFoundException` before the mu
 async findOne(id: string): Promise<User> {
   const user = await this.prisma.user.findUnique({ where: { id } });
 
-  if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+  if (!user) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id));
 
   return user;
 }

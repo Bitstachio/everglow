@@ -106,7 +106,12 @@ test("offers removal only when an avatar is set", async () => {
 });
 
 test("explains a conflict with another device", async () => {
-  mockSetAvatar.mockRejectedValue(createApiError("changed", { status: 409 }));
+  mockSetAvatar.mockRejectedValue(
+    createApiError("Your profile photo was changed on another device. Please try again.", {
+      status: 409,
+      code: "AVATAR_CHANGED_CONCURRENTLY",
+    }),
+  );
   const { result } = await renderHook(() => useChangeAvatar());
   await choose(result, "Choose from Library");
   expect(alert).toHaveBeenCalledWith("Could not update photo", expect.stringContaining("another device"));

@@ -1,13 +1,10 @@
-import {
-  ConflictException,
-  InternalServerErrorException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { InternalServerErrorException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { ApiException } from "src/common/errors/api.exception";
 import { ImageUploadService } from "src/images/image-upload.service";
 import {
   buildImageS3Key,
@@ -18,7 +15,7 @@ import {
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserAvatarService } from "./user-avatar.service";
-import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS } from "./users.constants";
+import { USER_AVATAR_S3_KEY_PREFIX } from "./users.constants";
 import { UsersService } from "./users.service";
 import { UserWithDetails } from "./users.types";
 
@@ -73,7 +70,7 @@ describe("UserAvatarService", () => {
     ...overrides,
   });
 
-  const notOnboarded = new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+  const notOnboarded = new ApiException("ONBOARDING_INCOMPLETE");
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
@@ -235,9 +232,12 @@ describe("UserAvatarService", () => {
     it("tells the loser of two racing confirms to retry instead of orphaning the winner's object", async () => {
       prisma.userDetails.updateMany.mockResolvedValue({ count: 0 });
 
-      await expect(service.confirmUpload(userId, uploadId)).rejects.toThrow(
-        new ConflictException(USER_SERVICE_ERRORS.AVATAR_CHANGED_CONCURRENTLY),
-      );
+      await expect(service.confirmUpload(userId, uploadId)).rejects.toMatchObject({
+        response: {
+          code: "AVATAR_CHANGED_CONCURRENTLY",
+          message: resolveApiErrorMessage("AVATAR_CHANGED_CONCURRENTLY"),
+        },
+      });
 
       expect(logger.info).not.toHaveBeenCalled();
     });

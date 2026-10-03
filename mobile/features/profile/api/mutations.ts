@@ -10,7 +10,8 @@ import {
   usersControllerUpdateMe,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
-import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
+import { getErrorCode } from "@/lib/api/errors";
+import { retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
 import type { AvatarImage } from "../lib/avatar-image";
 import { profileKeys } from "./keys";
 import type {
@@ -76,13 +77,13 @@ const uploadAvatar = (image: AvatarImage): Promise<UserResponseDto> =>
     },
   });
 
-/** After a conflict that survived the retry, show whatever the other device set. */
-const useRefetchUserAfterConflict = () => {
+/** After an avatar race that survived the retry, show whatever the other device set. */
+const useRefetchUserAfterAvatarConflict = () => {
   const { updateUser } = useAuth();
   const queryClient = useQueryClient();
 
   return async (error: unknown) => {
-    if (!isConflict(error)) return;
+    if (getErrorCode(error) !== "AVATAR_CHANGED_CONCURRENTLY") return;
     try {
       const { data } = await usersControllerFindMe({ throwOnError: true });
       const user = unwrapEnvelope(data);
@@ -97,7 +98,7 @@ const useRefetchUserAfterConflict = () => {
 export const useSetAvatarMutation = () => {
   const { updateUser } = useAuth();
   const queryClient = useQueryClient();
-  const refetchUserAfterConflict = useRefetchUserAfterConflict();
+  const refetchUserAfterAvatarConflict = useRefetchUserAfterAvatarConflict();
 
   return useMutation<UserResponseDto, Error, AvatarImage>({
     mutationFn: uploadAvatar,
@@ -105,14 +106,14 @@ export const useSetAvatarMutation = () => {
       updateUser(user);
       queryClient.setQueryData(profileKeys.me(), user);
     },
-    onError: refetchUserAfterConflict,
+    onError: refetchUserAfterAvatarConflict,
   });
 };
 
 export const useRemoveAvatarMutation = () => {
   const { user, updateUser } = useAuth();
   const queryClient = useQueryClient();
-  const refetchUserAfterConflict = useRefetchUserAfterConflict();
+  const refetchUserAfterAvatarConflict = useRefetchUserAfterAvatarConflict();
 
   return useMutation<void, Error, void>({
     mutationFn: async () => {
@@ -124,6 +125,6 @@ export const useRemoveAvatarMutation = () => {
       updateUser(updated);
       queryClient.setQueryData(profileKeys.me(), updated);
     },
-    onError: refetchUserAfterConflict,
+    onError: refetchUserAfterAvatarConflict,
   });
 };

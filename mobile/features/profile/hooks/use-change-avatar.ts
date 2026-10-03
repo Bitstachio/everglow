@@ -22,21 +22,6 @@ const PERMISSION_MESSAGES: Record<PhotoSource, string> = {
 
 const formatWait = (seconds: number) => (seconds < 60 ? `${seconds} seconds` : `${Math.ceil(seconds / 60)} minutes`);
 
-const avatarErrorMessage = (error: unknown): string => {
-  switch (getErrorCode(error)) {
-    case "IMAGE_UNSUPPORTED_CONTENT_TYPE":
-    case "IMAGE_INVALID_SIZE":
-      return "This photo can't be used. Try a different one.";
-    case "IMAGE_UPLOAD_EXPIRED":
-    case "IMAGE_UPLOAD_REJECTED":
-      return "The upload didn't go through. Please try again.";
-  }
-  if (isApiError(error) && error.status === 409) {
-    return "Your profile photo was changed on another device. Please try again.";
-  }
-  return getErrorMessage(error, "Please try again.");
-};
-
 const pickPhoto = async (source: PhotoSource): Promise<ImagePicker.ImagePickerAsset | null> => {
   const permission =
     source === "camera"
@@ -94,7 +79,7 @@ export const useChangeAvatar = () => {
         showRateLimited();
         return;
       }
-      Alert.alert(title, avatarErrorMessage(error));
+      Alert.alert(title, getErrorMessage(error, "Please try again."));
     } finally {
       setIsPreparing(false);
       inFlight.current = false;

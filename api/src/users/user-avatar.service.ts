@@ -1,5 +1,6 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
+import { ApiException } from "src/common/errors/api.exception";
 import {
   ImageFile,
   ImageSlot,
@@ -8,7 +9,7 @@ import {
   ImageUploadTarget,
 } from "src/images/image-upload.service";
 import { PrismaService } from "src/prisma/prisma.service";
-import { USER_AVATAR_S3_KEY_PREFIX, USER_SERVICE_ERRORS } from "./users.constants";
+import { USER_AVATAR_S3_KEY_PREFIX } from "./users.constants";
 import { UsersService } from "./users.service";
 import { OnboardedUser, UserWithDetails } from "./users.types";
 
@@ -83,7 +84,7 @@ export class UserAvatarService {
           where: { userId: user.id, avatarS3Key: currentKey },
           data: { avatarS3Key: key },
         });
-        if (count === 0) throw new ConflictException(USER_SERVICE_ERRORS.AVATAR_CHANGED_CONCURRENTLY);
+        if (count === 0) throw new ApiException("AVATAR_CHANGED_CONCURRENTLY");
       },
     };
   }

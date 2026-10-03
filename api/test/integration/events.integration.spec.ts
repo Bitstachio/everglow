@@ -276,7 +276,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path).set(authHeader()).send(createEventPayload()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
+      expectApiError(body, "ONBOARDING_INCOMPLETE");
     });
   });
 
@@ -516,7 +516,7 @@ describe("EventsController (integration)", () => {
         .expect(422);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
+      expectApiError(body, "ONBOARDING_INCOMPLETE");
     });
   });
 

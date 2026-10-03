@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { AccountDeletionPhotoPolicy, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
@@ -15,14 +16,8 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { UsernameAvailabilityResponseDto } from "./dto/username-availability-response.dto";
 import {
   ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK,
-  DETAILS_ALREADY_EXIST_CODE,
-  ONBOARDING_INCOMPLETE_CODE,
-  USER_SERVICE_ERRORS,
   USERNAME_CHANGE_LIMIT,
-  USERNAME_CHANGE_LIMITED_CODE,
   USERNAME_CHANGE_WINDOW_DAYS,
-  USERNAME_RESERVED_CODE,
-  USERNAME_TAKEN_CODE,
 } from "./users.constants";
 import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
 import { normalizeUsername, usernameFormatReason } from "./username";
@@ -50,7 +45,7 @@ export class UsersService {
     const user = await this.getById(id);
 
     if (user.details) {
-      throw new ApiException(DETAILS_ALREADY_EXIST_CODE);
+      throw new ApiException("DETAILS_ALREADY_EXIST");
     }
 
     const username = this.requireWritableUsername(dto.username);
@@ -89,7 +84,7 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    if (!user) throw new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(id));
+    if (!user) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id));
 
     return user;
   }
@@ -99,7 +94,7 @@ export class UsersService {
     const user = await this.getById(id);
 
     if (!user.details) {
-      throw new ApiException(ONBOARDING_INCOMPLETE_CODE);
+      throw new ApiException("ONBOARDING_INCOMPLETE");
     }
 
     return user as OnboardedUser;
@@ -377,10 +372,10 @@ export class UsersService {
     const username = normalizeUsername(raw);
     const reason = usernameFormatReason(username);
     if (reason === "INVALID_FORMAT") {
-      throw new BadRequestException(`Username "${username}" is not a valid format`);
+      throw new BadRequestException(RESPONSE_TEMPLATES.INVALID_FORMAT("Username", username));
     }
     if (reason === "RESERVED") {
-      throw new ApiException(USERNAME_RESERVED_CODE, { username });
+      throw new ApiException("USERNAME_RESERVED", { username });
     }
     return username;
   }
@@ -418,15 +413,13 @@ export class UsersService {
     await tx.$queryRaw`SELECT 1 FROM "User" WHERE "id" = ${userId}::uuid FOR UPDATE`;
 
     const availableAt = await this.usernameChangeAvailableAt(userId, tx);
-    if (availableAt) {
-      throw new ApiException(USERNAME_CHANGE_LIMITED_CODE, { availableAt });
-    }
+    if (availableAt) throw new ApiException("USERNAME_CHANGE_LIMITED", { availableAt });
 
     await tx.usernameChange.create({ data: { userId, oldUsername, newUsername } });
   }
 
   private rethrowUsernameTaken(error: unknown, username: string): void {
     if (!isUniqueConstraintViolation(error)) return;
-    throw new ApiException(USERNAME_TAKEN_CODE, { username });
+    throw new ApiException("USERNAME_TAKEN", { username });
   }
 }

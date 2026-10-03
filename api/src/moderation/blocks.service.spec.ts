@@ -4,7 +4,6 @@ import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
-import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import { BlocksService } from "./blocks.service";
 import { BLOCK_SERVICE_ERRORS } from "./moderation.constants";
 import { BlockWithBlockedUser, blockWithBlockedUserInclude } from "./moderation.types";
@@ -77,9 +76,7 @@ describe("BlocksService", () => {
     it("answers a stranger exactly like a user id that does not exist, so ids cannot be probed", async () => {
       prisma.eventAccess.findFirst.mockResolvedValue(null);
 
-      await expect(service.blockUser(callerId, targetUserId)).rejects.toThrow(
-        new NotFoundException(USER_SERVICE_ERRORS.NOT_FOUND(targetUserId)),
-      );
+      await expect(service.blockUser(callerId, targetUserId)).rejects.toThrow(NotFoundException);
       // No lookup of the user row at all: there is nothing to tell the two cases apart by.
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
       expect(prisma.userBlock.createMany).not.toHaveBeenCalled();

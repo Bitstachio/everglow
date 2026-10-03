@@ -25,12 +25,13 @@ copy never learned about it.
 only catalogued codes compile.
 
 ```ts
-throw new ApiException(USERNAME_TAKEN_CODE, { username });
-throw new ApiException(ONBOARDING_INCOMPLETE_CODE);
+throw new ApiException("USERNAME_TAKEN", { username });
+throw new ApiException("ONBOARDING_INCOMPLETE");
 ```
 
 Status and description come from the registry (below). Do not pass a free-form
-message or a string that is not in the catalog.
+message or a string that is not in the catalog. The string must be a key of
+`API_ERROR_REGISTRY` (`ApiErrorCode`); TypeScript rejects unknown codes.
 
 Source: [`src/common/errors/api.exception.ts`](../src/common/errors/api.exception.ts).
 
@@ -71,9 +72,11 @@ domain files (see [Mobile UI copy](#mobile-ui-copy)).
 
 ### Adding a coded failure
 
-1. Add a `*_CODE` constant in the domain (today often still in `*.constants.ts`;
-   prefer colocating with the registry entry in `*.errors.ts` over time).
-2. Add `{ status, message }` to that domain’s `*.errors.ts`.
+1. Add a key to the domain’s `*.errors.ts` registry object (users is the
+   reference: literal keys such as `USERNAME_TAKEN`, no parallel `*_CODE`
+   constant). Other domains may still keep codes in `*.constants.ts` until
+   migrated.
+2. Set `{ status, message }` on that entry.
 3. Add the domain object to `API_ERROR_DOMAINS` if it is a new file.
 4. Regenerate OpenAPI and the mobile client.
 5. Add mobile UI copy for the new code in the matching file under
@@ -81,11 +84,14 @@ domain files (see [Mobile UI copy](#mobile-ui-copy)).
    `API_ERROR_MESSAGE_DOMAINS` only if the file is new — that list is the
    single membership source; do not re-list domains when building
    `API_ERROR_MESSAGES`).
-6. Throw with `new ApiException(CODE)` or `new ApiException(CODE, params)`.
+6. Throw with `new ApiException("THE_CODE")` or
+   `new ApiException("THE_CODE", params)`.
 
-Do not invent a code unless a client will branch on it or needs distinct
-translated copy. Prefer fewer codes; HTTP status plus filter-supplied generics
-cover the rest.
+Do not invent a code with neither a (current or expected) client branch nor
+distinct translated copy. Prefer fewer codes; filter-supplied generics cover
+true generics. When in doubt about copy, ask whether a client would need a
+status/`getErrorMessage` workaround for this outcome—if yes, add a code even
+if that screen is not built yet.
 
 ---
 
@@ -106,28 +112,73 @@ the OpenAPI client.
 
 ### Use `ApiException`
 
-When the failure is a **known product outcome** the client must distinguish
-from other failures with the same status—for example `USERNAME_TAKEN` vs a
-generic 409, or `USERNAME_CHANGE_LIMITED` vs other 429s.
+When **any** of these is true (judge the **product outcome**, not only what
+mobile already implements):
+
+- The client must **branch** on this outcome vs other failures with the same
+  status (e.g. `USERNAME_TAKEN` vs a generic 409).
+- The client needs **distinct translated copy** for this outcome (e.g.
+  `AVATAR_CHANGED_CONCURRENTLY`, `PASSWORD_CHANGE_NOT_AVAILABLE`). If a screen
+  would otherwise special-case `status` or override `getErrorMessage` to show
+  product prose, that prose belongs in `API_ERROR_MESSAGES` and the API must
+  throw a catalog code.
+
+A pathway in today’s frontend that shows a meaningful message is a strong
+signal to code the error—but it is **not** the only signal. The mobile app is
+incomplete: an endpoint may throw a product-specific failure before any screen
+handles it. Ask whether a future (or existing) client **would** need a distinct
+`code` and translation entry for that outcome. If yes, add the catalog code and
+mobile copy now; do not leave it uncoded just because no hook reads it yet.
+
+Hiding a control in the UI (e.g. Change Password for social identities) does
+**not** mean the API may stay uncoded: if the failure can still reach
+`getErrorMessage` / an Alert, give it a code and a translation entry.
 
 The code must already exist in `API_ERROR_REGISTRY`.
 
 ### Use a generic Nest HTTP exception
 
-When the status alone is enough, or the failure must stay opaque:
+When the generic status code’s translation is enough, or the failure must stay
+opaque:
 
-- `NotFoundException` — resource missing; client does not need a
-  domain-specific code.
-- `BadRequestException` — validation / format guards the client already owns
-  (e.g. username format after DTO + local checks).
+- `NotFoundException` — resource missing; `NOT_FOUND` copy is fine.
+- `BadRequestException` — validation / format the client already owns locally
+  (e.g. username format after DTO + form checks); no distinct API translation
+  needed.
 - `UnauthorizedException()` with no body detail — session invalid or
   intentionally opaque (e.g. deleted / tombstoned accounts).
-- Other Nest exceptions for coarse “forbidden” / “conflict” when there is no
-  catalog code and no client branch.
 
-Do **not** convert these to `ApiException` just to attach a code.
 `AllExceptionsFilter` maps status → a generic catalog code when the exception
-has none (see below).
+has none (see below). Those generics (`FORBIDDEN`, `CONFLICT`, …) are for true
+generics—not a substitute for product-specific copy.
+
+If the throw carries a debug message, build it with
+[`RESPONSE_TEMPLATES`](../src/common/constants/templates.constants.ts) (for
+example `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id)`). Do not
+inline an equivalent string. Omit the message when status alone is enough
+(`throw new UnauthorizedException()`). Match template to status: not-found
+throws use `RESOURCE.NOT_FOUND`, format-style bad requests use
+`INVALID_FORMAT`, and so on—do not pass a bad-request template into
+`NotFoundException`.
+
+**Lint today** (`api/eslint.config.mjs`): outside tests, a string or template
+literal as the first argument to Nest HTTP exception constructors is an error.
+A helper call or no argument is allowed. Specs are exempt so filter tests can
+pass raw Nest messages. TypeScript cannot enforce this — Nest’s constructors
+accept `any`.
+
+**Follow-up (next stack layer after domains drop `*_SERVICE_ERRORS` wrappers):**
+tighten ESLint so each exception type only accepts the matching
+`RESPONSE_TEMPLATES` member (or no argument). Example: `NotFoundException`
+must receive `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)`;
+`BadRequestException` must receive `RESPONSE_TEMPLATES.INVALID_FORMAT(...)`
+(or another bad-request template once one exists). Prefer AST selectors on
+the full `RESPONSE_TEMPLATES.…` call path, not just any `.NOT_FOUND` property.
+Do **not** enable that rule while events/photos/moderation still pass
+`EVENT_SERVICE_ERRORS.NOT_FOUND(...)` / similar wrappers—those are plain
+string helpers and would fail CI until those domains call `RESPONSE_TEMPLATES`
+at the throw site (or the wrappers are removed). Users already uses the shared
+templates directly and is the reference shape.
 
 ### Do not
 
@@ -135,7 +186,9 @@ has none (see below).
   string outside the catalog.
 - Put user-facing English in the API registry or in Nest messages for the app
   to display.
-- Add a new specific code “just in case” with no client consumer.
+- Leave a product outcome uncoded and rely on the client to infer meaning from
+  HTTP status (or to hardcode display strings in a feature hook).
+- Add a new specific code with **no** branch and **no** distinct translation.
 
 ---
 
@@ -151,10 +204,12 @@ That is no longer the model for **coded** failures:
 - `*.constants.ts` should keep domain knobs (limits, patterns, prefixes), not
   a parallel error-message table for every API failure.
 
-Legacy `USER_SERVICE_ERRORS`-style entries remain only where call sites still
-throw uncoded Nest exceptions with local operator strings (e.g. modules not yet
-cleaned up). The filter already supplies generic `code`/`message` for those
-responses; shrink the string helpers as call sites stop needing them.
+Users no longer keeps a `*_SERVICE_ERRORS` map: coded outcomes live in
+`users.errors.ts`, and uncoded Nest throws use a `RESPONSE_TEMPLATES` message
+(or none). Other domains may still have larger `*_SERVICE_ERRORS` maps until
+they migrate.
+The filter already supplies generic `code`/`message` for those responses;
+delete the string helpers as call sites stop needing them.
 
 ---
 
