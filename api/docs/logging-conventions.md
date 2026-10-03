@@ -33,9 +33,16 @@ them** in controllers or services:
   across layers. You never pass it manually.
 - **Outcome-based severity for the auto log.** `customLogLevel` maps 5xx/throw → `error`, 4xx → `warn`, else
   `info`. A `404`/`409` from a service is already surfaced as a `warn` by ingress.
+- **Why a request failed.** A failed request's completion line also carries `errorCode`, the `code` the client
+  got, and `errorReason`, why in words for us. `AllExceptionsFilter` records both on the response and
+  `customProps` adds them to the line. The reason is the catalogue message of an `ApiException` (with its params),
+  the `RESPONSE_TEMPLATES` message of a generic exception, a validation failure's field errors, or the error's
+  message for a 5xx. Clients never see it. So give every generic throw a template message, and look for these two
+  fields first when tracing a reported failure by `reqId`.
 - **Unhandled exceptions.** `AllExceptionsFilter` (`src/common/filters`) emits one authoritative `error` with the
-  stack for anything non-HTTP that escapes. **Do not catch-and-log-and-rethrow** just to record an error; you
-  will create duplicate entries. Let it propagate.
+  stack for anything non-HTTP that escapes, and for an `InternalServerErrorException` without a catalogue code.
+  **Do not catch-and-log-and-rethrow** just to record an error; you will create duplicate entries. Let it
+  propagate.
 
 ---
 

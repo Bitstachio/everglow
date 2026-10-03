@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { Event, EventPlan, PhotoStatus, Plan, Prisma } from "generated/prisma/client";
 import { latestEventDate } from "src/events/events.constants";
@@ -167,7 +168,13 @@ export class EventPlanService {
     if (requested === undefined) return plan.galleryWindowDays;
     const options = this.galleryWindowOptions(plan);
     if (options.includes(requested)) return requested;
-    throw new BadRequestException();
+    throw new BadRequestException(
+      RESPONSE_TEMPLATES.INVALID_VALUE(
+        "galleryWindowDays",
+        requested,
+        options.length === 0 ? "left out on a plan that never closes" : `one of ${options.join(", ")}`,
+      ),
+    );
   }
 
   /** An event's limits: its plan version's terms, with its bonus storage added. */

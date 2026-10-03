@@ -477,7 +477,7 @@ describe("EventsService", () => {
 
     it("refuses a gallery length the plan doesn't offer, creating nothing", async () => {
       await expect(service.create(callerId, { ...createEventDto, galleryWindowDays: 10 })).rejects.toThrow(
-        new BadRequestException(),
+        new BadRequestException('galleryWindowDays "10" must be one of 3, 7, 14, 30'),
       );
       expect(prisma.event.create).not.toHaveBeenCalled();
     });
@@ -489,7 +489,7 @@ describe("EventsService", () => {
         createdEvent,
       );
       await expect(service.create(callerId, { ...createEventDto, date: "2027-10-01T12:00:00.001Z" })).rejects.toThrow(
-        new BadRequestException(),
+        new BadRequestException('date "2027-10-01T12:00:00.001Z" must be at most 12 months ahead'),
       );
       expect(prisma.event.create).toHaveBeenCalledTimes(1);
     });
@@ -1465,7 +1465,7 @@ describe("EventsService", () => {
       it("takes a date up to 12 months ahead, and refuses one further", async () => {
         await expect(service.update(eventId, callerId, { date: "2027-10-01T12:00:00.000Z" })).resolves.toBeDefined();
         await expect(service.update(eventId, callerId, { date: "2027-10-01T12:00:00.001Z" })).rejects.toThrow(
-          new BadRequestException(),
+          new BadRequestException('date "2027-10-01T12:00:00.001Z" must be at most 12 months ahead'),
         );
         expect(prisma.event.update).toHaveBeenCalledTimes(1);
       });

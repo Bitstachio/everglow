@@ -11,4 +11,5 @@ export const RESPONSE_TEMPLATES = {
       `${entity} with ${field} "${value}" already exists`,
   },
   INVALID_FORMAT: (field: string, value: string) => `${field} "${value}" is not a valid format`,
+  INVALID_VALUE: (field: string, value: string | number, expected: string) => `${field} "${value}" must be ${expected}`,
 } as const;

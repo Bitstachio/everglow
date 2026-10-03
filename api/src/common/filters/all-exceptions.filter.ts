@@ -5,6 +5,7 @@ import { ApiErrorDto } from "src/common/errors/api-error.dto";
 import { API_ERROR_REGISTRY, resolveApiErrorMessage, type ApiErrorCode } from "src/common/errors/api-error-codes";
 import { BAD_REQUEST_CODE, HTTP_API_ERRORS, INTERNAL_ERROR_CODE } from "src/common/errors/http.errors";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { recordErrorLogFields } from "src/common/logging/error-log-fields";
 
 /** Body this filter writes; same shape as the published `ApiErrorDto` contract. */
 export type ErrorResponse = ApiErrorDto;
@@ -18,6 +19,30 @@ const errorCodeOf = (exception: HttpException): ApiErrorCode | undefined => {
   if (!(code in API_ERROR_REGISTRY)) return undefined;
 
   return code as ApiErrorCode;
+};
+
+/** Longest reason kept for the log line: a validation failure can list many fields. */
+const MAX_REASON_LENGTH = 500;
+
+/**
+ * Why the request failed, in words for our logs and never for the client: a
+ * validation failure's field errors, or the exception's own message (the
+ * catalogue message of an `ApiException`, a `RESPONSE_TEMPLATES` message, or a
+ * bare exception's status text). One line, kept short.
+ */
+const reasonOf = (exception: unknown): string => {
+  let reason: string;
+  if (exception instanceof HttpException) {
+    const response = exception.getResponse();
+    const fieldErrors = typeof response === "object" ? (response as { message?: unknown }).message : undefined;
+    reason = Array.isArray(fieldErrors) ? fieldErrors.map(String).join("; ") : exception.message;
+  } else if (exception instanceof Error) {
+    reason = `${exception.name}: ${exception.message}`;
+  } else {
+    reason = `Non-Error thrown: ${String(exception)}`;
+  }
+  const [firstLine] = reason.split("\n", 1);
+  return firstLine.length > MAX_REASON_LENGTH ? `${firstLine.slice(0, MAX_REASON_LENGTH)}…` : firstLine;
 };
 
 /** Status → HTTP generic code; unknown 5xx → INTERNAL_ERROR; other unmapped → BAD_REQUEST. */
@@ -44,8 +69,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let message: string | undefined;
     let code: ApiErrorCode | undefined;
 
-    // Only expose message for HttpException (user-defined errors)
-    // Unhandled errors are logged server-side but not exposed to clients for security
+    // Clients get the catalogue code and its copy, never an exception's own
+    // message. What went wrong goes to the logs instead: the code and reason on
+    // the request's completion line for every error, plus an error line with
+    // the stack for a 5xx.
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       message = exception.message;
@@ -60,24 +87,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (!code) {
-      if (exception instanceof HttpException) {
-        if (statusCode >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) {
-          this.logger.error(
-            { event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, err: exception, statusCode, path, message },
-            "Uncoded 5xx HttpException",
-          );
-        } else {
-          this.logger.debug(
-            { statusCode, path, message },
-            "Replacing uncoded HttpException message with catalog message",
-          );
-        }
+      if (exception instanceof HttpException && statusCode >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) {
+        this.logger.error(
+          { event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, err: exception, statusCode, path, message },
+          "Uncoded 5xx HttpException",
+        );
       }
       code = genericCodeForStatus(statusCode);
       message = resolveApiErrorMessage(code);
     } else {
       message ??= resolveApiErrorMessage(code);
     }
+
+    recordErrorLogFields(ctx.getResponse<object>(), { errorCode: code, errorReason: reasonOf(exception) });
 
     const responseBody: ErrorResponse = {
       message,

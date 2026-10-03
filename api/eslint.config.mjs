@@ -23,8 +23,9 @@ const nestExceptionTemplateRules = [
   },
   {
     selector:
-      "NewExpression[callee.name='BadRequestException'][arguments.length>0]:not([arguments.0.type='CallExpression'][arguments.0.callee.object.name='RESPONSE_TEMPLATES'][arguments.0.callee.property.name='INVALID_FORMAT'])",
-    message: "BadRequestException may only take RESPONSE_TEMPLATES.INVALID_FORMAT(...) or no argument.",
+      "NewExpression[callee.name='BadRequestException'][arguments.length>0]:not([arguments.0.type='CallExpression'][arguments.0.callee.object.name='RESPONSE_TEMPLATES'][arguments.0.callee.property.name=/^(INVALID_FORMAT|INVALID_VALUE)$/])",
+    message:
+      "BadRequestException may only take RESPONSE_TEMPLATES.INVALID_FORMAT(...), RESPONSE_TEMPLATES.INVALID_VALUE(...) or no argument.",
   },
   {
     selector:
