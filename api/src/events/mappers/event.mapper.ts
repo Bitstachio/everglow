@@ -43,6 +43,8 @@ export class EventMapper {
       galleryClosesAt: event.galleryClosesAt,
       galleryWindowDays: event.galleryWindowDays,
       galleryWindowOptions: limits.galleryWindowOptions,
+      deactivatedAt: event.deactivatedAt,
+      deactivatedById: event.deactivatedById,
       limits: { members: limits.memberLimit, storageBytes: limits.storageLimitBytes?.toString() ?? null },
       usage: { members: usage.members, storageBytes: usage.storageBytes.toString() },
       createdAt: event.createdAt,

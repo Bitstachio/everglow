@@ -106,6 +106,21 @@ export class EventResponseDto {
   })
   galleryWindowOptions: number[];
 
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description: "When an organizer deactivated the event, closing its gallery early; null otherwise.",
+  })
+  deactivatedAt: Date | null;
+
+  @ApiProperty({
+    format: "uuid",
+    nullable: true,
+    type: String,
+    description: "The organizer who deactivated the event; null if nobody did, or once that account has been deleted.",
+  })
+  deactivatedById: string | null;
+
   @ApiProperty({ type: EventLimitsResponseDto })
   limits: EventLimitsResponseDto;
 

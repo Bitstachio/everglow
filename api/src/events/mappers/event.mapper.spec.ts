@@ -23,6 +23,8 @@ describe("EventMapper", () => {
     galleryOpensAt: new Date("2026-09-15T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
+    deactivatedAt: null,
+    deactivatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -61,6 +63,8 @@ describe("EventMapper", () => {
         galleryClosesAt: null,
         galleryWindowDays: null,
         galleryWindowOptions: [3, 7, 14, 30],
+        deactivatedAt: null,
+        deactivatedById: null,
         limits: { members: 30, storageBytes: "3221225472" },
         usage: { members: 4, storageBytes: "1288490188" },
         createdAt: event.createdAt,
@@ -112,6 +116,18 @@ describe("EventMapper", () => {
         galleryClosesAt,
         galleryWindowDays: 7,
         galleryWindowOptions,
+      });
+    });
+
+    it("reports a deactivated event as CLOSED, with when and by whom", () => {
+      const deactivatedAt = new Date(Date.now() - 60_000);
+      const deactivatedById = "22222222-2222-2222-2222-222222222222";
+      const deactivated = { ...event, galleryClosesAt: deactivatedAt, deactivatedAt, deactivatedById };
+
+      expect(EventMapper.toResponseDto(deactivated, null, limits, usage)).toMatchObject({
+        galleryState: "CLOSED",
+        deactivatedAt,
+        deactivatedById,
       });
     });
 

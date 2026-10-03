@@ -126,6 +126,8 @@ describe("EventsService", () => {
     galleryOpensAt: new Date(createEventDto.date),
     galleryClosesAt: null,
     galleryClosedAt: null,
+    deactivatedAt: null,
+    deactivatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -149,6 +151,8 @@ describe("EventsService", () => {
     galleryOpensAt: new Date("2026-09-15T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
+    deactivatedAt: null,
+    deactivatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -169,6 +173,8 @@ describe("EventsService", () => {
     galleryOpensAt: new Date("2026-08-01T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
+    deactivatedAt: null,
+    deactivatedById: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -935,6 +941,8 @@ describe("EventsService", () => {
         galleryOpensAt: eventCreatedByUser.date,
         galleryClosesAt: null,
         galleryClosedAt: null,
+        deactivatedAt: null,
+        deactivatedById: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -1288,6 +1296,8 @@ describe("EventsService", () => {
         galleryOpensAt: eventCreatedByUser.date,
         galleryClosesAt: null,
         galleryClosedAt: null,
+        deactivatedAt: null,
+        deactivatedById: null,
         createdAt: eventCreatedByUser.createdAt,
         updatedAt: eventCreatedByUser.updatedAt,
       });
@@ -1727,9 +1737,121 @@ describe("EventsService", () => {
     });
   });
 
-  describe("delete", () => {
-    it("deletes the event when the caller has organizer access", async () => {
+  describe("deactivate", () => {
+    const deactivated: Event = {
+      ...eventCreatedByUser,
+      galleryClosesAt: today,
+      deactivatedAt: today,
+      deactivatedById: callerId,
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers({ now: today });
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.findUniqueOrThrow.mockResolvedValue(deactivated);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("closes the gallery now and records who did it, only while it hasn't closed", async () => {
+      prisma.event.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.deactivate(eventId, callerId)).resolves.toEqual(deactivated);
+
+      expect(prisma.event.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: eventId,
+          galleryClosedAt: null,
+          OR: [{ galleryClosesAt: null }, { galleryClosesAt: { gt: today } }],
+        },
+        data: { galleryClosesAt: today, deactivatedAt: today, deactivatedById: callerId },
+      });
+      expect(prisma.event.findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: eventId } });
+      expect(logger.info).toHaveBeenCalledWith(
+        { event: "event.deactivated", eventId, callerId, audit: true },
+        "Event deactivated",
+      );
+    });
+
+    it("deactivates an upcoming event too, which then never opens", async () => {
+      const upcoming = { ...eventCreatedByUser, galleryOpensAt: new Date(today.getTime() + 30 * DAY_MS) };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(upcoming, [organizerAccess]));
+      prisma.event.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.deactivate(eventId, callerId);
+
+      expect(prisma.event.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("changes nothing on an event that has already closed, and returns it as it is", async () => {
+      const closedOnSchedule = { ...eventCreatedByUser, galleryClosesAt: new Date("2026-09-30T18:00:00.000Z") };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedOnSchedule, [organizerAccess]));
+      prisma.event.updateMany.mockResolvedValue({ count: 0 });
+      prisma.event.findUniqueOrThrow.mockResolvedValue(closedOnSchedule);
+
+      await expect(service.deactivate(eventId, callerId)).resolves.toEqual(closedOnSchedule);
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["participant", participantAccess],
+      ["viewer", viewerAccess],
+    ])("refuses a %s, changing nothing", async (_, access) => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [access]));
+
+      await expect(service.deactivate(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId)),
+      );
+      expect(prisma.event.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("throws 404 when the event does not exist", async () => {
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.deactivate(eventId, callerId)).rejects.toThrow(NotFoundException);
+      expect(prisma.event.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("delete", () => {
+    /** Deactivated an hour ago, so closed: only a closed event can be deleted. */
+    const deactivation = {
+      galleryClosesAt: new Date(Date.now() - 60 * 60 * 1000),
+      deactivatedAt: new Date(Date.now() - 60 * 60 * 1000),
+      deactivatedById: callerId,
+    };
+    const deactivatedEvent: Event = { ...eventCreatedByUser, ...deactivation };
+
+    it.each<[string, Partial<Event>]>([
+      ["upcoming", { galleryOpensAt: new Date(Date.now() + DAY_MS) }],
+      ["open", {}],
+    ])("refuses an event that is still %s with 403 EVENT_STILL_ACTIVE, deleting nothing", async (_, schedule) => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess({ ...eventCreatedByUser, ...schedule }, [organizerAccess]),
+      );
+
+      const failure = await service.delete(eventId, callerId).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).toMatchObject({ code: "EVENT_STILL_ACTIVE" });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
+    });
+
+    it("deletes an event whose gallery closed on schedule, without it being deactivated", async () => {
+      const closedOnSchedule = { ...eventCreatedByUser, galleryClosesAt: new Date(Date.now() - 60_000) };
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(closedOnSchedule, [organizerAccess]));
+      prisma.event.delete.mockResolvedValue(closedOnSchedule);
+
+      await expect(service.delete(eventId, callerId)).resolves.toBeUndefined();
+
+      expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: eventId } });
+    });
+
+    it("deletes the event when the caller has organizer access", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
       prisma.event.delete.mockResolvedValue(eventCreatedByUser);
 
       await expect(service.delete(eventId, callerId)).resolves.toBeUndefined();
@@ -1744,7 +1866,7 @@ describe("EventsService", () => {
 
     it("reads the photo keys and deletes the event in one transaction, then purges the objects", async () => {
       const s3Keys = [`photos/${callerId}/${eventId}/a`, `photos/${callerId}/${eventId}/b`];
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
       prisma.photo.findMany.mockResolvedValue(s3Keys.map((s3Key) => ({ s3Key })) as never);
       prisma.event.delete.mockResolvedValue(eventCreatedByUser);
 
@@ -1774,7 +1896,7 @@ describe("EventsService", () => {
       const photoKey = `photos/${callerId}/${eventId}/a`;
       const coverS3Key = `event-covers/${eventId}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
       // The authorization read saw no cover; one was confirmed before the delete ran.
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
       prisma.photo.findMany.mockResolvedValue([{ s3Key: photoKey }] as never);
       prisma.event.delete.mockResolvedValue({ ...eventCreatedByUser, coverS3Key });
 
@@ -1797,7 +1919,7 @@ describe("EventsService", () => {
     });
 
     it("purges nothing and deletes nothing when the delete transaction fails", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
       prisma.photo.findMany.mockResolvedValue([{ s3Key: "photos/x" }] as never);
       prisma.event.delete.mockRejectedValue(new Error("db down"));
 
@@ -1817,7 +1939,7 @@ describe("EventsService", () => {
         eventId: eventWithAccessOnly.id,
       };
       prisma.event.findUnique.mockResolvedValue(
-        eventWithCallerAccess(eventWithAccessOnly, [nonCreatorOrganizerAccess]),
+        eventWithCallerAccess({ ...eventWithAccessOnly, ...deactivation }, [nonCreatorOrganizerAccess]),
       );
       prisma.event.delete.mockResolvedValue(eventWithAccessOnly);
 
@@ -1827,7 +1949,7 @@ describe("EventsService", () => {
     });
 
     it("deletes the event when the creator has organizer access", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
       prisma.event.delete.mockResolvedValue(eventCreatedByUser);
 
       await expect(service.delete(eventId, callerId)).resolves.toBeUndefined();
@@ -1895,7 +2017,7 @@ describe("EventsService", () => {
 
     it("re-throws unexpected database errors when deleting an event", async () => {
       const prismaError = new Error("Database connection lost");
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
       prisma.event.delete.mockRejectedValue(prismaError);
 
       await expect(service.delete(eventId, callerId)).rejects.toThrow(prismaError);

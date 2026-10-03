@@ -31,6 +31,8 @@ describe("PhotoVisibilityService", () => {
     galleryOpensAt: now,
     galleryClosesAt: null,
     galleryClosedAt: null,
+    deactivatedAt: null,
+    deactivatedById: null,
     invitationUrl: "invite-token",
     createdAt: now,
     updatedAt: now,

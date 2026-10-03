@@ -398,6 +398,14 @@ export type EventResponseDto = {
    * The gallery lengths, in days, the event's plan offers, shortest first: what galleryWindowDays can be changed to while the event is upcoming.
    */
   galleryWindowOptions: Array<number>;
+  /**
+   * When an organizer deactivated the event, closing its gallery early; null otherwise.
+   */
+  deactivatedAt: string | null;
+  /**
+   * The organizer who deactivated the event; null if nobody did, or once that account has been deleted.
+   */
+  deactivatedById: string | null;
   limits: EventLimitsResponseDto;
   usage: EventUsageResponseDto;
   createdAt: string;
@@ -498,6 +506,7 @@ export type ApiErrorDto = {
     | "EVENT_GALLERY_NOT_OPEN"
     | "EVENT_MEMBER_LIMIT_REACHED"
     | "EVENT_SCHEDULE_LOCKED"
+    | "EVENT_STILL_ACTIVE"
     | "EVENT_STORAGE_LIMIT_REACHED"
     | "EVENT_UNDER_REVIEW"
     | "IMAGE_INVALID_SIZE"
@@ -1526,6 +1535,41 @@ export type EventsControllerUpdateResponses = {
 };
 
 export type EventsControllerUpdateResponse = EventsControllerUpdateResponses[keyof EventsControllerUpdateResponses];
+
+export type EventsControllerDeactivateData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/events/{eventId}/deactivate";
+};
+
+export type EventsControllerDeactivateErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type EventsControllerDeactivateError = EventsControllerDeactivateErrors[keyof EventsControllerDeactivateErrors];
+
+export type EventsControllerDeactivateResponses = {
+  /**
+   * The event, now closed
+   */
+  200: {
+    data: EventResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerDeactivateResponse =
+  EventsControllerDeactivateResponses[keyof EventsControllerDeactivateResponses];
 
 export type EventsControllerLeaveData = {
   body?: never;

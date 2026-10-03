@@ -1536,6 +1536,7 @@
         ]
       },
       "delete": {
+        "description": "Organizers only, and only once the event is closed: deactivate it first, or wait for its gallery to close. Otherwise 403 EVENT_STILL_ACTIVE.",
         "operationId": "EventsController_remove",
         "parameters": [
           {
@@ -1564,6 +1565,61 @@
           }
         ],
         "summary": "Delete an event",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v2/events/{eventId}/deactivate": {
+      "post": {
+        "description": "Organizers only. Closes the gallery now: uploads, joins and invite links stop, the photos are hidden at once and removed within the hour, and the event stops counting toward the caller's active events. It can't be undone. An event that has already closed is returned unchanged.",
+        "operationId": "EventsController_deactivate",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The event, now closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Deactivate an event",
         "tags": [
           "events"
         ]
@@ -3155,6 +3211,18 @@
               "type": "number"
             }
           },
+          "deactivatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When an organizer deactivated the event, closing its gallery early; null otherwise."
+          },
+          "deactivatedById": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The organizer who deactivated the event; null if nobody did, or once that account has been deleted."
+          },
           "limits": {
             "$ref": "#/components/schemas/EventLimitsResponseDto"
           },
@@ -3186,6 +3254,8 @@
           "galleryClosesAt",
           "galleryWindowDays",
           "galleryWindowOptions",
+          "deactivatedAt",
+          "deactivatedById",
           "limits",
           "usage",
           "createdAt",
@@ -3381,6 +3451,7 @@
               "EVENT_GALLERY_NOT_OPEN",
               "EVENT_MEMBER_LIMIT_REACHED",
               "EVENT_SCHEDULE_LOCKED",
+              "EVENT_STILL_ACTIVE",
               "EVENT_STORAGE_LIMIT_REACHED",
               "EVENT_UNDER_REVIEW",
               "IMAGE_INVALID_SIZE",

@@ -62,6 +62,8 @@ describe("EventCoverService", () => {
     galleryOpensAt: new Date("2026-09-15T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
+    deactivatedAt: null,
+    deactivatedById: null,
     createdAt: now,
     updatedAt: now,
   });

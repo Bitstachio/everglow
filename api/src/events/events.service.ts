@@ -10,7 +10,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, Prisma } from "generated/prisma/client";
-import { EventPlanService } from "src/plans/event-plan.service";
+import { EventPlanService, galleryNotClosed } from "src/plans/event-plan.service";
 import {
   GALLERY_STATES,
   gallerySchedule,
@@ -329,6 +329,34 @@ export class EventsService {
     throw new BadRequestException(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(EVENT_DATE_MAX_MONTHS_AHEAD));
   }
 
+  /**
+   * Closes the event's gallery now, for an organizer who is done early or
+   * needs the place for a new event (docs/event-quotas.md). From this moment
+   * it is closed like any other: no uploads, joins or invite links, its photos
+   * hidden, and it no longer counts as active. The close job removes the
+   * photos within the hour, keeping those with open reports. It can't be
+   * undone.
+   *
+   * Deactivating an event that has already closed changes nothing, so a
+   * retried request succeeds and a gallery that closed on schedule is never
+   * recorded as deactivated.
+   */
+  async deactivate(eventId: string, callerId: string): Promise<Event> {
+    await this.getUpdatable(eventId, callerId);
+
+    const now = new Date();
+    // Conditional, so of two organizers deactivating at once one is recorded.
+    const { count } = await this.prisma.event.updateMany({
+      where: { id: eventId, ...galleryNotClosed(now) },
+      data: { galleryClosesAt: now, deactivatedAt: now, deactivatedById: callerId },
+    });
+    if (count > 0) {
+      this.logger.info({ event: "event.deactivated", eventId, callerId, audit: true }, "Event deactivated");
+    }
+
+    return this.prisma.event.findUniqueOrThrow({ where: { id: eventId } });
+  }
+
   async regenerateInvitationUrl(eventId: string, callerId: string): Promise<Event> {
     return this.regenerateInvite(eventId, callerId, AccessLevel.PARTICIPANT);
   }
@@ -619,6 +647,16 @@ export class EventsService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.DELETE, subject(EVENT_SUBJECT, event))) {
       throw new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId));
+    }
+
+    // Only a closed event can be deleted, the way WhatsApp has you exit a group
+    // before deleting it: deactivating comes first, so a delete never takes a
+    // gallery people are still using (docs/event-quotas.md).
+    if (galleryStateOf(event) !== GALLERY_STATES.CLOSED) {
+      throw new ForbiddenException({
+        code: PLAN_LIMIT_CODES.EVENT_STILL_ACTIVE,
+        message: PLAN_LIMIT_MESSAGES.EVENT_STILL_ACTIVE,
+      });
     }
 
     // Collect the photo keys in the same transaction as the delete: the cascade
