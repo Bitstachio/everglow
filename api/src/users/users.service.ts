@@ -290,8 +290,9 @@ export class UsersService {
       },
       "Rejected resolve for account with deletion in progress",
     );
-    // Generic 401: do not tell the client the account was deleted.
-    throw new UnauthorizedException();
+    // The client gets the generic 401, never told the account is going; the
+    // reason only reaches the log line.
+    throw new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED("the account's deletion is in progress"));
   }
 
   private rejectTombstoned(formerUserId: string): never {
@@ -299,8 +300,11 @@ export class UsersService {
       { event: "user.resolve.rejected_tombstone", formerUserId, audit: true },
       "Rejected JIT provisioning for tombstoned providerSub",
     );
-    // Generic 401: do not tell the client the account was deleted.
-    throw new UnauthorizedException();
+    // The client gets the generic 401, never told the account was deleted; the
+    // reason only reaches the log line.
+    throw new UnauthorizedException(
+      RESPONSE_TEMPLATES.TOKEN_REJECTED("the token was issued before this identity's account was deleted"),
+    );
   }
 
   /**
@@ -364,7 +368,9 @@ export class UsersService {
     }
 
     // Generic 401: same client-visible outcome as an invalid session.
-    throw new UnauthorizedException();
+    throw new UnauthorizedException(
+      RESPONSE_TEMPLATES.TOKEN_REJECTED("lost the race to provision this identity, and no account or tombstone exists"),
+    );
   }
 
   /** Format is already validated by the DTO; reserved names are rejected here. */

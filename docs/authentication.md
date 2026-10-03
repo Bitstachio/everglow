@@ -40,6 +40,8 @@ Guarded routes use `JwtAuthGuard`. On each authenticated request:
 
 Controllers then use `@CurrentUser()` for the app user id. Authorization (CASL, etc.) builds on that id, not on raw Auth0 claims alone.
 
+If any step fails, the answer is 401 `UNAUTHORIZED` and the app signs the user out. The request's log line says why in `errorReason`. It is either passport's reason, with the issuer and audience the token claims, or the account's reason from step 4. Passport's reasons are: no token, expired (and when), malformed, bad signature, a key id the key set doesn't have, wrong audience, or wrong issuer. The account's reasons are a deletion in progress, or a token issued before the deletion.
+
 ```text
 Request + Bearer JWT
   → signature / aud / iss / exp checks

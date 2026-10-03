@@ -11,4 +11,5 @@ export const RESPONSE_TEMPLATES = {
   INVALID_FORMAT: (field: string, value: string) => `${field} "${value}" is not a valid format`,
   INVALID_VALUE: (field: string, value: string | number, expected: string) => `${field} "${value}" must be ${expected}`,
   ACCESS_DENIED: (action: string, subject: string) => `Caller may not ${action} this ${subject}`,
+  TOKEN_REJECTED: (reason: string) => `Bearer token rejected: ${reason}`,
 } as const;

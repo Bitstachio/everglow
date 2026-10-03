@@ -26,9 +26,12 @@ const badRequestTakesItsTemplate = {
     "BadRequestException may only take RESPONSE_TEMPLATES.INVALID_FORMAT(...), RESPONSE_TEMPLATES.INVALID_VALUE(...) or no argument.",
 };
 
-const unauthorizedTakesNothing = {
-  selector: "NewExpression[callee.name='UnauthorizedException'][arguments.length>0]",
-  message: "UnauthorizedException must take no argument: the client is only told to sign in again. Log why first.",
+// The client is only told to sign in again, so the reason is for the log line,
+// and every 401 must give one.
+const unauthorizedTakesItsTemplate = {
+  selector:
+    "NewExpression[callee.name='UnauthorizedException']:not([arguments.length=1][arguments.0.type='CallExpression'][arguments.0.callee.object.name='RESPONSE_TEMPLATES'][arguments.0.callee.property.name='TOKEN_REJECTED'])",
+  message: "UnauthorizedException must take RESPONSE_TEMPLATES.TOKEN_REJECTED(reason): say why the token was refused.",
 };
 
 const conflictsAndRuleBreaksAreCoded = {
@@ -52,7 +55,7 @@ const forbiddenOnlyInAuthorize = {
 const nestExceptionRules = [
   notFoundTakesItsTemplate,
   badRequestTakesItsTemplate,
-  unauthorizedTakesNothing,
+  unauthorizedTakesItsTemplate,
   conflictsAndRuleBreaksAreCoded,
   noRawHttpException,
   forbiddenOnlyInAuthorize,
