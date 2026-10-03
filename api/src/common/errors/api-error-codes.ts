@@ -9,7 +9,7 @@ import { HTTP_API_ERRORS } from "./http.errors";
 
 export type { ApiErrorDefinition } from "./api-error.types";
 
-export const API_ERROR_SLICES = [
+export const API_ERROR_DOMAINS = [
   HTTP_API_ERRORS,
   USER_API_ERRORS,
   EVENT_API_ERRORS,
@@ -21,9 +21,9 @@ export const API_ERROR_SLICES = [
 
 type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
 
-type ApiErrorRegistry = UnionToIntersection<(typeof API_ERROR_SLICES)[number]>;
+type ApiErrorRegistry = UnionToIntersection<(typeof API_ERROR_DOMAINS)[number]>;
 
-export const API_ERROR_REGISTRY = Object.assign({}, ...API_ERROR_SLICES) as ApiErrorRegistry satisfies Record<
+export const API_ERROR_REGISTRY = Object.assign({}, ...API_ERROR_DOMAINS) as ApiErrorRegistry satisfies Record<
   string,
   ApiErrorDefinition
 >;

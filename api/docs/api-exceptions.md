@@ -42,7 +42,7 @@ Each catalogue entry is `{ status, message }`, where `message` is either a
 fixed string or a function of throw-time params. Messages are short operator
 descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 
-**Domain slices** own the entries for their codes:
+**Domains** own the entries for their codes:
 
 | Domain | File |
 | --- | --- |
@@ -54,7 +54,7 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 | Photos | `src/photos/photos.errors.ts` |
 | Rate limit | `src/common/rate-limit/rate-limit.errors.ts` |
 
-**Aggregator** merges the slices into `API_ERROR_REGISTRY`, derives
+**Aggregator** merges the domains into `API_ERROR_REGISTRY`, derives
 `ApiErrorCode` / sorted `API_ERROR_CODES` (OpenAPI enum), and exposes
 `resolveApiErrorMessage`:
 
@@ -67,10 +67,10 @@ Shared types (`ApiErrorDefinition`, `ApiErrorParams`):
 
 1. Add a `*_CODE` constant in the domain (today often still in `*.constants.ts`;
    prefer colocating with the registry entry in `*.errors.ts` over time).
-2. Add `{ status, message }` to that domain’s `*.errors.ts` slice.
-3. Spread the slice into `API_ERROR_REGISTRY` if it is a new file.
+2. Add `{ status, message }` to that domain’s `*.errors.ts`.
+3. Add the domain to `API_ERROR_DOMAINS` if it is a new file.
 4. Regenerate OpenAPI and the mobile client; add mobile UI copy for the new
-   code (`API_ERROR_MESSAGES`).
+   code in the matching file under `mobile/lib/api/error-message-domains/`.
 5. Throw with `new ApiException(CODE)` or `new ApiException(CODE, params)`.
 
 Do not invent a code unless a client will branch on it or needs distinct

@@ -1,4 +1,4 @@
-import { API_ERROR_CODES, API_ERROR_REGISTRY, API_ERROR_SLICES } from "./api-error-codes";
+import { API_ERROR_CODES, API_ERROR_REGISTRY, API_ERROR_DOMAINS } from "./api-error-codes";
 
 describe("API_ERROR_CODES", () => {
   it("lists unique values in alphabetical order matching the merged registry", () => {
@@ -7,9 +7,9 @@ describe("API_ERROR_CODES", () => {
     expect(API_ERROR_CODES).toEqual([...new Set(API_ERROR_CODES)]);
   });
 
-  it("merges domain slices without duplicate keys", () => {
+  it("merges domains without duplicate keys", () => {
     expect(Object.keys(API_ERROR_REGISTRY)).toHaveLength(
-      API_ERROR_SLICES.reduce((n, slice) => n + Object.keys(slice).length, 0),
+      API_ERROR_DOMAINS.reduce((n, domain) => n + Object.keys(domain).length, 0),
     );
   });
 });
