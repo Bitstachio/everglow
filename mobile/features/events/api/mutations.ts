@@ -9,19 +9,20 @@ import {
   eventsControllerRemoveCover,
   eventsControllerRemoveParticipant,
   eventsControllerUpdate,
-  photosControllerConfirmUploads,
-  photosControllerCreateUploadUrls,
-  photosControllerFindOne,
   photosControllerRemove,
 } from "@/lib/api/generated";
-import type { UploadFileDto } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { isApiError } from "@/lib/api/errors";
-import { uploadFile } from "@/lib/api/upload-file";
 import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
 import type { CoverImage } from "../lib/cover-image";
 import { eventsKeys } from "./keys";
-import type { CreateEventDto, EventResponseDto, JoinEventDto, PhotoResponseDto, UpdateEventDto } from "../types";
+import {
+  uploadEventPhotos,
+  type EventPhotoFile,
+  type EventPhotoUploadProgress,
+  type EventPhotoUploadResult,
+} from "./upload-event-photos";
+import type { CreateEventDto, EventResponseDto, JoinEventDto, UpdateEventDto } from "../types";
 
 const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClient>, eventId?: string) => {
   await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
@@ -32,53 +33,6 @@ const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClie
       queryClient.invalidateQueries({ queryKey: eventsKeys.participants(eventId) }),
     ]);
   }
-};
-
-const normalizeContentType = (fileType: string): UploadFileDto["contentType"] => {
-  if (fileType === "image/jpeg" || fileType === "image/png" || fileType === "image/webp") {
-    return fileType;
-  }
-  if (fileType === "image/heic" || fileType === "image/heif") {
-    return fileType;
-  }
-  return "image/jpeg";
-};
-
-/** Mint a slot, PUT the file to storage, confirm, then return the photo. */
-const uploadEventPhoto = async (
-  eventId: string,
-  fileUri: string,
-  _fileName: string,
-  fileType: string,
-): Promise<PhotoResponseDto> => {
-  const slot = await uploadFile({
-    uri: fileUri,
-    contentType: normalizeContentType(fileType),
-    mint: async (file) => {
-      const { data: slotsBody } = await photosControllerCreateUploadUrls({
-        path: { eventId },
-        body: { files: [file] },
-        throwOnError: true,
-      });
-
-      const raw = unwrapEnvelope(slotsBody);
-      const slots = (Array.isArray(raw) ? raw : [raw]).filter(Boolean);
-      const minted = slots[0];
-      if (!minted) {
-        throw new Error("No upload slot returned from the API");
-      }
-      return minted;
-    },
-  });
-
-  await photosControllerConfirmUploads({
-    path: { eventId },
-    body: { photoIds: [slot.photoId] },
-    throwOnError: true,
-  });
-
-  const { data } = await photosControllerFindOne({ path: { photoId: slot.photoId }, throwOnError: true });
-  return unwrapEnvelope(data);
 };
 
 export const useCreateEventMutation = () => {
@@ -162,20 +116,24 @@ export const useRemoveEventParticipantMutation = (eventId: string) => {
   });
 };
 
-type UploadEventPhotoInput = {
+type UploadEventPhotosInput = {
   eventId: string;
-  uri: string;
-  fileName: string;
-  mimeType: string;
+  files: EventPhotoFile[];
+  onProgress?: (progress: EventPhotoUploadProgress) => void;
 };
 
-export const useUploadEventPhotoMutation = () => {
+export const useUploadEventPhotosMutation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<PhotoResponseDto, Error, UploadEventPhotoInput>({
-    mutationFn: async ({ eventId, uri, fileName, mimeType }) => uploadEventPhoto(eventId, uri, fileName, mimeType),
-    onSuccess: async (_data, { eventId }) => {
-      await queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
+  return useMutation<EventPhotoUploadResult, Error, UploadEventPhotosInput>({
+    mutationFn: ({ eventId, files, onProgress }) => uploadEventPhotos(eventId, files, { onProgress }),
+    // Refetch the event too: its storage usage changed, and a gallery that
+    // closed mid-upload has a new galleryState.
+    onSettled: async (_data, _error, { eventId }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }),
+        queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }),
+      ]);
     },
   });
 };

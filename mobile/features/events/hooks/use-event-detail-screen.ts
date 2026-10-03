@@ -10,19 +10,27 @@ import {
   useDeleteEventPhotoMutation,
   useLeaveEventMutation,
   useRemoveEventParticipantMutation,
-  useUploadEventPhotoMutation,
+  useUploadEventPhotosMutation,
 } from "../api/mutations";
+import type { EventPhotoFile, EventPhotoUploadProgress } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
 import type { PhotoResponseDto } from "../types";
+import { eventStorageLeftBytes, formatEventStorage, formatStorageBytes } from "../utils";
 
 // Event photos upload as picked: no crop step and no re-encode, so group shots
 // and portraits keep their original aspect ratio. Only avatars and covers crop.
+// A selectionLimit of 0 allows as many as the platform's picker does; the
+// storage check before uploading is what bounds a selection.
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   mediaTypes: ["images"],
   quality: 1,
+  allowsMultipleSelection: true,
+  selectionLimit: 0,
 };
 
-const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
+type PhotoContentType = EventPhotoFile["contentType"];
+
+const MIME_TYPES_BY_EXTENSION: Record<string, PhotoContentType> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
@@ -31,15 +39,41 @@ const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
   heif: "image/heif",
 };
 
+const PHOTO_CONTENT_TYPES = new Set<string>(Object.values(MIME_TYPES_BY_EXTENSION));
+
+const isPhotoContentType = (value: string): value is PhotoContentType => PHOTO_CONTENT_TYPES.has(value);
+
 /**
  * The picker's own mimeType when it reports one. Otherwise the file extension,
- * case-insensitively: iOS names camera-roll files `IMG_0001.HEIC`.
+ * case-insensitively: iOS names camera-roll files `IMG_0001.HEIC`. Anything the
+ * API does not list is sent as JPEG.
  */
-const photoMimeType = (asset: ImagePicker.ImagePickerAsset): string => {
-  if (asset.mimeType) return asset.mimeType.toLowerCase();
+const photoContentType = (asset: ImagePicker.ImagePickerAsset): PhotoContentType => {
   const extension = asset.uri.split(".").pop()?.toLowerCase() ?? "";
-  return MIME_TYPES_BY_EXTENSION[extension] ?? "image/jpeg";
+  const reported = asset.mimeType?.toLowerCase() ?? MIME_TYPES_BY_EXTENSION[extension];
+  return reported && isPhotoContentType(reported) ? reported : "image/jpeg";
 };
+
+/**
+ * The file's length on disk, which is what gets uploaded. The picker's
+ * fileSize is the fallback; the upload checks the real bytes against it again.
+ */
+const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
+  try {
+    const size = new File(asset.uri).size;
+    if (size > 0) return size;
+  } catch {
+    // Not a file:// URI the file system can stat.
+  }
+  return asset.fileSize ?? 0;
+};
+
+const uploadedSummary = (uploaded: number, total: number) =>
+  total === 1
+    ? uploaded === 1
+      ? "Your photo was uploaded."
+      : "Your photo wasn't uploaded."
+    : `${uploaded} of ${total} photos uploaded.`;
 
 export const useEventDetailScreen = () => {
   const router = useRouter();
@@ -53,10 +87,11 @@ export const useEventDetailScreen = () => {
 
   const leaveEventMutation = useLeaveEventMutation();
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
-  const uploadPhotoMutation = useUploadEventPhotoMutation();
+  const uploadPhotosMutation = useUploadEventPhotosMutation();
   const deletePhotoMutation = useDeleteEventPhotoMutation();
 
   const [membersSheetVisible, setMembersSheetVisible] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<EventPhotoUploadProgress | null>(null);
 
   const event = eventQuery.data ?? null;
   const photos = photosQuery.data ?? [];
@@ -94,22 +129,50 @@ export const useEventDetailScreen = () => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
+      if (result.canceled || !result.assets?.length) return;
 
-      if (result.canceled || !result.assets?.[0]) return;
+      const total = result.assets.length;
+      const files: EventPhotoFile[] = result.assets
+        .map((asset) => ({ uri: asset.uri, contentType: photoContentType(asset), sizeBytes: photoSizeBytes(asset) }))
+        .filter((file) => file.sizeBytes > 0);
 
-      const asset = result.assets[0];
-      const mimeType = photoMimeType(asset);
-      const fileName = `event_photo_${Date.now()}.${mimeType.split("/")[1]}`;
+      const selectedBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
+      const storageLeft = event ? eventStorageLeftBytes(event) : null;
+      if (storageLeft !== null && selectedBytes > storageLeft) {
+        Alert.alert(
+          "Not Enough Storage",
+          `${total === 1 ? "This photo needs" : `These ${total} photos need`} ${formatStorageBytes(selectedBytes)}, but this gallery has ${formatStorageBytes(storageLeft)} left.`,
+        );
+        return;
+      }
 
-      await uploadPhotoMutation.mutateAsync({
+      setUploadProgress({ done: 0, total });
+      const { uploaded, error } = await uploadPhotosMutation.mutateAsync({
         eventId,
-        uri: asset.uri,
-        fileName,
-        mimeType,
+        files,
+        // Files that could not be measured were never sent, so they count as done.
+        onProgress: ({ done }) => setUploadProgress({ done: done + total - files.length, total }),
       });
-      Alert.alert("Success", "Photo uploaded successfully!");
+
+      if (error) {
+        Alert.alert(
+          "Upload Stopped",
+          `${getErrorMessage(error, "Failed to upload photos.")} ${uploadedSummary(uploaded, total)}`,
+        );
+      } else if (uploaded === total) {
+        Alert.alert("Success", total === 1 ? "Photo uploaded successfully!" : `${total} photos uploaded successfully!`);
+      } else if (total === 1) {
+        Alert.alert("Error", "Your photo couldn't be uploaded. Please try again.");
+      } else {
+        Alert.alert(
+          "Upload Finished",
+          `${uploadedSummary(uploaded, total)} The rest couldn't be uploaded. Try adding them again.`,
+        );
+      }
     } catch (error) {
-      Alert.alert("Error", getErrorMessage(error, "Failed to upload photo"));
+      Alert.alert("Error", getErrorMessage(error, "Failed to upload photos"));
+    } finally {
+      setUploadProgress(null);
     }
   };
 
@@ -220,7 +283,8 @@ export const useEventDetailScreen = () => {
     refreshing,
     isAdmin,
     currentUserId: user?.id,
-    isUploadingPhoto: uploadPhotoMutation.isPending,
+    uploadProgress,
+    storageLabel: event ? formatEventStorage(event) : null,
     membersSheetVisible,
     onRefresh,
     handleOpenSettings,

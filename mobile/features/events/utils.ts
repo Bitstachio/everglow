@@ -161,3 +161,33 @@ export const sortEvents = (events: Event[], direction: EventsListSortDirection):
 
 export const hasActiveEventsListFilters = (filters: EventsListFilters) =>
   filters.roles.length > 0 || filters.dateFrom !== null || filters.dateTo !== null;
+
+const STORAGE_UNITS = ["B", "KB", "MB", "GB", "TB"];
+
+/**
+ * Binary units, so a plan's 3 GiB reads "3 GB". One decimal below 10, as in
+ * "1.2 GB"; whole numbers above, as in "300 MB".
+ */
+export const formatStorageBytes = (bytes: number): string => {
+  let value = Math.max(0, bytes);
+  let unit = 0;
+  while (value >= 1024 && unit < STORAGE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = unit === 0 || value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${rounded} ${STORAGE_UNITS[unit]}`;
+};
+
+/** "1.2 GB of 3 GB used", or "1.2 GB used" on a plan without a storage limit. Never a photo count. */
+export const formatEventStorage = (event: Pick<Event, "limits" | "usage">): string => {
+  const used = formatStorageBytes(Number(event.usage.storageBytes));
+  if (event.limits.storageBytes === null) return `${used} used`;
+  return `${used} of ${formatStorageBytes(Number(event.limits.storageBytes))} used`;
+};
+
+/** Bytes the gallery can still take, uploads in progress counted as used; null without a limit. */
+export const eventStorageLeftBytes = (event: Pick<Event, "limits" | "usage">): number | null => {
+  if (event.limits.storageBytes === null) return null;
+  return Math.max(0, Number(event.limits.storageBytes) - Number(event.usage.storageBytes));
+};
