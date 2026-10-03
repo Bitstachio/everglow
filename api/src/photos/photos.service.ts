@@ -6,9 +6,10 @@ import { Photo, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { ApiException } from "src/common/errors/api.exception";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
-import { EVENT_SERVICE_ERRORS, EVENT_UNDER_REVIEW_CODE } from "src/events/events.constants";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
@@ -24,7 +25,6 @@ import {
   CONFIRM_PHOTO_STATUSES,
   ConfirmPhotoStatus,
   DOWNLOAD_URL_TTL_SECONDS,
-  PHOTO_SERVICE_ERRORS,
   UPLOAD_URL_TTL_SECONDS,
 } from "./photos.constants";
 
@@ -61,7 +61,7 @@ export class PhotosService {
       where: { id: eventId },
       include: eventForPhotoVisibilityInclude(callerId),
     });
-    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
     return event;
   }
 
@@ -73,12 +73,12 @@ export class PhotosService {
     // The photo does not exist yet, so authorize against a prospective row.
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
     if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
     // No new photos while the platform reviews the event. Slots minted before
     // can still be confirmed; the cover can still be changed.
     if (event.underReviewAt) {
-      throw new ForbiddenException({ code: EVENT_UNDER_REVIEW_CODE, message: EVENT_SERVICE_ERRORS.UNDER_REVIEW });
+      throw new ApiException("EVENT_UNDER_REVIEW");
     }
 
     // Build a PENDING row per file up front: the S3 key embeds the photo id.
@@ -162,7 +162,7 @@ export class PhotosService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
     if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.CONFIRM_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
 
     const uniqueIds = [...new Set(photoIds)];
@@ -263,7 +263,7 @@ export class PhotosService {
     // Listing is reading photos of the event; authorize against a prospective row.
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, event } as unknown as Photo);
     if (!ability.can(PHOTO_ACTIONS.READ, prospectivePhoto)) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.LIST_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
 
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
@@ -309,17 +309,17 @@ export class PhotosService {
     });
     // Unverified photos are invisible, same as in the event photo list.
     if (!photo || photo.status !== PhotoStatus.READY) {
-      throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId));
     }
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(PHOTO_ACTIONS.READ, subject(PHOTO_SUBJECT, photo))) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.READ_FORBIDDEN(photoId));
+      throw new ForbiddenException();
     }
 
     // Same filter as the list, so a photo missing there is a 404 here too.
     if (!(await this.photoVisibilityService.isVisibleTo(photoId, callerId, photo.event))) {
-      throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId));
     }
 
     const { event, ...rest } = photo;
@@ -336,11 +336,11 @@ export class PhotosService {
       where: { id: photoId },
       include: { event: { include: { eventAccesses: { where: { userId: callerId } } } } },
     });
-    if (!photo) throw new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId));
+    if (!photo) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(PHOTO_ACTIONS.DELETE, subject(PHOTO_SUBJECT, photo))) {
-      throw new ForbiddenException(PHOTO_SERVICE_ERRORS.DELETE_FORBIDDEN(photoId));
+      throw new ForbiddenException();
     }
 
     // S3 first: if it fails the row survives and the delete can be retried.

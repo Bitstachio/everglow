@@ -1,17 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { ConflictException, ForbiddenException } from "@nestjs/common";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { ApiException } from "src/common/errors/api.exception";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PhotoStatus, Plan, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { EventPlanService } from "src/plans/event-plan.service";
 import { PrismaService } from "src/prisma/prisma.service";
-import {
-  buildPhotoS3Key,
-  PHOTO_SERVICE_ERRORS,
-  STORAGE_RESERVATION_CONFLICT_CODE,
-  STORAGE_RESERVATION_MAX_ATTEMPTS,
-} from "./photos.constants";
+import { buildPhotoS3Key, STORAGE_RESERVATION_MAX_ATTEMPTS } from "./photos.constants";
 import { PhotoStorageService, UploadReservationRow } from "./photo-storage.service";
 
 describe("PhotoStorageService", () => {
@@ -130,7 +126,7 @@ describe("PhotoStorageService", () => {
 
       const reservation = service.reserveUploadBytes(event, [buildRow(50), buildRow(51)]);
 
-      await expect(reservation).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(reservation).rejects.toBeInstanceOf(ApiException);
       await expect(reservation).rejects.toMatchObject({ response: { code: "EVENT_STORAGE_LIMIT_REACHED" } });
       expect(tx.photo.createMany).not.toHaveBeenCalled();
       // A full gallery is a verdict, not a conflict: no retry.
@@ -240,11 +236,11 @@ describe("PhotoStorageService", () => {
 
       const reservation = service.reserveUploadBytes(event, [buildRow(1024)]);
 
-      await expect(reservation).rejects.toBeInstanceOf(ConflictException);
+      await expect(reservation).rejects.toBeInstanceOf(ApiException);
       await expect(reservation).rejects.toMatchObject({
         response: {
-          code: STORAGE_RESERVATION_CONFLICT_CODE,
-          message: PHOTO_SERVICE_ERRORS.STORAGE_RESERVATION_CONFLICT,
+          code: "STORAGE_RESERVATION_CONFLICT",
+          message: resolveApiErrorMessage("STORAGE_RESERVATION_CONFLICT"),
         },
       });
       expect(prisma.$transaction).toHaveBeenCalledTimes(STORAGE_RESERVATION_MAX_ATTEMPTS);

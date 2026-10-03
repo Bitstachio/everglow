@@ -1,19 +1,14 @@
-import {
-  BadRequestException,
-  InternalServerErrorException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { InternalServerErrorException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { ApiException } from "src/common/errors/api.exception";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { ImageSlot, ImageUploadService, ImageUploadTarget } from "./image-upload.service";
 import {
   buildImageS3Key,
   IMAGE_DOWNLOAD_URL_TTL_SECONDS,
   IMAGE_UPLOAD_CONFIRM_WINDOW_SECONDS,
-  IMAGE_UPLOAD_ERROR_CODES,
-  IMAGE_UPLOAD_ERRORS,
   IMAGE_UPLOAD_URL_TTL_SECONDS,
   MAX_IMAGE_SIZE_BYTES,
 } from "./images.constants";
@@ -99,10 +94,10 @@ describe("ImageUploadService", () => {
         .createUpload(target, { contentType: "image/gif", sizeBytes: 1024 })
         .catch((e: unknown) => e);
 
-      expect(failure).toBeInstanceOf(BadRequestException);
-      expect((failure as BadRequestException).getResponse()).toEqual({
-        code: IMAGE_UPLOAD_ERROR_CODES.UNSUPPORTED_CONTENT_TYPE,
-        message: IMAGE_UPLOAD_ERRORS.UNSUPPORTED_CONTENT_TYPE("image/gif"),
+      expect(failure).toBeInstanceOf(ApiException);
+      expect((failure as ApiException).getResponse()).toEqual({
+        code: "IMAGE_UNSUPPORTED_CONTENT_TYPE",
+        message: resolveApiErrorMessage("IMAGE_UNSUPPORTED_CONTENT_TYPE", { contentType: "image/gif" }),
       });
     });
 
@@ -115,14 +110,14 @@ describe("ImageUploadService", () => {
 
     it.each(["image/heic", "image/gif", "application/pdf", ""])("rejects the content type %p", async (contentType) => {
       await expect(service.createUpload(target, { contentType, sizeBytes: 1024 })).rejects.toThrow(
-        new BadRequestException(IMAGE_UPLOAD_ERRORS.UNSUPPORTED_CONTENT_TYPE(contentType)),
+        new ApiException("IMAGE_UNSUPPORTED_CONTENT_TYPE", { contentType }),
       );
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });
 
     it.each([0, -1, 1.5, MAX_IMAGE_SIZE_BYTES + 1])("rejects the size %p", async (sizeBytes) => {
       await expect(service.createUpload(target, { contentType: "image/jpeg", sizeBytes })).rejects.toThrow(
-        new BadRequestException(IMAGE_UPLOAD_ERRORS.INVALID_SIZE(sizeBytes)),
+        new ApiException("IMAGE_INVALID_SIZE", { sizeBytes }),
       );
       expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
     });
@@ -186,7 +181,7 @@ describe("ImageUploadService", () => {
       s3Service.headObject.mockResolvedValue({ exists: false });
 
       await expect(service.confirmUpload(target, uploadId, slot)).rejects.toThrow(
-        new NotFoundException(IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(uploadId)),
+        new ApiException("IMAGE_UPLOAD_NOT_FOUND", { uploadId }),
       );
 
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
@@ -204,7 +199,7 @@ describe("ImageUploadService", () => {
       s3Service.headObject.mockResolvedValue(uploadedObject(overrides));
 
       await expect(service.confirmUpload(target, uploadId, slot)).rejects.toThrow(
-        new UnprocessableEntityException(IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(uploadId)),
+        new ApiException("IMAGE_UPLOAD_REJECTED", { uploadId }),
       );
 
       expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
@@ -220,7 +215,7 @@ describe("ImageUploadService", () => {
       s3Service.headObject.mockResolvedValue(uploadedObject({ lastModified }));
 
       await expect(service.confirmUpload(target, uploadId, slot)).rejects.toThrow(
-        new UnprocessableEntityException(IMAGE_UPLOAD_ERRORS.UPLOAD_EXPIRED(uploadId)),
+        new ApiException("IMAGE_UPLOAD_EXPIRED", { uploadId }),
       );
 
       expect(s3Service.deleteObject).toHaveBeenCalledWith(key);
@@ -231,9 +226,7 @@ describe("ImageUploadService", () => {
       s3Service.headObject.mockResolvedValue(uploadedObject({ contentType: "image/gif" }));
       s3Service.deleteObject.mockRejectedValue(new InternalServerErrorException("s3 down"));
 
-      await expect(service.confirmUpload(target, uploadId, slotWith(null))).rejects.toThrow(
-        UnprocessableEntityException,
-      );
+      await expect(service.confirmUpload(target, uploadId, slotWith(null))).rejects.toThrow(ApiException);
 
       expect(logger.warn).toHaveBeenCalledWith(
         { event: "image.upload_rejected.object_retained", uploadId },

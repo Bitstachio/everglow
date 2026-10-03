@@ -1,7 +1,4 @@
-import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { S3_KEY_UUID_SEGMENT } from "src/storage/storage.constants";
-
-const photoEntity = "Photo";
 
 export const ALLOWED_PHOTO_CONTENT_TYPES = [
   "image/jpeg",
@@ -48,8 +45,6 @@ const PHOTO_S3_KEY_PATTERNS = [
 /** True for keys the API could have minted; anything else under the prefix is not ours to touch. */
 export const isPhotoS3Key = (key: string): boolean => PHOTO_S3_KEY_PATTERNS.some((pattern) => pattern.test(key));
 
-export const STORAGE_RESERVATION_CONFLICT_CODE = "STORAGE_RESERVATION_CONFLICT";
-
 // Upload reservation runs as a Serializable transaction. When reservations for
 // the same gallery overlap, Postgres aborts all but one per round with a
 // serialization failure (SQLSTATE 40001); the losers retry with a short
@@ -90,13 +85,3 @@ export const CONFIRM_PHOTO_STATUSES = {
 } as const;
 
 export type ConfirmPhotoStatus = (typeof CONFIRM_PHOTO_STATUSES)[keyof typeof CONFIRM_PHOTO_STATUSES];
-
-export const PHOTO_SERVICE_ERRORS = {
-  NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(photoEntity, "ID", id),
-  CREATE_FORBIDDEN: (eventId: string) => `Not authorized to upload photos to event with ID "${eventId}"`,
-  CONFIRM_FORBIDDEN: (eventId: string) => `Not authorized to confirm photo uploads in event with ID "${eventId}"`,
-  LIST_FORBIDDEN: (eventId: string) => `Not authorized to list photos of event with ID "${eventId}"`,
-  READ_FORBIDDEN: (photoId: string) => `Not authorized to read photo with ID "${photoId}"`,
-  DELETE_FORBIDDEN: (photoId: string) => `Not authorized to delete photo with ID "${photoId}"`,
-  STORAGE_RESERVATION_CONFLICT: "Storage reservation conflicted with a concurrent upload, please retry",
-};

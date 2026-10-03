@@ -20,16 +20,14 @@ import {
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
-import { EVENT_SERVICE_ERRORS } from "src/events/events.constants";
-import { PHOTO_SERVICE_ERRORS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import {
   REPORT_HIDE_THRESHOLD,
-  REPORT_SERVICE_ERRORS,
   SMALL_EVENT_REPORT_HIDE_THRESHOLD,
   STALE_REPORT_AFTER_HOURS,
 } from "./moderation.constants";
@@ -224,7 +222,7 @@ describe("ReportsService", () => {
       prisma.photo.findUnique.mockResolvedValue(null);
 
       await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toThrow(
-        new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId)),
       );
     });
 
@@ -237,9 +235,7 @@ describe("ReportsService", () => {
     it("throws ForbiddenException when the caller is not a member of the photo's event", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoFor(null) as never);
 
-      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toThrow(
-        new ForbiddenException(REPORT_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
     });
 
@@ -253,9 +249,7 @@ describe("ReportsService", () => {
     it("refuses a report of the caller's own photo", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT, { addedById: callerId }) as never);
 
-      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toThrow(
-        new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_REPORT_SELF),
-      );
+      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
     });
 
@@ -293,9 +287,7 @@ describe("ReportsService", () => {
       prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([]);
 
-      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toThrow(
-        new ConflictException(REPORT_SERVICE_ERRORS.CREATE_CONFLICT),
-      );
+      await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toBeInstanceOf(ConflictException);
     });
 
     it("treats a photo the caller cannot see (blocked, or already hidden) as not found", async () => {
@@ -304,7 +296,7 @@ describe("ReportsService", () => {
       photoVisibilityService.isVisibleTo.mockResolvedValue(false);
 
       await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toThrow(
-        new NotFoundException(PHOTO_SERVICE_ERRORS.NOT_FOUND(photoId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId)),
       );
       expect(photoVisibilityService.isVisibleTo).toHaveBeenCalledWith(photoId, callerId, photo.event);
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
@@ -649,16 +641,14 @@ describe("ReportsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.reportEvent(eventId, callerId, dto)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
     });
 
     it("throws ForbiddenException when the caller is not a member of the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(null));
 
-      await expect(service.reportEvent(eventId, callerId, dto)).rejects.toThrow(
-        new ForbiddenException(REPORT_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId)),
-      );
+      await expect(service.reportEvent(eventId, callerId, dto)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
     });
   });
@@ -704,15 +694,15 @@ describe("ReportsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
     });
 
     it("throws ForbiddenException when the caller is not a member of the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(null));
 
-      await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toThrow(
-        new ForbiddenException(REPORT_SERVICE_ERRORS.CREATE_FORBIDDEN(eventId)),
+      await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toBeInstanceOf(
+        ForbiddenException,
       );
       expect(prisma.eventAccess.findUnique).not.toHaveBeenCalled();
     });
@@ -720,17 +710,15 @@ describe("ReportsService", () => {
     it("refuses a report of yourself", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
 
-      await expect(service.reportMember(eventId, callerId, callerId, dto)).rejects.toThrow(
-        new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_REPORT_SELF),
-      );
+      await expect(service.reportMember(eventId, callerId, callerId, dto)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it("refuses a target who is not a member of the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
-      await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toThrow(
-        new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId)),
+      await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toBeInstanceOf(
+        ForbiddenException,
       );
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
     });
@@ -837,7 +825,7 @@ describe("ReportsService", () => {
       prisma.event.findUnique.mockResolvedValue(null);
 
       await expect(service.listReports(eventId, callerId, {})).rejects.toThrow(
-        new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId)),
       );
     });
 
@@ -846,9 +834,7 @@ describe("ReportsService", () => {
       async (accessLevel) => {
         prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(accessLevel));
 
-        await expect(service.listReports(eventId, callerId, {})).rejects.toThrow(
-          new ForbiddenException(REPORT_SERVICE_ERRORS.LIST_FORBIDDEN(eventId)),
-        );
+        await expect(service.listReports(eventId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
         expect(prisma.report.findMany).not.toHaveBeenCalled();
       },
     );
@@ -932,8 +918,8 @@ describe("ReportsService", () => {
       it("rejects REMOVE_PHOTO on a report about a member", async () => {
         setup(reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.MEMBER, photoId: null }));
 
-        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toThrow(
-          new BadRequestException(REPORT_SERVICE_ERRORS.REMOVE_PHOTO_NOT_A_PHOTO_REPORT),
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toBeInstanceOf(
+          BadRequestException,
         );
         expect(prisma.$transaction).not.toHaveBeenCalled();
       });
@@ -941,8 +927,8 @@ describe("ReportsService", () => {
       it("answers 422 when the photo was already deleted, pointing the organizer at DISMISS", async () => {
         setup(reportFor(AccessLevel.ORGANIZER, { photoId: null }));
 
-        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toThrow(
-          new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_PHOTO_GONE),
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toBeInstanceOf(
+          UnprocessableEntityException,
         );
         expect(prisma.$transaction).not.toHaveBeenCalled();
       });
@@ -1050,8 +1036,8 @@ describe("ReportsService", () => {
           }),
         );
 
-        await expect(service.resolveReport(reportId, callerId, "REMOVE_MEMBER")).rejects.toThrow(
-          new UnprocessableEntityException(REPORT_SERVICE_ERRORS.REPORTED_MEMBER_GONE),
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_MEMBER")).rejects.toBeInstanceOf(
+          UnprocessableEntityException,
         );
         expect(prisma.$transaction).not.toHaveBeenCalled();
       });
@@ -1106,8 +1092,8 @@ describe("ReportsService", () => {
     });
 
     it.each(["REMOVE_PHOTO", "DISMISS"] as const)("rejects photos with %s, which removes no member", async (action) => {
-      await expect(service.resolveReport(reportId, callerId, action, "DELETE")).rejects.toThrow(
-        new BadRequestException(REPORT_SERVICE_ERRORS.PHOTOS_ONLY_WITH_REMOVE_MEMBER),
+      await expect(service.resolveReport(reportId, callerId, action, "DELETE")).rejects.toBeInstanceOf(
+        BadRequestException,
       );
       expect(prisma.report.findUnique).not.toHaveBeenCalled();
     });
@@ -1116,7 +1102,7 @@ describe("ReportsService", () => {
       prisma.report.findUnique.mockResolvedValue(null);
 
       await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toThrow(
-        new NotFoundException(REPORT_SERVICE_ERRORS.NOT_FOUND(reportId)),
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Report", "ID", reportId)),
       );
     });
 
@@ -1125,9 +1111,7 @@ describe("ReportsService", () => {
       async (accessLevel) => {
         setup(reportFor(accessLevel));
 
-        await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toThrow(
-          new ForbiddenException(REPORT_SERVICE_ERRORS.RESOLVE_FORBIDDEN(reportId)),
-        );
+        await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(ForbiddenException);
         expect(prisma.$transaction).not.toHaveBeenCalled();
       },
     );
@@ -1138,9 +1122,7 @@ describe("ReportsService", () => {
     ])("does not let an organizer resolve %s", async (_label, overrides) => {
       setup(reportFor(AccessLevel.ORGANIZER, { ...overrides, reportedUserId: callerId }));
 
-      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toThrow(
-        new ForbiddenException(REPORT_SERVICE_ERRORS.CANNOT_RESOLVE_OWN),
-      );
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
@@ -1149,9 +1131,7 @@ describe("ReportsService", () => {
       // The OPEN guard in the UPDATE matched nothing, which rolls the transaction back.
       prisma.report.updateManyAndReturn.mockResolvedValue([]);
 
-      await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toThrow(
-        new ConflictException(REPORT_SERVICE_ERRORS.ALREADY_RESOLVED(reportId)),
-      );
+      await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();

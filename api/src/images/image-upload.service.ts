@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { BadRequestException, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
+import { ApiException } from "src/common/errors/api.exception";
 import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import {
   buildImageS3Key,
   IMAGE_DOWNLOAD_URL_TTL_SECONDS,
   IMAGE_UPLOAD_CONFIRM_WINDOW_SECONDS,
-  IMAGE_UPLOAD_ERROR_CODES,
-  IMAGE_UPLOAD_ERRORS,
   IMAGE_UPLOAD_URL_TTL_SECONDS,
   isAllowedImageContentType,
   isAllowedImageSize,
@@ -65,16 +64,10 @@ export class ImageUploadService {
     // DTOs validate the same bounds at the HTTP edge; this keeps the policy
     // with the module for callers that do not come through one.
     if (!isAllowedImageContentType(file.contentType)) {
-      throw new BadRequestException({
-        code: IMAGE_UPLOAD_ERROR_CODES.UNSUPPORTED_CONTENT_TYPE,
-        message: IMAGE_UPLOAD_ERRORS.UNSUPPORTED_CONTENT_TYPE(file.contentType),
-      });
+      throw new ApiException("IMAGE_UNSUPPORTED_CONTENT_TYPE", { contentType: file.contentType });
     }
     if (!isAllowedImageSize(file.sizeBytes)) {
-      throw new BadRequestException({
-        code: IMAGE_UPLOAD_ERROR_CODES.INVALID_SIZE,
-        message: IMAGE_UPLOAD_ERRORS.INVALID_SIZE(file.sizeBytes),
-      });
+      throw new ApiException("IMAGE_INVALID_SIZE", { sizeBytes: file.sizeBytes });
     }
 
     const uploadId = randomUUID();
@@ -139,10 +132,7 @@ export class ImageUploadService {
   private async verifyUploadedObject(key: string, uploadId: string): Promise<void> {
     const head = await this.s3Service.headObject(key);
     if (!head.exists) {
-      throw new NotFoundException({
-        code: IMAGE_UPLOAD_ERROR_CODES.UPLOAD_NOT_FOUND,
-        message: IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(uploadId),
-      });
+      throw new ApiException("IMAGE_UPLOAD_NOT_FOUND", { uploadId });
     }
 
     // Past the window the orphan reconciler may be deleting this very object,
@@ -150,18 +140,12 @@ export class ImageUploadService {
     const confirmableSince = Date.now() - IMAGE_UPLOAD_CONFIRM_WINDOW_SECONDS * 1000;
     if (!head.lastModified || head.lastModified.getTime() < confirmableSince) {
       await this.discardRejectedObject(key, uploadId);
-      throw new UnprocessableEntityException({
-        code: IMAGE_UPLOAD_ERROR_CODES.UPLOAD_EXPIRED,
-        message: IMAGE_UPLOAD_ERRORS.UPLOAD_EXPIRED(uploadId),
-      });
+      throw new ApiException("IMAGE_UPLOAD_EXPIRED", { uploadId });
     }
 
     if (!isAllowedImageContentType(head.contentType) || !isAllowedImageSize(head.sizeBytes)) {
       await this.discardRejectedObject(key, uploadId);
-      throw new UnprocessableEntityException({
-        code: IMAGE_UPLOAD_ERROR_CODES.UPLOAD_REJECTED,
-        message: IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(uploadId),
-      });
+      throw new ApiException("IMAGE_UPLOAD_REJECTED", { uploadId });
     }
   }
 

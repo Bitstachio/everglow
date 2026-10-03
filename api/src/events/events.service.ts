@@ -11,15 +11,10 @@ import {
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, Prisma } from "generated/prisma/client";
 import { EventPlanService, galleryNotClosed } from "src/plans/event-plan.service";
-import {
-  GALLERY_STATES,
-  gallerySchedule,
-  galleryStateOf,
-  PLAN_LIMIT_CODES,
-  PLAN_LIMIT_MESSAGES,
-} from "src/plans/plans.constants";
+import { GALLERY_STATES, gallerySchedule, galleryStateOf } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { ImageUploadService } from "src/images/image-upload.service";
@@ -32,14 +27,7 @@ import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-
 import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import {
-  EVENT_DATE_MAX_MONTHS_AHEAD,
-  EVENT_SERVICE_ERRORS,
-  EVENT_UNDER_REVIEW_CODE,
-  latestEventDate,
-  ORGANIZER_BLOCKED_BY_CALLER_CODE,
-  REMOVED_FROM_EVENT_CODE,
-} from "./events.constants";
+import { latestEventDate } from "./events.constants";
 import {
   EventAccessWithUser,
   EventBanWithUser,
@@ -68,12 +56,12 @@ export class EventsService {
       include: userWithDetailsInclude,
     });
 
-    if (!creator) throw new NotFoundException(EVENT_SERVICE_ERRORS.CREATOR_NOT_FOUND(creatorId));
+    if (!creator) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", creatorId));
     if (!creator.details) throw new ApiException("ONBOARDING_INCOMPLETE");
 
     const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: !!creator.details });
     if (!ability.can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT)) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.CREATE_FORBIDDEN);
+      throw new ForbiddenException();
     }
 
     const participantToken = randomUUID();
@@ -141,22 +129,25 @@ export class EventsService {
       include: userWithDetailsInclude,
     });
 
-    if (!caller) throw new NotFoundException(EVENT_SERVICE_ERRORS.CALLER_NOT_FOUND(callerId));
+    if (!caller) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", callerId));
     if (!caller.details) throw new ApiException("ONBOARDING_INCOMPLETE");
 
     const invite = await this.prisma.eventInvite.findUnique({ where: { token: invitationUrl } });
     // Organizer links no longer exist; one that slipped through reads as unknown.
     if (!invite || !isInviteAccessLevel(invite.accessLevel)) {
-      throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
     }
 
     const event = await this.prisma.event.findUnique({ where: { id: invite.eventId } });
-    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+    if (!event)
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
 
     const existing = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: callerId, eventId: event.id } },
     });
-    if (existing) throw new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(event.id));
+    if (existing) {
+      throw new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", event.id));
+    }
 
     // A closed event can't be joined: its photos are gone, and it stays only
     // as a record for the people who were there (docs/event-quotas.md). An
@@ -170,13 +161,13 @@ export class EventsService {
       where: { eventId_userId: { eventId: event.id, userId: callerId } },
     });
     if (ban) {
-      throw new ForbiddenException({ code: REMOVED_FROM_EVENT_CODE, message: EVENT_SERVICE_ERRORS.REMOVED_FROM_EVENT });
+      throw new ApiException("REMOVED_FROM_EVENT");
     }
 
     // Under review: members keep access, but no one new comes in until the
     // platform has looked (docs/moderation.md).
     if (event.underReviewAt) {
-      throw new ForbiddenException({ code: EVENT_UNDER_REVIEW_CODE, message: EVENT_SERVICE_ERRORS.UNDER_REVIEW });
+      throw new ApiException("EVENT_UNDER_REVIEW");
     }
 
     await this.assertNoBlockWithOrganizers(event.id, invitationUrl, callerId);
@@ -223,14 +214,13 @@ export class EventsService {
     });
 
     if (blocks.some((block) => block.blockerId !== callerId)) {
-      throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND(invitationUrl));
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
     }
 
     const ownBlock = blocks.find((block) => block.blockerId === callerId);
     if (ownBlock) {
-      throw new ForbiddenException({
-        code: ORGANIZER_BLOCKED_BY_CALLER_CODE,
-        message: EVENT_SERVICE_ERRORS.ORGANIZER_BLOCKED_BY_CALLER(ownBlock.blocked.details?.name ?? null),
+      throw new ApiException("ORGANIZER_BLOCKED_BY_CALLER", {
+        organizerName: ownBlock.blocked.details?.name ?? null,
       });
     }
   }
@@ -241,11 +231,11 @@ export class EventsService {
       include: eventWithCallerAccessInclude(callerId),
     });
 
-    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
 
     const { eventAccesses, ...event } = loaded;
@@ -264,11 +254,11 @@ export class EventsService {
       include: eventWithCallerAccessInclude(callerId),
     });
 
-    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
 
     const { eventAccesses, ...event } = loaded;
@@ -308,10 +298,7 @@ export class EventsService {
     if (date.getTime() === event.date.getTime() && galleryWindowDays === event.galleryWindowDays) return {};
 
     if (galleryStateOf(event, now) !== GALLERY_STATES.UPCOMING) {
-      throw new ForbiddenException({
-        code: PLAN_LIMIT_CODES.EVENT_SCHEDULE_LOCKED,
-        message: PLAN_LIMIT_MESSAGES.EVENT_SCHEDULE_LOCKED,
-      });
+      throw new ApiException("EVENT_SCHEDULE_LOCKED");
     }
     this.assertDateInRange(date, now);
     if (dto.galleryWindowDays !== undefined) {
@@ -326,7 +313,7 @@ export class EventsService {
   /** Any past date is allowed; a future one at most EVENT_DATE_MAX_MONTHS_AHEAD months away. */
   private assertDateInRange(date: Date, now: Date): void {
     if (date.getTime() <= latestEventDate(now).getTime()) return;
-    throw new BadRequestException(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(EVENT_DATE_MAX_MONTHS_AHEAD));
+    throw new BadRequestException();
   }
 
   /**
@@ -374,7 +361,11 @@ export class EventsService {
     const invite = await this.prisma.eventInvite.findUnique({
       where: { eventId_accessLevel: { eventId, accessLevel } },
     });
-    if (!invite) throw new NotFoundException(EVENT_SERVICE_ERRORS.INVITE_NOT_FOUND(eventId, accessLevel));
+    if (!invite) {
+      throw new NotFoundException(
+        RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event invite", "access level", `${eventId}:${accessLevel}`),
+      );
+    }
 
     const token = randomUUID();
 
@@ -431,17 +422,17 @@ export class EventsService {
       include: eventWithCallerAccessInclude(callerId),
     });
 
-    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const callerAccess = loaded.eventAccesses[0];
     if (!callerAccess) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, callerId));
+      throw new ForbiddenException();
     }
 
     if (callerAccess.accessLevel === AccessLevel.ORGANIZER) {
       const organizerCount = await this.countOrganizers(eventId);
       if (organizerCount <= 1) {
-        throw new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId));
+        throw new UnprocessableEntityException();
       }
     }
 
@@ -480,11 +471,11 @@ export class EventsService {
       include: eventWithCallerAccessInclude(callerId),
     });
 
-    if (!loaded) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
 
     const accesses = await this.prisma.eventAccess.findMany({
@@ -510,7 +501,7 @@ export class EventsService {
     await this.getUpdatable(eventId, callerId);
 
     if (callerId === targetUserId) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_MODIFY_OWN_ACCESS);
+      throw new ForbiddenException();
     }
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
@@ -518,13 +509,13 @@ export class EventsService {
       include: eventAccessWithUserInclude(callerId),
     });
     if (!targetAccess) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId));
+      throw new ForbiddenException();
     }
 
     if (targetAccess.accessLevel === AccessLevel.ORGANIZER && accessLevel !== AccessLevel.ORGANIZER) {
       const organizerCount = await this.countOrganizers(eventId);
       if (organizerCount <= 1) {
-        throw new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId));
+        throw new UnprocessableEntityException();
       }
     }
 
@@ -567,20 +558,20 @@ export class EventsService {
     await this.getUpdatable(eventId, callerId);
 
     if (callerId === targetUserId) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF);
+      throw new ForbiddenException();
     }
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
     });
     if (!targetAccess) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, targetUserId));
+      throw new ForbiddenException();
     }
 
     if (targetAccess.accessLevel === AccessLevel.ORGANIZER) {
       const organizerCount = await this.countOrganizers(eventId);
       if (organizerCount <= 1) {
-        throw new UnprocessableEntityException(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(eventId));
+        throw new UnprocessableEntityException();
       }
     }
 
@@ -642,21 +633,18 @@ export class EventsService {
       include: eventWithCallerAccessInclude(callerId),
     });
 
-    if (!event) throw new NotFoundException(EVENT_SERVICE_ERRORS.NOT_FOUND(eventId));
+    if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     if (!ability.can(EVENT_ACTIONS.DELETE, subject(EVENT_SUBJECT, event))) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(eventId));
+      throw new ForbiddenException();
     }
 
     // Only a closed event can be deleted, the way WhatsApp has you exit a group
     // before deleting it: deactivating comes first, so a delete never takes a
     // gallery people are still using (docs/event-quotas.md).
     if (galleryStateOf(event) !== GALLERY_STATES.CLOSED) {
-      throw new ForbiddenException({
-        code: PLAN_LIMIT_CODES.EVENT_STILL_ACTIVE,
-        message: PLAN_LIMIT_MESSAGES.EVENT_STILL_ACTIVE,
-      });
+      throw new ApiException("EVENT_STILL_ACTIVE");
     }
 
     // Collect the photo keys in the same transaction as the delete: the cascade
@@ -694,7 +682,7 @@ export class EventsService {
 
   private async toEventParticipant(eventId: string, access: EventAccessWithUser): Promise<EventParticipant> {
     if (!access.user.details) {
-      throw new ForbiddenException(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(eventId, access.userId));
+      throw new ForbiddenException();
     }
 
     return {

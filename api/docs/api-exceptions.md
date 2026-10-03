@@ -72,10 +72,9 @@ domain files (see [Mobile UI copy](#mobile-ui-copy)).
 
 ### Adding a coded failure
 
-1. Add a key to the domain’s `*.errors.ts` registry object (users is the
-   reference: literal keys such as `USERNAME_TAKEN`, no parallel `*_CODE`
-   constant). Other domains may still keep codes in `*.constants.ts` until
-   migrated.
+1. Add a key to the domain’s `*.errors.ts` registry object (literal keys such
+   as `USERNAME_TAKEN` or `COVER_CHANGED_CONCURRENTLY`, no parallel `*_CODE`
+   constant in `*.constants.ts`).
 2. Set `{ status, message }` on that entry.
 3. Add the domain object to `API_ERROR_DOMAINS` if it is a new file.
 4. Regenerate OpenAPI and the mobile client.
@@ -161,24 +160,20 @@ throws use `RESOURCE.NOT_FOUND`, format-style bad requests use
 `INVALID_FORMAT`, and so on—do not pass a bad-request template into
 `NotFoundException`.
 
-**Lint today** (`api/eslint.config.mjs`): outside tests, a string or template
-literal as the first argument to Nest HTTP exception constructors is an error.
-A helper call or no argument is allowed. Specs are exempt so filter tests can
-pass raw Nest messages. TypeScript cannot enforce this — Nest’s constructors
-accept `any`.
+**Lint** (`api/eslint.config.mjs`): outside tests, Nest HTTP exception
+constructors may only take no argument or the matching
+`RESPONSE_TEMPLATES` call — not a string literal, template literal, or other
+helper. Specs are exempt so filter tests can pass raw Nest messages.
+TypeScript cannot enforce this — Nest’s constructors accept `any`.
 
-**Follow-up (next stack layer after domains drop `*_SERVICE_ERRORS` wrappers):**
-tighten ESLint so each exception type only accepts the matching
-`RESPONSE_TEMPLATES` member (or no argument). Example: `NotFoundException`
-must receive `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)`;
-`BadRequestException` must receive `RESPONSE_TEMPLATES.INVALID_FORMAT(...)`
-(or another bad-request template once one exists). Prefer AST selectors on
-the full `RESPONSE_TEMPLATES.…` call path, not just any `.NOT_FOUND` property.
-Do **not** enable that rule while events/photos/moderation still pass
-`EVENT_SERVICE_ERRORS.NOT_FOUND(...)` / similar wrappers—those are plain
-string helpers and would fail CI until those domains call `RESPONSE_TEMPLATES`
-at the throw site (or the wrappers are removed). Users already uses the shared
-templates directly and is the reference shape.
+| Exception                      | Allowed first argument                                    |
+| ------------------------------ | --------------------------------------------------------- |
+| `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or none      |
+| `ConflictException`            | `RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(...)` or none |
+| `BadRequestException`          | `RESPONSE_TEMPLATES.INVALID_FORMAT(...)` or none          |
+| `ForbiddenException`           | none                                                      |
+| `UnauthorizedException`        | none                                                      |
+| `UnprocessableEntityException` | none                                                      |
 
 ### Do not
 
@@ -194,22 +189,20 @@ templates directly and is the reference shape.
 
 ## What the old constants pattern was for
 
-Domain `*.constants.ts` files used to own large `*_SERVICE_ERRORS` maps:
-human strings used both as Nest throw bodies and as de-facto client copy.
+Domain `*.constants.ts` files used to own large `*_SERVICE_ERRORS` maps and
+parallel `*_CODE` constants: human strings used both as Nest throw bodies and
+as de-facto client copy, with coded throws built as
+`ForbiddenException({ code: SOME_CODE, message: … })`.
 
-That is no longer the model for **coded** failures:
+That model is gone:
 
-- Catalogued outcomes live in `*.errors.ts` (status + operator `message`).
-- Clients key off `code`, not those strings.
-- `*.constants.ts` should keep domain knobs (limits, patterns, prefixes), not
-  a parallel error-message table for every API failure.
-
-Users no longer keeps a `*_SERVICE_ERRORS` map: coded outcomes live in
-`users.errors.ts`, and uncoded Nest throws use a `RESPONSE_TEMPLATES` message
-(or none). Other domains may still have larger `*_SERVICE_ERRORS` maps until
-they migrate.
-The filter already supplies generic `code`/`message` for those responses;
-delete the string helpers as call sites stop needing them.
+- Catalogued outcomes live in `*.errors.ts` (status + operator `message`) and
+  are thrown with `ApiException("THE_CODE")`.
+- Clients key off `code`, not Nest constructor strings.
+- `*.constants.ts` keeps domain knobs (limits, patterns, prefixes), not a
+  parallel error-message table.
+- Uncoded Nest throws use `RESPONSE_TEMPLATES` (or no message). The filter
+  supplies generic `code`/`message` for those responses.
 
 ---
 

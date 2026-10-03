@@ -1,4 +1,4 @@
-import { InternalServerErrorException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import { InternalServerErrorException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -9,7 +9,6 @@ import { ImageUploadService } from "src/images/image-upload.service";
 import {
   buildImageS3Key,
   IMAGE_UPLOAD_CONFIRM_WINDOW_SECONDS,
-  IMAGE_UPLOAD_ERRORS,
   MAX_IMAGE_SIZE_BYTES,
 } from "src/images/images.constants";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -196,7 +195,7 @@ describe("UserAvatarService", () => {
       s3Service.headObject.mockResolvedValue({ exists: false });
 
       await expect(service.confirmUpload(userId, uploadId)).rejects.toThrow(
-        new NotFoundException(IMAGE_UPLOAD_ERRORS.UPLOAD_NOT_FOUND(uploadId)),
+        new ApiException("IMAGE_UPLOAD_NOT_FOUND", { uploadId }),
       );
 
       expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();
@@ -210,7 +209,7 @@ describe("UserAvatarService", () => {
       s3Service.headObject.mockResolvedValue(uploadedObject(overrides));
 
       await expect(service.confirmUpload(userId, uploadId)).rejects.toThrow(
-        new UnprocessableEntityException(IMAGE_UPLOAD_ERRORS.UPLOAD_REJECTED(uploadId)),
+        new ApiException("IMAGE_UPLOAD_REJECTED", { uploadId }),
       );
 
       expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
@@ -223,7 +222,7 @@ describe("UserAvatarService", () => {
       s3Service.headObject.mockResolvedValue(uploadedObject({ lastModified }));
 
       await expect(service.confirmUpload(userId, uploadId)).rejects.toThrow(
-        new UnprocessableEntityException(IMAGE_UPLOAD_ERRORS.UPLOAD_EXPIRED(uploadId)),
+        new ApiException("IMAGE_UPLOAD_EXPIRED", { uploadId }),
       );
 
       expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();

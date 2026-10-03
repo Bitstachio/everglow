@@ -3,7 +3,7 @@ import { Reflector } from "@nestjs/core";
 import { ThrottlerStorage } from "@nestjs/throttler";
 import { RateLimitConfig } from "src/config/rate-limit.config";
 import { RateLimitRejectionLogger } from "./rate-limit-rejection.logger";
-import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "./rate-limit.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { RateLimit, SkipRateLimit } from "./rate-limit.decorator";
 import { RateLimitExceededException } from "./rate-limit.exception";
 import { IpRateLimitGuard, UserRateLimitGuard } from "./rate-limit.guard";
@@ -189,8 +189,8 @@ describe("rate limit guards", () => {
       const exception = rejection as RateLimitExceededException;
       expect(exception.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
       expect(exception.getResponse()).toEqual({
-        code: RATE_LIMIT_EXCEEDED_CODE,
-        message: RATE_LIMIT_EXCEEDED_MESSAGE,
+        code: "RATE_LIMIT_EXCEEDED",
+        message: resolveApiErrorMessage("RATE_LIMIT_EXCEEDED"),
       });
       expect(header).toHaveBeenCalledWith("Retry-After", String(RETRY_AFTER_SECONDS));
       expect(record).toHaveBeenCalledTimes(1);

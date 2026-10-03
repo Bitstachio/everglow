@@ -1,4 +1,5 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { ApiException } from "src/common/errors/api.exception";
 import { Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -6,12 +7,7 @@ import { jitteredLinearBackoffMs, sleep } from "src/common/utils/async.utils";
 import { EventPlanService, PlannedEvent } from "src/plans/event-plan.service";
 import { isSerializationFailure } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
-import {
-  PHOTO_SERVICE_ERRORS,
-  STORAGE_RESERVATION_CONFLICT_CODE,
-  STORAGE_RESERVATION_MAX_ATTEMPTS,
-  STORAGE_RESERVATION_RETRY_DELAY_MS,
-} from "./photos.constants";
+import { STORAGE_RESERVATION_MAX_ATTEMPTS, STORAGE_RESERVATION_RETRY_DELAY_MS } from "./photos.constants";
 
 /** A PENDING photo row to insert once the event's gallery has room for it. */
 export type UploadReservationRow = Prisma.PhotoCreateManyInput;
@@ -67,10 +63,7 @@ export class PhotoStorageService {
           "Storage reservation lost a serialization conflict",
         );
         if (!willRetry) {
-          throw new ConflictException({
-            code: STORAGE_RESERVATION_CONFLICT_CODE,
-            message: PHOTO_SERVICE_ERRORS.STORAGE_RESERVATION_CONFLICT,
-          });
+          throw new ApiException("STORAGE_RESERVATION_CONFLICT");
         }
         await sleep(jitteredLinearBackoffMs(attempt, STORAGE_RESERVATION_RETRY_DELAY_MS));
       }

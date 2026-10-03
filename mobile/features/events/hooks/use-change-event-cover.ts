@@ -21,24 +21,6 @@ const PERMISSION_MESSAGES: Record<PhotoSource, string> = {
 
 const formatWait = (seconds: number) => (seconds < 60 ? `${seconds} seconds` : `${Math.ceil(seconds / 60)} minutes`);
 
-const coverErrorMessage = (error: unknown): string => {
-  switch (getErrorCode(error)) {
-    case "IMAGE_UNSUPPORTED_CONTENT_TYPE":
-    case "IMAGE_INVALID_SIZE":
-      return "This photo can't be used. Try a different one.";
-    case "IMAGE_UPLOAD_EXPIRED":
-    case "IMAGE_UPLOAD_REJECTED":
-      return "The upload didn't go through. Please try again.";
-  }
-  if (isApiError(error) && error.status === 403) {
-    return "Only organizers can change the cover, and you're no longer one for this event.";
-  }
-  if (isApiError(error) && error.status === 409) {
-    return "Another organizer changed the cover at the same time. Please try again.";
-  }
-  return getErrorMessage(error, "Please try again.");
-};
-
 const pickPhoto = async (source: PhotoSource): Promise<ImagePicker.ImagePickerAsset | null> => {
   const permission =
     source === "camera"
@@ -94,7 +76,7 @@ export const useChangeEventCover = (eventId: string, hasCover: boolean) => {
         showRateLimited();
         return;
       }
-      Alert.alert(title, coverErrorMessage(error));
+      Alert.alert(title, getErrorMessage(error, "Please try again."));
     } finally {
       setIsPreparing(false);
       inFlight.current = false;

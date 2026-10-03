@@ -1,11 +1,8 @@
 import { HttpStatus } from "@nestjs/common";
 import { OpenAPIObject } from "@nestjs/swagger";
+import { resolveApiErrorMessage } from "../errors/api-error-codes";
 import { API_ERROR_SCHEMA_REF } from "../errors/api-error.dto";
-import {
-  RATE_LIMIT_EXCEEDED_CODE,
-  RATE_LIMIT_EXCEEDED_MESSAGE,
-  RATE_LIMIT_EXEMPT_EXTENSION,
-} from "./rate-limit.constants";
+import { RATE_LIMIT_EXEMPT_EXTENSION } from "./rate-limit.constants";
 
 const RESPONSE_NAME = "TooManyRequests";
 const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"] as const;
@@ -36,8 +33,8 @@ export const documentRateLimitResponses = (document: OpenAPIObject): OpenAPIObje
           // OAS 3.0 ignores keywords next to `$ref`, so the rate-limit sample
           // lives on the media type, not on the shared envelope.
           example: {
-            message: RATE_LIMIT_EXCEEDED_MESSAGE,
-            code: RATE_LIMIT_EXCEEDED_CODE,
+            message: resolveApiErrorMessage("RATE_LIMIT_EXCEEDED"),
+            code: "RATE_LIMIT_EXCEEDED",
             meta: { timestamp: "2026-06-03T12:00:00.000Z", path: "/api/v2/events/join" },
           },
         },

@@ -6,7 +6,6 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "../rate-limit/rate-limit.constants";
 import { RateLimitExceededException } from "../rate-limit/rate-limit.exception";
 import { HttpAdapterHost } from "@nestjs/core";
 import {
@@ -108,8 +107,8 @@ describe("AllExceptionsFilter", () => {
     const { body, statusCode } = replyArgs();
     expect(statusCode).toBe(429);
     expect(body).toEqual({
-      message: RATE_LIMIT_EXCEEDED_MESSAGE,
-      code: RATE_LIMIT_EXCEEDED_CODE,
+      message: resolveApiErrorMessage("RATE_LIMIT_EXCEEDED"),
+      code: "RATE_LIMIT_EXCEEDED",
       meta: { timestamp: expect.any(String) as string, path },
     });
     expect(errorSpy).not.toHaveBeenCalled();

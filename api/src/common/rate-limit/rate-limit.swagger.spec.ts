@@ -1,10 +1,7 @@
 import { OpenAPIObject } from "@nestjs/swagger";
 import { API_ERROR_SCHEMA_REF } from "../errors/api-error.dto";
-import {
-  RATE_LIMIT_EXCEEDED_CODE,
-  RATE_LIMIT_EXCEEDED_MESSAGE,
-  RATE_LIMIT_EXEMPT_EXTENSION,
-} from "./rate-limit.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { RATE_LIMIT_EXEMPT_EXTENSION } from "./rate-limit.constants";
 import { documentRateLimitResponses } from "./rate-limit.swagger";
 
 const TOO_MANY_REQUESTS_REF = { $ref: "#/components/responses/TooManyRequests" };
@@ -35,8 +32,8 @@ describe("documentRateLimitResponses", () => {
         "application/json": {
           schema: { $ref: API_ERROR_SCHEMA_REF },
           example: {
-            message: RATE_LIMIT_EXCEEDED_MESSAGE,
-            code: RATE_LIMIT_EXCEEDED_CODE,
+            message: resolveApiErrorMessage("RATE_LIMIT_EXCEEDED"),
+            code: "RATE_LIMIT_EXCEEDED",
           },
         },
       },

@@ -1,6 +1,6 @@
 import { INestApplication } from "@nestjs/common";
 import { Server } from "http";
-import { RATE_LIMIT_EXCEEDED_CODE, RATE_LIMIT_EXCEEDED_MESSAGE } from "src/common/rate-limit/rate-limit.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import rateLimitConfig, { RateLimitConfig } from "src/config/rate-limit.config";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
@@ -67,8 +67,8 @@ describe("Rate limiting (integration)", () => {
 
     const body = response.body as ErrorBody;
     expect(body).toEqual({
-      message: RATE_LIMIT_EXCEEDED_MESSAGE,
-      code: RATE_LIMIT_EXCEEDED_CODE,
+      message: resolveApiErrorMessage("RATE_LIMIT_EXCEEDED"),
+      code: "RATE_LIMIT_EXCEEDED",
       meta: { timestamp: expect.any(String) as string, path: JOIN_PATH },
     });
 
@@ -97,7 +97,7 @@ describe("Rate limiting (integration)", () => {
 
     const response = await request(httpServer).get(ME_PATH).expect(429);
 
-    expect((response.body as ErrorBody).code).toBe(RATE_LIMIT_EXCEEDED_CODE);
+    expect((response.body as ErrorBody).code).toBe("RATE_LIMIT_EXCEEDED");
   });
 
   it("never throttles a route marked @SkipRateLimit()", async () => {
