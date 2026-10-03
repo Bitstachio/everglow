@@ -42,8 +42,8 @@ Each catalogue entry is `{ status, message }`, where `message` is either a
 fixed string or a function of throw-time params. Messages are short operator
 descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 
-**Domains** own the entries for their codes. `API_ERROR_DOMAINS` lists them;
-the aggregator merges that list into one flat registry:
+**Domains** own the entries for their codes. List each domain object once in
+`API_ERROR_DOMAINS`; the aggregator merges that list into one flat registry:
 
 | Domain | File |
 | --- | --- |
@@ -77,8 +77,10 @@ domain files (see [Mobile UI copy](#mobile-ui-copy)).
 3. Add the domain object to `API_ERROR_DOMAINS` if it is a new file.
 4. Regenerate OpenAPI and the mobile client.
 5. Add mobile UI copy for the new code in the matching file under
-   `mobile/lib/api/error-message-domains/` (and list that domain in
-   `API_ERROR_MESSAGE_DOMAINS` if the file is new).
+   `mobile/lib/api/error-message-domains/` (and add the domain object to
+   `API_ERROR_MESSAGE_DOMAINS` only if the file is new — that list is the
+   single membership source; do not re-list domains when building
+   `API_ERROR_MESSAGES`).
 6. Throw with `new ApiException(CODE)` or `new ApiException(CODE, params)`.
 
 Do not invent a code unless a client will branch on it or needs distinct

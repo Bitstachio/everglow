@@ -67,8 +67,8 @@ network fallbacks above).
 
 | Piece      | Path                                                                         |
 | ---------- | ---------------------------------------------------------------------------- |
-| Aggregator | `lib/api/error-messages.ts` (`API_ERROR_MESSAGES`, `messageForApiErrorCode`) |
-| Domains    | `lib/api/error-message-domains/`                                             |
+| Aggregator | `lib/api/error-messages.ts` (`API_ERROR_MESSAGE_DOMAINS` → `API_ERROR_MESSAGES`) |
+| Domains    | `lib/api/error-message-domains/`                                                 |
 
 Each domain file matches an API `*.errors.ts` (e.g. `users.ts` ↔
 `users.errors.ts`). Put new copy in the domain that owns the API code, even when
@@ -78,7 +78,9 @@ Guards:
 
 - `satisfies Record<ApiErrorCode, string>` fails the build when OpenAPI adds a
   code with no string (or a key is mistyped).
-- Domains must not share keys (exclusive merge + `error-messages.spec.ts`).
+- Domains must not share keys (`error-messages.spec.ts` checks the merged
+  map length equals the sum of domain sizes). New domains are listed only in
+  `API_ERROR_MESSAGE_DOMAINS` (same pattern as API `API_ERROR_DOMAINS`).
 
 Copy is plain user-facing strings. Do not parse parameterized Nest messages.
 If a screen needs a value the user already typed, compose it locally with
