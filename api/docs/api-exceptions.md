@@ -152,6 +152,15 @@ opaque:
 has none (see below). Those generics (`FORBIDDEN`, `CONFLICT`, …) are for true
 generics—not a substitute for product-specific copy.
 
+If the throw carries a debug message, build it with
+[`RESPONSE_TEMPLATES`](../src/common/constants/templates.constants.ts) (for
+example `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id)`). Do not
+inline an equivalent string. Omit the message when status alone is enough
+(`throw new UnauthorizedException()`). ESLint rejects a string literal or
+template literal passed to these Nest constructors outside tests; a helper
+call or no argument is allowed. TypeScript cannot enforce this — Nest’s
+constructors accept `any`.
+
 ### Do not
 
 - Throw `ConflictException({ code: "SOME_STRING", message: "…" })` with a

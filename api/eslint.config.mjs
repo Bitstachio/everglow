@@ -44,6 +44,12 @@ export default tseslint.config(
             ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
           message: 'Use an arrow function instead of the function keyword.',
         },
+        {
+          selector:
+            'NewExpression[callee.name=/^(BadRequest|Conflict|Forbidden|NotFound|Unauthorized|UnprocessableEntity)Exception$/][arguments.0.type=/^(Literal|TemplateLiteral)$/]',
+          message:
+            'Pass RESPONSE_TEMPLATES (or no message) to uncoded Nest HTTP exceptions. Do not inline a string.',
+        },
       ],
     },
   },
@@ -51,6 +57,15 @@ export default tseslint.config(
     files: ['**/*.spec.ts'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',
+      // Filter specs pass raw Nest messages on purpose. Keep the arrow-function ban.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
+          message: 'Use an arrow function instead of the function keyword.',
+        },
+      ],
     },
   },
 );

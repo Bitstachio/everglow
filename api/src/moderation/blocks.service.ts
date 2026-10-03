@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { BLOCK_SERVICE_ERRORS } from "./moderation.constants";
 import { BlockWithBlockedUser, blockWithBlockedUserInclude } from "./moderation.types";
@@ -29,7 +30,9 @@ export class BlocksService {
       select: { id: true },
     });
     // Opaque 404: same status whether the id is missing or not a shared member.
-    if (!sharedMembership) throw new NotFoundException(`User with ID "${targetUserId}" not found`);
+    if (!sharedMembership) {
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", targetUserId));
+    }
 
     // ON CONFLICT DO NOTHING on the (blocker, blocked) unique index: blocking
     // twice, or twice at once, leaves one row and is not an error.

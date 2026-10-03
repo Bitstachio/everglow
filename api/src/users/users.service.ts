@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { AccountDeletionPhotoPolicy, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
@@ -83,7 +84,7 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    if (!user) throw new NotFoundException(`User with ID "${id}" not found`);
+    if (!user) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id));
 
     return user;
   }
@@ -371,7 +372,7 @@ export class UsersService {
     const username = normalizeUsername(raw);
     const reason = usernameFormatReason(username);
     if (reason === "INVALID_FORMAT") {
-      throw new BadRequestException(`Username "${username}" is not a valid format`);
+      throw new BadRequestException(RESPONSE_TEMPLATES.INVALID_FORMAT("Username", username));
     }
     if (reason === "RESERVED") {
       throw new ApiException("USERNAME_RESERVED", { username });
