@@ -43,7 +43,10 @@ them** in controllers or services:
   (token claims issuer https://…/, audience …)`.
 - **Unhandled exceptions.** `AllExceptionsFilter` (`src/common/filters`) emits one authoritative `error` with the
   stack for anything non-HTTP that escapes, and for a 5xx `HttpException` without a catalogue code: an
-  `InternalServerErrorException`, or `JwtAuthGuard`'s 503 when Auth0's signing keys can't be fetched.
+  `InternalServerErrorException`, or `JwtAuthGuard`'s 503 when Auth0's signing keys can't be fetched. A body the
+  parser refuses (too large, unreadable charset or encoding, dropped mid-upload) is a 4xx, not one of these. The
+  filter logs it at `warn` as `request.body_rejected`, with the code and reason. That is the request's only line,
+  because the body parser runs before the access log's middleware.
   **Do not catch-and-log-and-rethrow** just to record an error; you will create duplicate entries. Let it
   propagate.
 
