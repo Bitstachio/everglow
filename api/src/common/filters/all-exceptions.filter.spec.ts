@@ -17,6 +17,7 @@ describe("AllExceptionsFilter", () => {
   let filter: AllExceptionsFilter;
   let reply: jest.Mock;
   let errorSpy: jest.SpyInstance;
+  let debugSpy: jest.SpyInstance;
   let host: ArgumentsHost;
 
   beforeEach(() => {
@@ -38,8 +39,9 @@ describe("AllExceptionsFilter", () => {
 
     filter = new AllExceptionsFilter(httpAdapterHost);
 
-    // Silence and observe the catch-all error log without hitting the console.
+    // Silence and observe logs without hitting the console.
     errorSpy = jest.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+    debugSpy = jest.spyOn(Logger.prototype, "debug").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -62,6 +64,10 @@ describe("AllExceptionsFilter", () => {
       meta: { timestamp: expect.any(String) as string, path },
     });
     expect(errorSpy).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalledWith(
+      { statusCode: 404, path, message: "User not found" },
+      "Replacing uncoded HttpException message with catalog message",
+    );
   });
 
   it("maps unmapped 4xx statuses to BAD_REQUEST so every response carries a code", () => {
@@ -99,6 +105,7 @@ describe("AllExceptionsFilter", () => {
       meta: { timestamp: expect.any(String) as string, path },
     });
     expect(errorSpy).not.toHaveBeenCalled();
+    expect(debugSpy).not.toHaveBeenCalled();
   });
 
   it("logs a single error and returns a sanitized 500 with INTERNAL_ERROR for an unhandled Error", () => {

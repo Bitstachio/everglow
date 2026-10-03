@@ -38,6 +38,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const { httpAdapter } = this.httpAdapterHost;
 
     const ctx = host.switchToHttp();
+    const path = httpAdapter.getRequestUrl(ctx.getRequest<Request>()) as string;
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | undefined;
@@ -59,6 +60,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (!code) {
+      // Nest / framework messages are hidden from clients; keep them in debug logs.
+      if (exception instanceof HttpException) {
+        this.logger.debug(
+          { statusCode, path, message },
+          "Replacing uncoded HttpException message with catalog message",
+        );
+      }
       code = genericCodeForStatus(statusCode);
       message = resolveApiErrorMessage(code);
     } else {
@@ -70,7 +78,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       code,
       meta: {
         timestamp: new Date().toISOString(),
-        path: httpAdapter.getRequestUrl(ctx.getRequest<Request>()) as string,
+        path,
       },
     };
 
