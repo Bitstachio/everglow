@@ -5,15 +5,9 @@ const entity = "User";
 
 export const USER_SERVICE_ERRORS = {
   NOT_FOUND: (id: string) => RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(entity, "ID", id),
-  DETAILS_ALREADY_EXIST: (id: string) => `User with ID "${id}" has already completed onboarding`,
-  USERNAME_TAKEN: (username: string) => RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(entity, "username", username),
-  USERNAME_RESERVED: (username: string) => `Username "${username}" is reserved`,
-  ONBOARDING_INCOMPLETE: "Onboarding is incomplete. Please complete the user onboarding to continue.",
+  ONBOARDING_INCOMPLETE: "Onboarding is incomplete",
   AVATAR_CHANGED_CONCURRENTLY: "The avatar was changed by another request, please retry",
   ACCOUNT_DELETED: "This account has been deleted. Sign in again to start a new one.",
-  USERNAME_CHANGE_LIMITED: (availableAt: Date) =>
-    `You can change your username ${USERNAME_CHANGE_LIMIT} times every ${USERNAME_CHANGE_WINDOW_DAYS} days. ` +
-    `You can change it again after ${availableAt.toISOString()}.`,
 };
 
 /**
@@ -29,6 +23,15 @@ export const USERNAME_CHANGE_LIMITED_CODE = "USERNAME_CHANGE_LIMITED";
 
 /** Coded 409 when a username write loses a uniqueness race (or is already taken). */
 export const USERNAME_TAKEN_CODE = "USERNAME_TAKEN";
+
+/** Coded 400 when a username write targets a reserved handle. */
+export const USERNAME_RESERVED_CODE = "USERNAME_RESERVED";
+
+/** Coded 409 when createDetails is called after onboarding already finished. */
+export const DETAILS_ALREADY_EXIST_CODE = "DETAILS_ALREADY_EXIST";
+
+/** Coded 422 when an action requires a completed profile and onboarding is unfinished. */
+export const ONBOARDING_INCOMPLETE_CODE = "ONBOARDING_INCOMPLETE";
 
 /** Matches mobile `use-edit-username-form.ts`: lowercase letters, digits, `.`, `_`. */
 export const USERNAME_PATTERN = /^[a-z0-9._]+$/;

@@ -1,41 +1,49 @@
-import { RATE_LIMIT_EXCEEDED_CODE } from "src/common/rate-limit/rate-limit.constants";
-import {
-  EVENT_UNDER_REVIEW_CODE,
-  ORGANIZER_BLOCKED_BY_CALLER_CODE,
-  REMOVED_FROM_EVENT_CODE,
-} from "src/events/events.constants";
-import { IMAGE_UPLOAD_ERROR_CODES } from "src/images/images.constants";
-import { PLAN_LIMIT_CODES } from "src/plans/plans.constants";
-import { STORAGE_RESERVATION_CONFLICT_CODE } from "src/photos/photos.constants";
-import { USERNAME_CHANGE_LIMITED_CODE, USERNAME_TAKEN_CODE } from "src/users/users.constants";
+import { RATE_LIMIT_API_ERRORS } from "src/common/rate-limit/rate-limit.errors";
+import { EVENT_API_ERRORS } from "src/events/events.errors";
+import { IMAGE_API_ERRORS } from "src/images/images.errors";
+import { PHOTO_API_ERRORS } from "src/photos/photos.errors";
+import { PLAN_API_ERRORS } from "src/plans/plans.errors";
+import { USER_API_ERRORS } from "src/users/users.errors";
+import type { ApiErrorDefinition } from "./api-error.types";
+import { HTTP_API_ERRORS } from "./http.errors";
 
-/**
- * Closed set of machine-readable `code` values the API may put on the error
- * envelope. Domain modules own each constant; `ApiErrorDto` publishes this
- * list as the OpenAPI `code` enum so clients can generate a typed union.
- *
- * Keep alphabetical by string value so reviews and diffs stay stable.
- */
-export const API_ERROR_CODES = [
-  PLAN_LIMIT_CODES.ACTIVE_EVENT_LIMIT_REACHED,
-  PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED,
-  PLAN_LIMIT_CODES.EVENT_GALLERY_NOT_OPEN,
-  PLAN_LIMIT_CODES.EVENT_MEMBER_LIMIT_REACHED,
-  PLAN_LIMIT_CODES.EVENT_SCHEDULE_LOCKED,
-  PLAN_LIMIT_CODES.EVENT_STILL_ACTIVE,
-  PLAN_LIMIT_CODES.EVENT_STORAGE_LIMIT_REACHED,
-  EVENT_UNDER_REVIEW_CODE,
-  IMAGE_UPLOAD_ERROR_CODES.INVALID_SIZE,
-  IMAGE_UPLOAD_ERROR_CODES.UNSUPPORTED_CONTENT_TYPE,
-  IMAGE_UPLOAD_ERROR_CODES.UPLOAD_EXPIRED,
-  IMAGE_UPLOAD_ERROR_CODES.UPLOAD_NOT_FOUND,
-  IMAGE_UPLOAD_ERROR_CODES.UPLOAD_REJECTED,
-  ORGANIZER_BLOCKED_BY_CALLER_CODE,
-  RATE_LIMIT_EXCEEDED_CODE,
-  REMOVED_FROM_EVENT_CODE,
-  STORAGE_RESERVATION_CONFLICT_CODE,
-  USERNAME_CHANGE_LIMITED_CODE,
-  USERNAME_TAKEN_CODE,
+export type { ApiErrorDefinition } from "./api-error.types";
+
+export const API_ERROR_DOMAINS = [
+  HTTP_API_ERRORS,
+  USER_API_ERRORS,
+  EVENT_API_ERRORS,
+  IMAGE_API_ERRORS,
+  PLAN_API_ERRORS,
+  PHOTO_API_ERRORS,
+  RATE_LIMIT_API_ERRORS,
 ] as const;
 
-export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+
+type ApiErrorRegistry = UnionToIntersection<(typeof API_ERROR_DOMAINS)[number]>;
+
+export const API_ERROR_REGISTRY = Object.assign({}, ...API_ERROR_DOMAINS) as ApiErrorRegistry satisfies Record<
+  string,
+  ApiErrorDefinition
+>;
+
+export type ApiErrorCode = keyof typeof API_ERROR_REGISTRY;
+
+export type ParamsOf<C extends ApiErrorCode> = (typeof API_ERROR_REGISTRY)[C]["message"] extends (
+  params: infer P,
+) => string
+  ? P
+  : never;
+
+export type ApiErrorArgs<C extends ApiErrorCode> = [ParamsOf<C>] extends [never] ? [] : [ParamsOf<C>];
+
+export const API_ERROR_CODES = (Object.keys(API_ERROR_REGISTRY) as ApiErrorCode[]).sort();
+
+export const resolveApiErrorMessage = <C extends ApiErrorCode>(code: C, ...params: ApiErrorArgs<C>): string => {
+  const { message } = API_ERROR_REGISTRY[code];
+  if (typeof message === "function") {
+    return (message as (params: ParamsOf<C>) => string)(params[0] as ParamsOf<C>);
+  }
+  return message;
+};

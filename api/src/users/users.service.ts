@@ -1,15 +1,7 @@
-import {
-  BadRequestException,
-  ConflictException,
-  HttpException,
-  HttpStatus,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { AccountDeletionPhotoPolicy, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
@@ -23,10 +15,13 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { UsernameAvailabilityResponseDto } from "./dto/username-availability-response.dto";
 import {
   ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK,
+  DETAILS_ALREADY_EXIST_CODE,
+  ONBOARDING_INCOMPLETE_CODE,
   USER_SERVICE_ERRORS,
   USERNAME_CHANGE_LIMIT,
   USERNAME_CHANGE_LIMITED_CODE,
   USERNAME_CHANGE_WINDOW_DAYS,
+  USERNAME_RESERVED_CODE,
   USERNAME_TAKEN_CODE,
 } from "./users.constants";
 import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
@@ -54,7 +49,9 @@ export class UsersService {
   async createDetails(id: string, dto: CreateUserDetailsDto): Promise<UserWithDetails> {
     const user = await this.getById(id);
 
-    if (user.details) throw new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(id));
+    if (user.details) {
+      throw new ApiException(DETAILS_ALREADY_EXIST_CODE);
+    }
 
     const username = this.requireWritableUsername(dto.username);
 
@@ -101,7 +98,9 @@ export class UsersService {
   async getOnboardedById(id: string): Promise<OnboardedUser> {
     const user = await this.getById(id);
 
-    if (!user.details) throw new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+    if (!user.details) {
+      throw new ApiException(ONBOARDING_INCOMPLETE_CODE);
+    }
 
     return user as OnboardedUser;
   }
@@ -381,7 +380,7 @@ export class UsersService {
       throw new BadRequestException(`Username "${username}" is not a valid format`);
     }
     if (reason === "RESERVED") {
-      throw new BadRequestException(USER_SERVICE_ERRORS.USERNAME_RESERVED(username));
+      throw new ApiException(USERNAME_RESERVED_CODE, { username });
     }
     return username;
   }
@@ -420,10 +419,7 @@ export class UsersService {
 
     const availableAt = await this.usernameChangeAvailableAt(userId, tx);
     if (availableAt) {
-      throw new HttpException(
-        { code: USERNAME_CHANGE_LIMITED_CODE, message: USER_SERVICE_ERRORS.USERNAME_CHANGE_LIMITED(availableAt) },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throw new ApiException(USERNAME_CHANGE_LIMITED_CODE, { availableAt });
     }
 
     await tx.usernameChange.create({ data: { userId, oldUsername, newUsername } });
@@ -431,9 +427,6 @@ export class UsersService {
 
   private rethrowUsernameTaken(error: unknown, username: string): void {
     if (!isUniqueConstraintViolation(error)) return;
-    throw new ConflictException({
-      code: USERNAME_TAKEN_CODE,
-      message: USER_SERVICE_ERRORS.USERNAME_TAKEN(username),
-    });
+    throw new ApiException(USERNAME_TAKEN_CODE, { username });
   }
 }

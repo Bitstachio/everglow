@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, getSchemaPath } from "@nestjs/swagger";
+import { ApiProperty, getSchemaPath } from "@nestjs/swagger";
 import { ResponseMetaDto } from "src/common/swagger/response-meta.dto";
 import { API_ERROR_CODES, type ApiErrorCode } from "./api-error-codes";
 
@@ -9,14 +9,14 @@ import { API_ERROR_CODES, type ApiErrorCode } from "./api-error-codes";
  * references it for 429 and does not own the fields or the `code` enum.
  */
 export class ApiErrorDto {
-  @ApiPropertyOptional({ type: String })
-  message?: string;
+  @ApiProperty({ type: String })
+  message: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     enum: API_ERROR_CODES,
-    description: "Stable machine-readable error code, when the error has one",
+    description: "Stable machine-readable error code",
   })
-  code?: ApiErrorCode;
+  code: ApiErrorCode;
 
   @ApiProperty({ type: () => ResponseMetaDto })
   meta: ResponseMetaDto;

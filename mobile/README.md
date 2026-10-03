@@ -33,6 +33,7 @@ Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run i
 | Conventions (entry point) | [docs/code-conventions.md](docs/code-conventions.md)                                                 |
 | Feature folders           | [docs/feature-code-organization.md](docs/feature-code-organization.md)                               |
 | API client                | [docs/api.md](docs/api.md)                                                                           |
+| Exception handling        | [docs/exception-handling.md](docs/exception-handling.md)                                             |
 | Forms                     | [docs/forms.md](docs/forms.md)                                                                       |
 | Theme / UI scale / icons  | [docs/theme.md](docs/theme.md), [docs/ui-scale.md](docs/ui-scale.md), [docs/icons.md](docs/icons.md) |
 | Testing / E2E             | [docs/testing.md](docs/testing.md), [docs/e2e.md](docs/e2e.md)                                       |

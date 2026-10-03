@@ -44,7 +44,7 @@ export const GLOBAL_RATE_LIMIT_TIER = "default" satisfies RateLimitTierName;
 export type EndpointRateLimitTier = Exclude<RateLimitTierName, typeof GLOBAL_RATE_LIMIT_TIER>;
 
 export const RATE_LIMIT_EXCEEDED_CODE = "RATE_LIMIT_EXCEEDED";
-export const RATE_LIMIT_EXCEEDED_MESSAGE = "Too many requests, please try again later";
+export const RATE_LIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded";
 
 export const RATE_LIMIT_TIER_METADATA = "rateLimit:tier";
 export const RATE_LIMIT_SKIP_METADATA = "rateLimit:skip";

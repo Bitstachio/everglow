@@ -9,14 +9,19 @@ import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { hashProviderSub } from "src/users/deleted-provider-sub";
 import {
+  ONBOARDING_INCOMPLETE_CODE,
   USER_AVATAR_S3_KEY_PREFIX,
-  USER_SERVICE_ERRORS,
   USERNAME_CHANGE_LIMITED_CODE,
+  USERNAME_RESERVED_CODE,
   USERNAME_TAKEN_CODE,
+  DETAILS_ALREADY_EXIST_CODE,
 } from "src/users/users.constants";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
+import { expectApiError } from "./helpers/expect-api-error";
+import { NOT_FOUND_CODE } from "src/common/errors/http.errors";
 import { TEST_EVENT_ID } from "./helpers/events.fixtures";
 import { TEST_PHOTO_ID } from "./helpers/photos.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
@@ -181,7 +186,10 @@ describe("UsersController (integration)", () => {
         .expect(400);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.USERNAME_RESERVED("admin"));
+      expect(body).toMatchObject({
+        code: USERNAME_RESERVED_CODE,
+        message: resolveApiErrorMessage(USERNAME_RESERVED_CODE, { username: "admin" }),
+      });
     });
 
     it("returns 409 with USERNAME_TAKEN when username create races", async () => {
@@ -199,7 +207,7 @@ describe("UsersController (integration)", () => {
       const body = response.body as ErrorResponse;
       expect(body).toMatchObject({
         code: USERNAME_TAKEN_CODE,
-        message: USER_SERVICE_ERRORS.USERNAME_TAKEN(payload.username),
+        message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: payload.username }),
       });
     });
 
@@ -298,7 +306,10 @@ describe("UsersController (integration)", () => {
         .expect(409);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(TEST_USER_ID));
+      expect(body).toMatchObject({
+        code: DETAILS_ALREADY_EXIST_CODE,
+        message: resolveApiErrorMessage(DETAILS_ALREADY_EXIST_CODE),
+      });
       expect(body.meta.path).toBe(path);
     });
   });
@@ -430,7 +441,7 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer).get(path).set(authHeader()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.NOT_FOUND(TEST_USER_ID));
+      expectApiError(body, NOT_FOUND_CODE);
       expect(body.meta.path).toBe(path);
     });
   });
@@ -514,7 +525,10 @@ describe("UsersController (integration)", () => {
 
         const response = await request(httpServer).post(uploadUrlPath).set(authHeader()).send(payload).expect(422);
 
-        expect((response.body as ErrorResponse).message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+        expect(response.body).toMatchObject({
+          code: ONBOARDING_INCOMPLETE_CODE,
+          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+        });
         expect(s3Service.getPresignedUploadUrl).not.toHaveBeenCalled();
       });
 
@@ -581,7 +595,10 @@ describe("UsersController (integration)", () => {
 
         const response = await request(httpServer).put(avatarPath).set(authHeader()).send(payload).expect(422);
 
-        expect((response.body as ErrorResponse).message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+        expect(response.body).toMatchObject({
+          code: ONBOARDING_INCOMPLETE_CODE,
+          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+        });
         expect(s3Service.headObject).not.toHaveBeenCalled();
       });
 
@@ -855,7 +872,7 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer).patch(path).set(authHeader()).send(updateUserPayload()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.NOT_FOUND(TEST_USER_ID));
+      expectApiError(body, NOT_FOUND_CODE);
       expect(body.meta.path).toBe(path);
     });
 
@@ -865,7 +882,10 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer).patch(path).set(authHeader()).send(updateUserPayload()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+      expect(body).toMatchObject({
+        code: ONBOARDING_INCOMPLETE_CODE,
+        message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+      });
       expect(body.meta.path).toBe(path);
     });
   });
@@ -1135,7 +1155,7 @@ describe("UsersController (integration)", () => {
       const response = await request(httpServer).delete(keepPath).set(authHeader()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.NOT_FOUND(TEST_USER_ID));
+      expectApiError(body, NOT_FOUND_CODE);
       expect(body.meta.path).toBe(keepPath);
       expect(auth0Management.deleteUser).not.toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();

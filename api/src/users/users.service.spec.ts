@@ -1,15 +1,10 @@
-import {
-  BadRequestException,
-  ConflictException,
-  HttpException,
-  NotFoundException,
-  UnauthorizedException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AccountDeletionPhotoPolicy, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { ApiException } from "src/common/errors/api.exception";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
@@ -18,7 +13,14 @@ import { AppleIdentityRevocationService } from "./apple-identity-revocation.serv
 import { hashProviderSub } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { USER_SERVICE_ERRORS, USERNAME_CHANGE_LIMITED_CODE, USERNAME_TAKEN_CODE } from "./users.constants";
+import {
+  DETAILS_ALREADY_EXIST_CODE,
+  ONBOARDING_INCOMPLETE_CODE,
+  USER_SERVICE_ERRORS,
+  USERNAME_CHANGE_LIMITED_CODE,
+  USERNAME_RESERVED_CODE,
+  USERNAME_TAKEN_CODE,
+} from "./users.constants";
 import { AccountDeletionUser, UsersService } from "./users.service";
 import { UserWithDetails, userWithDetailsInclude } from "./users.types";
 
@@ -202,12 +204,15 @@ describe("UsersService", () => {
       );
     });
 
-    it("throws ConflictException when the user has already completed onboarding", async () => {
+    it("throws ApiException when the user has already completed onboarding", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
 
-      await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toThrow(
-        new ConflictException(USER_SERVICE_ERRORS.DETAILS_ALREADY_EXIST(userId)),
-      );
+      await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toMatchObject({
+        response: {
+          code: DETAILS_ALREADY_EXIST_CODE,
+          message: resolveApiErrorMessage(DETAILS_ALREADY_EXIST_CODE),
+        },
+      });
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
@@ -220,23 +225,28 @@ describe("UsersService", () => {
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
-    it("throws BadRequestException when the username is reserved", async () => {
+    it("throws ApiException when the username is reserved", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
 
-      await expect(service.createDetails(userId, { ...createUserDetailsDto, username: "admin" })).rejects.toThrow(
-        new BadRequestException(USER_SERVICE_ERRORS.USERNAME_RESERVED("admin")),
+      await expect(service.createDetails(userId, { ...createUserDetailsDto, username: "admin" })).rejects.toMatchObject(
+        {
+          response: {
+            code: USERNAME_RESERVED_CODE,
+            message: resolveApiErrorMessage(USERNAME_RESERVED_CODE, { username: "admin" }),
+          },
+        },
       );
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
-    it("throws coded ConflictException when username create loses a uniqueness race", async () => {
+    it("throws ApiException when username create loses a uniqueness race", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
       prisma.user.update.mockRejectedValue(uniqueConstraintError());
 
       await expect(service.createDetails(userId, createUserDetailsDto)).rejects.toMatchObject({
         response: {
           code: USERNAME_TAKEN_CODE,
-          message: USER_SERVICE_ERRORS.USERNAME_TAKEN("jane.doe"),
+          message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: "jane.doe" }),
         },
       });
     });
@@ -286,12 +296,15 @@ describe("UsersService", () => {
       await expect(service.getOnboardedById(userId)).resolves.toEqual(userWithDetails);
     });
 
-    it("throws UnprocessableEntityException when onboarding is incomplete", async () => {
+    it("throws ApiException when onboarding is incomplete", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
 
-      await expect(service.getOnboardedById(userId)).rejects.toThrow(
-        new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE),
-      );
+      await expect(service.getOnboardedById(userId)).rejects.toMatchObject({
+        response: {
+          code: ONBOARDING_INCOMPLETE_CODE,
+          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+        },
+      });
     });
 
     it("throws NotFoundException when the user does not exist", async () => {
@@ -370,11 +383,13 @@ describe("UsersService", () => {
 
         const failure = await service.update(userId, { username: "jane.smith" }).catch((e: unknown) => e);
 
-        expect(failure).toBeInstanceOf(HttpException);
-        expect((failure as HttpException).getStatus()).toBe(429);
-        expect((failure as HttpException).getResponse()).toEqual({
+        expect(failure).toBeInstanceOf(ApiException);
+        expect((failure as ApiException).getStatus()).toBe(429);
+        expect((failure as ApiException).getResponse()).toEqual({
           code: USERNAME_CHANGE_LIMITED_CODE,
-          message: USER_SERVICE_ERRORS.USERNAME_CHANGE_LIMITED(new Date(oldest.getTime() + 14 * day)),
+          message: resolveApiErrorMessage(USERNAME_CHANGE_LIMITED_CODE, {
+            availableAt: new Date(oldest.getTime() + 14 * day),
+          }),
         });
         expect(prisma.usernameChange.create).not.toHaveBeenCalled();
         expect(prisma.user.update).not.toHaveBeenCalled();
@@ -473,12 +488,15 @@ describe("UsersService", () => {
       expect(result).toEqual(nameUpdatedUser);
     });
 
-    it("throws UnprocessableEntityException when onboarding is incomplete", async () => {
+    it("throws ApiException when onboarding is incomplete", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
 
-      await expect(service.update(userId, updateDto)).rejects.toThrow(
-        new UnprocessableEntityException(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE),
-      );
+      await expect(service.update(userId, updateDto)).rejects.toMatchObject({
+        response: {
+          code: ONBOARDING_INCOMPLETE_CODE,
+          message: resolveApiErrorMessage(ONBOARDING_INCOMPLETE_CODE),
+        },
+      });
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
@@ -499,14 +517,14 @@ describe("UsersService", () => {
       await expect(service.update(userId, updateDto)).rejects.toThrow(prismaError);
     });
 
-    it("throws coded ConflictException when username update loses a uniqueness race", async () => {
+    it("throws ApiException when username update loses a uniqueness race", async () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       prisma.user.update.mockRejectedValue(uniqueConstraintError());
 
       await expect(service.update(userId, { username: "taken.name" })).rejects.toMatchObject({
         response: {
           code: USERNAME_TAKEN_CODE,
-          message: USER_SERVICE_ERRORS.USERNAME_TAKEN("taken.name"),
+          message: resolveApiErrorMessage(USERNAME_TAKEN_CODE, { username: "taken.name" }),
         },
       });
     });

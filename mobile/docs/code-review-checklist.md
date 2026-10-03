@@ -9,6 +9,7 @@ See also:
 - [Code conventions](./code-conventions.md): convention hierarchy and codebase-wide rules
 - [Feature code organization](./feature-code-organization.md): feature folder structure and layer boundaries
 - [API](./api.md): client, React Query, feature `api/` hooks
+- [Exception handling](./exception-handling.md): interceptor, translation table, UI display
 - [Forms](./forms.md): React Hook Form + Zod
 - [Theme](./theme.md): color tokens, NativeWind, no StyleSheet
 - [UI scale](./ui-scale.md): type, spacing, radius, tap targets
@@ -118,9 +119,10 @@ export { default } from "@/features/profile/screens/profile-screen";
 
 ## Error handling
 
-See [API: Error handling](./api.md#error-handling).
+See [Exception handling](./exception-handling.md).
 
 - [ ] UI-facing mutation errors use `getErrorMessage(error, "Fallback message")`
+- [ ] New API error codes have user-facing copy in the matching `error-message-domains/` file
 - [ ] Feature code does not re-parse Axios shapes in screens
 
 ## Imports

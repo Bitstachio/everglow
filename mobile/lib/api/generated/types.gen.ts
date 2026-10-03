@@ -496,12 +496,15 @@ export type EventBanListResponseDto = {
 export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
 
 export type ApiErrorDto = {
-  message?: string;
+  message: string;
   /**
-   * Stable machine-readable error code, when the error has one
+   * Stable machine-readable error code
    */
-  code?:
+  code:
     | "ACTIVE_EVENT_LIMIT_REACHED"
+    | "BAD_REQUEST"
+    | "CONFLICT"
+    | "DETAILS_ALREADY_EXIST"
     | "EVENT_GALLERY_CLOSED"
     | "EVENT_GALLERY_NOT_OPEN"
     | "EVENT_MEMBER_LIMIT_REACHED"
@@ -509,16 +512,24 @@ export type ApiErrorDto = {
     | "EVENT_STILL_ACTIVE"
     | "EVENT_STORAGE_LIMIT_REACHED"
     | "EVENT_UNDER_REVIEW"
+    | "FORBIDDEN"
     | "IMAGE_INVALID_SIZE"
     | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
     | "IMAGE_UPLOAD_EXPIRED"
     | "IMAGE_UPLOAD_NOT_FOUND"
     | "IMAGE_UPLOAD_REJECTED"
+    | "INTERNAL_ERROR"
+    | "NOT_FOUND"
+    | "ONBOARDING_INCOMPLETE"
     | "ORGANIZER_BLOCKED_BY_CALLER"
     | "RATE_LIMIT_EXCEEDED"
     | "REMOVED_FROM_EVENT"
     | "STORAGE_RESERVATION_CONFLICT"
+    | "TOO_MANY_REQUESTS"
+    | "UNAUTHORIZED"
+    | "UNPROCESSABLE_ENTITY"
     | "USERNAME_CHANGE_LIMITED"
+    | "USERNAME_RESERVED"
     | "USERNAME_TAKEN";
   meta: ResponseMetaDto;
 };

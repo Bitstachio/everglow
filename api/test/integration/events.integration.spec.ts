@@ -14,8 +14,15 @@ import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "src/ev
 import { buildImageS3Key, IMAGE_UPLOAD_ERRORS, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
-import { USER_SERVICE_ERRORS } from "src/users/users.constants";
 import request from "supertest";
+import { expectApiError } from "./helpers/expect-api-error";
+import {
+  BAD_REQUEST_CODE,
+  CONFLICT_CODE,
+  FORBIDDEN_CODE,
+  NOT_FOUND_CODE,
+  UNPROCESSABLE_ENTITY_CODE,
+} from "src/common/errors/http.errors";
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, TEST_TARGET_USER_ID, authHeader } from "./helpers/auth.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
@@ -201,7 +208,7 @@ describe("EventsController (integration)", () => {
           .send(createEventPayload({ galleryWindowDays: 10 }))
           .expect(400);
 
-        expect((response.body as ErrorResponse).message).toBe("The gallery length must be one of 3, 7, 14, 30 days.");
+        expectApiError(response.body, BAD_REQUEST_CODE);
         expect(prisma.event.create).not.toHaveBeenCalled();
       });
 
@@ -222,7 +229,7 @@ describe("EventsController (integration)", () => {
           .send(createEventPayload({ date: new Date(Date.now() + 400 * day).toISOString() }))
           .expect(400);
 
-        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(12));
+        expectApiError(response.body, BAD_REQUEST_CODE);
         expect(prisma.event.create).not.toHaveBeenCalled();
       });
     });
@@ -260,7 +267,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path).set(authHeader()).send(createEventPayload()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.CREATOR_NOT_FOUND(TEST_USER_ID));
+      expectApiError(body, NOT_FOUND_CODE);
     });
 
     it("returns 422 when onboarding is incomplete", async () => {
@@ -269,7 +276,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path).set(authHeader()).send(createEventPayload()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
     });
   });
 
@@ -370,7 +377,7 @@ describe("EventsController (integration)", () => {
         .expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND("missing-token"));
+      expectApiError(body, NOT_FOUND_CODE);
       expect(prisma.event.findUnique).not.toHaveBeenCalled();
     });
 
@@ -386,7 +393,7 @@ describe("EventsController (integration)", () => {
         .expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.INVITATION_NOT_FOUND("invite-token"));
+      expectApiError(body, NOT_FOUND_CODE);
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -496,7 +503,7 @@ describe("EventsController (integration)", () => {
         .expect(409);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.ALREADY_JOINED(TEST_EVENT_ID));
+      expectApiError(body, CONFLICT_CODE);
     });
 
     it("returns 422 when onboarding is incomplete", async () => {
@@ -509,7 +516,7 @@ describe("EventsController (integration)", () => {
         .expect(422);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(USER_SERVICE_ERRORS.ONBOARDING_INCOMPLETE);
+      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
     });
   });
 
@@ -546,7 +553,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).get(path()).set(authHeader()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+      expectApiError(body, NOT_FOUND_CODE);
     });
 
     it("returns 403 when the caller cannot read the event", async () => {
@@ -555,7 +562,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).get(path()).set(authHeader(TEST_OTHER_ACCESS_TOKEN)).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
   });
 
@@ -645,7 +652,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).patch(path()).set(authHeader()).send(updateEventPayload()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -654,7 +661,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).patch(path()).set(authHeader()).send(updateEventPayload()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+      expectApiError(body, NOT_FOUND_CODE);
     });
   });
 
@@ -692,7 +699,7 @@ describe("EventsController (integration)", () => {
 
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
-      expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(response.body, FORBIDDEN_CODE);
       expect(prisma.event.updateMany).not.toHaveBeenCalled();
     });
 
@@ -787,7 +794,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).delete(path()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.DELETE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
   });
 
@@ -842,7 +849,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_A_MEMBER(TEST_EVENT_ID, TEST_USER_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("returns 422 when the sole organizer attempts to leave", async () => {
@@ -852,7 +859,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path()).set(authHeader()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(TEST_EVENT_ID));
+      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
     });
   });
 
@@ -913,7 +920,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).get(path()).set(authHeader(TEST_OTHER_ACCESS_TOKEN)).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.READ_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
   });
 
@@ -959,7 +966,7 @@ describe("EventsController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.CANNOT_MODIFY_OWN_ACCESS);
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("returns 403 when the caller is a participant", async () => {
@@ -972,7 +979,7 @@ describe("EventsController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
   });
 
@@ -1028,7 +1035,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).delete(path(TEST_USER_ID)).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.CANNOT_REMOVE_SELF);
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("returns 422 when removing the sole organizer", async () => {
@@ -1039,7 +1046,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).delete(path()).set(authHeader()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.LAST_ORGANIZER(TEST_EVENT_ID));
+      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
     });
   });
 
@@ -1147,7 +1154,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -1156,7 +1163,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path()).set(authHeader()).expect(404);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+      expectApiError(body, NOT_FOUND_CODE);
     });
   });
 
@@ -1233,7 +1240,7 @@ describe("EventsController (integration)", () => {
 
         const response = await send(authHeader()).expect(403);
 
-        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+        expectApiError(response.body, FORBIDDEN_CODE);
         expectNothingTouched();
       });
 
@@ -1243,7 +1250,7 @@ describe("EventsController (integration)", () => {
 
         const response = await send(authHeader(TEST_OTHER_ACCESS_TOKEN)).expect(403);
 
-        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+        expectApiError(response.body, FORBIDDEN_CODE);
         expectNothingTouched();
       });
 
@@ -1252,7 +1259,7 @@ describe("EventsController (integration)", () => {
 
         const response = await send(authHeader()).expect(404);
 
-        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.NOT_FOUND(TEST_EVENT_ID));
+        expectApiError(response.body, NOT_FOUND_CODE);
         expectNothingTouched();
       });
     };
@@ -1422,7 +1429,7 @@ describe("EventsController (integration)", () => {
 
         const response = await request(httpServer).put(coverPath()).set(authHeader()).send(payload).expect(409);
 
-        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.COVER_CHANGED_CONCURRENTLY);
+        expectApiError(response.body, CONFLICT_CODE);
       });
 
       it("returns 422 and discards an object of a disallowed type", async () => {
@@ -1499,7 +1506,7 @@ describe("EventsController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expect(body.message).toBe(EVENT_SERVICE_ERRORS.UPDATE_FORBIDDEN(TEST_EVENT_ID));
+      expectApiError(body, FORBIDDEN_CODE);
     });
 
     it("allows another user to join via invite and then read the event", async () => {
