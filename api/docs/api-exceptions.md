@@ -156,10 +156,29 @@ If the throw carries a debug message, build it with
 [`RESPONSE_TEMPLATES`](../src/common/constants/templates.constants.ts) (for
 example `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id)`). Do not
 inline an equivalent string. Omit the message when status alone is enough
-(`throw new UnauthorizedException()`). ESLint rejects a string literal or
-template literal passed to these Nest constructors outside tests; a helper
-call or no argument is allowed. TypeScript cannot enforce this — Nest’s
-constructors accept `any`.
+(`throw new UnauthorizedException()`). Match template to status: not-found
+throws use `RESOURCE.NOT_FOUND`, format-style bad requests use
+`INVALID_FORMAT`, and so on—do not pass a bad-request template into
+`NotFoundException`.
+
+**Lint today** (`api/eslint.config.mjs`): outside tests, a string or template
+literal as the first argument to Nest HTTP exception constructors is an error.
+A helper call or no argument is allowed. Specs are exempt so filter tests can
+pass raw Nest messages. TypeScript cannot enforce this — Nest’s constructors
+accept `any`.
+
+**Follow-up (next stack layer after domains drop `*_SERVICE_ERRORS` wrappers):**
+tighten ESLint so each exception type only accepts the matching
+`RESPONSE_TEMPLATES` member (or no argument). Example: `NotFoundException`
+must receive `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)`;
+`BadRequestException` must receive `RESPONSE_TEMPLATES.INVALID_FORMAT(...)`
+(or another bad-request template once one exists). Prefer AST selectors on
+the full `RESPONSE_TEMPLATES.…` call path, not just any `.NOT_FOUND` property.
+Do **not** enable that rule while events/photos/moderation still pass
+`EVENT_SERVICE_ERRORS.NOT_FOUND(...)` / similar wrappers—those are plain
+string helpers and would fail CI until those domains call `RESPONSE_TEMPLATES`
+at the throw site (or the wrappers are removed). Users already uses the shared
+templates directly and is the reference shape.
 
 ### Do not
 
