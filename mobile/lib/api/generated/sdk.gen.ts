@@ -235,7 +235,7 @@ export const usersControllerUpdateMe = <ThrowOnError extends boolean = false>(
 /**
  * Get the current user's plan limits and usage
  *
- * The caller's active events (events they created whose galleries are still open) against their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: read the numbers here. Each event's own limits are on the event.
+ * The caller's active events (events they created that haven't closed, upcoming ones included) against their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: read the numbers here. newEvent is what the create form offers. Each event's own limits are on the event.
  */
 export const usersControllerGetMyLimits = <ThrowOnError extends boolean = false>(
   options?: Options<UsersControllerGetMyLimitsData, ThrowOnError>,

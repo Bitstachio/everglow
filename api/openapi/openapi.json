@@ -265,7 +265,7 @@
     },
     "/api/v2/users/me/limits": {
       "get": {
-        "description": "The caller's active events (events they created whose galleries are still open) against their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: read the numbers here. Each event's own limits are on the event.",
+        "description": "The caller's active events (events they created that haven't closed, upcoming ones included) against their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: read the numbers here. newEvent is what the create form offers. Each event's own limits are on the event.",
         "operationId": "UsersController_getMyLimits",
         "parameters": [],
         "responses": {
@@ -2360,7 +2360,7 @@
           "activeEvents": {
             "type": "number",
             "nullable": true,
-            "description": "Events the caller created whose galleries are still open, at once; null for no limit. Joined events never count."
+            "description": "Events the caller created that haven't closed, upcoming ones included, at once; null for no limit. Joined events never count."
           }
         },
         "required": [
@@ -2372,7 +2372,7 @@
         "properties": {
           "activeEvents": {
             "type": "number",
-            "description": "Events the caller created whose galleries are still open."
+            "description": "Events the caller created that haven't closed, upcoming ones included."
           }
         },
         "required": [
@@ -2402,6 +2402,55 @@
           "galleryClosesAt"
         ]
       },
+      "EventPlan": {
+        "type": "string",
+        "enum": [
+          "FREE"
+        ],
+        "description": "The plan a new event is created on."
+      },
+      "NewEventResponseDto": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "description": "The plan a new event is created on.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EventPlan"
+              }
+            ]
+          },
+          "galleryWindowOptions": {
+            "description": "The gallery lengths, in days, the host can pick, shortest first.",
+            "example": [
+              3,
+              7,
+              14,
+              30
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "defaultGalleryWindowDays": {
+            "type": "number",
+            "nullable": true,
+            "description": "The length a new event gets when none is picked: the longest. Null on a plan that never closes."
+          },
+          "latestDate": {
+            "format": "date-time",
+            "type": "string",
+            "description": "The latest date a new event can have, 12 months from now. Any past date is allowed."
+          }
+        },
+        "required": [
+          "plan",
+          "galleryWindowOptions",
+          "defaultGalleryWindowDays",
+          "latestDate"
+        ]
+      },
       "UserLimitsResponseDto": {
         "type": "object",
         "properties": {
@@ -2427,13 +2476,17 @@
                 "$ref": "#/components/schemas/ClosingEventResponseDto"
               }
             ]
+          },
+          "newEvent": {
+            "$ref": "#/components/schemas/NewEventResponseDto"
           }
         },
         "required": [
           "plan",
           "limits",
           "usage",
-          "nextClosingEvent"
+          "nextClosingEvent",
+          "newEvent"
         ]
       },
       "UpdateUserDto": {
@@ -2966,20 +3019,14 @@
         ],
         "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review."
       },
-      "EventPlan": {
-        "type": "string",
-        "enum": [
-          "FREE"
-        ],
-        "description": "The plan the event is on. Its limits are in `limits`, which can include storage added to this event."
-      },
       "GalleryState": {
         "type": "string",
         "enum": [
+          "UPCOMING",
           "OPEN",
           "CLOSED"
         ],
-        "description": "OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state."
+        "description": "UPCOMING until galleryOpensAt: people can join, nobody can add photos, and the date and gallery length can still change. OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state."
       },
       "EventLimitsResponseDto": {
         "type": "object",
@@ -3078,18 +3125,35 @@
             ]
           },
           "galleryState": {
-            "description": "OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.",
+            "description": "UPCOMING until galleryOpensAt: people can join, nobody can add photos, and the date and gallery length can still change. OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/GalleryState"
               }
             ]
           },
+          "galleryOpensAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When the gallery opens: the event's date, or when the event was created (or, while upcoming, rescheduled) if that date had passed."
+          },
           "galleryClosesAt": {
             "format": "date-time",
             "type": "string",
             "nullable": true,
-            "description": "When the gallery closes: the event's date plus its plan's window. Null on a plan that never closes."
+            "description": "When the gallery closes: galleryOpensAt plus galleryWindowDays. Null on a plan that never closes."
+          },
+          "galleryWindowDays": {
+            "type": "number",
+            "nullable": true,
+            "description": "How many days the gallery stays open, as the host picked. Null on a plan that never closes."
+          },
+          "galleryWindowOptions": {
+            "description": "The gallery lengths, in days, the event's plan offers, shortest first: what galleryWindowDays can be changed to while the event is upcoming.",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
           },
           "limits": {
             "$ref": "#/components/schemas/EventLimitsResponseDto"
@@ -3118,7 +3182,10 @@
           "status",
           "plan",
           "galleryState",
+          "galleryOpensAt",
           "galleryClosesAt",
+          "galleryWindowDays",
+          "galleryWindowOptions",
           "limits",
           "usage",
           "createdAt",
@@ -3127,7 +3194,30 @@
       },
       "CreateEventDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the event takes place: any past date, or at most 12 months ahead (newEvent.latestDate on GET /users/me/limits). The gallery opens then, or as soon as the event is created if that has passed."
+          },
+          "galleryWindowDays": {
+            "type": "number",
+            "minimum": 1,
+            "description": "How many days the gallery stays open once it opens: one of newEvent.galleryWindowOptions on GET /users/me/limits. Defaults to the longest."
+          }
+        },
+        "required": [
+          "title",
+          "date"
+        ]
       },
       "JoinEventDto": {
         "type": "object",
@@ -3144,7 +3234,28 @@
       },
       "UpdateEventDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "A new description, or null to remove it."
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "A new date, any past one or at most 12 months ahead. Only while the event is upcoming, otherwise EVENT_SCHEDULE_LOCKED. The gallery then opens on it, or right away if it has passed."
+          },
+          "galleryWindowDays": {
+            "type": "number",
+            "minimum": 1,
+            "description": "A new gallery length, one of the event's galleryWindowOptions. Only while the event is upcoming, otherwise EVENT_SCHEDULE_LOCKED."
+          }
+        }
       },
       "EventParticipantResponseDto": {
         "type": "object",
@@ -3267,7 +3378,9 @@
             "enum": [
               "ACTIVE_EVENT_LIMIT_REACHED",
               "EVENT_GALLERY_CLOSED",
+              "EVENT_GALLERY_NOT_OPEN",
               "EVENT_MEMBER_LIMIT_REACHED",
+              "EVENT_SCHEDULE_LOCKED",
               "EVENT_STORAGE_LIMIT_REACHED",
               "EVENT_UNDER_REVIEW",
               "IMAGE_INVALID_SIZE",

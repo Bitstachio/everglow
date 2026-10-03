@@ -19,6 +19,8 @@ describe("EventMapper", () => {
     underReviewAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
+    galleryWindowDays: null,
+    galleryOpensAt: new Date("2026-09-15T18:00:00.000Z"),
     galleryClosesAt: null,
     galleryClosedAt: null,
     createdAt: now,
@@ -37,7 +39,8 @@ describe("EventMapper", () => {
   describe("toResponseDto", () => {
     const coverUrl = "https://s3.example/cover?sig=1";
     const usage = { members: 4, storageBytes: 1288490188n };
-    const limits = { plan: "FREE" as const, memberLimit: 30, storageLimitBytes: 3221225472n };
+    const galleryWindowOptions = [3, 7, 14, 30];
+    const limits = { plan: "FREE" as const, memberLimit: 30, storageLimitBytes: 3221225472n, galleryWindowOptions };
 
     it("maps event fields, composes the shareable invitation URL, and carries the presigned cover URL", () => {
       const result = EventMapper.toResponseDto(event, coverUrl, limits, usage);
@@ -54,7 +57,10 @@ describe("EventMapper", () => {
         status: "ACTIVE",
         plan: "FREE",
         galleryState: "OPEN",
+        galleryOpensAt: event.galleryOpensAt,
         galleryClosesAt: null,
+        galleryWindowDays: null,
+        galleryWindowOptions: [3, 7, 14, 30],
         limits: { members: 30, storageBytes: "3221225472" },
         usage: { members: 4, storageBytes: "1288490188" },
         createdAt: event.createdAt,
@@ -63,7 +69,7 @@ describe("EventMapper", () => {
     });
 
     it("reports the limits it's given, which include storage added to this event", () => {
-      const withBonus = { plan: "FREE" as const, memberLimit: 30, storageLimitBytes: 8n * 1024n ** 3n };
+      const withBonus = { ...limits, storageLimitBytes: 8n * 1024n ** 3n };
 
       expect(EventMapper.toResponseDto(event, null, withBonus, usage).limits).toEqual({
         members: 30,
@@ -72,7 +78,7 @@ describe("EventMapper", () => {
     });
 
     it("reports no limit as null", () => {
-      const unlimited = { plan: "FREE" as const, memberLimit: null, storageLimitBytes: null };
+      const unlimited = { ...limits, memberLimit: null, storageLimitBytes: null };
 
       expect(EventMapper.toResponseDto(event, null, unlimited, usage).limits).toEqual({
         members: null,
@@ -93,6 +99,20 @@ describe("EventMapper", () => {
         EventMapper.toResponseDto({ ...event, galleryClosesAt: new Date(Date.now() + 60_000) }, null, limits, usage)
           .galleryState,
       ).toBe("OPEN");
+    });
+
+    it("reports an UPCOMING gallery before it opens, with the length the host picked", () => {
+      const galleryOpensAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const galleryClosesAt = new Date(galleryOpensAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const upcoming = { ...event, date: galleryOpensAt, galleryOpensAt, galleryClosesAt, galleryWindowDays: 7 };
+
+      expect(EventMapper.toResponseDto(upcoming, null, limits, usage)).toMatchObject({
+        galleryState: "UPCOMING",
+        galleryOpensAt,
+        galleryClosesAt,
+        galleryWindowDays: 7,
+        galleryWindowOptions,
+      });
     });
 
     it("reports UNDER_REVIEW once the event is under review", () => {

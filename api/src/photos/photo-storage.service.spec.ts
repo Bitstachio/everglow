@@ -20,14 +20,15 @@ describe("PhotoStorageService", () => {
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
   const userId = "11111111-1111-1111-1111-111111111111";
-  /** The free plan's first version, as the migration seeds it. */
+  /** The free plan's current version, as the migrations seed it. */
   const freePlan: Plan = {
     id: "f0000000-0000-4000-8000-000000000001",
     code: "FREE",
-    version: 1,
+    version: 2,
     memberLimit: 30,
     storageLimitBytes: 3n * 1024n ** 3n,
     galleryWindowDays: 30,
+    galleryWindowOptions: [3, 7, 14, 30],
     createdAt: new Date("2026-10-01T00:00:00.000Z"),
   };
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -77,6 +78,7 @@ describe("PhotoStorageService", () => {
       id: eventId,
       planId: freePlan.id,
       bonusStorageBytes: 0n,
+      galleryOpensAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
       galleryClosesAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       galleryClosedAt: null,
     };
@@ -163,6 +165,15 @@ describe("PhotoStorageService", () => {
 
       await expect(service.reserveUploadBytes(closed, [buildRow(1)])).rejects.toMatchObject({
         response: { code: "EVENT_GALLERY_CLOSED" },
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("refuses an upcoming gallery, which opens on the event's date, before opening a transaction", async () => {
+      const upcoming = { ...event, galleryOpensAt: new Date(Date.now() + 1000) };
+
+      await expect(service.reserveUploadBytes(upcoming, [buildRow(1)])).rejects.toMatchObject({
+        response: { code: "EVENT_GALLERY_NOT_OPEN" },
       });
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });

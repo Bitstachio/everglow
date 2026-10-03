@@ -178,6 +178,7 @@ export type {
   InviteAccessLevel,
   JoinEventDto,
   MemberPhotos,
+  NewEventResponseDto,
   PasswordChangeTicketResponseDto,
   PhotoListResponseDto,
   PhotoResponseDto,

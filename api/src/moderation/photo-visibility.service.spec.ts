@@ -27,6 +27,8 @@ describe("PhotoVisibilityService", () => {
     underReviewAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
+    galleryWindowDays: null,
+    galleryOpensAt: now,
     galleryClosesAt: null,
     galleryClosedAt: null,
     invitationUrl: "invite-token",

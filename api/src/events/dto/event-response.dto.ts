@@ -70,17 +70,41 @@ export class EventResponseDto {
     enum: GALLERY_STATES,
     enumName: "GalleryState",
     description:
-      "OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are " +
-      "removed and the event itself stays. Separate from status, which is the moderation state.",
+      "UPCOMING until galleryOpensAt: people can join, nobody can add photos, and the date and gallery length " +
+      "can still change. OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has " +
+      "passed: the photos are removed and the event itself stays. Separate from status, which is the " +
+      "moderation state.",
   })
   galleryState: GalleryState;
 
   @ApiProperty({
+    description:
+      "When the gallery opens: the event's date, or when the event was created (or, while upcoming, " +
+      "rescheduled) if that date had passed.",
+  })
+  galleryOpensAt: Date;
+
+  @ApiProperty({
     type: Date,
     nullable: true,
-    description: "When the gallery closes: the event's date plus its plan's window. Null on a plan that never closes.",
+    description: "When the gallery closes: galleryOpensAt plus galleryWindowDays. Null on a plan that never closes.",
   })
   galleryClosesAt: Date | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: "How many days the gallery stays open, as the host picked. Null on a plan that never closes.",
+  })
+  galleryWindowDays: number | null;
+
+  @ApiProperty({
+    type: [Number],
+    description:
+      "The gallery lengths, in days, the event's plan offers, shortest first: what galleryWindowDays can be " +
+      "changed to while the event is upcoming.",
+  })
+  galleryWindowOptions: number[];
 
   @ApiProperty({ type: EventLimitsResponseDto })
   limits: EventLimitsResponseDto;

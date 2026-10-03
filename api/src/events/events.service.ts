@@ -1,6 +1,7 @@
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -8,9 +9,15 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { AccessLevel, Event, EventInvite, EventPlan, Prisma } from "generated/prisma/client";
+import { AccessLevel, Event, EventInvite, Prisma } from "generated/prisma/client";
 import { EventPlanService } from "src/plans/event-plan.service";
-import { GALLERY_STATES, galleryClosesAt, galleryStateOf } from "src/plans/plans.constants";
+import {
+  GALLERY_STATES,
+  gallerySchedule,
+  galleryStateOf,
+  PLAN_LIMIT_CODES,
+  PLAN_LIMIT_MESSAGES,
+} from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -26,8 +33,10 @@ import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import {
+  EVENT_DATE_MAX_MONTHS_AHEAD,
   EVENT_SERVICE_ERRORS,
   EVENT_UNDER_REVIEW_CODE,
+  latestEventDate,
   ORGANIZER_BLOCKED_BY_CALLER_CODE,
   REMOVED_FROM_EVENT_CODE,
 } from "./events.constants";
@@ -68,9 +77,13 @@ export class EventsService {
     }
 
     const participantToken = randomUUID();
+    const now = new Date();
     const date = new Date(dto.date);
-    // New events start on the free plan's newest version (docs/event-quotas.md).
-    const plan = await this.eventPlanService.currentPlan(EventPlan.FREE);
+    this.assertDateInRange(date, now);
+    // The gallery stays open for the length the host picked from the plan's
+    // options, from the event's date on (docs/event-quotas.md).
+    const plan = await this.eventPlanService.newEventPlan(creatorId);
+    const galleryWindowDays = this.eventPlanService.resolveGalleryWindow(plan, dto.galleryWindowDays);
 
     // The active-event check and the insert share a transaction, so two
     // creates by the same person can't both pass it (docs/event-quotas.md).
@@ -81,7 +94,8 @@ export class EventsService {
           title: dto.title,
           date,
           planId: plan.id,
-          galleryClosesAt: galleryClosesAt(date, plan.galleryWindowDays),
+          galleryWindowDays,
+          ...gallerySchedule(date, galleryWindowDays, now),
           creatorId,
           invitationUrl: participantToken,
           ...(dto.description !== undefined && { description: dto.description }),
@@ -101,7 +115,10 @@ export class EventsService {
       });
     });
 
-    this.logger.info({ event: "event.created", eventId: event.id, creatorId }, "Event created");
+    this.logger.info(
+      { event: "event.created", eventId: event.id, creatorId, galleryWindowDays, galleryOpensAt: event.galleryOpensAt },
+      "Event created",
+    );
 
     return event;
   }
@@ -142,9 +159,10 @@ export class EventsService {
     if (existing) throw new ConflictException(EVENT_SERVICE_ERRORS.ALREADY_JOINED(event.id));
 
     // A closed event can't be joined: its photos are gone, and it stays only
-    // as a record for the people who were there (docs/event-quotas.md).
-    // Checked first, since it is true for everyone whatever else applies.
-    this.eventPlanService.assertGalleryOpen(event);
+    // as a record for the people who were there (docs/event-quotas.md). An
+    // upcoming one can. Checked first, since it is true for everyone whatever
+    // else applies.
+    this.eventPlanService.assertGalleryNotClosed(event);
 
     // Removed by an organizer: said plainly, since they already know. Checked
     // before blocks so a removed member is not told about a block instead.
@@ -260,29 +278,55 @@ export class EventsService {
 
   async update(eventId: string, callerId: string, dto: UpdateEventDto): Promise<Event> {
     const event = await this.getUpdatable(eventId, callerId);
-
-    // A new date moves the close time with it. Once the gallery has closed
-    // the date is fixed: moving it would imply reopening, which never
-    // happens. The title, description and cover can still change.
-    const date = dto.date !== undefined ? new Date(dto.date) : undefined;
-    if (date !== undefined) this.eventPlanService.assertGalleryOpen(event);
-    // The window comes from the event's own plan version, not the newest one.
-    const windowDays =
-      date !== undefined ? (await this.eventPlanService.planFor(event.planId)).galleryWindowDays : null;
+    const schedule = await this.rescheduleFor(event, dto, new Date());
 
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
-        ...(date !== undefined && { date }),
-        ...(date !== undefined && { galleryClosesAt: galleryClosesAt(date, windowDays) }),
         ...(dto.description !== undefined && { description: dto.description }),
+        ...schedule,
       },
     });
 
     this.logger.info({ event: "event.updated", eventId, callerId, fields: Object.keys(dto) }, "Event updated");
 
     return updated;
+  }
+
+  /**
+   * The new date and gallery schedule an update asks for, or nothing when it
+   * changes neither: sending the current values is not a change. Both can
+   * change only while the event is upcoming. Once its gallery opens they are
+   * locked: a later date would lengthen a gallery people already use, and a
+   * closed one never reopens (docs/event-quotas.md). The title, description
+   * and cover can always change.
+   */
+  private async rescheduleFor(event: Event, dto: UpdateEventDto, now: Date): Promise<Prisma.EventUpdateInput> {
+    const date = dto.date === undefined ? event.date : new Date(dto.date);
+    const galleryWindowDays = dto.galleryWindowDays === undefined ? event.galleryWindowDays : dto.galleryWindowDays;
+    if (date.getTime() === event.date.getTime() && galleryWindowDays === event.galleryWindowDays) return {};
+
+    if (galleryStateOf(event, now) !== GALLERY_STATES.UPCOMING) {
+      throw new ForbiddenException({
+        code: PLAN_LIMIT_CODES.EVENT_SCHEDULE_LOCKED,
+        message: PLAN_LIMIT_MESSAGES.EVENT_SCHEDULE_LOCKED,
+      });
+    }
+    this.assertDateInRange(date, now);
+    if (dto.galleryWindowDays !== undefined) {
+      // The options of the event's own plan version, not the newest one.
+      const plan = await this.eventPlanService.planFor(event.planId);
+      this.eventPlanService.resolveGalleryWindow(plan, dto.galleryWindowDays);
+    }
+
+    return { date, galleryWindowDays, ...gallerySchedule(date, galleryWindowDays, now) };
+  }
+
+  /** Any past date is allowed; a future one at most EVENT_DATE_MAX_MONTHS_AHEAD months away. */
+  private assertDateInRange(date: Date, now: Date): void {
+    if (date.getTime() <= latestEventDate(now).getTime()) return;
+    throw new BadRequestException(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(EVENT_DATE_MAX_MONTHS_AHEAD));
   }
 
   async regenerateInvitationUrl(eventId: string, callerId: string): Promise<Event> {
@@ -297,7 +341,7 @@ export class EventsService {
   async regenerateInvite(eventId: string, callerId: string, accessLevel: EventInviteAccessLevel): Promise<Event> {
     const event = await this.getUpdatable(eventId, callerId);
     // No new links into a closed event, which can't be joined.
-    this.eventPlanService.assertGalleryOpen(event);
+    this.eventPlanService.assertGalleryNotClosed(event);
 
     const invite = await this.prisma.eventInvite.findUnique({
       where: { eventId_accessLevel: { eventId, accessLevel } },
@@ -338,7 +382,7 @@ export class EventsService {
   async listInvitesForCaller(eventId: string, callerId: string): Promise<EventInvite[]> {
     const access = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: callerId, eventId } },
-      include: { event: { select: { galleryClosesAt: true, galleryClosedAt: true } } },
+      include: { event: { select: { galleryOpensAt: true, galleryClosesAt: true, galleryClosedAt: true } } },
     });
     if (!access || access.accessLevel !== AccessLevel.ORGANIZER) return [];
     if (galleryStateOf(access.event) === GALLERY_STATES.CLOSED) return [];
@@ -373,7 +417,7 @@ export class EventsService {
       }
     }
 
-    const deletesPhotos = photos === MEMBER_PHOTOS.DELETE && galleryStateOf(loaded) === GALLERY_STATES.OPEN;
+    const deletesPhotos = photos === MEMBER_PHOTOS.DELETE && galleryStateOf(loaded) !== GALLERY_STATES.CLOSED;
 
     const deleted = await this.prisma.$transaction(async (tx) => {
       await tx.eventAccess.delete({ where: { userId_eventId: { userId: callerId, eventId } } });

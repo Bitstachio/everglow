@@ -67,14 +67,14 @@ export type AccountPlan = "FREE";
 
 export type AccountLimitsResponseDto = {
   /**
-   * Events the caller created whose galleries are still open, at once; null for no limit. Joined events never count.
+   * Events the caller created that haven't closed, upcoming ones included, at once; null for no limit. Joined events never count.
    */
   activeEvents: number | null;
 };
 
 export type AccountUsageResponseDto = {
   /**
-   * Events the caller created whose galleries are still open.
+   * Events the caller created that haven't closed, upcoming ones included.
    */
   activeEvents: number;
 };
@@ -88,6 +88,30 @@ export type ClosingEventResponseDto = {
   galleryClosesAt: string;
 };
 
+/**
+ * The plan a new event is created on.
+ */
+export type EventPlan = "FREE";
+
+export type NewEventResponseDto = {
+  /**
+   * The plan a new event is created on.
+   */
+  plan: EventPlan;
+  /**
+   * The gallery lengths, in days, the host can pick, shortest first.
+   */
+  galleryWindowOptions: Array<number>;
+  /**
+   * The length a new event gets when none is picked: the longest. Null on a plan that never closes.
+   */
+  defaultGalleryWindowDays: number | null;
+  /**
+   * The latest date a new event can have, 12 months from now. Any past date is allowed.
+   */
+  latestDate: string;
+};
+
 export type UserLimitsResponseDto = {
   /**
    * The caller's account plan. Every account is FREE until a host subscription exists.
@@ -99,6 +123,7 @@ export type UserLimitsResponseDto = {
    * The caller's active event whose gallery closes first, which frees a place for a new one; null when none of their active events is set to close.
    */
   nextClosingEvent: ClosingEventResponseDto | null;
+  newEvent: NewEventResponseDto;
 };
 
 export type UpdateUserDto = {
@@ -298,14 +323,9 @@ export type EventInviteResponseDto = {
 export type EventStatus = "ACTIVE" | "UNDER_REVIEW";
 
 /**
- * The plan the event is on. Its limits are in `limits`, which can include storage added to this event.
+ * UPCOMING until galleryOpensAt: people can join, nobody can add photos, and the date and gallery length can still change. OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.
  */
-export type EventPlan = "FREE";
-
-/**
- * OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.
- */
-export type GalleryState = "OPEN" | "CLOSED";
+export type GalleryState = "UPCOMING" | "OPEN" | "CLOSED";
 
 export type EventLimitsResponseDto = {
   /**
@@ -359,13 +379,25 @@ export type EventResponseDto = {
    */
   plan: EventPlan;
   /**
-   * OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.
+   * UPCOMING until galleryOpensAt: people can join, nobody can add photos, and the date and gallery length can still change. OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.
    */
   galleryState: GalleryState;
   /**
-   * When the gallery closes: the event's date plus its plan's window. Null on a plan that never closes.
+   * When the gallery opens: the event's date, or when the event was created (or, while upcoming, rescheduled) if that date had passed.
+   */
+  galleryOpensAt: string;
+  /**
+   * When the gallery closes: galleryOpensAt plus galleryWindowDays. Null on a plan that never closes.
    */
   galleryClosesAt: string | null;
+  /**
+   * How many days the gallery stays open, as the host picked. Null on a plan that never closes.
+   */
+  galleryWindowDays: number | null;
+  /**
+   * The gallery lengths, in days, the event's plan offers, shortest first: what galleryWindowDays can be changed to while the event is upcoming.
+   */
+  galleryWindowOptions: Array<number>;
   limits: EventLimitsResponseDto;
   usage: EventUsageResponseDto;
   createdAt: string;
@@ -373,7 +405,16 @@ export type EventResponseDto = {
 };
 
 export type CreateEventDto = {
-  [key: string]: unknown;
+  title: string;
+  description?: string;
+  /**
+   * When the event takes place: any past date, or at most 12 months ahead (newEvent.latestDate on GET /users/me/limits). The gallery opens then, or as soon as the event is created if that has passed.
+   */
+  date: string;
+  /**
+   * How many days the gallery stays open once it opens: one of newEvent.galleryWindowOptions on GET /users/me/limits. Defaults to the longest.
+   */
+  galleryWindowDays?: number;
 };
 
 export type JoinEventDto = {
@@ -384,7 +425,19 @@ export type JoinEventDto = {
 };
 
 export type UpdateEventDto = {
-  [key: string]: unknown;
+  title?: string;
+  /**
+   * A new description, or null to remove it.
+   */
+  description?: string | null;
+  /**
+   * A new date, any past one or at most 12 months ahead. Only while the event is upcoming, otherwise EVENT_SCHEDULE_LOCKED. The gallery then opens on it, or right away if it has passed.
+   */
+  date?: string;
+  /**
+   * A new gallery length, one of the event's galleryWindowOptions. Only while the event is upcoming, otherwise EVENT_SCHEDULE_LOCKED.
+   */
+  galleryWindowDays?: number;
 };
 
 export type EventParticipantResponseDto = {
@@ -442,7 +495,9 @@ export type ApiErrorDto = {
   code?:
     | "ACTIVE_EVENT_LIMIT_REACHED"
     | "EVENT_GALLERY_CLOSED"
+    | "EVENT_GALLERY_NOT_OPEN"
     | "EVENT_MEMBER_LIMIT_REACHED"
+    | "EVENT_SCHEDULE_LOCKED"
     | "EVENT_STORAGE_LIMIT_REACHED"
     | "EVENT_UNDER_REVIEW"
     | "IMAGE_INVALID_SIZE"

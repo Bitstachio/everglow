@@ -1,5 +1,6 @@
-import { ForbiddenException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { Event, EventPlan, PhotoStatus, Plan, Prisma } from "generated/prisma/client";
+import { latestEventDate } from "src/events/events.constants";
 import { lockForTransaction } from "src/prisma/advisory-lock";
 import { PrismaService } from "src/prisma/prisma.service";
 import {
@@ -25,10 +26,15 @@ export interface EventLimits {
   plan: EventPlan;
   memberLimit: number | null;
   storageLimitBytes: bigint | null;
+  /** The gallery lengths, in days, the event's plan version offers. */
+  galleryWindowOptions: number[];
 }
 
-/** The fields of an event its limits depend on. */
-export type PlannedEvent = Pick<Event, "id" | "planId" | "bonusStorageBytes" | "galleryClosesAt" | "galleryClosedAt">;
+/** The fields of an event its limits and its gallery's schedule depend on. */
+export type PlannedEvent = Pick<
+  Event,
+  "id" | "planId" | "bonusStorageBytes" | "galleryOpensAt" | "galleryClosesAt" | "galleryClosedAt"
+>;
 
 /** What an account may hold: its plan's terms. null means no limit. */
 export interface AccountLimits extends AccountPlanLimits {
@@ -42,9 +48,20 @@ export interface ClosingEvent {
   galleryClosesAt: Date;
 }
 
+/** What a new event gets, and so what the create form offers. */
+export interface NewEventTerms {
+  plan: EventPlan;
+  /** The gallery lengths, in days, the host can pick, shortest first. */
+  galleryWindowOptions: number[];
+  /** The length when none is picked: the plan's longest. Null on a plan that never closes. */
+  defaultGalleryWindowDays: number | null;
+  /** The latest date the event can have; any past date is allowed. */
+  latestDate: Date;
+}
+
 /** What an account holds now, measured the way its limits are. */
 export interface AccountUsage {
-  /** Events the account created whose galleries are still open. */
+  /** Events the account created that are upcoming or whose galleries are open. */
   activeEvents: number;
   /** The active event whose gallery closes first; null when none is set to close. */
   nextClosingEvent: ClosingEvent | null;
@@ -56,9 +73,9 @@ const NO_USAGE: EventUsage = { members: 0, storageBytes: 0n };
 const GALLERY_PHOTO_STATUSES = [PhotoStatus.PENDING, PhotoStatus.READY];
 
 /**
- * Events a user created whose galleries are still open: the ones that count
- * toward the account's active-event limit. Joined, closed and deleted events
- * never do.
+ * Events a user created that haven't closed: upcoming ones, from the moment
+ * they are created, and open ones. These count toward the account's
+ * active-event limit; joined, closed and deleted events never do.
  */
 export const activeEventsCreatedBy = (userId: string, now: Date = new Date()): Prisma.EventWhereInput => ({
   creatorId: userId,
@@ -106,6 +123,49 @@ export class EventPlanService {
     return plan;
   }
 
+  /**
+   * The plan a new event gets: the free plan's newest version, until paid plans
+   * exist. Creating an event and the create form's options (GET
+   * /users/me/limits) both read it, so they can't disagree.
+   */
+  newEventPlan(userId: string): Promise<Plan> {
+    void userId;
+    return this.currentPlan(EventPlan.FREE);
+  }
+
+  /** What a new event by this user gets, for the create form (GET /users/me/limits). */
+  async newEventTermsFor(userId: string, now: Date = new Date()): Promise<NewEventTerms> {
+    const plan = await this.newEventPlan(userId);
+    return {
+      plan: plan.code,
+      galleryWindowOptions: this.galleryWindowOptions(plan),
+      defaultGalleryWindowDays: plan.galleryWindowDays,
+      latestDate: latestEventDate(now),
+    };
+  }
+
+  /**
+   * The gallery lengths, in days, a host can pick on `plan`, shortest first. A
+   * version without options (the free plan's first) offers its one length; a
+   * plan that never closes offers none.
+   */
+  galleryWindowOptions(plan: Plan): number[] {
+    if (plan.galleryWindowOptions.length > 0) return [...plan.galleryWindowOptions].sort((a, b) => a - b);
+    return plan.galleryWindowDays === null ? [] : [plan.galleryWindowDays];
+  }
+
+  /**
+   * The gallery length for an event on `plan`: the one asked for, which must
+   * be one of the plan's options, or else the plan's longest. Null on a plan
+   * that never closes.
+   */
+  resolveGalleryWindow(plan: Plan, requested?: number): number | null {
+    if (requested === undefined) return plan.galleryWindowDays;
+    const options = this.galleryWindowOptions(plan);
+    if (options.includes(requested)) return requested;
+    throw new BadRequestException(PLAN_LIMIT_MESSAGES.INVALID_GALLERY_WINDOW(options));
+  }
+
   /** An event's limits: its plan version's terms, with its bonus storage added. */
   async limitsOf(event: PlannedEvent): Promise<EventLimits> {
     const plan = await this.planFor(event.planId);
@@ -113,6 +173,7 @@ export class EventPlanService {
       plan: plan.code,
       memberLimit: plan.memberLimit,
       storageLimitBytes: plan.storageLimitBytes === null ? null : plan.storageLimitBytes + event.bonusStorageBytes,
+      galleryWindowOptions: this.galleryWindowOptions(plan),
     };
   }
 
@@ -220,9 +281,29 @@ export class EventPlanService {
     });
   }
 
-  /** Refuses photos for a gallery that has closed. */
+  /** Refuses photos for a gallery that hasn't opened yet, or has closed. */
   assertGalleryOpen(event: PlannedEvent): void {
-    if (galleryStateOf(event) === GALLERY_STATES.OPEN) return;
+    const state = galleryStateOf(event);
+    if (state === GALLERY_STATES.OPEN) return;
+    if (state === GALLERY_STATES.UPCOMING) {
+      throw new ForbiddenException({
+        code: PLAN_LIMIT_CODES.EVENT_GALLERY_NOT_OPEN,
+        message: PLAN_LIMIT_MESSAGES.EVENT_GALLERY_NOT_OPEN,
+      });
+    }
+    this.throwGalleryClosed();
+  }
+
+  /**
+   * Refuses what a closed event no longer allows, joining and new invite
+   * links, while an upcoming event allows them like an open one.
+   */
+  assertGalleryNotClosed(event: PlannedEvent): void {
+    if (galleryStateOf(event) !== GALLERY_STATES.CLOSED) return;
+    this.throwGalleryClosed();
+  }
+
+  private throwGalleryClosed(): never {
     throw new ForbiddenException({
       code: PLAN_LIMIT_CODES.EVENT_GALLERY_CLOSED,
       message: PLAN_LIMIT_MESSAGES.EVENT_GALLERY_CLOSED,

@@ -26,6 +26,7 @@ describe("GalleryCloseService", () => {
     memberLimit: 30,
     storageLimitBytes: 3n * 1024n ** 3n,
     galleryWindowDays: 30,
+    galleryWindowOptions: [],
     createdAt: new Date("2026-10-01T00:00:00.000Z"),
   };
   const due = (id: string) => ({ id, planId: freePlan.id, galleryClosesAt: new Date("2026-11-01T11:00:00.000Z") });

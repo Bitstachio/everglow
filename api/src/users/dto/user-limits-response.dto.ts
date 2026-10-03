@@ -3,6 +3,7 @@ import {
   AccountLimitsResponseDto,
   AccountUsageResponseDto,
   ClosingEventResponseDto,
+  NewEventResponseDto,
 } from "src/plans/dto/account-limits-response.dto";
 import { ACCOUNT_PLANS, type AccountPlan } from "src/plans/plans.constants";
 
@@ -28,4 +29,7 @@ export class UserLimitsResponseDto {
       "null when none of their active events is set to close.",
   })
   nextClosingEvent: ClosingEventResponseDto | null;
+
+  @ApiProperty({ type: NewEventResponseDto })
+  newEvent: NewEventResponseDto;
 }

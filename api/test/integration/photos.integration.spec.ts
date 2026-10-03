@@ -246,6 +246,18 @@ describe("PhotosController (integration)", () => {
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
 
+    it("returns 403 EVENT_GALLERY_NOT_OPEN before an upcoming event's gallery opens", async () => {
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventWithAccess([buildOrganizerAccess()]),
+        galleryOpensAt: new Date(Date.now() + 60_000),
+      } as never);
+
+      const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_GALLERY_NOT_OPEN" });
+      expect(prisma.photo.createMany).not.toHaveBeenCalled();
+    });
+
     it("returns 409 when the quota reservation keeps losing serialization conflicts", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]) as never);
       prisma.$transaction.mockRejectedValue(

@@ -119,9 +119,9 @@ export class GalleryCloseService {
   }
 
   /**
-   * Claims a due gallery and empties it. The claim is conditional, so a date
-   * moved later since the gallery was picked, or another instance closing it
-   * first, leaves it alone (null).
+   * Claims a due gallery and empties it. The claim is conditional, so a close
+   * time moved later since the gallery was picked, or another instance closing
+   * it first, leaves it alone (null).
    */
   private async closeGallery(gallery: DueGallery, now: Date): Promise<{ removed: RemovedPhotos; kept: number } | null> {
     const claim = await this.prisma.event.updateMany({

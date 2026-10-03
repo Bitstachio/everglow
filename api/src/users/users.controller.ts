@@ -88,17 +88,19 @@ export class UsersController {
   @ApiOperation({
     summary: "Get the current user's plan limits and usage",
     description:
-      "The caller's active events (events they created whose galleries are still open) against their plan's " +
-      "limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and a message: " +
-      "read the numbers here. Each event's own limits are on the event.",
+      "The caller's active events (events they created that haven't closed, upcoming ones included) against " +
+      "their plan's limit, and the one that closes first. ACTIVE_EVENT_LIMIT_REACHED carries only a code and " +
+      "a message: read the numbers here. newEvent is what the create form offers. Each event's own limits " +
+      "are on the event.",
   })
   @ApiWrappedResponse(UserLimitsResponseDto, "Plan limits and usage")
   async getMyLimits(@CurrentUser() user: AuthenticatedUser): Promise<UserLimitsResponseDto> {
-    const [limits, usage] = await Promise.all([
+    const [limits, usage, newEvent] = await Promise.all([
       this.eventPlanService.accountLimitsFor(user.id),
       this.eventPlanService.accountUsageFor(user.id),
+      this.eventPlanService.newEventTermsFor(user.id),
     ]);
-    return UserMapper.toLimitsResponseDto(limits, usage);
+    return UserMapper.toLimitsResponseDto(limits, usage, newEvent);
   }
 
   @Patch("me")

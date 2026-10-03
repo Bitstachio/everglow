@@ -75,6 +75,11 @@ type EventResponseBody = {
   invites: Array<{ accessLevel: AccessLevel; invitationUrl: string }>;
   coverUrl: string | null;
   status: "ACTIVE" | "UNDER_REVIEW";
+  galleryState: "UPCOMING" | "OPEN" | "CLOSED";
+  galleryOpensAt: string;
+  galleryClosesAt: string | null;
+  galleryWindowDays: number | null;
+  galleryWindowOptions: number[];
   createdAt: string;
   updatedAt: string;
 };
@@ -165,6 +170,59 @@ describe("EventsController (integration)", () => {
       expect(body.meta.path).toBe(path);
 
       expect(prisma.event.create).toHaveBeenCalledTimes(1);
+    });
+
+    describe("gallery length and date", () => {
+      const day = 24 * 60 * 60 * 1000;
+
+      it("keeps the gallery open the length the host picked, from a future date on", async () => {
+        const date = new Date(Date.now() + 30 * day);
+        prisma.event.create.mockResolvedValue(buildEvent());
+
+        await request(httpServer)
+          .post(path)
+          .set(authHeader())
+          .send(createEventPayload({ date: date.toISOString(), galleryWindowDays: 7 }))
+          .expect(201);
+
+        expect(prisma.event.create.mock.calls[0][0].data).toMatchObject({
+          galleryWindowDays: 7,
+          galleryOpensAt: date,
+          galleryClosesAt: new Date(date.getTime() + 7 * day),
+        });
+      });
+
+      it("returns 400 for a gallery length the plan doesn't offer", async () => {
+        const response = await request(httpServer)
+          .post(path)
+          .set(authHeader())
+          .send(createEventPayload({ galleryWindowDays: 10 }))
+          .expect(400);
+
+        expect((response.body as ErrorResponse).message).toBe("The gallery length must be one of 3, 7, 14, 30 days.");
+        expect(prisma.event.create).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 for a gallery length that isn't a whole number of days", async () => {
+        await request(httpServer)
+          .post(path)
+          .set(authHeader())
+          .send(createEventPayload({ galleryWindowDays: 2.5 }))
+          .expect(400);
+
+        expect(prisma.event.create).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 for a date more than 12 months ahead", async () => {
+        const response = await request(httpServer)
+          .post(path)
+          .set(authHeader())
+          .send(createEventPayload({ date: new Date(Date.now() + 400 * day).toISOString() }))
+          .expect(400);
+
+        expect((response.body as ErrorResponse).message).toBe(EVENT_SERVICE_ERRORS.DATE_TOO_FAR_AHEAD(12));
+        expect(prisma.event.create).not.toHaveBeenCalled();
+      });
     });
 
     it("returns 400 when the payload fails validation", async () => {
@@ -513,6 +571,62 @@ describe("EventsController (integration)", () => {
       const body = response.body as WrappedResponse<EventResponseBody>;
       expect(body.data.title).toBe(payload.title);
       expect(body.meta.path).toBe(path());
+    });
+
+    it("returns 200 and reschedules an upcoming event", async () => {
+      const day = 24 * 60 * 60 * 1000;
+      const date = new Date(Date.now() + 30 * day);
+      const upcoming = buildEvent({
+        date,
+        galleryWindowDays: 30,
+        galleryOpensAt: date,
+        galleryClosesAt: new Date(date.getTime() + 30 * day),
+      });
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(upcoming, [buildOrganizerAccess()]));
+      prisma.event.update.mockResolvedValue({ ...upcoming, galleryWindowDays: 14 });
+
+      const response = await request(httpServer)
+        .patch(path())
+        .set(authHeader())
+        .send({ galleryWindowDays: 14 })
+        .expect(200);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({
+        where: { id: TEST_EVENT_ID },
+        data: {
+          date,
+          galleryWindowDays: 14,
+          galleryOpensAt: date,
+          galleryClosesAt: new Date(date.getTime() + 14 * day),
+        },
+      });
+      expect((response.body as WrappedResponse<EventResponseBody>).data).toMatchObject({
+        galleryState: "UPCOMING",
+        galleryWindowDays: 14,
+      });
+    });
+
+    it("returns 200 and removes the description when it is null", async () => {
+      const event = buildEvent({ description: "Bring a dish" });
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildOrganizerAccess()]));
+      prisma.event.update.mockResolvedValue({ ...event, description: null });
+
+      await request(httpServer).patch(path()).set(authHeader()).send({ description: null }).expect(200);
+
+      expect(prisma.event.update).toHaveBeenCalledWith({ where: { id: TEST_EVENT_ID }, data: { description: null } });
+    });
+
+    it("returns 403 EVENT_SCHEDULE_LOCKED for a new date once the gallery has opened", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+
+      const response = await request(httpServer)
+        .patch(path())
+        .set(authHeader())
+        .send({ date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() })
+        .expect(403);
+
+      expect(response.body).toMatchObject({ code: "EVENT_SCHEDULE_LOCKED" });
+      expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
     it("returns 400 when the payload fails validation", async () => {

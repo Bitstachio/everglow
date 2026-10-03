@@ -1,4 +1,4 @@
-import { AccountLimits, AccountUsage } from "src/plans/event-plan.service";
+import { AccountLimits, AccountUsage, NewEventTerms } from "src/plans/event-plan.service";
 import { UserLimitsResponseDto } from "../dto/user-limits-response.dto";
 import { UserResponseDto } from "../dto/user-response.dto";
 import { UserWithDetails } from "../users.types";
@@ -28,14 +28,24 @@ export class UserMapper {
     };
   }
 
-  /** `limits` and `usage` come from EventPlanService (accountLimitsFor, accountUsageFor). */
-  static toLimitsResponseDto(limits: AccountLimits, usage: AccountUsage): UserLimitsResponseDto {
+  /** Everything here comes from EventPlanService (accountLimitsFor, accountUsageFor, newEventTermsFor). */
+  static toLimitsResponseDto(
+    limits: AccountLimits,
+    usage: AccountUsage,
+    newEvent: NewEventTerms,
+  ): UserLimitsResponseDto {
     const next = usage.nextClosingEvent;
     return {
       plan: limits.plan,
       limits: { activeEvents: limits.maxActiveEvents },
       usage: { activeEvents: usage.activeEvents },
       nextClosingEvent: next ? { id: next.id, title: next.title, galleryClosesAt: next.galleryClosesAt } : null,
+      newEvent: {
+        plan: newEvent.plan,
+        galleryWindowOptions: newEvent.galleryWindowOptions,
+        defaultGalleryWindowDays: newEvent.defaultGalleryWindowDays,
+        latestDate: newEvent.latestDate,
+      },
     };
   }
 }
