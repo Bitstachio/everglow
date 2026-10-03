@@ -42,7 +42,8 @@ Each catalogue entry is `{ status, message }`, where `message` is either a
 fixed string or a function of throw-time params. Messages are short operator
 descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 
-**Domains** own the entries for their codes:
+**Domains** own the entries for their codes. `API_ERROR_DOMAINS` lists them;
+the aggregator merges that list into one flat registry:
 
 | Domain | File |
 | --- | --- |
@@ -60,22 +61,42 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 
 [`src/common/errors/api-error-codes.ts`](../src/common/errors/api-error-codes.ts)
 
-Shared types (`ApiErrorDefinition`, `ApiErrorParams`):
-[`src/common/errors/api-error.types.ts`](../src/common/errors/api-error.types.ts)
+Shared type: [`src/common/errors/api-error.types.ts`](../src/common/errors/api-error.types.ts)
+(`ApiErrorDefinition`).
+
+The **wire contract stays flat**: `ApiErrorDto.code` is one closed string enum.
+Domain membership is catalog ownership (which `*.errors.ts` defines the code),
+not a nested field on the response. Mobile UI copy files mirror those same
+domain files (see [Mobile UI copy](#mobile-ui-copy)).
 
 ### Adding a coded failure
 
 1. Add a `*_CODE` constant in the domain (today often still in `*.constants.ts`;
    prefer colocating with the registry entry in `*.errors.ts` over time).
 2. Add `{ status, message }` to that domain’s `*.errors.ts`.
-3. Add the domain to `API_ERROR_DOMAINS` if it is a new file.
-4. Regenerate OpenAPI and the mobile client; add mobile UI copy for the new
-   code in the matching file under `mobile/lib/api/error-message-domains/`.
-5. Throw with `new ApiException(CODE)` or `new ApiException(CODE, params)`.
+3. Add the domain object to `API_ERROR_DOMAINS` if it is a new file.
+4. Regenerate OpenAPI and the mobile client.
+5. Add mobile UI copy for the new code in the matching file under
+   `mobile/lib/api/error-message-domains/` (and list that domain in
+   `API_ERROR_MESSAGE_DOMAINS` if the file is new).
+6. Throw with `new ApiException(CODE)` or `new ApiException(CODE, params)`.
 
 Do not invent a code unless a client will branch on it or needs distinct
 translated copy. Prefer fewer codes; HTTP status plus filter-supplied generics
 cover the rest.
+
+---
+
+## Mobile UI copy
+
+The app never shows Nest / API `message` bodies to users. Mobile maps `code` →
+product copy in domain files under `mobile/lib/api/error-message-domains/`
+(same domain split as the table above). Runtime flow (Axios interceptor,
+`toApiError`, `getErrorMessage`):
+[mobile/docs/exception-handling.md](../../mobile/docs/exception-handling.md).
+
+When adding a coded failure, add the matching string there after regenerating
+the OpenAPI client.
 
 ---
 
@@ -158,10 +179,14 @@ Rules:
 
 - An existing catalog `code` on the exception body always wins (e.g.
   `ApiException`, `RateLimitExceededException` → `RATE_LIMIT_EXCEEDED`).
-- For the generic fill-in, `message` comes from the registry — not from Nest
-  constructor strings (those are not a client contract).
-- Unhandled non-HTTP failures still log server-side; the client only sees
-  `INTERNAL_ERROR` and the registry message (no stack / internal detail).
+- For the generic fill-in, the client-facing `message` comes from the registry —
+  not from Nest constructor strings (those are not a client contract).
+- Before that replacement, the filter logs the original Nest `message` at
+  **debug** with `statusCode` and `path`, so 404/403 detail is still available
+  in server logs.
+- Unhandled non-HTTP failures still log server-side at **error**; the client
+  only sees `INTERNAL_ERROR` and the registry message (no stack / internal
+  detail).
 - Every error response includes both `code` and `message` (`ApiErrorDto`
   marks them required).
 

@@ -12,6 +12,7 @@ This document is the entry point for how we write TypeScript and React Native co
 | --------------------------------------------- | ----------------------------------------------------------- |
 | Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
 | API client, React Query, feature `api/`       | [API](./api.md)                                             |
+| API failures, translation table, interceptor  | [Exception handling](./exception-handling.md)               |
 | Forms (React Hook Form + Zod)                 | [Forms](./forms.md)                                         |
 | Custom SVG icons (`AppIcon`)                  | [Icons](./icons.md)                                         |
 | Theme tokens, light/dark, NativeWind          | [Theme](./theme.md)                                         |
@@ -35,7 +36,8 @@ This document is the entry point for how we write TypeScript and React Native co
 ├─────────────────────────────────────────────────────────────────┤
 │ 3. Topic conventions (as needed)                                │
 │    Feature structure, API, forms, testing, E2E                  │
-│    → feature-code-organization.md, api.md, forms.md,            │
+│    → feature-code-organization.md, api.md,                      │
+│      exception-handling.md, forms.md,                           │
 │      testing.md, e2e.md                                         │
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. Code review (human judgment)                                 │
@@ -148,7 +150,7 @@ Import the component file directly (no `index` barrel). Inside a feature module,
 - API layer: the Axios interceptor normalizes failures via `toApiError`.
 - UI layer: use `getErrorMessage(error, "Fallback message")` in mutation `onError` callbacks. Do not read `error.response?.data` or raw `error.message` in screens.
 
-Full API error patterns: [API](./api.md#error-handling).
+Full patterns: [Exception handling](./exception-handling.md).
 
 ### ESLint (global)
 
@@ -237,6 +239,7 @@ Lint covers filename case and many structure rules. It cannot cover identifier n
 | Shared UI in `components/` | Area: `components/` + codebase                              |
 | A new feature              | [Feature code organization](./feature-code-organization.md) |
 | Feature API / React Query  | [API](./api.md)                                             |
+| API failures / user copy   | [Exception handling](./exception-handling.md)               |
 | A form                     | [Forms](./forms.md)                                         |
 | Screen / component layout  | [UI scale](./ui-scale.md) + [Theme](./theme.md)             |
 | Component / hook tests     | [Testing](./testing.md)                                     |

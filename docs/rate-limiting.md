@@ -127,8 +127,9 @@ The 429 is documented separately. `documentRateLimitResponses` (`rate-limit.swag
 response from every operation except those marked `@SkipRateLimit()`. Controllers declare nothing.
 
 Adding or removing `@SkipRateLimit()` changes the spec, so regenerate it and the mobile client. Adding
-`@RateLimit` does not. Adding a client-facing `code` means adding the constant to `API_ERROR_CODES`, then
-regenerating the spec and the mobile client.
+`@RateLimit` does not. Adding a client-facing `code` means adding it to the owning domain’s `*.errors.ts`
+(and `API_ERROR_DOMAINS` if the file is new), then regenerating the spec and the mobile client, and adding
+UI copy under `mobile/lib/api/error-message-domains/`.
 
 ## Logging
 

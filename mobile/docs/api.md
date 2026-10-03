@@ -11,10 +11,10 @@ This document covers server communication in the Everglow mobile app: the shared
 | Path                | Role                                                                                                                  |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `generated/`        | Auto-generated SDK, types, and React Query helpers. **Do not edit by hand.** Regenerate with `pnpm openapi:generate`. |
-| `axios-instance.ts` | Axios instance with auth token injection and 401 handling                                                             |
+| `axios-instance.ts` | Axios instance with auth token injection, 401 handling, and `toApiError` on failed responses                          |
 | `hey-api.config.ts` | Wires the generated client to our Axios instance                                                                      |
 | `envelope.ts`       | `unwrapEnvelope` for the `{ data, meta }` API response shape                                                          |
-| `errors.ts`         | `toApiError` (used by the Axios interceptor) and `getErrorMessage` (for UI error messages)                            |
+| `errors.ts`         | `toApiError` / `getErrorMessage` — see [Exception handling](./exception-handling.md)                                  |
 
 Generated SDK functions are imported from `@/lib/api/generated`. Query key helpers and `*Options` / `*Mutation` factories are in `@/lib/api/generated/@tanstack/react-query.gen`.
 
@@ -75,11 +75,6 @@ return unwrapEnvelope(data);
 
 Auth-sensitive updates should also sync app context when appropriate (for example, `updateUser` after a profile update).
 
-## Error handling
-
-- **API layer:** the Axios interceptor converts failures to `Error` via `toApiError`. Feature code should not re-parse Axios response shapes.
-- **UI layer:** use `getErrorMessage(error, "Fallback message")` in mutation `onError` callbacks or form-submit `catch` blocks. Do not read `error.response?.data` or raw `error.message` in screens.
-
 ## Naming
 
 | Item              | Convention                         | Example                              |
@@ -105,7 +100,7 @@ Feature-local UI types stay in the hook or component that owns them unless share
 3. Add `api/queries.ts` and/or `api/mutations.ts` wrapping the generated SDK with `throwOnError` and `unwrapEnvelope`.
 4. Call those hooks from feature hooks (screen hooks or form hooks), never from screens or presentational components.
 5. On mutation success, update or invalidate keys from `keys.ts` (and sync context when needed).
-6. Surface failures with `getErrorMessage`.
+6. Surface failures with `getErrorMessage` — see [Exception handling](./exception-handling.md).
 
 ## Review checklist
 
@@ -117,5 +112,4 @@ Feature-local UI types stay in the hook or component that owns them unless share
 - [ ] `queries.ts` is added when the feature owns fetch lifecycle; context or props are used when data is already available elsewhere
 - [ ] Generated `*Options` and query key helpers are preferred over hand-rolled keys
 - [ ] No hand-edits under `lib/api/generated/`
-- [ ] UI errors use `getErrorMessage`, not raw Axios shapes
 - [ ] DTOs are re-exported from `@/lib/api/generated`, not copied
