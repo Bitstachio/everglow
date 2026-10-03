@@ -369,7 +369,9 @@ export class UsersService {
 
     // Generic 401: same client-visible outcome as an invalid session.
     throw new UnauthorizedException(
-      RESPONSE_TEMPLATES.TOKEN_REJECTED("lost the race to provision this identity, and no account or tombstone exists"),
+      RESPONSE_TEMPLATES.TOKEN_REJECTED(
+        "creating this identity's account conflicted, and the account was gone on re-read",
+      ),
     );
   }
 
