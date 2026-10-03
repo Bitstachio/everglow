@@ -113,7 +113,9 @@ test("does not ask for an upload URL for a file over the size limit", async () =
 });
 
 test("retries the confirm once when another device changed the avatar at the same time", async () => {
-  mockConfirm.mockRejectedValueOnce(createApiError("changed", { status: 409 }));
+  mockConfirm.mockRejectedValueOnce(
+    createApiError("changed", { status: 409, code: "AVATAR_CHANGED_CONCURRENTLY" }),
+  );
   const { wrapper } = setup();
   const { result } = await renderHook(() => useSetAvatarMutation(), { wrapper });
 
@@ -125,13 +127,18 @@ test("retries the confirm once when another device changed the avatar at the sam
 });
 
 test("refetches the user when the conflict survives the retry", async () => {
-  mockConfirm.mockRejectedValue(createApiError("changed", { status: 409 }));
+  mockConfirm.mockRejectedValue(
+    createApiError("changed", { status: 409, code: "AVATAR_CHANGED_CONCURRENTLY" }),
+  );
   mockFindMe.mockResolvedValue({ data: { data: updatedUser } });
   const { wrapper } = setup();
   const { result } = await renderHook(() => useSetAvatarMutation(), { wrapper });
 
   await act(async () => {
-    await expect(result.current.mutateAsync(image)).rejects.toMatchObject({ status: 409 });
+    await expect(result.current.mutateAsync(image)).rejects.toMatchObject({
+      status: 409,
+      code: "AVATAR_CHANGED_CONCURRENTLY",
+    });
   });
   expect(mockFindMe).toHaveBeenCalledWith({ throwOnError: true });
   expect(mockUpdateUser).toHaveBeenCalledWith(updatedUser);

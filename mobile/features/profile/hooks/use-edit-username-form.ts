@@ -47,7 +47,8 @@ export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsern
         reset({ username });
         onSuccess();
       } catch (error) {
-        if (getErrorCode(error) === "USERNAME_TAKEN") {
+        const code = getErrorCode(error);
+        if (code === "USERNAME_TAKEN" || code === "USERNAME_RESERVED") {
           form.setError("username", { message: getErrorMessage(error) });
           return;
         }

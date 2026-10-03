@@ -78,7 +78,8 @@ export const useOnboardingScreen = () => {
     try {
       await completeOnboarding({ name: name.trim(), username: normalizedUsername, acceptedTerms: true });
     } catch (err: unknown) {
-      if (getErrorCode(err) === "USERNAME_TAKEN") {
+      const code = getErrorCode(err);
+      if (code === "USERNAME_TAKEN" || code === "USERNAME_RESERVED") {
         setFormErrors((prev) => ({ ...prev, username: getErrorMessage(err) }));
         return;
       }
