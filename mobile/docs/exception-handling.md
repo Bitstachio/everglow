@@ -48,13 +48,13 @@ through `toApiError` and become a network copy string.
 Source: [`lib/api/errors.ts`](../lib/api/errors.ts),
 [`lib/api/error-messages.ts`](../lib/api/error-messages.ts).
 
-| Input | What the user sees |
-| --- | --- |
+| Input                                | What the user sees                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | HTTP response with `data.code` (4xx) | `messageForApiErrorCode(code)` from `API_ERROR_MESSAGES`, or a generic safe string if the code is unknown |
-| HTTP 5xx | Fixed client-safe string (never the server body) |
-| Request made, no response | `"Network error. Please check your connection."` |
-| Already an `ApiError` | Unchanged |
-| Other `Error` / unknown | Wrapped; UI should prefer `getErrorMessage`’s fallback |
+| HTTP 5xx                             | Fixed client-safe string (never the server body)                                                          |
+| Request made, no response            | `"Network error. Please check your connection."`                                                          |
+| Already an `ApiError`                | Unchanged                                                                                                 |
+| Other `Error` / unknown              | Wrapped; UI should prefer `getErrorMessage`’s fallback                                                    |
 
 **Nest / API `message` is never shown.** The interceptor keeps `status`,
 `code`, and `Retry-After` (as `retryAfterSeconds`) on the `ApiError` for
@@ -65,10 +65,10 @@ network fallbacks above).
 
 ## Translation table layout
 
-| Piece | Path |
-| --- | --- |
+| Piece      | Path                                                                         |
+| ---------- | ---------------------------------------------------------------------------- |
 | Aggregator | `lib/api/error-messages.ts` (`API_ERROR_MESSAGES`, `messageForApiErrorCode`) |
-| Domains | `lib/api/error-message-domains/` |
+| Domains    | `lib/api/error-message-domains/`                                             |
 
 Each domain file matches an API `*.errors.ts` (e.g. `users.ts` ↔
 `users.errors.ts`). Put new copy in the domain that owns the API code, even when
