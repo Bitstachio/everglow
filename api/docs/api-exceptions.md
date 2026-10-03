@@ -205,8 +205,9 @@ That is no longer the model for **coded** failures:
   a parallel error-message table for every API failure.
 
 Users no longer keeps a `*_SERVICE_ERRORS` map: coded outcomes live in
-`users.errors.ts`, and uncoded Nest throws use an inline debug string (or none).
-Other domains may still have larger `*_SERVICE_ERRORS` maps until they migrate.
+`users.errors.ts`, and uncoded Nest throws use a `RESPONSE_TEMPLATES` message
+(or none). Other domains may still have larger `*_SERVICE_ERRORS` maps until
+they migrate.
 The filter already supplies generic `code`/`message` for those responses;
 delete the string helpers as call sites stop needing them.
 
