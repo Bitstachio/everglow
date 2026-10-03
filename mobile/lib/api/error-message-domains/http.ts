@@ -1,0 +1,10 @@
+export const HTTP_ERROR_MESSAGES = {
+  BAD_REQUEST: "That request wasn't valid. Please check and try again.",
+  CONFLICT: "That conflicts with something already saved. Please try again.",
+  FORBIDDEN: "You don't have access to that.",
+  INTERNAL_ERROR: "Something went wrong. Please try again.",
+  NOT_FOUND: "We couldn't find that. It may have been deleted.",
+  TOO_MANY_REQUESTS: "Too many requests. Please try again later.",
+  UNAUTHORIZED: "Please sign in again.",
+  UNPROCESSABLE_ENTITY: "We couldn't complete that request.",
+} as const;
