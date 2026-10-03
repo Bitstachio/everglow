@@ -1,10 +1,5 @@
 import { HttpException } from "@nestjs/common";
-import {
-  API_ERROR_REGISTRY,
-  resolveApiErrorMessage,
-  type ApiErrorArgs,
-  type ApiErrorCode,
-} from "./api-error-codes";
+import { API_ERROR_REGISTRY, resolveApiErrorMessage, type ApiErrorArgs, type ApiErrorCode } from "./api-error-codes";
 
 export class ApiException<C extends ApiErrorCode = ApiErrorCode> extends HttpException {
   readonly code: C;

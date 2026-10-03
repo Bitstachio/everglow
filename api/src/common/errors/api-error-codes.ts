@@ -30,8 +30,11 @@ export const API_ERROR_REGISTRY = Object.assign({}, ...API_ERROR_SLICES) as ApiE
 
 export type ApiErrorCode = keyof typeof API_ERROR_REGISTRY;
 
-export type ParamsOf<C extends ApiErrorCode> =
-  (typeof API_ERROR_REGISTRY)[C]["message"] extends (params: infer P) => string ? P : never;
+export type ParamsOf<C extends ApiErrorCode> = (typeof API_ERROR_REGISTRY)[C]["message"] extends (
+  params: infer P,
+) => string
+  ? P
+  : never;
 
 export type ApiErrorArgs<C extends ApiErrorCode> = [ParamsOf<C>] extends [never] ? [] : [ParamsOf<C>];
 
