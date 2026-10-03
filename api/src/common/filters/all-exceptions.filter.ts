@@ -40,7 +40,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const path = httpAdapter.getRequestUrl(ctx.getRequest<Request>()) as string;
 
-    let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+    let statusCode: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | undefined;
     let code: ApiErrorCode | undefined;
 
