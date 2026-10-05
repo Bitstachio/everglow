@@ -26,6 +26,7 @@ describe("AllExceptionsFilter", () => {
   let filter: AllExceptionsFilter;
   let reply: jest.Mock;
   let errorSpy: jest.SpyInstance;
+  let warnSpy: jest.SpyInstance;
   let debugSpy: jest.SpyInstance;
   let host: ArgumentsHost;
   let response: object;
@@ -43,7 +44,7 @@ describe("AllExceptionsFilter", () => {
 
     host = {
       switchToHttp: () => ({
-        getRequest: () => ({ url: path }),
+        getRequest: () => ({ method: "POST", url: path }),
         getResponse: () => response,
       }),
     } as unknown as ArgumentsHost;
@@ -52,6 +53,7 @@ describe("AllExceptionsFilter", () => {
 
     // Silence and observe the filter's own logs without hitting the console.
     errorSpy = jest.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+    warnSpy = jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
     debugSpy = jest.spyOn(Logger.prototype, "debug").mockImplementation(() => undefined);
   });
 
@@ -164,6 +166,52 @@ describe("AllExceptionsFilter", () => {
     expect(errorLogFieldsOf(response)).toEqual({
       errorCode: INTERNAL_ERROR_CODE,
       errorReason: "Error: connection pool exhausted",
+    });
+  });
+
+  describe("an Express or body-parser error that Nest passes through", () => {
+    /** Shaped like body-parser's: an `http-errors` object, exposed when it's a 4xx. */
+    const httpError = (status: number, name: string, message: string) =>
+      Object.assign(new Error(message), { name, status, statusCode: status, expose: status < 500 });
+
+    it("keeps a client error's 4xx status, logs no unhandled error, and logs the request at warn", () => {
+      filter.catch(httpError(413, "PayloadTooLargeError", "request entity too large"), host);
+
+      const { body, statusCode } = replyArgs();
+      expect(statusCode).toBe(413);
+      expect(body).toMatchObject({ code: BAD_REQUEST_CODE, message: resolveApiErrorMessage(BAD_REQUEST_CODE) });
+      expect(errorSpy).not.toHaveBeenCalled();
+      // The access log never saw the request, so this line is its only record.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        {
+          event: "request.body_rejected",
+          method: "POST",
+          path,
+          statusCode: 413,
+          errorCode: BAD_REQUEST_CODE,
+          errorReason: "PayloadTooLargeError: request entity too large",
+        },
+        "Request body rejected",
+      );
+      expect(errorLogFieldsOf(response)).toEqual({
+        errorCode: BAD_REQUEST_CODE,
+        errorReason: "PayloadTooLargeError: request entity too large",
+      });
+    });
+
+    it("still treats a 5xx one as unhandled", () => {
+      filter.catch(httpError(500, "InternalServerError", "stream encoding should not be set"), host);
+
+      expect(replyArgs().statusCode).toBe(500);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("doesn't trust a status the error doesn't expose to the client", () => {
+      filter.catch(Object.assign(new Error("NoSuchKey"), { status: 404 }), host);
+
+      expect(replyArgs().statusCode).toBe(500);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
     });
   });
 

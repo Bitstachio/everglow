@@ -288,6 +288,14 @@ Rules:
 - Unhandled non-HTTP failures still log server-side at **error**; the client
   only sees `INTERNAL_ERROR` and the registry message (no stack / internal
   detail).
+- A client error that Express or its body parser raises as an `http-errors`
+  object keeps its 4xx status and gets the generic code for it: 413 for a body
+  over the size limit, 415 for a charset or encoding the parser can't read,
+  400 for an upload the client dropped. It is the client's mistake, so the
+  filter logs it at **warn** as `request.body_rejected` instead of
+  `REQUEST_UNHANDLED_ERROR`. That line is its only record: the body parser runs
+  before the access log's middleware, so there is no completion line. Nest
+  already turns malformed JSON into a 400 `BadRequestException`.
 - Every error response includes both `code` and `message` (`ApiErrorDto`
   marks them required).
 
