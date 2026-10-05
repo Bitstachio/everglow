@@ -177,8 +177,12 @@ opaque:
 - `BadRequestException` — validation / format the client already owns locally
   (e.g. username format after DTO + form checks); no distinct API translation
   needed.
-- `UnauthorizedException()` with no body detail — session invalid or
-  intentionally opaque (e.g. deleted / tombstoned accounts).
+- `UnauthorizedException` — the token, or the account it maps to, can't be
+  used. The client is only told to sign in again, so a deleted or tombstoned
+  account stays opaque. It always takes
+  `RESPONSE_TEMPLATES.TOKEN_REJECTED(reason)`: `JwtAuthGuard` gives
+  passport's reason for every token it refuses, and `UsersService` the
+  account's.
 
 There is no generic 403, 409 or 422 to throw. A 403 is `authorize()` or an
 `ApiException`, and a 409 or 422 always means a product rule the app explains,
@@ -191,11 +195,11 @@ generics—not a substitute for product-specific copy.
 If the throw carries a debug message, build it with
 [`RESPONSE_TEMPLATES`](../src/common/constants/templates.constants.ts) (for
 example `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id)`). Do not
-inline an equivalent string. Omit the message when status alone is enough
-(`throw new UnauthorizedException()`). Match template to status: not-found
-throws use `RESOURCE.NOT_FOUND`, format-style bad requests use
-`INVALID_FORMAT`, a value outside what is allowed uses `INVALID_VALUE`, and
-so on—do not pass a bad-request template into `NotFoundException`. The
+inline an equivalent string. Match template to status: not-found throws use
+`RESOURCE.NOT_FOUND`, format-style bad requests use `INVALID_FORMAT`, a value
+outside what is allowed uses `INVALID_VALUE`, a refused token uses
+`TOKEN_REJECTED`, and so on—do not pass a bad-request template into
+`NotFoundException`. The
 message is what the request's log line gives as `errorReason`, so write it
 for whoever traces the request: name the field and the value.
 
@@ -208,7 +212,7 @@ raw Nest messages.
 | ------------------------------ | ------------------------------------------------------------------------ |
 | `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or no argument              |
 | `BadRequestException`          | `RESPONSE_TEMPLATES.INVALID_FORMAT(...)` or `INVALID_VALUE(...)` or none |
-| `UnauthorizedException`        | no argument (log why before throwing)                                    |
+| `UnauthorizedException`        | `RESPONSE_TEMPLATES.TOKEN_REJECTED(...)`, always                         |
 | `ForbiddenException`           | only inside `src/casl/authorize.ts`                                      |
 | `ConflictException`            | never: throw an `ApiException`                                           |
 | `UnprocessableEntityException` | never: throw an `ApiException`                                           |

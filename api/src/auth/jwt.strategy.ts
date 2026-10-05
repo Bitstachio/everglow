@@ -24,6 +24,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         rateLimit: true,
         jwksRequestsPerMinute: 5,
         jwksUri,
+        // Refuse a key id the key set doesn't have with that reason. The default
+        // drops it, and jsonwebtoken then says "secret or public key must be
+        // provided", which reads like our misconfiguration.
+        handleSigningKeyError: (err, cb) => cb(err),
       }),
       audience,
       issuer: `https://${domain}/`,

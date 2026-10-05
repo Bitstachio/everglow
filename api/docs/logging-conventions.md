@@ -38,7 +38,9 @@ them** in controllers or services:
   `customProps` adds them to the line. The reason is the catalogue message of an `ApiException` (with its params),
   the `RESPONSE_TEMPLATES` message of a generic exception, a validation failure's field errors, or the error's
   message for a 5xx. Clients never see it. So give every generic throw a template message, and look for these two
-  fields first when tracing a reported failure by `reqId`.
+  fields first when tracing a reported failure by `reqId`. A 401's reason says why the token was refused, with the
+  issuer and audience it claims: `Bearer token rejected: TokenExpiredError: jwt expired at 2026-10-03T18:00:00.000Z
+  (token claims issuer https://…/, audience …)`.
 - **Unhandled exceptions.** `AllExceptionsFilter` (`src/common/filters`) emits one authoritative `error` with the
   stack for anything non-HTTP that escapes, and for an `InternalServerErrorException` without a catalogue code.
   **Do not catch-and-log-and-rethrow** just to record an error; you will create duplicate entries. Let it

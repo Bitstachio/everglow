@@ -2,6 +2,7 @@ import { INestApplication, InternalServerErrorException, UnauthorizedException }
 import { AccountDeletionPhotoPolicy, PhotoStatus, Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockDeep, mockReset } from "jest-mock-extended";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { buildImageS3Key, MAX_IMAGE_SIZE_BYTES } from "src/images/images.constants";
 import { AppleSiwaService, AppleTokenRevocationError } from "src/sdk/apple/apple-siwa.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
@@ -1186,7 +1187,11 @@ describe("UsersController (integration)", () => {
         deletedAt: TEST_NOW,
       });
 
-      await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB)).rejects.toThrow(new UnauthorizedException());
+      await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB)).rejects.toThrow(
+        new UnauthorizedException(
+          RESPONSE_TEMPLATES.TOKEN_REJECTED("the token was issued before this identity's account was deleted"),
+        ),
+      );
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
@@ -1197,7 +1202,9 @@ describe("UsersController (integration)", () => {
         }),
       );
 
-      await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB)).rejects.toThrow(new UnauthorizedException());
+      await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB)).rejects.toThrow(
+        new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED("the account's deletion is in progress")),
+      );
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
     });

@@ -66,7 +66,7 @@ The API listens on every interface, so a phone on the same network can reach it.
 
 ## Troubleshooting
 
-- **Every request is 401**: `AUTH0_AUDIENCE` in `api/.env` differs from `EXPO_PUBLIC_AUTH0_AUDIENCE` in `mobile/.env`, or the app signed in against another tenant.
+- **Every request is 401**: `AUTH0_AUDIENCE` in `api/.env` differs from `EXPO_PUBLIC_AUTH0_AUDIENCE` in `mobile/.env`, or the app signed in against another tenant. The request's log line says which: its `errorReason` gives the reason the token was refused and the issuer and audience it claims.
 - **Port 5433 is taken**: set `POSTGRES_HOST_PORT` in `.env` and use the same port in `DATABASE_URL`.
 - **Start over with an empty database**: `docker compose down -v` deletes the Compose database; run `pnpm run setup:local` again.
 - **Uploads fail with 403 from S3**: the AWS key or bucket is wrong; the script's S3 check says the same.

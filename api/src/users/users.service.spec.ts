@@ -3,6 +3,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AccountDeletionPhotoPolicy, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { ApiException } from "src/common/errors/api.exception";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
@@ -951,7 +952,9 @@ describe("UsersService", () => {
         deletionStartedAt: new Date("2026-06-10T12:01:00.000Z"),
       });
 
-      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(new UnauthorizedException());
+      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(
+        new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED("the account's deletion is in progress")),
+      );
       expect(prisma.user.create).not.toHaveBeenCalled();
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -1001,7 +1004,9 @@ describe("UsersService", () => {
       prisma.deletedProviderSub.findUnique.mockResolvedValue({ providerSubHash, formerUserId: userId, deletedAt });
 
       await expect(service.resolveByProviderSub(providerSub, deletedAt.getTime() / 1000 - 60)).rejects.toThrow(
-        new UnauthorizedException(),
+        new UnauthorizedException(
+          RESPONSE_TEMPLATES.TOKEN_REJECTED("the token was issued before this identity's account was deleted"),
+        ),
       );
 
       expect(prisma.user.create).not.toHaveBeenCalled();
@@ -1015,7 +1020,11 @@ describe("UsersService", () => {
         deletedAt: now,
       });
 
-      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(new UnauthorizedException());
+      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(
+        new UnauthorizedException(
+          RESPONSE_TEMPLATES.TOKEN_REJECTED("the token was issued before this identity's account was deleted"),
+        ),
+      );
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
@@ -1038,7 +1047,9 @@ describe("UsersService", () => {
       prisma.deletedProviderSub.findUnique.mockResolvedValue(null);
       prisma.user.create.mockRejectedValue(uniqueConstraintError());
 
-      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(new UnauthorizedException());
+      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(
+        new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED("the account's deletion is in progress")),
+      );
     });
 
     it("rejects when a unique race finds no user but a tombstone now exists", async () => {
@@ -1050,7 +1061,11 @@ describe("UsersService", () => {
       });
       prisma.user.create.mockRejectedValue(uniqueConstraintError());
 
-      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(new UnauthorizedException());
+      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(
+        new UnauthorizedException(
+          RESPONSE_TEMPLATES.TOKEN_REJECTED("the token was issued before this identity's account was deleted"),
+        ),
+      );
     });
 
     it("rejects when a unique race finds neither user nor tombstone", async () => {
@@ -1058,7 +1073,13 @@ describe("UsersService", () => {
       prisma.deletedProviderSub.findUnique.mockResolvedValue(null);
       prisma.user.create.mockRejectedValue(uniqueConstraintError());
 
-      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(new UnauthorizedException());
+      await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(
+        new UnauthorizedException(
+          RESPONSE_TEMPLATES.TOKEN_REJECTED(
+            "creating this identity's account conflicted, and the account was gone on re-read",
+          ),
+        ),
+      );
     });
 
     it("rethrows unexpected Prisma errors from user.findUnique", async () => {
