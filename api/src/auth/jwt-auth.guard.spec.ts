@@ -1,7 +1,7 @@
 import { generateKeyPairSync, KeyObject, sign } from "crypto";
-import { createServer, Server } from "http";
+import { createServer, Server, ServerResponse } from "http";
 import { AddressInfo } from "net";
-import { UnauthorizedException } from "@nestjs/common";
+import { ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ExecutionContextHost } from "@nestjs/core/helpers/execution-context-host";
 import { mockDeep } from "jest-mock-extended";
@@ -44,6 +44,7 @@ describe("JwtAuthGuard", () => {
 
   let keySetServer: Server;
   let jwksUri: string;
+  let answerKeySetRequest: (res: ServerResponse) => void;
   let usersService: ReturnType<typeof mockDeep<UsersService>>;
   let guard: JwtAuthGuard;
 
@@ -78,12 +79,24 @@ describe("JwtAuthGuard", () => {
 
   const rejection = (reason: string) => new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED(reason));
 
-  beforeAll(async () => {
+  const serveKeySet = (res: ServerResponse) => {
     const publicJwk = signingKey.publicKey.export({ format: "jwk" });
-    keySetServer = createServer((_req, res) => {
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ keys: [{ ...publicJwk, kid: KEY_ID, alg: "RS256", use: "sig" }] }));
-    });
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ keys: [{ ...publicJwk, kid: KEY_ID, alg: "RS256", use: "sig" }] }));
+  };
+
+  /** Registers a strategy with passport as "jwt", with a fresh key cache and fetch limit. */
+  const useStrategyFetchingFrom = (uri: string) => {
+    const config: Record<string, string> = {
+      "auth0.domain": "test.example.auth0.com",
+      "auth0.audience": AUDIENCE,
+      "auth0.jwksUri": uri,
+    };
+    new JwtStrategy({ getOrThrow: (key: string) => config[key] } as unknown as ConfigService, usersService);
+  };
+
+  beforeAll(async () => {
+    keySetServer = createServer((_req, res) => answerKeySetRequest(res));
     await new Promise<void>((resolve) => keySetServer.listen(0, "127.0.0.1", resolve));
     jwksUri = `http://127.0.0.1:${(keySetServer.address() as AddressInfo).port}/.well-known/jwks.json`;
   });
@@ -93,15 +106,10 @@ describe("JwtAuthGuard", () => {
   });
 
   beforeEach(() => {
-    const config: Record<string, string> = {
-      "auth0.domain": "test.example.auth0.com",
-      "auth0.audience": AUDIENCE,
-      "auth0.jwksUri": jwksUri,
-    };
+    answerKeySetRequest = serveKeySet;
     usersService = mockDeep<UsersService>();
     usersService.resolveByProviderSub.mockResolvedValue({ id: userId, providerSub } as UserWithDetails);
-    // Registers itself with passport as "jwt", with a fresh key cache.
-    new JwtStrategy({ getOrThrow: (key: string) => config[key] } as unknown as ConfigService, usersService);
+    useStrategyFetchingFrom(jwksUri);
     guard = new JwtAuthGuard();
   });
 
@@ -192,5 +200,46 @@ describe("JwtAuthGuard", () => {
     usersService.resolveByProviderSub.mockRejectedValue(failure);
 
     expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(failure);
+  });
+
+  describe("when the key set can't be fetched", () => {
+    /** A 503, so the app keeps the session; the reason names what failed. */
+    const expectUnavailable = (verdict: unknown, reason: string) => {
+      expect(verdict).toBeInstanceOf(ServiceUnavailableException);
+      expect(verdict).toMatchObject({ message: RESPONSE_TEMPLATES.SIGNING_KEYS_UNAVAILABLE(reason) });
+    };
+
+    it("answers 503, not a 401 that signs the user out, when the key server is unreachable", async () => {
+      const closedServer = createServer();
+      await new Promise<void>((resolve) => closedServer.listen(0, "127.0.0.1", resolve));
+      const { port } = closedServer.address() as AddressInfo;
+      await new Promise((resolve) => closedServer.close(resolve));
+      useStrategyFetchingFrom(`http://127.0.0.1:${port}/.well-known/jwks.json`);
+
+      expectUnavailable(
+        await verdictFor(`Bearer ${signToken(validClaims())}`),
+        `Error: connect ECONNREFUSED 127.0.0.1:${port}`,
+      );
+    });
+
+    it("answers 503 when Auth0 answers the fetch with an error", async () => {
+      answerKeySetRequest = (res) => {
+        res.statusCode = 503;
+        res.end();
+      };
+
+      expectUnavailable(await verdictFor(`Bearer ${signToken(validClaims())}`), "JwksError: Service Unavailable");
+    });
+
+    it("answers 503 for a real token once forged key ids have spent the fetch limit", async () => {
+      for (const kid of ["forged-1", "forged-2", "forged-3", "forged-4", "forged-5"]) {
+        expect(await verdictFor(`Bearer ${signToken(validClaims(), { kid })}`)).toBeInstanceOf(UnauthorizedException);
+      }
+
+      expectUnavailable(
+        await verdictFor(`Bearer ${signToken(validClaims())}`),
+        "JwksRateLimitError: Too many requests to the JWKS endpoint",
+      );
+    });
   });
 });
