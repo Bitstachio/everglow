@@ -54,6 +54,7 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 | Images        | `src/images/images.errors.ts`                |
 | Plans         | `src/plans/plans.errors.ts`                  |
 | Photos        | `src/photos/photos.errors.ts`                |
+| Moderation    | `src/moderation/moderation.errors.ts`        |
 | Rate limit    | `src/common/rate-limit/rate-limit.errors.ts` |
 
 **Aggregator** merges the domains into `API_ERROR_REGISTRY`, derives
@@ -64,6 +65,13 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 
 Shared type: [`src/common/errors/api-error.types.ts`](../src/common/errors/api-error.types.ts)
 (`ApiErrorDefinition`).
+
+A message function's params are required wherever the code is used:
+`new ApiException("ACTIVE_EVENT_LIMIT_REACHED")` does not compile without
+`{ limit }`. That holds for a code typed as the whole `ApiErrorCode` union
+too: the call then needs the params any code in the union takes, so a
+message is never built from missing params at runtime.
+`api-error-codes.spec.ts` pins this with expected type errors.
 
 The **wire contract stays flat**: `ApiErrorDto.code` is one closed string enum.
 Domain membership is catalog ownership (which `*.errors.ts` defines the code),
@@ -135,17 +143,46 @@ Hiding a control in the UI (e.g. Change Password for social identities) does
 
 The code must already exist in `API_ERROR_REGISTRY`.
 
+### Authorize with `authorize()`
+
+A CASL check that fails goes through
+[`authorize()`](../src/casl/authorize.ts), the only place a bare 403 comes
+from:
+
+- **A caller with no access at all** (not a member, not onboarded) gets the
+  bare `FORBIDDEN`, and nothing more about the event.
+- **A member whose role doesn't allow the action** gets a code that says
+  which role it needs, so the app can explain it: `ORGANIZER_ONLY` (managing
+  the event, deleting someone else's photo, reading or resolving reports) or
+  `VIEWER_CANNOT_UPLOAD`. Pass `{ isMember, refusal }` to get it.
+
+```ts
+authorize(ability, EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, event), {
+  isMember: event.eventAccesses.length > 0,
+  refusal: "ORGANIZER_ONLY",
+});
+```
+
+Every other refusal of a caller who has access is a product rule with its own
+code: `LAST_ORGANIZER`, `CANNOT_CHANGE_OWN_ROLE`, `TARGET_NOT_A_MEMBER`,
+`CANNOT_RESOLVE_OWN_REPORT`, `REPORT_ALREADY_RESOLVED`, and so on.
+
 ### Use a generic Nest HTTP exception
 
 When the generic status code’s translation is enough, or the failure must stay
 opaque:
 
-- `NotFoundException` — resource missing; `NOT_FOUND` copy is fine.
+- `NotFoundException` — resource missing, or hidden on purpose (an organizer's
+  block reads as an unknown invite link); `NOT_FOUND` copy is fine.
 - `BadRequestException` — validation / format the client already owns locally
   (e.g. username format after DTO + form checks); no distinct API translation
   needed.
 - `UnauthorizedException()` with no body detail — session invalid or
   intentionally opaque (e.g. deleted / tombstoned accounts).
+
+There is no generic 403, 409 or 422 to throw. A 403 is `authorize()` or an
+`ApiException`, and a 409 or 422 always means a product rule the app explains,
+so it is always an `ApiException`.
 
 `AllExceptionsFilter` maps status → a generic catalog code when the exception
 has none (see below). Those generics (`FORBIDDEN`, `CONFLICT`, …) are for true
@@ -162,25 +199,25 @@ so on—do not pass a bad-request template into `NotFoundException`. The
 message is what the request's log line gives as `errorReason`, so write it
 for whoever traces the request: name the field and the value.
 
-**Lint** (`api/eslint.config.mjs`): outside tests, Nest HTTP exception
-constructors may only take no argument or the matching
-`RESPONSE_TEMPLATES` call — not a string literal, template literal, or other
-helper. Specs are exempt so filter tests can pass raw Nest messages.
-TypeScript cannot enforce this — Nest’s constructors accept `any`.
+**Lint** (`api/eslint.config.mjs`) holds these rules outside tests, so an
+uncoded product refusal fails CI. TypeScript cannot enforce them, because
+Nest's constructors accept `any`. Specs are exempt so filter tests can pass
+raw Nest messages.
 
-| Exception                      | Allowed first argument                                                   |
+| Exception                      | Allowed                                                                  |
 | ------------------------------ | ------------------------------------------------------------------------ |
-| `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or none                     |
-| `ConflictException`            | `RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(...)` or none                |
+| `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or no argument              |
 | `BadRequestException`          | `RESPONSE_TEMPLATES.INVALID_FORMAT(...)` or `INVALID_VALUE(...)` or none |
-| `ForbiddenException`           | none                                                                     |
-| `UnauthorizedException`        | none                                                                     |
-| `UnprocessableEntityException` | none                                                                     |
+| `UnauthorizedException`        | no argument (log why before throwing)                                    |
+| `ForbiddenException`           | only inside `src/casl/authorize.ts`                                      |
+| `ConflictException`            | never: throw an `ApiException`                                           |
+| `UnprocessableEntityException` | never: throw an `ApiException`                                           |
+| `HttpException`                | never: throw an `ApiException` or a subclass above                       |
 
 ### Do not
 
-- Throw `ConflictException({ code: "SOME_STRING", message: "…" })` with a
-  string outside the catalog.
+- Throw a Nest exception with a `{ code, message }` body: only
+  `ApiException` carries a code.
 - Put user-facing English in the API registry or in Nest messages for the app
   to display.
 - Leave a product outcome uncoded and rely on the client to infer meaning from

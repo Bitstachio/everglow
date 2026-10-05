@@ -209,7 +209,7 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).post(uploadUrlsPath()).set(authHeader()).send(payload).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "VIEWER_CANNOT_UPLOAD");
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -373,7 +373,7 @@ describe("PhotosController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "VIEWER_CANNOT_UPLOAD");
     });
   });
 
@@ -646,7 +646,7 @@ describe("PhotosController (integration)", () => {
       const response = await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "ORGANIZER_ONLY", { action: "delete", subject: "Photo" });
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
     });
 

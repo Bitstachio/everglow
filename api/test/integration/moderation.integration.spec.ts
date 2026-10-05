@@ -8,13 +8,7 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { expectApiError } from "./helpers/expect-api-error";
-import {
-  BAD_REQUEST_CODE,
-  CONFLICT_CODE,
-  FORBIDDEN_CODE,
-  NOT_FOUND_CODE,
-  UNPROCESSABLE_ENTITY_CODE,
-} from "src/common/errors/http.errors";
+import { BAD_REQUEST_CODE, FORBIDDEN_CODE, NOT_FOUND_CODE } from "src/common/errors/http.errors";
 import { TEST_TARGET_USER_ID, authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
@@ -185,7 +179,7 @@ describe("Moderation (integration)", () => {
       const response = await request(httpServer).post(photoReportsPath()).set(authHeader()).send(payload).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "CANNOT_REPORT_SELF");
     });
 
     it("returns 404 when the photo does not exist", async () => {
@@ -340,7 +334,7 @@ describe("Moderation (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "CANNOT_REPORT_SELF");
     });
 
     it("returns 403 when the reported user is not a member of the event", async () => {
@@ -350,7 +344,7 @@ describe("Moderation (integration)", () => {
       const response = await request(httpServer).post(memberReportsPath()).set(authHeader()).send(payload).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "TARGET_NOT_A_MEMBER", { userId: TEST_TARGET_USER_ID, eventId: TEST_EVENT_ID });
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -413,9 +407,18 @@ describe("Moderation (integration)", () => {
     it.each([
       ["a participant", [buildParticipantAccess()]],
       ["a viewer", [buildViewerAccess()]],
-      ["not a member", []],
-    ])("returns 403 when the caller is %s", async (_label, access) => {
+    ])("returns 403 ORGANIZER_ONLY when the caller is %s", async (_label, access) => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess(access));
+
+      const response = await request(httpServer).get(eventReportsPath()).set(authHeader()).expect(403);
+
+      const body = response.body as ErrorResponse;
+      expectApiError(body, "ORGANIZER_ONLY", { action: "read", subject: "Report" });
+      expect(prisma.report.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns the bare 403 when the caller is not a member", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([]));
 
       const response = await request(httpServer).get(eventReportsPath()).set(authHeader()).expect(403);
 
@@ -542,7 +545,7 @@ describe("Moderation (integration)", () => {
       const response = await patch({ action: "REMOVE_PHOTO" }).expect(422);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
+      expectApiError(body, "REPORTED_PHOTO_GONE", { reportId: TEST_REPORT_ID });
       expect(prisma.report.updateManyAndReturn).not.toHaveBeenCalled();
     });
 
@@ -556,7 +559,7 @@ describe("Moderation (integration)", () => {
       const response = await patch({ action: "DISMISS" }).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "ORGANIZER_ONLY", { action: "update", subject: "Report" });
     });
 
     it("returns 403 when an organizer resolves a report made against themselves", async () => {
@@ -565,7 +568,7 @@ describe("Moderation (integration)", () => {
       const response = await patch({ action: "DISMISS" }).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "CANNOT_RESOLVE_OWN_REPORT", { reportId: TEST_REPORT_ID });
       expect(prisma.report.updateManyAndReturn).not.toHaveBeenCalled();
     });
 
@@ -585,7 +588,7 @@ describe("Moderation (integration)", () => {
       const response = await patch({ action: "REMOVE_PHOTO" }).expect(409);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, CONFLICT_CODE);
+      expectApiError(body, "REPORT_ALREADY_RESOLVED", { reportId: TEST_REPORT_ID });
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
     });
@@ -632,7 +635,7 @@ describe("Moderation (integration)", () => {
       const response = await request(httpServer).put(blockPath(TEST_USER_ID)).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "CANNOT_BLOCK_SELF");
     });
 
     it("returns the same 404 for a user who shares no event with the caller as for one who does not exist", async () => {

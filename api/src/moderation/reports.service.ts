@@ -1,13 +1,6 @@
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import {
   AccessLevel,
   Event,
@@ -20,7 +13,9 @@ import {
 } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { authorize } from "src/casl/authorize";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
@@ -93,7 +88,7 @@ export class ReportsService {
     }
 
     await this.assertCanReportIn(photo.event, callerId);
-    if (photo.addedById === callerId) throw new ForbiddenException();
+    if (photo.addedById === callerId) throw new ApiException("CANNOT_REPORT_SELF");
 
     const target: ReportTarget = {
       eventId: photo.eventId,
@@ -132,12 +127,12 @@ export class ReportsService {
     if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     await this.assertCanReportIn(event, callerId);
-    if (targetUserId === callerId) throw new ForbiddenException();
+    if (targetUserId === callerId) throw new ApiException("CANNOT_REPORT_SELF");
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
     });
-    if (!targetAccess) throw new ForbiddenException();
+    if (!targetAccess) throw new ApiException("TARGET_NOT_A_MEMBER", { userId: targetUserId, eventId });
 
     const target: ReportTarget = {
       eventId,
@@ -189,9 +184,10 @@ export class ReportsService {
       event,
       targetType: ReportTargetType.PHOTO,
     } as unknown as Report);
-    if (!ability.can(REPORT_ACTIONS.READ, prospectiveReport)) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, REPORT_ACTIONS.READ, prospectiveReport, {
+      isMember: event.eventAccesses.length > 0,
+      refusal: "ORGANIZER_ONLY",
+    });
 
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
     const reports = await this.prisma.report.findMany({
@@ -233,19 +229,26 @@ export class ReportsService {
     if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Report", "ID", reportId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(REPORT_ACTIONS.UPDATE, subject(REPORT_SUBJECT, loaded))) {
-      throw new ForbiddenException();
-    }
+    // Reports about the event itself are the platform's: organizers can't even
+    // list them, so a member resolving one by id gets the bare 403.
+    authorize(
+      ability,
+      REPORT_ACTIONS.UPDATE,
+      subject(REPORT_SUBJECT, loaded),
+      loaded.targetType === ReportTargetType.EVENT
+        ? undefined
+        : { isMember: loaded.event.eventAccesses.length > 0, refusal: "ORGANIZER_ONLY" },
+    );
 
     // An organizer must not be the judge of a report about themselves or their
     // own photo. With no other organizer it stays open: `report.escalated`
     // already told the platform owner about it, and `report.stale` repeats it.
-    if (loaded.reportedUserId === callerId) throw new ForbiddenException();
+    if (loaded.reportedUserId === callerId) throw new ApiException("CANNOT_RESOLVE_OWN_REPORT", { reportId });
 
     const photo = await this.photoToRemove(loaded, action);
     const removedMemberId = action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER ? loaded.reportedUserId : null;
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER && !removedMemberId) {
-      throw new UnprocessableEntityException();
+      throw new ApiException("REPORTED_MEMBER_GONE", { reportId });
     }
 
     const resolution = { status: RESOLUTION_STATUS[action], resolvedById: callerId, resolvedAt: new Date() };
@@ -258,7 +261,7 @@ export class ReportsService {
         where: { id: reportId, status: ReportStatus.OPEN },
         data: resolution,
       });
-      if (!acted) throw new ConflictException();
+      if (!acted) throw new ApiException("REPORT_ALREADY_RESOLVED", { reportId });
 
       const others = sameTarget
         ? await tx.report.updateMany({
@@ -375,7 +378,7 @@ export class ReportsService {
       ? await this.prisma.photo.findUnique({ where: { id: report.photoId }, select: { id: true, s3Key: true } })
       : null;
     if (!photo && action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO) {
-      throw new UnprocessableEntityException();
+      throw new ApiException("REPORTED_PHOTO_GONE", { reportId: report.id });
     }
     return photo;
   }
@@ -418,9 +421,7 @@ export class ReportsService {
       reporterId: callerId,
       event,
     } as unknown as Report);
-    if (!ability.can(REPORT_ACTIONS.CREATE, prospectiveReport)) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, REPORT_ACTIONS.CREATE, prospectiveReport);
   }
 
   /** The caller's OPEN report on the target, if any: the row the partial unique indexes protect. */
@@ -458,7 +459,7 @@ export class ReportsService {
     if (!created) {
       const existing = await this.findOpenReport(callerId, target);
       // Only when that report was resolved between the insert and this lookup.
-      if (!existing) throw new ConflictException();
+      if (!existing) throw new ApiException("REPORT_CHANGED_CONCURRENTLY");
       return existing;
     }
 

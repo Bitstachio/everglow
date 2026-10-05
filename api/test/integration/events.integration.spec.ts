@@ -11,13 +11,7 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { expectApiError } from "./helpers/expect-api-error";
-import {
-  BAD_REQUEST_CODE,
-  CONFLICT_CODE,
-  FORBIDDEN_CODE,
-  NOT_FOUND_CODE,
-  UNPROCESSABLE_ENTITY_CODE,
-} from "src/common/errors/http.errors";
+import { BAD_REQUEST_CODE, FORBIDDEN_CODE, NOT_FOUND_CODE } from "src/common/errors/http.errors";
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, TEST_TARGET_USER_ID, authHeader } from "./helpers/auth.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
@@ -492,7 +486,7 @@ describe("EventsController (integration)", () => {
         .expect(409);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, CONFLICT_CODE);
+      expectApiError(body, "ALREADY_A_MEMBER", { eventId: TEST_EVENT_ID });
     });
 
     it("returns 422 when onboarding is incomplete", async () => {
@@ -641,7 +635,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).patch(path()).set(authHeader()).send(updateEventPayload()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "ORGANIZER_ONLY", { action: "update", subject: "Event" });
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -688,7 +682,7 @@ describe("EventsController (integration)", () => {
 
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
-      expectApiError(response.body, FORBIDDEN_CODE);
+      expectApiError(response.body, "ORGANIZER_ONLY", { action: "update", subject: "Event" });
       expect(prisma.event.updateMany).not.toHaveBeenCalled();
     });
 
@@ -783,7 +777,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).delete(path()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "ORGANIZER_ONLY", { action: "delete", subject: "Event" });
     });
   });
 
@@ -838,7 +832,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "NOT_A_MEMBER", { eventId: TEST_EVENT_ID });
     });
 
     it("returns 422 when the sole organizer attempts to leave", async () => {
@@ -848,7 +842,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path()).set(authHeader()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
+      expectApiError(body, "LAST_ORGANIZER", { eventId: TEST_EVENT_ID });
     });
   });
 
@@ -955,7 +949,7 @@ describe("EventsController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "CANNOT_CHANGE_OWN_ROLE");
     });
 
     it("returns 403 when the caller is a participant", async () => {
@@ -968,7 +962,7 @@ describe("EventsController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "ORGANIZER_ONLY", { action: "update", subject: "Event" });
     });
   });
 
@@ -1024,7 +1018,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).delete(path(TEST_USER_ID)).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "CANNOT_REMOVE_SELF");
     });
 
     it("returns 422 when removing the sole organizer", async () => {
@@ -1035,7 +1029,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).delete(path()).set(authHeader()).expect(422);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, UNPROCESSABLE_ENTITY_CODE);
+      expectApiError(body, "LAST_ORGANIZER", { eventId: TEST_EVENT_ID });
     });
   });
 
@@ -1143,7 +1137,7 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "ORGANIZER_ONLY", { action: "update", subject: "Event" });
     });
 
     it("returns 404 when the event does not exist", async () => {
@@ -1229,11 +1223,11 @@ describe("EventsController (integration)", () => {
 
         const response = await send(authHeader()).expect(403);
 
-        expectApiError(response.body, FORBIDDEN_CODE);
+        expectApiError(response.body, "ORGANIZER_ONLY", { action: "update", subject: "Event" });
         expectNothingTouched();
       });
 
-      it("returns the same 403 when the caller is not a member at all", async () => {
+      it("returns the bare 403 when the caller is not a member at all", async () => {
         prisma.user.findUnique.mockResolvedValue(buildOtherUserWithDetails());
         prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), []));
 
@@ -1499,7 +1493,7 @@ describe("EventsController (integration)", () => {
         .expect(403);
 
       const body = response.body as ErrorResponse;
-      expectApiError(body, FORBIDDEN_CODE);
+      expectApiError(body, "ORGANIZER_ONLY", { action: "update", subject: "Event" });
     });
 
     it("allows another user to join via invite and then read the event", async () => {

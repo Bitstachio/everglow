@@ -1,11 +1,5 @@
 import { accessibleBy } from "@casl/prisma";
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AccessLevel, Event, EventAccess, EventInvite, Plan, Prisma, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -1031,9 +1025,9 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(participantAccess);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", eventId)),
-      );
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toMatchObject({
+        response: { code: "ALREADY_A_MEMBER" },
+      });
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1155,9 +1149,9 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", eventId)),
-      );
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toMatchObject({
+        response: { code: "ALREADY_A_MEMBER" },
+      });
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1168,7 +1162,9 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(organizerAccess);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(ConflictException);
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toMatchObject({
+        response: { code: "ALREADY_A_MEMBER" },
+      });
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1179,9 +1175,9 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventCreatedByUser);
       prisma.eventAccess.findUnique.mockResolvedValue(viewerAccess);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", eventId)),
-      );
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toMatchObject({
+        response: { code: "ALREADY_A_MEMBER" },
+      });
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1310,7 +1306,7 @@ describe("EventsService", () => {
     it("throws when the caller has no relationship to the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.findOne(eventId, otherUserId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.findOne(eventId, otherUserId)).rejects.toThrow(ForbiddenException);
     });
 
     it("checks that the event exists before evaluating read access", async () => {
@@ -1333,8 +1329,10 @@ describe("EventsService", () => {
 
       await expect(service.findOne(eventId, callerId)).resolves.toEqual(eventCreatedByUser);
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(ForbiddenException);
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
+      await expect(service.delete(eventId, callerId)).rejects.toMatchObject({ response: { code: "ORGANIZER_ONLY" } });
     });
   });
 
@@ -1356,13 +1354,25 @@ describe("EventsService", () => {
     });
 
     it.each([
-      ["a participant", () => [participantAccess]],
-      ["a viewer", () => [viewerAccess]],
-      ["not a member", () => []],
-    ])("throws 403 when the caller is %s", async (_label, accesses) => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, accesses()));
+      ["a participant", participantAccess],
+      ["a viewer", viewerAccess],
+    ])("tells %s that only organizers can, naming the action in the reason it logs", async (_label, access) => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [access]));
 
-      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toMatchObject({
+        response: {
+          code: "ORGANIZER_ONLY",
+          message: resolveApiErrorMessage("ORGANIZER_ONLY", { action: "update", subject: "Event" }),
+        },
+      });
+    });
+
+    it("gives a caller with no access the bare 403, with the denied action as the reason it logs", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
+
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
+        new ForbiddenException(RESPONSE_TEMPLATES.ACCESS_DENIED("update", "Event")),
+      );
     });
   });
 
@@ -1658,7 +1668,9 @@ describe("EventsService", () => {
     it("does not attempt update when the caller lacks organizer access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(ForbiddenException);
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
 
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
@@ -1667,7 +1679,9 @@ describe("EventsService", () => {
     it("performs the authorization check even when the dto is empty", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.update(eventId, callerId, emptyUpdateDto)).rejects.toThrow(ForbiddenException);
+      await expect(service.update(eventId, callerId, emptyUpdateDto)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
 
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
@@ -1685,7 +1699,7 @@ describe("EventsService", () => {
     it("throws when the caller has no event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(new ForbiddenException());
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(ForbiddenException);
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
     });
@@ -1693,14 +1707,18 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(new ForbiddenException());
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
     it("throws when the caller is a viewer", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
 
-      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toThrow(new ForbiddenException());
+      await expect(service.update(eventId, callerId, updateTitleDto)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
 
@@ -1787,7 +1805,9 @@ describe("EventsService", () => {
     ])("refuses a %s, changing nothing", async (_, access) => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [access]));
 
-      await expect(service.deactivate(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.deactivate(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(prisma.event.updateMany).not.toHaveBeenCalled();
     });
 
@@ -1946,7 +1966,7 @@ describe("EventsService", () => {
     it("does not attempt delete when the caller lacks organizer access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      await expect(service.delete(eventId, callerId)).rejects.toMatchObject({ response: { code: "ORGANIZER_ONLY" } });
 
       expect(prisma.event.delete).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
@@ -1965,7 +1985,7 @@ describe("EventsService", () => {
     it("throws when the caller has no event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.delete(eventId, callerId)).rejects.toThrow(ForbiddenException);
       expect(prisma.event.delete).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
     });
@@ -1973,14 +1993,14 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.delete(eventId, callerId)).rejects.toMatchObject({ response: { code: "ORGANIZER_ONLY" } });
       expect(prisma.event.delete).not.toHaveBeenCalled();
     });
 
     it("throws when the caller is a viewer", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
 
-      await expect(service.delete(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.delete(eventId, callerId)).rejects.toMatchObject({ response: { code: "ORGANIZER_ONLY" } });
       expect(prisma.event.delete).not.toHaveBeenCalled();
     });
 
@@ -2125,13 +2145,17 @@ describe("EventsService", () => {
 
     it("does not attempt update when the caller lacks organizer access", async () => {
       prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
 
       prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
 
@@ -2157,7 +2181,7 @@ describe("EventsService", () => {
     it("throws when the caller has no event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
@@ -2166,7 +2190,9 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
@@ -2175,7 +2201,9 @@ describe("EventsService", () => {
     it("throws when the caller is a viewer", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [viewerAccess]));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
 
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
@@ -2184,7 +2212,7 @@ describe("EventsService", () => {
     it("throws when the creator has no organizer event access", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
     });
 
     it("checks that the event exists before checking access", async () => {
@@ -2232,7 +2260,9 @@ describe("EventsService", () => {
 
       await expect(service.findOne(eventId, callerId)).resolves.toEqual(eventCreatedByUser);
 
-      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      await expect(service.regenerateInvitationUrl(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(prisma.eventInvite.update).not.toHaveBeenCalled();
       expect(prisma.event.update).not.toHaveBeenCalled();
     });
@@ -2506,7 +2536,9 @@ describe("EventsService", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [organizerAccess]));
       prisma.eventAccess.count.mockResolvedValue(1);
 
-      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(new UnprocessableEntityException());
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "LAST_ORGANIZER" },
+      });
 
       expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
     });
@@ -2514,7 +2546,7 @@ describe("EventsService", () => {
     it("treats the creator without an event access row as not a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toMatchObject({ response: { code: "NOT_A_MEMBER" } });
 
       expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
     });
@@ -2532,7 +2564,7 @@ describe("EventsService", () => {
     it("throws when the caller has no event access row", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.leaveEvent(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      await expect(service.leaveEvent(eventId, callerId)).rejects.toMatchObject({ response: { code: "NOT_A_MEMBER" } });
 
       expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
     });
@@ -2557,7 +2589,7 @@ describe("EventsService", () => {
 
       prisma.event.findUnique.mockResolvedValueOnce(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -2723,7 +2755,7 @@ describe("EventsService", () => {
     it("throws when the caller is unrelated to the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.getEventParticipants(eventId, otherUserId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.getEventParticipants(eventId, otherUserId)).rejects.toThrow(ForbiddenException);
 
       expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
     });
@@ -2845,7 +2877,7 @@ describe("EventsService", () => {
 
       await expect(
         service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.PARTICIPANT),
-      ).rejects.toThrow(new UnprocessableEntityException());
+      ).rejects.toMatchObject({ response: { code: "LAST_ORGANIZER" } });
 
       expect(prisma.eventAccess.update).not.toHaveBeenCalled();
     });
@@ -2853,9 +2885,9 @@ describe("EventsService", () => {
     it("blocks the caller from modifying their own access level", async () => {
       setupOrganizerUpdate();
 
-      await expect(service.updateUserAccessLevel(eventId, callerId, callerId, AccessLevel.PARTICIPANT)).rejects.toThrow(
-        new ForbiddenException(),
-      );
+      await expect(
+        service.updateUserAccessLevel(eventId, callerId, callerId, AccessLevel.PARTICIPANT),
+      ).rejects.toMatchObject({ response: { code: "CANNOT_CHANGE_OWN_ROLE" } });
 
       expect(prisma.eventAccess.update).not.toHaveBeenCalled();
     });
@@ -2889,18 +2921,18 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
-        new ForbiddenException(),
-      );
+      await expect(
+        service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER),
+      ).rejects.toMatchObject({ response: { code: "ORGANIZER_ONLY" } });
     });
 
     it("throws when the target is not a member of the event", async () => {
       setupOrganizerUpdate();
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
-      await expect(service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER)).rejects.toThrow(
-        new ForbiddenException(),
-      );
+      await expect(
+        service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER),
+      ).rejects.toMatchObject({ response: { code: "TARGET_NOT_A_MEMBER" } });
     });
 
     it("re-throws unexpected database errors when updating access level", async () => {
@@ -2932,7 +2964,9 @@ describe("EventsService", () => {
 
       await expect(service.findOne(eventId, targetUserId)).resolves.toEqual(eventCreatedByUser);
 
-      await expect(service.update(eventId, targetUserId, updateTitleDto)).rejects.toThrow(ForbiddenException);
+      await expect(service.update(eventId, targetUserId, updateTitleDto)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
     });
   });
 
@@ -2953,7 +2987,7 @@ describe("EventsService", () => {
     it("is for organizers only", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.listBans(eventId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.listBans(eventId, callerId)).rejects.toMatchObject({ response: { code: "ORGANIZER_ONLY" } });
       expect(prisma.eventBan.findMany).not.toHaveBeenCalled();
     });
   });
@@ -2983,7 +3017,9 @@ describe("EventsService", () => {
     it("is for organizers only", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.liftBan(eventId, callerId, targetUserId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.liftBan(eventId, callerId, targetUserId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(prisma.eventBan.deleteMany).not.toHaveBeenCalled();
     });
   });
@@ -3112,9 +3148,9 @@ describe("EventsService", () => {
       setupOrganizerRemove({ ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER });
       prisma.eventAccess.count.mockResolvedValue(1);
 
-      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
-        new UnprocessableEntityException(),
-      );
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toMatchObject({
+        response: { code: "LAST_ORGANIZER" },
+      });
 
       expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
     });
@@ -3122,7 +3158,9 @@ describe("EventsService", () => {
     it("blocks self-removal via removeUserFromEvent", async () => {
       setupOrganizerRemove();
 
-      await expect(service.removeUserFromEvent(eventId, callerId, callerId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.removeUserFromEvent(eventId, callerId, callerId)).rejects.toMatchObject({
+        response: { code: "CANNOT_REMOVE_SELF" },
+      });
 
       expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
     });
@@ -3145,18 +3183,18 @@ describe("EventsService", () => {
     it("throws when the caller is a participant", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
 
-      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(),
-      );
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
     });
 
     it("throws when the target is not a member of the event", async () => {
       setupOrganizerRemove();
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
-      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(),
-      );
+      await expect(service.removeUserFromEvent(eventId, callerId, targetUserId)).rejects.toMatchObject({
+        response: { code: "TARGET_NOT_A_MEMBER" },
+      });
     });
 
     it("re-throws unexpected database errors when deleting event access", async () => {
@@ -3177,7 +3215,7 @@ describe("EventsService", () => {
 
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(new ForbiddenException());
+      await expect(service.findOne(eventId, targetUserId)).rejects.toThrow(ForbiddenException);
     });
 
     it("uses leaveEvent for self-removal instead of removeUserFromEvent", async () => {
@@ -3198,9 +3236,9 @@ describe("EventsService", () => {
       };
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [targetOrganizerAccess]));
 
-      await expect(service.removeUserFromEvent(eventId, targetUserId, targetUserId)).rejects.toThrow(
-        new ForbiddenException(),
-      );
+      await expect(service.removeUserFromEvent(eventId, targetUserId, targetUserId)).rejects.toMatchObject({
+        response: { code: "CANNOT_REMOVE_SELF" },
+      });
     });
   });
 });

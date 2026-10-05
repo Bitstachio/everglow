@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -65,7 +65,9 @@ describe("BlocksService", () => {
     });
 
     it("refuses a self-block without touching the database", async () => {
-      await expect(service.blockUser(callerId, callerId)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.blockUser(callerId, callerId)).rejects.toMatchObject({
+        response: { code: "CANNOT_BLOCK_SELF" },
+      });
       expect(prisma.eventAccess.findFirst).not.toHaveBeenCalled();
       expect(prisma.userBlock.createMany).not.toHaveBeenCalled();
     });

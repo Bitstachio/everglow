@@ -107,7 +107,7 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 Rules:
 
 - **Any member may report**, viewers included. Authorization is CASL (`api/src/moderation/reports.abilities.ts`): `create` for members filing in their own name, `read` and `update` for organizers of the report's event.
-- **Not yourself**, and not your own photo: 403.
+- **Not yourself**, and not your own photo: 403 `CANNOT_REPORT_SELF`. A member report of someone who isn't a member (anymore) is 403 `TARGET_NOT_A_MEMBER`.
 - **The photo must be visible to the reporter.** A photo they cannot see (a blocked uploader, or one already hidden from everyone) is a 404, exactly as `GET /photos/:photoId` would answer. The one exception is a photo hidden by their own OPEN report: that is a repeat, and it gets the report back.
 - **Repeats are idempotent.** While the caller's earlier report on the same target is OPEN, `POST` returns that report with 201 and creates nothing. The reason and note of the first submission stand.
 - **Reporters are anonymous to organizers.** `ReportResponseDto` has no `reporterId`. In a small event an organizer who learns who reported them can retaliate; the id stays in the database and in the audit log (§5) for the platform owner.
@@ -123,9 +123,9 @@ Rules:
   "The target" is the photo for a photo report, the member for a member report, and for `REMOVE_MEMBER` everything reported about that member in the event, photos included. One verdict closes them all, so a photo reported by five people is one decision, not five. A report whose target has since been deleted closes just itself.
 
 - **Deleting a photo closes its reports.** However a photo goes (`DELETE /photos/:photoId` by its uploader or an organizer, an organizer's `REMOVE_PHOTO`, or account deletion with `?photos=DELETE`), its OPEN reports become `ACTIONED` in the same transaction, resolved by whoever deleted it (`closeReportsOnDeletedPhotos`). There is nothing left to judge, and a report whose photo is gone could otherwise only be dismissed by hand, or by nobody when the uploader is the event's only organizer. `photo.deleted` logs `uploaderId` and `closedReports`, so an organizer deleting a photo reported against them stays visible in the audit log; the report was already escalated when it was filed (§5).
-- **A removal needs something to remove.** `REMOVE_PHOTO` when the photo is already gone, or `REMOVE_MEMBER` when the account is gone, is a 422; `DISMISS` closes such a report. The photo's S3 object is deleted after the transaction commits. If that fails the call still succeeds, a `report.photo_object_retained` warning is logged, and the orphan reconciler removes the object later.
-- **An organizer cannot resolve a report about themselves** or about their own photo: 403. Another organizer has to. If there is none, the report stays OPEN, which is one reason such reports are escalated at creation (§5).
-- **A report is resolved once.** The update is guarded on `status = OPEN`; a second verdict, including one racing the first, gets 409 and removes nothing.
+- **A removal needs something to remove.** `REMOVE_PHOTO` when the photo is already gone, or `REMOVE_MEMBER` when the account is gone, is a 422 (`REPORTED_PHOTO_GONE`, `REPORTED_MEMBER_GONE`); `DISMISS` closes such a report. The photo's S3 object is deleted after the transaction commits. If that fails the call still succeeds, a `report.photo_object_retained` warning is logged, and the orphan reconciler removes the object later.
+- **An organizer cannot resolve a report about themselves** or about their own photo: 403 `CANNOT_RESOLVE_OWN_REPORT`. Another organizer has to. A member who isn't an organizer gets 403 `ORGANIZER_ONLY`, for listing reports too. If there is none, the report stays OPEN, which is one reason such reports are escalated at creation (§5).
+- **A report is resolved once.** The update is guarded on `status = OPEN`; a second verdict, including one racing the first, gets 409 `REPORT_ALREADY_RESOLVED` and removes nothing.
 - The list uses the same keyset pagination as the photo list (`api/src/common/pagination`).
 
 ### Reporting the event itself
@@ -236,7 +236,7 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 | `DELETE /users/me/blocks/:userId` | 204                                                       |
 | `GET /users/me/blocks`            | 200, `{ items: [{ userId, name, username, blockedAt }] }` |
 
-- **Only someone you share an event with.** Anyone else gets the same 404 as a user id that does not exist, so the endpoint cannot be used to find out which ids are real. Blocking yourself is a 403.
+- **Only someone you share an event with.** Anyone else gets the same 404 as a user id that does not exist, so the endpoint cannot be used to find out which ids are real. Blocking yourself is a 403 `CANNOT_BLOCK_SELF`.
 - **Both writes are idempotent.** Blocking twice returns the existing block (`ON CONFLICT DO NOTHING` on the unique pair, so two requests at once leave one row); unblocking someone who is not blocked is a 204.
 - **Silent.** The blocked user is never notified, no response of theirs changes shape, and no error tells them apart from anyone else.
 - **Symmetric in effect.** Photos uploaded by someone I blocked are gone from my list and single reads in every event, and mine are gone from theirs. A photo whose uploader's account was deleted (`addedById` null) matches no block.

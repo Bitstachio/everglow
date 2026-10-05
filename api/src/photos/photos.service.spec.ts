@@ -169,7 +169,9 @@ describe("PhotosService", () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
-      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toMatchObject({
+        response: { code: "VIEWER_CANNOT_UPLOAD" },
+      });
       expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
     });
 
@@ -194,7 +196,7 @@ describe("PhotosService", () => {
       prisma.user.findUnique.mockResolvedValue(callerWithoutDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("ORGANIZER")]) as never);
 
-      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toThrow(ForbiddenException);
       expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
       expect(prisma.photo.createMany).not.toHaveBeenCalled();
     });
@@ -341,7 +343,9 @@ describe("PhotosService", () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
-      await expect(service.confirmUploads(eventId, callerId, [photoId])).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.confirmUploads(eventId, callerId, [photoId])).rejects.toMatchObject({
+        response: { code: "VIEWER_CANNOT_UPLOAD" },
+      });
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
     });
 
@@ -648,7 +652,7 @@ describe("PhotosService", () => {
       prisma.user.findUnique.mockResolvedValue(callerWithoutDetails);
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
 
-      await expect(service.listPhotos(eventId, callerId, {})).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.listPhotos(eventId, callerId, {})).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -753,7 +757,9 @@ describe("PhotosService", () => {
         }) as never,
       );
 
-      await expect(service.deletePhoto(photoId, callerId)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.deletePhoto(photoId, callerId)).rejects.toMatchObject({
+        response: { code: "ORGANIZER_ONLY" },
+      });
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
       expect(prisma.photo.delete).not.toHaveBeenCalled();
     });

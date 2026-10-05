@@ -1,6 +1,7 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { ApiException } from "src/common/errors/api.exception";
 import { PrismaService } from "src/prisma/prisma.service";
 import { BlockWithBlockedUser, blockWithBlockedUserInclude } from "./moderation.types";
 
@@ -19,7 +20,7 @@ export class BlocksService {
   }
 
   async blockUser(callerId: string, targetUserId: string): Promise<BlockWithBlockedUser> {
-    if (targetUserId === callerId) throw new ForbiddenException();
+    if (targetUserId === callerId) throw new ApiException("CANNOT_BLOCK_SELF");
 
     // Only someone the caller shares an event with can be blocked. A stranger
     // and an id that does not exist get the same 404, so the endpoint cannot
