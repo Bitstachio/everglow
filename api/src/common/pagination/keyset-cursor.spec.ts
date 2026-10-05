@@ -42,8 +42,10 @@ describe("keyset cursor", () => {
       ]);
     });
 
-    it("rejects a malformed cursor with 400", () => {
-      expect(() => keysetAfter("not-a-cursor")).toThrow(BadRequestException);
+    it("rejects a malformed cursor with 400, saying which value", () => {
+      expect(() => keysetAfter("not-a-cursor")).toThrow(
+        new BadRequestException('cursor "not-a-cursor" is not a valid format'),
+      );
     });
   });
 

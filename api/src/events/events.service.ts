@@ -27,7 +27,7 @@ import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-
 import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { latestEventDate } from "./events.constants";
+import { EVENT_DATE_MAX_MONTHS_AHEAD, latestEventDate } from "./events.constants";
 import {
   EventAccessWithUser,
   EventBanWithUser,
@@ -313,7 +313,13 @@ export class EventsService {
   /** Any past date is allowed; a future one at most EVENT_DATE_MAX_MONTHS_AHEAD months away. */
   private assertDateInRange(date: Date, now: Date): void {
     if (date.getTime() <= latestEventDate(now).getTime()) return;
-    throw new BadRequestException();
+    throw new BadRequestException(
+      RESPONSE_TEMPLATES.INVALID_VALUE(
+        "date",
+        date.toISOString(),
+        `at most ${EVENT_DATE_MAX_MONTHS_AHEAD} months ahead`,
+      ),
+    );
   }
 
   /**

@@ -157,8 +157,10 @@ example `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id)`). Do not
 inline an equivalent string. Omit the message when status alone is enough
 (`throw new UnauthorizedException()`). Match template to status: not-found
 throws use `RESOURCE.NOT_FOUND`, format-style bad requests use
-`INVALID_FORMAT`, and so on—do not pass a bad-request template into
-`NotFoundException`.
+`INVALID_FORMAT`, a value outside what is allowed uses `INVALID_VALUE`, and
+so on—do not pass a bad-request template into `NotFoundException`. The
+message is what the request's log line gives as `errorReason`, so write it
+for whoever traces the request: name the field and the value.
 
 **Lint** (`api/eslint.config.mjs`): outside tests, Nest HTTP exception
 constructors may only take no argument or the matching
@@ -166,14 +168,14 @@ constructors may only take no argument or the matching
 helper. Specs are exempt so filter tests can pass raw Nest messages.
 TypeScript cannot enforce this — Nest’s constructors accept `any`.
 
-| Exception                      | Allowed first argument                                    |
-| ------------------------------ | --------------------------------------------------------- |
-| `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or none      |
-| `ConflictException`            | `RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(...)` or none |
-| `BadRequestException`          | `RESPONSE_TEMPLATES.INVALID_FORMAT(...)` or none          |
-| `ForbiddenException`           | none                                                      |
-| `UnauthorizedException`        | none                                                      |
-| `UnprocessableEntityException` | none                                                      |
+| Exception                      | Allowed first argument                                                   |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or none                     |
+| `ConflictException`            | `RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(...)` or none                |
+| `BadRequestException`          | `RESPONSE_TEMPLATES.INVALID_FORMAT(...)` or `INVALID_VALUE(...)` or none |
+| `ForbiddenException`           | none                                                                     |
+| `UnauthorizedException`        | none                                                                     |
+| `UnprocessableEntityException` | none                                                                     |
 
 ### Do not
 
@@ -231,11 +233,13 @@ Rules:
   `ApiException`, `RateLimitExceededException` → `RATE_LIMIT_EXCEEDED`).
 - For the generic fill-in, the client-facing `message` comes from the registry —
   not from Nest constructor strings (those are not a client contract).
-- Before that replacement, the filter logs the original Nest `message`:
-  uncoded **4xx** at **debug** (expected client faults; detail stays available
-  when debug is on), uncoded **5xx** at **error** with
-  `REQUEST_UNHANDLED_ERROR` (same alert path as unhandled throws — debug is
-  off in production).
+- What the client does not see goes to the logs. For every error the filter
+  records `errorCode` and `errorReason` on the response, and the request's
+  completion line carries them, at `warn` for a 4xx and `error` for a 5xx (see
+  [logging-conventions.md](./logging-conventions.md) §2). The reason is the
+  exception's own message, or a validation failure's field errors.
+- An uncoded **5xx** also gets its own **error** line with the stack and
+  `REQUEST_UNHANDLED_ERROR`, the same alert path as an unhandled throw.
 - Unhandled non-HTTP failures still log server-side at **error**; the client
   only sees `INTERNAL_ERROR` and the registry message (no stack / internal
   detail).

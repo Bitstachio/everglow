@@ -918,8 +918,8 @@ describe("ReportsService", () => {
       it("rejects REMOVE_PHOTO on a report about a member", async () => {
         setup(reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.MEMBER, photoId: null }));
 
-        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toBeInstanceOf(
-          BadRequestException,
+        await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).rejects.toThrow(
+          new BadRequestException('action "REMOVE_PHOTO" must be used on photo reports only'),
         );
         expect(prisma.$transaction).not.toHaveBeenCalled();
       });
@@ -1092,8 +1092,8 @@ describe("ReportsService", () => {
     });
 
     it.each(["REMOVE_PHOTO", "DISMISS"] as const)("rejects photos with %s, which removes no member", async (action) => {
-      await expect(service.resolveReport(reportId, callerId, action, "DELETE")).rejects.toBeInstanceOf(
-        BadRequestException,
+      await expect(service.resolveReport(reportId, callerId, action, "DELETE")).rejects.toThrow(
+        new BadRequestException('photos "DELETE" must be sent only with REMOVE_MEMBER'),
       );
       expect(prisma.report.findUnique).not.toHaveBeenCalled();
     });

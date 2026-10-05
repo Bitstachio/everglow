@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 
 /** The sort position a page ends at: the keyset for `createdAt DESC, id DESC`. */
 export interface KeysetCursor {
@@ -47,7 +48,7 @@ export const decodeKeysetCursor = (cursor: string): KeysetCursor => {
     // than silently landing on a slightly different page.
     createdAt.toISOString() === timestamp;
 
-  if (!valid) throw new BadRequestException();
+  if (!valid) throw new BadRequestException(RESPONSE_TEMPLATES.INVALID_FORMAT("cursor", cursor));
 
   return { createdAt, id };
 };

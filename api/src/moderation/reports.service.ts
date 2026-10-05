@@ -221,7 +221,9 @@ export class ReportsService {
     memberPhotos?: MemberPhotos,
   ): Promise<Report> {
     if (memberPhotos && action !== REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER) {
-      throw new BadRequestException();
+      throw new BadRequestException(
+        RESPONSE_TEMPLATES.INVALID_VALUE("photos", memberPhotos, "sent only with REMOVE_MEMBER"),
+      );
     }
 
     const loaded = await this.prisma.report.findUnique({
@@ -365,7 +367,7 @@ export class ReportsService {
     action: ReportResolutionAction,
   ): Promise<{ id: string; s3Key: string } | null> {
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO && report.targetType !== ReportTargetType.PHOTO) {
-      throw new BadRequestException();
+      throw new BadRequestException(RESPONSE_TEMPLATES.INVALID_VALUE("action", action, "used on photo reports only"));
     }
     if (action === REPORT_RESOLUTION_ACTIONS.DISMISS || report.targetType !== ReportTargetType.PHOTO) return null;
 
