@@ -23,6 +23,7 @@ describe("AccountDeletionPrepService", () => {
     photosDeleted: 0,
     reportsClosed: 0,
     memberReportsClosed: 0,
+    reportsEscalated: 0,
     uploadsDiscarded: 0,
     avatarQueued: false,
   };
@@ -37,6 +38,7 @@ describe("AccountDeletionPrepService", () => {
     prisma.$queryRaw.mockResolvedValue([{ underReviewAt: null }]);
     prisma.report.count.mockResolvedValue(0);
     prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    prisma.report.findMany.mockResolvedValue([]);
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
@@ -249,11 +251,21 @@ describe("AccountDeletionPrepService", () => {
 
     it("closes the OPEN reports on the photos it removes, before removing them", async () => {
       prisma.report.updateMany.mockResolvedValue({ count: 2 });
+      prisma.report.findMany.mockResolvedValueOnce([
+        {
+          id: "r-1",
+          photoId: readyPhotoId,
+          queue: "ORGANIZERS",
+          reason: "SPAM",
+          reporterId: null,
+          reportedUserId: userId,
+        },
+      ] as never);
 
       const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.DELETE);
 
       expect(prisma.report.updateMany).toHaveBeenCalledWith({
-        where: { photoId: { in: [readyPhotoId] }, status: "OPEN" },
+        where: { id: { in: ["r-1"] }, status: "OPEN" },
         data: {
           status: "TARGET_GONE",
           closedReason: "PHOTO_DELETED",

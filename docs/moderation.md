@@ -22,7 +22,7 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 | Part                                                                                                           | Status                  | Issue                                                                                                                                                                                                        |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits                  | Built                   | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
-| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                        | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
+| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                        | Built                   | [EV-114](https://linear.app/mehrshadfb/issue/EV-114)                                                                                                                                                         |
 | Report history: reports outlive their event, and record why and by whom they closed (§1, §3)                   | Built, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
 | Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                  | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
 | Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                      | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
@@ -61,10 +61,10 @@ model Report {
   reason             // SPAM | NUDITY_OR_SEXUAL | HARASSMENT | VIOLENCE | OTHER
                      //   + CHILD_SAFETY | NON_CONSENSUAL_INTIMATE_IMAGE (planned, EV-62)
   note?              // VarChar(500)
-  queue              // ORGANIZERS | PLATFORM (planned, §3)
-  escalationReasons  // ReportEscalationReason[], stored (today only logged; planned, §3)
-  escalatedAt?       // when it moved to PLATFORM (planned)
-  overdueAlertedAt?  // when the platform was told it is overdue (planned, §9)
+  queue              // ORGANIZERS | PLATFORM (§3)
+  escalationReasons  // ReportEscalation[]: why it reached the platform, logged lowercase (§9)
+  escalatedAt?       // when it moved to PLATFORM, or was filed there
+  overdueAlertedAt?  // when the platform was told it is overdue (§9)
   status             // OPEN | ACTIONED | DISMISSED | TARGET_GONE
   closedReason?      // why it closed (§3)
   closedByRole?      // ORGANIZER | PLATFORM | SUBJECT | SYSTEM (§3)
@@ -162,7 +162,7 @@ The photo index needs no `targetType` predicate: MEMBER reports have a null `pho
 | Index                                                             | Serves                                                                                    |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `(eventId, status, createdAt)`                                    | The organizer queue, and the per-event lookup of photos over the hide threshold (§5)      |
-| `(queue, status, escalatedAt)`                                    | Planned. The platform queue, oldest first, and the overdue check (§9)                     |
+| `(queue, status, escalatedAt)`                                    | The platform queue, oldest first, and the overdue check (§9)                              |
 | `(reporterId, photoId) WHERE OPEN` (unique)                       | Idempotency, and "which photos has the caller an open report on?" in the photo read paths |
 | `(photoId)`, `(reporterId)`, `(reportedUserId)`, `(resolvedById)` | The rows each `SET NULL` has to find when a photo or an account is deleted                |
 | `(status, resolvedAt)`                                            | The retention purge (§7); holds are checked per row                                       |
@@ -213,7 +213,7 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 
 ## 3. Who handles a report
 
-**Planned**, except where marked built. Today every PHOTO and MEMBER report is the organizers' alone until the logs alert the platform owner (§9).
+Built ([EV-114](https://linear.app/mehrshadfb/issue/EV-114)), except the reasons and the screening that are still planned (§2, §11). The routing is `ReportsService.createReport`; the moves are `escalateToPlatform` (`api/src/moderation/report-escalation.ts`), called from the hourly check, the gallery close job, a severe dismissal, a promotion and the delete paths.
 
 ### Where a report starts
 
@@ -267,7 +267,7 @@ Closing a report is an action, not a label (built). The closer says what to do, 
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | `REMOVE_PHOTO`  | Deletes the reported photo. Photo reports only; on a member report it is a 400.                                                                                                             | `ACTIONED`, `PHOTO_REMOVED`  |
 | `REMOVE_MEMBER` | Removes the reported member from the event and bans them from rejoining (§6), and for a photo report deletes that photo too. `photos: DELETE` also deletes their other photos in the event. | `ACTIONED`, `MEMBER_REMOVED` |
-| `DISMISS`       | Nothing. The content stays, and a photo hidden by its reports is back. A severe report moves to the platform instead of closing (planned).                                                  | `DISMISSED`, `DISMISSED`     |
+| `DISMISS`       | Nothing. The content stays, and a photo hidden by its reports is back. A severe report moves to the platform instead of closing.                                                            | `DISMISSED`, `DISMISSED`     |
 
 The platform has these and more (§8).
 
@@ -285,8 +285,8 @@ Some reports close because their target went away, not because anyone judged the
 - **A reported photo is deleted** by any path: `DELETE /photos/:photoId`, leaving or removal with `photos=DELETE`, or account deletion with `?photos=DELETE`.
   - **If the person deleting may close every OPEN report on it, the delete is that verdict.** For example, an organizer deleting someone else's reported photo closes its reports as `PHOTO_REMOVED` by `ORGANIZER`, as `REMOVE_PHOTO` would.
   - **Otherwise the evidence is kept (§7).** Non-severe `ORGANIZERS` reports close as `TARGET_GONE`, `PHOTO_DELETED`, by `SUBJECT` when the uploader deleted it and by `ORGANIZER` or `SYSTEM` otherwise. Every other OPEN report stays open, moves to `PLATFORM` (`target_deleted`), and is judged on its evidence. Deleting a photo hides it from everyone; it doesn't make a serious report go away.
-  - Built so far (`closeReportsOnDeletedPhotos`, `api/src/moderation/report-closure.ts`): an organizer's delete closes the reports as `PHOTO_REMOVED`, and any other delete closes them all as `TARGET_GONE`, `PHOTO_DELETED`. Keeping evidence and moving severe reports to the platform are planned ([EV-61](https://linear.app/mehrshadfb/issue/EV-61), §3).
-- **A reported member's account is deleted.** Their non-severe MEMBER reports close as `TARGET_GONE`, `ACCOUNT_DELETED`, by `SYSTEM` (built). Severe ones stay open and move to `PLATFORM` (planned). Their PHOTO reports follow the photos: with `KEEP` nothing changes, and with `DELETE` the rule above applies.
+  - `closeReportsOnDeletedPhotos` (`api/src/moderation/report-closure.ts`) decides this per photo, inside the transaction that deletes it.
+- **A reported member's account is deleted.** Their non-severe MEMBER reports close as `TARGET_GONE`, `ACCOUNT_DELETED`, by `SYSTEM`. Severe ones stay open and move to `PLATFORM`. Their PHOTO reports follow the photos: with `KEEP` nothing changes, and with `DELETE` the rule above applies.
 
 ### How a report closes
 
@@ -467,7 +467,7 @@ A ban cascades with the event and with the banned account, and `bannedById` beco
 
 Every event has two invite links, **Participant** and **Viewer** (`EventInvite`). There is no organizer link: a link can be forwarded or leak, and an organizer can remove people and delete the event. **Someone becomes an organizer only when an organizer promotes a member** (`PUT /events/:eventId/participants/:targetUserId/access`). The last organizer can't be demoted (`LAST_ORGANIZER`).
 
-- Promoting a member moves their OPEN reports to the platform (§3, planned).
+- Promoting a member moves their OPEN reports to the platform (§3).
 - `POST /events/:eventId/invites/:accessLevel/regenerate` accepts `PARTICIPANT` and `VIEWER`; `ORGANIZER` is a 400.
 - Organizer links created before this rule were deleted by a migration. A leftover token reads as an unknown link (404).
 
@@ -567,14 +567,14 @@ What they can do:
 
 Alerting keys off stable event names in the logs. **The alerts only work once they reach a person**: the log platform and its routing to email and paging are in [alerting.md](../api/docs/alerting.md).
 
-| Event                                      | Level   | When                                                                                                          | Fields                                                                                                                                                                                |
-| ------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `report.created`                           | `info`  | every new report                                                                                              | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `reason`, `queue`, `audit`                                                                              |
-| `report.escalated`                         | `warn`  | a report that needs the platform, at filing or when it moves (§3)                                             | the same, plus `escalationReasons`                                                                                                                                                    |
-| `report.resolved`                          | `info`  | a verdict                                                                                                     | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `action`, `closedReason`, `closedByRole`, `closedReports`, `removedPhotoId`, `removedMemberId`, `audit` |
-| `report.stale`                             | `warn`  | hourly, while any report has been in `PLATFORM` over 24 hours (planned; today: any OPEN report over 24 hours) | `stale` (the count), `reportIds` and `eventIds` of the 20 oldest, `oldestEscalatedAt`, `audit`                                                                                        |
-| `report.evidence_copy_failed`              | `error` | planned: a quarantine copy failed and the original was kept (§7)                                              | `reportId`, `photoId`, `err`                                                                                                                                                          |
-| `user.block.created`, `user.block.removed` | `info`  | the block list changed                                                                                        | `callerId`, `blockedUserId`, `audit`                                                                                                                                                  |
+| Event                                      | Level   | When                                                              | Fields                                                                                                                                                                                |
+| ------------------------------------------ | ------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report.created`                           | `info`  | every new report                                                  | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `reason`, `queue`, `audit`                                                                              |
+| `report.escalated`                         | `warn`  | a report that needs the platform, at filing or when it moves (§3) | the same, plus `escalationReasons`                                                                                                                                                    |
+| `report.resolved`                          | `info`  | a verdict                                                         | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `action`, `closedReason`, `closedByRole`, `closedReports`, `removedPhotoId`, `removedMemberId`, `audit` |
+| `report.stale`                             | `warn`  | hourly, once per report that has been in `PLATFORM` over 24 hours | `stale` (the count), `reportIds` and `eventIds` of the 20 oldest, `oldestEscalatedAt`, `audit`                                                                                        |
+| `report.evidence.copy_failed`              | `error` | a quarantine copy failed and the original was kept (§7)           | `reportId`, `err`                                                                                                                                                                     |
+| `user.block.created`, `user.block.removed` | `info`  | the block list changed                                            | `callerId`, `blockedUserId`, `audit`                                                                                                                                                  |
 
 **`report.escalated` and `report.stale` are the alerts** (tickets, see [alerting.md §3](../api/docs/alerting.md#3-events-to-alert-on)); the rest are audit records.
 
@@ -594,10 +594,10 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 | `target_is_event`          | Every report about the event itself (§4).                                                                                                |
 | `hide_threshold_reached`   | This report is the one that hid the photo from the event.                                                                                |
 | `event_under_review`       | This report put the event under review (§4): joins and new photos are refused until the platform lifts it. Urgent.                       |
-| `organizer_timeout`        | Planned. Organizers left it OPEN for 24 hours.                                                                                           |
-| `gallery_closed`           | Planned. The gallery closed with the report OPEN, or it was filed after close.                                                           |
-| `severe_dismissed`         | Planned. An organizer dismissed a severe report.                                                                                         |
-| `target_deleted`           | Planned. The photo or account was deleted without a verdict, and the report is severe or already with the platform.                      |
+| `organizer_timeout`        | Organizers left it OPEN for 24 hours.                                                                                                    |
+| `gallery_closed`           | The gallery closed with the report OPEN, or it was filed after close.                                                                    |
+| `severe_dismissed`         | An organizer dismissed a severe report.                                                                                                  |
+| `target_deleted`           | The photo or account was deleted without a verdict, and the report is severe or already with the platform.                               |
 | `automated_flag`           | Planned. Upload screening flagged the photo (§11).                                                                                       |
 
 A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged.

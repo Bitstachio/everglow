@@ -19,6 +19,10 @@ export const MODERATION_API_ERRORS = {
     status: HttpStatus.CONFLICT,
     message: ({ reportId }: { reportId: string }) => `Report "${reportId}" was resolved by someone else first`,
   },
+  REPORT_ESCALATED: {
+    status: HttpStatus.FORBIDDEN,
+    message: ({ reportId }: { reportId: string }) => `Report "${reportId}" is with the platform`,
+  },
   REPORT_CHANGED_CONCURRENTLY: {
     status: HttpStatus.CONFLICT,
     message: "The caller's open report on this target was resolved while a new one was being filed",

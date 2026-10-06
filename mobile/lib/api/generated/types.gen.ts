@@ -234,6 +234,11 @@ export type ReportReason = "SPAM" | "NUDITY_OR_SEXUAL" | "HARASSMENT" | "VIOLENC
 export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED" | "TARGET_GONE";
 
 /**
+ * Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).
+ */
+export type ReportQueue = "ORGANIZERS" | "PLATFORM";
+
+/**
  * Why the report closed. Null while OPEN, and on reports closed before it was recorded.
  */
 export type ReportClosedReason =
@@ -276,6 +281,10 @@ export type ReportResponseDto = {
    * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
    */
   status: ReportStatus;
+  /**
+   * Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).
+   */
+  queue: ReportQueue;
   /**
    * Why the report closed. Null while OPEN, and on reports closed before it was recorded.
    */
@@ -580,6 +589,7 @@ export type ApiErrorDto = {
     | "REPORTED_PHOTO_GONE"
     | "REPORT_ALREADY_RESOLVED"
     | "REPORT_CHANGED_CONCURRENTLY"
+    | "REPORT_ESCALATED"
     | "STORAGE_RESERVATION_CONFLICT"
     | "TARGET_NOT_A_MEMBER"
     | "TOO_MANY_REQUESTS"

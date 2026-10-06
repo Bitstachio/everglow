@@ -9,6 +9,9 @@ import {
   Prisma,
   Report,
   ReportActorRole,
+  ReportEscalation,
+  ReportQueue,
+  ReportReason,
   ReportStatus,
   ReportTargetType,
 } from "generated/prisma/client";
@@ -23,17 +26,16 @@ import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/comm
 import { MEMBER_PHOTOS, type MemberPhotos, removeMemberInTransaction } from "src/events/event-membership";
 import { eventWithCallerAccessInclude } from "src/events/events.types";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
+import { GALLERY_STATES, galleryStateOf } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { CreateReportDto } from "./dto/create-report.dto";
 import { EvidenceService, EvidenceSnapshot } from "./evidence/evidence.service";
 import { ListReportsQueryDto } from "./dto/list-reports-query.dto";
 import {
-  REPORT_ESCALATION_REASONS,
   REPORT_RESOLUTION_ACTIONS,
   RESOLUTION_CLOSED_REASON,
   RESOLUTION_STATUS,
-  ReportEscalationReason,
   ReportResolutionAction,
   SEVERE_REPORT_REASONS,
   STALE_REPORT_AFTER_HOURS,
@@ -43,6 +45,7 @@ import {
 } from "./moderation.constants";
 import { eventForPhotoVisibilityInclude } from "./moderation.types";
 import { PhotoVisibilityService } from "./photo-visibility.service";
+import { PLATFORM_ESCALATIONS, escalateToPlatform, escalationLogName, logEscalations } from "./report-escalation";
 import { REPORT_ACTIONS, REPORT_SUBJECT } from "./reports.abilities";
 
 /** What a new report points at; `photoId` is set for PHOTO reports only. */
@@ -64,12 +67,18 @@ interface EscalationContext {
   coverUpdatedById?: string | null;
   /** For an EVENT report, the event's member count, which sets the under-review threshold. */
   memberCount?: number;
+  /** The event's gallery has closed: organizers can no longer see its photos, so the platform handles it. */
+  galleryClosed?: boolean;
 }
 
 export interface StaleReportCheckResult {
-  /** OPEN reports older than STALE_REPORT_AFTER_HOURS, across every event. */
+  /** Platform reports newly overdue this run: each is announced once. */
   stale: number;
+  /** Reports the organizers left too long, moved to the platform this run. */
+  movedToPlatform: number;
 }
+
+const isGalleryClosed = (event: Event): boolean => galleryStateOf(event) === GALLERY_STATES.CLOSED;
 
 @Injectable()
 export class ReportsService {
@@ -166,7 +175,7 @@ export class ReportsService {
       callerId,
       target,
       dto,
-      { reportedAccessLevel: targetAccess.accessLevel },
+      { reportedAccessLevel: targetAccess.accessLevel, galleryClosed: isGalleryClosed(event) },
       { subjectUserId: targetUserId },
     );
   }
@@ -202,6 +211,7 @@ export class ReportsService {
         targetIsEvent: true,
         coverUpdatedById: event.coverUpdatedById,
         memberCount: event._count.eventAccesses,
+        galleryClosed: isGalleryClosed(event),
       },
       // The cover is the one image an event report can be about.
       { objectS3Key: event.coverS3Key, subjectUserId: event.coverUpdatedById },
@@ -285,10 +295,13 @@ export class ReportsService {
         : { isMember: event.eventAccesses.length > 0, refusal: "ORGANIZER_ONLY" },
     );
 
-    // An organizer must not be the judge of a report about themselves or their
-    // own photo. With no other organizer it stays open: `report.escalated`
-    // already told the platform owner about it, and `report.stale` repeats it.
-    if (loaded.reportedUserId === callerId) throw new ApiException("CANNOT_RESOLVE_OWN_REPORT", { reportId });
+    // The platform's reports are the platform's (docs/moderation.md §3). An
+    // organizer can't judge a report about themselves or their own photo, nor
+    // one they filed, for instance before they were promoted.
+    if (loaded.queue === ReportQueue.PLATFORM) throw new ApiException("REPORT_ESCALATED", { reportId });
+    if (loaded.reportedUserId === callerId || loaded.reporterId === callerId) {
+      throw new ApiException("CANNOT_RESOLVE_OWN_REPORT", { reportId });
+    }
 
     const photo = await this.photoToRemove(loaded, action);
     const removedMemberId = action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER ? loaded.reportedUserId : null;
@@ -304,19 +317,54 @@ export class ReportsService {
       resolvedAt: new Date(),
     };
     const sameTarget = this.sameTargetWhere(loaded, action);
+    const dismissing = action === REPORT_RESOLUTION_ACTIONS.DISMISS;
 
-    const { resolved, closedReports, removedMember } = await this.prisma.$transaction(async (tx) => {
-      // Guarded on OPEN so that, of two organizers acting at once, one wins and
-      // the other is told, instead of both removing things.
+    // Only what this organizer may close: reports still with the organizers,
+    // and, for a dismissal, not their own. A removal settles their own report
+    // too, since what it was about is gone either way.
+    const closable: Prisma.ReportWhereInput[] = [
+      { id: { not: reportId } },
+      { status: ReportStatus.OPEN },
+      { queue: ReportQueue.ORGANIZERS },
+      ...(dismissing ? [{ NOT: { reporterId: callerId } }] : []),
+    ];
+
+    if (dismissing && SEVERE_REPORT_REASONS.includes(loaded.reason)) {
+      return this.dismissSevere(loaded, callerId, sameTarget, closable);
+    }
+
+    const { resolved, closedReports, removedMember, severeMoved } = await this.prisma.$transaction(async (tx) => {
+      // Guarded on OPEN and the queue so that, of two organizers acting at
+      // once, one wins and the other is told, instead of both removing things.
       const [acted] = await tx.report.updateManyAndReturn({
-        where: { id: reportId, status: ReportStatus.OPEN },
+        where: { id: reportId, status: ReportStatus.OPEN, queue: ReportQueue.ORGANIZERS },
         data: resolution,
       });
       if (!acted) throw new ApiException("REPORT_ALREADY_RESOLVED", { reportId });
 
+      // A dismissal never closes a severe report: those go to the platform.
+      const severeToPlatform =
+        dismissing && sameTarget
+          ? await tx.report.findMany({
+              where: { AND: [...closable, sameTarget, { reason: { in: [...SEVERE_REPORT_REASONS] } }] },
+              select: { id: true },
+            })
+          : [];
+      const moved = await escalateToPlatform(
+        tx,
+        severeToPlatform.map((report) => report.id),
+        ReportEscalation.SEVERE_DISMISSED,
+      );
+
       const others = sameTarget
         ? await tx.report.updateMany({
-            where: { AND: [{ id: { not: reportId } }, { status: ReportStatus.OPEN }, sameTarget] },
+            where: {
+              AND: [
+                ...closable,
+                sameTarget,
+                ...(dismissing ? [{ reason: { notIn: [...SEVERE_REPORT_REASONS] } }] : []),
+              ],
+            },
             data: resolution,
           })
         : { count: 0 };
@@ -337,8 +385,10 @@ export class ReportsService {
           })
         : null;
 
-      return { resolved: acted, closedReports: others.count + 1, removedMember: member };
+      return { resolved: acted, closedReports: others.count + 1, removedMember: member, severeMoved: moved };
     });
+    logEscalations(this.logger, severeMoved, ReportEscalation.SEVERE_DISMISSED, { callerId });
+    logEscalations(this.logger, removedMember?.reportsEscalated ?? [], ReportEscalation.TARGET_DELETED, { callerId });
 
     if (photo) await this.deletePhotoObject(photo, reportId);
     if (removedMember) {
@@ -378,21 +428,109 @@ export class ReportsService {
   }
 
   /**
-   * Logs one `report.stale` line when OPEN reports have waited longer than
-   * STALE_REPORT_AFTER_HOURS, across every event. Run hourly by
-   * StaleReportCheckScheduler, so the alert repeats until someone acts.
+   * An organizer dismissing a severe report hands it to the platform instead
+   * of closing it (docs/moderation.md §3): the photo stays hidden until the
+   * platform has looked. Severe reports on the same target go with it; the
+   * others are dismissed.
    */
-  async reportStaleReports(): Promise<StaleReportCheckResult> {
-    const cutoff = new Date(Date.now() - STALE_REPORT_AFTER_HOURS * 60 * 60 * 1000);
-    const where = { status: ReportStatus.OPEN, createdAt: { lt: cutoff } };
+  private async dismissSevere(
+    loaded: Report,
+    callerId: string,
+    sameTarget: Prisma.ReportWhereInput | null,
+    closable: Prisma.ReportWhereInput[],
+  ): Promise<Report> {
+    const reportId = loaded.id;
+    const { moved, dismissed } = await this.prisma.$transaction(async (tx) => {
+      const severeOthers = sameTarget
+        ? await tx.report.findMany({
+            where: { AND: [...closable, sameTarget, { reason: { in: [...SEVERE_REPORT_REASONS] } }] },
+            select: { id: true },
+          })
+        : [];
+      const escalated = await escalateToPlatform(
+        tx,
+        [reportId, ...severeOthers.map((report) => report.id)],
+        ReportEscalation.SEVERE_DISMISSED,
+      );
+      // Guarded like a verdict: if the report itself didn't move, someone else
+      // acted on it first.
+      if (!escalated.some((report) => report.id === reportId)) {
+        throw new ApiException("REPORT_ALREADY_RESOLVED", { reportId });
+      }
 
+      const others = sameTarget
+        ? await tx.report.updateMany({
+            where: { AND: [...closable, sameTarget, { reason: { notIn: [...SEVERE_REPORT_REASONS] } }] },
+            data: {
+              status: ReportStatus.DISMISSED,
+              closedReason: RESOLUTION_CLOSED_REASON.DISMISS,
+              closedByRole: ReportActorRole.ORGANIZER,
+              resolvedById: callerId,
+              resolvedAt: new Date(),
+            },
+          })
+        : { count: 0 };
+      return { moved: escalated, dismissed: others.count };
+    });
+
+    logEscalations(this.logger, moved, ReportEscalation.SEVERE_DISMISSED, { callerId });
+    this.logger.info(
+      {
+        event: "report.resolved",
+        reportId,
+        eventId: loaded.eventId,
+        callerId,
+        targetType: loaded.targetType,
+        photoId: loaded.photoId,
+        reportedUserId: loaded.reportedUserId,
+        action: REPORT_RESOLUTION_ACTIONS.DISMISS,
+        resolution: "ESCALATED",
+        closedReports: dismissed,
+        escalatedReports: moved.length,
+        audit: true,
+      },
+      "Severe report dismissed by an organizer; moved to the platform",
+    );
+
+    return this.prisma.report.findUniqueOrThrow({ where: { id: reportId } });
+  }
+
+  /**
+   * The hourly check (docs/moderation.md §3, §9), in two steps:
+   *
+   * 1. Reports the organizers have left OPEN for STALE_REPORT_AFTER_HOURS move
+   *    to the platform (ORGANIZER_TIMEOUT).
+   * 2. Platform reports waiting longer than that since they got there are
+   *    announced once, in one `report.stale` line, and marked so the next run
+   *    doesn't repeat them.
+   */
+  async reportStaleReports(now: Date = new Date()): Promise<StaleReportCheckResult> {
+    const cutoff = new Date(now.getTime() - STALE_REPORT_AFTER_HOURS * 60 * 60 * 1000);
+
+    const timedOut = await this.prisma.report.findMany({
+      where: { status: ReportStatus.OPEN, queue: ReportQueue.ORGANIZERS, createdAt: { lt: cutoff } },
+      select: { id: true },
+    });
+    const moved = await escalateToPlatform(
+      this.prisma,
+      timedOut.map((report) => report.id),
+      ReportEscalation.ORGANIZER_TIMEOUT,
+    );
+    logEscalations(this.logger, moved, ReportEscalation.ORGANIZER_TIMEOUT);
+
+    const overdue = {
+      status: ReportStatus.OPEN,
+      queue: ReportQueue.PLATFORM,
+      escalatedAt: { lt: cutoff },
+      overdueAlertedAt: null,
+    };
     const [stale, oldest] = await Promise.all([
-      this.prisma.report.count({ where }),
+      this.prisma.report.count({ where: overdue }),
       this.prisma.report.findMany({
-        where,
-        orderBy: { createdAt: "asc" },
+        where: overdue,
+        orderBy: { escalatedAt: "asc" },
         take: STALE_REPORT_SAMPLE_SIZE,
-        select: { id: true, eventId: true, createdAt: true },
+        select: { id: true, eventId: true, escalatedAt: true },
       }),
     ]);
 
@@ -402,16 +540,17 @@ export class ReportsService {
           event: ALERT_EVENTS.REPORT_STALE,
           stale,
           staleAfterHours: STALE_REPORT_AFTER_HOURS,
-          oldestCreatedAt: oldest[0]?.createdAt,
+          oldestEscalatedAt: oldest[0]?.escalatedAt,
           reportIds: oldest.map((report) => report.id),
           eventIds: [...new Set(oldest.flatMap((report) => (report.eventId ? [report.eventId] : [])))],
           audit: true,
         },
-        "Reports have been open longer than the response window",
+        "Platform reports have waited longer than the response window",
       );
+      await this.prisma.report.updateMany({ where: overdue, data: { overdueAlertedAt: now } });
     }
 
-    return { stale };
+    return { stale, movedToPlatform: moved.length };
   }
 
   /**
@@ -507,24 +646,52 @@ export class ReportsService {
     context: EscalationContext,
     snapshot: EvidenceSnapshot,
   ): Promise<Report> {
+    // Where it starts is decided before the insert, from facts known now: a
+    // report about the event, about an organizer, or in a closed gallery is the
+    // platform's from the start (docs/moderation.md §3).
+    const routing = await this.routingReasonsFor(dto.reason, target.eventId, context);
+    const toPlatform = routing.some((reason) => PLATFORM_ESCALATIONS.includes(reason));
+
     // `skipDuplicates` is ON CONFLICT DO NOTHING: of two submissions exactly
     // one inserts, and the other gets no row back instead of a unique
     // violation to catch. The snapshot is written in the same transaction, so
     // no report exists without one (docs/moderation.md §7).
-    const created = await this.prisma.$transaction(async (tx) => {
-      const [inserted] = await tx.report.createManyAndReturn({
-        data: [{ ...target, reporterId: callerId, reason: dto.reason, note: dto.note ?? null }],
+    const inserted = await this.prisma.$transaction(async (tx) => {
+      const [row] = await tx.report.createManyAndReturn({
+        data: [
+          {
+            ...target,
+            reporterId: callerId,
+            reason: dto.reason,
+            note: dto.note ?? null,
+            queue: toPlatform ? ReportQueue.PLATFORM : ReportQueue.ORGANIZERS,
+            escalatedAt: toPlatform ? new Date() : null,
+            escalationReasons: routing,
+          },
+        ],
         skipDuplicates: true,
       });
-      if (inserted) await this.evidenceService.writeSnapshot(tx, inserted.id, snapshot);
-      return inserted;
+      if (row) await this.evidenceService.writeSnapshot(tx, row.id, snapshot);
+      return row;
     });
-    if (!created) {
+    if (!inserted) {
       const existing = await this.findOpenReport(callerId, target);
       // Only when that report was resolved between the insert and this lookup.
       if (!existing) throw new ApiException("REPORT_CHANGED_CONCURRENTLY");
       return existing;
     }
+
+    // What this report did once it was counted: tipped a photo over its hide
+    // threshold, or put the event under review. Recorded, but it doesn't move
+    // the report: hiding and reviewing already protect the members.
+    const consequences = await this.consequenceReasonsFor(inserted, target.eventId, context);
+    if (consequences.length > 0) {
+      await this.prisma.report.update({
+        where: { id: inserted.id },
+        data: { escalationReasons: { push: consequences } },
+      });
+    }
+    const created = { ...inserted, escalationReasons: [...inserted.escalationReasons, ...consequences] };
 
     // Ids, reason and target type only: the note is free text and never logged.
     const fields = {
@@ -535,17 +702,22 @@ export class ReportsService {
       photoId: created.photoId,
       reportedUserId: created.reportedUserId,
       reason: created.reason,
+      queue: created.queue,
       // Whose cover it is, so the reviewer of an event report knows where to look.
       ...(context.targetIsEvent && { coverUpdatedById: context.coverUpdatedById ?? null }),
       audit: true,
     };
     this.logger.info({ event: "report.created", ...fields }, "Report created");
 
-    const escalationReasons = await this.escalationReasonsFor(created, target.eventId, context);
+    const escalationReasons = [...routing, ...consequences];
     if (escalationReasons.length > 0) {
       // The event the platform owner's alert rule keys off (docs/alerting.md §3).
       this.logger.warn(
-        { event: ALERT_EVENTS.REPORT_ESCALATED, ...fields, escalationReasons },
+        {
+          event: ALERT_EVENTS.REPORT_ESCALATED,
+          ...fields,
+          escalationReasons: escalationReasons.map(escalationLogName),
+        },
         "Report needs platform attention",
       );
     }
@@ -553,33 +725,47 @@ export class ReportsService {
     return created;
   }
 
-  private async escalationReasonsFor(
-    report: Report,
+  /** The reasons known before the report exists: they decide its queue. */
+  private async routingReasonsFor(
+    reason: ReportReason,
     eventId: string,
     context: EscalationContext,
-  ): Promise<ReportEscalationReason[]> {
-    const reasons: ReportEscalationReason[] = [];
+  ): Promise<ReportEscalation[]> {
+    const reasons: ReportEscalation[] = [];
 
-    if (SEVERE_REPORT_REASONS.includes(report.reason)) reasons.push(REPORT_ESCALATION_REASONS.SEVERE_REASON);
-    if (context.targetIsEvent) reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_EVENT);
+    if (SEVERE_REPORT_REASONS.includes(reason)) reasons.push(ReportEscalation.SEVERE_REASON);
+    if (context.targetIsEvent) reasons.push(ReportEscalation.TARGET_IS_EVENT);
     if (context.reportedAccessLevel === AccessLevel.ORGANIZER) {
-      reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_ORGANIZER);
-      // Nobody in the event can resolve a report about its only organizer.
+      reasons.push(ReportEscalation.TARGET_IS_ORGANIZER);
+      // Nobody in the event could resolve a report about its only organizer.
       const organizers = await this.prisma.eventAccess.count({
         where: { eventId, accessLevel: AccessLevel.ORGANIZER },
       });
-      if (organizers === 1) reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_SOLE_ORGANIZER);
+      if (organizers === 1) reasons.push(ReportEscalation.TARGET_IS_SOLE_ORGANIZER);
     }
+    if (context.galleryClosed) reasons.push(ReportEscalation.GALLERY_CLOSED);
+
+    return reasons;
+  }
+
+  /** The reasons that follow from counting the new report. */
+  private async consequenceReasonsFor(
+    report: Report,
+    eventId: string,
+    context: EscalationContext,
+  ): Promise<ReportEscalation[]> {
+    const reasons: ReportEscalation[] = [];
+
     if (report.photoId && context.hideThreshold !== undefined) {
       const openReports = await this.prisma.report.count({
         where: { photoId: report.photoId, status: ReportStatus.OPEN },
       });
       // Equality, so the report that tips the photo over is the one that says so.
-      if (openReports === context.hideThreshold) reasons.push(REPORT_ESCALATION_REASONS.HIDE_THRESHOLD_REACHED);
+      if (openReports === context.hideThreshold) reasons.push(ReportEscalation.HIDE_THRESHOLD_REACHED);
     }
     if (context.targetIsEvent && context.memberCount !== undefined) {
       if (await this.putUnderReviewAtThreshold(eventId, context.memberCount)) {
-        reasons.push(REPORT_ESCALATION_REASONS.EVENT_UNDER_REVIEW);
+        reasons.push(ReportEscalation.EVENT_UNDER_REVIEW);
       }
     }
 

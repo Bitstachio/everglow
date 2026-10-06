@@ -2,7 +2,7 @@ import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { AccessLevel, Event, EventInvite, Prisma, ReportActorRole } from "generated/prisma/client";
+import { AccessLevel, Event, EventInvite, Prisma, ReportActorRole, ReportEscalation } from "generated/prisma/client";
 import { EventPlanService, galleryNotClosed } from "src/plans/event-plan.service";
 import { GALLERY_STATES, gallerySchedule, galleryStateOf } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
@@ -21,6 +21,7 @@ import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-
 import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { lockPendingModeration } from "src/moderation/pending-moderation";
+import { escalateToPlatform, logEscalations } from "src/moderation/report-escalation";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_DATE_MAX_MONTHS_AHEAD, latestEventDate } from "./events.constants";
 import {
@@ -455,6 +456,7 @@ export class EventsService {
       },
       "User left event",
     );
+    logEscalations(this.logger, deleted?.reportsEscalated ?? [], ReportEscalation.TARGET_DELETED, { callerId });
 
     if (deleted) {
       await this.photoPurgeService.purgeObjects(deleted.photoKeys, {
@@ -515,10 +517,26 @@ export class EventsService {
       return this.toEventParticipant(eventId, targetAccess);
     }
 
-    const updated = await this.prisma.eventAccess.update({
-      where: { userId_eventId: { userId: targetUserId, eventId } },
-      data: { accessLevel },
-      include: eventAccessWithUserInclude(callerId),
+    // An organizer can't judge reports about themselves, so promoting a member
+    // hands their OPEN reports to the platform (docs/moderation.md §3).
+    const { updated, escalated } = await this.prisma.$transaction(async (tx) => {
+      const access = await tx.eventAccess.update({
+        where: { userId_eventId: { userId: targetUserId, eventId } },
+        data: { accessLevel },
+        include: eventAccessWithUserInclude(callerId),
+      });
+      if (accessLevel !== AccessLevel.ORGANIZER) return { updated: access, escalated: [] };
+
+      const reports = await tx.report.findMany({
+        where: { eventId, reportedUserId: targetUserId, status: "OPEN", queue: "ORGANIZERS" },
+        select: { id: true },
+      });
+      const moved = await escalateToPlatform(
+        tx,
+        reports.map((report) => report.id),
+        ReportEscalation.TARGET_IS_ORGANIZER,
+      );
+      return { updated: access, escalated: moved };
     });
 
     this.logger.info(
@@ -532,6 +550,7 @@ export class EventsService {
       },
       "Event member access level updated",
     );
+    logEscalations(this.logger, escalated, ReportEscalation.TARGET_IS_ORGANIZER, { callerId });
 
     return this.toEventParticipant(eventId, updated);
   }
@@ -585,6 +604,7 @@ export class EventsService {
       },
       "Event member removed",
     );
+    logEscalations(this.logger, removed.reportsEscalated, ReportEscalation.TARGET_DELETED, { callerId });
 
     await this.photoPurgeService.purgeObjects(removed.photoKeys, {
       event: ALERT_EVENTS.EVENT_MEMBER_PHOTOS_PURGED,

@@ -1,4 +1,5 @@
 import { Prisma, ReportActorRole } from "generated/prisma/client";
+import { EscalatedReport } from "src/moderation/report-escalation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 
 /**
@@ -30,6 +31,8 @@ export interface RemovedMember {
   photoKeys: string[];
   photosDeleted: number;
   reportsClosed: number;
+  /** Reports on their deleted photos that moved to the platform; the caller logs them. */
+  reportsEscalated: EscalatedReport[];
 }
 
 /**
@@ -55,7 +58,7 @@ export const removeMemberInTransaction = async (
     update: {},
   });
 
-  if (photos === MEMBER_PHOTOS.KEEP) return { photoKeys: [], photosDeleted: 0, reportsClosed: 0 };
+  if (photos === MEMBER_PHOTOS.KEEP) return { photoKeys: [], photosDeleted: 0, reportsClosed: 0, reportsEscalated: [] };
 
   const deleted = await deleteUploadsInTransaction(tx, {
     eventId,
@@ -63,5 +66,10 @@ export const removeMemberInTransaction = async (
     closedBy: { id: removedById, role: removedByRole },
     excludePhotoIds,
   });
-  return { photoKeys: deleted.photoKeys, photosDeleted: deleted.photosDeleted, reportsClosed: deleted.reportsClosed };
+  return {
+    photoKeys: deleted.photoKeys,
+    photosDeleted: deleted.photosDeleted,
+    reportsClosed: deleted.reportsClosed,
+    reportsEscalated: deleted.reportsEscalated,
+  };
 };

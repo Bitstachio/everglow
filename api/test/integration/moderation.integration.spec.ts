@@ -459,7 +459,7 @@ describe("Moderation (integration)", () => {
       const body = response.body as WrappedResponse<ReportBody>;
       expect(body.data).toEqual(expectedReportResponse(resolvedAs(ReportStatus.ACTIONED)));
       expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
-        where: { id: TEST_REPORT_ID, status: "OPEN" },
+        where: { id: TEST_REPORT_ID, status: "OPEN", queue: "ORGANIZERS" },
         data: {
           status: "ACTIONED",
           closedReason: "PHOTO_REMOVED",

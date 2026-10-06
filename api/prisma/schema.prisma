@@ -314,36 +314,45 @@ model Photo {
 // never carries a photoId, reporter and reported user differ, and the
 // resolution columns agree with the status.
 model Report {
-  id             String              @id @default(uuid()) @db.Uuid
+  id                String              @id @default(uuid()) @db.Uuid
   // Null once the event is deleted. An event with OPEN reports can't be
   // deleted, so only closed reports outlive it (docs/moderation.md §7).
-  eventId        String?             @db.Uuid
+  eventId           String?             @db.Uuid
   // The event's title when the report was filed, so a report still says where
   // it came from after the event is gone. Same length as Event.title.
-  eventTitle     String              @db.VarChar(100)
+  eventTitle        String              @db.VarChar(100)
   // Null once the reporter's account is deleted: the report stays as evidence.
-  reporterId     String?             @db.Uuid
-  targetType     ReportTargetType
+  reporterId        String?             @db.Uuid
+  targetType        ReportTargetType
   // Set for PHOTO reports; null again once that photo is deleted.
-  photoId        String?             @db.Uuid
+  photoId           String?             @db.Uuid
   // The reported member, or the uploader of the reported photo. Null once that
   // account is deleted, or when the photo had already lost its uploader.
-  reportedUserId String?             @db.Uuid
-  reason         ReportReason
-  note           String?             @db.VarChar(500)
-  status         ReportStatus        @default(OPEN)
+  reportedUserId    String?             @db.Uuid
+  reason            ReportReason
+  note              String?             @db.VarChar(500)
+  // Who handles it (docs/moderation.md §3): the event's organizers, or the
+  // platform. A report never moves back from PLATFORM.
+  queue             ReportQueue         @default(ORGANIZERS)
+  // Why the platform was told about it, at filing and at each move.
+  escalationReasons ReportEscalation[]  @default([])
+  // When it moved to PLATFORM, or was filed there.
+  escalatedAt       DateTime?
+  // When the platform was told it is overdue; the alert fires once.
+  overdueAlertedAt  DateTime?
+  status            ReportStatus        @default(OPEN)
   // Why and in which capacity it closed; both null while OPEN. Reports closed
   // before these existed have neither.
-  closedReason   ReportClosedReason?
-  closedByRole   ReportActorRole?
-  resolvedById   String?             @db.Uuid
-  resolvedAt     DateTime?
+  closedReason      ReportClosedReason?
+  closedByRole      ReportActorRole?
+  resolvedById      String?             @db.Uuid
+  resolvedAt        DateTime?
   // The retention purge skips the report and its evidence until then
   // (docs/moderation.md §7). Only the platform sets a hold.
-  holdUntil      DateTime?
-  holdReason     ReportHoldReason?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  holdUntil         DateTime?
+  holdReason        ReportHoldReason?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   // Everything is SET NULL: deleting an event, a photo, a reporter, a reported
   // account or a resolver never fails on a report, and never erases one
@@ -376,6 +385,8 @@ model Report {
   @@index([resolvedById])
   // The retention purge: closed reports past the window, holds checked per row.
   @@index([status, resolvedAt])
+  // The platform queue, oldest first, and the overdue check.
+  @@index([queue, status, escalatedAt])
 }
 
 // "blocker does not want to see blocked". Directional in storage, symmetric in
@@ -477,4 +488,25 @@ model ReportEvidence {
   @@index([objectS3Key])
   // The retry pass.
   @@index([quarantineFailedAt])
+}
+
+// Who handles a report (docs/moderation.md §3).
+enum ReportQueue {
+  ORGANIZERS
+  PLATFORM
+}
+
+// Why a report reached the platform. Logged lowercase, as the
+// `escalationReasons` of `report.escalated` (docs/moderation.md §9).
+enum ReportEscalation {
+  SEVERE_REASON
+  TARGET_IS_ORGANIZER
+  TARGET_IS_SOLE_ORGANIZER
+  TARGET_IS_EVENT
+  HIDE_THRESHOLD_REACHED
+  EVENT_UNDER_REVIEW
+  ORGANIZER_TIMEOUT
+  GALLERY_CLOSED
+  SEVERE_DISMISSED
+  TARGET_DELETED
 }

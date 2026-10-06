@@ -1,7 +1,15 @@
 import { Injectable } from "@nestjs/common";
-import { AccessLevel, AccountDeletionPhotoPolicy, PhotoStatus, Prisma, ReportActorRole } from "generated/prisma/client";
+import {
+  AccessLevel,
+  AccountDeletionPhotoPolicy,
+  PhotoStatus,
+  Prisma,
+  ReportActorRole,
+  ReportEscalation,
+} from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { lockPendingModeration } from "src/moderation/pending-moderation";
+import { EscalatedReport, logEscalations } from "src/moderation/report-escalation";
 import { closeMemberReportsOnDeletedAccount, closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
 
@@ -24,6 +32,8 @@ export interface AccountDeletionPrepSummary {
   reportsClosed: number;
   /** OPEN member reports about the account that aren't severe, closed as TARGET_GONE. */
   memberReportsClosed: number;
+  /** Severe reports about the account or its deleted photos, moved to the platform instead of closing. */
+  reportsEscalated: number;
   /** PENDING upload slots discarded. */
   uploadsDiscarded: number;
   /** Whether the profile had an avatar whose object is queued for the purge. */
@@ -72,9 +82,11 @@ export class AccountDeletionPrepService {
     userId: string,
     photoPolicy: AccountDeletionPhotoPolicy,
   ): Promise<AccountDeletionPrepResult> {
-    const result = await this.prisma.$transaction((tx) => this.prepareInTransaction(tx, userId, photoPolicy), {
-      timeout: TRANSACTION_TIMEOUT_MS,
-    });
+    const { escalated, ...result } = await this.prisma.$transaction(
+      (tx) => this.prepareInTransaction(tx, userId, photoPolicy),
+      { timeout: TRANSACTION_TIMEOUT_MS },
+    );
+    logEscalations(this.logger, escalated, ReportEscalation.TARGET_DELETED, { userId });
 
     this.logger.info(
       { event: "user.account.deletion_prepared", userId, photoPolicy, ...result.summary, audit: true },
@@ -88,7 +100,7 @@ export class AccountDeletionPrepService {
     tx: Prisma.TransactionClient,
     userId: string,
     photoPolicy: AccountDeletionPhotoPolicy,
-  ): Promise<AccountDeletionPrepResult> {
+  ): Promise<AccountDeletionPrepResult & { escalated: EscalatedReport[] }> {
     const s3Keys: string[] = [];
     let eventsDeleted = 0;
     let eventsHandedOver = 0;
@@ -165,14 +177,17 @@ export class AccountDeletionPrepService {
     let photosKept = 0;
     let photosDeleted = 0;
     let reportsClosed = 0;
+    const escalated: EscalatedReport[] = [];
     if (photoPolicy === AccountDeletionPhotoPolicy.DELETE) {
       const ready = await tx.photo.findMany({ where: { addedById: userId }, select: { id: true, s3Key: true } });
       if (ready.length > 0) {
-        reportsClosed = await closeReportsOnDeletedPhotos(
+        const reports = await closeReportsOnDeletedPhotos(
           tx,
           ready.map((photo) => photo.id),
           { id: userId, role: ReportActorRole.SUBJECT },
         );
+        reportsClosed = reports.closed;
+        escalated.push(...reports.escalated);
         await tx.photo.deleteMany({ where: { addedById: userId } });
         s3Keys.push(...ready.map((photo) => photo.s3Key));
       }
@@ -186,7 +201,8 @@ export class AccountDeletionPrepService {
 
     // 4. Member reports about the account: there is nobody left to remove.
     //    Severe ones stay OPEN for the platform (docs/moderation.md §3).
-    const memberReportsClosed = await closeMemberReportsOnDeletedAccount(tx, userId);
+    const memberReports = await closeMemberReportsOnDeletedAccount(tx, userId);
+    escalated.push(...memberReports.escalated);
 
     // 5. The avatar. Its column cascades with the user row, so only the object
     //    needs collecting; the row is left alone, which keeps a resumed saga
@@ -203,11 +219,13 @@ export class AccountDeletionPrepService {
         photosKept,
         photosDeleted,
         reportsClosed,
-        memberReportsClosed,
+        memberReportsClosed: memberReports.closed,
+        reportsEscalated: escalated.length,
         uploadsDiscarded: pending.length,
         avatarQueued: avatarS3Key !== null,
       },
       s3Keys,
+      escalated,
     };
   }
 }

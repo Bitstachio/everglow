@@ -134,6 +134,10 @@ describe("ReportsService", () => {
     reason: ReportReason.SPAM,
     note: null,
     status: ReportStatus.OPEN,
+    queue: "ORGANIZERS",
+    escalationReasons: [],
+    escalatedAt: null,
+    overdueAlertedAt: null,
     closedReason: null,
     closedByRole: null,
     resolvedById: null,
@@ -206,6 +210,9 @@ describe("ReportsService", () => {
               reporterId: callerId,
               reason: "SPAM",
               note: dto.note,
+              queue: "ORGANIZERS",
+              escalatedAt: null,
+              escalationReasons: [],
             },
           ],
           skipDuplicates: true,
@@ -357,6 +364,7 @@ describe("ReportsService", () => {
             photoId,
             reportedUserId: uploaderId,
             reason: "SPAM",
+            queue: "ORGANIZERS",
             audit: true,
           },
           "Report created",
@@ -516,6 +524,10 @@ describe("ReportsService", () => {
             reporterId: callerId,
             reason: "SPAM",
             note: "The cover is an ad",
+            // About the organizers' own content: the platform's from the start.
+            queue: "PLATFORM",
+            escalatedAt: expect.any(Date) as unknown,
+            escalationReasons: ["TARGET_IS_EVENT"],
           },
         ],
         skipDuplicates: true,
@@ -719,6 +731,9 @@ describe("ReportsService", () => {
             reporterId: callerId,
             reason: "HARASSMENT",
             note: null,
+            queue: "ORGANIZERS",
+            escalatedAt: null,
+            escalationReasons: [],
           },
         ],
         skipDuplicates: true,
@@ -793,6 +808,44 @@ describe("ReportsService", () => {
           escalationReasons: ["target_is_organizer"],
         }),
         expect.any(String),
+      );
+    });
+
+    it("files a report about an organizer straight into the platform's queue", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.eventAccess.findUnique.mockResolvedValue(access(targetUserId, AccessLevel.ORGANIZER));
+      prisma.eventAccess.count.mockResolvedValue(2);
+      prisma.report.createManyAndReturn.mockResolvedValue([memberReport()]);
+
+      await service.reportMember(eventId, targetUserId, callerId, dto);
+
+      expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({
+              queue: "PLATFORM",
+              escalatedAt: expect.any(Date) as unknown,
+              escalationReasons: ["TARGET_IS_ORGANIZER"],
+            }),
+          ],
+        }),
+      );
+    });
+
+    it("files a report in a closed gallery into the platform's queue: organizers can't see it any more", async () => {
+      const closed = { ...event, galleryClosesAt: new Date(Date.now() - 60_000) };
+      prisma.event.findUnique.mockResolvedValue({
+        ...closed,
+        eventAccesses: [access(callerId, AccessLevel.PARTICIPANT)],
+      } as never);
+      prisma.report.createManyAndReturn.mockResolvedValue([memberReport()]);
+
+      await service.reportMember(eventId, targetUserId, callerId, dto);
+
+      expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [expect.objectContaining({ queue: "PLATFORM", escalationReasons: ["GALLERY_CLOSED"] })],
+        }),
       );
     });
 
@@ -902,6 +955,8 @@ describe("ReportsService", () => {
       prisma.report.findUnique.mockResolvedValue(report);
       prisma.photo.findUnique.mockResolvedValue({ id: photoId, s3Key } as never);
       prisma.report.updateManyAndReturn.mockResolvedValue([resolvedAs(status)]);
+      // No other report on the target unless a test says so.
+      prisma.report.findMany.mockResolvedValue([]);
       prisma.report.updateMany.mockResolvedValue({ count: 2 });
       prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
@@ -912,6 +967,81 @@ describe("ReportsService", () => {
 
       await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("refuses a report with the platform with 403 REPORT_ESCALATED, changing nothing", async () => {
+      setup(reportFor(AccessLevel.ORGANIZER, { queue: "PLATFORM" }));
+
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toMatchObject({
+        response: { code: "REPORT_ESCALATED" },
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("refuses an organizer resolving a report they filed, with 403 CANNOT_RESOLVE_OWN_REPORT", async () => {
+      setup(reportFor(AccessLevel.ORGANIZER, { reporterId: callerId }));
+
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toMatchObject({
+        response: { code: "CANNOT_RESOLVE_OWN_REPORT" },
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    describe("DISMISS of a severe report", () => {
+      const moved = (id: string) => ({
+        id,
+        eventId,
+        targetType: "PHOTO",
+        photoId,
+        reportedUserId: uploaderId,
+        reason: "NUDITY_OR_SEXUAL",
+      });
+
+      it("hands it to the platform instead of closing it, and dismisses the others that aren't severe", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { reason: ReportReason.NUDITY_OR_SEXUAL }));
+        prisma.$queryRaw.mockResolvedValue([moved(reportId)]);
+        prisma.report.findUniqueOrThrow.mockResolvedValue(buildReport({ queue: "PLATFORM" }));
+
+        await expect(service.resolveReport(reportId, callerId, "DISMISS")).resolves.toMatchObject({
+          status: "OPEN",
+          queue: "PLATFORM",
+        });
+
+        expect(prisma.report.updateManyAndReturn).not.toHaveBeenCalled();
+        const [, reason, ids] = prisma.$queryRaw.mock.calls[0] as unknown as [unknown, string, string[]];
+        expect(ids).toEqual([reportId]);
+        expect(reason).toBe("SEVERE_DISMISSED");
+        expect(prisma.report.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ status: "DISMISSED" }) as unknown }),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "report.escalated", escalationReasons: ["severe_dismissed"] }),
+          expect.any(String),
+        );
+      });
+
+      it("answers 409 when someone else acted on it first", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { reason: ReportReason.VIOLENCE }));
+        prisma.$queryRaw.mockResolvedValue([]);
+
+        await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toMatchObject({
+          response: { code: "REPORT_ALREADY_RESOLVED" },
+        });
+      });
+    });
+
+    it("moves other severe reports on the target to the platform when a minor one is dismissed", async () => {
+      setup(reportFor(AccessLevel.ORGANIZER), ReportStatus.DISMISSED);
+      prisma.report.findMany.mockResolvedValue([{ id: "severe-1" }] as never);
+      prisma.$queryRaw.mockResolvedValue([
+        { id: "severe-1", eventId, targetType: "PHOTO", photoId, reportedUserId: uploaderId, reason: "VIOLENCE" },
+      ]);
+
+      await service.resolveReport(reportId, callerId, "DISMISS");
+
+      const [, reason, ids] = prisma.$queryRaw.mock.calls[0] as unknown as [unknown, string, string[]];
+      expect(ids).toEqual(["severe-1"]);
+      expect(reason).toBe("SEVERE_DISMISSED");
     });
 
     describe("REMOVE_PHOTO", () => {
@@ -931,11 +1061,11 @@ describe("ReportsService", () => {
         };
         expect(prisma.$transaction).toHaveBeenCalledTimes(1);
         expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
-          where: { id: reportId, status: "OPEN" },
+          where: { id: reportId, status: "OPEN", queue: "ORGANIZERS" },
           data: resolution,
         });
         expect(prisma.report.updateMany).toHaveBeenCalledWith({
-          where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { photoId }] },
+          where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { queue: "ORGANIZERS" }, { photoId }] },
           data: resolution,
         });
         expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId } });
@@ -1003,7 +1133,14 @@ describe("ReportsService", () => {
 
         expect(prisma.report.updateMany).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { eventId, reportedUserId: uploaderId }] },
+            where: {
+              AND: [
+                { id: { not: reportId } },
+                { status: "OPEN" },
+                { queue: "ORGANIZERS" },
+                { eventId, reportedUserId: uploaderId },
+              ],
+            },
           }),
         );
         expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({ where: { eventId, userId: uploaderId } });
@@ -1127,7 +1264,16 @@ describe("ReportsService", () => {
         );
 
         expect(prisma.report.updateMany).toHaveBeenCalledWith({
-          where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { photoId }] },
+          where: {
+            AND: [
+              { id: { not: reportId } },
+              { status: "OPEN" },
+              { queue: "ORGANIZERS" },
+              { NOT: { reporterId: callerId } },
+              { photoId },
+              { reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } },
+            ],
+          },
           data: {
             status: "DISMISSED",
             closedReason: "DISMISSED",
@@ -1155,7 +1301,10 @@ describe("ReportsService", () => {
               AND: [
                 { id: { not: reportId } },
                 { status: "OPEN" },
+                { queue: "ORGANIZERS" },
+                { NOT: { reporterId: callerId } },
                 { eventId, targetType: "MEMBER", reportedUserId: uploaderId },
+                { reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } },
               ],
             },
           }),
@@ -1240,48 +1389,69 @@ describe("ReportsService", () => {
   });
 
   describe("reportStaleReports", () => {
-    it("logs one report.stale line with the exact count and the oldest reports", async () => {
-      jest.useFakeTimers({ now: new Date("2026-06-12T12:00:00.000Z") });
-      try {
-        const stale = [
-          { id: "r-1", eventId, createdAt: new Date("2026-06-10T09:00:00.000Z") },
-          { id: "r-2", eventId, createdAt: new Date("2026-06-11T08:00:00.000Z") },
-        ];
-        prisma.report.count.mockResolvedValue(7);
-        prisma.report.findMany.mockResolvedValue(stale as never);
+    const now = new Date("2026-06-12T12:00:00.000Z");
+    const cutoff = new Date(now.getTime() - STALE_REPORT_AFTER_HOURS * 60 * 60 * 1000);
+    const overdue = { status: "OPEN", queue: "PLATFORM", escalatedAt: { lt: cutoff }, overdueAlertedAt: null };
 
-        await expect(service.reportStaleReports()).resolves.toEqual({ stale: 7 });
-
-        const where = {
-          status: "OPEN",
-          createdAt: { lt: new Date(Date.now() - STALE_REPORT_AFTER_HOURS * 60 * 60 * 1000) },
-        };
-        expect(prisma.report.count).toHaveBeenCalledWith({ where });
-        expect(prisma.report.findMany).toHaveBeenCalledWith(
-          expect.objectContaining({ where, orderBy: { createdAt: "asc" }, take: 20 }),
-        );
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.objectContaining({
-            event: "report.stale",
-            stale: 7,
-            reportIds: ["r-1", "r-2"],
-            eventIds: [eventId],
-            oldestCreatedAt: stale[0].createdAt,
-            audit: true,
-          }),
-          expect.any(String),
-        );
-      } finally {
-        jest.useRealTimers();
-      }
+    beforeEach(() => {
+      prisma.report.findMany.mockResolvedValue([]);
+      prisma.report.count.mockResolvedValue(0);
     });
 
-    it("logs nothing when no report is stale", async () => {
-      prisma.report.count.mockResolvedValue(0);
-      prisma.report.findMany.mockResolvedValue([]);
+    it("moves reports the organizers have left for 24 hours to the platform, and logs each move", async () => {
+      prisma.report.findMany.mockResolvedValueOnce([{ id: "r-1" }] as never);
+      prisma.$queryRaw.mockResolvedValue([
+        { id: "r-1", eventId, targetType: "PHOTO", photoId, reportedUserId: uploaderId, reason: "SPAM" },
+      ]);
 
-      await expect(service.reportStaleReports()).resolves.toEqual({ stale: 0 });
+      await expect(service.reportStaleReports(now)).resolves.toEqual({ stale: 0, movedToPlatform: 1 });
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { status: "OPEN", queue: "ORGANIZERS", createdAt: { lt: cutoff } },
+        select: { id: true },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.escalated",
+          reportId: "r-1",
+          escalationReasons: ["organizer_timeout"],
+        }),
+        expect.any(String),
+      );
+    });
+
+    it("announces platform reports overdue since they got there once, with the exact count, and marks them", async () => {
+      const stale = [
+        { id: "r-1", eventId, escalatedAt: new Date("2026-06-10T09:00:00.000Z") },
+        { id: "r-2", eventId: null, escalatedAt: new Date("2026-06-11T08:00:00.000Z") },
+      ];
+      prisma.report.count.mockResolvedValue(7);
+      prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce(stale as never);
+
+      await expect(service.reportStaleReports(now)).resolves.toEqual({ stale: 7, movedToPlatform: 0 });
+
+      expect(prisma.report.count).toHaveBeenCalledWith({ where: overdue });
+      expect(prisma.report.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: overdue, orderBy: { escalatedAt: "asc" }, take: 20 }),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.stale",
+          stale: 7,
+          reportIds: ["r-1", "r-2"],
+          eventIds: [eventId],
+          oldestEscalatedAt: stale[0].escalatedAt,
+          audit: true,
+        }),
+        expect.any(String),
+      );
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({ where: overdue, data: { overdueAlertedAt: now } });
+    });
+
+    it("logs nothing, and marks nothing, when no report is overdue", async () => {
+      await expect(service.reportStaleReports(now)).resolves.toEqual({ stale: 0, movedToPlatform: 0 });
       expect(logger.warn).not.toHaveBeenCalled();
+      expect(prisma.report.updateMany).not.toHaveBeenCalled();
     });
   });
 });

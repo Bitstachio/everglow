@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Event, Prisma, ReportStatus } from "generated/prisma/client";
+import { Event, Prisma, ReportEscalation, ReportQueue, ReportStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { escalateToPlatform, logEscalations } from "src/moderation/report-escalation";
 import { EventPlanService } from "src/plans/event-plan.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { PhotoPurgeService } from "./photo-purge.service";
@@ -134,6 +135,19 @@ export class GalleryCloseService {
       data: { galleryClosedAt: now },
     });
     if (claim.count === 0) return null;
+
+    // Organizers can't see a closed gallery's photos, so they can't judge its
+    // reports any more: the open ones go to the platform (docs/moderation.md §3).
+    const open = await this.prisma.report.findMany({
+      where: { eventId: gallery.id, status: ReportStatus.OPEN, queue: ReportQueue.ORGANIZERS },
+      select: { id: true },
+    });
+    const escalated = await escalateToPlatform(
+      this.prisma,
+      open.map((report) => report.id),
+      ReportEscalation.GALLERY_CLOSED,
+    );
+    logEscalations(this.logger, escalated, ReportEscalation.GALLERY_CLOSED);
 
     // What the gallery held when it closed, measured before anything goes:
     // the usage the paid plans' prices are set from (docs/event-quotas.md).

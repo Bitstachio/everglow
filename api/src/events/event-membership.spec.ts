@@ -18,6 +18,16 @@ describe("removeMemberInTransaction", () => {
     prisma.photo.findMany.mockResolvedValue(uploaded as never);
     prisma.photo.deleteMany.mockResolvedValue({ count: uploaded.length });
     prisma.report.updateMany.mockResolvedValue({ count: 3 });
+    prisma.report.findMany.mockResolvedValue([
+      {
+        id: "r-1",
+        photoId: uploaded[0].id,
+        queue: "ORGANIZERS",
+        reason: "SPAM",
+        reporterId: null,
+        reportedUserId: userId,
+      },
+    ] as never);
   });
 
   it("removes the membership and bans them, keeping a repeat ban's first record", async () => {
@@ -44,6 +54,7 @@ describe("removeMemberInTransaction", () => {
       photoKeys: [],
       photosDeleted: 0,
       reportsClosed: 0,
+      reportsEscalated: [],
     });
 
     expect(prisma.photo.findMany).not.toHaveBeenCalled();
@@ -65,8 +76,11 @@ describe("removeMemberInTransaction", () => {
       select: { id: true, s3Key: true, sizeBytes: true },
     });
     const ids = uploaded.map((photo) => photo.id);
+    expect(prisma.report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { photoId: { in: ids }, status: "OPEN" } }),
+    );
     expect(prisma.report.updateMany).toHaveBeenCalledWith({
-      where: { photoId: { in: ids }, status: "OPEN" },
+      where: { id: { in: ["r-1"] }, status: "OPEN" },
       data: {
         status: "ACTIONED",
         closedReason: "PHOTO_REMOVED",
@@ -79,6 +93,11 @@ describe("removeMemberInTransaction", () => {
       prisma.photo.deleteMany.mock.invocationCallOrder[0],
     );
     expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ids } } });
-    expect(result).toEqual({ photoKeys: ["photos/a", "photos/b"], photosDeleted: 2, reportsClosed: 3 });
+    expect(result).toEqual({
+      photoKeys: ["photos/a", "photos/b"],
+      photosDeleted: 2,
+      reportsClosed: 3,
+      reportsEscalated: [],
+    });
   });
 });

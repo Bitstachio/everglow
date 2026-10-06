@@ -356,6 +356,7 @@ describe("EventsService", () => {
     // Moderation needs no event unless a test says otherwise.
     prisma.$queryRaw.mockResolvedValue([{ underReviewAt: null }]);
     prisma.report.count.mockResolvedValue(0);
+    prisma.report.findMany.mockResolvedValue([]);
     logger = {
       setContext: jest.fn(),
       info: jest.fn(),
@@ -2809,6 +2810,37 @@ describe("EventsService", () => {
       prisma.eventAccess.findUnique.mockResolvedValue(targetAccessWithUser);
     };
 
+    it("moves a promoted member's open organizer reports to the platform: an organizer can't judge them", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.update.mockResolvedValue(
+        eventAccessWithUser({ ...targetParticipantAccess, accessLevel: AccessLevel.ORGANIZER }, targetUserWithDetails),
+      );
+      prisma.report.findMany.mockResolvedValue([{ id: "r-1" }] as never);
+      prisma.$queryRaw.mockResolvedValue([
+        { id: "r-1", eventId, targetType: "MEMBER", photoId: null, reportedUserId: targetUserId, reason: "SPAM" },
+      ]);
+
+      await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.ORGANIZER);
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { eventId, reportedUserId: targetUserId, status: "OPEN", queue: "ORGANIZERS" },
+        select: { id: true },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.escalated", escalationReasons: ["target_is_organizer"] }),
+        expect.any(String),
+      );
+    });
+
+    it("leaves reports alone when the member's role goes down, not up", async () => {
+      setupOrganizerUpdate();
+      prisma.eventAccess.update.mockResolvedValue(targetAccessWithUser);
+
+      await service.updateUserAccessLevel(eventId, callerId, targetUserId, AccessLevel.VIEWER);
+
+      expect(prisma.report.findMany).not.toHaveBeenCalled();
+    });
+
     it("promotes a participant to organizer when the caller is an organizer", async () => {
       setupOrganizerUpdate();
       prisma.eventAccess.update.mockResolvedValue(
@@ -3120,6 +3152,16 @@ describe("EventsService", () => {
       prisma.photo.findMany.mockResolvedValue(uploaded as never);
       prisma.photo.deleteMany.mockResolvedValue({ count: 2 });
       prisma.report.updateMany.mockResolvedValue({ count: 1 });
+      prisma.report.findMany.mockResolvedValue([
+        {
+          id: "r-1",
+          photoId: uploaded[0].id,
+          queue: "ORGANIZERS",
+          reason: "SPAM",
+          reporterId: null,
+          reportedUserId: targetUserId,
+        },
+      ] as never);
 
       await service.removeUserFromEvent(eventId, callerId, targetUserId, "DELETE");
 

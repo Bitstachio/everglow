@@ -216,6 +216,7 @@ export type {
   ReportActorRole,
   ReportClosedReason,
   ReportListResponseDto,
+  ReportQueue,
   ReportReason,
   ReportResolutionAction,
   ReportResponseDto,
