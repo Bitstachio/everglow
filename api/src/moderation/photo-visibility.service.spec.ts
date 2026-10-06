@@ -126,7 +126,15 @@ describe("PhotoVisibilityService", () => {
 
       const where = await service.whereVisibleTo(callerId, eventFor(accessLevel));
 
-      expect(where.AND).toHaveLength(4);
+      expect(where.AND).toHaveLength(5);
+    });
+
+    it("hides a photo upload screening flagged until the platform has looked", async () => {
+      mockPhotosOverThreshold([]);
+
+      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+
+      expect(where.AND).toContainEqual({ reports: { none: { status: "OPEN", source: "AUTOMATED" } } });
     });
 
     it("hides photos the caller has an OPEN report on, and only OPEN ones", async () => {

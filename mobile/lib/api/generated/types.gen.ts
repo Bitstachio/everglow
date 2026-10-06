@@ -566,7 +566,8 @@ export type ReportEscalation =
   | "SEVERE_DISMISSED"
   | "TARGET_DELETED"
   | "CHILD_SAFETY"
-  | "INTIMATE_IMAGE";
+  | "INTIMATE_IMAGE"
+  | "AUTOMATED_FLAG";
 
 export type ReportHoldReason = "CHILD_SAFETY" | "INTIMATE_IMAGE" | "LAW_ENFORCEMENT" | "LEGAL";
 

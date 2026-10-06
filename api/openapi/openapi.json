@@ -4318,7 +4318,8 @@
           "SEVERE_DISMISSED",
           "TARGET_DELETED",
           "CHILD_SAFETY",
-          "INTIMATE_IMAGE"
+          "INTIMATE_IMAGE",
+          "AUTOMATED_FLAG"
         ]
       },
       "ReportHoldReason": {

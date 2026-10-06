@@ -31,6 +31,7 @@ export const buildReport = (overrides: Partial<Report> = {}): Report => ({
   holdUntil: null,
   holdReason: null,
   authorityReference: null,
+  source: "USER",
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,

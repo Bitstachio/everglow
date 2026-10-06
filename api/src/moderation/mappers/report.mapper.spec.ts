@@ -26,6 +26,7 @@ describe("ReportMapper", () => {
     holdUntil: null,
     holdReason: null,
     authorityReference: null,
+    source: "USER",
     createdAt: now,
     updatedAt: now,
   };

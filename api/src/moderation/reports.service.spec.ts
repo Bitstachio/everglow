@@ -148,6 +148,7 @@ describe("ReportsService", () => {
     holdUntil: null,
     holdReason: null,
     authorityReference: null,
+    source: "USER",
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -1471,6 +1472,59 @@ describe("ReportsService", () => {
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("fileAutomatedReport", () => {
+    const flagged = {
+      id: photoId,
+      eventId,
+      s3Key: "photos/k",
+      contentType: "image/jpeg",
+      sizeBytes: 1024,
+      addedById: uploaderId,
+    };
+
+    beforeEach(() => {
+      prisma.report.findFirst.mockResolvedValue(null);
+      prisma.event.findUnique.mockResolvedValue({ title: event.title } as never);
+      prisma.report.create.mockResolvedValue(
+        buildReport({ reporterId: null, source: "AUTOMATED", queue: "PLATFORM", reason: ReportReason.VIOLENCE }),
+      );
+    });
+
+    it("files it with no reporter, straight into the platform's queue, with its snapshot", async () => {
+      await service.fileAutomatedReport(flagged, ReportReason.VIOLENCE, "Upload screening: Violence (94%)");
+
+      expect(prisma.report.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          reporterId: null,
+          source: "AUTOMATED",
+          photoId,
+          reportedUserId: uploaderId,
+          reason: "VIOLENCE",
+          note: "Upload screening: Violence (94%)",
+          queue: "PLATFORM",
+          escalationReasons: ["AUTOMATED_FLAG", "SEVERE_REASON"],
+        }) as unknown,
+      });
+      expect(evidenceService.writeSnapshot).toHaveBeenCalledWith(prisma, reportId, {
+        objectS3Key: "photos/k",
+        contentType: "image/jpeg",
+        sizeBytes: 1024,
+        subjectUserId: uploaderId,
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.escalated", escalationReasons: ["automated_flag", "severe_reason"] }),
+        expect.any(String),
+      );
+    });
+
+    it("files nothing while the photo already has an OPEN automated report", async () => {
+      prisma.report.findFirst.mockResolvedValue({ id: "existing" } as never);
+
+      await expect(service.fileAutomatedReport(flagged, ReportReason.VIOLENCE, "Upload screening")).resolves.toBeNull();
+      expect(prisma.report.create).not.toHaveBeenCalled();
     });
   });
 

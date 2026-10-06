@@ -338,6 +338,9 @@ model Report {
   eventTitle         String              @db.VarChar(100)
   // Null once the reporter's account is deleted: the report stays as evidence.
   reporterId         String?             @db.Uuid
+  // USER for a member's report; AUTOMATED for one filed by upload screening,
+  // which has no reporter (docs/moderation.md §11).
+  source             ReportSource        @default(USER)
   targetType         ReportTargetType
   // Set for PHOTO reports; null again once that photo is deleted.
   photoId            String?             @db.Uuid
@@ -529,9 +532,16 @@ enum ReportEscalation {
   TARGET_DELETED
   CHILD_SAFETY
   INTIMATE_IMAGE
+  AUTOMATED_FLAG
 }
 
 // A role on the platform itself, above any event (docs/moderation.md §8).
 enum PlatformRole {
   MODERATOR
+}
+
+// Who filed a report (docs/moderation.md §11).
+enum ReportSource {
+  USER
+  AUTOMATED
 }

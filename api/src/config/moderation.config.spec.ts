@@ -5,7 +5,13 @@ import {
 } from "src/moderation/evidence/evidence.constants";
 
 describe("moderationConfig", () => {
-  const MANAGED_VARS = ["MODERATION_EVIDENCE_JOB_ENABLED", "REPORT_RETENTION_DAYS", "EVIDENCE_JOB_BATCH_SIZE"] as const;
+  const MANAGED_VARS = [
+    "MODERATION_EVIDENCE_JOB_ENABLED",
+    "REPORT_RETENTION_DAYS",
+    "EVIDENCE_JOB_BATCH_SIZE",
+    "MODERATION_SCREENING_ENABLED",
+    "SCREENING_MIN_CONFIDENCE",
+  ] as const;
   const original = new Map(MANAGED_VARS.map((name) => [name, process.env[name]]));
 
   beforeEach(() => {
@@ -48,5 +54,13 @@ describe("moderationConfig", () => {
   it("reads the retention window from REPORT_RETENTION_DAYS", () => {
     process.env.REPORT_RETENTION_DAYS = "400";
     expect(moderationConfig().reportRetentionDays).toBe(400);
+  });
+
+  it("screens uploads only when MODERATION_SCREENING_ENABLED is exactly true, at 80% confidence by default", () => {
+    expect(moderationConfig()).toMatchObject({ screeningEnabled: false, screeningMinConfidence: 80 });
+
+    process.env.MODERATION_SCREENING_ENABLED = "true";
+    process.env.SCREENING_MIN_CONFIDENCE = "90";
+    expect(moderationConfig()).toMatchObject({ screeningEnabled: true, screeningMinConfidence: 90 });
   });
 });
