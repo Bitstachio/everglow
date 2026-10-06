@@ -6,9 +6,6 @@ import { defaultLocale, isAppLocale } from "./config";
 import { defaultNS, ns, resources } from "./resources";
 import "./types";
 
-export { defaultLocale, isAppLocale, locales, type AppLocale } from "./config";
-export { defaultNS, ns, resources } from "./resources";
-
 /** Prefer the first device language we ship; otherwise fall back to English. */
 export const resolveDeviceLocale = (): string => {
   for (const locale of Localization.getLocales()) {

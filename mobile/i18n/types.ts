@@ -1,6 +1,6 @@
 import "i18next";
 
-import type en from "@/locales/en";
+import type en from "@/locales/en/messages";
 
 import type { defaultNS } from "./resources";
 

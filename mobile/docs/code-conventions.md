@@ -142,9 +142,26 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
+import i18n from "@/i18n/instance";
 ```
 
-Import the component file directly (no `index` barrel). Inside a feature module, use relative imports for files in the same feature (for example, `../api/mutations`). See [Feature code organization](./feature-code-organization.md#imports).
+Import the concrete file. **Do not use barrel `index.ts` / `index.tsx` re-exports**
+in hand-written app code — not for components, hooks, `lib/`, `i18n/`, or
+`locales/`. Name the entry (`button.tsx`, `instance.ts`, `messages.ts`) and
+import that path.
+
+When generating or scaffolding new modules, prefer the same rule: a folder may
+hold several named files, but callers should import `@/…/concrete-file`, not
+`@/…` via an `index` barrel. Aggregators that merge JSON catalogs (for example
+`locales/en/messages.ts`) are still named files, not `index.ts`.
+
+**Exception:** generated OpenAPI client code under `lib/api/generated/` may keep
+whatever layout the generator emits (including `index.ts`). Do not hand-edit that
+tree to add barrels elsewhere, and do not copy that pattern into app code.
+
+Inside a feature module, use relative imports for files in the same feature (for
+example, `../api/mutations`). See
+[Feature code organization](./feature-code-organization.md#imports).
 
 ### Error handling
 
