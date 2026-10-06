@@ -10,6 +10,7 @@ import { buildEvent, buildParticipant, buildPhoto, deferred } from "../testing/f
 // Seed and inspect caches at the integration boundary.
 // eslint-disable-next-line no-restricted-imports
 import { eventsKeys } from "../api/keys";
+import { createApiError } from "@/lib/api/errors";
 
 const mockFindOne = jest.fn();
 const mockListPhotos = jest.fn();
@@ -18,7 +19,7 @@ const mockLeave = jest.fn();
 const mockRemoveParticipant = jest.fn();
 const mockCreateUploadUrls = jest.fn();
 const mockConfirmUploads = jest.fn();
-const mockFindOnePhoto = jest.fn();
+const mockFileSize = jest.fn();
 const mockRemovePhoto = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
@@ -41,7 +42,6 @@ jest.mock("@/lib/api/generated", () => ({
   photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
   photosControllerCreateUploadUrls: (...args: unknown[]) => mockCreateUploadUrls(...args),
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
-  photosControllerFindOne: (...args: unknown[]) => mockFindOnePhoto(...args),
   photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -67,7 +67,11 @@ jest.mock("expo-media-library", () => ({
 }));
 jest.mock("expo-file-system", () => ({
   Paths: { cache: "file://cache" },
-  File: { downloadFileAsync: (...args: unknown[]) => mockDownloadFile(...args) },
+  // `new File(uri)` for the size of a picked photo; `File.downloadFileAsync` to save one.
+  File: Object.assign(
+    jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri) })),
+    { downloadFileAsync: (...args: unknown[]) => mockDownloadFile(...args) },
+  ),
 }));
 
 const clients: QueryClient[] = [];
@@ -104,6 +108,31 @@ const renderScreen = async (seed: DetailSeed = {}) => {
   return client;
 };
 
+const IMAGE_BYTES = "image-bytes";
+
+const confirmAllReady = ({ body }: { body: { photoIds: string[] } }) =>
+  Promise.resolve({ data: { data: body.photoIds.map((photoId) => ({ photoId, status: "READY" })) } });
+
+/** One slot per declared file, numbered across batches. */
+const mintSlotPerFile = () => {
+  let minted = 0;
+  return ({ body }: { body: { files: unknown[] } }) =>
+    Promise.resolve({
+      data: {
+        data: body.files.map(() => {
+          minted += 1;
+          return { photoId: `photo-new-${minted}`, uploadUrl: `https://upload.example.com/${minted}` };
+        }),
+      },
+    });
+};
+
+const pickPhotos = (count: number) =>
+  mockLaunchLibrary.mockResolvedValue({
+    canceled: false,
+    assets: Array.from({ length: count }, (_, index) => ({ uri: `file://photo-${index}.jpg` })),
+  });
+
 const confirmDestructiveAlert = () => {
   const calls = jest.mocked(Alert.alert).mock.calls;
   const last = calls[calls.length - 1];
@@ -123,8 +152,8 @@ beforeEach(() => {
   mockCreateUploadUrls.mockReset().mockResolvedValue({
     data: { data: [{ photoId: "photo-2", uploadUrl: "https://upload.example.com/slot" }] },
   });
-  mockConfirmUploads.mockReset().mockResolvedValue({ data: { data: null } });
-  mockFindOnePhoto.mockReset().mockResolvedValue({ data: { data: buildPhoto({ id: "photo-2" }) } });
+  mockConfirmUploads.mockReset().mockImplementation(confirmAllReady);
+  mockFileSize.mockReset().mockReturnValue(IMAGE_BYTES.length);
   mockRemovePhoto.mockReset().mockResolvedValue({});
   mockBack.mockReset();
   mockReplace.mockReset();
@@ -139,7 +168,7 @@ beforeEach(() => {
   mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg" });
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
-    blob: async () => new Blob(["image-bytes"]),
+    blob: async () => new Blob([IMAGE_BYTES]),
   }) as typeof fetch;
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
@@ -210,17 +239,24 @@ test("opens event settings from the header action", async () => {
   expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
 });
 
+test("shows the gallery's storage, never a photo count", async () => {
+  await renderScreen({
+    event: buildEvent({ usage: { members: 1, storageBytes: String(1.2 * 1024 ** 3) } }),
+  });
+  expect(await screen.findByText("1.2 GB of 3 GB used")).toBeOnTheScreen();
+});
+
 test("uploads a selected photo and refreshes the photo list", async () => {
   await renderScreen();
   await screen.findByText("Weekend meetup");
   const photoCallsBefore = mockListPhotos.mock.calls.length;
-  await userEvent.setup().press(screen.getByLabelText("Add photo"));
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
 
   await waitFor(() =>
     expect(mockCreateUploadUrls).toHaveBeenCalledWith({
       path: { eventId: "event-1" },
-      // The size of the bytes read from the file, not the picker's fileSize.
-      body: { files: [{ contentType: "image/jpeg", sizeBytes: "image-bytes".length }] },
+      // The file's size on disk, not the picker's fileSize.
+      body: { files: [{ contentType: "image/jpeg", sizeBytes: IMAGE_BYTES.length }] },
       throwOnError: true,
     }),
   );
@@ -236,12 +272,127 @@ test("uploads a selected photo and refreshes the photo list", async () => {
 test("picks event photos without a crop step", async () => {
   await renderScreen();
   await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photo"));
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
 
   await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalled());
   const options = mockLaunchLibrary.mock.calls[0][0];
   expect(options).not.toHaveProperty("allowsEditing");
   expect(options).not.toHaveProperty("aspect");
+  expect(options).toMatchObject({ allowsMultipleSelection: true });
+});
+
+test("shows the upload as preparing until the picker hands the photos over, and clears it on cancel", async () => {
+  const picked = deferred<unknown>();
+  mockLaunchLibrary.mockReturnValue(picked.promise);
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+
+  expect(await screen.findByText("Preparing photos…")).toBeOnTheScreen();
+  picked.resolve({ canceled: true, assets: null });
+
+  expect(await screen.findByLabelText("Add photos")).toBeOnTheScreen();
+  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+});
+
+test("uploads many photos in batches of 20 with one progress label and one result", async () => {
+  pickPhotos(25);
+  mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+  const lastConfirm = deferred<unknown>();
+  mockConfirmUploads.mockImplementationOnce(confirmAllReady).mockImplementationOnce(async (request) => {
+    await lastConfirm.promise;
+    return confirmAllReady(request);
+  });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  const eventCallsBefore = mockFindOne.mock.calls.length;
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+
+  expect(await screen.findByText("Uploading 25 of 25")).toBeOnTheScreen();
+  expect(Alert.alert).not.toHaveBeenCalled();
+  lastConfirm.resolve(undefined);
+
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Success", "25 photos uploaded successfully!"));
+  expect(Alert.alert).toHaveBeenCalledTimes(1);
+  expect(mockCreateUploadUrls.mock.calls.map(([request]) => request.body.files.length)).toEqual([20, 5]);
+  expect(mockConfirmUploads).toHaveBeenCalledTimes(2);
+  expect(await screen.findByLabelText("Add photos")).toBeOnTheScreen();
+  await waitFor(() => expect(mockFindOne.mock.calls.length).toBeGreaterThan(eventCallsBefore));
+});
+
+test("does not upload a selection bigger than the storage left", async () => {
+  pickPhotos(3);
+  mockFileSize.mockReturnValue(400 * 1024 * 1024);
+  await renderScreen({
+    event: buildEvent({ usage: { members: 1, storageBytes: String(2 * 1024 ** 3) } }),
+  });
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+
+  await waitFor(() =>
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Not Enough Storage",
+      "These 3 photos need 1.2 GB, but this gallery has 1 GB left.",
+    ),
+  );
+  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["EVENT_STORAGE_LIMIT_REACHED", "This gallery is full. There isn't enough storage left for these photos."],
+  ["EVENT_GALLERY_CLOSED", "This event's gallery has closed."],
+])("stops on %s, says how many were uploaded, and refetches the event", async (code, message) => {
+  pickPhotos(25);
+  const mint = mintSlotPerFile();
+  mockCreateUploadUrls
+    .mockImplementationOnce(mint)
+    .mockRejectedValueOnce(createApiError(message, { status: 403, code }));
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  const eventCallsBefore = mockFindOne.mock.calls.length;
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+
+  await waitFor(() =>
+    expect(Alert.alert).toHaveBeenCalledWith("Upload Stopped", `${message} 20 of 25 photos uploaded.`),
+  );
+  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(mockFindOne.mock.calls.length).toBeGreaterThan(eventCallsBefore));
+});
+
+test("reports photos that failed to upload once the rest are done", async () => {
+  pickPhotos(3);
+  mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+  mockConfirmUploads.mockImplementation(({ body }: { body: { photoIds: string[] } }) =>
+    Promise.resolve({
+      data: {
+        data: body.photoIds.map((photoId) => ({
+          photoId,
+          status: photoId === "photo-new-2" ? "MISMATCHED" : "READY",
+        })),
+      },
+    }),
+  );
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+
+  await waitFor(() =>
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Upload Finished",
+      "2 of 3 photos uploaded. The rest couldn't be uploaded. Try adding them again.",
+    ),
+  );
+});
+
+test("says so when a single photo fails to upload", async () => {
+  mockConfirmUploads.mockResolvedValue({ data: { data: [{ photoId: "photo-2", status: "MISSING" }] } });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+
+  await waitFor(() =>
+    expect(Alert.alert).toHaveBeenCalledWith("Error", "Your photo couldn't be uploaded. Please try again."),
+  );
 });
 
 test.each([
@@ -251,12 +402,12 @@ test.each([
   mockLaunchLibrary.mockResolvedValue({ canceled: false, assets: [asset] });
   await renderScreen();
   await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photo"));
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
 
   await waitFor(() =>
     expect(mockCreateUploadUrls).toHaveBeenCalledWith({
       path: { eventId: "event-1" },
-      body: { files: [{ contentType: "image/heic", sizeBytes: "image-bytes".length }] },
+      body: { files: [{ contentType: "image/heic", sizeBytes: IMAGE_BYTES.length }] },
       throwOnError: true,
     }),
   );
@@ -267,7 +418,7 @@ test("blocks upload when photo library permission is denied", async () => {
   mockRequestLibraryPermission.mockResolvedValue({ granted: false });
   await renderScreen();
   await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photo"));
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
 
   expect(Alert.alert).toHaveBeenCalledWith(
     "Permission Required",
@@ -277,9 +428,14 @@ test("blocks upload when photo library permission is denied", async () => {
   expect(mockCreateUploadUrls).not.toHaveBeenCalled();
 });
 
-test("deletes a photo after confirmation", async () => {
-  await renderScreen({ photos: [buildPhoto()] });
+test("deletes a photo after confirmation and refreshes the gallery's storage", async () => {
+  await renderScreen({
+    photos: [buildPhoto()],
+    event: buildEvent({ usage: { members: 1, storageBytes: String(18 * 1024 ** 2) } }),
+  });
   await screen.findByLabelText("Event photo photo-1");
+  expect(screen.getByText("18 MB of 3 GB used")).toBeOnTheScreen();
+  mockDetailResponses({ photos: [] });
   await userEvent.setup().press(screen.getByLabelText("Delete photo photo-1"));
   confirmDestructiveAlert();
 
@@ -287,6 +443,7 @@ test("deletes a photo after confirmation", async () => {
     expect(mockRemovePhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true }),
   );
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo deleted successfully");
+  expect(await screen.findByText("0 B of 3 GB used")).toBeOnTheScreen();
 });
 
 test("downloads a photo to the media library", async () => {

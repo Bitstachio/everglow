@@ -31,15 +31,37 @@ test("photos section shows empty state and upload control", async () => {
     <EventPhotosSection
       photos={[]}
       isAdmin
-      isUploading={false}
+      uploadStatus={null}
+      storageLabel={null}
       onUpload={onUpload}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
     />,
   );
   expect(screen.getByText("No photos yet")).toBeOnTheScreen();
-  await userEvent.setup().press(screen.getByLabelText("Add photo"));
+  await userEvent.setup().press(screen.getByLabelText("Add photos"));
   expect(onUpload).toHaveBeenCalledTimes(1);
+});
+
+test("photos section shows the gallery's storage and one progress label while uploading", async () => {
+  const onUpload = jest.fn();
+  await render(
+    <EventPhotosSection
+      photos={[]}
+      isAdmin
+      uploadStatus={{ phase: "uploading", done: 34, total: 120 }}
+      storageLabel="1.2 GB of 3 GB used"
+      onUpload={onUpload}
+      onDownload={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  );
+  expect(screen.getByText("1.2 GB of 3 GB used")).toBeOnTheScreen();
+  expect(screen.getByText("Uploading 34 of 120")).toBeOnTheScreen();
+  const button = screen.getByRole("button", { name: "Uploading 34 of 120" });
+  expect(button).toBeDisabled();
+  await userEvent.setup().press(button);
+  expect(onUpload).not.toHaveBeenCalled();
 });
 
 test("photos section wires download and delete for own photos", async () => {
@@ -51,7 +73,8 @@ test("photos section wires download and delete for own photos", async () => {
       photos={[photo]}
       currentUserId="user-1"
       isAdmin={false}
-      isUploading={false}
+      uploadStatus={null}
+      storageLabel={null}
       onUpload={jest.fn()}
       onDownload={onDownload}
       onDelete={onDelete}
@@ -70,13 +93,30 @@ test("photos section hides delete for other members' photos", async () => {
       photos={[buildPhoto({ addedById: "user-9" })]}
       currentUserId="user-2"
       isAdmin={false}
-      isUploading={false}
+      uploadStatus={null}
+      storageLabel={null}
       onUpload={jest.fn()}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
     />,
   );
   expect(screen.queryByLabelText("Delete photo photo-1")).not.toBeOnTheScreen();
+});
+
+test("photos section shows that the selection is being prepared before the upload starts", async () => {
+  await render(
+    <EventPhotosSection
+      photos={[]}
+      isAdmin
+      uploadStatus={{ phase: "preparing" }}
+      storageLabel={null}
+      onUpload={jest.fn()}
+      onDownload={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  );
+  expect(screen.getByText("Preparing photos…")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Preparing photos…" })).toBeDisabled();
 });
 
 test("members sheet lists roles and allows removing non-organizers", async () => {

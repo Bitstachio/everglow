@@ -2,6 +2,9 @@ import { buildEvent } from "./testing/fixtures";
 import {
   DEFAULT_EVENTS_LIST_FILTERS,
   displayFilterDay,
+  eventStorageLeftBytes,
+  formatEventStorage,
+  formatStorageBytes,
   filterEvents,
   formatEventDateTime,
   formatFilterDay,
@@ -110,4 +113,28 @@ test("formats filter days for storage and display", () => {
   expect(formatFilterDay(new Date(2026, 8, 15))).toBe("2026-09-15");
   expect(displayFilterDay(null)).toBe("Select date");
   expect(displayFilterDay("2026-09-15")).toContain("2026");
+});
+
+test.each([
+  [0, "0 B"],
+  [512, "512 B"],
+  [300 * 1024 * 1024, "300 MB"],
+  [1.2 * 1024 ** 3, "1.2 GB"],
+  [3 * 1024 ** 3, "3 GB"],
+  [-5, "0 B"],
+])("formats %d bytes as %s", (bytes, label) => {
+  expect(formatStorageBytes(bytes)).toBe(label);
+});
+
+test("describes the gallery's storage against its limit, or alone without one", () => {
+  const usage = { members: 1, storageBytes: String(1.2 * 1024 ** 3) };
+  expect(formatEventStorage(buildEvent({ usage }))).toBe("1.2 GB of 3 GB used");
+  expect(formatEventStorage(buildEvent({ usage, limits: { members: null, storageBytes: null } }))).toBe("1.2 GB used");
+});
+
+test("works out the storage left, never below zero, and null without a limit", () => {
+  const limits = { members: 30, storageBytes: "1000" };
+  expect(eventStorageLeftBytes(buildEvent({ limits, usage: { members: 1, storageBytes: "400" } }))).toBe(600);
+  expect(eventStorageLeftBytes(buildEvent({ limits, usage: { members: 1, storageBytes: "1200" } }))).toBe(0);
+  expect(eventStorageLeftBytes(buildEvent({ limits: { members: null, storageBytes: null } }))).toBeNull();
 });

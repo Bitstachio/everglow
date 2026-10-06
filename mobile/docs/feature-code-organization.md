@@ -226,7 +226,7 @@ downscales to 1024px and re-encodes as JPEG. Re-encoding is what makes HEIC
 from the camera roll work, since the API only accepts JPEG, PNG and WebP up to
 5 MB. The upload goes through `uploadImage` (`lib/api/upload-image.ts`), which
 the event cover uses too; it wraps the `uploadFile` helper
-(`lib/api/upload-file.ts`) that photos also use. The protocol is in
+(`lib/api/upload-file.ts`), whose read and PUT steps event photos also use. The protocol is in
 `docs/uploads.md`.
 
 `uploadImage` starts over with a new upload URL once on
@@ -253,6 +253,37 @@ refetch the event and its members so the screen reflects the change. The
 `EventCover` component shows the cover at 16:9 at the top of event cards and
 the detail screen, renders nothing when `coverUrl` is null, and caches by
 event id and uploaded object like `Avatar`.
+
+## Event photos
+
+Add Photos on the event detail screen opens the library picker with multiple
+selection and no crop step, so photos upload in their original aspect ratio
+and format (HEIC included). `useEventDetailScreen` measures each file on disk
+and, when the event has a storage limit, refuses a selection bigger than the
+storage left (`limits.storageBytes - usage.storageBytes`) before calling the
+API. The photos section shows that storage as "1.2 GB of 3 GB used", never as
+a number of photos.
+
+`uploadEventPhotos` (`features/events/api/upload-event-photos.ts`) sends the
+selection in batches of 20, the API's `MAX_UPLOAD_BATCH_SIZE`, one batch after
+another: mint the batch's upload URLs, PUT up to four files at once, then
+confirm the ones that landed. The button shows one count for the whole
+selection ("Uploading 34 of 120"), and one alert reports the result. Before
+that it reads "Preparing photos…" from the moment the picker opens: once the
+member taps Add, iOS copies every selected photo into the app before the picker
+returns, which takes seconds for a large selection.
+
+- A file whose PUT fails, or whose confirm verdict is not `READY`, is counted
+  as not uploaded and the rest carry on. A confirm whose response is lost is
+  retried once; confirm is idempotent.
+- A mint refused with `EVENT_STORAGE_LIMIT_REACHED` or `EVENT_GALLERY_CLOSED`
+  stops the upload, and the alert says how many photos made it in.
+- `STORAGE_RESERVATION_CONFLICT` retries the batch once. A `429` waits for
+  `Retry-After` and carries on, up to three times per batch.
+
+`useUploadEventPhotosMutation` refetches the photos and the event when it
+settles, so the storage line and a gallery that closed mid-upload are current.
+Deleting a photo refetches the event too, since it frees storage.
 
 ## Legal pages
 
