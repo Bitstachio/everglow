@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -118,6 +119,29 @@ export class S3Service implements OnModuleDestroy {
     } catch (error) {
       this.logger.error({ err: error as Error, key }, "s3 putObject failed");
       throw new InternalServerErrorException(S3_SERVICE_ERRORS.PUT_FAILED(key));
+    }
+  }
+
+  /**
+   * Copies an object inside the bucket and returns the copy's SHA-256, which S3
+   * computes while copying (hex; null if S3 didn't return one). Throws when the
+   * copy fails; nothing is deleted either way.
+   */
+  async copyObject(sourceKey: string, destinationKey: string): Promise<{ sha256: string | null }> {
+    try {
+      const response = await this.client.send(
+        new CopyObjectCommand({
+          Bucket: this.bucket,
+          CopySource: `${this.bucket}/${encodeURIComponent(sourceKey).replace(/%2F/g, "/")}`,
+          Key: destinationKey,
+          ChecksumAlgorithm: "SHA256",
+        }),
+      );
+      const checksum = response.CopyObjectResult?.ChecksumSHA256;
+      return { sha256: checksum ? Buffer.from(checksum, "base64").toString("hex") : null };
+    } catch (error) {
+      this.logger.error({ err: error as Error, sourceKey, destinationKey }, "s3 copyObject failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.COPY_FAILED(sourceKey));
     }
   }
 

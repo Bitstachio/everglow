@@ -27,8 +27,11 @@ import {
 } from "./moderation.constants";
 import { PhotoVisibilityService } from "./photo-visibility.service";
 import { ReportsService } from "./reports.service";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 
 describe("ReportsService", () => {
+  let evidenceService: EvidenceServiceMock;
   let service: ReportsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoVisibilityService: { isVisibleTo: jest.Mock };
@@ -135,6 +138,8 @@ describe("ReportsService", () => {
     closedByRole: null,
     resolvedById: null,
     resolvedAt: null,
+    holdUntil: null,
+    holdReason: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -153,6 +158,8 @@ describe("ReportsService", () => {
     photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
+    evidenceService = buildEvidenceServiceMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReportsService,
@@ -160,6 +167,7 @@ describe("ReportsService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: PhotoVisibilityService, useValue: photoVisibilityService },
         { provide: S3Service, useValue: s3Service },
+        { provide: EvidenceService, useValue: evidenceService },
         { provide: PhotoPurgeService, useValue: photoPurgeService },
         { provide: PinoLogger, useValue: logger },
       ],
@@ -204,6 +212,31 @@ describe("ReportsService", () => {
         });
       },
     );
+
+    it("writes the evidence snapshot in the same transaction as the report", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.report.createManyAndReturn.mockResolvedValue([buildReport()]);
+
+      await service.reportPhoto(photoId, callerId, dto);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(evidenceService.writeSnapshot).toHaveBeenCalledWith(prisma, reportId, {
+        objectS3Key: `photos/${uploaderId}/${eventId}/${photoId}`,
+        contentType: "image/jpeg",
+        sizeBytes: 1024,
+        subjectUserId: uploaderId,
+      });
+    });
+
+    it("writes no snapshot for a repeat that returns the caller's open report", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.report.createManyAndReturn.mockResolvedValue([]);
+      prisma.report.findFirst.mockResolvedValue(buildReport());
+
+      await service.reportPhoto(photoId, callerId, dto);
+
+      expect(evidenceService.writeSnapshot).not.toHaveBeenCalled();
+    });
 
     it("stores a missing note as null and a missing uploader as no reported user", async () => {
       prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.VIEWER, { addedById: null }) as never);

@@ -28,6 +28,8 @@ describe("ALERT_EVENTS", () => {
 
       REPORT_ESCALATED: "report.escalated",
       REPORT_STALE: "report.stale",
+      REPORT_EVIDENCE_COPY_FAILED: "report.evidence.copy_failed",
+      REPORT_EVIDENCE_JOB_DISABLED: "report.evidence_job.disabled",
 
       ACCOUNT_DELETION_RECONCILE_RUN_COMPLETED: "user.account.deletion_reconcile.run_completed",
       ACCOUNT_DELETION_RECONCILE_RUN_FAILED: "user.account.deletion_reconcile.run_failed",
@@ -39,6 +41,8 @@ describe("ALERT_EVENTS", () => {
       STALE_REPORT_CHECK_RUN_FAILED: "report.stale_check.run_failed",
       GALLERY_CLOSE_RUN_COMPLETED: "event.gallery_close.run_completed",
       GALLERY_CLOSE_RUN_FAILED: "event.gallery_close.run_failed",
+      REPORT_EVIDENCE_RUN_COMPLETED: "report.evidence_job.run_completed",
+      REPORT_EVIDENCE_RUN_FAILED: "report.evidence_job.run_failed",
     });
   });
 

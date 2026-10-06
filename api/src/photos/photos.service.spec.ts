@@ -16,8 +16,11 @@ import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { buildPhotoS3Key, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosService } from "./photos.service";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 
 describe("PhotosService", () => {
+  let evidenceService: EvidenceServiceMock;
   let service: PhotosService;
   let prisma: DeepMockProxy<PrismaClient>;
   let s3Service: {
@@ -133,12 +136,15 @@ describe("PhotosService", () => {
     };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
+    evidenceService = buildEvidenceServiceMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PhotosService,
         AbilityFactory,
         { provide: PrismaService, useValue: prisma },
         { provide: S3Service, useValue: s3Service },
+        { provide: EvidenceService, useValue: evidenceService },
         { provide: PhotoStorageService, useValue: photoStorageService },
         { provide: PhotoVisibilityService, useValue: photoVisibilityService },
         { provide: PinoLogger, useValue: logger },
@@ -845,6 +851,17 @@ describe("PhotosService", () => {
       await expect(service.deletePhoto(photoId, callerId)).rejects.toBeInstanceOf(Error);
       expect(prisma.photo.delete).not.toHaveBeenCalled();
       expect(prisma.report.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("keeps a reported photo's object when its evidence copy fails, and deletes the row all the same", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);
+      evidenceService.preserveBeforeDelete.mockResolvedValue({ deletable: [], retained: ["k"] });
+
+      await service.deletePhoto(photoId, callerId);
+
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
     });
   });
 });

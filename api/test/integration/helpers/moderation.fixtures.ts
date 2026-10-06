@@ -24,6 +24,8 @@ export const buildReport = (overrides: Partial<Report> = {}): Report => ({
   closedByRole: null,
   resolvedById: null,
   resolvedAt: null,
+  holdUntil: null,
+  holdReason: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,

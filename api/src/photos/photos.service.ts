@@ -11,6 +11,7 @@ import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
@@ -51,6 +52,7 @@ export class PhotosService {
     private readonly s3Service: S3Service,
     private readonly photoStorageService: PhotoStorageService,
     private readonly photoVisibilityService: PhotoVisibilityService,
+    private readonly evidenceService: EvidenceService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -344,8 +346,11 @@ export class PhotosService {
       refusal: "ORGANIZER_ONLY",
     });
 
-    // S3 first: if it fails the row survives and the delete can be retried.
-    await this.s3Service.deleteObject(photo.s3Key);
+    // S3 first: if it fails the row survives and the delete can be retried. A
+    // reported photo is copied to evidence before it goes; if that copy fails
+    // the original stays for the evidence job, and the row goes all the same.
+    const { deletable } = await this.evidenceService.preserveBeforeDelete([photo.s3Key]);
+    if (deletable.length > 0) await this.s3Service.deleteObject(photo.s3Key);
     // The photo's OPEN reports close with it; see closeReportsOnDeletedPhotos.
     const closedReports = await this.prisma.$transaction(async (tx) => {
       const closed = await closeReportsOnDeletedPhotos(tx, [photoId], {

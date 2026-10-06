@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ImageOrphanSource } from "src/images/image-orphan-source";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { OrphanSourceRegistry } from "src/storage/orphan-source.registry";
 import { EVENT_COVER_S3_KEY_PREFIX } from "./events.constants";
@@ -10,16 +11,18 @@ export class EventCoverOrphanSource extends ImageOrphanSource {
   constructor(
     registry: OrphanSourceRegistry,
     private readonly prisma: PrismaService,
+    private readonly evidenceService: EvidenceService,
   ) {
     super(EVENT_COVER_S3_KEY_PREFIX, registry);
   }
 
-  // Event.coverS3Key is unique, so this is an index probe per key in one round trip.
+  // Event.coverS3Key is unique, so this is an index probe per key in one round
+  // trip. A reported cover whose evidence copy hasn't been made yet is kept too.
   async findReferencedKeys(keys: string[]): Promise<string[]> {
-    const rows = await this.prisma.event.findMany({
-      where: { coverS3Key: { in: keys } },
-      select: { coverS3Key: true },
-    });
-    return rows.flatMap((row) => (row.coverS3Key ? [row.coverS3Key] : []));
+    const [rows, evidence] = await Promise.all([
+      this.prisma.event.findMany({ where: { coverS3Key: { in: keys } }, select: { coverS3Key: true } }),
+      this.evidenceService.findKeysAwaitingQuarantine(keys),
+    ]);
+    return [...new Set([...rows.flatMap((row) => (row.coverS3Key ? [row.coverS3Key] : [])), ...evidence])];
   }
 }

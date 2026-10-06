@@ -17,11 +17,14 @@ import { UserAvatarService } from "./user-avatar.service";
 import { USER_AVATAR_S3_KEY_PREFIX } from "./users.constants";
 import { UsersService } from "./users.service";
 import { UserWithDetails } from "./users.types";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 
 // The real ImageUploadService runs against a stubbed S3Service: what matters
 // here is the avatar flow end to end (key derivation, verification, ordering,
 // the conditional row write), not a re-statement of calls into a mock of it.
 describe("UserAvatarService", () => {
+  let evidenceService: EvidenceServiceMock;
   let service: UserAvatarService;
   let prisma: DeepMockProxy<PrismaClient>;
   let usersService: { getById: jest.Mock; getOnboardedById: jest.Mock };
@@ -86,6 +89,8 @@ describe("UserAvatarService", () => {
     };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
+    evidenceService = buildEvidenceServiceMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserAvatarService,
@@ -93,6 +98,7 @@ describe("UserAvatarService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: usersService },
         { provide: S3Service, useValue: s3Service },
+        { provide: EvidenceService, useValue: evidenceService },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();

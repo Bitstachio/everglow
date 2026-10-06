@@ -15,12 +15,15 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { EventCoverService } from "./event-cover.service";
 import { EVENT_COVER_S3_KEY_PREFIX } from "./events.constants";
 import { EventsService } from "./events.service";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 
 // The real ImageUploadService runs against a stubbed S3Service: what matters
 // here is the cover flow end to end (authorization first, key derivation,
 // verification, ordering, the conditional row write). Who may update an event
 // is EventsService.getUpdatable's business and is covered with it.
 describe("EventCoverService", () => {
+  let evidenceService: EvidenceServiceMock;
   let service: EventCoverService;
   let prisma: DeepMockProxy<PrismaClient>;
   let eventsService: { getUpdatable: jest.Mock; findOne: jest.Mock };
@@ -87,6 +90,8 @@ describe("EventCoverService", () => {
     };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
+    evidenceService = buildEvidenceServiceMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EventCoverService,
@@ -94,6 +99,7 @@ describe("EventCoverService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: EventsService, useValue: eventsService },
         { provide: S3Service, useValue: s3Service },
+        { provide: EvidenceService, useValue: evidenceService },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();

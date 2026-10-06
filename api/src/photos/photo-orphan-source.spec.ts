@@ -1,5 +1,6 @@
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { OrphanSource, OrphanSourceRegistry } from "src/storage/orphan-source.registry";
 import { PhotoOrphanSource } from "./photo-orphan-source";
@@ -9,6 +10,7 @@ describe("PhotoOrphanSource", () => {
   let source: PhotoOrphanSource;
   let prisma: DeepMockProxy<PrismaClient>;
   let registry: OrphanSourceRegistry;
+  let evidenceService: { findKeysAwaitingQuarantine: jest.Mock };
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -19,7 +21,12 @@ describe("PhotoOrphanSource", () => {
   beforeEach(() => {
     prisma = mockDeep<PrismaClient>();
     registry = new OrphanSourceRegistry();
-    source = new PhotoOrphanSource(prisma as unknown as PrismaService, registry);
+    evidenceService = { findKeysAwaitingQuarantine: jest.fn().mockResolvedValue([]) };
+    source = new PhotoOrphanSource(
+      prisma as unknown as PrismaService,
+      registry,
+      evidenceService as unknown as EvidenceService,
+    );
   });
 
   it("registers the photos/ prefix on module init, with no minimum age of its own", () => {
@@ -56,5 +63,13 @@ describe("PhotoOrphanSource", () => {
       where: { s3Key: { in: [currentKey, legacyKey] } },
       select: { s3Key: true },
     });
+  });
+
+  it("keeps an object a report's evidence still needs, though its photo row is gone", async () => {
+    prisma.photo.findMany.mockResolvedValue([]);
+    evidenceService.findKeysAwaitingQuarantine.mockResolvedValue([legacyKey]);
+
+    await expect(source.findReferencedKeys([currentKey, legacyKey])).resolves.toEqual([legacyKey]);
+    expect(evidenceService.findKeysAwaitingQuarantine).toHaveBeenCalledWith([currentKey, legacyKey]);
   });
 });
