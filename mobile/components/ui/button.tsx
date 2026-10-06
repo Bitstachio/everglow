@@ -1,6 +1,7 @@
 import { AppIcon } from "@/components/ui/app-icon";
 import { Spinner } from "@/components/ui/spinner";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import i18n from "@/i18n/instance";
 import { colorTokens, type ColorTokenName } from "@/theme/tokens";
 import type { ComponentProps } from "react";
 import { Pressable, Text, type PressableProps } from "react-native";
@@ -69,7 +70,10 @@ export const Button = ({
       {...props}
     >
       {isLoading ? (
-        <Spinner tone={variant === "primary" ? "accentForeground" : "accent"} label="Loading" />
+        <Spinner
+          tone={variant === "primary" ? "accentForeground" : "accent"}
+          label={i18n.t("actions.loading", { ns: "common" })}
+        />
       ) : (
         <>
           {icon ? (

@@ -51,3 +51,13 @@ test("calls onClose from scrim and close button", async () => {
   await user.press(screen.getByRole("button", { name: "Close sheet" }));
   expect(onClose).toHaveBeenCalledTimes(2);
 });
+
+test("defaults dismiss and close labels from i18n", async () => {
+  await renderSheet(
+    <BottomSheet visible onClose={jest.fn()} title="Sheet title">
+      <ThemedText>Sheet body</ThemedText>
+    </BottomSheet>,
+  );
+  expect(screen.getByRole("button", { name: "Dismiss" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Close" })).toBeOnTheScreen();
+});

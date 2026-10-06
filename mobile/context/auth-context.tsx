@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Spinner } from "@/components/ui/spinner";
+import i18n from "@/i18n/instance";
 import { router } from "expo-router";
 import { View, StyleSheet } from "react-native";
 import { authService, OnboardingData, User } from "@/lib/auth";
@@ -94,8 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const authenticate = useCallback(
     async (options?: { signup?: boolean }) => {
       if (!isAuth0Configured()) {
-        const message =
-          "Auth0 is not configured. Set EXPO_PUBLIC_AUTH0_DOMAIN, EXPO_PUBLIC_AUTH0_CLIENT_ID and EXPO_PUBLIC_AUTH0_AUDIENCE.";
+        const message = i18n.t("auth.notConfigured", { ns: "common" });
         setError(message);
         throw new Error(message);
       }
@@ -110,7 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (isUserCancellation(err)) {
           return;
         }
-        const message = err?.message || "Authentication failed. Please try again.";
+        const message = err?.message || i18n.t("auth.failed", { ns: "common" });
         setError(message);
         throw new Error(message);
       } finally {
@@ -131,7 +131,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(profile);
       router.replace(EVENTS_ROUTE);
     } catch (err: any) {
-      const message = err?.message || "Could not complete onboarding.";
+      const message = err?.message || i18n.t("auth.onboardingFailed", { ns: "common" });
       setError(message);
       throw new Error(message);
     } finally {
@@ -173,7 +173,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   if (!isInitialized) {
     return (
       <View style={styles.loadingContainer}>
-        <Spinner size="large" label="Loading" />
+        <Spinner size="large" />
       </View>
     );
   }

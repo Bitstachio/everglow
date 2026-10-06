@@ -1,3 +1,4 @@
+import i18n from "@/i18n/instance";
 import { useState } from "react";
 
 type UseInputParams = {
@@ -13,7 +14,9 @@ export const useInput = ({ secureTextEntry = false, editable = true }: UseInputP
     showToggle,
     isDisabled: editable === false,
     isSecure: secureTextEntry && !isPasswordVisible,
-    toggleAccessibilityLabel: isPasswordVisible ? "Hide password" : "Show password",
+    toggleAccessibilityLabel: isPasswordVisible
+      ? i18n.t("a11y.hidePassword", { ns: "common" })
+      : i18n.t("a11y.showPassword", { ns: "common" }),
     toggleIconName: isPasswordVisible ? ("eye-off-outline" as const) : ("eye-outline" as const),
     onTogglePasswordVisibility: () => setIsPasswordVisible((visible) => !visible),
   };
