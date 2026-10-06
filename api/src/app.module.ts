@@ -11,11 +11,13 @@ import { RateLimitModule } from "./common/rate-limit/rate-limit.module";
 import appleConfig from "./config/apple.config";
 import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
+import moderationConfig from "./config/moderation.config";
 import photosConfig from "./config/photos.config";
 import storageConfig from "./config/storage.config";
 import rateLimitConfig from "./config/rate-limit.config";
 import usersConfig from "./config/users.config";
 import { EventsModule } from "./events/events.module";
+import { EvidenceModule } from "./moderation/evidence/evidence.module";
 import { ModerationModule } from "./moderation/moderation.module";
 import { PhotosModule } from "./photos/photos.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -28,7 +30,16 @@ import { UsersModule } from "./users/users.module";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appleConfig, auth0Config, awsConfig, photosConfig, rateLimitConfig, storageConfig, usersConfig],
+      load: [
+        appleConfig,
+        auth0Config,
+        awsConfig,
+        moderationConfig,
+        photosConfig,
+        rateLimitConfig,
+        storageConfig,
+        usersConfig,
+      ],
       envFilePath: ".env",
     }),
     ScheduleModule.forRoot(),
@@ -47,6 +58,7 @@ import { UsersModule } from "./users/users.module";
     Auth0ManagementModule,
     PhotosModule,
     ModerationModule,
+    EvidenceModule,
   ],
 
   controllers: [AppController],

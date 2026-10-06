@@ -26,6 +26,7 @@ import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { CreateReportDto } from "./dto/create-report.dto";
+import { EvidenceService, EvidenceSnapshot } from "./evidence/evidence.service";
 import { ListReportsQueryDto } from "./dto/list-reports-query.dto";
 import {
   REPORT_ESCALATION_REASONS,
@@ -78,6 +79,7 @@ export class ReportsService {
     private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly s3Service: S3Service,
     private readonly photoPurgeService: PhotoPurgeService,
+    private readonly evidenceService: EvidenceService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -120,10 +122,21 @@ export class ReportsService {
         })
       : null;
 
-    return this.createReport(callerId, target, dto, {
-      reportedAccessLevel: uploaderAccess?.accessLevel ?? null,
-      hideThreshold: reportHideThreshold(photo.event._count.eventAccesses),
-    });
+    return this.createReport(
+      callerId,
+      target,
+      dto,
+      {
+        reportedAccessLevel: uploaderAccess?.accessLevel ?? null,
+        hideThreshold: reportHideThreshold(photo.event._count.eventAccesses),
+      },
+      {
+        objectS3Key: photo.s3Key,
+        contentType: photo.contentType,
+        sizeBytes: photo.sizeBytes,
+        subjectUserId: photo.addedById,
+      },
+    );
   }
 
   async reportMember(eventId: string, targetUserId: string, callerId: string, dto: CreateReportDto): Promise<Report> {
@@ -149,7 +162,13 @@ export class ReportsService {
       reportedUserId: targetUserId,
     };
 
-    return this.createReport(callerId, target, dto, { reportedAccessLevel: targetAccess.accessLevel });
+    return this.createReport(
+      callerId,
+      target,
+      dto,
+      { reportedAccessLevel: targetAccess.accessLevel },
+      { subjectUserId: targetUserId },
+    );
   }
 
   /**
@@ -174,12 +193,19 @@ export class ReportsService {
       reportedUserId: null,
     };
 
-    return this.createReport(callerId, target, dto, {
-      reportedAccessLevel: null,
-      targetIsEvent: true,
-      coverUpdatedById: event.coverUpdatedById,
-      memberCount: event._count.eventAccesses,
-    });
+    return this.createReport(
+      callerId,
+      target,
+      dto,
+      {
+        reportedAccessLevel: null,
+        targetIsEvent: true,
+        coverUpdatedById: event.coverUpdatedById,
+        memberCount: event._count.eventAccesses,
+      },
+      // The cover is the one image an event report can be about.
+      { objectS3Key: event.coverS3Key, subjectUserId: event.coverUpdatedById },
+    );
   }
 
   async listReports(eventId: string, callerId: string, query: ListReportsQueryDto): Promise<KeysetPage<Report>> {
@@ -432,7 +458,9 @@ export class ReportsService {
   // at stake is storage cost, which the S3 orphan reconciler also covers.
   private async deletePhotoObject(photo: { id: string; s3Key: string }, reportId: string): Promise<void> {
     try {
-      await this.s3Service.deleteObject(photo.s3Key);
+      // Copied to evidence first; a failed copy keeps the original for the evidence job.
+      const { deletable } = await this.evidenceService.preserveBeforeDelete([photo.s3Key]);
+      if (deletable.length > 0) await this.s3Service.deleteObject(photo.s3Key);
     } catch (error) {
       this.logger.warn(
         { err: error as Error, event: "report.photo_object_retained", reportId, photoId: photo.id },
@@ -467,22 +495,29 @@ export class ReportsService {
   }
 
   /**
-   * Creates the report, or returns the caller's OPEN report on the same target.
-   * The partial unique indexes are the only duplicate check, on purpose: a
-   * lookup before the insert would still lose to a concurrent submission.
+   * Creates the report with its evidence snapshot, or returns the caller's
+   * OPEN report on the same target. The partial unique indexes are the only
+   * duplicate check, on purpose: a lookup before the insert would still lose
+   * to a concurrent submission.
    */
   private async createReport(
     callerId: string,
     target: ReportTarget,
     dto: CreateReportDto,
     context: EscalationContext,
+    snapshot: EvidenceSnapshot,
   ): Promise<Report> {
     // `skipDuplicates` is ON CONFLICT DO NOTHING: of two submissions exactly
     // one inserts, and the other gets no row back instead of a unique
-    // violation to catch.
-    const [created] = await this.prisma.report.createManyAndReturn({
-      data: [{ ...target, reporterId: callerId, reason: dto.reason, note: dto.note ?? null }],
-      skipDuplicates: true,
+    // violation to catch. The snapshot is written in the same transaction, so
+    // no report exists without one (docs/moderation.md §7).
+    const created = await this.prisma.$transaction(async (tx) => {
+      const [inserted] = await tx.report.createManyAndReturn({
+        data: [{ ...target, reporterId: callerId, reason: dto.reason, note: dto.note ?? null }],
+        skipDuplicates: true,
+      });
+      if (inserted) await this.evidenceService.writeSnapshot(tx, inserted.id, snapshot);
+      return inserted;
     });
     if (!created) {
       const existing = await this.findOpenReport(callerId, target);

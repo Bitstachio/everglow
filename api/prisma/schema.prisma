@@ -338,17 +338,22 @@ model Report {
   closedByRole   ReportActorRole?
   resolvedById   String?             @db.Uuid
   resolvedAt     DateTime?
+  // The retention purge skips the report and its evidence until then
+  // (docs/moderation.md §7). Only the platform sets a hold.
+  holdUntil      DateTime?
+  holdReason     ReportHoldReason?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
   // Everything is SET NULL: deleting an event, a photo, a reporter, a reported
   // account or a resolver never fails on a report, and never erases one
   // either. Reports are the only lasting record of abuse.
-  event        Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  reporter     User?  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: SetNull)
-  photo        Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
-  reportedUser User?  @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: SetNull)
-  resolvedBy   User?  @relation("ReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+  event        Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  reporter     User?           @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: SetNull)
+  photo        Photo?          @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  reportedUser User?           @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  resolvedBy   User?           @relation("ReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+  evidence     ReportEvidence?
 
   // One OPEN report per reporter and target, enforced by the database so two
   // concurrent submissions cannot both insert. Resolved reports are outside
@@ -369,6 +374,8 @@ model Report {
   @@index([reporterId])
   @@index([reportedUserId])
   @@index([resolvedById])
+  // The retention purge: closed reports past the window, holds checked per row.
+  @@index([status, resolvedAt])
 }
 
 // "blocker does not want to see blocked". Directional in storage, symmetric in
@@ -428,4 +435,46 @@ model UsernameChange {
 
   // The limit check: this user's changes inside the window, oldest first.
   @@index([userId, changedAt])
+}
+
+// Why the platform holds a report and its evidence past the retention window.
+enum ReportHoldReason {
+  CHILD_SAFETY
+  INTIMATE_IMAGE
+  LAW_ENFORCEMENT
+  LEGAL
+}
+
+// What a report was about, as it was when the report was filed
+// (docs/moderation.md §7). No foreign keys to the photo, the event or the
+// subject: it has to outlive all three. It lives exactly as long as its
+// report.
+model ReportEvidence {
+  id                 String    @id @default(uuid()) @db.Uuid
+  reportId           String    @unique @db.Uuid
+  // The reported object: the photo for a PHOTO report, the event's cover for
+  // an EVENT report. Null for a MEMBER report, or an event with no cover.
+  objectS3Key        String?
+  contentType        String?
+  sizeBytes          Int?
+  // The quarantined copy under evidence/, made before the original is
+  // deleted. Null while the original still exists, or while the copy failed.
+  evidenceS3Key      String?   @unique
+  // Hex SHA-256 of the copy, computed by S3 while copying.
+  sha256             String?   @db.Char(64)
+  quarantinedAt      DateTime?
+  // A delete was asked for while the copy failed: the original is kept, and
+  // the daily evidence job retries the copy.
+  quarantineFailedAt DateTime?
+  // The reported member, the photo's uploader, or who set the cover.
+  subjectUserId      String?   @db.Uuid
+  subjectUsername    String?
+  createdAt          DateTime  @default(now())
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  // Delete paths look evidence up by the key they are about to delete.
+  @@index([objectS3Key])
+  // The retry pass.
+  @@index([quarantineFailedAt])
 }

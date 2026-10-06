@@ -2,8 +2,11 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { PhotoPurgeService } from "./photo-purge.service";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 
 describe("PhotoPurgeService", () => {
+  let evidenceService: EvidenceServiceMock;
   let service: PhotoPurgeService;
   let s3Service: { deleteObjects: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; error: jest.Mock };
@@ -19,10 +22,13 @@ describe("PhotoPurgeService", () => {
     s3Service = { deleteObjects: jest.fn() };
     logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
 
+    evidenceService = buildEvidenceServiceMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PhotoPurgeService,
         { provide: S3Service, useValue: s3Service },
+        { provide: EvidenceService, useValue: evidenceService },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -35,7 +41,7 @@ describe("PhotoPurgeService", () => {
 
     const result = await service.purgeObjects(keys, context);
 
-    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0 });
+    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0 });
     expect(s3Service.deleteObjects).toHaveBeenCalledWith(keys);
     expect(logger.info).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
     expect(logger.error).not.toHaveBeenCalled();
@@ -49,7 +55,7 @@ describe("PhotoPurgeService", () => {
 
     const result = await service.purgeObjects(keys, context);
 
-    expect(result).toEqual({ requested: 3, deleted: 2, failed: 1 });
+    expect(result).toEqual({ requested: 3, deleted: 2, failed: 1, retained: 0 });
     expect(logger.error).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
     expect(logger.info).not.toHaveBeenCalled();
   });
@@ -57,7 +63,12 @@ describe("PhotoPurgeService", () => {
   it("counts every key as failed when the S3 call itself fails, without throwing", async () => {
     s3Service.deleteObjects.mockRejectedValue(new Error("s3 down"));
 
-    await expect(service.purgeObjects(keys, context)).resolves.toEqual({ requested: 3, deleted: 0, failed: 3 });
+    await expect(service.purgeObjects(keys, context)).resolves.toEqual({
+      requested: 3,
+      deleted: 0,
+      failed: 3,
+      retained: 0,
+    });
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ ...context, failed: 3, audit: true }),
       expect.any(String),
@@ -65,9 +76,37 @@ describe("PhotoPurgeService", () => {
   });
 
   it("does nothing for an event without photos", async () => {
-    await expect(service.purgeObjects([], context)).resolves.toEqual({ requested: 0, deleted: 0, failed: 0 });
+    await expect(service.purgeObjects([], context)).resolves.toEqual({
+      requested: 0,
+      deleted: 0,
+      failed: 0,
+      retained: 0,
+    });
 
     expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     expect(logger.info).not.toHaveBeenCalled();
+  });
+
+  it("copies reported objects to evidence first, and keeps the ones whose copy failed", async () => {
+    evidenceService.preserveBeforeDelete.mockResolvedValue({ deletable: keys.slice(0, 2), retained: [keys[2]] });
+    s3Service.deleteObjects.mockResolvedValue({ deleted: keys.slice(0, 2), failed: [] });
+
+    const result = await service.purgeObjects(keys, context);
+
+    expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith(keys);
+    expect(s3Service.deleteObjects).toHaveBeenCalledWith(keys.slice(0, 2));
+    expect(result).toEqual({ requested: 3, deleted: 2, failed: 0, retained: 1 });
+  });
+
+  it("deletes nothing when every key is kept for evidence", async () => {
+    evidenceService.preserveBeforeDelete.mockResolvedValue({ deletable: [], retained: keys });
+
+    await expect(service.purgeObjects(keys, context)).resolves.toEqual({
+      requested: 3,
+      deleted: 0,
+      failed: 0,
+      retained: 3,
+    });
+    expect(s3Service.deleteObjects).not.toHaveBeenCalled();
   });
 });

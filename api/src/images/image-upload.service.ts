@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
 import { ApiException } from "src/common/errors/api.exception";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import {
   buildImageS3Key,
@@ -54,6 +55,7 @@ export interface ImageSlot {
 export class ImageUploadService {
   constructor(
     private readonly s3Service: S3Service,
+    private readonly evidenceService: EvidenceService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -99,7 +101,7 @@ export class ImageUploadService {
 
     await this.verifyUploadedObject(key, uploadId);
 
-    if (slot.currentKey) await this.s3Service.deleteObject(slot.currentKey);
+    if (slot.currentKey) await this.deleteReplacedObject(slot.currentKey);
     await slot.save(key);
 
     return key;
@@ -110,10 +112,20 @@ export class ImageUploadService {
     if (!slot.currentKey) return false;
 
     // S3 first: if it fails the row survives and the removal can be retried.
-    await this.s3Service.deleteObject(slot.currentKey);
+    await this.deleteReplacedObject(slot.currentKey);
     await slot.save(null);
 
     return true;
+  }
+
+  /**
+   * A reported image (an event's cover, for a report about the event) is
+   * copied to evidence before it goes. If the copy fails the original stays
+   * for the evidence job, and the slot moves on all the same.
+   */
+  private async deleteReplacedObject(key: string): Promise<void> {
+    const { deletable } = await this.evidenceService.preserveBeforeDelete([key]);
+    if (deletable.length > 0) await this.s3Service.deleteObject(key);
   }
 
   /** A short-lived GET URL, or null for an unset image. Signing is local work, so per-row calls are fine. */

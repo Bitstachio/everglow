@@ -1,6 +1,7 @@
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { buildImageS3Key, IMAGE_ORPHAN_MIN_AGE_MS } from "src/images/images.constants";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { OrphanSourceRegistry } from "src/storage/orphan-source.registry";
 import { EventCoverOrphanSource } from "./event-cover-orphan-source";
@@ -10,6 +11,7 @@ describe("EventCoverOrphanSource", () => {
   let source: EventCoverOrphanSource;
   let prisma: DeepMockProxy<PrismaClient>;
   let registry: OrphanSourceRegistry;
+  let evidenceService: { findKeysAwaitingQuarantine: jest.Mock };
 
   const eventId = "66666666-6666-6666-6666-666666666666";
   const referencedKey = buildImageS3Key(EVENT_COVER_S3_KEY_PREFIX, eventId, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -18,7 +20,12 @@ describe("EventCoverOrphanSource", () => {
   beforeEach(() => {
     prisma = mockDeep<PrismaClient>();
     registry = new OrphanSourceRegistry();
-    source = new EventCoverOrphanSource(registry, prisma as unknown as PrismaService);
+    evidenceService = { findKeysAwaitingQuarantine: jest.fn().mockResolvedValue([]) };
+    source = new EventCoverOrphanSource(
+      registry,
+      prisma as unknown as PrismaService,
+      evidenceService as unknown as EvidenceService,
+    );
   });
 
   it("registers the event-covers/ prefix with the image minimum age", () => {
@@ -46,5 +53,12 @@ describe("EventCoverOrphanSource", () => {
       where: { coverS3Key: { in: [referencedKey, abandonedKey] } },
       select: { coverS3Key: true },
     });
+  });
+
+  it("keeps a reported cover whose evidence copy hasn't been made, though no event references it", async () => {
+    prisma.event.findMany.mockResolvedValue([]);
+    evidenceService.findKeysAwaitingQuarantine.mockResolvedValue([abandonedKey]);
+
+    await expect(source.findReferencedKeys([referencedKey, abandonedKey])).resolves.toEqual([abandonedKey]);
   });
 });

@@ -12,8 +12,11 @@ import {
   IMAGE_UPLOAD_URL_TTL_SECONDS,
   MAX_IMAGE_SIZE_BYTES,
 } from "./images.constants";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 
 describe("ImageUploadService", () => {
+  let evidenceService: EvidenceServiceMock;
   let service: ImageUploadService;
   let s3Service: {
     getPresignedUploadUrl: jest.Mock;
@@ -53,10 +56,13 @@ describe("ImageUploadService", () => {
     };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
+    evidenceService = buildEvidenceServiceMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ImageUploadService,
         { provide: S3Service, useValue: s3Service },
+        { provide: EvidenceService, useValue: evidenceService },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -248,6 +254,17 @@ describe("ImageUploadService", () => {
   });
 
   describe("remove", () => {
+    it("keeps a reported image's object when its evidence copy fails, and clears the row all the same", async () => {
+      const slot = slotWith(previousKey);
+      evidenceService.preserveBeforeDelete.mockResolvedValue({ deletable: [], retained: [previousKey] });
+
+      await expect(service.remove(slot)).resolves.toBe(true);
+
+      expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([previousKey]);
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(slot.save).toHaveBeenCalledWith(null);
+    });
+
     it("deletes the object, then clears the row", async () => {
       const slot = slotWith(previousKey);
       const calls: string[] = [];

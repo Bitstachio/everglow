@@ -1,11 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 
 export interface PhotoPurgeResult {
   requested: number;
   deleted: number;
   failed: number;
+  /** Reported objects kept because their evidence copy failed (docs/moderation.md §7). */
+  retained: number;
 }
 
 export interface PhotoPurgeContext {
@@ -27,27 +30,36 @@ export interface PhotoPurgeContext {
  * thing at stake here is storage cost. A key that cannot be deleted now is an
  * orphan, which is exactly what the daily reconciler (§11) reclaims, so this
  * never throws; it reports and logs what it could not do.
+ *
+ * A reported object is copied to evidence first (EvidenceService). One whose
+ * copy fails is not deleted: the evidence job retries the copy.
  */
 @Injectable()
 export class PhotoPurgeService {
   constructor(
     private readonly s3Service: S3Service,
+    private readonly evidenceService: EvidenceService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
   }
 
   async purgeObjects(keys: string[], context: PhotoPurgeContext): Promise<PhotoPurgeResult> {
-    const result: PhotoPurgeResult = { requested: keys.length, deleted: 0, failed: 0 };
+    const result: PhotoPurgeResult = { requested: keys.length, deleted: 0, failed: 0, retained: 0 };
     if (keys.length === 0) return result;
 
-    try {
-      const outcome = await this.s3Service.deleteObjects(keys);
-      result.deleted = outcome.deleted.length;
-      result.failed = outcome.failed.length;
-    } catch {
-      // S3Service has logged the transport failure; nothing in this batch was deleted.
-      result.failed = keys.length;
+    const { deletable, retained } = await this.evidenceService.preserveBeforeDelete(keys);
+    result.retained = retained.length;
+
+    if (deletable.length > 0) {
+      try {
+        const outcome = await this.s3Service.deleteObjects(deletable);
+        result.deleted = outcome.deleted.length;
+        result.failed = outcome.failed.length;
+      } catch {
+        // S3Service has logged the transport failure; nothing in this batch was deleted.
+        result.failed = deletable.length;
+      }
     }
 
     const summary = { ...context, ...result, audit: true };

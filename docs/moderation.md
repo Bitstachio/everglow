@@ -25,7 +25,7 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 | Two queues: where a report starts, what moves it to the platform, who may close it (§3)                        | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
 | Report history: reports outlive their event, and record why and by whom they closed (§1, §3)                   | Built, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
 | Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                  | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
-| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                      | Planned                 | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
+| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                      | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
 | `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons; NCMEC, Canada and TAKE IT DOWN procedures (§2, §7) | Planned                 | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the TAKE IT DOWN part is filed once this design is agreed                                                                                                |
 | Platform tools: act on any report, suspend accounts and events, lift reviews (§8)                              | Planned                 | [EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59); account suspension is filed once this design is agreed                                               |
 | Upload screening (§11)                                                                                         | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
@@ -70,17 +70,19 @@ model Report {
   closedByRole?      // ORGANIZER | PLATFORM | SUBJECT | SYSTEM (§3)
   resolvedById?      // SET NULL
   resolvedAt?
-  holdUntil?         // the purge skips it until then (planned, EV-61)
-  holdReason?        // CHILD_SAFETY | INTIMATE_IMAGE | LAW_ENFORCEMENT | LEGAL (planned, EV-61)
+  holdUntil?         // the purge skips it until then
+  holdReason?        // CHILD_SAFETY | INTIMATE_IMAGE | LAW_ENFORCEMENT | LEGAL
   authorityReference? // CyberTipline or police reference number (planned, EV-62)
 }
 
-model ReportEvidence {  // planned, EV-61: one per report, written when the report is filed
-  reportId           // CASCADE: it lives as long as its report
-  photoS3Key?        // the original key; evidenceS3Key once quarantined (§7)
-  evidenceS3Key?
-  sha256?, contentType?, sizeBytes?
-  subjectUserId?     // no foreign key: kept after the account is deleted
+model ReportEvidence {  // one per report, written when the report is filed
+  reportId            // CASCADE: it lives as long as its report
+  objectS3Key?        // the photo, or the event's cover; no foreign key
+  contentType?, sizeBytes?
+  evidenceS3Key?      // the quarantined copy under evidence/ (§7)
+  sha256?             // of the copy, computed by S3 while copying
+  quarantinedAt?, quarantineFailedAt?
+  subjectUserId?      // no foreign key: kept after the account is deleted
   subjectUsername?
 }
 
@@ -163,7 +165,7 @@ The photo index needs no `targetType` predicate: MEMBER reports have a null `pho
 | `(queue, status, escalatedAt)`                                    | Planned. The platform queue, oldest first, and the overdue check (§9)                     |
 | `(reporterId, photoId) WHERE OPEN` (unique)                       | Idempotency, and "which photos has the caller an open report on?" in the photo read paths |
 | `(photoId)`, `(reporterId)`, `(reportedUserId)`, `(resolvedById)` | The rows each `SET NULL` has to find when a photo or an account is deleted                |
-| `(holdUntil, resolvedAt)`                                         | Planned. The retention purge (§7)                                                         |
+| `(status, resolvedAt)`                                            | The retention purge (§7); holds are checked per row                                       |
 | `UserBlock (blockerId, blockedId)` (unique)                       | Idempotency, the caller's block list, "did the caller block this uploader?"               |
 | `UserBlock (blockedId)`                                           | The other direction of the symmetric filter, and the cascade                              |
 
@@ -473,7 +475,7 @@ Every event has two invite links, **Participant** and **Viewer** (`EventInvite`)
 
 ## 7. Evidence, deletes and retention
 
-Deletes waiting for moderation are built ([EV-106](https://linear.app/mehrshadfb/issue/EV-106)). Evidence, retention and the procedures are **Planned** ([EV-61](https://linear.app/mehrshadfb/issue/EV-61), [EV-62](https://linear.app/mehrshadfb/issue/EV-62)). Until then a reported photo's image is purged as soon as anyone deletes it, so someone who is reported can delete the photo and nothing is left to review.
+Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-106)), evidence and retention ([EV-61](https://linear.app/mehrshadfb/issue/EV-61)) are built. The child-safety and intimate-image procedures are **Planned** ([EV-62](https://linear.app/mehrshadfb/issue/EV-62)).
 
 **The rule:** nobody can make a report, or what it is about, disappear before it has been judged. Users can still delete their own things whenever they like: the content is hidden from everyone at once, and only the evidence copy stays, locked away.
 
@@ -488,29 +490,29 @@ Deletes waiting for moderation are built ([EV-106](https://linear.app/mehrshadfb
 
 ### Evidence
 
-- **A snapshot is written with every report.** `ReportEvidence` holds the photo's key, SHA-256, type and size, and the subject's id and username at that time. It has no foreign keys to them, so it outlives the photo and the account.
-- **Quarantine instead of purge.** Before any path purges a photo that has an OPEN report, or one closed within the retention window, it copies the object to `evidence/{reportId}/…` and points the snapshot at the copy. That covers deletes by:
+- **A snapshot is written with every report**, in the same transaction (`EvidenceService.writeSnapshot`). `ReportEvidence` holds the reported object's key (the photo, or the event's cover), its type and size, and the subject's id and username at that time. It has no foreign keys to them, so it outlives the photo and the account.
+- **Quarantine instead of purge.** Before any path deletes an object a report is about, it copies the object to `evidence/{reportId}/{original key}` and points the snapshot at the copy, with the SHA-256 S3 computes while copying (`EvidenceService.preserveBeforeDelete`). Every photo and cover delete goes through it (`PhotoPurgeService`, `PhotosService.deletePhoto`, a verdict's photo delete, `ImageUploadService` replacing or removing a cover). That covers deletes by:
   - the uploader or an organizer;
   - a member's removal or departure;
   - account deletion;
   - the close job;
   - a verdict.
 
-  The copy never blocks the user's delete. If it fails, the original object is kept for the reconciler and an alert fires.
+  The copy never blocks the user's delete. If it fails, the original object is kept, `report.evidence.copy_failed` fires, the orphan reconciler leaves the object alone, and the daily evidence job retries the copy, then deletes the original.
 
-- **Evidence counts toward nobody's gallery storage**, and the orphan reconciler treats `evidence/` as owned by the snapshots.
-- **Evidence is locked away.** The `evidence/` prefix gets the protections in [photo-privacy.md](./photo-privacy.md): no human reads except through the platform's logged review (§8), and every read is logged and alerted.
+- **Evidence counts toward nobody's gallery storage**, and the orphan reconciler treats `evidence/` as owned by the snapshots (`EvidenceOrphanSource`).
+- **Evidence is locked away.** The `evidence/` prefix gets the protections in [photo-privacy.md](./photo-privacy.md): no human reads except through the platform's logged review (§8), and every read is logged and alerted. The bucket policy, the KMS key and the CloudTrail rules cover the whole bucket, so they cover `evidence/` with no Terraform change; the API's `s3:GetObject` and `s3:PutObject` are what `CopyObject` needs.
 - **An intimate image is not kept once removed.** When a `NON_CONSENSUAL_INTIMATE_IMAGE` report is actioned, its evidence object is deleted and only the hash and metadata are kept. Keeping a copy of the image would undo the removal the person asked for. The exception is a hold for child safety or law enforcement.
 
 ### Retention
 
-| What                                          | Kept for                                                  | Then                                                                                                                    |
-| --------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Reports and their evidence                    | 1 year after the report closes                            | Purged by a daily job, with a heartbeat                                                                                 |
-| A report under a hold                         | Until `holdUntil`                                         | Purged as above                                                                                                         |
-| Child-safety reports to NCMEC or the police   | 1 year from the submission (`holdUntil`), longer if asked | Purged as above                                                                                                         |
-| Hash and metadata of a removed intimate image | 1 year after closure, to block identical re-uploads       | Purged as above                                                                                                         |
-| `note`                                        | As its report                                             | Never logged ([logging-conventions.md §3](../api/docs/logging-conventions.md#3-redaction--pii-the-non-negotiable-rule)) |
+| What                                          | Kept for                                                  | Then                                                                                                                                |
+| --------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Reports and their evidence                    | 1 year after the report closes (`REPORT_RETENTION_DAYS`)  | Purged by the daily evidence job (`MODERATION_EVIDENCE_JOB_ENABLED`, opt-in like the other jobs that delete from S3), objects first |
+| A report under a hold                         | Until `holdUntil`                                         | Purged as above                                                                                                                     |
+| Child-safety reports to NCMEC or the police   | 1 year from the submission (`holdUntil`), longer if asked | Purged as above                                                                                                                     |
+| Hash and metadata of a removed intimate image | 1 year after closure, to block identical re-uploads       | Purged as above                                                                                                                     |
+| `note`                                        | As its report                                             | Never logged ([logging-conventions.md §3](../api/docs/logging-conventions.md#3-redaction--pii-the-non-negotiable-rule))             |
 
 - **A hold** (`holdUntil`, `holdReason`) stops the purge. Only the platform sets one: for a child-safety report, a law-enforcement preservation request (18 U.S.C. §2703(f), 90 days, renewable), or legal advice. Holds are reviewed and released when they lapse.
 - **Why one year.** US law makes a CyberTipline report a request to preserve its contents for 1 year (18 U.S.C. §2258A(h), REPORT Act). Canada asks for 21 days today, rising to 1 year under the Protecting Victims Act (S.C. 2026, c. 19, not in force yet). A year also covers repeat-offender history. PIPEDA and Law 25 ask for a fixed, documented maximum, and this is it.
