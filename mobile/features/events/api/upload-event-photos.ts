@@ -34,6 +34,8 @@ export type EventPhotoUploadResult = {
   total: number;
   /** Photos confirmed READY and now in the gallery. */
   uploaded: number;
+  /** The files that did not end up READY, in the order given: refused, lost, or never tried. */
+  failed: EventPhotoFile[];
   /** Why the upload stopped before trying every file, or null when it tried them all. */
   error: unknown;
 };
@@ -140,9 +142,10 @@ const runPooled = async (tasks: (() => Promise<void>)[], concurrency: number) =>
 /**
  * Uploads event photos in batches of PHOTO_UPLOAD_BATCH_SIZE, one batch after
  * another (`docs/uploads.md`): mint the batch, PUT each file, confirm the ones
- * that landed. A file that fails its PUT or confirm is counted and the rest go
- * on; a mint that fails after its retries stops the upload, since every later
- * batch would be refused the same way (a full or closed gallery).
+ * that landed. A file that fails its PUT or confirm is returned in `failed` and
+ * the rest go on; a mint that fails after its retries stops the upload, since
+ * every later batch would be refused the same way (a full or closed gallery),
+ * and the files it never tried are returned in `failed` too.
  */
 export const uploadEventPhotos = async (
   eventId: string,
@@ -151,7 +154,13 @@ export const uploadEventPhotos = async (
 ): Promise<EventPhotoUploadResult> => {
   const total = files.length;
   let done = 0;
-  let uploaded = 0;
+  const ready = new Set<EventPhotoFile>();
+  const result = (error: unknown): EventPhotoUploadResult => ({
+    total,
+    uploaded: ready.size,
+    failed: files.filter((file) => !ready.has(file)),
+    error,
+  });
   onProgress?.({ done, total });
 
   for (let start = 0; start < total; start += PHOTO_UPLOAD_BATCH_SIZE) {
@@ -161,25 +170,28 @@ export const uploadEventPhotos = async (
     try {
       slots = await mintSlots(eventId, batch, sleep);
     } catch (error) {
-      return { total, uploaded, error };
+      return result(error);
     }
 
-    const putPhotoIds: string[] = [];
+    const putFiles = new Map<string, EventPhotoFile>();
     await runPooled(
       batch.map((file, index) => async () => {
         const slot = slots[index];
-        if (slot && (await putToSlot(file, slot))) putPhotoIds.push(slot.photoId);
+        if (slot && (await putToSlot(file, slot))) putFiles.set(slot.photoId, file);
         done += 1;
         onProgress?.({ done, total });
       }),
       PUT_CONCURRENCY,
     );
 
-    if (putPhotoIds.length > 0) {
-      const results = await confirmSlots(eventId, putPhotoIds);
-      uploaded += results.filter((result) => result.status === "READY").length;
+    if (putFiles.size > 0) {
+      const confirmed = await confirmSlots(eventId, [...putFiles.keys()]);
+      for (const { photoId, status } of confirmed) {
+        const file = putFiles.get(photoId);
+        if (file && status === "READY") ready.add(file);
+      }
     }
   }
 
-  return { total, uploaded, error: null };
+  return result(null);
 };

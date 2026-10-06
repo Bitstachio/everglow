@@ -64,7 +64,7 @@ test("uploads a large selection in batches of 20, one after another, with one pr
 
   const result = await uploadEventPhotos("event-1", photoFiles(45), { onProgress });
 
-  expect(result).toEqual({ total: 45, uploaded: 45, error: null });
+  expect(result).toEqual({ total: 45, uploaded: 45, failed: [], error: null });
   expect(mintedBatchSizes()).toEqual([20, 20, 5]);
   expect(mockCreateUploadUrls).toHaveBeenNthCalledWith(1, {
     path: { eventId: "event-1" },
@@ -87,7 +87,7 @@ test.each(["EVENT_STORAGE_LIMIT_REACHED", "EVENT_GALLERY_CLOSED"])(
 
     const result = await uploadEventPhotos("event-1", photoFiles(45));
 
-    expect(result).toEqual({ total: 45, uploaded: 20, error: refusal });
+    expect(result).toEqual({ total: 45, uploaded: 20, failed: photoFiles(45).slice(20), error: refusal });
     expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
     expect(mockConfirmUploads).toHaveBeenCalledTimes(1);
   },
@@ -97,7 +97,12 @@ test("retries a batch once after a storage reservation conflict", async () => {
   const conflict = createApiError("Conflict", { status: 409, code: "STORAGE_RESERVATION_CONFLICT" });
   mockCreateUploadUrls.mockRejectedValueOnce(conflict);
 
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 2, error: null });
+  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({
+    total: 2,
+    uploaded: 2,
+    failed: [],
+    error: null,
+  });
   expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
 });
 
@@ -108,6 +113,7 @@ test("stops when the retried batch conflicts again", async () => {
   await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({
     total: 2,
     uploaded: 0,
+    failed: photoFiles(2),
     error: conflict,
   });
   expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
@@ -121,7 +127,7 @@ test("waits out a 429 for Retry-After and carries on", async () => {
 
   const result = await uploadEventPhotos("event-1", photoFiles(2), { sleep });
 
-  expect(result).toEqual({ total: 2, uploaded: 2, error: null });
+  expect(result).toEqual({ total: 2, uploaded: 2, failed: [], error: null });
   expect(sleep.mock.calls).toEqual([[37_000], [5_000]]);
 });
 
@@ -132,11 +138,11 @@ test("gives up after waiting out three 429s in a row", async () => {
 
   const result = await uploadEventPhotos("event-1", photoFiles(2), { sleep });
 
-  expect(result).toEqual({ total: 2, uploaded: 0, error: rateLimited });
+  expect(result).toEqual({ total: 2, uploaded: 0, failed: photoFiles(2), error: rateLimited });
   expect(sleep).toHaveBeenCalledTimes(3);
 });
 
-test("counts a file that fails its PUT or confirm and carries on with the rest", async () => {
+test("returns the files that fail their PUT or confirm and carries on with the rest", async () => {
   refusedUploadUrls.add("https://upload.example.com/photo-1");
   mockConfirmUploads.mockImplementation(({ body }: { body: { photoIds: string[] } }) =>
     Promise.resolve({
@@ -148,7 +154,8 @@ test("counts a file that fails its PUT or confirm and carries on with the rest",
 
   const result = await uploadEventPhotos("event-1", photoFiles(4));
 
-  expect(result).toEqual({ total: 4, uploaded: 2, error: null });
+  const [, second, third] = photoFiles(4);
+  expect(result).toEqual({ total: 4, uploaded: 2, failed: [second, third], error: null });
   expect(mockConfirmUploads).toHaveBeenCalledWith({
     path: { eventId: "event-1" },
     body: { photoIds: ["photo-0", "photo-2", "photo-3"] },
@@ -170,23 +177,34 @@ test("PUTs each file from disk on the background session with its declared type"
 test("counts a file as failed when the background upload rejects", async () => {
   mockUploadAsync.mockRejectedValueOnce(new Error("The network connection was lost."));
 
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 1, error: null });
+  const files = photoFiles(2);
+  await expect(uploadEventPhotos("event-1", files)).resolves.toEqual({
+    total: 2,
+    uploaded: 1,
+    failed: [files[0]],
+    error: null,
+  });
   expect(mockConfirmUploads.mock.calls[0][0].body.photoIds).toEqual(["photo-1"]);
 });
 
 test("does not PUT a file whose bytes no longer match the size its URL was signed for", async () => {
   const result = await uploadEventPhotos("event-1", photoFiles(1, 99));
 
-  expect(result).toEqual({ total: 1, uploaded: 0, error: null });
+  expect(result).toEqual({ total: 1, uploaded: 0, failed: photoFiles(1, 99), error: null });
   expect(mockUploadAsync).not.toHaveBeenCalled();
   expect(mockConfirmUploads).not.toHaveBeenCalled();
 });
 
 test("retries a confirm whose response was lost, and counts the batch as failed if it is lost again", async () => {
   mockConfirmUploads.mockRejectedValueOnce(new Error("Network unavailable"));
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 2, error: null });
+  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toMatchObject({ uploaded: 2, failed: [] });
   expect(mockConfirmUploads).toHaveBeenCalledTimes(2);
 
   mockConfirmUploads.mockReset().mockRejectedValue(new Error("Network unavailable"));
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 0, error: null });
+  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({
+    total: 2,
+    uploaded: 0,
+    failed: photoFiles(2),
+    error: null,
+  });
 });
