@@ -42,6 +42,7 @@ ESLint enforces these globally. Still verify in review:
 
 - [ ] Files and folders use kebab-case (`local/kebab-case-filename`)
 - [ ] Component/hook/screen files stay flat by default; same-named folders only when colocating a private hook/util (not just a test). No `index.tsx` component entries (`local/no-component-folder`)
+- [ ] No new hand-written `index.ts` / `index.tsx` barrels — import concrete files (generated `lib/api/generated/` is the exception; see [Imports](./code-conventions.md#imports))
 - [ ] Non-trivial component logic is extracted to a hook — not left in the component body ([Component logic and hooks](./code-conventions.md#component-logic-and-hooks))
 - [ ] Component-private hooks colocate in a same-named folder next to the component; general-purpose shared hooks go in `hooks/`; screen/form hooks stay in `features/<name>/hooks/`
 - [ ] Screen hook symbol is `use<ScreenName>` in a kebab-case file (`use-profile-screen.ts` → `useProfileScreen`)
