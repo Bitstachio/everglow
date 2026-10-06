@@ -124,6 +124,7 @@ See [Exception handling](./exception-handling.md).
 
 - [ ] UI-facing mutation errors use `getErrorMessage(error, "Fallback message")`
 - [ ] New API error codes have user-facing copy in the matching `locales/en/errors/` JSON file
+- [ ] New user-facing UI copy goes through i18n (`useTranslation` / `i18n.t`), not hardcoded English in screens or shared UI defaults — see [i18n](./i18n.md)
 - [ ] Feature code does not re-parse Axios shapes in screens
 
 ## Imports

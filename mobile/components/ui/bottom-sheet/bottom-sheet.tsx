@@ -1,6 +1,7 @@
 import { H2 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import i18n from "@/i18n/instance";
 import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { type ReactNode } from "react";
@@ -24,12 +25,14 @@ export const BottomSheet = ({
   children,
   title,
   testID,
-  dismissAccessibilityLabel = "Dismiss",
-  closeAccessibilityLabel = "Close",
+  dismissAccessibilityLabel,
+  closeAccessibilityLabel,
 }: BottomSheetProps) => {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const { presented, scrimOpacity, sheetTranslateY, pointerEvents } = useBottomSheetPresentation(visible);
+  const dismissLabel = dismissAccessibilityLabel ?? i18n.t("actions.dismiss", { ns: "common" });
+  const closeLabel = closeAccessibilityLabel ?? i18n.t("actions.close", { ns: "common" });
 
   return (
     <Modal testID={testID} animationType="none" visible={presented} transparent onRequestClose={onClose}>
@@ -38,7 +41,7 @@ export const BottomSheet = ({
           <Animated.View style={{ flex: 1, opacity: scrimOpacity }}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={dismissAccessibilityLabel}
+              accessibilityLabel={dismissLabel}
               className="flex-1 bg-scrim"
               onPress={onClose}
             />
@@ -55,7 +58,7 @@ export const BottomSheet = ({
               {title ? (
                 <View className="flex-row items-center justify-between gap-3">
                   <H2 className="flex-1">{title}</H2>
-                  <IconButton accessibilityLabel={closeAccessibilityLabel} onPress={onClose} className="bg-surface">
+                  <IconButton accessibilityLabel={closeLabel} onPress={onClose} className="bg-surface">
                     <Ionicons name="close" size={18} color={colorTokens[colorScheme].muted} />
                   </IconButton>
                 </View>

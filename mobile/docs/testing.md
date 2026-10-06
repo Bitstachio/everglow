@@ -38,6 +38,10 @@ Prefer those docs over stale assumptions, and follow deprecation notices.
 
 Prefer `userEvent.paste` over `userEvent.type` when filling inputs for value-based assertions (submit, trim, validation, retry). Keep `press` as-is. `--runInBand` remains the debug path for worker contention.
 
+Components that call `useTranslation` must render under the app i18n instance. Prefer
+[`testing/render.tsx`](../testing/render.tsx) (`renderWithI18n`) over bare `render`. Shared
+UI defaults that call `i18n.t` on the singleton do not need a provider. See [i18n](./i18n.md).
+
 ## Scripts
 
 ```sh

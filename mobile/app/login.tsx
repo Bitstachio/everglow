@@ -10,12 +10,14 @@ import {
   Alert,
 } from "react-native";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export default function LoginScreen() {
   const { login, isLoading, error, clearError, isAuthenticated, isOnboarded } = useAuth();
+  const { t } = useTranslation("common");
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -35,7 +37,7 @@ export default function LoginScreen() {
     try {
       await login();
     } catch (err: any) {
-      Alert.alert("Login Failed", err.message || "Please try again");
+      Alert.alert(t("auth.login.failedTitle"), err.message || t("actions.tryAgain"));
     }
   };
 
@@ -44,9 +46,9 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={[styles.content, isDark ? styles.contentDark : styles.contentLight]}>
           <View style={styles.header}>
-            <Text style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}>Welcome Back</Text>
+            <Text style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}>{t("auth.login.title")}</Text>
             <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
-              Sign in securely to continue
+              {t("auth.login.subtitle")}
             </Text>
           </View>
           {error && (
@@ -55,14 +57,16 @@ export default function LoginScreen() {
             </View>
           )}
           <View style={styles.form}>
-            <Button title="Log In" onPress={handleLogin} isLoading={isLoading} disabled={isLoading} />
+            <Button title={t("auth.login.submit")} onPress={handleLogin} isLoading={isLoading} disabled={isLoading} />
           </View>
           <View style={styles.footer}>
             <Text style={[styles.footerText, isDark ? styles.footerTextDark : styles.footerTextLight]}>
-              {"Don't have an account? "}
+              {`${t("auth.login.noAccount")} `}
             </Text>
             <TouchableOpacity onPress={() => router.push("/signup")} disabled={isLoading}>
-              <Text style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}>Sign Up</Text>
+              <Text style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}>
+                {t("auth.login.signUpLink")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
