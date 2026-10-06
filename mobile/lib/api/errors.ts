@@ -89,12 +89,14 @@ export const toApiError = (error: unknown): ApiError => {
 };
 
 /**
- * Display string for an error. When `code` is present, resolves through i18n at
- * read time so a locale change is reflected without recreating the error.
+ * Display string for an error. Known 4xx codes resolve through i18n at read
+ * time so a locale change is reflected without recreating the error. 5xx stays
+ * on the generic string even when the body includes a catalog code.
  */
 export const getErrorMessage = (error: unknown, fallback?: string): string => {
   const resolvedFallback = fallback ?? unexpectedError();
   if (!isApiError(error)) return resolvedFallback;
+  if (error.status != null && error.status >= 500) return clientSafeError();
 
   const fromCode = messageForApiErrorCode(error.code);
   if (fromCode != null) return fromCode;

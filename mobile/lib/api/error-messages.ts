@@ -13,11 +13,13 @@ export const API_ERROR_MESSAGE_DOMAINS = EN_ERROR_MESSAGE_DOMAINS;
 
 export const API_ERROR_MESSAGES = enErrors satisfies Record<ApiErrorCode, string>;
 
+const isApiErrorCode = (code: string): code is ApiErrorCode => Object.hasOwn(API_ERROR_MESSAGES, code);
+
 /**
  * Locale-aware product copy for a known API `code`. Unknown codes return
  * `undefined` so callers can fall back to a generic safe string.
  */
 export const messageForApiErrorCode = (code: string | undefined): string | undefined => {
-  if (code == null || !(code in API_ERROR_MESSAGES)) return undefined;
-  return i18n.t(code as ApiErrorCode, { ns: "errors" });
+  if (code == null || !isApiErrorCode(code)) return undefined;
+  return i18n.t(code, { ns: "errors" });
 };

@@ -65,8 +65,9 @@ Source: [`lib/api/errors.ts`](../lib/api/errors.ts),
 branching; display text comes only from the locale catalogs (or the safe /
 network fallbacks above).
 
-`getErrorMessage` re-resolves known codes through i18n at read time, so a later
-locale switch does not require recreating the error.
+`getErrorMessage` re-resolves known 4xx codes through i18n at read time, so a
+later locale switch does not require recreating the error. A 5xx response stays
+on `common:error.generic` even when `code` is set.
 
 ---
 
