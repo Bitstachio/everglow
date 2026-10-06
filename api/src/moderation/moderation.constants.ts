@@ -62,25 +62,10 @@ export const RESOLUTION_CLOSED_REASON: Record<ReportResolutionAction, ReportClos
   DISMISS: ReportClosedReason.DISMISSED,
 };
 
-// An OPEN report older than this pages the platform owner: the organizers have
-// not acted, or cannot (the report is about the only organizer).
+// Organizers have this long to act on a report before it moves to the
+// platform, and the platform this long before it is told the report is overdue
+// (docs/moderation.md §3, §9).
 export const STALE_REPORT_AFTER_HOURS = 24;
 
-// How many stale report ids one alert line lists; the count is always exact.
+// How many overdue report ids one alert line lists; the count is always exact.
 export const STALE_REPORT_SAMPLE_SIZE = 20;
-
-// Why a report was escalated (the `escalationReasons` field of `report.escalated`).
-export const REPORT_ESCALATION_REASONS = {
-  SEVERE_REASON: "severe_reason",
-  TARGET_IS_ORGANIZER: "target_is_organizer",
-  TARGET_IS_SOLE_ORGANIZER: "target_is_sole_organizer",
-  HIDE_THRESHOLD_REACHED: "hide_threshold_reached",
-  // Every report about an event: it is the organizers' own content, so only
-  // the platform owner reviews it.
-  TARGET_IS_EVENT: "target_is_event",
-  // This report brought the event's OPEN event reports to its hide threshold,
-  // and the event went under review. Urgent: joins and uploads are now refused.
-  EVENT_UNDER_REVIEW: "event_under_review",
-} as const;
-
-export type ReportEscalationReason = (typeof REPORT_ESCALATION_REASONS)[keyof typeof REPORT_ESCALATION_REASONS];

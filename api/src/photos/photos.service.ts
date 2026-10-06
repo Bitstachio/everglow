@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { Photo, PhotoStatus, Prisma, ReportActorRole } from "generated/prisma/client";
+import { Photo, PhotoStatus, Prisma, ReportActorRole, ReportEscalation } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
 import { authorize } from "src/casl/authorize";
@@ -15,6 +15,7 @@ import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
+import { logEscalations } from "src/moderation/report-escalation";
 import { PrismaService } from "src/prisma/prisma.service";
 import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
@@ -351,15 +352,17 @@ export class PhotosService {
     // the original stays for the evidence job, and the row goes all the same.
     const { deletable } = await this.evidenceService.preserveBeforeDelete([photo.s3Key]);
     if (deletable.length > 0) await this.s3Service.deleteObject(photo.s3Key);
-    // The photo's OPEN reports close with it; see closeReportsOnDeletedPhotos.
-    const closedReports = await this.prisma.$transaction(async (tx) => {
-      const closed = await closeReportsOnDeletedPhotos(tx, [photoId], {
+    // The photo's OPEN reports are settled with it: closed, or moved to the
+    // platform when this delete isn't a verdict on them (closeReportsOnDeletedPhotos).
+    const reports = await this.prisma.$transaction(async (tx) => {
+      const settled = await closeReportsOnDeletedPhotos(tx, [photoId], {
         id: callerId,
         role: photo.addedById === callerId ? ReportActorRole.SUBJECT : ReportActorRole.ORGANIZER,
       });
       await tx.photo.delete({ where: { id: photoId } });
-      return closed;
+      return settled;
     });
+    logEscalations(this.logger, reports.escalated, ReportEscalation.TARGET_DELETED, { callerId });
 
     // closedReports > 0 with the uploader as caller is someone removing a
     // photo reported against them; the audit log keeps that visible.
@@ -370,7 +373,8 @@ export class PhotosService {
         eventId: photo.eventId,
         callerId,
         uploaderId: photo.addedById,
-        closedReports,
+        closedReports: reports.closed,
+        escalatedReports: reports.escalated.length,
         audit: true,
       },
       "Photo deleted",

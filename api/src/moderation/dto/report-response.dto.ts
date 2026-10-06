@@ -2,6 +2,7 @@ import { ApiProperty } from "@nestjs/swagger";
 import {
   ReportActorRole,
   ReportClosedReason,
+  ReportQueue,
   ReportReason,
   ReportStatus,
   ReportTargetType,
@@ -59,6 +60,16 @@ export class ReportResponseDto {
       "verdict because what was reported was deleted.",
   })
   status: ReportStatus;
+
+  @ApiProperty({
+    enum: ReportQueue,
+    enumName: "ReportQueue",
+    description:
+      "Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, " +
+      "organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close " +
+      "PLATFORM reports (403 REPORT_ESCALATED).",
+  })
+  queue: ReportQueue;
 
   @ApiProperty({
     enum: ReportClosedReason,

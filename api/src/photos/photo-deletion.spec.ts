@@ -18,6 +18,17 @@ describe("deleteUploadsInTransaction", () => {
     prisma.photo.findMany.mockResolvedValue(uploaded as never);
     prisma.photo.deleteMany.mockResolvedValue({ count: uploaded.length });
     prisma.report.updateMany.mockResolvedValue({ count: 1 });
+    // One minor report on the first photo, with the organizers.
+    prisma.report.findMany.mockResolvedValue([
+      {
+        id: "r-1",
+        photoId: uploaded[0].id,
+        queue: "ORGANIZERS",
+        reason: "SPAM",
+        reporterId: null,
+        reportedUserId: userId,
+      },
+    ] as never);
   });
 
   it("deletes all of the user's photos in the event, closing their OPEN reports first", async () => {
@@ -28,6 +39,7 @@ describe("deleteUploadsInTransaction", () => {
       photosDeleted: 2,
       bytesFreed: 4_000_000n,
       reportsClosed: 1,
+      reportsEscalated: [],
     });
 
     expect(prisma.photo.findMany).toHaveBeenCalledWith({
@@ -36,7 +48,7 @@ describe("deleteUploadsInTransaction", () => {
     });
     expect(prisma.report.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { photoId: { in: ids }, status: "OPEN" },
+        where: { id: { in: ["r-1"] }, status: "OPEN" },
         data: expect.objectContaining({
           status: "TARGET_GONE",
           closedByRole: "SUBJECT",
@@ -60,6 +72,7 @@ describe("deleteUploadsInTransaction", () => {
       photosDeleted: 0,
       bytesFreed: 0n,
       reportsClosed: 0,
+      reportsEscalated: [],
     });
     expect(prisma.report.updateMany).not.toHaveBeenCalled();
     expect(prisma.photo.deleteMany).not.toHaveBeenCalled();

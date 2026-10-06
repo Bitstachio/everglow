@@ -745,6 +745,17 @@ describe("PhotosService", () => {
       // The row and its reports go in one interactive transaction, against the same mock client.
       prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
       prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      // One minor report with the organizers, by someone else.
+      prisma.report.findMany.mockResolvedValue([
+        {
+          id: "r-1",
+          photoId,
+          queue: "ORGANIZERS",
+          reason: "SPAM",
+          reporterId: "33333333-3333-3333-3333-333333333333",
+          reportedUserId: callerId,
+        },
+      ] as never);
     });
 
     it("throws NotFoundException when the photo does not exist", async () => {
@@ -804,7 +815,7 @@ describe("PhotosService", () => {
       await service.deletePhoto(photoId, callerId);
 
       expect(prisma.report.updateMany).toHaveBeenCalledWith({
-        where: { photoId: { in: [photoId] }, status: "OPEN" },
+        where: { id: { in: ["r-1"] }, status: "OPEN" },
         data: {
           status: "TARGET_GONE",
           closedReason: "PHOTO_DELETED",
@@ -814,6 +825,9 @@ describe("PhotosService", () => {
         },
       });
       // Before the row: its delete sets the reports' photoId to null.
+      expect(prisma.report.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.photo.delete.mock.invocationCallOrder[0],
+      );
       expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.delete.mock.invocationCallOrder[0],
       );
@@ -829,6 +843,16 @@ describe("PhotosService", () => {
         photoWithEvent([callerAccess("ORGANIZER")], { addedById: "99999999-9999-9999-9999-999999999999" }) as never,
       );
       prisma.report.updateMany.mockResolvedValue({ count: 1 });
+      prisma.report.findMany.mockResolvedValue([
+        {
+          id: "r-1",
+          photoId,
+          queue: "ORGANIZERS",
+          reason: "SPAM",
+          reporterId: "33333333-3333-3333-3333-333333333333",
+          reportedUserId: "99999999-9999-9999-9999-999999999999",
+        },
+      ] as never);
 
       await service.deletePhoto(photoId, callerId);
 

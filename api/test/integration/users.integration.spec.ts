@@ -105,6 +105,7 @@ describe("UsersController (integration)", () => {
     prisma.photo.findMany.mockResolvedValue([]);
     // Prep also closes member reports about the account; none by default.
     prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    prisma.report.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
     // No recent username changes: the username can be changed now.
@@ -966,6 +967,16 @@ describe("UsersController (integration)", () => {
             : [{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/ready" }],
         )) as never);
       prisma.report.updateMany.mockResolvedValue({ count: 1 });
+      prisma.report.findMany.mockResolvedValueOnce([
+        {
+          id: "r-1",
+          photoId: TEST_PHOTO_ID,
+          queue: "ORGANIZERS",
+          reason: "SPAM",
+          reporterId: null,
+          reportedUserId: TEST_USER_ID,
+        },
+      ] as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
@@ -979,7 +990,10 @@ describe("UsersController (integration)", () => {
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
       // The deleted photos' OPEN reports are closed, not left waiting for a verdict.
       expect(prisma.report.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { photoId: { in: [TEST_PHOTO_ID] }, status: "OPEN" } }),
+        expect.objectContaining({
+          where: { id: { in: ["r-1"] }, status: "OPEN" },
+          data: expect.objectContaining({ status: "TARGET_GONE", closedReason: "PHOTO_DELETED" }) as unknown,
+        }),
       );
       // Objects go only once the rows are gone.
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/pending", "photos/u/e/ready"]);

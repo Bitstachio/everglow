@@ -10,7 +10,8 @@ import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { expectApiError } from "./helpers/expect-api-error";
 import { BAD_REQUEST_CODE, FORBIDDEN_CODE, NOT_FOUND_CODE } from "src/common/errors/http.errors";
-import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, authHeader } from "./helpers/auth.fixtures";
+import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, TEST_TARGET_USER_ID, authHeader } from "./helpers/auth.fixtures";
+import { TEST_REPORT_ID } from "./helpers/moderation.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
@@ -589,18 +590,32 @@ describe("PhotosController (integration)", () => {
     beforeEach(() => {
       prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
       prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      prisma.report.findMany.mockResolvedValue([]);
     });
 
     it("returns 204 when an organizer deletes another member's photo", async () => {
       const photo = photoWithAccess([buildOrganizerAccess()], { addedById: TEST_OTHER_USER_ID });
       prisma.photo.findUnique.mockResolvedValue(photo as never);
       prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
+      prisma.report.findMany.mockResolvedValue([
+        {
+          id: TEST_REPORT_ID,
+          photoId: photo.id,
+          queue: "ORGANIZERS",
+          reason: "SPAM",
+          reporterId: TEST_TARGET_USER_ID,
+          reportedUserId: TEST_OTHER_USER_ID,
+        },
+      ] as never);
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
 
-      // Its OPEN reports close with it.
+      // Its OPEN reports close with it: an organizer who may judge them all removed it.
       expect(prisma.report.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { photoId: { in: [photo.id] }, status: "OPEN" } }),
+        expect.objectContaining({
+          where: { id: { in: [TEST_REPORT_ID] }, status: "OPEN" },
+          data: expect.objectContaining({ status: "ACTIONED", closedReason: "PHOTO_REMOVED" }) as unknown,
+        }),
       );
 
       expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);

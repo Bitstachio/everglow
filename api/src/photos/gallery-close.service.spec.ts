@@ -50,6 +50,8 @@ describe("GalleryCloseService", () => {
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.count.mockResolvedValue(0);
+    // No open report in the gallery unless a test says otherwise.
+    prisma.report.findMany.mockResolvedValue([]);
     mockHeld(0, 0);
     purge = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
     logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn(), warn: jest.fn() };
@@ -143,6 +145,25 @@ describe("GalleryCloseService", () => {
           photosKept: 1,
           audit: true,
         }),
+        expect.any(String),
+      );
+    });
+
+    it("moves the gallery's open organizer reports to the platform: nobody in the event can see the photos now", async () => {
+      mockPasses([due("event-1")]);
+      prisma.report.findMany.mockResolvedValue([{ id: "r-1" }] as never);
+      prisma.$queryRaw.mockResolvedValue([
+        { id: "r-1", eventId: "event-1", targetType: "PHOTO", photoId: "p-1", reportedUserId: null, reason: "SPAM" },
+      ]);
+
+      await service.closeDueGalleries(now);
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { eventId: "event-1", status: "OPEN", queue: "ORGANIZERS" },
+        select: { id: true },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.escalated", reportId: "r-1", escalationReasons: ["gallery_closed"] }),
         expect.any(String),
       );
     });

@@ -1,5 +1,6 @@
 import { Prisma } from "generated/prisma/client";
 import { ReportCloser, closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
+import { EscalatedReport } from "src/moderation/report-escalation";
 
 export interface DeleteUploadsInput {
   eventId: string;
@@ -18,6 +19,8 @@ export interface DeletedUploads {
   /** Storage freed in the event's gallery. */
   bytesFreed: bigint;
   reportsClosed: number;
+  /** Reports on the deleted photos that stay OPEN and moved to the platform; the caller logs them. */
+  reportsEscalated: EscalatedReport[];
 }
 
 /**
@@ -35,16 +38,19 @@ export const deleteUploadsInTransaction = async (
     where: { eventId, addedById: userId, id: { notIn: excludePhotoIds } },
     select: { id: true, s3Key: true, sizeBytes: true },
   });
-  if (uploaded.length === 0) return { photoKeys: [], photosDeleted: 0, bytesFreed: 0n, reportsClosed: 0 };
+  if (uploaded.length === 0) {
+    return { photoKeys: [], photosDeleted: 0, bytesFreed: 0n, reportsClosed: 0, reportsEscalated: [] };
+  }
 
   const ids = uploaded.map((photo) => photo.id);
-  const reportsClosed = await closeReportsOnDeletedPhotos(tx, ids, closedBy);
+  const reports = await closeReportsOnDeletedPhotos(tx, ids, closedBy);
   const { count } = await tx.photo.deleteMany({ where: { id: { in: ids } } });
 
   return {
     photoKeys: uploaded.map((photo) => photo.s3Key),
     photosDeleted: count,
     bytesFreed: uploaded.reduce((sum, photo) => sum + BigInt(photo.sizeBytes), 0n),
-    reportsClosed,
+    reportsClosed: reports.closed,
+    reportsEscalated: reports.escalated,
   };
 };

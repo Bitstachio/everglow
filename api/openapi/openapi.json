@@ -2837,6 +2837,14 @@
         ],
         "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted."
       },
+      "ReportQueue": {
+        "type": "string",
+        "enum": [
+          "ORGANIZERS",
+          "PLATFORM"
+        ],
+        "description": "Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED)."
+      },
       "ReportClosedReason": {
         "type": "string",
         "enum": [
@@ -2917,6 +2925,14 @@
               }
             ]
           },
+          "queue": {
+            "description": "Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportQueue"
+              }
+            ]
+          },
           "closedReason": {
             "nullable": true,
             "description": "Why the report closed. Null while OPEN, and on reports closed before it was recorded.",
@@ -2961,6 +2977,7 @@
           "reason",
           "note",
           "status",
+          "queue",
           "closedReason",
           "closedByRole",
           "resolvedById",
@@ -3540,6 +3557,7 @@
               "REPORTED_PHOTO_GONE",
               "REPORT_ALREADY_RESOLVED",
               "REPORT_CHANGED_CONCURRENTLY",
+              "REPORT_ESCALATED",
               "STORAGE_RESERVATION_CONFLICT",
               "TARGET_NOT_A_MEMBER",
               "TOO_MANY_REQUESTS",
