@@ -33,4 +33,4 @@ UPDATE "Report" AS r SET "queue" = 'PLATFORM', "escalatedAt" = (now() AT TIME ZO
   "escalationReasons" = array_append(r."escalationReasons", 'GALLERY_CLOSED')
 FROM "Event" AS e
 WHERE r."status" = 'OPEN' AND r."queue" = 'ORGANIZERS'
-  AND e."id" = r."eventId" AND e."galleryClosesAt" IS NOT NULL AND e."galleryClosesAt" <= now();
+  AND e."id" = r."eventId" AND e."galleryClosesAt" IS NOT NULL AND e."galleryClosesAt" <= (now() AT TIME ZONE 'UTC');

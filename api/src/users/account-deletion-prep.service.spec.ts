@@ -39,6 +39,7 @@ describe("AccountDeletionPrepService", () => {
     prisma.report.count.mockResolvedValue(0);
     prisma.report.updateMany.mockResolvedValue({ count: 0 });
     prisma.report.findMany.mockResolvedValue([]);
+    prisma.eventAccess.update.mockResolvedValue({ userId: "successor-user" } as never);
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
@@ -85,7 +86,7 @@ describe("AccountDeletionPrepService", () => {
         Promise.resolve(args.where.eventId === coOrganizedEventId ? 1 : 0)) as never);
       prisma.eventAccess.findFirst.mockImplementation(((args: { where: { eventId?: string } }) =>
         Promise.resolve(args.where.eventId === sharedEventId ? { id: "successor-access" } : null)) as never);
-      prisma.eventAccess.update.mockResolvedValue({} as never);
+      prisma.eventAccess.update.mockResolvedValue({ userId: "successor-user" } as never);
       prisma.photo.findMany.mockImplementation(((args: { where: { eventId?: string } }) =>
         Promise.resolve(
           args.where.eventId === soloEventId ? [{ s3Key: "photos/solo/a" }, { s3Key: "photos/solo/b" }] : [],
@@ -103,6 +104,31 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.event.deleteMany).not.toHaveBeenCalledWith({ where: { id: coOrganizedEventId } });
     });
 
+    it("moves the new organizer's open reports in the event to the platform, as any promotion does", async () => {
+      prisma.report.findMany.mockResolvedValueOnce([{ id: "r-1" }] as never);
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: "r-1",
+          eventId: sharedEventId,
+          targetType: "MEMBER",
+          photoId: null,
+          reportedUserId: "successor-user",
+          reason: "SPAM",
+        },
+      ]);
+
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { eventId: sharedEventId, reportedUserId: "successor-user", status: "OPEN", queue: "ORGANIZERS" },
+        select: { id: true },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.escalated", escalationReasons: ["target_is_organizer"] }),
+        expect.any(String),
+      );
+    });
+
     it("promotes the longest-standing member when the account was the only organizer", async () => {
       const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
 
@@ -115,6 +141,7 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.eventAccess.update).toHaveBeenCalledWith({
         where: { id: "successor-access" },
         data: { accessLevel: AccessLevel.ORGANIZER },
+        select: { userId: true },
       });
       expect(result.summary.eventsHandedOver).toBe(1);
     });
@@ -138,6 +165,16 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.event.deleteMany).not.toHaveBeenCalled();
       expect(result.summary).toMatchObject({ eventsDeleted: 0, eventsKeptForModeration: 1 });
       expect(result.s3Keys).not.toEqual(expect.arrayContaining(["photos/solo/a"]));
+    });
+
+    it("deletes a kept event after all once settling the account's reports leaves nothing pending", async () => {
+      // Open when first checked; closed by the account's own report settlement after.
+      prisma.report.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(prisma.event.deleteMany).toHaveBeenCalledWith({ where: { id: soloEventId } });
+      expect(result.summary).toMatchObject({ eventsDeleted: 1, eventsKeptForModeration: 0 });
     });
 
     it("collects the cover key of an event it deletes, next to its photo keys", async () => {
@@ -194,6 +231,7 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.eventAccess.update).toHaveBeenCalledWith({
         where: { id: "successor-access" },
         data: { accessLevel: AccessLevel.ORGANIZER },
+        select: { userId: true },
       });
     });
   });

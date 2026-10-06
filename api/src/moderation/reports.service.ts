@@ -326,7 +326,9 @@ export class ReportsService {
       { id: { not: reportId } },
       { status: ReportStatus.OPEN },
       { queue: ReportQueue.ORGANIZERS },
-      ...(dismissing ? [{ NOT: { reporterId: callerId } }] : []),
+      // `NOT reporterId = caller` would drop reports whose reporter is gone
+      // (null), and leave them open: spell the null out.
+      ...(dismissing ? [{ OR: [{ reporterId: null }, { reporterId: { not: callerId } }] }] : []),
     ];
 
     if (dismissing && SEVERE_REPORT_REASONS.includes(loaded.reason)) {

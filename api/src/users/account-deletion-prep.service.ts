@@ -9,7 +9,7 @@ import {
 } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { lockPendingModeration } from "src/moderation/pending-moderation";
-import { EscalatedReport, logEscalations } from "src/moderation/report-escalation";
+import { EscalatedReport, escalateToPlatform, logEscalations } from "src/moderation/report-escalation";
 import { closeMemberReportsOnDeletedAccount, closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
 
@@ -82,11 +82,12 @@ export class AccountDeletionPrepService {
     userId: string,
     photoPolicy: AccountDeletionPhotoPolicy,
   ): Promise<AccountDeletionPrepResult> {
-    const { escalated, ...result } = await this.prisma.$transaction(
+    const { escalated, promoted, ...result } = await this.prisma.$transaction(
       (tx) => this.prepareInTransaction(tx, userId, photoPolicy),
       { timeout: TRANSACTION_TIMEOUT_MS },
     );
     logEscalations(this.logger, escalated, ReportEscalation.TARGET_DELETED, { userId });
+    logEscalations(this.logger, promoted, ReportEscalation.TARGET_IS_ORGANIZER, { userId });
 
     this.logger.info(
       { event: "user.account.deletion_prepared", userId, photoPolicy, ...result.summary, audit: true },
@@ -100,11 +101,12 @@ export class AccountDeletionPrepService {
     tx: Prisma.TransactionClient,
     userId: string,
     photoPolicy: AccountDeletionPhotoPolicy,
-  ): Promise<AccountDeletionPrepResult & { escalated: EscalatedReport[] }> {
+  ): Promise<AccountDeletionPrepResult & { escalated: EscalatedReport[]; promoted: EscalatedReport[] }> {
     const s3Keys: string[] = [];
     let eventsDeleted = 0;
     let eventsHandedOver = 0;
-    let eventsKeptForModeration = 0;
+    const keptForModeration: string[] = [];
+    const promoted: EscalatedReport[] = [];
 
     // 1. Events the account organises. With another organizer around nothing
     //    needs doing: the membership cascades with the row. Otherwise the
@@ -135,7 +137,24 @@ export class AccountDeletionPrepService {
         select: { id: true },
       });
       if (successor) {
-        await tx.eventAccess.update({ where: { id: successor.id }, data: { accessLevel: AccessLevel.ORGANIZER } });
+        const access = await tx.eventAccess.update({
+          where: { id: successor.id },
+          data: { accessLevel: AccessLevel.ORGANIZER },
+          select: { userId: true },
+        });
+        // As for any promotion: an organizer can't judge reports about
+        // themselves, so theirs go to the platform (docs/moderation.md §3).
+        const reports = await tx.report.findMany({
+          where: { eventId, reportedUserId: access.userId, status: "OPEN", queue: "ORGANIZERS" },
+          select: { id: true },
+        });
+        promoted.push(
+          ...(await escalateToPlatform(
+            tx,
+            reports.map((report) => report.id),
+            ReportEscalation.TARGET_IS_ORGANIZER,
+          )),
+        );
         eventsHandedOver += 1;
         continue;
       }
@@ -145,21 +164,11 @@ export class AccountDeletionPrepService {
       // decided (docs/moderation.md §7). The account's own photos in it follow
       // the photo policy below, like any event that outlives the account.
       if (await lockPendingModeration(tx, eventId)) {
-        eventsKeptForModeration += 1;
+        keptForModeration.push(eventId);
         continue;
       }
 
-      // Otherwise the event goes with every photo still in it, including
-      // photos of members who left earlier.
-      const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
-      s3Keys.push(...photos.map((photo) => photo.s3Key));
-      // Its cover goes to the same purge; the column disappears with the row.
-      const event = await tx.event.findUnique({ where: { id: eventId }, select: { coverS3Key: true } });
-      if (event?.coverS3Key) s3Keys.push(event.coverS3Key);
-      // deleteMany, not delete: a concurrent deletion of the last other member
-      // may have removed this event already, and that is the outcome we wanted.
-      const { count } = await tx.event.deleteMany({ where: { id: eventId } });
-      eventsDeleted += count;
+      eventsDeleted += await this.deleteAbandonedEvent(tx, eventId, s3Keys);
     }
 
     // 2. Uploads in flight never became visible to anyone; they only hold
@@ -204,6 +213,18 @@ export class AccountDeletionPrepService {
     const memberReports = await closeMemberReportsOnDeletedAccount(tx, userId);
     escalated.push(...memberReports.escalated);
 
+    // Settling the account's reports may have closed the very ones that kept
+    // an event above: one with nothing left pending goes now, rather than
+    // staying without members forever.
+    let eventsKeptForModeration = 0;
+    for (const eventId of keptForModeration) {
+      if (await lockPendingModeration(tx, eventId)) {
+        eventsKeptForModeration += 1;
+        continue;
+      }
+      eventsDeleted += await this.deleteAbandonedEvent(tx, eventId, s3Keys);
+    }
+
     // 5. The avatar. Its column cascades with the user row, so only the object
     //    needs collecting; the row is left alone, which keeps a resumed saga
     //    finding the same key again.
@@ -226,6 +247,24 @@ export class AccountDeletionPrepService {
       },
       s3Keys,
       escalated,
+      promoted,
     };
+  }
+
+  /**
+   * Deletes an event nobody is left in, with every photo still in it,
+   * including photos of members who left earlier, and collects their keys and
+   * the cover's for the purge. Returns how many rows went.
+   */
+  private async deleteAbandonedEvent(tx: Prisma.TransactionClient, eventId: string, s3Keys: string[]): Promise<number> {
+    const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
+    s3Keys.push(...photos.map((photo) => photo.s3Key));
+    // Its cover goes to the same purge; the column disappears with the row.
+    const event = await tx.event.findUnique({ where: { id: eventId }, select: { coverS3Key: true } });
+    if (event?.coverS3Key) s3Keys.push(event.coverS3Key);
+    // deleteMany, not delete: a concurrent deletion of the last other member
+    // may have removed this event already, and that is the outcome we wanted.
+    const { count } = await tx.event.deleteMany({ where: { id: eventId } });
+    return count;
   }
 }
