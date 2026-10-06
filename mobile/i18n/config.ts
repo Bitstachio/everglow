@@ -5,5 +5,4 @@ export const locales = [defaultLocale] as const;
 
 export type AppLocale = (typeof locales)[number];
 
-export const isAppLocale = (value: string): value is AppLocale =>
-  (locales as readonly string[]).includes(value);
+export const isAppLocale = (value: string): value is AppLocale => (locales as readonly string[]).includes(value);
