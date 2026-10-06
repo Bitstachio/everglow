@@ -2832,8 +2832,34 @@
         "enum": [
           "OPEN",
           "ACTIONED",
-          "DISMISSED"
-        ]
+          "DISMISSED",
+          "TARGET_GONE"
+        ],
+        "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted."
+      },
+      "ReportClosedReason": {
+        "type": "string",
+        "enum": [
+          "PHOTO_REMOVED",
+          "MEMBER_REMOVED",
+          "ACCOUNT_SUSPENDED",
+          "EVENT_SUSPENDED",
+          "EVENT_DELETED",
+          "DISMISSED",
+          "PHOTO_DELETED",
+          "ACCOUNT_DELETED"
+        ],
+        "description": "Why the report closed. Null while OPEN, and on reports closed before it was recorded."
+      },
+      "ReportActorRole": {
+        "type": "string",
+        "enum": [
+          "ORGANIZER",
+          "PLATFORM",
+          "SUBJECT",
+          "SYSTEM"
+        ],
+        "description": "In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded."
       },
       "ReportResponseDto": {
         "type": "object",
@@ -2844,7 +2870,13 @@
           },
           "eventId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null once the event has been deleted; only closed reports outlive their event."
+          },
+          "eventTitle": {
+            "type": "string",
+            "description": "The event's title when the report was filed."
           },
           "targetType": {
             "allOf": [
@@ -2878,9 +2910,28 @@
             "maxLength": 500
           },
           "status": {
+            "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ReportStatus"
+              }
+            ]
+          },
+          "closedReason": {
+            "nullable": true,
+            "description": "Why the report closed. Null while OPEN, and on reports closed before it was recorded.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportClosedReason"
+              }
+            ]
+          },
+          "closedByRole": {
+            "nullable": true,
+            "description": "In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportActorRole"
               }
             ]
           },
@@ -2888,7 +2939,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "The organizer who resolved the report. Null while OPEN, and once that account has been deleted."
+            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted."
           },
           "resolvedAt": {
             "format": "date-time",
@@ -2903,12 +2954,15 @@
         "required": [
           "id",
           "eventId",
+          "eventTitle",
           "targetType",
           "photoId",
           "reportedUserId",
           "reason",
           "note",
           "status",
+          "closedReason",
+          "closedByRole",
           "resolvedById",
           "resolvedAt",
           "createdAt"

@@ -22,6 +22,7 @@ describe("AccountDeletionPrepService", () => {
     photosKept: 0,
     photosDeleted: 0,
     reportsClosed: 0,
+    memberReportsClosed: 0,
     uploadsDiscarded: 0,
     avatarQueued: false,
   };
@@ -35,6 +36,7 @@ describe("AccountDeletionPrepService", () => {
     // Moderation needs none of the events unless a test says otherwise.
     prisma.$queryRaw.mockResolvedValue([{ underReviewAt: null }]);
     prisma.report.count.mockResolvedValue(0);
+    prisma.report.updateMany.mockResolvedValue({ count: 0 });
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
@@ -229,7 +231,11 @@ describe("AccountDeletionPrepService", () => {
       // A kept photo's object must not be purged.
       expect(result.s3Keys).not.toContain("photos/u/e/ready-1");
       // The kept photo is still there to judge, so its reports stay open.
-      expect(prisma.report.updateMany).not.toHaveBeenCalled();
+      expect(prisma.report.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ photoId: expect.anything() as unknown }) as unknown,
+        }),
+      );
     });
 
     it("removes uploaded photos everywhere when asked to", async () => {
@@ -248,12 +254,37 @@ describe("AccountDeletionPrepService", () => {
 
       expect(prisma.report.updateMany).toHaveBeenCalledWith({
         where: { photoId: { in: [readyPhotoId] }, status: "OPEN" },
-        data: { status: "ACTIONED", resolvedById: userId, resolvedAt: expect.any(Date) as unknown },
+        data: {
+          status: "TARGET_GONE",
+          closedReason: "PHOTO_DELETED",
+          closedByRole: "SUBJECT",
+          resolvedById: userId,
+          resolvedAt: expect.any(Date) as unknown,
+        },
       });
       expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.deleteMany.mock.invocationCallOrder.at(-1)!,
       );
       expect(result.summary.reportsClosed).toBe(2);
+    });
+  });
+
+  describe("member reports about the account", () => {
+    it("closes the ones that aren't severe as TARGET_GONE, ACCOUNT_DELETED, whatever the photo policy", async () => {
+      prisma.report.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: {
+          reportedUserId: userId,
+          targetType: "MEMBER",
+          status: "OPEN",
+          reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE"] },
+        },
+        data: expect.objectContaining({ status: "TARGET_GONE", closedReason: "ACCOUNT_DELETED" }) as unknown,
+      });
+      expect(result.summary.memberReportsClosed).toBe(1);
     });
   });
 

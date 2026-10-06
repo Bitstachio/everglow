@@ -2,7 +2,7 @@ import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { AccessLevel, Event, EventInvite, Prisma } from "generated/prisma/client";
+import { AccessLevel, Event, EventInvite, Prisma, ReportActorRole } from "generated/prisma/client";
 import { EventPlanService, galleryNotClosed } from "src/plans/event-plan.service";
 import { GALLERY_STATES, gallerySchedule, galleryStateOf } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
@@ -434,7 +434,13 @@ export class EventsService {
 
     const deleted = await this.prisma.$transaction(async (tx) => {
       await tx.eventAccess.delete({ where: { userId_eventId: { userId: callerId, eventId } } });
-      return deletesPhotos ? deleteUploadsInTransaction(tx, { eventId, userId: callerId, closedById: callerId }) : null;
+      return deletesPhotos
+        ? deleteUploadsInTransaction(tx, {
+            eventId,
+            userId: callerId,
+            closedBy: { id: callerId, role: ReportActorRole.SUBJECT },
+          })
+        : null;
     });
 
     this.logger.info(
@@ -556,7 +562,13 @@ export class EventsService {
     }
 
     const removed = await this.prisma.$transaction((tx) =>
-      removeMemberInTransaction(tx, { eventId, userId: targetUserId, removedById: callerId, photos }),
+      removeMemberInTransaction(tx, {
+        eventId,
+        userId: targetUserId,
+        removedById: callerId,
+        removedByRole: ReportActorRole.ORGANIZER,
+        photos,
+      }),
     );
 
     this.logger.info(

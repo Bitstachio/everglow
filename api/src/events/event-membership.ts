@@ -1,4 +1,4 @@
-import { Prisma } from "generated/prisma/client";
+import { Prisma, ReportActorRole } from "generated/prisma/client";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 
 /**
@@ -18,6 +18,8 @@ export interface RemoveMemberInput {
   userId: string;
   /** The organizer removing them: recorded on the ban, and as the resolver of any reports it closes. */
   removedById: string;
+  /** Whether an organizer or the platform removes them: how the reports on their deleted photos close. */
+  removedByRole: typeof ReportActorRole.ORGANIZER | typeof ReportActorRole.PLATFORM;
   photos: MemberPhotos;
   /** Photos the caller deletes itself, e.g. the one a report is about. */
   excludePhotoIds?: string[];
@@ -44,7 +46,7 @@ export interface RemovedMember {
  */
 export const removeMemberInTransaction = async (
   tx: Prisma.TransactionClient,
-  { eventId, userId, removedById, photos, excludePhotoIds = [] }: RemoveMemberInput,
+  { eventId, userId, removedById, removedByRole, photos, excludePhotoIds = [] }: RemoveMemberInput,
 ): Promise<RemovedMember> => {
   await tx.eventAccess.deleteMany({ where: { eventId, userId } });
   await tx.eventBan.upsert({
@@ -55,6 +57,11 @@ export const removeMemberInTransaction = async (
 
   if (photos === MEMBER_PHOTOS.KEEP) return { photoKeys: [], photosDeleted: 0, reportsClosed: 0 };
 
-  const deleted = await deleteUploadsInTransaction(tx, { eventId, userId, closedById: removedById, excludePhotoIds });
+  const deleted = await deleteUploadsInTransaction(tx, {
+    eventId,
+    userId,
+    closedBy: { id: removedById, role: removedByRole },
+    excludePhotoIds,
+  });
   return { photoKeys: deleted.photoKeys, photosDeleted: deleted.photosDeleted, reportsClosed: deleted.reportsClosed };
 };

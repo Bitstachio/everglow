@@ -50,8 +50,39 @@ enum ReportReason {
 
 enum ReportStatus {
   OPEN
+  // Someone who may judge it removed what was reported.
   ACTIONED
+  // Judged and left as it is.
   DISMISSED
+  // Closed without a verdict: what it was about was deleted. Never counts as
+  // a verdict against anyone.
+  TARGET_GONE
+}
+
+// Why a report left OPEN (docs/moderation.md §3). Verdicts close as ACTIONED
+// or DISMISSED; PHOTO_DELETED and ACCOUNT_DELETED close as TARGET_GONE.
+enum ReportClosedReason {
+  PHOTO_REMOVED
+  MEMBER_REMOVED
+  ACCOUNT_SUSPENDED
+  EVENT_SUSPENDED
+  EVENT_DELETED
+  DISMISSED
+  PHOTO_DELETED
+  ACCOUNT_DELETED
+}
+
+// In which capacity a report was closed. resolvedById is the person, and is
+// nulled with their account; the role survives it.
+enum ReportActorRole {
+  // An organizer of the report's event.
+  ORGANIZER
+  // A platform moderator.
+  PLATFORM
+  // The person the report is about, for example deleting their own photo.
+  SUBJECT
+  // A job or a cascade, with nobody acting.
+  SYSTEM
 }
 
 model User {
@@ -283,28 +314,37 @@ model Photo {
 // never carries a photoId, reporter and reported user differ, and the
 // resolution columns agree with the status.
 model Report {
-  id             String           @id @default(uuid()) @db.Uuid
-  eventId        String           @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
+  // Null once the event is deleted. An event with OPEN reports can't be
+  // deleted, so only closed reports outlive it (docs/moderation.md §7).
+  eventId        String?             @db.Uuid
+  // The event's title when the report was filed, so a report still says where
+  // it came from after the event is gone. Same length as Event.title.
+  eventTitle     String              @db.VarChar(100)
   // Null once the reporter's account is deleted: the report stays as evidence.
-  reporterId     String?          @db.Uuid
+  reporterId     String?             @db.Uuid
   targetType     ReportTargetType
   // Set for PHOTO reports; null again once that photo is deleted.
-  photoId        String?          @db.Uuid
+  photoId        String?             @db.Uuid
   // The reported member, or the uploader of the reported photo. Null once that
   // account is deleted, or when the photo had already lost its uploader.
-  reportedUserId String?          @db.Uuid
+  reportedUserId String?             @db.Uuid
   reason         ReportReason
-  note           String?          @db.VarChar(500)
-  status         ReportStatus     @default(OPEN)
-  resolvedById   String?          @db.Uuid
+  note           String?             @db.VarChar(500)
+  status         ReportStatus        @default(OPEN)
+  // Why and in which capacity it closed; both null while OPEN. Reports closed
+  // before these existed have neither.
+  closedReason   ReportClosedReason?
+  closedByRole   ReportActorRole?
+  resolvedById   String?             @db.Uuid
   resolvedAt     DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
-  // Reports are an event's moderation queue and go with it. Everything else is
-  // SET NULL: deleting a photo, a reporter, a reported account or a resolver
-  // never fails on a report, and never erases one either.
-  event        Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  // Everything is SET NULL: deleting an event, a photo, a reporter, a reported
+  // account or a resolver never fails on a report, and never erases one
+  // either. Reports are the only lasting record of abuse.
+  event        Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   reporter     User?  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: SetNull)
   photo        Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
   reportedUser User?  @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: SetNull)

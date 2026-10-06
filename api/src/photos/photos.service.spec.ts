@@ -790,7 +790,7 @@ describe("PhotosService", () => {
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
     });
 
-    it("closes the photo's OPEN reports as ACTIONED with the delete, and audits how many", async () => {
+    it("closes the photo's OPEN reports as TARGET_GONE when its uploader deletes it, and audits how many", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);
       prisma.report.updateMany.mockResolvedValue({ count: 2 });
@@ -799,7 +799,13 @@ describe("PhotosService", () => {
 
       expect(prisma.report.updateMany).toHaveBeenCalledWith({
         where: { photoId: { in: [photoId] }, status: "OPEN" },
-        data: { status: "ACTIONED", resolvedById: callerId, resolvedAt: expect.any(Date) as unknown },
+        data: {
+          status: "TARGET_GONE",
+          closedReason: "PHOTO_DELETED",
+          closedByRole: "SUBJECT",
+          resolvedById: callerId,
+          resolvedAt: expect.any(Date) as unknown,
+        },
       });
       // Before the row: its delete sets the reports' photoId to null.
       expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
@@ -808,6 +814,26 @@ describe("PhotosService", () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.objectContaining({ event: "photo.deleted", uploaderId: callerId, closedReports: 2, audit: true }),
         "Photo deleted",
+      );
+    });
+
+    it("closes the photo's OPEN reports as ACTIONED, PHOTO_REMOVED when an organizer deletes someone else's photo", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue(
+        photoWithEvent([callerAccess("ORGANIZER")], { addedById: "99999999-9999-9999-9999-999999999999" }) as never,
+      );
+      prisma.report.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.deletePhoto(photoId, callerId);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "ACTIONED",
+            closedReason: "PHOTO_REMOVED",
+            closedByRole: "ORGANIZER",
+          }) as unknown,
+        }),
       );
     });
 

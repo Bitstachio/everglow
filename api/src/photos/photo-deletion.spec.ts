@@ -21,7 +21,9 @@ describe("deleteUploadsInTransaction", () => {
   });
 
   it("deletes all of the user's photos in the event, closing their OPEN reports first", async () => {
-    await expect(deleteUploadsInTransaction(prisma, { eventId, userId, closedById })).resolves.toEqual({
+    await expect(
+      deleteUploadsInTransaction(prisma, { eventId, userId, closedBy: { id: closedById, role: "SUBJECT" } }),
+    ).resolves.toEqual({
       photoKeys: ["photos/a", "photos/b"],
       photosDeleted: 2,
       bytesFreed: 4_000_000n,
@@ -35,7 +37,11 @@ describe("deleteUploadsInTransaction", () => {
     expect(prisma.report.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { photoId: { in: ids }, status: "OPEN" },
-        data: expect.objectContaining({ status: "ACTIONED", resolvedById: closedById }) as unknown,
+        data: expect.objectContaining({
+          status: "TARGET_GONE",
+          closedByRole: "SUBJECT",
+          resolvedById: closedById,
+        }) as unknown,
       }),
     );
     expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
@@ -47,7 +53,9 @@ describe("deleteUploadsInTransaction", () => {
   it("does nothing when there is nothing to delete", async () => {
     prisma.photo.findMany.mockResolvedValue([]);
 
-    await expect(deleteUploadsInTransaction(prisma, { eventId, userId, closedById })).resolves.toEqual({
+    await expect(
+      deleteUploadsInTransaction(prisma, { eventId, userId, closedBy: { id: closedById, role: "SUBJECT" } }),
+    ).resolves.toEqual({
       photoKeys: [],
       photosDeleted: 0,
       bytesFreed: 0n,

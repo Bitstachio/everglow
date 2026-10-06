@@ -291,7 +291,8 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Only member of the event                       | Event deleted with all its photos and its cover; S3 purged after commit                                                |
 | Created an event it later left                 | `creatorId` set to null; nothing else                                                                                  |
 | Uploaded photos, `?photos=KEEP`                | Kept, `addedById` null; organizers can still delete them                                                               |
-| Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit; their OPEN reports closed as `ACTIONED` first (`reportsClosed`)     |
+| Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit; their OPEN reports closed as `TARGET_GONE`, `PHOTO_DELETED` first (`reportsClosed`) |
+| Reported as a member                           | OPEN member reports that aren't severe closed as `TARGET_GONE`, `ACCOUNT_DELETED` (`memberReportsClosed`); severe ones stay for the platform |
 | Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the S3 orphan reconciler                       |
 | Has an avatar                                  | Key collected in prep, column left to the cascade, object purged after commit ([image-uploads.md](./image-uploads.md)) |
 | Avatar uploaded but never confirmed            | No row ever referenced it; an orphan for the S3 orphan reconciler                                                      |

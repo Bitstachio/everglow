@@ -36,9 +36,11 @@ export const hiddenEventCoverIds = async (
     ).map((access) => access.eventId),
   );
 
-  // A row either is the viewer's own report or matched as severe.
+  // A row either is the viewer's own report or matched as severe. Every row
+  // has an event: the query above is by event id.
   return new Set(
     reports
+      .flatMap((report) => (report.eventId ? [{ ...report, eventId: report.eventId }] : []))
       .filter((report) => report.reporterId === viewerId || !organizerOf.has(report.eventId))
       .map((report) => report.eventId),
   );

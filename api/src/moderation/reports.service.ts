@@ -8,6 +8,7 @@ import {
   PhotoStatus,
   Prisma,
   Report,
+  ReportActorRole,
   ReportStatus,
   ReportTargetType,
 } from "generated/prisma/client";
@@ -29,6 +30,7 @@ import { ListReportsQueryDto } from "./dto/list-reports-query.dto";
 import {
   REPORT_ESCALATION_REASONS,
   REPORT_RESOLUTION_ACTIONS,
+  RESOLUTION_CLOSED_REASON,
   RESOLUTION_STATUS,
   ReportEscalationReason,
   ReportResolutionAction,
@@ -42,8 +44,12 @@ import { eventForPhotoVisibilityInclude } from "./moderation.types";
 import { PhotoVisibilityService } from "./photo-visibility.service";
 import { REPORT_ACTIONS, REPORT_SUBJECT } from "./reports.abilities";
 
-/** What a report points at; `photoId` is set for PHOTO reports only. */
-type ReportTarget = Pick<Report, "eventId" | "targetType" | "photoId" | "reportedUserId">;
+/** What a new report points at; `photoId` is set for PHOTO reports only. */
+interface ReportTarget extends Pick<Report, "targetType" | "photoId" | "reportedUserId"> {
+  eventId: string;
+  /** The event's title now, kept on the report after the event is gone. */
+  eventTitle: string;
+}
 
 /** Facts about the target that decide whether a new report is escalated. */
 interface EscalationContext {
@@ -92,6 +98,7 @@ export class ReportsService {
 
     const target: ReportTarget = {
       eventId: photo.eventId,
+      eventTitle: photo.event.title,
       targetType: ReportTargetType.PHOTO,
       photoId,
       reportedUserId: photo.addedById,
@@ -136,6 +143,7 @@ export class ReportsService {
 
     const target: ReportTarget = {
       eventId,
+      eventTitle: event.title,
       targetType: ReportTargetType.MEMBER,
       photoId: null,
       reportedUserId: targetUserId,
@@ -158,7 +166,13 @@ export class ReportsService {
 
     await this.assertCanReportIn(event, callerId);
 
-    const target: ReportTarget = { eventId, targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null };
+    const target: ReportTarget = {
+      eventId,
+      eventTitle: event.title,
+      targetType: ReportTargetType.EVENT,
+      photoId: null,
+      reportedUserId: null,
+    };
 
     return this.createReport(callerId, target, dto, {
       reportedAccessLevel: null,
@@ -226,7 +240,12 @@ export class ReportsService {
       where: { id: reportId },
       include: { event: { include: eventWithCallerAccessInclude(callerId) } },
     });
-    if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Report", "ID", reportId));
+    // A report whose event is gone is a record, not a queue item: it closed
+    // before the event could be deleted, and nobody in an event can reach it.
+    if (!loaded?.event) {
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Report", "ID", reportId));
+    }
+    const event = loaded.event;
 
     const ability = await this.abilityFactory.createForCaller(callerId);
     // Reports about the event itself are the platform's: organizers can't even
@@ -237,7 +256,7 @@ export class ReportsService {
       subject(REPORT_SUBJECT, loaded),
       loaded.targetType === ReportTargetType.EVENT
         ? undefined
-        : { isMember: loaded.event.eventAccesses.length > 0, refusal: "ORGANIZER_ONLY" },
+        : { isMember: event.eventAccesses.length > 0, refusal: "ORGANIZER_ONLY" },
     );
 
     // An organizer must not be the judge of a report about themselves or their
@@ -251,7 +270,13 @@ export class ReportsService {
       throw new ApiException("REPORTED_MEMBER_GONE", { reportId });
     }
 
-    const resolution = { status: RESOLUTION_STATUS[action], resolvedById: callerId, resolvedAt: new Date() };
+    const resolution = {
+      status: RESOLUTION_STATUS[action],
+      closedReason: RESOLUTION_CLOSED_REASON[action],
+      closedByRole: ReportActorRole.ORGANIZER,
+      resolvedById: callerId,
+      resolvedAt: new Date(),
+    };
     const sameTarget = this.sameTargetWhere(loaded, action);
 
     const { resolved, closedReports, removedMember } = await this.prisma.$transaction(async (tx) => {
@@ -277,9 +302,10 @@ export class ReportsService {
       // with DELETE the member's other photos in the event.
       const member = removedMemberId
         ? await removeMemberInTransaction(tx, {
-            eventId: loaded.eventId,
+            eventId: event.id,
             userId: removedMemberId,
             removedById: callerId,
+            removedByRole: ReportActorRole.ORGANIZER,
             photos: memberPhotos ?? MEMBER_PHOTOS.KEEP,
             excludePhotoIds: photo ? [photo.id] : [],
           })
@@ -310,6 +336,8 @@ export class ReportsService {
         reportedUserId: resolved.reportedUserId,
         action,
         resolution: resolution.status,
+        closedReason: resolution.closedReason,
+        closedByRole: resolution.closedByRole,
         closedReports,
         removedPhotoId: photo?.id ?? null,
         removedMemberId,
@@ -350,7 +378,7 @@ export class ReportsService {
           staleAfterHours: STALE_REPORT_AFTER_HOURS,
           oldestCreatedAt: oldest[0]?.createdAt,
           reportIds: oldest.map((report) => report.id),
-          eventIds: [...new Set(oldest.map((report) => report.eventId))],
+          eventIds: [...new Set(oldest.flatMap((report) => (report.eventId ? [report.eventId] : [])))],
           audit: true,
         },
         "Reports have been open longer than the response window",
@@ -478,7 +506,7 @@ export class ReportsService {
     };
     this.logger.info({ event: "report.created", ...fields }, "Report created");
 
-    const escalationReasons = await this.escalationReasonsFor(created, context);
+    const escalationReasons = await this.escalationReasonsFor(created, target.eventId, context);
     if (escalationReasons.length > 0) {
       // The event the platform owner's alert rule keys off (docs/alerting.md §3).
       this.logger.warn(
@@ -490,7 +518,11 @@ export class ReportsService {
     return created;
   }
 
-  private async escalationReasonsFor(report: Report, context: EscalationContext): Promise<ReportEscalationReason[]> {
+  private async escalationReasonsFor(
+    report: Report,
+    eventId: string,
+    context: EscalationContext,
+  ): Promise<ReportEscalationReason[]> {
     const reasons: ReportEscalationReason[] = [];
 
     if (SEVERE_REPORT_REASONS.includes(report.reason)) reasons.push(REPORT_ESCALATION_REASONS.SEVERE_REASON);
@@ -499,7 +531,7 @@ export class ReportsService {
       reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_ORGANIZER);
       // Nobody in the event can resolve a report about its only organizer.
       const organizers = await this.prisma.eventAccess.count({
-        where: { eventId: report.eventId, accessLevel: AccessLevel.ORGANIZER },
+        where: { eventId, accessLevel: AccessLevel.ORGANIZER },
       });
       if (organizers === 1) reasons.push(REPORT_ESCALATION_REASONS.TARGET_IS_SOLE_ORGANIZER);
     }
@@ -511,7 +543,7 @@ export class ReportsService {
       if (openReports === context.hideThreshold) reasons.push(REPORT_ESCALATION_REASONS.HIDE_THRESHOLD_REACHED);
     }
     if (context.targetIsEvent && context.memberCount !== undefined) {
-      if (await this.putUnderReviewAtThreshold(report.eventId, context.memberCount)) {
+      if (await this.putUnderReviewAtThreshold(eventId, context.memberCount)) {
         reasons.push(REPORT_ESCALATION_REASONS.EVENT_UNDER_REVIEW);
       }
     }

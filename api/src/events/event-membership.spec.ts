@@ -21,7 +21,13 @@ describe("removeMemberInTransaction", () => {
   });
 
   it("removes the membership and bans them, keeping a repeat ban's first record", async () => {
-    await removeMemberInTransaction(prisma, { eventId, userId, removedById, photos: "KEEP" });
+    await removeMemberInTransaction(prisma, {
+      eventId,
+      userId,
+      removedById,
+      removedByRole: "ORGANIZER",
+      photos: "KEEP",
+    });
 
     expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({ where: { eventId, userId } });
     expect(prisma.eventBan.upsert).toHaveBeenCalledWith({
@@ -32,7 +38,9 @@ describe("removeMemberInTransaction", () => {
   });
 
   it("leaves their photos alone with KEEP", async () => {
-    await expect(removeMemberInTransaction(prisma, { eventId, userId, removedById, photos: "KEEP" })).resolves.toEqual({
+    await expect(
+      removeMemberInTransaction(prisma, { eventId, userId, removedById, removedByRole: "ORGANIZER", photos: "KEEP" }),
+    ).resolves.toEqual({
       photoKeys: [],
       photosDeleted: 0,
       reportsClosed: 0,
@@ -47,6 +55,7 @@ describe("removeMemberInTransaction", () => {
       eventId,
       userId,
       removedById,
+      removedByRole: "ORGANIZER",
       photos: "DELETE",
       excludePhotoIds: ["cccccccc-cccc-cccc-cccc-cccccccccccc"],
     });
@@ -58,7 +67,13 @@ describe("removeMemberInTransaction", () => {
     const ids = uploaded.map((photo) => photo.id);
     expect(prisma.report.updateMany).toHaveBeenCalledWith({
       where: { photoId: { in: ids }, status: "OPEN" },
-      data: { status: "ACTIONED", resolvedById: removedById, resolvedAt: expect.any(Date) as unknown },
+      data: {
+        status: "ACTIONED",
+        closedReason: "PHOTO_REMOVED",
+        closedByRole: "ORGANIZER",
+        resolvedById: removedById,
+        resolvedAt: expect.any(Date) as unknown,
+      },
     });
     expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.photo.deleteMany.mock.invocationCallOrder[0],

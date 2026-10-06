@@ -228,11 +228,39 @@ export type ReportTargetType = "PHOTO" | "MEMBER" | "EVENT";
 
 export type ReportReason = "SPAM" | "NUDITY_OR_SEXUAL" | "HARASSMENT" | "VIOLENCE" | "OTHER";
 
-export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED";
+/**
+ * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
+ */
+export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED" | "TARGET_GONE";
+
+/**
+ * Why the report closed. Null while OPEN, and on reports closed before it was recorded.
+ */
+export type ReportClosedReason =
+  | "PHOTO_REMOVED"
+  | "MEMBER_REMOVED"
+  | "ACCOUNT_SUSPENDED"
+  | "EVENT_SUSPENDED"
+  | "EVENT_DELETED"
+  | "DISMISSED"
+  | "PHOTO_DELETED"
+  | "ACCOUNT_DELETED";
+
+/**
+ * In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.
+ */
+export type ReportActorRole = "ORGANIZER" | "PLATFORM" | "SUBJECT" | "SYSTEM";
 
 export type ReportResponseDto = {
   id: string;
-  eventId: string;
+  /**
+   * Null once the event has been deleted; only closed reports outlive their event.
+   */
+  eventId: string | null;
+  /**
+   * The event's title when the report was filed.
+   */
+  eventTitle: string;
   targetType: ReportTargetType;
   /**
    * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
@@ -244,9 +272,20 @@ export type ReportResponseDto = {
   reportedUserId: string | null;
   reason: ReportReason;
   note: string | null;
+  /**
+   * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
+   */
   status: ReportStatus;
   /**
-   * The organizer who resolved the report. Null while OPEN, and once that account has been deleted.
+   * Why the report closed. Null while OPEN, and on reports closed before it was recorded.
+   */
+  closedReason: ReportClosedReason | null;
+  /**
+   * In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.
+   */
+  closedByRole: ReportActorRole | null;
+  /**
+   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted.
    */
   resolvedById: string | null;
   resolvedAt: string | null;
