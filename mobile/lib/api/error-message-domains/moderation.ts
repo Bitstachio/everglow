@@ -1,9 +1,0 @@
-export const MODERATION_ERROR_MESSAGES = {
-  CANNOT_BLOCK_SELF: "You can't block yourself.",
-  CANNOT_REPORT_SELF: "You can't report yourself or your own photos.",
-  CANNOT_RESOLVE_OWN_REPORT: "This report is about you, so another organizer has to handle it.",
-  REPORT_ALREADY_RESOLVED: "This report was already handled.",
-  REPORT_CHANGED_CONCURRENTLY: "Something changed while your report was being sent. Please try again.",
-  REPORTED_MEMBER_GONE: "This person's account no longer exists. Dismiss the report instead.",
-  REPORTED_PHOTO_GONE: "This photo was already removed. Dismiss the report instead.",
-} as const;

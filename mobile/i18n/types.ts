@@ -9,6 +9,7 @@ declare module "i18next" {
     defaultNS: typeof defaultNS;
     resources: {
       common: typeof en.common;
+      errors: typeof en.errors;
     };
   }
 }

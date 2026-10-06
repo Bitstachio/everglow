@@ -1,6 +1,5 @@
+import i18n from "@/i18n/instance";
 import { messageForApiErrorCode } from "@/lib/api/error-messages";
-
-const CLIENT_SAFE_ERROR = "Something went wrong. Please try again.";
 
 type ApiErrorShape = {
   response?: {
@@ -33,8 +32,12 @@ const parseRetryAfterSeconds = (headers: Record<string, unknown> | undefined): n
   return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 };
 
+const clientSafeError = (): string => i18n.t("error.generic", { ns: "common" });
+const networkError = (): string => i18n.t("error.network", { ns: "common" });
+const unexpectedError = (): string => i18n.t("error.unexpected", { ns: "common" });
+
 const messageForHttpFailure = (status: number, code: string | undefined): string =>
-  status >= 500 ? CLIENT_SAFE_ERROR : (messageForApiErrorCode(code) ?? CLIENT_SAFE_ERROR);
+  status >= 500 ? clientSafeError() : (messageForApiErrorCode(code) ?? clientSafeError());
 
 /** Transport/API failure with optional status, machine code, and Retry-After. */
 export const createApiError = (
@@ -55,7 +58,7 @@ export const getErrorCode = (error: unknown): string | undefined => (isApiError(
 
 /**
  * Maps transport failures into Error instances. UI copy comes from `code` via
- * `messageForApiErrorCode` — Nest response bodies are never shown (they often
+ * i18n (`errors` namespace) — Nest response bodies are never shown (they often
  * include ids and internal detail). Status, `code`, and `Retry-After` are
  * preserved on ApiError so callers can branch.
  */
@@ -71,7 +74,7 @@ export const toApiError = (error: unknown): ApiError => {
   }
 
   if (err.request) {
-    return createApiError("Network error. Please check your connection.", { cause: error });
+    return createApiError(networkError(), { cause: error });
   }
 
   if (isApiError(error)) {
@@ -82,8 +85,19 @@ export const toApiError = (error: unknown): ApiError => {
     return createApiError(error.message, { cause: error });
   }
 
-  return createApiError(err.message || "An unexpected error occurred", { cause: error });
+  return createApiError(err.message || unexpectedError(), { cause: error });
 };
 
-export const getErrorMessage = (error: unknown, fallback = "An unexpected error occurred"): string =>
-  isApiError(error) ? error.message : fallback;
+/**
+ * Display string for an error. When `code` is present, resolves through i18n at
+ * read time so a locale change is reflected without recreating the error.
+ */
+export const getErrorMessage = (error: unknown, fallback?: string): string => {
+  const resolvedFallback = fallback ?? unexpectedError();
+  if (!isApiError(error)) return resolvedFallback;
+
+  const fromCode = messageForApiErrorCode(error.code);
+  if (fromCode != null) return fromCode;
+
+  return error.message || resolvedFallback;
+};

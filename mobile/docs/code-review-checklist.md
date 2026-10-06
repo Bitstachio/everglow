@@ -123,7 +123,7 @@ export { default } from "@/features/profile/screens/profile-screen";
 See [Exception handling](./exception-handling.md).
 
 - [ ] UI-facing mutation errors use `getErrorMessage(error, "Fallback message")`
-- [ ] New API error codes have user-facing copy in the matching `error-message-domains/` file
+- [ ] New API error codes have user-facing copy in the matching `locales/en/errors/` JSON file
 - [ ] Feature code does not re-parse Axios shapes in screens
 
 ## Imports

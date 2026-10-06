@@ -1,36 +1,23 @@
+import i18n from "@/i18n/instance";
 import type { ApiErrorDto } from "@/lib/api/generated";
-import { EVENT_ERROR_MESSAGES } from "./error-message-domains/events";
-import { HTTP_ERROR_MESSAGES } from "./error-message-domains/http";
-import { IMAGE_ERROR_MESSAGES } from "./error-message-domains/images";
-import { MODERATION_ERROR_MESSAGES } from "./error-message-domains/moderation";
-import { PHOTO_ERROR_MESSAGES } from "./error-message-domains/photos";
-import { PLAN_ERROR_MESSAGES } from "./error-message-domains/plans";
-import { RATE_LIMIT_ERROR_MESSAGES } from "./error-message-domains/rate-limit";
-import { USER_ERROR_MESSAGES } from "./error-message-domains/users";
+import enErrors, { EN_ERROR_MESSAGE_DOMAINS } from "@/locales/en/errors/catalog";
 
 export type ApiErrorCode = NonNullable<ApiErrorDto["code"]>;
 
-export const API_ERROR_MESSAGE_DOMAINS = [
-  HTTP_ERROR_MESSAGES,
-  USER_ERROR_MESSAGES,
-  EVENT_ERROR_MESSAGES,
-  IMAGE_ERROR_MESSAGES,
-  PLAN_ERROR_MESSAGES,
-  PHOTO_ERROR_MESSAGES,
-  MODERATION_ERROR_MESSAGES,
-  RATE_LIMIT_ERROR_MESSAGES,
-] as const;
+/**
+ * English domain catalogs — used for completeness checks and as the `errors`
+ * i18n namespace source. Runtime lookups go through i18next so a future locale
+ * can override copy without changing call sites.
+ */
+export const API_ERROR_MESSAGE_DOMAINS = EN_ERROR_MESSAGE_DOMAINS;
 
-type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+export const API_ERROR_MESSAGES = enErrors satisfies Record<ApiErrorCode, string>;
 
-type MergedErrorMessages = UnionToIntersection<(typeof API_ERROR_MESSAGE_DOMAINS)[number]>;
-
-export const API_ERROR_MESSAGES = Object.assign(
-  {},
-  ...API_ERROR_MESSAGE_DOMAINS,
-) as MergedErrorMessages satisfies Record<ApiErrorCode, string>;
-
+/**
+ * Locale-aware product copy for a known API `code`. Unknown codes return
+ * `undefined` so callers can fall back to a generic safe string.
+ */
 export const messageForApiErrorCode = (code: string | undefined): string | undefined => {
-  if (code == null) return undefined;
-  return API_ERROR_MESSAGES[code as ApiErrorCode];
+  if (code == null || !(code in API_ERROR_MESSAGES)) return undefined;
+  return i18n.t(code as ApiErrorCode, { ns: "errors" });
 };
