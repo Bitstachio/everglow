@@ -19,17 +19,17 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 
 ## Built and planned
 
-| Part                                                                                                           | Status                    | Issue                                                                                                                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits                  | Built                     | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
-| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                        | Planned                   | Filed once this design is agreed                                                                                                                                                                             |
-| Report history: reports outlive their event, and record why and by whom they closed (§1, §3)                   | Planned, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
-| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                  | Built                     | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
-| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                      | Planned                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
-| `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons; NCMEC, Canada and TAKE IT DOWN procedures (§2, §7) | Planned                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the TAKE IT DOWN part is filed once this design is agreed                                                                                                |
-| Platform tools: act on any report, suspend accounts and events, lift reviews (§8)                              | Planned                   | [EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59); account suspension is filed once this design is agreed                                               |
-| Upload screening (§11)                                                                                         | Planned                   | Filed once this design is agreed                                                                                                                                                                             |
-| Telling organizers about reports and uploaders about removals                                                  | Planned                   | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
+| Part                                                                                                           | Status                  | Issue                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits                  | Built                   | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
+| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                        | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
+| Report history: reports outlive their event, and record why and by whom they closed (§1, §3)                   | Built, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
+| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                  | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
+| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                      | Planned                 | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
+| `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons; NCMEC, Canada and TAKE IT DOWN procedures (§2, §7) | Planned                 | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the TAKE IT DOWN part is filed once this design is agreed                                                                                                |
+| Platform tools: act on any report, suspend accounts and events, lift reviews (§8)                              | Planned                 | [EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59); account suspension is filed once this design is agreed                                               |
+| Upload screening (§11)                                                                                         | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
+| Telling organizers about reports and uploaders about removals                                                  | Planned                 | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
 
 ## Who moderates
 
@@ -51,8 +51,8 @@ A report that reaches the platform never goes back to organizers.
 
 ```prisma
 model Report {
-  eventId?           // SET NULL (today CASCADE; planned, EV-60)
-  eventTitle         // the event's title when the report was filed (planned, EV-60)
+  eventId?           // SET NULL
+  eventTitle         // the event's title when the report was filed
   reporterId?        // SET NULL; null from the start on an automated report (§11)
   source             // USER | AUTOMATED (planned, §11)
   targetType         // PHOTO | MEMBER | EVENT
@@ -65,9 +65,9 @@ model Report {
   escalationReasons  // ReportEscalationReason[], stored (today only logged; planned, §3)
   escalatedAt?       // when it moved to PLATFORM (planned)
   overdueAlertedAt?  // when the platform was told it is overdue (planned, §9)
-  status             // OPEN | ACTIONED | DISMISSED | TARGET_GONE (TARGET_GONE planned)
-  closedReason?      // why it closed (planned, §3)
-  closedByRole?      // ORGANIZER | PLATFORM | SUBJECT | SYSTEM (planned, §3)
+  status             // OPEN | ACTIONED | DISMISSED | TARGET_GONE
+  closedReason?      // why it closed (§3)
+  closedByRole?      // ORGANIZER | PLATFORM | SUBJECT | SYSTEM (§3)
   resolvedById?      // SET NULL
   resolvedAt?
   holdUntil?         // the purge skips it until then (planned, EV-61)
@@ -115,16 +115,16 @@ A report points at a photo, at a member or at the event. They are stored as plai
 
 ### What happens on delete
 
-| Relation                  | On delete                            | Why                                                                                                                                                                                           |
-| ------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Report.eventId`          | `SetNull` (planned; today `Cascade`) | Reports are the only lasting record of abuse. An event with OPEN reports can't be deleted (§7), so only closed reports outlive their event, and `eventTitle` still says where they came from. |
-| `Report.reporterId`       | `SetNull`                            | A reporter deleting their account must not erase the evidence. The report stays, and still counts towards hiding.                                                                             |
-| `Report.photoId`          | `SetNull`                            | The report stays as a record, and its `ReportEvidence` keeps the content (§7). What happens to its OPEN reports depends on who deleted the photo (§3).                                        |
-| `Report.reportedUserId`   | `SetNull`                            | A reported account can be deleted like any other. `ReportEvidence` keeps who it was for the retention window (§7).                                                                            |
-| `Report.resolvedById`     | `SetNull`                            | The verdict outlives the person who gave it; `closedByRole` still says in which capacity.                                                                                                     |
-| `ReportEvidence.reportId` | `Cascade`                            | Evidence lives exactly as long as its report: both are purged together after the retention window (§7).                                                                                       |
-| `UserBlock.blockerId`     | `Cascade`                            | A block means nothing once either side is gone.                                                                                                                                               |
-| `UserBlock.blockedId`     | `Cascade`                            | Same.                                                                                                                                                                                         |
+| Relation                  | On delete | Why                                                                                                                                                                                           |
+| ------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Report.eventId`          | `SetNull` | Reports are the only lasting record of abuse. An event with OPEN reports can't be deleted (§7), so only closed reports outlive their event, and `eventTitle` still says where they came from. |
+| `Report.reporterId`       | `SetNull` | A reporter deleting their account must not erase the evidence. The report stays, and still counts towards hiding.                                                                             |
+| `Report.photoId`          | `SetNull` | The report stays as a record, and its `ReportEvidence` keeps the content (§7). What happens to its OPEN reports depends on who deleted the photo (§3).                                        |
+| `Report.reportedUserId`   | `SetNull` | A reported account can be deleted like any other. `ReportEvidence` keeps who it was for the retention window (§7).                                                                            |
+| `Report.resolvedById`     | `SetNull` | The verdict outlives the person who gave it; `closedByRole` still says in which capacity.                                                                                                     |
+| `ReportEvidence.reportId` | `Cascade` | Evidence lives exactly as long as its report: both are purged together after the retention window (§7).                                                                                       |
+| `UserBlock.blockerId`     | `Cascade` | A block means nothing once either side is gone.                                                                                                                                               |
+| `UserBlock.blockedId`     | `Cascade` | Same.                                                                                                                                                                                         |
 
 Account deletion is never refused because of a report or a block, and `AccountDeletionPrepService` needs no extra prep for them ([account-deletion.md §6](./account-deletion.md#6-prep-making-the-row-deletable)). What it does with a sole organizer's event that still has OPEN reports is in §7.
 
@@ -132,14 +132,14 @@ Account deletion is never refused because of a report or a block, and `AccountDe
 
 Added by hand in the migrations. Each is written so that a later `SET NULL` still passes: a comparison with `NULL` is `NULL`, and a `CHECK` only rejects `FALSE`.
 
-| Constraint                                  | Rule                                                                                                                           |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `Report_member_target_has_no_photo_check`   | `targetType = 'PHOTO' OR photoId IS NULL`                                                                                      |
-| `Report_reporter_is_not_reported_check`     | `reporterId <> reportedUserId`                                                                                                 |
-| `Report_resolution_matches_status_check`    | OPEN has no `resolvedAt` and no `resolvedById`; a closed report has a `resolvedAt`                                             |
-| `Report_closed_reason_matches_status_check` | Planned. OPEN has no `closedReason` and no `closedByRole`; a closed report has both                                            |
-| `Report_user_source_has_reporter_check`     | Planned. `source = 'AUTOMATED' OR reporterId IS NOT NULL` at insert (a trigger, not a CHECK, since `SET NULL` must still pass) |
-| `UserBlock_no_self_block_check`             | `blockerId <> blockedId`                                                                                                       |
+| Constraint                                | Rule                                                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `Report_member_target_has_no_photo_check` | `targetType = 'PHOTO' OR photoId IS NULL`                                                                                      |
+| `Report_reporter_is_not_reported_check`   | `reporterId <> reportedUserId`                                                                                                 |
+| `Report_resolution_matches_status_check`  | OPEN has no `resolvedAt` and no `resolvedById`; a closed report has a `resolvedAt`                                             |
+| `Report_closure_matches_status_check`     | OPEN has no `closedReason` and no `closedByRole`; a closed report has both, or neither if it closed before they were recorded  |
+| `Report_user_source_has_reporter_check`   | Planned. `source = 'AUTOMATED' OR reporterId IS NOT NULL` at insert (a trigger, not a CHECK, since `SET NULL` must still pass) |
+| `UserBlock_no_self_block_check`           | `blockerId <> blockedId`                                                                                                       |
 
 ### One OPEN report per reporter and target
 
@@ -283,8 +283,8 @@ Some reports close because their target went away, not because anyone judged the
 - **A reported photo is deleted** by any path: `DELETE /photos/:photoId`, leaving or removal with `photos=DELETE`, or account deletion with `?photos=DELETE`.
   - **If the person deleting may close every OPEN report on it, the delete is that verdict.** For example, an organizer deleting someone else's reported photo closes its reports as `PHOTO_REMOVED` by `ORGANIZER`, as `REMOVE_PHOTO` would.
   - **Otherwise the evidence is kept (§7).** Non-severe `ORGANIZERS` reports close as `TARGET_GONE`, `PHOTO_DELETED`, by `SUBJECT` when the uploader deleted it and by `ORGANIZER` or `SYSTEM` otherwise. Every other OPEN report stays open, moves to `PLATFORM` (`target_deleted`), and is judged on its evidence. Deleting a photo hides it from everyone; it doesn't make a serious report go away.
-  - This replaces today's rule, where any delete closes every OPEN report as `ACTIONED` (`closeReportsOnDeletedPhotos`, `api/src/moderation/report-closure.ts`).
-- **A reported member's account is deleted.** Their non-severe MEMBER reports close as `TARGET_GONE`, `ACCOUNT_DELETED`, by `SYSTEM`. Severe ones move to `PLATFORM`. Their PHOTO reports follow the photos: with `KEEP` nothing changes, and with `DELETE` the rule above applies.
+  - Built so far (`closeReportsOnDeletedPhotos`, `api/src/moderation/report-closure.ts`): an organizer's delete closes the reports as `PHOTO_REMOVED`, and any other delete closes them all as `TARGET_GONE`, `PHOTO_DELETED`. Keeping evidence and moving severe reports to the platform are planned ([EV-61](https://linear.app/mehrshadfb/issue/EV-61), §3).
+- **A reported member's account is deleted.** Their non-severe MEMBER reports close as `TARGET_GONE`, `ACCOUNT_DELETED`, by `SYSTEM` (built). Severe ones stay open and move to `PLATFORM` (planned). Their PHOTO reports follow the photos: with `KEEP` nothing changes, and with `DELETE` the rule above applies.
 
 ### How a report closes
 

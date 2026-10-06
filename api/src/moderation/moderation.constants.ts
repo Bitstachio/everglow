@@ -1,4 +1,4 @@
-import { ReportReason, ReportStatus } from "generated/prisma/client";
+import { ReportClosedReason, ReportReason, ReportStatus } from "generated/prisma/client";
 
 // Matches Report.note VarChar(500) in the Prisma schema.
 export const REPORT_NOTE_MAX_LENGTH = 500;
@@ -53,6 +53,13 @@ export const RESOLUTION_STATUS: Record<ReportResolutionAction, ReportStatus> = {
   REMOVE_PHOTO: ReportStatus.ACTIONED,
   REMOVE_MEMBER: ReportStatus.ACTIONED,
   DISMISS: ReportStatus.DISMISSED,
+};
+
+/** Why a verdict closes the reports it settles (docs/moderation.md §3). */
+export const RESOLUTION_CLOSED_REASON: Record<ReportResolutionAction, ReportClosedReason> = {
+  REMOVE_PHOTO: ReportClosedReason.PHOTO_REMOVED,
+  REMOVE_MEMBER: ReportClosedReason.MEMBER_REMOVED,
+  DISMISS: ReportClosedReason.DISMISSED,
 };
 
 // An OPEN report older than this pages the platform owner: the organizers have

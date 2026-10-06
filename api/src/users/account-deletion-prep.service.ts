@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { AccessLevel, AccountDeletionPhotoPolicy, PhotoStatus, Prisma } from "generated/prisma/client";
+import { AccessLevel, AccountDeletionPhotoPolicy, PhotoStatus, Prisma, ReportActorRole } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { lockPendingModeration } from "src/moderation/pending-moderation";
-import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
+import { closeMemberReportsOnDeletedAccount, closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
 
 export interface AccountDeletionPrepSummary {
@@ -20,8 +20,10 @@ export interface AccountDeletionPrepSummary {
   photosKept: number;
   /** READY photos removed from surviving events. */
   photosDeleted: number;
-  /** OPEN reports on those photos, closed as ACTIONED because the photo is gone. */
+  /** OPEN reports on those photos, closed as TARGET_GONE because the photo is gone. */
   reportsClosed: number;
+  /** OPEN member reports about the account that aren't severe, closed as TARGET_GONE. */
+  memberReportsClosed: number;
   /** PENDING upload slots discarded. */
   uploadsDiscarded: number;
   /** Whether the profile had an avatar whose object is queued for the purge. */
@@ -169,7 +171,7 @@ export class AccountDeletionPrepService {
         reportsClosed = await closeReportsOnDeletedPhotos(
           tx,
           ready.map((photo) => photo.id),
-          userId,
+          { id: userId, role: ReportActorRole.SUBJECT },
         );
         await tx.photo.deleteMany({ where: { addedById: userId } });
         s3Keys.push(...ready.map((photo) => photo.s3Key));
@@ -182,7 +184,11 @@ export class AccountDeletionPrepService {
       photosKept = count;
     }
 
-    // 4. The avatar. Its column cascades with the user row, so only the object
+    // 4. Member reports about the account: there is nobody left to remove.
+    //    Severe ones stay OPEN for the platform (docs/moderation.md §3).
+    const memberReportsClosed = await closeMemberReportsOnDeletedAccount(tx, userId);
+
+    // 5. The avatar. Its column cascades with the user row, so only the object
     //    needs collecting; the row is left alone, which keeps a resumed saga
     //    finding the same key again.
     const profile = await tx.userDetails.findUnique({ where: { userId }, select: { avatarS3Key: true } });
@@ -197,6 +203,7 @@ export class AccountDeletionPrepService {
         photosKept,
         photosDeleted,
         reportsClosed,
+        memberReportsClosed,
         uploadsDiscarded: pending.length,
         avatarQueued: avatarS3Key !== null,
       },

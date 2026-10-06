@@ -123,6 +123,7 @@ describe("ReportsService", () => {
   const buildReport = (overrides: Partial<Report> = {}): Report => ({
     id: reportId,
     eventId,
+    eventTitle: event.title,
     reporterId: callerId,
     targetType: ReportTargetType.PHOTO,
     photoId,
@@ -130,6 +131,8 @@ describe("ReportsService", () => {
     reason: ReportReason.SPAM,
     note: null,
     status: ReportStatus.OPEN,
+    closedReason: null,
+    closedByRole: null,
     resolvedById: null,
     resolvedAt: null,
     createdAt: now,
@@ -188,6 +191,7 @@ describe("ReportsService", () => {
           data: [
             {
               eventId,
+              eventTitle: event.title,
               targetType: "PHOTO",
               photoId,
               reportedUserId: uploaderId,
@@ -472,6 +476,7 @@ describe("ReportsService", () => {
         data: [
           {
             eventId,
+            eventTitle: event.title,
             targetType: "EVENT",
             photoId: null,
             reportedUserId: null,
@@ -674,6 +679,7 @@ describe("ReportsService", () => {
         data: [
           {
             eventId,
+            eventTitle: event.title,
             targetType: "MEMBER",
             photoId: null,
             reportedUserId: targetUserId,
@@ -868,6 +874,13 @@ describe("ReportsService", () => {
       prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
     };
 
+    it("answers 404 for a report whose event has been deleted: it is a record, not a queue item", async () => {
+      prisma.report.findUnique.mockResolvedValue({ ...buildReport({ eventId: null }), event: null } as never);
+
+      await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
     describe("REMOVE_PHOTO", () => {
       it("deletes the photo and closes every OPEN report on it as ACTIONED, in one transaction", async () => {
         setup();
@@ -876,7 +889,13 @@ describe("ReportsService", () => {
           resolvedAs(ReportStatus.ACTIONED),
         );
 
-        const resolution = { status: "ACTIONED", resolvedById: callerId, resolvedAt: expect.any(Date) as unknown };
+        const resolution = {
+          status: "ACTIONED",
+          closedReason: "PHOTO_REMOVED",
+          closedByRole: "ORGANIZER",
+          resolvedById: callerId,
+          resolvedAt: expect.any(Date) as unknown,
+        };
         expect(prisma.$transaction).toHaveBeenCalledTimes(1);
         expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
           where: { id: reportId, status: "OPEN" },
@@ -959,6 +978,20 @@ describe("ReportsService", () => {
         expect(logger.info).toHaveBeenCalledWith(
           expect.objectContaining({ action: "REMOVE_MEMBER", removedMemberId: uploaderId, removedPhotoId: null }),
           "Report resolved",
+        );
+      });
+
+      it("records MEMBER_REMOVED by an ORGANIZER on every report it closes", async () => {
+        setup(reportFor(AccessLevel.ORGANIZER, { targetType: ReportTargetType.MEMBER, photoId: null }));
+
+        await service.resolveReport(reportId, callerId, "REMOVE_MEMBER");
+
+        const closure = { status: "ACTIONED", closedReason: "MEMBER_REMOVED", closedByRole: "ORGANIZER" };
+        expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining(closure) as unknown }),
+        );
+        expect(prisma.report.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining(closure) as unknown }),
         );
       });
 
@@ -1062,7 +1095,13 @@ describe("ReportsService", () => {
 
         expect(prisma.report.updateMany).toHaveBeenCalledWith({
           where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { photoId }] },
-          data: { status: "DISMISSED", resolvedById: callerId, resolvedAt: expect.any(Date) as unknown },
+          data: {
+            status: "DISMISSED",
+            closedReason: "DISMISSED",
+            closedByRole: "ORGANIZER",
+            resolvedById: callerId,
+            resolvedAt: expect.any(Date) as unknown,
+          },
         });
         expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
         expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();

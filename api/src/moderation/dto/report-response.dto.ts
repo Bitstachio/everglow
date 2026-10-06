@@ -1,5 +1,11 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { ReportReason, ReportStatus, ReportTargetType } from "generated/prisma/client";
+import {
+  ReportActorRole,
+  ReportClosedReason,
+  ReportReason,
+  ReportStatus,
+  ReportTargetType,
+} from "generated/prisma/client";
 import { REPORT_NOTE_MAX_LENGTH } from "../moderation.constants";
 
 /** Deliberately without the reporter: organizers act on a report without learning who filed it. */
@@ -7,8 +13,16 @@ export class ReportResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;
 
-  @ApiProperty({ format: "uuid" })
-  eventId: string;
+  @ApiProperty({
+    format: "uuid",
+    nullable: true,
+    type: String,
+    description: "Null once the event has been deleted; only closed reports outlive their event.",
+  })
+  eventId: string | null;
+
+  @ApiProperty({ description: "The event's title when the report was filed." })
+  eventTitle: string;
 
   @ApiProperty({ enum: ReportTargetType, enumName: "ReportTargetType" })
   targetType: ReportTargetType;
@@ -37,14 +51,40 @@ export class ReportResponseDto {
   @ApiProperty({ type: String, nullable: true, maxLength: REPORT_NOTE_MAX_LENGTH })
   note: string | null;
 
-  @ApiProperty({ enum: ReportStatus, enumName: "ReportStatus" })
+  @ApiProperty({
+    enum: ReportStatus,
+    enumName: "ReportStatus",
+    description:
+      "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a " +
+      "verdict because what was reported was deleted.",
+  })
   status: ReportStatus;
+
+  @ApiProperty({
+    enum: ReportClosedReason,
+    enumName: "ReportClosedReason",
+    nullable: true,
+    description: "Why the report closed. Null while OPEN, and on reports closed before it was recorded.",
+  })
+  closedReason: ReportClosedReason | null;
+
+  @ApiProperty({
+    enum: ReportActorRole,
+    enumName: "ReportActorRole",
+    nullable: true,
+    description:
+      "In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting " +
+      "their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.",
+  })
+  closedByRole: ReportActorRole | null;
 
   @ApiProperty({
     format: "uuid",
     nullable: true,
     type: String,
-    description: "The organizer who resolved the report. Null while OPEN, and once that account has been deleted.",
+    description:
+      "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and " +
+      "once that account has been deleted.",
   })
   resolvedById: string | null;
 

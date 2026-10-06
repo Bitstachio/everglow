@@ -103,6 +103,8 @@ describe("UsersController (integration)", () => {
     // nothing to settle is the default for these cases.
     prisma.eventAccess.findMany.mockResolvedValue([]);
     prisma.photo.findMany.mockResolvedValue([]);
+    // Prep also closes member reports about the account; none by default.
+    prisma.report.updateMany.mockResolvedValue({ count: 0 });
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
     // No recent username changes: the username can be changed now.

@@ -460,7 +460,13 @@ describe("Moderation (integration)", () => {
       expect(body.data).toEqual(expectedReportResponse(resolvedAs(ReportStatus.ACTIONED)));
       expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
         where: { id: TEST_REPORT_ID, status: "OPEN" },
-        data: { status: "ACTIONED", resolvedById: TEST_USER_ID, resolvedAt: expect.any(Date) as unknown },
+        data: {
+          status: "ACTIONED",
+          closedReason: "PHOTO_REMOVED",
+          closedByRole: "ORGANIZER",
+          resolvedById: TEST_USER_ID,
+          resolvedAt: expect.any(Date) as unknown,
+        },
       });
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
       expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
