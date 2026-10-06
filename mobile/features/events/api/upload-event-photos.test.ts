@@ -10,8 +10,19 @@ jest.mock("@/lib/api/generated", () => ({
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
 }));
 
-const originalFetch = globalThis.fetch;
-const fetchMock = jest.fn();
+const mockUploadAsync = jest.fn();
+/** Every picked file is 3 bytes on disk. */
+const mockFileSize = 3;
+
+jest.mock("expo-file-system", () => ({
+  File: jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize })),
+}));
+jest.mock("expo-file-system/legacy", () => ({
+  FileSystemSessionType: { BACKGROUND: 0, FOREGROUND: 1 },
+  FileSystemUploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
+  uploadAsync: (...args: unknown[]) => mockUploadAsync(...args),
+}));
+
 /** Upload URLs whose PUT storage refuses. */
 let refusedUploadUrls = new Set<string>();
 
@@ -40,15 +51,9 @@ beforeEach(() => {
   refusedUploadUrls = new Set();
   mockCreateUploadUrls.mockReset().mockImplementation(mintSlots);
   mockConfirmUploads.mockReset().mockImplementation(confirmAllReady);
-  fetchMock.mockReset().mockImplementation(async (url: string, init?: { method?: string }) => {
-    if (init?.method === "PUT") return { ok: !refusedUploadUrls.has(url), status: 403 };
-    return { blob: async () => new Blob(["abc"]) };
-  });
-  globalThis.fetch = fetchMock as typeof fetch;
-});
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
+  mockUploadAsync
+    .mockReset()
+    .mockImplementation(async (url: string) => ({ status: refusedUploadUrls.has(url) ? 403 : 200, headers: {} }));
 });
 
 const mintedBatchSizes = () =>
@@ -151,11 +156,29 @@ test("counts a file that fails its PUT or confirm and carries on with the rest",
   });
 });
 
+test("PUTs each file from disk on the background session with its declared type", async () => {
+  await uploadEventPhotos("event-1", [{ uri: "file://IMG_0001.HEIC", contentType: "image/heic", sizeBytes: 3 }]);
+
+  expect(mockUploadAsync).toHaveBeenCalledWith("https://upload.example.com/photo-0", "file://IMG_0001.HEIC", {
+    httpMethod: "PUT",
+    uploadType: 0,
+    sessionType: 0,
+    headers: { "Content-Type": "image/heic" },
+  });
+});
+
+test("counts a file as failed when the background upload rejects", async () => {
+  mockUploadAsync.mockRejectedValueOnce(new Error("The network connection was lost."));
+
+  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 1, error: null });
+  expect(mockConfirmUploads.mock.calls[0][0].body.photoIds).toEqual(["photo-1"]);
+});
+
 test("does not PUT a file whose bytes no longer match the size its URL was signed for", async () => {
   const result = await uploadEventPhotos("event-1", photoFiles(1, 99));
 
   expect(result).toEqual({ total: 1, uploaded: 0, error: null });
-  expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(false);
+  expect(mockUploadAsync).not.toHaveBeenCalled();
   expect(mockConfirmUploads).not.toHaveBeenCalled();
 });
 
