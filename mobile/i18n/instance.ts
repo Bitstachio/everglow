@@ -1,5 +1,5 @@
 import * as Localization from "expo-localization";
-import i18n from "i18next";
+import { createInstance } from "i18next";
 import { initReactI18next } from "react-i18next";
 
 import { defaultLocale, isAppLocale } from "./config";
@@ -17,8 +17,8 @@ export const resolveDeviceLocale = (): string => {
   return defaultLocale;
 };
 
-// i18next exposes `use` on the default instance (not as a named ESM export).
-// eslint-disable-next-line import/no-named-as-default-member -- i18next instance API
+const i18n = createInstance();
+
 void i18n.use(initReactI18next).init({
   resources,
   lng: resolveDeviceLocale(),
