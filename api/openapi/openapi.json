@@ -2824,7 +2824,9 @@
           "NUDITY_OR_SEXUAL",
           "HARASSMENT",
           "VIOLENCE",
-          "OTHER"
+          "OTHER",
+          "CHILD_SAFETY",
+          "NON_CONSENSUAL_INTIMATE_IMAGE"
         ]
       },
       "ReportStatus": {

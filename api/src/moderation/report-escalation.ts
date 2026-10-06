@@ -24,6 +24,8 @@ export const PLATFORM_ESCALATIONS: readonly ReportEscalation[] = [
   ReportEscalation.ORGANIZER_TIMEOUT,
   ReportEscalation.SEVERE_DISMISSED,
   ReportEscalation.TARGET_DELETED,
+  ReportEscalation.CHILD_SAFETY,
+  ReportEscalation.INTIMATE_IMAGE,
 ];
 
 /** The name a reason is logged under: the `escalationReasons` values alert rules match (docs/alerting.md). */

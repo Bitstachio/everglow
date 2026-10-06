@@ -23,19 +23,42 @@ export const reportHideThreshold = (memberCount: number): number =>
 // large event cannot pause it with spam reports (docs/moderation.md).
 export const UNDER_REVIEW_MEMBER_SHARE = 0.1;
 
+// Reasons that only the platform handles (docs/moderation.md §2): organizers
+// never see these reports nor the photo or cover they are about, which is
+// hidden from everyone at once. Looking at such an image is not a wedding
+// host's job, and the host may be the one who posted it.
+export const PLATFORM_ONLY_REPORT_REASONS: readonly ReportReason[] = [
+  ReportReason.CHILD_SAFETY,
+  ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE,
+];
+
 // Reasons that hide a photo from every non-organizer after a single OPEN
 // report, and that are escalated to the platform owner whatever the
 // organizers do. The harm of leaving such a photo up in a private album
 // outweighs the cost of a wrong report, which a dismissal undoes.
-export const SEVERE_REPORT_REASONS: readonly ReportReason[] = [ReportReason.NUDITY_OR_SEXUAL, ReportReason.VIOLENCE];
+export const SEVERE_REPORT_REASONS: readonly ReportReason[] = [
+  ReportReason.NUDITY_OR_SEXUAL,
+  ReportReason.VIOLENCE,
+  ...PLATFORM_ONLY_REPORT_REASONS,
+];
+
+// How long a child-safety report and its evidence are held from the moment
+// it is filed: the preservation US law asks for once it is reported to NCMEC
+// (18 U.S.C. §2258A(h)). The platform extends it from the submission date.
+export const CHILD_SAFETY_HOLD_DAYS = 365;
+
+/** How serious the OPEN event reports on an event are, for underReviewThreshold. */
+export type EventReportSeverity = "none" | "severe" | "platform_only";
 
 /**
  * OPEN event reports that put an event of `memberCount` members under review.
- * Any severe report among them keeps it at the photo hide threshold.
+ * A child-safety or intimate-image report alone is enough; any other severe
+ * report among them keeps it at the photo hide threshold.
  */
-export const underReviewThreshold = (memberCount: number, anySevere: boolean): number => {
+export const underReviewThreshold = (memberCount: number, severity: EventReportSeverity): number => {
+  if (severity === "platform_only") return 1;
   const floor = reportHideThreshold(memberCount);
-  return anySevere ? floor : Math.max(floor, Math.ceil(memberCount * UNDER_REVIEW_MEMBER_SHARE));
+  return severity === "severe" ? floor : Math.max(floor, Math.ceil(memberCount * UNDER_REVIEW_MEMBER_SHARE));
 };
 
 // What an organizer does with a report. Every action closes all OPEN reports

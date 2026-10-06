@@ -226,7 +226,14 @@ export type PhotoListResponseDto = {
 
 export type ReportTargetType = "PHOTO" | "MEMBER" | "EVENT";
 
-export type ReportReason = "SPAM" | "NUDITY_OR_SEXUAL" | "HARASSMENT" | "VIOLENCE" | "OTHER";
+export type ReportReason =
+  | "SPAM"
+  | "NUDITY_OR_SEXUAL"
+  | "HARASSMENT"
+  | "VIOLENCE"
+  | "OTHER"
+  | "CHILD_SAFETY"
+  | "NON_CONSENSUAL_INTIMATE_IMAGE";
 
 /**
  * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.

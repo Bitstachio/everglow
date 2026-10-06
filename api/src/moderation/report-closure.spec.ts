@@ -151,7 +151,10 @@ describe("closeMemberReportsOnDeletedAccount", () => {
 
     const memberReports = { reportedUserId: userId, targetType: "MEMBER", status: "OPEN" };
     expect(prisma.report.updateMany).toHaveBeenCalledWith({
-      where: { ...memberReports, reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } },
+      where: {
+        ...memberReports,
+        reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] },
+      },
       data: {
         status: "TARGET_GONE",
         closedReason: "ACCOUNT_DELETED",

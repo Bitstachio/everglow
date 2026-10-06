@@ -342,14 +342,24 @@ describe("EventCoverService", () => {
           eventId: { in: [eventId] },
           targetType: "EVENT",
           status: "OPEN",
-          OR: [{ reporterId: viewerId }, { reason: { in: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } }],
+          OR: [
+            { reporterId: viewerId },
+            { reason: { in: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] } },
+          ],
         },
-        select: { eventId: true, reporterId: true },
+        select: { eventId: true, reporterId: true, reason: true },
       });
     });
 
+    it("hides it from organizers too while a child-safety or intimate-image report is open", async () => {
+      prisma.report.findMany.mockResolvedValue([{ eventId, reporterId: callerId, reason: "CHILD_SAFETY" }] as never);
+      prisma.eventAccess.findMany.mockResolvedValue([{ eventId }] as never);
+
+      await expect(service.getCoverUrl(eventWithCover(coverKey), viewerId)).resolves.toBeNull();
+    });
+
     it("keeps showing it to organizers after someone else's severe report", async () => {
-      prisma.report.findMany.mockResolvedValue([{ eventId, reporterId: callerId }] as never);
+      prisma.report.findMany.mockResolvedValue([{ eventId, reporterId: callerId, reason: "VIOLENCE" }] as never);
       prisma.eventAccess.findMany.mockResolvedValue([{ eventId }] as never);
 
       await expect(service.getCoverUrl(eventWithCover(coverKey), viewerId)).resolves.toBe(

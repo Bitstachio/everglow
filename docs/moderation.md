@@ -19,17 +19,18 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 
 ## Built and planned
 
-| Part                                                                                                           | Status                  | Issue                                                                                                                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits                  | Built                   | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
-| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                        | Built                   | [EV-114](https://linear.app/mehrshadfb/issue/EV-114)                                                                                                                                                         |
-| Report history: reports outlive their event, and record why and by whom they closed (§1, §3)                   | Built, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
-| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                  | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
-| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                      | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
-| `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons; NCMEC, Canada and TAKE IT DOWN procedures (§2, §7) | Planned                 | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the TAKE IT DOWN part is filed once this design is agreed                                                                                                |
-| Platform tools: act on any report, suspend accounts and events, lift reviews (§8)                              | Planned                 | [EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59); account suspension is filed once this design is agreed                                               |
-| Upload screening (§11)                                                                                         | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
-| Telling organizers about reports and uploaders about removals                                                  | Planned                 | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
+| Part                                                                                                     | Status                  | Issue                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits            | Built                   | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
+| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                  | Built                   | [EV-114](https://linear.app/mehrshadfb/issue/EV-114)                                                                                                                                                         |
+| Report history: reports outlive their event, and record why and by whom they closed (§1, §3)             | Built, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
+| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)            | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
+| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
+| `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons, hiding and holds (§2, §5, §7)                | Built                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62)                                                                                                                                                           |
+| NCMEC and Cybertip.ca registration, the runbooks, the TAKE IT DOWN web form, identical-copy removal (§7) | Planned                 | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the web form and copy matching are filed once this design is agreed                                                                                      |
+| Platform tools: act on any report, suspend accounts and events, lift reviews (§8)                        | Planned                 | [EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59); account suspension is filed once this design is agreed                                               |
+| Upload screening (§11)                                                                                   | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
+| Telling organizers about reports and uploaders about removals                                            | Planned                 | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
 
 ## Who moderates
 
@@ -59,7 +60,7 @@ model Report {
   photoId?           // SET NULL, PHOTO reports only
   reportedUserId?    // SET NULL: the reported member, or the uploader of the reported photo
   reason             // SPAM | NUDITY_OR_SEXUAL | HARASSMENT | VIOLENCE | OTHER
-                     //   + CHILD_SAFETY | NON_CONSENSUAL_INTIMATE_IMAGE (planned, EV-62)
+                     //   | CHILD_SAFETY | NON_CONSENSUAL_INTIMATE_IMAGE
   note?              // VarChar(500)
   queue              // ORGANIZERS | PLATFORM (§3)
   escalationReasons  // ReportEscalation[]: why it reached the platform, logged lowercase (§9)
@@ -72,7 +73,7 @@ model Report {
   resolvedAt?
   holdUntil?         // the purge skips it until then
   holdReason?        // CHILD_SAFETY | INTIMATE_IMAGE | LAW_ENFORCEMENT | LEGAL
-  authorityReference? // CyberTipline or police reference number (planned, EV-62)
+  authorityReference? // CyberTipline or police reference number
 }
 
 model ReportEvidence {  // one per report, written when the report is filed
@@ -185,18 +186,18 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 
 ### Reasons
 
-| Reason                                    | Severe | Starts in                               | Hides the photo or cover from                                            |
-| ----------------------------------------- | ------ | --------------------------------------- | ------------------------------------------------------------------------ |
-| `SPAM`, `HARASSMENT`, `OTHER`             | no     | ORGANIZERS                              | the reporter; everyone but organizers once enough members report it (§5) |
-| `NUDITY_OR_SEXUAL`, `VIOLENCE`            | yes    | ORGANIZERS, and the platform is alerted | everyone but organizers, at once                                         |
-| `CHILD_SAFETY` (planned)                  | yes    | PLATFORM                                | **everyone, organizers included**, at once                               |
-| `NON_CONSENSUAL_INTIMATE_IMAGE` (planned) | yes    | PLATFORM                                | **everyone, organizers included**, at once                               |
+| Reason                          | Severe | Starts in                               | Hides the photo or cover from                                            |
+| ------------------------------- | ------ | --------------------------------------- | ------------------------------------------------------------------------ |
+| `SPAM`, `HARASSMENT`, `OTHER`   | no     | ORGANIZERS                              | the reporter; everyone but organizers once enough members report it (§5) |
+| `NUDITY_OR_SEXUAL`, `VIOLENCE`  | yes    | ORGANIZERS, and the platform is alerted | everyone but organizers, at once                                         |
+| `CHILD_SAFETY`                  | yes    | PLATFORM                                | **everyone, organizers included**, at once                               |
+| `NON_CONSENSUAL_INTIMATE_IMAGE` | yes    | PLATFORM                                | **everyone, organizers included**, at once                               |
 
 - **`CHILD_SAFETY`** is for anything that sexualizes or endangers a minor. It is valid on all three targets: a photo, a member (for grooming), or the event (for its cover). It is kept apart from `NUDITY_OR_SEXUAL` because the law treats it apart: US providers must report apparent child sexual abuse material to NCMEC, and Canadian ones to Cybertip.ca and the police (§7).
 - **`NON_CONSENSUAL_INTIMATE_IMAGE`** is "an intimate image of me, shared without my consent". It is what the TAKE IT DOWN Act's 48-hour removal applies to (§7). It is valid on a photo or the event's cover. On a member report it is a 400, since there is no image.
 - **Organizers never see a `CHILD_SAFETY` or `NON_CONSENSUAL_INTIMATE_IMAGE` report**, nor the photo it is about. Looking at the image is the platform's job, not a wedding host's. The organizer may also be the person who posted it.
 
-`SEVERE_REPORT_REASONS` gains the two new reasons. `PLATFORM_ONLY_REASONS` is the new set of the two.
+`SEVERE_REPORT_REASONS` gains the two new reasons. `PLATFORM_ONLY_REPORT_REASONS` is the new set of the two.
 
 ### Rules
 
@@ -257,7 +258,7 @@ The gallery-close move happens in the close job, in the same pass that marks the
 - **A member who isn't an organizer** gets 403 `ORGANIZER_ONLY`, for listing reports too (built).
 - **A `PLATFORM` report** answers 403 `REPORT_ESCALATED` to an organizer's `PATCH`.
 
-**What organizers see.** `GET /events/:eventId/reports` lists the event's PHOTO and MEMBER reports in both queues, each with its `queue`. Reports in `PLATFORM` are read-only for organizers, so they know the platform has them. Two kinds are never listed: reports about the event itself (built), and reports with a reason in `PLATFORM_ONLY_REASONS`.
+**What organizers see.** `GET /events/:eventId/reports` lists the event's PHOTO and MEMBER reports in both queues, each with its `queue`. Reports in `PLATFORM` are read-only for organizers, so they know the platform has them. Two kinds are never listed: reports about the event itself (built), and reports with a reason in `PLATFORM_ONLY_REPORT_REASONS`.
 
 ### Verdicts
 
@@ -318,7 +319,7 @@ Reports closed before this existed keep a null `closedReason`; their path can't 
 
 - from the member who reported the event, while their report is OPEN;
 - from every non-organizer while any OPEN event report is for nudity or violence (`SEVERE_REPORT_REASONS`). Organizers keep seeing it, as they keep seeing reported photos;
-- from everyone, organizers included, while any OPEN event report has a reason in `PLATFORM_ONLY_REASONS` (planned).
+- from everyone, organizers included, while any OPEN event report has a reason in `PLATFORM_ONLY_REPORT_REASONS`.
 
 A hidden cover reads as `coverUrl: null`, the same as no cover. The title and description are never hidden automatically: hiding an event's name would be confusing, and text waits for review.
 
@@ -326,7 +327,7 @@ A hidden cover reads as `coverUrl: null`, the same as no cover. The title and de
 
 When enough members report the event itself, it goes **under review** (`Event.underReviewAt`). Each OPEN event report is by a different member (one per member), and enough is `underReviewThreshold(memberCount, anySevere)`:
 
-- **Any OPEN event report with a reason in `PLATFORM_ONLY_REASONS`:** one is enough (planned).
+- **Any OPEN event report with a reason in `PLATFORM_ONLY_REPORT_REASONS`:** one is enough.
 - **Any OPEN event report for nudity or violence:** the photo hide threshold, `reportHideThreshold`: 3, or 2 in an event of 3 members or fewer.
 - **None severe:** the same, or a tenth of the members rounded up (`UNDER_REVIEW_MEMBER_SHARE`), whichever is more. Events of up to 30 members are unchanged; a 100-member event needs 10 and a 300-member one 30. A few members of a large event can't pause it with spam reports, while severe content still pauses it quickly.
 
@@ -371,7 +372,7 @@ Hiding is a **filter in the photo read paths**. `PhotoStatus` is untouched and n
    One OPEN report per reporter is enforced by the database (§1), so counting rows is counting distinct reporters.
 
 3. **A photo is hidden from everyone except the event's organizers after one OPEN report for nudity or violence**, or one OPEN automated report (§11). Leaving such a photo up while it collects more reports costs more than hiding a harmless one until someone looks.
-4. **A photo is hidden from everyone, organizers included, after one OPEN report with a reason in `PLATFORM_ONLY_REASONS`** (planned). Only the platform looks at it.
+4. **A photo is hidden from everyone, organizers included, after one OPEN report with a reason in `PLATFORM_ONLY_REPORT_REASONS`.** Only the platform looks at it.
 5. **Resolving restores.** A dismissal brings the photo back for everyone, reporters included; a removal deletes it, so there is nothing to restore.
 
 "Everyone" includes the uploader. Under rules 2 and 3, organizers still see the photo, because they are the ones who have to judge it.
@@ -387,7 +388,7 @@ The threshold is evaluated when photos are read, not stored on the photo. Member
 ```ts
 { id: { in: [] } } // once the gallery has closed: matches nothing, for anyone
 
-{ reports: { none: { status: OPEN, reason: { in: PLATFORM_ONLY_REASONS } } } } // an organizer: rule 4 only (today `{}`)
+{ reports: { none: { status: OPEN, reason: { in: PLATFORM_ONLY_REPORT_REASONS } } } } // an organizer: rule 4 only (today `{}`)
 
 {
   AND: [
@@ -536,7 +537,7 @@ From May 19, 2026, a platform that hosts user content must remove a non-consensu
 
 - **In the app**, the request is a `NON_CONSENSUAL_INTIMATE_IMAGE` report. It hides the image from everyone at once (§5), pages, and starts the 48-hour clock from `createdAt`.
 - **Outside the app**, the person may not be a member, or may not have an account. A public request form on the website collects what the Act asks for: a signature, enough to find the image, a statement that it was shared without consent, and contact details. The platform files it as a report on their behalf.
-- **Identical copies** are found by SHA-256 across all events and removed with it.
+- **Identical copies** are found by SHA-256 across all events and removed with it. Planned: photos don't record their hash at upload yet, only evidence copies do.
 - The privacy policy and the website describe the process in plain language.
 
 Whether the Act covers invite-only galleries is uncertain; we follow it anyway.
@@ -578,7 +579,7 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 
 **`report.escalated` and `report.stale` are the alerts** (tickets, see [alerting.md §3](../api/docs/alerting.md#3-events-to-alert-on)); the rest are audit records.
 
-- **Paging.** `child_safety` and `intimate_image` page; every other reason raises a ticket (planned).
+- **Paging.** `child_safety` and `intimate_image` page; every other reason raises a ticket. The rule lives in the log platform ([alerting.md](../api/docs/alerting.md)).
 - **The stale check.** It now runs on the platform queue only, and each report is reported once (`overdueAlertedAt`), so it no longer repeats every hour. `StaleReportCheckScheduler` runs every hour with the usual `report.stale_check.run_completed` / `run_failed` heartbeat (built).
 - **Moving reports.** The same hourly run moves `ORGANIZERS` reports past 24 hours to the platform (`organizer_timeout`, §3).
 
@@ -587,8 +588,8 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 | Reason                     | Meaning                                                                                                                                  |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `severe_reason`            | The reason is `NUDITY_OR_SEXUAL` or `VIOLENCE`. A photo report of this kind also hides the photo (§5). The report stays with organizers. |
-| `child_safety`             | Planned. The reason is `CHILD_SAFETY` (§7). Pages.                                                                                       |
-| `intimate_image`           | Planned. The reason is `NON_CONSENSUAL_INTIMATE_IMAGE` (§7). Pages; the 48-hour clock runs.                                              |
+| `child_safety`             | The reason is `CHILD_SAFETY` (§7). Pages.                                                                                                |
+| `intimate_image`           | The reason is `NON_CONSENSUAL_INTIMATE_IMAGE` (§7). Pages; the 48-hour clock runs.                                                       |
 | `target_is_organizer`      | The reported member, or the uploader of the reported photo, organizes the event and cannot judge it themselves.                          |
 | `target_is_sole_organizer` | Added to `target_is_organizer` when they are the event's only organizer.                                                                 |
 | `target_is_event`          | Every report about the event itself (§4).                                                                                                |

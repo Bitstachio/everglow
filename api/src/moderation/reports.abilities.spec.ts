@@ -99,4 +99,21 @@ describe("defineReportAbilities", () => {
       expect(ability.can(action, reportWithAccess("ORGANIZER", { accessUserId: otherUserId }))).toBe(false);
     });
   });
+
+  it.each(["CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"])(
+    "keeps a %s report from the event's organizers: only the platform handles it",
+    (reason) => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+      const report = subject(REPORT_SUBJECT, {
+        eventId,
+        reporterId: otherUserId,
+        targetType: "PHOTO",
+        reason,
+        event: { id: eventId, eventAccesses: [{ userId, accessLevel: "ORGANIZER" }] },
+      } as never);
+
+      expect(ability.can(REPORT_ACTIONS.READ, report)).toBe(false);
+      expect(ability.can(REPORT_ACTIONS.UPDATE, report)).toBe(false);
+    },
+  );
 });

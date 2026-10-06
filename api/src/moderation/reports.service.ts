@@ -10,6 +10,7 @@ import {
   Report,
   ReportActorRole,
   ReportEscalation,
+  ReportHoldReason,
   ReportQueue,
   ReportReason,
   ReportStatus,
@@ -37,6 +38,8 @@ import {
   RESOLUTION_CLOSED_REASON,
   RESOLUTION_STATUS,
   ReportResolutionAction,
+  CHILD_SAFETY_HOLD_DAYS,
+  PLATFORM_ONLY_REPORT_REASONS,
   SEVERE_REPORT_REASONS,
   STALE_REPORT_AFTER_HOURS,
   STALE_REPORT_SAMPLE_SIZE,
@@ -157,6 +160,12 @@ export class ReportsService {
 
     await this.assertCanReportIn(event, callerId);
     if (targetUserId === callerId) throw new ApiException("CANNOT_REPORT_SELF");
+    // A member is not an image; the intimate-image reason is for a photo or a cover.
+    if (dto.reason === ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE) {
+      throw new BadRequestException(
+        RESPONSE_TEMPLATES.INVALID_VALUE("reason", dto.reason, "used on photo and event reports only"),
+      );
+    }
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
@@ -290,7 +299,9 @@ export class ReportsService {
       ability,
       REPORT_ACTIONS.UPDATE,
       subject(REPORT_SUBJECT, loaded),
-      loaded.targetType === ReportTargetType.EVENT
+      // Reports about the event itself, and child-safety and intimate-image
+      // reports, are the platform's: an organizer gets the bare 403.
+      loaded.targetType === ReportTargetType.EVENT || PLATFORM_ONLY_REPORT_REASONS.includes(loaded.reason)
         ? undefined
         : { isMember: event.eventAccesses.length > 0, refusal: "ORGANIZER_ONLY" },
     );
@@ -669,6 +680,12 @@ export class ReportsService {
             queue: toPlatform ? ReportQueue.PLATFORM : ReportQueue.ORGANIZERS,
             escalatedAt: toPlatform ? new Date() : null,
             escalationReasons: routing,
+            // A child-safety report is held from the start, so its evidence
+            // outlives any delete until the platform has decided (§7).
+            ...(dto.reason === ReportReason.CHILD_SAFETY && {
+              holdUntil: new Date(Date.now() + CHILD_SAFETY_HOLD_DAYS * 24 * 60 * 60 * 1000),
+              holdReason: ReportHoldReason.CHILD_SAFETY,
+            }),
           },
         ],
         skipDuplicates: true,
@@ -736,6 +753,8 @@ export class ReportsService {
     const reasons: ReportEscalation[] = [];
 
     if (SEVERE_REPORT_REASONS.includes(reason)) reasons.push(ReportEscalation.SEVERE_REASON);
+    if (reason === ReportReason.CHILD_SAFETY) reasons.push(ReportEscalation.CHILD_SAFETY);
+    if (reason === ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE) reasons.push(ReportEscalation.INTIMATE_IMAGE);
     if (context.targetIsEvent) reasons.push(ReportEscalation.TARGET_IS_EVENT);
     if (context.reportedAccessLevel === AccessLevel.ORGANIZER) {
       reasons.push(ReportEscalation.TARGET_IS_ORGANIZER);
@@ -787,8 +806,12 @@ export class ReportsService {
       where: { eventId, targetType: ReportTargetType.EVENT, status: ReportStatus.OPEN },
       select: { reason: true },
     });
-    const anySevere = openReports.some((open) => SEVERE_REPORT_REASONS.includes(open.reason));
-    if (openReports.length < underReviewThreshold(memberCount, anySevere)) return false;
+    const severity = openReports.some((open) => PLATFORM_ONLY_REPORT_REASONS.includes(open.reason))
+      ? "platform_only"
+      : openReports.some((open) => SEVERE_REPORT_REASONS.includes(open.reason))
+        ? "severe"
+        : "none";
+    if (openReports.length < underReviewThreshold(memberCount, severity)) return false;
 
     const { count } = await this.prisma.event.updateMany({
       where: { id: eventId, underReviewAt: null },
