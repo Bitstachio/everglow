@@ -11,6 +11,7 @@ export class PlatformReportMapper {
     return {
       ...ReportMapper.toResponseDto(report),
       reporterId: report.reporterId,
+      resolvedById: report.resolvedById,
       escalationReasons: report.escalationReasons,
       escalatedAt: report.escalatedAt,
       holdUntil: report.holdUntil,

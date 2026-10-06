@@ -51,6 +51,12 @@ describe("ReportMapper", () => {
       });
     });
 
+    it("hides which moderator closed a report the platform closed", () => {
+      const dto = ReportMapper.toResponseDto({ ...report, closedByRole: "PLATFORM" });
+
+      expect(dto.resolvedById).toBeNull();
+    });
+
     it("never exposes who filed the report", () => {
       expect(ReportMapper.toResponseDto(report)).not.toHaveProperty("reporterId");
     });

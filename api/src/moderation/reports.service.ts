@@ -665,9 +665,9 @@ export class ReportsService {
         reportId,
       });
     }
-    if (removes && loaded.reason === ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE) {
-      await this.evidenceService.discardImages(closedIds);
-    }
+    // Any intimate-image report this removal closed loses its evidence copy;
+    // the others, and held ones, keep theirs (EvidenceService.discardImages).
+    if (removes) await this.evidenceService.discardImages(closedIds);
 
     this.logger.info(
       {

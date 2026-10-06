@@ -301,7 +301,7 @@ export type ReportResponseDto = {
    */
   closedByRole: ReportActorRole | null;
   /**
-   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted.
+   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted.
    */
   resolvedById: string | null;
   resolvedAt: string | null;
@@ -625,7 +625,7 @@ export type PlatformReportResponseDto = {
    */
   closedByRole: ReportActorRole | null;
   /**
-   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted.
+   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted.
    */
   resolvedById: string | null;
   resolvedAt: string | null;

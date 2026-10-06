@@ -3465,7 +3465,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted."
+            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted."
           },
           "resolvedAt": {
             "format": "date-time",
@@ -4171,7 +4171,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted."
+            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted."
           },
           "resolvedAt": {
             "format": "date-time",

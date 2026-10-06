@@ -1499,7 +1499,8 @@ describe("ReportsService", () => {
       });
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId } });
       expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith(["photos/k"]);
-      expect(evidenceService.discardImages).not.toHaveBeenCalled();
+      // Every report it closed is offered; only actioned, unheld intimate-image ones lose their copy.
+      expect(evidenceService.discardImages).toHaveBeenCalledWith([reportId, "other"]);
     });
 
     it("upholds the reports on a photo that is already gone, finding them by their snapshot", async () => {
@@ -1533,6 +1534,16 @@ describe("ReportsService", () => {
       await service.resolveAsPlatform(reportId, moderatorId, "REMOVE_PHOTO");
 
       expect(evidenceService.discardImages).toHaveBeenCalledWith([reportId, "other"]);
+    });
+
+    it("discards nothing on a dismissal", async () => {
+      prisma.report.findUnique.mockResolvedValue(
+        loadedReport({ reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE }) as never,
+      );
+
+      await service.resolveAsPlatform(reportId, moderatorId, "DISMISS");
+
+      expect(evidenceService.discardImages).not.toHaveBeenCalled();
     });
 
     it("takes DISMISS only for a report about the event itself", async () => {

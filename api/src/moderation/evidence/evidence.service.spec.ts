@@ -168,7 +168,38 @@ describe("EvidenceService", () => {
       expect(s3Service.deleteObject).toHaveBeenCalledWith(key);
       expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
         where: { id: "ev-1" },
-        data: { evidenceS3Key: null, objectS3Key: null },
+        data: { evidenceS3Key: null, objectS3Key: null, quarantineFailedAt: null },
+      });
+    });
+
+    it("touches only actioned intimate-image reports that aren't held", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValue([]);
+
+      await service.discardImages([reportId, otherReportId], now);
+
+      expect(prisma.reportEvidence.findMany).toHaveBeenCalledWith({
+        where: {
+          reportId: { in: [reportId, otherReportId] },
+          report: {
+            reason: "NON_CONSENSUAL_INTIMATE_IMAGE",
+            status: "ACTIONED",
+            OR: [{ holdUntil: null }, { holdUntil: { lt: now } }],
+          },
+        },
+        select: { id: true, reportId: true, evidenceS3Key: true },
+      });
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it("forgets the original of an image whose copy had failed, so the copy is never retried", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValue([{ id: "ev-1", reportId, evidenceS3Key: null }] as never);
+
+      await service.discardImages([reportId], now);
+
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
+        where: { id: "ev-1" },
+        data: { evidenceS3Key: null, objectS3Key: null, quarantineFailedAt: null },
       });
     });
 
