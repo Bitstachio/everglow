@@ -87,10 +87,10 @@ domain files (see [Mobile UI copy](#mobile-ui-copy)).
 3. Add the domain object to `API_ERROR_DOMAINS` if it is a new file.
 4. Regenerate OpenAPI and the mobile client.
 5. Add mobile UI copy for the new code in the matching file under
-   `mobile/lib/api/error-message-domains/` (and add the domain object to
-   `API_ERROR_MESSAGE_DOMAINS` only if the file is new — that list is the
-   single membership source; do not re-list domains when building
-   `API_ERROR_MESSAGES`).
+   `mobile/locales/en/errors/` (and add the domain object to
+   `EN_ERROR_MESSAGE_DOMAINS` / `API_ERROR_MESSAGE_DOMAINS` only if the file is
+   new — that list is the single membership source; do not re-list domains when
+   building `API_ERROR_MESSAGES`).
 6. Throw with `new ApiException("THE_CODE")` or
    `new ApiException("THE_CODE", params)`.
 
@@ -105,9 +105,9 @@ if that screen is not built yet.
 ## Mobile UI copy
 
 The app never shows Nest / API `message` bodies to users. Mobile maps `code` →
-product copy in domain files under `mobile/lib/api/error-message-domains/`
-(same domain split as the table above). Runtime flow (Axios interceptor,
-`toApiError`, `getErrorMessage`):
+product copy in locale catalogs under `mobile/locales/en/errors/`
+(same domain split as the table above; served via the i18n `errors` namespace).
+Runtime flow (Axios interceptor, `toApiError`, `getErrorMessage`):
 [mobile/docs/exception-handling.md](../../mobile/docs/exception-handling.md).
 
 When adding a coded failure, add the matching string there after regenerating

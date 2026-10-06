@@ -76,6 +76,21 @@ describe("getErrorMessage", () => {
     });
     expect(getErrorMessage(error)).toBe(API_ERROR_MESSAGES.USERNAME_TAKEN);
   });
+
+  it("keeps 5xx on the generic string when the response includes a catalog code", () => {
+    const error = toApiError({
+      response: {
+        status: 500,
+        data: {
+          message: 'Failed to create Auth0 password-change ticket for "auth0|abc"',
+          code: "USERNAME_TAKEN",
+        },
+      },
+    });
+
+    expect(getErrorMessage(error)).toBe("Something went wrong. Please try again.");
+    expect(error.code).toBe("USERNAME_TAKEN");
+  });
 });
 
 describe("createApiError", () => {
