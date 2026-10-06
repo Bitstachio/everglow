@@ -144,6 +144,7 @@ describe("ReportsService", () => {
     resolvedAt: null,
     holdUntil: null,
     holdReason: null,
+    authorityReference: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -243,6 +244,43 @@ describe("ReportsService", () => {
       await service.reportPhoto(photoId, callerId, dto);
 
       expect(evidenceService.writeSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("files a child-safety report with the platform, held for a year from the start, and says so", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.report.createManyAndReturn.mockResolvedValue([buildReport({ reason: ReportReason.CHILD_SAFETY })]);
+
+      await service.reportPhoto(photoId, callerId, { reason: ReportReason.CHILD_SAFETY });
+
+      expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({
+              queue: "PLATFORM",
+              escalationReasons: ["SEVERE_REASON", "CHILD_SAFETY"],
+              holdReason: "CHILD_SAFETY",
+              holdUntil: expect.any(Date) as unknown,
+            }),
+          ],
+        }),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.escalated", escalationReasons: ["severe_reason", "child_safety"] }),
+        expect.any(String),
+      );
+    });
+
+    it("files an intimate-image report with the platform, with no hold: the image must not be kept", async () => {
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.report.createManyAndReturn.mockResolvedValue([
+        buildReport({ reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE }),
+      ]);
+
+      await service.reportPhoto(photoId, callerId, { reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE });
+
+      const [data] = (prisma.report.createManyAndReturn.mock.calls[0][0] as { data: Record<string, unknown>[] }).data;
+      expect(data).toMatchObject({ queue: "PLATFORM", escalationReasons: ["SEVERE_REASON", "INTIMATE_IMAGE"] });
+      expect(data).not.toHaveProperty("holdUntil");
     });
 
     it("stores a missing note as null and a missing uploader as no reported user", async () => {
@@ -586,6 +624,18 @@ describe("ReportsService", () => {
         expect(escalationReasonsLogged()).toEqual(["target_is_event", "event_under_review"]);
       });
 
+      it("goes under review at a single child-safety report, whatever the event's size", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT, 300));
+        prisma.report.createManyAndReturn.mockResolvedValue([eventReport({ reason: ReportReason.CHILD_SAFETY })]);
+        prisma.report.findMany.mockResolvedValue([{ reason: ReportReason.CHILD_SAFETY }] as never);
+        prisma.event.updateMany.mockResolvedValue({ count: 1 });
+
+        await service.reportEvent(eventId, callerId, { reason: ReportReason.CHILD_SAFETY });
+
+        expect(prisma.event.updateMany).toHaveBeenCalled();
+        expect(escalationReasonsLogged()).toContain("event_under_review");
+      });
+
       it("needs only two reports in an event of three or fewer", async () => {
         prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT, 3));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
@@ -811,6 +861,15 @@ describe("ReportsService", () => {
       );
     });
 
+    it("refuses the intimate-image reason on a member with 400: a member is not an image", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+
+      await expect(
+        service.reportMember(eventId, targetUserId, callerId, { reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+    });
+
     it("files a report about an organizer straight into the platform's queue", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
       prisma.eventAccess.findUnique.mockResolvedValue(access(targetUserId, AccessLevel.ORGANIZER));
@@ -966,6 +1025,16 @@ describe("ReportsService", () => {
       prisma.report.findUnique.mockResolvedValue({ ...buildReport({ eventId: null }), event: null } as never);
 
       await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("gives an organizer the bare 403 for a child-safety report: it isn't theirs to see", async () => {
+      setup(reportFor(AccessLevel.ORGANIZER, { reason: ReportReason.CHILD_SAFETY, queue: "PLATFORM" }));
+
+      const failure = await service.resolveReport(reportId, callerId, "DISMISS").catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(ForbiddenException);
+      expect((failure as ForbiddenException).getResponse()).not.toHaveProperty("code", "ORGANIZER_ONLY");
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
@@ -1271,7 +1340,7 @@ describe("ReportsService", () => {
               { queue: "ORGANIZERS" },
               { OR: [{ reporterId: null }, { reporterId: { not: callerId } }] },
               { photoId },
-              { reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } },
+              { reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] } },
             ],
           },
           data: {
@@ -1304,7 +1373,9 @@ describe("ReportsService", () => {
                 { queue: "ORGANIZERS" },
                 { OR: [{ reporterId: null }, { reporterId: { not: callerId } }] },
                 { eventId, targetType: "MEMBER", reportedUserId: uploaderId },
-                { reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } },
+                {
+                  reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] },
+                },
               ],
             },
           }),

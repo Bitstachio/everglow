@@ -1,13 +1,14 @@
 import { AccessLevel, Prisma, ReportStatus, ReportTargetType } from "generated/prisma/client";
-import { SEVERE_REPORT_REASONS } from "./moderation.constants";
+import { PLATFORM_ONLY_REPORT_REASONS, SEVERE_REPORT_REASONS } from "./moderation.constants";
 
 /**
  * Which of these events' covers the viewer must not see, in one query each for
  * reports and organizer roles. The cover is hidden from a viewer who has an OPEN
  * report on the event (they asked not to see it), and from every non-organizer
  * while any OPEN report on the event is for nudity or violence. Organizers keep
- * seeing it, as they keep seeing reported photos. Title and description are
- * never hidden automatically (docs/moderation.md).
+ * seeing it, as they keep seeing reported photos, except while a report is for
+ * child safety or an intimate image: only the platform looks at those. Title
+ * and description are never hidden automatically (docs/moderation.md §4).
  */
 export const hiddenEventCoverIds = async (
   db: Prisma.TransactionClient,
@@ -23,7 +24,7 @@ export const hiddenEventCoverIds = async (
       status: ReportStatus.OPEN,
       OR: [{ reporterId: viewerId }, { reason: { in: [...SEVERE_REPORT_REASONS] } }],
     },
-    select: { eventId: true, reporterId: true },
+    select: { eventId: true, reporterId: true, reason: true },
   });
   if (reports.length === 0) return new Set();
 
@@ -41,7 +42,12 @@ export const hiddenEventCoverIds = async (
   return new Set(
     reports
       .flatMap((report) => (report.eventId ? [{ ...report, eventId: report.eventId }] : []))
-      .filter((report) => report.reporterId === viewerId || !organizerOf.has(report.eventId))
+      .filter(
+        (report) =>
+          report.reporterId === viewerId ||
+          PLATFORM_ONLY_REPORT_REASONS.includes(report.reason) ||
+          !organizerOf.has(report.eventId),
+      )
       .map((report) => report.eventId),
   );
 };

@@ -33,13 +33,20 @@ describe("underReviewThreshold", () => {
     [100, 10],
     [300, 30],
   ])("an event of %i members goes under review at %i open reports, none severe", (memberCount, expected) => {
-    expect(underReviewThreshold(memberCount, false)).toBe(expected);
+    expect(underReviewThreshold(memberCount, "none")).toBe(expected);
   });
 
   it.each([3, 4, 100, 300])(
     "stays at the photo hide threshold for %i members once any report is severe",
     (memberCount) => {
-      expect(underReviewThreshold(memberCount, true)).toBe(reportHideThreshold(memberCount));
+      expect(underReviewThreshold(memberCount, "severe")).toBe(reportHideThreshold(memberCount));
+    },
+  );
+
+  it.each([3, 4, 100, 300])(
+    "needs a single child-safety or intimate-image report, whatever the size (%i members)",
+    (memberCount) => {
+      expect(underReviewThreshold(memberCount, "platform_only")).toBe(1);
     },
   );
 });

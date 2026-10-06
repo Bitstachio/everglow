@@ -88,7 +88,9 @@ describe("PhotoVisibilityService", () => {
       it("still shows an organizer everything until the close time", async () => {
         const event = { ...eventFor(AccessLevel.ORGANIZER), galleryClosesAt: new Date(Date.now() + 60 * 1000) };
 
-        await expect(service.whereVisibleTo(callerId, event)).resolves.toEqual({});
+        await expect(service.whereVisibleTo(callerId, event)).resolves.toEqual({
+          reports: { none: { status: "OPEN", reason: { in: ["CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] } } },
+        });
       });
 
       it("makes a single photo of a closed gallery invisible", async () => {
@@ -100,10 +102,12 @@ describe("PhotoVisibilityService", () => {
       });
     });
 
-    it("filters nothing for an organizer of the event, and asks the database nothing", async () => {
+    it("hides only what the platform alone looks at from an organizer, and asks the database nothing", async () => {
       const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.ORGANIZER));
 
-      expect(where).toEqual({});
+      expect(where).toEqual({
+        reports: { none: { status: "OPEN", reason: { in: ["CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] } } },
+      });
       expect(prisma.report.groupBy).not.toHaveBeenCalled();
     });
 
@@ -129,7 +133,12 @@ describe("PhotoVisibilityService", () => {
       const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
 
       expect(where.AND).toContainEqual({
-        reports: { none: { status: "OPEN", reason: { in: ["NUDITY_OR_SEXUAL", "VIOLENCE"] } } },
+        reports: {
+          none: {
+            status: "OPEN",
+            reason: { in: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] },
+          },
+        },
       });
     });
 

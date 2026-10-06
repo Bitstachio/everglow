@@ -330,7 +330,7 @@ describe("AccountDeletionPrepService", () => {
           reportedUserId: userId,
           targetType: "MEMBER",
           status: "OPEN",
-          reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE"] },
+          reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] },
         },
         data: expect.objectContaining({ status: "TARGET_GONE", closedReason: "ACCOUNT_DELETED" }) as unknown,
       });
