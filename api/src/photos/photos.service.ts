@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { Photo, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { authorize } from "src/casl/authorize";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
@@ -72,9 +73,10 @@ export class PhotosService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     // The photo does not exist yet, so authorize against a prospective row.
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
-    if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, PHOTO_ACTIONS.CREATE, prospectivePhoto, {
+      isMember: event.eventAccesses.length > 0,
+      refusal: "VIEWER_CANNOT_UPLOAD",
+    });
     // No new photos while the platform reviews the event. Slots minted before
     // can still be confirmed; the cover can still be changed.
     if (event.underReviewAt) {
@@ -161,9 +163,10 @@ export class PhotosService {
     // Confirming is part of the upload flow, so it requires the same permission as minting upload slots.
     const ability = await this.abilityFactory.createForCaller(callerId);
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, addedById: callerId, event } as unknown as Photo);
-    if (!ability.can(PHOTO_ACTIONS.CREATE, prospectivePhoto)) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, PHOTO_ACTIONS.CREATE, prospectivePhoto, {
+      isMember: event.eventAccesses.length > 0,
+      refusal: "VIEWER_CANNOT_UPLOAD",
+    });
 
     const uniqueIds = [...new Set(photoIds)];
     // Only the caller's own slots: a photoId minted for someone else is not
@@ -262,9 +265,7 @@ export class PhotosService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     // Listing is reading photos of the event; authorize against a prospective row.
     const prospectivePhoto = subject(PHOTO_SUBJECT, { eventId, event } as unknown as Photo);
-    if (!ability.can(PHOTO_ACTIONS.READ, prospectivePhoto)) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, PHOTO_ACTIONS.READ, prospectivePhoto);
 
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
     // Decode before querying so a malformed cursor is a 400, not an empty page.
@@ -313,9 +314,7 @@ export class PhotosService {
     }
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(PHOTO_ACTIONS.READ, subject(PHOTO_SUBJECT, photo))) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, PHOTO_ACTIONS.READ, subject(PHOTO_SUBJECT, photo));
 
     // Same filter as the list, so a photo missing there is a 404 here too.
     if (!(await this.photoVisibilityService.isVisibleTo(photoId, callerId, photo.event))) {
@@ -339,9 +338,11 @@ export class PhotosService {
     if (!photo) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Photo", "ID", photoId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(PHOTO_ACTIONS.DELETE, subject(PHOTO_SUBJECT, photo))) {
-      throw new ForbiddenException();
-    }
+    // Uploaders may delete their own photos; any other member needs to be an organizer.
+    authorize(ability, PHOTO_ACTIONS.DELETE, subject(PHOTO_SUBJECT, photo), {
+      isMember: photo.event.eventAccesses.length > 0,
+      refusal: "ORGANIZER_ONLY",
+    });
 
     // S3 first: if it fails the row survives and the delete can be retried.
     await this.s3Service.deleteObject(photo.s3Key);

@@ -37,7 +37,9 @@ const lintedSourceGlobs = [
   "context/**/*.{ts,tsx}",
   "features/**/*.{ts,tsx}",
   "hooks/**/*.{ts,tsx}",
+  "i18n/**/*.{ts,tsx}",
   "lib/**/*.{ts,tsx}",
+  "locales/**/*.{ts,tsx}",
   "providers/**/*.{ts,tsx}",
 ];
 

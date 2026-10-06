@@ -4,7 +4,7 @@ This document is the entry point for how we write TypeScript and React Native co
 
 **Reference implementation:** `features/profile/` for feature structure.
 
-**Enforcement:** `mobile/eslint.config.js` encodes what can be automated. Run `pnpm lint` before opening a PR (lints `app/`, `components/`, `constants/`, `context/`, `features/`, `hooks/`, `lib/`, and `providers/`). Use the [code review checklist](./code-review-checklist.md) for everything lint cannot judge.
+**Enforcement:** `mobile/eslint.config.js` encodes what can be automated. Run `pnpm lint` before opening a PR (lints `app/`, `components/`, `constants/`, `context/`, `features/`, `hooks/`, `i18n/`, `lib/`, `locales/`, and `providers/`). Use the [code review checklist](./code-review-checklist.md) for everything lint cannot judge.
 
 ## Topic docs
 
@@ -13,6 +13,7 @@ This document is the entry point for how we write TypeScript and React Native co
 | Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
 | API client, React Query, feature `api/`       | [API](./api.md)                                             |
 | API failures, translation table, interceptor  | [Exception handling](./exception-handling.md)               |
+| Locale catalogs, i18next, device language     | [i18n](./i18n.md)                                           |
 | Forms (React Hook Form + Zod)                 | [Forms](./forms.md)                                         |
 | Custom SVG icons (`AppIcon`)                  | [Icons](./icons.md)                                         |
 | Theme tokens, light/dark, NativeWind          | [Theme](./theme.md)                                         |
@@ -50,7 +51,7 @@ Higher layers inherit lower layers. Feature code must follow codebase convention
 
 ## 1. Codebase conventions
 
-These apply to every `.ts` and `.tsx` file under `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, and `constants/`. Generated code under `lib/api/generated/` is excluded.
+These apply to every `.ts` and `.tsx` file under `app/`, `components/`, `context/`, `features/`, `hooks/`, `i18n/`, `lib/`, `locales/`, `providers/`, and `constants/`. Generated code under `lib/api/generated/` is excluded.
 
 ### Functions
 
@@ -141,9 +142,26 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
+import i18n from "@/i18n/instance";
 ```
 
-Import the component file directly (no `index` barrel). Inside a feature module, use relative imports for files in the same feature (for example, `../api/mutations`). See [Feature code organization](./feature-code-organization.md#imports).
+Import the concrete file. **Do not use barrel `index.ts` / `index.tsx` re-exports**
+in hand-written app code — not for components, hooks, `lib/`, `i18n/`, or
+`locales/`. Name the entry (`button.tsx`, `instance.ts`, `messages.ts`) and
+import that path.
+
+When generating or scaffolding new modules, prefer the same rule: a folder may
+hold several named files, but callers should import `@/…/concrete-file`, not
+`@/…` via an `index` barrel. Aggregators that merge JSON catalogs (for example
+`locales/en/messages.ts`) are still named files, not `index.ts`.
+
+**Exception:** generated OpenAPI client code under `lib/api/generated/` may keep
+whatever layout the generator emits (including `index.ts`). Do not hand-edit that
+tree to add barrels elsewhere, and do not copy that pattern into app code.
+
+Inside a feature module, use relative imports for files in the same feature (for
+example, `../api/mutations`). See
+[Feature code organization](./feature-code-organization.md#imports).
 
 ### Error handling
 

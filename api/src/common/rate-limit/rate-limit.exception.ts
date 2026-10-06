@@ -5,7 +5,7 @@ import { ApiException } from "src/common/errors/api.exception";
  * the standard error envelope. The wait time travels in the `Retry-After`
  * header, which the guard sets before throwing.
  */
-export class RateLimitExceededException extends ApiException {
+export class RateLimitExceededException extends ApiException<"RATE_LIMIT_EXCEEDED"> {
   constructor() {
     super("RATE_LIMIT_EXCEEDED");
   }

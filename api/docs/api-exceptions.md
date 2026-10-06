@@ -54,6 +54,7 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 | Images        | `src/images/images.errors.ts`                |
 | Plans         | `src/plans/plans.errors.ts`                  |
 | Photos        | `src/photos/photos.errors.ts`                |
+| Moderation    | `src/moderation/moderation.errors.ts`        |
 | Rate limit    | `src/common/rate-limit/rate-limit.errors.ts` |
 
 **Aggregator** merges the domains into `API_ERROR_REGISTRY`, derives
@@ -64,6 +65,13 @@ descriptions (no client CTAs, no trailing periods). UI prose stays on mobile.
 
 Shared type: [`src/common/errors/api-error.types.ts`](../src/common/errors/api-error.types.ts)
 (`ApiErrorDefinition`).
+
+A message function's params are required wherever the code is used:
+`new ApiException("ACTIVE_EVENT_LIMIT_REACHED")` does not compile without
+`{ limit }`. That holds for a code typed as the whole `ApiErrorCode` union
+too: the call then needs the params any code in the union takes, so a
+message is never built from missing params at runtime.
+`api-error-codes.spec.ts` pins this with expected type errors.
 
 The **wire contract stays flat**: `ApiErrorDto.code` is one closed string enum.
 Domain membership is catalog ownership (which `*.errors.ts` defines the code),
@@ -79,10 +87,10 @@ domain files (see [Mobile UI copy](#mobile-ui-copy)).
 3. Add the domain object to `API_ERROR_DOMAINS` if it is a new file.
 4. Regenerate OpenAPI and the mobile client.
 5. Add mobile UI copy for the new code in the matching file under
-   `mobile/lib/api/error-message-domains/` (and add the domain object to
-   `API_ERROR_MESSAGE_DOMAINS` only if the file is new — that list is the
-   single membership source; do not re-list domains when building
-   `API_ERROR_MESSAGES`).
+   `mobile/locales/en/errors/` (and add the domain object to
+   `EN_ERROR_MESSAGE_DOMAINS` / `API_ERROR_MESSAGE_DOMAINS` only if the file is
+   new — that list is the single membership source; do not re-list domains when
+   building `API_ERROR_MESSAGES`).
 6. Throw with `new ApiException("THE_CODE")` or
    `new ApiException("THE_CODE", params)`.
 
@@ -97,9 +105,9 @@ if that screen is not built yet.
 ## Mobile UI copy
 
 The app never shows Nest / API `message` bodies to users. Mobile maps `code` →
-product copy in domain files under `mobile/lib/api/error-message-domains/`
-(same domain split as the table above). Runtime flow (Axios interceptor,
-`toApiError`, `getErrorMessage`):
+product copy in locale catalogs under `mobile/locales/en/errors/`
+(same domain split as the table above; served via the i18n `errors` namespace).
+Runtime flow (Axios interceptor, `toApiError`, `getErrorMessage`):
 [mobile/docs/exception-handling.md](../../mobile/docs/exception-handling.md).
 
 When adding a coded failure, add the matching string there after regenerating
@@ -135,17 +143,54 @@ Hiding a control in the UI (e.g. Change Password for social identities) does
 
 The code must already exist in `API_ERROR_REGISTRY`.
 
+### Authorize with `authorize()`
+
+A CASL check that fails goes through
+[`authorize()`](../src/casl/authorize.ts), the only place a bare 403 comes
+from:
+
+- **A caller with no access at all** (not a member, not onboarded) gets the
+  bare `FORBIDDEN`, and nothing more about the event.
+- **A member whose role doesn't allow the action** gets a code that says
+  which role it needs, so the app can explain it: `ORGANIZER_ONLY` (managing
+  the event, deleting someone else's photo, reading or resolving reports) or
+  `VIEWER_CANNOT_UPLOAD`. Pass `{ isMember, refusal }` to get it.
+
+```ts
+authorize(ability, EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, event), {
+  isMember: event.eventAccesses.length > 0,
+  refusal: "ORGANIZER_ONLY",
+});
+```
+
+Every other refusal of a caller who has access is a product rule with its own
+code: `LAST_ORGANIZER`, `CANNOT_CHANGE_OWN_ROLE`, `TARGET_NOT_A_MEMBER`,
+`CANNOT_RESOLVE_OWN_REPORT`, `REPORT_ALREADY_RESOLVED`, and so on.
+
 ### Use a generic Nest HTTP exception
 
 When the generic status code’s translation is enough, or the failure must stay
 opaque:
 
-- `NotFoundException` — resource missing; `NOT_FOUND` copy is fine.
+- `NotFoundException` — resource missing, or hidden on purpose (an organizer's
+  block reads as an unknown invite link); `NOT_FOUND` copy is fine.
 - `BadRequestException` — validation / format the client already owns locally
   (e.g. username format after DTO + form checks); no distinct API translation
   needed.
-- `UnauthorizedException()` with no body detail — session invalid or
-  intentionally opaque (e.g. deleted / tombstoned accounts).
+- `UnauthorizedException` — the token, or the account it maps to, can't be
+  used. The client is only told to sign in again, so a deleted or tombstoned
+  account stays opaque. It always takes
+  `RESPONSE_TEMPLATES.TOKEN_REJECTED(reason)`: `JwtAuthGuard` gives
+  passport's reason for every token it refuses, and `UsersService` the
+  account's.
+- `ServiceUnavailableException` — only `JwtAuthGuard`, when Auth0's signing
+  keys can't be fetched to check a token, with
+  `RESPONSE_TEMPLATES.SIGNING_KEYS_UNAVAILABLE(reason)`. The client gets
+  `INTERNAL_ERROR` and keeps its session; a 401 would sign it out.
+
+There is no generic 403, 409 or 422 to throw. A 403 is `authorize()` or an
+`ApiException`, and a 409 or 422 always means a product rule the app explains,
+so it is always an `ApiException`.
 
 `AllExceptionsFilter` maps status → a generic catalog code when the exception
 has none (see below). Those generics (`FORBIDDEN`, `CONFLICT`, …) are for true
@@ -154,31 +199,33 @@ generics—not a substitute for product-specific copy.
 If the throw carries a debug message, build it with
 [`RESPONSE_TEMPLATES`](../src/common/constants/templates.constants.ts) (for
 example `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", id)`). Do not
-inline an equivalent string. Omit the message when status alone is enough
-(`throw new UnauthorizedException()`). Match template to status: not-found
-throws use `RESOURCE.NOT_FOUND`, format-style bad requests use
-`INVALID_FORMAT`, and so on—do not pass a bad-request template into
-`NotFoundException`.
+inline an equivalent string. Match template to status: not-found throws use
+`RESOURCE.NOT_FOUND`, format-style bad requests use `INVALID_FORMAT`, a value
+outside what is allowed uses `INVALID_VALUE`, a refused token uses
+`TOKEN_REJECTED`, and so on—do not pass a bad-request template into
+`NotFoundException`. The
+message is what the request's log line gives as `errorReason`, so write it
+for whoever traces the request: name the field and the value.
 
-**Lint** (`api/eslint.config.mjs`): outside tests, Nest HTTP exception
-constructors may only take no argument or the matching
-`RESPONSE_TEMPLATES` call — not a string literal, template literal, or other
-helper. Specs are exempt so filter tests can pass raw Nest messages.
-TypeScript cannot enforce this — Nest’s constructors accept `any`.
+**Lint** (`api/eslint.config.mjs`) holds these rules outside tests, so an
+uncoded product refusal fails CI. TypeScript cannot enforce them, because
+Nest's constructors accept `any`. Specs are exempt so filter tests can pass
+raw Nest messages.
 
-| Exception                      | Allowed first argument                                    |
-| ------------------------------ | --------------------------------------------------------- |
-| `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or none      |
-| `ConflictException`            | `RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS(...)` or none |
-| `BadRequestException`          | `RESPONSE_TEMPLATES.INVALID_FORMAT(...)` or none          |
-| `ForbiddenException`           | none                                                      |
-| `UnauthorizedException`        | none                                                      |
-| `UnprocessableEntityException` | none                                                      |
+| Exception                      | Allowed                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `NotFoundException`            | `RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND(...)` or no argument              |
+| `BadRequestException`          | `RESPONSE_TEMPLATES.INVALID_FORMAT(...)` or `INVALID_VALUE(...)` or none |
+| `UnauthorizedException`        | `RESPONSE_TEMPLATES.TOKEN_REJECTED(...)`, always                         |
+| `ForbiddenException`           | only inside `src/casl/authorize.ts`                                      |
+| `ConflictException`            | never: throw an `ApiException`                                           |
+| `UnprocessableEntityException` | never: throw an `ApiException`                                           |
+| `HttpException`                | never: throw an `ApiException` or a subclass above                       |
 
 ### Do not
 
-- Throw `ConflictException({ code: "SOME_STRING", message: "…" })` with a
-  string outside the catalog.
+- Throw a Nest exception with a `{ code, message }` body: only
+  `ApiException` carries a code.
 - Put user-facing English in the API registry or in Nest messages for the app
   to display.
 - Leave a product outcome uncoded and rely on the client to infer meaning from
@@ -231,14 +278,24 @@ Rules:
   `ApiException`, `RateLimitExceededException` → `RATE_LIMIT_EXCEEDED`).
 - For the generic fill-in, the client-facing `message` comes from the registry —
   not from Nest constructor strings (those are not a client contract).
-- Before that replacement, the filter logs the original Nest `message`:
-  uncoded **4xx** at **debug** (expected client faults; detail stays available
-  when debug is on), uncoded **5xx** at **error** with
-  `REQUEST_UNHANDLED_ERROR` (same alert path as unhandled throws — debug is
-  off in production).
+- What the client does not see goes to the logs. For every error the filter
+  records `errorCode` and `errorReason` on the response, and the request's
+  completion line carries them, at `warn` for a 4xx and `error` for a 5xx (see
+  [logging-conventions.md](./logging-conventions.md) §2). The reason is the
+  exception's own message, or a validation failure's field errors.
+- An uncoded **5xx** also gets its own **error** line with the stack and
+  `REQUEST_UNHANDLED_ERROR`, the same alert path as an unhandled throw.
 - Unhandled non-HTTP failures still log server-side at **error**; the client
   only sees `INTERNAL_ERROR` and the registry message (no stack / internal
   detail).
+- A client error that Express or its body parser raises as an `http-errors`
+  object keeps its 4xx status and gets the generic code for it: 413 for a body
+  over the size limit, 415 for a charset or encoding the parser can't read,
+  400 for an upload the client dropped. It is the client's mistake, so the
+  filter logs it at **warn** as `request.body_rejected` instead of
+  `REQUEST_UNHANDLED_ERROR`. That line is its only record: the body parser runs
+  before the access log's middleware, so there is no completion line. Nest
+  already turns malformed JSON into a 400 `BadRequestException`.
 - Every error response includes both `code` and `message` (`ApiErrorDto`
   marks them required).
 

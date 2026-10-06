@@ -5,7 +5,19 @@
  * hides untested code. The generated API client and test scaffolding are not
  * ours to cover.
  */
-const SOURCE_DIRS = ["app", "components", "constants", "context", "features", "hooks", "lib", "providers", "theme"];
+const SOURCE_DIRS = [
+  "app",
+  "components",
+  "constants",
+  "context",
+  "features",
+  "hooks",
+  "i18n",
+  "lib",
+  "locales",
+  "providers",
+  "theme",
+];
 
 /** @param {string} suite subdirectory under coverage/, one per suite */
 module.exports = (suite) => ({

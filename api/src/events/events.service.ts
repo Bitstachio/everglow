@@ -1,19 +1,13 @@
 import { subject } from "@casl/ability";
 import { accessibleBy } from "@casl/prisma";
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { AccessLevel, Event, EventInvite, Prisma } from "generated/prisma/client";
 import { EventPlanService, galleryNotClosed } from "src/plans/event-plan.service";
 import { GALLERY_STATES, gallerySchedule, galleryStateOf } from "src/plans/plans.constants";
 import { PinoLogger } from "nestjs-pino";
 import { AbilityFactory } from "src/casl/ability.factory";
+import { authorize } from "src/casl/authorize";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
@@ -27,7 +21,7 @@ import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-
 import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { latestEventDate } from "./events.constants";
+import { EVENT_DATE_MAX_MONTHS_AHEAD, latestEventDate } from "./events.constants";
 import {
   EventAccessWithUser,
   EventBanWithUser,
@@ -60,9 +54,7 @@ export class EventsService {
     if (!creator.details) throw new ApiException("ONBOARDING_INCOMPLETE");
 
     const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: !!creator.details });
-    if (!ability.can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT)) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, EVENT_ACTIONS.CREATE, EVENT_SUBJECT);
 
     const participantToken = randomUUID();
     const now = new Date();
@@ -146,7 +138,7 @@ export class EventsService {
       where: { userId_eventId: { userId: callerId, eventId: event.id } },
     });
     if (existing) {
-      throw new ConflictException(RESPONSE_TEMPLATES.RESOURCE.ALREADY_EXISTS("Event membership", "event ID", event.id));
+      throw new ApiException("ALREADY_A_MEMBER", { eventId: event.id });
     }
 
     // A closed event can't be joined: its photos are gone, and it stays only
@@ -234,9 +226,7 @@ export class EventsService {
     if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded));
 
     const { eventAccesses, ...event } = loaded;
     void eventAccesses;
@@ -257,9 +247,10 @@ export class EventsService {
     if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, EVENT_ACTIONS.UPDATE, subject(EVENT_SUBJECT, loaded), {
+      isMember: loaded.eventAccesses.length > 0,
+      refusal: "ORGANIZER_ONLY",
+    });
 
     const { eventAccesses, ...event } = loaded;
     void eventAccesses;
@@ -313,7 +304,13 @@ export class EventsService {
   /** Any past date is allowed; a future one at most EVENT_DATE_MAX_MONTHS_AHEAD months away. */
   private assertDateInRange(date: Date, now: Date): void {
     if (date.getTime() <= latestEventDate(now).getTime()) return;
-    throw new BadRequestException();
+    throw new BadRequestException(
+      RESPONSE_TEMPLATES.INVALID_VALUE(
+        "date",
+        date.toISOString(),
+        `at most ${EVENT_DATE_MAX_MONTHS_AHEAD} months ahead`,
+      ),
+    );
   }
 
   /**
@@ -425,15 +422,11 @@ export class EventsService {
     if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const callerAccess = loaded.eventAccesses[0];
-    if (!callerAccess) {
-      throw new ForbiddenException();
-    }
+    if (!callerAccess) throw new ApiException("NOT_A_MEMBER", { eventId });
 
     if (callerAccess.accessLevel === AccessLevel.ORGANIZER) {
       const organizerCount = await this.countOrganizers(eventId);
-      if (organizerCount <= 1) {
-        throw new UnprocessableEntityException();
-      }
+      if (organizerCount <= 1) throw new ApiException("LAST_ORGANIZER", { eventId });
     }
 
     const deletesPhotos = photos === MEMBER_PHOTOS.DELETE && galleryStateOf(loaded) !== GALLERY_STATES.CLOSED;
@@ -474,9 +467,7 @@ export class EventsService {
     if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded))) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded));
 
     const accesses = await this.prisma.eventAccess.findMany({
       where: { eventId },
@@ -500,23 +491,17 @@ export class EventsService {
   ): Promise<EventParticipant> {
     await this.getUpdatable(eventId, callerId);
 
-    if (callerId === targetUserId) {
-      throw new ForbiddenException();
-    }
+    if (callerId === targetUserId) throw new ApiException("CANNOT_CHANGE_OWN_ROLE");
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
       include: eventAccessWithUserInclude(callerId),
     });
-    if (!targetAccess) {
-      throw new ForbiddenException();
-    }
+    if (!targetAccess) throw new ApiException("TARGET_NOT_A_MEMBER", { userId: targetUserId, eventId });
 
     if (targetAccess.accessLevel === AccessLevel.ORGANIZER && accessLevel !== AccessLevel.ORGANIZER) {
       const organizerCount = await this.countOrganizers(eventId);
-      if (organizerCount <= 1) {
-        throw new UnprocessableEntityException();
-      }
+      if (organizerCount <= 1) throw new ApiException("LAST_ORGANIZER", { eventId });
     }
 
     if (targetAccess.accessLevel === accessLevel) {
@@ -557,22 +542,16 @@ export class EventsService {
   ): Promise<void> {
     await this.getUpdatable(eventId, callerId);
 
-    if (callerId === targetUserId) {
-      throw new ForbiddenException();
-    }
+    if (callerId === targetUserId) throw new ApiException("CANNOT_REMOVE_SELF");
 
     const targetAccess = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: targetUserId, eventId } },
     });
-    if (!targetAccess) {
-      throw new ForbiddenException();
-    }
+    if (!targetAccess) throw new ApiException("TARGET_NOT_A_MEMBER", { userId: targetUserId, eventId });
 
     if (targetAccess.accessLevel === AccessLevel.ORGANIZER) {
       const organizerCount = await this.countOrganizers(eventId);
-      if (organizerCount <= 1) {
-        throw new UnprocessableEntityException();
-      }
+      if (organizerCount <= 1) throw new ApiException("LAST_ORGANIZER", { eventId });
     }
 
     const removed = await this.prisma.$transaction((tx) =>
@@ -636,9 +615,10 @@ export class EventsService {
     if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "ID", eventId));
 
     const ability = await this.abilityFactory.createForCaller(callerId);
-    if (!ability.can(EVENT_ACTIONS.DELETE, subject(EVENT_SUBJECT, event))) {
-      throw new ForbiddenException();
-    }
+    authorize(ability, EVENT_ACTIONS.DELETE, subject(EVENT_SUBJECT, event), {
+      isMember: event.eventAccesses.length > 0,
+      refusal: "ORGANIZER_ONLY",
+    });
 
     // Only a closed event can be deleted, the way WhatsApp has you exit a group
     // before deleting it: deactivating comes first, so a delete never takes a
@@ -681,9 +661,8 @@ export class EventsService {
   }
 
   private async toEventParticipant(eventId: string, access: EventAccessWithUser): Promise<EventParticipant> {
-    if (!access.user.details) {
-      throw new ForbiddenException();
-    }
+    // A member without a profile has no participant to show, as in the roster.
+    if (!access.user.details) throw new ApiException("TARGET_NOT_A_MEMBER", { userId: access.userId, eventId });
 
     return {
       userId: access.userId,

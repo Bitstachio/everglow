@@ -28,7 +28,7 @@ export class CreateUserDetailsDto {
   username: string;
 
   // App Store guideline 1.2: nobody joins without agreeing to terms that
-  // forbid objectionable content. See docs/moderation.md §6.
+  // forbid objectionable content. See docs/moderation.md §10.
   @ApiProperty({
     type: Boolean,
     example: true,

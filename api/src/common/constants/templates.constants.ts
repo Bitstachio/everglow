@@ -7,8 +7,11 @@ export const RESPONSE_TEMPLATES = {
   RESOURCE: {
     NOT_FOUND: (entity: string, field: string, value: string | number) =>
       `${entity} with ${field} "${value}" not found`,
-    ALREADY_EXISTS: (entity: string, field: string, value: string | number) =>
-      `${entity} with ${field} "${value}" already exists`,
   },
   INVALID_FORMAT: (field: string, value: string) => `${field} "${value}" is not a valid format`,
+  INVALID_VALUE: (field: string, value: string | number, expected: string) => `${field} "${value}" must be ${expected}`,
+  ACCESS_DENIED: (action: string, subject: string) => `Caller may not ${action} this ${subject}`,
+  TOKEN_REJECTED: (reason: string) => `Bearer token rejected: ${reason}`,
+  SIGNING_KEYS_UNAVAILABLE: (reason: string) =>
+    `Couldn't fetch Auth0's signing keys to check the bearer token: ${reason}`,
 } as const;

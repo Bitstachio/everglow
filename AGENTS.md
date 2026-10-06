@@ -5,6 +5,7 @@ Shared process docs live in [`.context/`](.context/). Read the matching file in 
 | When you…                                                                          | Read and follow                                                                        |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Create, search, update, or link a Linear issue                                     | [`.context/linear-issue-generator.md`](.context/linear-issue-generator.md)             |
+| Name a git branch                                                                  | [`.context/git-branch-names.md`](.context/git-branch-names.md)                         |
 | Split work into reviewable PRs or open more than one PR for an issue               | [`.context/stacked-prs.md`](.context/stacked-prs.md)                                   |
 | Write a PR title/body or run `gh pr create` / `gh stack submit` (title = subject)  | [`.context/pr-description-generator.md`](.context/pr-description-generator.md)         |
 | Write the squash-merge commit **body** (under the PR title; no new subject line)   | [`.context/commit-description-generator.md`](.context/commit-description-generator.md) |

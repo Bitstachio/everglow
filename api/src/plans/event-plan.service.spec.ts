@@ -135,7 +135,9 @@ describe("EventPlanService", () => {
     });
 
     it("refuses a length the plan doesn't offer", () => {
-      expect(() => service.resolveGalleryWindow(freeV2, 10)).toThrow(new BadRequestException());
+      expect(() => service.resolveGalleryWindow(freeV2, 10)).toThrow(
+        new BadRequestException('galleryWindowDays "10" must be one of 3, 7, 14, 30'),
+      );
     });
 
     it("holds an event on a version without options to its one length", () => {

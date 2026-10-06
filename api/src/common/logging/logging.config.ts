@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { IncomingMessage, ServerResponse } from "http";
 import type { ConfigService } from "@nestjs/config";
 import type { Params } from "nestjs-pino";
+import { errorLogFieldsOf } from "./error-log-fields";
 
 /**
  * Centralized nestjs-pino configuration: the single "shared logging facade"
@@ -94,6 +95,10 @@ export const buildLoggerConfig = (config: ConfigService): Params => {
         if (res.statusCode >= 400) return "warn";
         return "info";
       },
+      // A failed request's completion line also says which code the client got
+      // and why (`errorCode`, `errorReason`), as recorded by AllExceptionsFilter.
+      // pino-http reads this again when the response finishes, after the filter.
+      customProps: (_req: IncomingMessage, res: ServerResponse) => errorLogFieldsOf(res) ?? {},
       autoLogging: enableHttpAccessLogs
         ? {
             ignore: (req: IncomingMessage) => SILENCED_ROUTES.has(req.url ?? ""),
