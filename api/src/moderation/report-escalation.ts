@@ -34,7 +34,9 @@ export const escalationLogName = (reason: ReportEscalation): string => reason.to
  * why and when. Reports already with the platform, or no longer OPEN, are left
  * alone, so a move is never repeated and never reopens anything. Returns the
  * reports it moved, for the caller to log once its transaction has committed
- * (logEscalations).
+ * (logEscalations). The columns are timestamps without a time zone holding
+ * UTC, as Prisma writes them, so the time is taken in UTC whatever the
+ * database session's zone.
  */
 export const escalateToPlatform = async (
   db: Prisma.TransactionClient,
@@ -45,7 +47,7 @@ export const escalateToPlatform = async (
 
   return db.$queryRaw<EscalatedReport[]>`
     UPDATE "Report"
-    SET "queue" = 'PLATFORM', "escalatedAt" = now(), "updatedAt" = now(),
+    SET "queue" = 'PLATFORM', "escalatedAt" = (now() AT TIME ZONE 'UTC'), "updatedAt" = (now() AT TIME ZONE 'UTC'),
         "escalationReasons" = array_append("escalationReasons", ${reason}::"ReportEscalation")
     WHERE "id" = ANY(${reportIds}::uuid[]) AND "status" = 'OPEN' AND "queue" = 'ORGANIZERS'
     RETURNING "id", "eventId", "targetType", "photoId", "reportedUserId", "reason"`;
