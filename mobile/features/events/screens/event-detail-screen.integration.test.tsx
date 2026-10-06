@@ -20,6 +20,7 @@ const mockRemoveParticipant = jest.fn();
 const mockCreateUploadUrls = jest.fn();
 const mockConfirmUploads = jest.fn();
 const mockFileSize = jest.fn();
+const mockUploadAsync = jest.fn();
 const mockRemovePhoto = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
@@ -72,6 +73,12 @@ jest.mock("expo-file-system", () => ({
     jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri) })),
     { downloadFileAsync: (...args: unknown[]) => mockDownloadFile(...args) },
   ),
+}));
+// The background-session PUT of each event photo to its upload URL.
+jest.mock("expo-file-system/legacy", () => ({
+  FileSystemSessionType: { BACKGROUND: 0, FOREGROUND: 1 },
+  FileSystemUploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
+  uploadAsync: (...args: unknown[]) => mockUploadAsync(...args),
 }));
 
 const clients: QueryClient[] = [];
@@ -166,10 +173,7 @@ beforeEach(() => {
   mockRequestMediaPermission.mockReset().mockResolvedValue({ status: "granted" });
   mockCreateAsset.mockReset().mockResolvedValue({});
   mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg" });
-  globalThis.fetch = jest.fn().mockResolvedValue({
-    ok: true,
-    blob: async () => new Blob([IMAGE_BYTES]),
-  }) as typeof fetch;
+  mockUploadAsync.mockReset().mockResolvedValue({ status: 200, headers: {} });
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 

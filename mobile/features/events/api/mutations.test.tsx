@@ -19,6 +19,14 @@ jest.mock("@/lib/api/generated", () => ({
   photosControllerCreateUploadUrls: (...args: unknown[]) => mockCreateUploadUrls(...args),
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
 }));
+jest.mock("expo-file-system", () => ({
+  File: jest.fn().mockImplementation((uri: string) => ({ uri, size: 1 })),
+}));
+jest.mock("expo-file-system/legacy", () => ({
+  FileSystemSessionType: { BACKGROUND: 0, FOREGROUND: 1 },
+  FileSystemUploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
+  uploadAsync: jest.fn().mockResolvedValue({ status: 200, headers: {} }),
+}));
 
 const body = { title: "Meetup", date: "2030-06-15T18:30:00.000Z" };
 const MutationProbe = () => {
@@ -98,12 +106,6 @@ test("creation stays pending until the active event list has refreshed", async (
   client.clear();
 });
 
-const originalFetch = globalThis.fetch;
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
-
 test.each([
   ["succeeds", { data: { data: [{ photoId: "photo-new", uploadUrl: "https://upload.example.com/slot" }] } }],
   ["stops", undefined],
@@ -120,10 +122,6 @@ test.each([
   if (slots) mockCreateUploadUrls.mockResolvedValue(slots);
   else mockCreateUploadUrls.mockRejectedValue(new Error("Network unavailable"));
   mockConfirmUploads.mockReset().mockResolvedValue({ data: { data: [{ photoId: "photo-new", status: "READY" }] } });
-  globalThis.fetch = jest
-    .fn()
-    .mockResolvedValueOnce({ blob: async () => new Blob(["x"]) })
-    .mockResolvedValueOnce({ ok: true }) as typeof fetch;
 
   const { result } = await renderHook(() => useUploadEventPhotosMutation(), { wrapper });
   const outcome = await result.current.mutateAsync({
