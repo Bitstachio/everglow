@@ -18,6 +18,7 @@ describe("AccountDeletionPrepService", () => {
   const emptySummary = {
     eventsDeleted: 0,
     eventsHandedOver: 0,
+    eventsKeptForModeration: 0,
     photosKept: 0,
     photosDeleted: 0,
     reportsClosed: 0,
@@ -31,6 +32,9 @@ describe("AccountDeletionPrepService", () => {
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     prisma.eventAccess.findMany.mockResolvedValue([]);
     prisma.eventAccess.count.mockResolvedValue(0);
+    // Moderation needs none of the events unless a test says otherwise.
+    prisma.$queryRaw.mockResolvedValue([{ underReviewAt: null }]);
+    prisma.report.count.mockResolvedValue(0);
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
@@ -117,6 +121,19 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.event.deleteMany).toHaveBeenCalledWith({ where: { id: soloEventId } });
       expect(result.summary.eventsDeleted).toBe(1);
       expect(result.s3Keys).toEqual(expect.arrayContaining(["photos/solo/a", "photos/solo/b"]));
+    });
+
+    it.each<[string, () => void]>([
+      ["under review", () => prisma.$queryRaw.mockResolvedValue([{ underReviewAt: new Date() }])],
+      ["with an OPEN report", () => prisma.report.count.mockResolvedValue(1)],
+    ])("keeps an event nobody else is in while it is %s, for the platform", async (_, arrange) => {
+      arrange();
+
+      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(prisma.event.deleteMany).not.toHaveBeenCalled();
+      expect(result.summary).toMatchObject({ eventsDeleted: 0, eventsKeptForModeration: 1 });
+      expect(result.s3Keys).not.toEqual(expect.arrayContaining(["photos/solo/a"]));
     });
 
     it("collects the cover key of an event it deletes, next to its photo keys", async () => {

@@ -31,7 +31,7 @@ describe("GalleryCloseService", () => {
   };
   const due = (id: string) => ({ id, planId: freePlan.id, galleryClosesAt: new Date("2026-11-01T11:00:00.000Z") });
   const photo = (id: string, sizeBytes = 1000) => ({ id, s3Key: `photos/u/e/${id}`, sizeBytes });
-  const removable = { reports: { none: { status: "OPEN" } } };
+  const removable = { reports: { none: { status: "OPEN" } }, event: { underReviewAt: null } };
 
   /** The first findMany is the due galleries, the second the closed ones to sweep. */
   const mockPasses = (dueGalleries: ReturnType<typeof due>[], leftovers: { id: string }[] = []) =>
@@ -191,7 +191,7 @@ describe("GalleryCloseService", () => {
       bytesRemoved: "2500",
     });
     expect(prisma.event.findMany).toHaveBeenNthCalledWith(2, {
-      where: { galleryClosedAt: { not: null }, photos: { some: removable } },
+      where: { galleryClosedAt: { not: null }, underReviewAt: null, photos: { some: removable } },
       take: batchSize,
       select: { id: true },
     });

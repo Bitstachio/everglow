@@ -705,6 +705,26 @@ describe("EventsController (integration)", () => {
       return buildEvent({ galleryClosesAt: anHourAgo, deactivatedAt: anHourAgo, deactivatedById: TEST_USER_ID });
     };
 
+    beforeEach(() => {
+      // Nothing for moderation to keep unless a test says otherwise.
+      prisma.$queryRaw.mockResolvedValue([{ underReviewAt: null }]);
+      prisma.report.count.mockResolvedValue(0);
+    });
+
+    it.each<[string, string, () => void]>([
+      ["under review", "EVENT_UNDER_REVIEW", () => prisma.$queryRaw.mockResolvedValue([{ underReviewAt: new Date() }])],
+      ["with an OPEN report", "EVENT_HAS_OPEN_REPORTS", () => prisma.report.count.mockResolvedValue(1)],
+    ])("returns 403 for a closed event %s (%s), deleting nothing", async (_, code, arrange) => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent(), [buildOrganizerAccess()]));
+      arrange();
+
+      const response = await request(httpServer).delete(path()).set(authHeader()).expect(403);
+
+      expect(response.body).toMatchObject({ code });
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
+
     it("returns 403 EVENT_STILL_ACTIVE for an event that hasn't closed, deleting nothing", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
 

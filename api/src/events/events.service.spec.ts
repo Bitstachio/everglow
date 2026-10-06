@@ -353,6 +353,9 @@ describe("EventsService", () => {
     prisma = mockDeep<PrismaClient>();
     // No blocks unless a test says otherwise.
     prisma.userBlock.findMany.mockResolvedValue([]);
+    // Moderation needs no event unless a test says otherwise.
+    prisma.$queryRaw.mockResolvedValue([{ underReviewAt: null }]);
+    prisma.report.count.mockResolvedValue(0);
     logger = {
       setContext: jest.fn(),
       info: jest.fn(),
@@ -1842,6 +1845,35 @@ describe("EventsService", () => {
       expect((failure as ApiException).getResponse()).toMatchObject({ code: "EVENT_STILL_ACTIVE" });
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
+    });
+
+    it.each<[string, string, () => void]>([
+      ["under review", "EVENT_UNDER_REVIEW", () => prisma.$queryRaw.mockResolvedValue([{ underReviewAt: new Date() }])],
+      ["with an OPEN report", "EVENT_HAS_OPEN_REPORTS", () => prisma.report.count.mockResolvedValue(2)],
+    ])("refuses a closed event %s with 403 %s, deleting and purging nothing", async (_, code, arrange) => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
+      arrange();
+
+      const failure = await service.delete(eventId, callerId).catch((e: unknown) => e);
+
+      expect((failure as ApiException).getResponse()).toMatchObject({ code });
+      expect(prisma.event.delete).not.toHaveBeenCalled();
+      expect(photoPurgeService.purgeObjects).not.toHaveBeenCalled();
+    });
+
+    it("locks the event and checks its moderation inside the transaction, before deleting", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(deactivatedEvent, [organizerAccess]));
+      prisma.event.delete.mockResolvedValue(eventCreatedByUser);
+
+      await service.delete(eventId, callerId);
+
+      expect(prisma.report.count).toHaveBeenCalledWith({ where: { eventId, status: "OPEN" } });
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.report.count.mock.invocationCallOrder[0],
+      );
+      expect(prisma.report.count.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.event.delete.mock.invocationCallOrder[0],
+      );
     });
 
     it("deletes an event whose gallery closed on schedule, without it being deactivated", async () => {
