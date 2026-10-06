@@ -4,7 +4,7 @@ This document is the entry point for how we write TypeScript and React Native co
 
 **Reference implementation:** `features/profile/` for feature structure.
 
-**Enforcement:** `mobile/eslint.config.js` encodes what can be automated. Run `pnpm lint` before opening a PR (lints `app/`, `components/`, `constants/`, `context/`, `features/`, `hooks/`, `lib/`, and `providers/`). Use the [code review checklist](./code-review-checklist.md) for everything lint cannot judge.
+**Enforcement:** `mobile/eslint.config.js` encodes what can be automated. Run `pnpm lint` before opening a PR (lints `app/`, `components/`, `constants/`, `context/`, `features/`, `hooks/`, `i18n/`, `lib/`, `locales/`, and `providers/`). Use the [code review checklist](./code-review-checklist.md) for everything lint cannot judge.
 
 ## Topic docs
 
@@ -13,6 +13,7 @@ This document is the entry point for how we write TypeScript and React Native co
 | Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
 | API client, React Query, feature `api/`       | [API](./api.md)                                             |
 | API failures, translation table, interceptor  | [Exception handling](./exception-handling.md)               |
+| Locale catalogs, i18next, device language     | [i18n](./i18n.md)                                           |
 | Forms (React Hook Form + Zod)                 | [Forms](./forms.md)                                         |
 | Custom SVG icons (`AppIcon`)                  | [Icons](./icons.md)                                         |
 | Theme tokens, light/dark, NativeWind          | [Theme](./theme.md)                                         |
@@ -50,7 +51,7 @@ Higher layers inherit lower layers. Feature code must follow codebase convention
 
 ## 1. Codebase conventions
 
-These apply to every `.ts` and `.tsx` file under `app/`, `components/`, `context/`, `features/`, `hooks/`, `lib/`, `providers/`, and `constants/`. Generated code under `lib/api/generated/` is excluded.
+These apply to every `.ts` and `.tsx` file under `app/`, `components/`, `context/`, `features/`, `hooks/`, `i18n/`, `lib/`, `locales/`, `providers/`, and `constants/`. Generated code under `lib/api/generated/` is excluded.
 
 ### Functions
 

@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Auth0Provider } from "react-native-auth0";
 import { AuthProvider, useAuth } from "@/context/auth-context";
+import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AppThemeProvider } from "@/theme/provider";
 import "./global.css";
@@ -10,16 +11,18 @@ const AUTH0_DOMAIN = process.env.EXPO_PUBLIC_AUTH0_DOMAIN ?? "";
 const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID ?? "";
 
 const RootLayout = () => (
-  <Auth0Provider domain={AUTH0_DOMAIN} clientId={AUTH0_CLIENT_ID}>
-    <AuthProvider>
-      <QueryProvider>
-        <AppThemeProvider>
-          <RootNavigator />
-          <StatusBar style="auto" />
-        </AppThemeProvider>
-      </QueryProvider>
-    </AuthProvider>
-  </Auth0Provider>
+  <I18nProvider>
+    <Auth0Provider domain={AUTH0_DOMAIN} clientId={AUTH0_CLIENT_ID}>
+      <AuthProvider>
+        <QueryProvider>
+          <AppThemeProvider>
+            <RootNavigator />
+            <StatusBar style="auto" />
+          </AppThemeProvider>
+        </QueryProvider>
+      </AuthProvider>
+    </Auth0Provider>
+  </I18nProvider>
 );
 
 export default RootLayout;
