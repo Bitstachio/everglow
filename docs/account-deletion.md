@@ -254,7 +254,7 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 | Identity, profile (`UserDetails`)             | Deleted. No name or username survives.                                         |
 | Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.       |
 | Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                           |
-| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image.                   |
+| Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image. One under review or with an open report is kept instead, without members, for the platform ([moderation.md §7](./moderation.md#7-evidence-deletes-and-retention)). |
 | Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                 |
 | Events with another organizer                 | Untouched; only the membership goes.                                           |
 | `Event.creatorId` on surviving events         | Null.                                                                          |

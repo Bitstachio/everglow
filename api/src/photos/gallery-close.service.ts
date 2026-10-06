@@ -35,10 +35,15 @@ type DueGallery = Pick<Event, "id" | "planId" | "galleryClosesAt">;
 
 /**
  * The photos a closed gallery no longer holds: every one without an OPEN
- * report. A photo with one stays as evidence until it is resolved, and the
- * sweep removes it after that.
+ * report, in an event that isn't under review. A reported photo stays as
+ * evidence until its reports are closed, and every photo of an event under
+ * review stays until the platform lifts it (docs/moderation.md §7). The sweep
+ * removes them after that.
  */
-const REMOVABLE_PHOTOS: Prisma.PhotoWhereInput = { reports: { none: { status: ReportStatus.OPEN } } };
+const REMOVABLE_PHOTOS: Prisma.PhotoWhereInput = {
+  reports: { none: { status: ReportStatus.OPEN } },
+  event: { underReviewAt: null },
+};
 
 /**
  * Closes galleries whose window has ended (docs/event-quotas.md): marks the
@@ -52,8 +57,8 @@ const REMOVABLE_PHOTOS: Prisma.PhotoWhereInput = { reports: { none: { status: Re
  * 1. Close: claim each due gallery by setting `galleryClosedAt`, then remove
  *    its photos.
  * 2. Sweep: empty galleries closed earlier that still hold photos no OPEN
- *    report needs: their reports were resolved since, an upload landed late,
- *    or a run stopped half way.
+ *    report needs: their reports were resolved since, the event's review was
+ *    lifted, an upload landed late, or a run stopped half way.
  *
  * Nothing is visible in the meantime: from the close time on, reads show a
  * closed gallery's photos to nobody (PhotoVisibilityService).
@@ -92,7 +97,7 @@ export class GalleryCloseService {
     }
 
     const leftovers = await this.prisma.event.findMany({
-      where: { galleryClosedAt: { not: null }, photos: { some: REMOVABLE_PHOTOS } },
+      where: { galleryClosedAt: { not: null }, underReviewAt: null, photos: { some: REMOVABLE_PHOTOS } },
       take: batchSize,
       select: { id: true },
     });

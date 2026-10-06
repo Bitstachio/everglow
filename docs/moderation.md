@@ -24,7 +24,7 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 | Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits                  | Built                     | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
 | Two queues: where a report starts, what moves it to the platform, who may close it (§3)                        | Planned                   | Filed once this design is agreed                                                                                                                                                                             |
 | Report history: reports outlive their event, and record why and by whom they closed (§1, §3)                   | Planned, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
-| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                  | Planned                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
+| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                  | Built                     | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
 | Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                      | Planned                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
 | `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons; NCMEC, Canada and TAKE IT DOWN procedures (§2, §7) | Planned                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the TAKE IT DOWN part is filed once this design is agreed                                                                                                |
 | Platform tools: act on any report, suspend accounts and events, lift reviews (§8)                              | Planned                   | [EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59); account suspension is filed once this design is agreed                                               |
@@ -344,7 +344,7 @@ While an event is under review:
 - **Members keep access.** Nothing is hidden beyond what §4 and §5 already hide, and nothing is deleted.
 - **Organizers can still change the cover**, so they can replace one that was reported.
 - **Every event response carries `status: "UNDER_REVIEW"`** (otherwise `"ACTIVE"`), so the app can say so on the event screen.
-- **The event can't be deleted, and the close job removes none of its photos** until the review is lifted (planned, §7).
+- **The event can't be deleted, and the close job removes none of its photos** until the review is lifted (§7).
 
 The report that puts the event under review is escalated with `event_under_review` (§9); later reports are not, since the event is already there. The update only matches an event not yet under review, so of two reports that cross the threshold together exactly one says so.
 
@@ -473,7 +473,7 @@ Every event has two invite links, **Participant** and **Viewer** (`EventInvite`)
 
 ## 7. Evidence, deletes and retention
 
-**Planned** ([EV-106](https://linear.app/mehrshadfb/issue/EV-106), [EV-61](https://linear.app/mehrshadfb/issue/EV-61), [EV-62](https://linear.app/mehrshadfb/issue/EV-62)), except where marked built. Today a reported photo's image is purged as soon as anyone deletes it, and deleting an event deletes its reports. So someone who is reported can deactivate the event and delete it, or delete the photo, and nothing is left to review.
+Deletes waiting for moderation are built ([EV-106](https://linear.app/mehrshadfb/issue/EV-106)). Evidence, retention and the procedures are **Planned** ([EV-61](https://linear.app/mehrshadfb/issue/EV-61), [EV-62](https://linear.app/mehrshadfb/issue/EV-62)). Until then a reported photo's image is purged as soon as anyone deletes it, so someone who is reported can delete the photo and nothing is left to review.
 
 **The rule:** nobody can make a report, or what it is about, disappear before it has been judged. Users can still delete their own things whenever they like: the content is hidden from everyone at once, and only the evidence copy stays, locked away.
 

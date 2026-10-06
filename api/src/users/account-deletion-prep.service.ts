@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { AccessLevel, AccountDeletionPhotoPolicy, PhotoStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { lockPendingModeration } from "src/moderation/pending-moderation";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
 
@@ -9,6 +10,12 @@ export interface AccountDeletionPrepSummary {
   eventsDeleted: number;
   /** Events the account organised alone with other members: the longest-standing member is now an organizer. */
   eventsHandedOver: number;
+  /**
+   * Events the account organised alone with nobody else in them, kept because
+   * they are under review or have OPEN reports: they stay without members for
+   * the platform to decide.
+   */
+  eventsKeptForModeration: number;
   /** READY photos left in surviving events with no uploader. */
   photosKept: number;
   /** READY photos removed from surviving events. */
@@ -83,6 +90,7 @@ export class AccountDeletionPrepService {
     const s3Keys: string[] = [];
     let eventsDeleted = 0;
     let eventsHandedOver = 0;
+    let eventsKeptForModeration = 0;
 
     // 1. Events the account organises. With another organizer around nothing
     //    needs doing: the membership cascades with the row. Otherwise the
@@ -118,8 +126,17 @@ export class AccountDeletionPrepService {
         continue;
       }
 
-      // Nobody is left who would keep it. The event goes with every photo
-      // still in it, including photos of members who left earlier.
+      // Nobody is left who would keep it. If moderation still needs it, it
+      // stays without members for the platform, which deletes it once it has
+      // decided (docs/moderation.md §7). The account's own photos in it follow
+      // the photo policy below, like any event that outlives the account.
+      if (await lockPendingModeration(tx, eventId)) {
+        eventsKeptForModeration += 1;
+        continue;
+      }
+
+      // Otherwise the event goes with every photo still in it, including
+      // photos of members who left earlier.
       const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
       s3Keys.push(...photos.map((photo) => photo.s3Key));
       // Its cover goes to the same purge; the column disappears with the row.
@@ -176,6 +193,7 @@ export class AccountDeletionPrepService {
       summary: {
         eventsDeleted,
         eventsHandedOver,
+        eventsKeptForModeration,
         photosKept,
         photosDeleted,
         reportsClosed,

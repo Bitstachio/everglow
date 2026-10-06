@@ -18,6 +18,10 @@ export const EVENT_API_ERRORS = {
     status: HttpStatus.CONFLICT,
     message: "Event cover was changed by another request",
   },
+  EVENT_HAS_OPEN_REPORTS: {
+    status: HttpStatus.FORBIDDEN,
+    message: "Event has open reports",
+  },
   EVENT_UNDER_REVIEW: {
     status: HttpStatus.FORBIDDEN,
     message: "Event is under review",

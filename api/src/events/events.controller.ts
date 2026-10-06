@@ -141,7 +141,9 @@ export class EventsController {
     summary: "Delete an event",
     description:
       "Organizers only, and only once the event is closed: deactivate it first, or wait for its gallery " +
-      "to close. Otherwise 403 EVENT_STILL_ACTIVE.",
+      "to close. Otherwise 403 EVENT_STILL_ACTIVE. Moderation has to finish first: 403 EVENT_UNDER_REVIEW " +
+      "while the event is under review, and 403 EVENT_HAS_OPEN_REPORTS while any report about it, its " +
+      "photos or its members is open.",
   })
   @ApiNoContentResponse({ description: "Event deleted (empty data envelope at runtime)" })
   async remove(

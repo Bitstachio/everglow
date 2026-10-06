@@ -20,6 +20,7 @@ import { UpdateEventDto } from "./dto/update-event.dto";
 import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-membership";
 import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
+import { lockPendingModeration } from "src/moderation/pending-moderation";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
 import { EVENT_DATE_MAX_MONTHS_AHEAD, latestEventDate } from "./events.constants";
 import {
@@ -636,7 +637,14 @@ export class EventsService {
     //
     // The cover key comes from the row the delete itself returns, not from the
     // read above, so a cover confirmed in between is still purged.
+    //
+    // Moderation comes first: an event under review, or with any OPEN report,
+    // stays until it has been decided, so deactivating then deleting can't
+    // erase what was reported (docs/moderation.md §7).
     const { photoKeys, coverKey } = await this.prisma.$transaction(async (tx) => {
+      const pending = await lockPendingModeration(tx, eventId);
+      if (pending) throw new ApiException(pending);
+
       const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
       const deleted = await tx.event.delete({ where: { id: eventId } });
       return { photoKeys: photos.map((photo) => photo.s3Key), coverKey: deleted.coverS3Key };
