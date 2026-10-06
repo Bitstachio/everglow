@@ -83,6 +83,30 @@ import type {
   PhotosControllerRemoveData,
   PhotosControllerRemoveErrors,
   PhotosControllerRemoveResponses,
+  PlatformModerationControllerEvidenceUrlData,
+  PlatformModerationControllerEvidenceUrlErrors,
+  PlatformModerationControllerEvidenceUrlResponses,
+  PlatformModerationControllerGetReportData,
+  PlatformModerationControllerGetReportErrors,
+  PlatformModerationControllerGetReportResponses,
+  PlatformModerationControllerLiftReviewData,
+  PlatformModerationControllerLiftReviewErrors,
+  PlatformModerationControllerLiftReviewResponses,
+  PlatformModerationControllerListReportsData,
+  PlatformModerationControllerListReportsErrors,
+  PlatformModerationControllerListReportsResponses,
+  PlatformModerationControllerRecordAuthorityReportData,
+  PlatformModerationControllerRecordAuthorityReportErrors,
+  PlatformModerationControllerRecordAuthorityReportResponses,
+  PlatformModerationControllerReleaseHoldData,
+  PlatformModerationControllerReleaseHoldErrors,
+  PlatformModerationControllerReleaseHoldResponses,
+  PlatformModerationControllerResolveReportData,
+  PlatformModerationControllerResolveReportErrors,
+  PlatformModerationControllerResolveReportResponses,
+  PlatformModerationControllerSetHoldData,
+  PlatformModerationControllerSetHoldErrors,
+  PlatformModerationControllerSetHoldResponses,
   ReportsControllerListReportsData,
   ReportsControllerListReportsErrors,
   ReportsControllerListReportsResponses,
@@ -833,3 +857,181 @@ export const eventsControllerConfirmCoverUpload = <ThrowOnError extends boolean 
       ...options.headers,
     },
   });
+
+/**
+ * List reports across events (platform moderators)
+ *
+ * The platform's OPEN reports by default, oldest first. Filter by queue, status or event.
+ */
+export const platformModerationControllerListReports = <ThrowOnError extends boolean = false>(
+  options?: Options<PlatformModerationControllerListReportsData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerListReportsResponses,
+  PlatformModerationControllerListReportsErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    PlatformModerationControllerListReportsResponses,
+    PlatformModerationControllerListReportsErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/admin/reports",
+    ...options,
+  });
+
+/**
+ * Get a report with who filed it and its evidence summary (platform moderators)
+ */
+export const platformModerationControllerGetReport = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerGetReportData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerGetReportResponses,
+  PlatformModerationControllerGetReportErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    PlatformModerationControllerGetReportResponses,
+    PlatformModerationControllerGetReportErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/admin/reports/{reportId}",
+    ...options,
+  });
+
+/**
+ * Resolve any report (platform moderators)
+ *
+ * The organizer verdicts, on any OPEN report in either queue. Closes every OPEN report on the same target. REMOVE_PHOTO on a photo that is already gone upholds the reports. A report about the event itself takes DISMISS only. 409 REPORT_ALREADY_RESOLVED once it is closed.
+ */
+export const platformModerationControllerResolveReport = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerResolveReportData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerResolveReportResponses,
+  PlatformModerationControllerResolveReportErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).patch<
+    PlatformModerationControllerResolveReportResponses,
+    PlatformModerationControllerResolveReportErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/admin/reports/{reportId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Get a short-lived link to what a report is about (platform moderators)
+ *
+ * The evidence copy once there is one, the live object before that. Expires after 5 minutes. Every link is logged. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept.
+ */
+export const platformModerationControllerEvidenceUrl = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerEvidenceUrlData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerEvidenceUrlResponses,
+  PlatformModerationControllerEvidenceUrlErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PlatformModerationControllerEvidenceUrlResponses,
+    PlatformModerationControllerEvidenceUrlErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/admin/reports/{reportId}/evidence-url",
+    ...options,
+  });
+
+/**
+ * Release a report's hold (platform moderators)
+ */
+export const platformModerationControllerReleaseHold = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerReleaseHoldData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerReleaseHoldResponses,
+  PlatformModerationControllerReleaseHoldErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    PlatformModerationControllerReleaseHoldResponses,
+    PlatformModerationControllerReleaseHoldErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/admin/reports/{reportId}/hold",
+    ...options,
+  });
+
+/**
+ * Hold a report and its evidence past the retention window (platform moderators)
+ */
+export const platformModerationControllerSetHold = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerSetHoldData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerSetHoldResponses,
+  PlatformModerationControllerSetHoldErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).put<
+    PlatformModerationControllerSetHoldResponses,
+    PlatformModerationControllerSetHoldErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/admin/reports/{reportId}/hold",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Record that a report went to NCMEC or the police (platform moderators)
+ *
+ * Stores the reference and holds the report and its evidence for a year from the submission.
+ */
+export const platformModerationControllerRecordAuthorityReport = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerRecordAuthorityReportData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerRecordAuthorityReportResponses,
+  PlatformModerationControllerRecordAuthorityReportErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).put<
+    PlatformModerationControllerRecordAuthorityReportResponses,
+    PlatformModerationControllerRecordAuthorityReportErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/admin/reports/{reportId}/authority-report",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Lift an event's review (platform moderators)
+ *
+ * Joins and uploads work again. Idempotent. Its reports stay as they are; resolve them separately.
+ */
+export const platformModerationControllerLiftReview = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerLiftReviewData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerLiftReviewResponses,
+  PlatformModerationControllerLiftReviewErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PlatformModerationControllerLiftReviewResponses,
+    PlatformModerationControllerLiftReviewErrors,
+    ThrowOnError
+  >({ url: "/api/v2/admin/events/{eventId}/lift-review", ...options });

@@ -14,7 +14,8 @@ import { StaleReportCheckScheduler } from "./stale-report-check.scheduler";
   // PhotoPurgeService is stateless and needs only the global S3Service; it is
   // provided here directly because importing PhotosModule would be a cycle.
   providers: [ReportsService, BlocksService, PhotoVisibilityService, PhotoPurgeService, StaleReportCheckScheduler],
-  // The photo read paths are the only consumer outside this module.
-  exports: [PhotoVisibilityService],
+  // The photo read paths use the visibility filter; the platform tools give
+  // verdicts through ReportsService.
+  exports: [PhotoVisibilityService, ReportsService],
 })
 export class ModerationModule {}

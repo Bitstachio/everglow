@@ -110,6 +110,40 @@ export class EvidenceService {
   }
 
   /**
+   * Deletes the evidence copies of these reports and forgets the objects they
+   * point at, keeping the hash and the metadata. For an intimate image the
+   * person asked to have removed: keeping a copy would undo the removal
+   * (docs/moderation.md §7). A copy that can't be deleted stays referenced,
+   * and is retried with the report's purge.
+   */
+  async discardImages(reportIds: string[]): Promise<void> {
+    if (reportIds.length === 0) return;
+
+    const rows = await this.prisma.reportEvidence.findMany({
+      where: { reportId: { in: reportIds }, evidenceS3Key: { not: null } },
+      select: { id: true, reportId: true, evidenceS3Key: true },
+    });
+    for (const row of rows) {
+      try {
+        await this.s3Service.deleteObject(row.evidenceS3Key!);
+        await this.prisma.reportEvidence.update({
+          where: { id: row.id },
+          data: { evidenceS3Key: null, objectS3Key: null },
+        });
+        this.logger.info(
+          { event: "report.evidence.discarded", reportId: row.reportId, audit: true },
+          "Intimate image's evidence copy deleted; its hash is kept",
+        );
+      } catch (error) {
+        this.logger.error(
+          { err: error as Error, event: ALERT_EVENTS.REPORT_EVIDENCE_COPY_FAILED, reportId: row.reportId },
+          "Intimate image's evidence copy could not be deleted",
+        );
+      }
+    }
+  }
+
+  /**
    * The subset of `keys` that a report's evidence still needs as the
    * original: its copy failed, or hasn't been made yet. For the orphan
    * sources, so the reconciler never deletes an object that is all a report

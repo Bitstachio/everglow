@@ -567,6 +567,133 @@ export class ReportsService {
   }
 
   /**
+   * A platform moderator's verdict (docs/moderation.md §8): the organizer
+   * verdicts, on any OPEN report in either queue. It closes every OPEN report
+   * on the same target, whoever filed it and in whichever queue. On a photo
+   * that is already gone, REMOVE_PHOTO upholds the reports. A report about the
+   * event itself takes DISMISS only. Removing an intimate image also deletes
+   * its evidence copy: only the hash is kept (§7).
+   */
+  async resolveAsPlatform(
+    reportId: string,
+    moderatorId: string,
+    action: ReportResolutionAction,
+    memberPhotos?: MemberPhotos,
+  ): Promise<Report> {
+    if (memberPhotos && action !== REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER) {
+      throw new BadRequestException(
+        RESPONSE_TEMPLATES.INVALID_VALUE("photos", memberPhotos, "sent only with REMOVE_MEMBER"),
+      );
+    }
+
+    const loaded = await this.prisma.report.findUnique({
+      where: { id: reportId },
+      include: { evidence: { select: { objectS3Key: true } } },
+    });
+    if (!loaded) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Report", "ID", reportId));
+    if (loaded.status !== ReportStatus.OPEN) throw new ApiException("REPORT_ALREADY_RESOLVED", { reportId });
+    if (loaded.targetType === ReportTargetType.EVENT && action !== REPORT_RESOLUTION_ACTIONS.DISMISS) {
+      throw new BadRequestException(
+        RESPONSE_TEMPLATES.INVALID_VALUE("action", action, "DISMISS for a report about the event itself"),
+      );
+    }
+    if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO && loaded.targetType !== ReportTargetType.PHOTO) {
+      throw new BadRequestException(RESPONSE_TEMPLATES.INVALID_VALUE("action", action, "used on photo reports only"));
+    }
+
+    const removes = action !== REPORT_RESOLUTION_ACTIONS.DISMISS;
+    const photo =
+      removes && loaded.targetType === ReportTargetType.PHOTO && loaded.photoId
+        ? await this.prisma.photo.findUnique({ where: { id: loaded.photoId }, select: { id: true, s3Key: true } })
+        : null;
+    const removedMemberId = action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER ? loaded.reportedUserId : null;
+    if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER && (!removedMemberId || !loaded.eventId)) {
+      throw new ApiException("REPORTED_MEMBER_GONE", { reportId });
+    }
+
+    // Reports on a photo that is gone have lost their photoId; their snapshots
+    // still name the object, which is how they are found together.
+    const sameTarget =
+      loaded.targetType === ReportTargetType.PHOTO && !loaded.photoId && loaded.evidence?.objectS3Key
+        ? { evidence: { is: { objectS3Key: loaded.evidence.objectS3Key } } }
+        : this.sameTargetWhere(loaded, action);
+    const resolution = {
+      status: RESOLUTION_STATUS[action],
+      closedReason: RESOLUTION_CLOSED_REASON[action],
+      closedByRole: ReportActorRole.PLATFORM,
+      resolvedById: moderatorId,
+      resolvedAt: new Date(),
+    };
+
+    const { resolved, closedIds, removedMember } = await this.prisma.$transaction(async (tx) => {
+      const [acted] = await tx.report.updateManyAndReturn({
+        where: { id: reportId, status: ReportStatus.OPEN },
+        data: resolution,
+      });
+      if (!acted) throw new ApiException("REPORT_ALREADY_RESOLVED", { reportId });
+
+      const others = sameTarget
+        ? await tx.report.updateManyAndReturn({
+            where: { AND: [{ id: { not: reportId } }, { status: ReportStatus.OPEN }, sameTarget] },
+            data: resolution,
+            select: { id: true },
+          })
+        : [];
+
+      if (photo) await tx.photo.deleteMany({ where: { id: photo.id } });
+      const member = removedMemberId
+        ? await removeMemberInTransaction(tx, {
+            eventId: loaded.eventId!,
+            userId: removedMemberId,
+            removedById: moderatorId,
+            removedByRole: ReportActorRole.PLATFORM,
+            photos: memberPhotos ?? MEMBER_PHOTOS.KEEP,
+            excludePhotoIds: photo ? [photo.id] : [],
+          })
+        : null;
+
+      return { resolved: acted, closedIds: [reportId, ...others.map((other) => other.id)], removedMember: member };
+    });
+
+    if (photo) await this.deletePhotoObject(photo, reportId);
+    if (removedMember) {
+      await this.photoPurgeService.purgeObjects(removedMember.photoKeys, {
+        event: ALERT_EVENTS.EVENT_MEMBER_PHOTOS_PURGED,
+        eventId: resolved.eventId,
+        moderatorId,
+        targetUserId: removedMemberId,
+        reportId,
+      });
+    }
+    if (removes && loaded.reason === ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE) {
+      await this.evidenceService.discardImages(closedIds);
+    }
+
+    this.logger.info(
+      {
+        event: "report.resolved",
+        reportId,
+        eventId: resolved.eventId,
+        moderatorId,
+        targetType: resolved.targetType,
+        photoId: resolved.photoId,
+        reportedUserId: resolved.reportedUserId,
+        action,
+        resolution: resolution.status,
+        closedReason: resolution.closedReason,
+        closedByRole: resolution.closedByRole,
+        closedReports: closedIds.length,
+        removedPhotoId: photo?.id ?? null,
+        removedMemberId,
+        audit: true,
+      },
+      "Report resolved by the platform",
+    );
+
+    return resolved;
+  }
+
+  /**
    * The photo a resolution deletes: the reported photo for REMOVE_PHOTO, and
    * for REMOVE_MEMBER too when the report is about a photo, since closing its
    * reports would otherwise make it visible again.

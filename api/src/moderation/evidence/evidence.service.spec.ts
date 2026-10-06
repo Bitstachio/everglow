@@ -158,6 +158,33 @@ describe("EvidenceService", () => {
     });
   });
 
+  describe("discardImages", () => {
+    it("deletes each evidence copy and forgets its objects, keeping the hash", async () => {
+      const key = `evidence/${reportId}/${photoKey}`;
+      prisma.reportEvidence.findMany.mockResolvedValue([{ id: "ev-1", reportId, evidenceS3Key: key }] as never);
+
+      await service.discardImages([reportId]);
+
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(key);
+      expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
+        where: { id: "ev-1" },
+        data: { evidenceS3Key: null, objectS3Key: null },
+      });
+    });
+
+    it("keeps the row pointing at a copy it could not delete, and alerts", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValue([
+        { id: "ev-1", reportId, evidenceS3Key: `evidence/${reportId}/x` },
+      ] as never);
+      s3Service.deleteObject.mockRejectedValue(new Error("s3 down"));
+
+      await service.discardImages([reportId]);
+
+      expect(prisma.reportEvidence.update).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
   describe("findKeysAwaitingQuarantine", () => {
     it("returns the keys a report's evidence still needs as the original", async () => {
       prisma.reportEvidence.findMany.mockResolvedValue([{ objectS3Key: photoKey }] as never);
