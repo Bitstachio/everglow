@@ -4,7 +4,7 @@ import { Photo } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { RekognitionService } from "src/sdk/aws/rekognition/rekognition.service";
 import { ReportsService } from "../reports.service";
-import { classifyModerationLabels, screeningNote } from "./screening.constants";
+import { SCREENABLE_CONTENT_TYPES, classifyModerationLabels, screeningNote } from "./screening.constants";
 
 export type ScreenedPhoto = Pick<Photo, "id" | "eventId" | "s3Key" | "contentType" | "sizeBytes" | "addedById">;
 
@@ -35,6 +35,16 @@ export class UploadScreeningService {
   }
 
   private async screenOne(photo: ScreenedPhoto): Promise<void> {
+    // Rekognition reads JPEG and PNG only. A HEIC or WebP photo, which is
+    // what iPhones upload, is published unscreened, and the log says so.
+    if (!SCREENABLE_CONTENT_TYPES.includes(photo.contentType)) {
+      this.logger.info(
+        { event: "photo.screening.skipped", photoId: photo.id, contentType: photo.contentType },
+        "Photo format can't be screened; published unscreened",
+      );
+      return;
+    }
+
     const minConfidence = this.configService.getOrThrow<number>("moderation.screeningMinConfidence");
     const timeoutMs = this.configService.getOrThrow<number>("moderation.screeningTimeoutMs");
     try {

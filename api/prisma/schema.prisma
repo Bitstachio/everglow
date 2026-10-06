@@ -396,6 +396,9 @@ model Report {
   @@unique([reporterId, eventId, reportedUserId], where: { status: "OPEN", targetType: "MEMBER" })
   // One OPEN report per member about the event itself.
   @@unique([reporterId, eventId], where: { status: "OPEN", targetType: "EVENT" })
+  // One OPEN automated report per photo: two confirms of the same upload
+  // can't both file one (docs/moderation.md §11).
+  @@unique([photoId], where: { status: "OPEN", source: "AUTOMATED" })
   // Organizer queue (status filter, newest first) and the per-event lookup of
   // photos whose open reports reached the hide threshold.
   @@index([eventId, status, createdAt])

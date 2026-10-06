@@ -581,11 +581,6 @@ export class ReportsService {
     reason: ReportReason,
     note: string,
   ): Promise<Report | null> {
-    const existing = await this.prisma.report.findFirst({
-      where: { photoId: photo.id, source: ReportSource.AUTOMATED, status: ReportStatus.OPEN },
-      select: { id: true },
-    });
-    if (existing) return null;
     const event = await this.prisma.event.findUnique({ where: { id: photo.eventId }, select: { title: true } });
     if (!event) return null;
 
@@ -593,8 +588,11 @@ export class ReportsService {
       ReportEscalation.AUTOMATED_FLAG,
       ...(SEVERE_REPORT_REASONS.includes(reason) ? [ReportEscalation.SEVERE_REASON] : []),
     ];
+    // `skipDuplicates` against the partial unique index on OPEN automated
+    // reports: of two confirms of the same photo, one files.
     const created = await this.prisma.$transaction(async (tx) => {
-      const report = await tx.report.create({
+      const [report] = await tx.report.createManyAndReturn({
+        skipDuplicates: true,
         data: {
           eventId: photo.eventId,
           eventTitle: event.title,
@@ -610,6 +608,7 @@ export class ReportsService {
           escalationReasons,
         },
       });
+      if (!report) return null;
       await this.evidenceService.writeSnapshot(tx, report.id, {
         objectS3Key: photo.s3Key,
         contentType: photo.contentType,
@@ -618,6 +617,7 @@ export class ReportsService {
       });
       return report;
     });
+    if (!created) return null;
 
     const fields = {
       reportId: created.id,

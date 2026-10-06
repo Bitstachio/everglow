@@ -1486,17 +1486,17 @@ describe("ReportsService", () => {
     };
 
     beforeEach(() => {
-      prisma.report.findFirst.mockResolvedValue(null);
       prisma.event.findUnique.mockResolvedValue({ title: event.title } as never);
-      prisma.report.create.mockResolvedValue(
+      prisma.report.createManyAndReturn.mockResolvedValue([
         buildReport({ reporterId: null, source: "AUTOMATED", queue: "PLATFORM", reason: ReportReason.VIOLENCE }),
-      );
+      ]);
     });
 
     it("files it with no reporter, straight into the platform's queue, with its snapshot", async () => {
       await service.fileAutomatedReport(flagged, ReportReason.VIOLENCE, "Upload screening: Violence (94%)");
 
-      expect(prisma.report.create).toHaveBeenCalledWith({
+      expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith({
+        skipDuplicates: true,
         data: expect.objectContaining({
           reporterId: null,
           source: "AUTOMATED",
@@ -1520,11 +1520,12 @@ describe("ReportsService", () => {
       );
     });
 
-    it("files nothing while the photo already has an OPEN automated report", async () => {
-      prisma.report.findFirst.mockResolvedValue({ id: "existing" } as never);
+    it("files nothing while the photo already has an OPEN automated report: the index skips the insert", async () => {
+      prisma.report.createManyAndReturn.mockResolvedValue([]);
 
       await expect(service.fileAutomatedReport(flagged, ReportReason.VIOLENCE, "Upload screening")).resolves.toBeNull();
-      expect(prisma.report.create).not.toHaveBeenCalled();
+      expect(evidenceService.writeSnapshot).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

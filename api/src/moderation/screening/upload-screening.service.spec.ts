@@ -52,7 +52,7 @@ describe("UploadScreeningService", () => {
   let config: Record<string, unknown>;
   let rekognition: { detectModerationLabels: jest.Mock };
   let reports: { fileAutomatedReport: jest.Mock };
-  let logger: { setContext: jest.Mock; warn: jest.Mock };
+  let logger: { setContext: jest.Mock; warn: jest.Mock; info: jest.Mock };
   let service: UploadScreeningService;
 
   beforeEach(() => {
@@ -67,7 +67,7 @@ describe("UploadScreeningService", () => {
     };
     rekognition = { detectModerationLabels: jest.fn().mockResolvedValue([]) };
     reports = { fileAutomatedReport: jest.fn().mockResolvedValue(null) };
-    logger = { setContext: jest.fn(), warn: jest.fn() };
+    logger = { setContext: jest.fn(), warn: jest.fn(), info: jest.fn() };
     service = new UploadScreeningService(
       configService as unknown as ConfigService,
       rekognition as unknown as RekognitionService,
@@ -86,6 +86,16 @@ describe("UploadScreeningService", () => {
       photo,
       "NUDITY_OR_SEXUAL",
       "Upload screening: Explicit (97%)",
+    );
+  });
+
+  it("skips a format Rekognition can't read, saying so, without calling it", async () => {
+    await service.screen([{ ...photo, contentType: "image/heic" }]);
+
+    expect(rekognition.detectModerationLabels).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "photo.screening.skipped", contentType: "image/heic" }),
+      expect.any(String),
     );
   });
 

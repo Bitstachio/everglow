@@ -4,6 +4,9 @@ import { ModerationLabel } from "src/sdk/aws/rekognition/rekognition.service";
 export const DEFAULT_SCREENING_MIN_CONFIDENCE = 80;
 export const DEFAULT_SCREENING_TIMEOUT_MS = 5000;
 
+/** The formats Rekognition's image moderation reads. */
+export const SCREENABLE_CONTENT_TYPES: readonly string[] = ["image/jpeg", "image/png"];
+
 /**
  * Which of Rekognition's moderation categories file a report, and with what
  * reason (docs/moderation.md §11). A label counts when it, or its parent, is

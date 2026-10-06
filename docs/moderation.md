@@ -641,6 +641,8 @@ Built, off until it is switched on (`MODERATION_SCREENING_ENABLED=true`). Apple'
   Swimwear, alcohol, rude gestures and the like are ordinary at a party and file nothing.
 
 - **Failure is open.** If Rekognition fails or times out, the photo is published, `photo.screening.failed` is logged, and nothing retries. Uploads never fail because of the screen.
+- **JPEG and PNG only.** Rekognition reads no other format. A HEIC or WebP photo, which is what iPhones upload as they are, is published unscreened and logged as `photo.screening.skipped`. Screening those needs a JPEG derivative, which comes with thumbnails or compression ([EV-94](https://linear.app/mehrshadfb/issue/EV-94)).
+- **One OPEN automated report per photo**, enforced by a partial unique index, so two confirms of the same upload file one.
 - **Before switching it on:**
   - apply the `api_rekognition` IAM policy (`api/infra/main.tf`);
   - check in dev that Rekognition can read a KMS-encrypted photo with the API's credentials;
