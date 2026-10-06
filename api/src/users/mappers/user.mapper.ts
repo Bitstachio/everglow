@@ -23,6 +23,7 @@ export class UserMapper {
           }
         : null,
       termsAcceptedAt: user.termsAcceptedAt,
+      suspendedAt: user.suspendedAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

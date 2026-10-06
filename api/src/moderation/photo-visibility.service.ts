@@ -36,7 +36,8 @@ export class PhotoVisibilityService {
    * subqueries inside the photo query itself.
    */
   async whereVisibleTo(callerId: string, event: EventForPhotoVisibility): Promise<Prisma.PhotoWhereInput> {
-    if (galleryStateOf(event) === GALLERY_STATES.CLOSED) return NO_PHOTOS;
+    // A closed gallery, or a suspended event, shows nothing to anyone.
+    if (galleryStateOf(event) === GALLERY_STATES.CLOSED || event.suspendedAt) return NO_PHOTOS;
     if (event.eventAccesses.some((access) => access.accessLevel === AccessLevel.ORGANIZER)) {
       return { reports: { none: { status: ReportStatus.OPEN, reason: { in: [...PLATFORM_ONLY_REPORT_REASONS] } } } };
     }

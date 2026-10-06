@@ -30,13 +30,18 @@ export class EventMapper {
     return {
       id: event.id,
       title: event.title,
-      description: event.description,
+      // A suspended event's details are hidden; the title stays, so members know which it is.
+      description: event.suspendedAt ? null : event.description,
       date: event.date,
       creatorId: event.creatorId,
       invitationUrl: buildInvitationUrl(event.invitationUrl),
       invites: EventMapper.toInviteResponseDtoList(invites),
       coverUrl,
-      status: event.underReviewAt ? EVENT_STATUSES.UNDER_REVIEW : EVENT_STATUSES.ACTIVE,
+      status: event.suspendedAt
+        ? EVENT_STATUSES.SUSPENDED
+        : event.underReviewAt
+          ? EVENT_STATUSES.UNDER_REVIEW
+          : EVENT_STATUSES.ACTIVE,
       plan: limits.plan,
       galleryState: galleryStateOf(event),
       galleryOpensAt: event.galleryOpensAt,

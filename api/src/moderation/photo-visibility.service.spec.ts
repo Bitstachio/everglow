@@ -25,6 +25,7 @@ describe("PhotoVisibilityService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -76,6 +77,15 @@ describe("PhotoVisibilityService", () => {
 
           await expect(service.whereVisibleTo(callerId, event)).resolves.toEqual(noPhotos);
           expect(prisma.report.groupBy).not.toHaveBeenCalled();
+        },
+      );
+
+      it.each([AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT])(
+        "shows a %s no photo of a suspended event",
+        async (accessLevel) => {
+          const event = { ...eventFor(accessLevel), suspendedAt: now };
+
+          await expect(service.whereVisibleTo(callerId, event)).resolves.toEqual(noPhotos);
         },
       );
 

@@ -27,6 +27,10 @@ export type UserResponseDto = {
    * When the user accepted the terms of use; null if they have not been asked yet.
    */
   termsAcceptedAt: string | null;
+  /**
+   * When the platform suspended the account, or null. A suspended account can read and delete itself; every other request answers 403 ACCOUNT_SUSPENDED.
+   */
+  suspendedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -373,9 +377,9 @@ export type EventInviteResponseDto = {
 };
 
 /**
- * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.
+ * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review. SUSPENDED once the platform suspended it for breaking the terms: its photos, cover and description are hidden, and nothing about it can change (403 EVENT_SUSPENDED) until the platform restores it.
  */
-export type EventStatus = "ACTIVE" | "UNDER_REVIEW";
+export type EventStatus = "ACTIVE" | "UNDER_REVIEW" | "SUSPENDED";
 
 /**
  * UPCOMING until galleryOpensAt: people can join, nobody can add photos, and the date and gallery length can still change. OPEN while photos can be added and downloaded. CLOSED once galleryClosesAt has passed: the photos are removed and the event itself stays. Separate from status, which is the moderation state.
@@ -426,7 +430,7 @@ export type EventResponseDto = {
    */
   coverUrl: string | null;
   /**
-   * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.
+   * UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review. SUSPENDED once the platform suspended it for breaking the terms: its photos, cover and description are hidden, and nothing about it can change (403 EVENT_SUSPENDED) until the platform restores it.
    */
   status: EventStatus;
   /**
@@ -697,12 +701,21 @@ export type RecordAuthorityReportDto = {
   submittedAt?: string;
 };
 
+export type EditEventAsPlatformDto = {
+  title?: string;
+  /**
+   * A new description, or null to remove it.
+   */
+  description?: string | null;
+};
+
 export type ApiErrorDto = {
   message: string;
   /**
    * Stable machine-readable error code
    */
   code:
+    | "ACCOUNT_SUSPENDED"
     | "ACTIVE_EVENT_LIMIT_REACHED"
     | "ALREADY_A_MEMBER"
     | "AVATAR_CHANGED_CONCURRENTLY"
@@ -722,6 +735,7 @@ export type ApiErrorDto = {
     | "EVENT_SCHEDULE_LOCKED"
     | "EVENT_STILL_ACTIVE"
     | "EVENT_STORAGE_LIMIT_REACHED"
+    | "EVENT_SUSPENDED"
     | "EVENT_UNDER_REVIEW"
     | "EVIDENCE_NOT_AVAILABLE"
     | "FORBIDDEN"
@@ -2528,3 +2542,262 @@ export type PlatformModerationControllerLiftReviewResponses = {
 
 export type PlatformModerationControllerLiftReviewResponse =
   PlatformModerationControllerLiftReviewResponses[keyof PlatformModerationControllerLiftReviewResponses];
+
+export type PlatformModerationControllerSuspendEventData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/events/{eventId}/suspend";
+};
+
+export type PlatformModerationControllerSuspendEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerSuspendEventError =
+  PlatformModerationControllerSuspendEventErrors[keyof PlatformModerationControllerSuspendEventErrors];
+
+export type PlatformModerationControllerSuspendEventResponses = {
+  /**
+   * Event suspended (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerSuspendEventResponse =
+  PlatformModerationControllerSuspendEventResponses[keyof PlatformModerationControllerSuspendEventResponses];
+
+export type PlatformModerationControllerRestoreEventData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/events/{eventId}/restore";
+};
+
+export type PlatformModerationControllerRestoreEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerRestoreEventError =
+  PlatformModerationControllerRestoreEventErrors[keyof PlatformModerationControllerRestoreEventErrors];
+
+export type PlatformModerationControllerRestoreEventResponses = {
+  /**
+   * Event restored (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerRestoreEventResponse =
+  PlatformModerationControllerRestoreEventResponses[keyof PlatformModerationControllerRestoreEventResponses];
+
+export type PlatformModerationControllerDeleteEventData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/events/{eventId}";
+};
+
+export type PlatformModerationControllerDeleteEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerDeleteEventError =
+  PlatformModerationControllerDeleteEventErrors[keyof PlatformModerationControllerDeleteEventErrors];
+
+export type PlatformModerationControllerDeleteEventResponses = {
+  /**
+   * Event deleted (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerDeleteEventResponse =
+  PlatformModerationControllerDeleteEventResponses[keyof PlatformModerationControllerDeleteEventResponses];
+
+export type PlatformModerationControllerEditEventData = {
+  body: EditEventAsPlatformDto;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/events/{eventId}";
+};
+
+export type PlatformModerationControllerEditEventErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerEditEventError =
+  PlatformModerationControllerEditEventErrors[keyof PlatformModerationControllerEditEventErrors];
+
+export type PlatformModerationControllerEditEventResponses = {
+  /**
+   * Event updated (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerEditEventResponse =
+  PlatformModerationControllerEditEventResponses[keyof PlatformModerationControllerEditEventResponses];
+
+export type PlatformModerationControllerRemoveCoverData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/events/{eventId}/cover";
+};
+
+export type PlatformModerationControllerRemoveCoverErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerRemoveCoverError =
+  PlatformModerationControllerRemoveCoverErrors[keyof PlatformModerationControllerRemoveCoverErrors];
+
+export type PlatformModerationControllerRemoveCoverResponses = {
+  /**
+   * Cover removed (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerRemoveCoverResponse =
+  PlatformModerationControllerRemoveCoverResponses[keyof PlatformModerationControllerRemoveCoverResponses];
+
+export type PlatformModerationControllerSuspendUserData = {
+  body?: never;
+  path: {
+    userId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/users/{userId}/suspend";
+};
+
+export type PlatformModerationControllerSuspendUserErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerSuspendUserError =
+  PlatformModerationControllerSuspendUserErrors[keyof PlatformModerationControllerSuspendUserErrors];
+
+export type PlatformModerationControllerSuspendUserResponses = {
+  /**
+   * Account suspended (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerSuspendUserResponse =
+  PlatformModerationControllerSuspendUserResponses[keyof PlatformModerationControllerSuspendUserResponses];
+
+export type PlatformModerationControllerUnsuspendUserData = {
+  body?: never;
+  path: {
+    userId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/users/{userId}/unsuspend";
+};
+
+export type PlatformModerationControllerUnsuspendUserErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerUnsuspendUserError =
+  PlatformModerationControllerUnsuspendUserErrors[keyof PlatformModerationControllerUnsuspendUserErrors];
+
+export type PlatformModerationControllerUnsuspendUserResponses = {
+  /**
+   * Suspension lifted (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerUnsuspendUserResponse =
+  PlatformModerationControllerUnsuspendUserResponses[keyof PlatformModerationControllerUnsuspendUserResponses];

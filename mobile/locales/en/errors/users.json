@@ -1,4 +1,5 @@
 {
+  "ACCOUNT_SUSPENDED": "Your account was suspended for breaking our terms. You can still delete it.",
   "AVATAR_CHANGED_CONCURRENTLY": "Your profile photo was changed on another device. Please try again.",
   "DETAILS_ALREADY_EXIST": "Your profile is already set up.",
   "ONBOARDING_INCOMPLETE": "Finish setting up your profile to continue.",

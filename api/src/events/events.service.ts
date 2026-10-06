@@ -158,8 +158,11 @@ export class EventsService {
       throw new ApiException("REMOVED_FROM_EVENT");
     }
 
-    // Under review: members keep access, but no one new comes in until the
-    // platform has looked (docs/moderation.md).
+    // Suspended or under review: members keep access, but no one new comes in
+    // until the platform has decided (docs/moderation.md).
+    if (event.suspendedAt) {
+      throw new ApiException("EVENT_SUSPENDED");
+    }
     if (event.underReviewAt) {
       throw new ApiException("EVENT_UNDER_REVIEW");
     }
@@ -239,8 +242,10 @@ export class EventsService {
    * The event, once the caller is known to be allowed to update it (its
    * organizers). Everything that manages an event goes through here, so a
    * missing event is 404 and a caller without the ability is 403 everywhere.
+   * A suspended event is read-only: 403 EVENT_SUSPENDED, unless the caller
+   * only reads (docs/moderation.md §8).
    */
-  async getUpdatable(eventId: string, callerId: string): Promise<Event> {
+  async getUpdatable(eventId: string, callerId: string, { readOnly = false } = {}): Promise<Event> {
     const loaded = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: eventWithCallerAccessInclude(callerId),
@@ -253,6 +258,7 @@ export class EventsService {
       isMember: loaded.eventAccesses.length > 0,
       refusal: "ORGANIZER_ONLY",
     });
+    if (loaded.suspendedAt && !readOnly) throw new ApiException("EVENT_SUSPENDED");
 
     const { eventAccesses, ...event } = loaded;
     void eventAccesses;
@@ -328,7 +334,9 @@ export class EventsService {
    * recorded as deactivated.
    */
   async deactivate(eventId: string, callerId: string): Promise<Event> {
-    await this.getUpdatable(eventId, callerId);
+    // Allowed for a suspended event: closing it changes nothing anyone sees,
+    // and frees the host's place (docs/moderation.md §8).
+    await this.getUpdatable(eventId, callerId, { readOnly: true });
 
     const now = new Date();
     // Conditional, so of two organizers deactivating at once one is recorded.
@@ -616,7 +624,7 @@ export class EventsService {
 
   /** Organizers only, newest first. */
   async listBans(eventId: string, callerId: string): Promise<EventBanWithUser[]> {
-    await this.getUpdatable(eventId, callerId);
+    await this.getUpdatable(eventId, callerId, { readOnly: true });
 
     return this.prisma.eventBan.findMany({
       where: { eventId },

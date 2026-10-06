@@ -80,8 +80,11 @@ export class PhotosService {
       isMember: event.eventAccesses.length > 0,
       refusal: "VIEWER_CANNOT_UPLOAD",
     });
-    // No new photos while the platform reviews the event. Slots minted before
-    // can still be confirmed; the cover can still be changed.
+    // No new photos in a suspended event, nor while the platform reviews one.
+    // Slots minted before can still be confirmed.
+    if (event.suspendedAt) {
+      throw new ApiException("EVENT_SUSPENDED");
+    }
     if (event.underReviewAt) {
       throw new ApiException("EVENT_UNDER_REVIEW");
     }

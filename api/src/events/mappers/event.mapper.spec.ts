@@ -17,6 +17,7 @@ describe("EventMapper", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -129,6 +130,19 @@ describe("EventMapper", () => {
         deactivatedAt,
         deactivatedById,
       });
+    });
+
+    it("reports SUSPENDED over anything else, and hides the description", () => {
+      const suspended = {
+        ...event,
+        description: "Our day",
+        underReviewAt: new Date("2026-09-20T12:00:00.000Z"),
+        suspendedAt: new Date("2026-09-21T12:00:00.000Z"),
+      };
+
+      const dto = EventMapper.toResponseDto(suspended, coverUrl, limits, usage);
+      expect(dto.status).toBe("SUSPENDED");
+      expect(dto.description).toBeNull();
     });
 
     it("reports UNDER_REVIEW once the event is under review", () => {

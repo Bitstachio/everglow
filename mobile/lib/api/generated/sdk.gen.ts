@@ -83,6 +83,12 @@ import type {
   PhotosControllerRemoveData,
   PhotosControllerRemoveErrors,
   PhotosControllerRemoveResponses,
+  PlatformModerationControllerDeleteEventData,
+  PlatformModerationControllerDeleteEventErrors,
+  PlatformModerationControllerDeleteEventResponses,
+  PlatformModerationControllerEditEventData,
+  PlatformModerationControllerEditEventErrors,
+  PlatformModerationControllerEditEventResponses,
   PlatformModerationControllerEvidenceUrlData,
   PlatformModerationControllerEvidenceUrlErrors,
   PlatformModerationControllerEvidenceUrlResponses,
@@ -101,12 +107,27 @@ import type {
   PlatformModerationControllerReleaseHoldData,
   PlatformModerationControllerReleaseHoldErrors,
   PlatformModerationControllerReleaseHoldResponses,
+  PlatformModerationControllerRemoveCoverData,
+  PlatformModerationControllerRemoveCoverErrors,
+  PlatformModerationControllerRemoveCoverResponses,
   PlatformModerationControllerResolveReportData,
   PlatformModerationControllerResolveReportErrors,
   PlatformModerationControllerResolveReportResponses,
+  PlatformModerationControllerRestoreEventData,
+  PlatformModerationControllerRestoreEventErrors,
+  PlatformModerationControllerRestoreEventResponses,
   PlatformModerationControllerSetHoldData,
   PlatformModerationControllerSetHoldErrors,
   PlatformModerationControllerSetHoldResponses,
+  PlatformModerationControllerSuspendEventData,
+  PlatformModerationControllerSuspendEventErrors,
+  PlatformModerationControllerSuspendEventResponses,
+  PlatformModerationControllerSuspendUserData,
+  PlatformModerationControllerSuspendUserErrors,
+  PlatformModerationControllerSuspendUserResponses,
+  PlatformModerationControllerUnsuspendUserData,
+  PlatformModerationControllerUnsuspendUserErrors,
+  PlatformModerationControllerUnsuspendUserResponses,
   ReportsControllerListReportsData,
   ReportsControllerListReportsErrors,
   ReportsControllerListReportsResponses,
@@ -1035,3 +1056,130 @@ export const platformModerationControllerLiftReview = <ThrowOnError extends bool
     PlatformModerationControllerLiftReviewErrors,
     ThrowOnError
   >({ url: "/api/v2/admin/events/{eventId}/lift-review", ...options });
+
+/**
+ * Suspend an event (platform moderators)
+ *
+ * Hides its photos, cover and description from its members and makes it read-only (403 EVENT_SUSPENDED). Closes its OPEN reports about the event itself as EVENT_SUSPENDED. Idempotent.
+ */
+export const platformModerationControllerSuspendEvent = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerSuspendEventData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerSuspendEventResponses,
+  PlatformModerationControllerSuspendEventErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PlatformModerationControllerSuspendEventResponses,
+    PlatformModerationControllerSuspendEventErrors,
+    ThrowOnError
+  >({ url: "/api/v2/admin/events/{eventId}/suspend", ...options });
+
+/**
+ * Restore an event (platform moderators)
+ *
+ * Lifts a suspension and a review, and dismisses its OPEN reports about the event itself.
+ */
+export const platformModerationControllerRestoreEvent = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerRestoreEventData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerRestoreEventResponses,
+  PlatformModerationControllerRestoreEventErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PlatformModerationControllerRestoreEventResponses,
+    PlatformModerationControllerRestoreEventErrors,
+    ThrowOnError
+  >({ url: "/api/v2/admin/events/{eventId}/restore", ...options });
+
+/**
+ * Delete an event (platform moderators)
+ *
+ * Whatever its state. Its OPEN reports close first as EVENT_DELETED and outlive it.
+ */
+export const platformModerationControllerDeleteEvent = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerDeleteEventData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerDeleteEventResponses,
+  PlatformModerationControllerDeleteEventErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    PlatformModerationControllerDeleteEventResponses,
+    PlatformModerationControllerDeleteEventErrors,
+    ThrowOnError
+  >({ url: "/api/v2/admin/events/{eventId}", ...options });
+
+/**
+ * Fix a reported event's title or description (platform moderators)
+ */
+export const platformModerationControllerEditEvent = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerEditEventData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerEditEventResponses,
+  PlatformModerationControllerEditEventErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).patch<
+    PlatformModerationControllerEditEventResponses,
+    PlatformModerationControllerEditEventErrors,
+    ThrowOnError
+  >({
+    url: "/api/v2/admin/events/{eventId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Remove a reported event's cover (platform moderators)
+ */
+export const platformModerationControllerRemoveCover = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerRemoveCoverData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerRemoveCoverResponses,
+  PlatformModerationControllerRemoveCoverErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    PlatformModerationControllerRemoveCoverResponses,
+    PlatformModerationControllerRemoveCoverErrors,
+    ThrowOnError
+  >({ url: "/api/v2/admin/events/{eventId}/cover", ...options });
+
+/**
+ * Suspend an account (platform moderators)
+ *
+ * Every request but reading and deleting the account answers 403 ACCOUNT_SUSPENDED. Closes its OPEN reports as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent.
+ */
+export const platformModerationControllerSuspendUser = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerSuspendUserData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerSuspendUserResponses,
+  PlatformModerationControllerSuspendUserErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PlatformModerationControllerSuspendUserResponses,
+    PlatformModerationControllerSuspendUserErrors,
+    ThrowOnError
+  >({ url: "/api/v2/admin/users/{userId}/suspend", ...options });
+
+/**
+ * Lift an account's suspension (platform moderators)
+ */
+export const platformModerationControllerUnsuspendUser = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerUnsuspendUserData, ThrowOnError>,
+): RequestResult<
+  PlatformModerationControllerUnsuspendUserResponses,
+  PlatformModerationControllerUnsuspendUserErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PlatformModerationControllerUnsuspendUserResponses,
+    PlatformModerationControllerUnsuspendUserErrors,
+    ThrowOnError
+  >({ url: "/api/v2/admin/users/{userId}/unsuspend", ...options });

@@ -111,6 +111,9 @@ model User {
   // Platform moderators act on any report, across events (docs/moderation.md
   // §8). Granted only in the database: no endpoint sets it.
   platformRole        PlatformRole?
+  // Suspended by the platform (docs/moderation.md §8): every request but
+  // reading and deleting the account answers 403 ACCOUNT_SUSPENDED.
+  suspendedAt         DateTime?
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
 
@@ -218,6 +221,9 @@ model Event {
   // "Under review"): no one can join and no photos can be added. Only the
   // platform clears it.
   underReviewAt     DateTime?
+  // Suspended by the platform (docs/moderation.md §8): hidden and read-only
+  // for its members until the platform restores it.
+  suspendedAt       DateTime?
   // The plan version the event was created on (or upgraded to); its limits
   // come from that row.
   planId            String    @db.Uuid

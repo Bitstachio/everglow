@@ -4,6 +4,7 @@
   "CANNOT_REMOVE_SELF": "You can't remove yourself. Leave the event instead.",
   "COVER_CHANGED_CONCURRENTLY": "Another organizer changed the cover at the same time. Please try again.",
   "EVENT_HAS_OPEN_REPORTS": "This event has reports that still need a decision, so it can't be deleted yet.",
+  "EVENT_SUSPENDED": "This event was suspended for breaking our terms, so it can't be changed or joined.",
   "EVENT_UNDER_REVIEW": "This event is under review. No one can join or add photos until the review is over.",
   "LAST_ORGANIZER": "An event needs at least one organizer. Make someone else an organizer first.",
   "NOT_A_MEMBER": "You're not a member of this event.",

@@ -18,6 +18,15 @@ export class UserResponseDto {
   })
   termsAcceptedAt: Date | null;
 
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description:
+      "When the platform suspended the account, or null. A suspended account can read and delete itself; every " +
+      "other request answers 403 ACCOUNT_SUSPENDED.",
+  })
+  suspendedAt: Date | null;
+
   @ApiProperty()
   createdAt: Date;
 

@@ -37,6 +37,8 @@ import {
   PlatformReportListResponseDto,
   PlatformReportResponseDto,
 } from "./dto/platform-report-response.dto";
+import { EditEventAsPlatformDto } from "./dto/platform-event-actions.dto";
+import { PlatformEnforcementService } from "./platform-enforcement.service";
 import { PlatformModerationService } from "./platform-moderation.service";
 import { PlatformModeratorGuard } from "./platform-moderator.guard";
 import { PlatformReportMapper } from "./platform-report.mapper";
@@ -55,6 +57,7 @@ import { PlatformReportMapper } from "./platform-report.mapper";
 export class PlatformModerationController {
   constructor(
     private readonly platformModerationService: PlatformModerationService,
+    private readonly platformEnforcementService: PlatformEnforcementService,
     private readonly reportsService: ReportsService,
   ) {}
 
@@ -159,5 +162,81 @@ export class PlatformModerationController {
     @Param("eventId", ParseUUIDPipe) eventId: string,
   ): Promise<void> {
     await this.platformModerationService.liftReview(eventId, user.id);
+  }
+
+  @Post("events/:eventId/suspend")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Suspend an event (platform moderators)",
+    description:
+      "Hides its photos, cover and description from its members and makes it read-only (403 EVENT_SUSPENDED). " +
+      "Closes its OPEN reports about the event itself as EVENT_SUSPENDED. Idempotent.",
+  })
+  @ApiNoContentResponse({ description: "Event suspended (empty data envelope at runtime)" })
+  async suspendEvent(@CurrentUser() user: AuthenticatedUser, @Param("eventId", ParseUUIDPipe) eventId: string) {
+    await this.platformEnforcementService.suspendEvent(eventId, user.id);
+  }
+
+  @Post("events/:eventId/restore")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Restore an event (platform moderators)",
+    description: "Lifts a suspension and a review, and dismisses its OPEN reports about the event itself.",
+  })
+  @ApiNoContentResponse({ description: "Event restored (empty data envelope at runtime)" })
+  async restoreEvent(@CurrentUser() user: AuthenticatedUser, @Param("eventId", ParseUUIDPipe) eventId: string) {
+    await this.platformEnforcementService.restoreEvent(eventId, user.id);
+  }
+
+  @Patch("events/:eventId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Fix a reported event's title or description (platform moderators)" })
+  @ApiNoContentResponse({ description: "Event updated (empty data envelope at runtime)" })
+  async editEvent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+    @Body() dto: EditEventAsPlatformDto,
+  ) {
+    await this.platformEnforcementService.editEvent(eventId, user.id, dto);
+  }
+
+  @Delete("events/:eventId/cover")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Remove a reported event's cover (platform moderators)" })
+  @ApiNoContentResponse({ description: "Cover removed (empty data envelope at runtime)" })
+  async removeCover(@CurrentUser() user: AuthenticatedUser, @Param("eventId", ParseUUIDPipe) eventId: string) {
+    await this.platformEnforcementService.removeCover(eventId, user.id);
+  }
+
+  @Delete("events/:eventId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Delete an event (platform moderators)",
+    description: "Whatever its state. Its OPEN reports close first as EVENT_DELETED and outlive it.",
+  })
+  @ApiNoContentResponse({ description: "Event deleted (empty data envelope at runtime)" })
+  async deleteEvent(@CurrentUser() user: AuthenticatedUser, @Param("eventId", ParseUUIDPipe) eventId: string) {
+    await this.platformEnforcementService.deleteEvent(eventId, user.id);
+  }
+
+  @Post("users/:userId/suspend")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Suspend an account (platform moderators)",
+    description:
+      "Every request but reading and deleting the account answers 403 ACCOUNT_SUSPENDED. Closes its OPEN reports " +
+      "as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent.",
+  })
+  @ApiNoContentResponse({ description: "Account suspended (empty data envelope at runtime)" })
+  async suspendUser(@CurrentUser() user: AuthenticatedUser, @Param("userId", ParseUUIDPipe) userId: string) {
+    await this.platformEnforcementService.suspendUser(userId, user.id);
+  }
+
+  @Post("users/:userId/unsuspend")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Lift an account's suspension (platform moderators)" })
+  @ApiNoContentResponse({ description: "Suspension lifted (empty data envelope at runtime)" })
+  async unsuspendUser(@CurrentUser() user: AuthenticatedUser, @Param("userId", ParseUUIDPipe) userId: string) {
+    await this.platformEnforcementService.unsuspendUser(userId, user.id);
   }
 }

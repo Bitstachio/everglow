@@ -1,5 +1,9 @@
 import { ExecutionContext, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
+import { ApiException } from "src/common/errors/api.exception";
+import { ALLOW_SUSPENDED_KEY } from "./allow-suspended.decorator";
+import { AuthenticatedUser } from "./auth.types";
 import { Request } from "express";
 import { ExtractJwt } from "passport-jwt";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
@@ -45,10 +49,20 @@ const claimedOriginOf = (token: string): string | undefined => {
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard("jwt") {
+  constructor(private readonly reflector: Reflector) {
+    super();
+  }
+
   handleRequest<TUser>(err: Error | null, user: TUser | false, info: unknown, context: ExecutionContext): TUser {
     // validate() threw: a 401 that already has its reason, or a server failure.
     if (err) throw err;
-    if (user) return user;
+    if (user) {
+      // A suspended account reads and deletes itself, nothing else (docs/moderation.md §8).
+      if ((user as unknown as AuthenticatedUser).suspended && !this.allowsSuspended(context)) {
+        throw new ApiException("ACCOUNT_SUSPENDED");
+      }
+      return user;
+    }
 
     if (info instanceof SigningKeysUnavailableError) {
       throw new ServiceUnavailableException(RESPONSE_TEMPLATES.SIGNING_KEYS_UNAVAILABLE(info.message), {
@@ -61,6 +75,13 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     const refusal = refusalOf(info);
     throw new UnauthorizedException(
       RESPONSE_TEMPLATES.TOKEN_REJECTED(origin ? `${refusal} (token claims ${origin})` : refusal),
+    );
+  }
+
+  private allowsSuspended(context: ExecutionContext): boolean {
+    return (
+      this.reflector.getAllAndOverride<boolean>(ALLOW_SUSPENDED_KEY, [context.getHandler(), context.getClass()]) ===
+      true
     );
   }
 }

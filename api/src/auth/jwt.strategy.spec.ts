@@ -47,6 +47,7 @@ describe("JwtStrategy", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -97,7 +98,13 @@ describe("JwtStrategy", () => {
       const result = await strategy.validate(payload);
 
       expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub, payload.iat);
-      expect(result).toEqual({ id: userId, sub: providerSub });
+      expect(result).toEqual({ id: userId, sub: providerSub, suspended: false });
+    });
+
+    it("marks a suspended account, for JwtAuthGuard to refuse", async () => {
+      usersService.resolveByProviderSub.mockResolvedValue({ ...resolvedUser, suspendedAt: new Date() });
+
+      await expect(strategy.validate(payload)).resolves.toMatchObject({ suspended: true });
     });
 
     it("uses the resolved user id rather than the jwt subject as id", async () => {
