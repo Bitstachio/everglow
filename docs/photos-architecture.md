@@ -68,7 +68,7 @@ We create the row _before_ the upload happens (so we have a `photoId` to sign ag
 - **Applied as a keyset `WHERE`**, not as Prisma's `cursor: { id }`. Prisma resolves the cursor row's sort values at query time, so once that photo is deleted the next page comes back empty and the client thinks the list ended; `(createdAt, id) < (cursorCreatedAt, cursorId)` does not need the row to exist and hits the `(eventId, status, createdAt)` index directly.
 - **Malformed cursor** (anything but a `nextCursor` this API produced) → **400** `Invalid cursor`, never an empty page.
 - **Filters to `status = READY`** automatically. Pending/failed photos are invisible.
-- **Filters out photos hidden by moderation**: ones the caller reported, ones whose open reports reached the event's threshold, and ones of a blocked uploader (either direction). Organizers of the event see everything. The rules and the shared `PhotoVisibilityService` filter are in [moderation.md](./moderation.md#3-hiding-reported-photos).
+- **Filters out photos hidden by moderation**: ones the caller reported, ones whose open reports reached the event's threshold, and ones of a blocked uploader (either direction). Organizers of the event see everything. The rules and the shared `PhotoVisibilityService` filter are in [moderation.md](./moderation.md#5-hiding-reported-photos).
 - **Default sort:** newest first (`createdAt DESC, id DESC`).
 
 ### Response
@@ -383,7 +383,7 @@ S3 Inventory or Athena-based reconciliation for very large buckets, and an endpo
 
 ## 12. Gallery close
 
-A gallery closes at `Event.galleryClosesAt`: it opens on the event's date, or when the event is created if that date has passed, and stays open for the length the host picked ([event-quotas.md](./event-quotas.md)). From that moment uploads are refused and its photos are hidden from everyone, organizers included (`PhotoVisibilityService`, [moderation.md](./moderation.md) §3). This job then removes them. The event, its members and its cover stay. Deactivating an event (`POST /events/:eventId/deactivate`) sets its close time to the moment it is deactivated, so the next run closes it like any other.
+A gallery closes at `Event.galleryClosesAt`: it opens on the event's date, or when the event is created if that date has passed, and stays open for the length the host picked ([event-quotas.md](./event-quotas.md)). From that moment uploads are refused and its photos are hidden from everyone, organizers included (`PhotoVisibilityService`, [moderation.md](./moderation.md) §5). This job then removes them. The event, its members and its cover stay. Deactivating an event (`POST /events/:eventId/deactivate`) sets its close time to the moment it is deactivated, so the next run closes it like any other.
 
 - **Service:** `GalleryCloseService.closeDueGalleries()`
 - **Schedule:** hourly via `GalleryCloseScheduler`, so a gallery is emptied within an hour of its close time.
