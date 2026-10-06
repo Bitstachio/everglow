@@ -10,6 +10,9 @@ import { buildEvent, buildParticipant, buildPhoto, deferred } from "../testing/f
 // Seed and inspect caches at the integration boundary.
 // eslint-disable-next-line no-restricted-imports
 import { eventsKeys } from "../api/keys";
+// Failed uploads live for the app session; each test starts without any.
+// eslint-disable-next-line no-restricted-imports
+import { resetFailedPhotoUploads } from "../api/failed-photo-uploads";
 import { createApiError } from "@/lib/api/errors";
 
 const mockFindOne = jest.fn();
@@ -147,7 +150,19 @@ const confirmDestructiveAlert = () => {
   buttons?.find((button) => button.style === "destructive")?.onPress?.();
 };
 
+/** Presses a button on the last alert shown. */
+const pressAlertButton = (text: string) => {
+  const calls = jest.mocked(Alert.alert).mock.calls;
+  const buttons = calls[calls.length - 1]?.[2] as { text?: string; onPress?: () => void }[] | undefined;
+  const button = buttons?.find((entry) => entry.text === text);
+  if (!button) throw new Error(`No "${text}" button on the last alert`);
+  button.onPress?.();
+};
+
+const FAILED_TILE = "Photo not uploaded. Retry or remove";
+
 beforeEach(() => {
+  resetFailedPhotoUploads();
   mockUser = { id: "user-1" };
   mockEventId = "event-1";
   mockColorScheme.mockReturnValue("light");
@@ -345,25 +360,29 @@ test("does not upload a selection bigger than the storage left", async () => {
 test.each([
   ["EVENT_STORAGE_LIMIT_REACHED", "This gallery is full. There isn't enough storage left for these photos."],
   ["EVENT_GALLERY_CLOSED", "This event's gallery has closed."],
-])("stops on %s, says how many were uploaded, and refetches the event", async (code, message) => {
-  pickPhotos(25);
-  const mint = mintSlotPerFile();
-  mockCreateUploadUrls
-    .mockImplementationOnce(mint)
-    .mockRejectedValueOnce(createApiError(message, { status: 403, code }));
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  const eventCallsBefore = mockFindOne.mock.calls.length;
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
+])(
+  "stops on %s, says how many were uploaded, keeps the rest as failed, and refetches the event",
+  async (code, message) => {
+    pickPhotos(25);
+    const mint = mintSlotPerFile();
+    mockCreateUploadUrls
+      .mockImplementationOnce(mint)
+      .mockRejectedValueOnce(createApiError(message, { status: 403, code }));
+    await renderScreen();
+    await screen.findByText("Weekend meetup");
+    const eventCallsBefore = mockFindOne.mock.calls.length;
+    await userEvent.setup().press(screen.getByLabelText("Add photos"));
 
-  await waitFor(() =>
-    expect(Alert.alert).toHaveBeenCalledWith("Upload Stopped", `${message} 20 of 25 photos uploaded.`),
-  );
-  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
-  await waitFor(() => expect(mockFindOne.mock.calls.length).toBeGreaterThan(eventCallsBefore));
-});
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith("Upload Stopped", `${message} 20 of 25 photos uploaded.`),
+    );
+    expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByRole("button", { name: FAILED_TILE })).toHaveLength(5);
+    await waitFor(() => expect(mockFindOne.mock.calls.length).toBeGreaterThan(eventCallsBefore));
+  },
+);
 
-test("reports photos that failed to upload once the rest are done", async () => {
+test("shows photos that failed to upload as tiles instead of an alert", async () => {
   pickPhotos(3);
   mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
   mockConfirmUploads.mockImplementation(({ body }: { body: { photoIds: string[] } }) =>
@@ -380,23 +399,87 @@ test("reports photos that failed to upload once the rest are done", async () => 
   await screen.findByText("Weekend meetup");
   await userEvent.setup().press(screen.getByLabelText("Add photos"));
 
-  await waitFor(() =>
-    expect(Alert.alert).toHaveBeenCalledWith(
-      "Upload Finished",
-      "2 of 3 photos uploaded. The rest couldn't be uploaded. Try adding them again.",
-    ),
+  expect(await screen.findAllByRole("button", { name: FAILED_TILE })).toHaveLength(1);
+  await waitFor(() => expect(screen.getByLabelText("Add photos")).toBeEnabled());
+  expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+test("retries a failed photo from its tile and clears the tile once it uploads", async () => {
+  mockConfirmUploads.mockResolvedValueOnce({ data: { data: [{ photoId: "photo-2", status: "MISSING" }] } });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  const user = userEvent.setup();
+  await user.press(screen.getByLabelText("Add photos"));
+  const tile = await screen.findByRole("button", { name: FAILED_TILE });
+  await waitFor(() => expect(tile).toBeEnabled());
+
+  await user.press(tile);
+  expect(Alert.alert).toHaveBeenLastCalledWith(
+    "Photo Not Uploaded",
+    "This photo couldn't be uploaded.",
+    expect.not.arrayContaining([expect.objectContaining({ text: expect.stringContaining("Retry All") })]),
+  );
+  pressAlertButton("Retry");
+
+  await waitFor(() => expect(Alert.alert).toHaveBeenLastCalledWith("Success", "Photo uploaded successfully!"));
+  expect(screen.queryByRole("button", { name: FAILED_TILE })).not.toBeOnTheScreen();
+  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
+  expect(mockCreateUploadUrls).toHaveBeenLastCalledWith(
+    expect.objectContaining({ body: { files: [{ contentType: "image/jpeg", sizeBytes: IMAGE_BYTES.length }] } }),
   );
 });
 
-test("says so when a single photo fails to upload", async () => {
+test("retries every failed photo at once, and keeps the ones that fail again", async () => {
+  pickPhotos(3);
+  mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+  mockUploadAsync.mockResolvedValue({ status: 403, headers: {} });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  const user = userEvent.setup();
+  await user.press(screen.getByLabelText("Add photos"));
+  await waitFor(() => expect(screen.getAllByRole("button", { name: FAILED_TILE })).toHaveLength(3));
+  await waitFor(() => expect(screen.getByLabelText("Add photos")).toBeEnabled());
+
+  // The retry lands two of the three.
+  mockUploadAsync
+    .mockReset()
+    .mockImplementation(async (url: string) => ({ status: url.endsWith("/5") ? 403 : 200, headers: {} }));
+  await user.press(screen.getAllByRole("button", { name: FAILED_TILE })[0]);
+  pressAlertButton("Retry All (3)");
+
+  await waitFor(() => expect(screen.getAllByRole("button", { name: FAILED_TILE })).toHaveLength(1));
+  await waitFor(() => expect(screen.getByLabelText("Add photos")).toBeEnabled());
+  expect(Alert.alert).not.toHaveBeenCalledWith("Success", expect.anything());
+});
+
+test("removes a failed photo from the gallery without uploading it", async () => {
+  mockConfirmUploads.mockResolvedValue({ data: { data: [{ photoId: "photo-2", status: "MISSING" }] } });
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  const user = userEvent.setup();
+  await user.press(screen.getByLabelText("Add photos"));
+  const tile = await screen.findByRole("button", { name: FAILED_TILE });
+  await waitFor(() => expect(tile).toBeEnabled());
+
+  await user.press(tile);
+  pressAlertButton("Remove");
+
+  await waitFor(() => expect(screen.queryByRole("button", { name: FAILED_TILE })).not.toBeOnTheScreen());
+  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
+});
+
+test("keeps failed photos when the event screen is closed and opened again", async () => {
   mockConfirmUploads.mockResolvedValue({ data: { data: [{ photoId: "photo-2", status: "MISSING" }] } });
   await renderScreen();
   await screen.findByText("Weekend meetup");
   await userEvent.setup().press(screen.getByLabelText("Add photos"));
+  await screen.findByRole("button", { name: FAILED_TILE });
+  await waitFor(() => expect(screen.getByLabelText("Add photos")).toBeEnabled());
+  await screen.unmount();
 
-  await waitFor(() =>
-    expect(Alert.alert).toHaveBeenCalledWith("Error", "Your photo couldn't be uploaded. Please try again."),
-  );
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  expect(screen.getByRole("button", { name: FAILED_TILE })).toBeOnTheScreen();
 });
 
 test.each([

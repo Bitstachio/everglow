@@ -12,6 +12,7 @@ import {
   useRemoveEventParticipantMutation,
   useUploadEventPhotosMutation,
 } from "../api/mutations";
+import { getFailedPhotoUploads, setFailedPhotoUploads, useFailedPhotoUploads } from "../api/failed-photo-uploads";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
 import type { PhotoResponseDto, PhotoUploadStatus } from "../types";
@@ -96,6 +97,7 @@ export const useEventDetailScreen = () => {
   const event = eventQuery.data ?? null;
   const photos = photosQuery.data ?? [];
   const participants = participantsQuery.data ?? [];
+  const failedUploads = useFailedPhotoUploads(eventId);
 
   const currentParticipant = participants.find((participant) => participant.userId === user?.id);
   const isAdmin = event?.creatorId === user?.id || currentParticipant?.accessLevel === "ORGANIZER";
@@ -118,6 +120,46 @@ export const useEventDetailScreen = () => {
     router.push(`/events/${eventId}/settings`);
   };
 
+  /**
+   * Uploads the files and keeps the ones that did not upload as failed tiles in
+   * the gallery, ahead of any still failed from before. A file the picker could
+   * not measure is never sent and goes straight to the failed list.
+   */
+  const uploadFiles = async (eventId: string, files: EventPhotoFile[]) => {
+    const total = files.length;
+    const measured = files.filter((file) => file.sizeBytes > 0);
+    const keepFailed = (failed: Set<EventPhotoFile>) => {
+      const sent = new Set(files.map((file) => file.uri));
+      setFailedPhotoUploads(eventId, [
+        ...files.filter((file) => file.sizeBytes <= 0 || failed.has(file)),
+        ...getFailedPhotoUploads(eventId).filter((file) => !sent.has(file.uri)),
+      ]);
+    };
+
+    setUploadStatus({ phase: "uploading", done: 0, total });
+    try {
+      const { uploaded, failed, error } = await uploadPhotosMutation.mutateAsync({
+        eventId,
+        files: measured,
+        // Files that could not be measured were never sent, so they count as done.
+        onProgress: ({ done }) => setUploadStatus({ phase: "uploading", done: done + total - measured.length, total }),
+      });
+      keepFailed(new Set(failed));
+
+      if (error) {
+        Alert.alert(
+          "Upload Stopped",
+          `${getErrorMessage(error, "Failed to upload photos.")} ${uploadedSummary(uploaded, total)}`,
+        );
+      } else if (uploaded === total) {
+        Alert.alert("Success", total === 1 ? "Photo uploaded successfully!" : `${total} photos uploaded successfully!`);
+      }
+    } catch (error) {
+      keepFailed(new Set(files));
+      Alert.alert("Error", getErrorMessage(error, "Failed to upload photos"));
+    }
+  };
+
   const handleUploadImage = async () => {
     if (!eventId) return;
 
@@ -137,9 +179,11 @@ export const useEventDetailScreen = () => {
       if (result.canceled || !result.assets?.length) return;
 
       const total = result.assets.length;
-      const files: EventPhotoFile[] = result.assets
-        .map((asset) => ({ uri: asset.uri, contentType: photoContentType(asset), sizeBytes: photoSizeBytes(asset) }))
-        .filter((file) => file.sizeBytes > 0);
+      const files: EventPhotoFile[] = result.assets.map((asset) => ({
+        uri: asset.uri,
+        contentType: photoContentType(asset),
+        sizeBytes: photoSizeBytes(asset),
+      }));
 
       const selectedBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
       const storageLeft = event ? eventStorageLeftBytes(event) : null;
@@ -151,34 +195,45 @@ export const useEventDetailScreen = () => {
         return;
       }
 
-      setUploadStatus({ phase: "uploading", done: 0, total });
-      const { uploaded, error } = await uploadPhotosMutation.mutateAsync({
-        eventId,
-        files,
-        // Files that could not be measured were never sent, so they count as done.
-        onProgress: ({ done }) => setUploadStatus({ phase: "uploading", done: done + total - files.length, total }),
-      });
-
-      if (error) {
-        Alert.alert(
-          "Upload Stopped",
-          `${getErrorMessage(error, "Failed to upload photos.")} ${uploadedSummary(uploaded, total)}`,
-        );
-      } else if (uploaded === total) {
-        Alert.alert("Success", total === 1 ? "Photo uploaded successfully!" : `${total} photos uploaded successfully!`);
-      } else if (total === 1) {
-        Alert.alert("Error", "Your photo couldn't be uploaded. Please try again.");
-      } else {
-        Alert.alert(
-          "Upload Finished",
-          `${uploadedSummary(uploaded, total)} The rest couldn't be uploaded. Try adding them again.`,
-        );
-      }
+      await uploadFiles(eventId, files);
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error, "Failed to upload photos"));
     } finally {
       setUploadStatus(null);
     }
+  };
+
+  const retryUploads = async (files: EventPhotoFile[]) => {
+    if (!eventId || uploadStatus) return;
+    try {
+      await uploadFiles(eventId, files);
+    } finally {
+      setUploadStatus(null);
+    }
+  };
+
+  /** A failed tile offers what a failed message does: send it again, or drop it. */
+  const handleFailedUploadPress = (uri: string) => {
+    if (!eventId || uploadStatus) return;
+    const file = failedUploads.find((entry) => entry.uri === uri);
+    if (!file) return;
+
+    Alert.alert("Photo Not Uploaded", "This photo couldn't be uploaded.", [
+      { text: "Retry", onPress: () => void retryUploads([file]) },
+      ...(failedUploads.length > 1
+        ? [{ text: `Retry All (${failedUploads.length})`, onPress: () => void retryUploads(failedUploads) }]
+        : []),
+      {
+        text: "Remove",
+        style: "destructive" as const,
+        onPress: () =>
+          setFailedPhotoUploads(
+            eventId,
+            getFailedPhotoUploads(eventId).filter((entry) => entry.uri !== uri),
+          ),
+      },
+      { text: "Cancel", style: "cancel" as const },
+    ]);
   };
 
   const handleLeaveEvent = () => {
@@ -289,11 +344,13 @@ export const useEventDetailScreen = () => {
     isAdmin,
     currentUserId: user?.id,
     uploadStatus,
+    failedUploads,
     storageLabel: event ? formatEventStorage(event) : null,
     membersSheetVisible,
     onRefresh,
     handleOpenSettings,
     handleUploadImage,
+    handleFailedUploadPress,
     handleLeaveEvent,
     handleDeletePhoto,
     handleRemoveMember,

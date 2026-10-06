@@ -28,11 +28,13 @@ const EventDetailScreen = () => {
     isAdmin,
     currentUserId,
     uploadStatus,
+    failedUploads,
     storageLabel,
     membersSheetVisible,
     onRefresh,
     handleOpenSettings,
     handleUploadImage,
+    handleFailedUploadPress,
     handleLeaveEvent,
     handleDeletePhoto,
     handleRemoveMember,
@@ -106,10 +108,12 @@ const EventDetailScreen = () => {
             currentUserId={currentUserId}
             isAdmin={isAdmin}
             uploadStatus={uploadStatus}
+            failedUploads={failedUploads}
             storageLabel={storageLabel}
             onUpload={handleUploadImage}
             onDownload={handleDownloadPhoto}
             onDelete={handleDeletePhoto}
+            onFailedUploadPress={handleFailedUploadPress}
           />
         </ScrollView>
 
