@@ -1041,6 +1041,18 @@ describe("ReportsService", () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
+    it("refuses any verdict in a suspended event with 403 EVENT_SUSPENDED", async () => {
+      setup({
+        ...reportFor(AccessLevel.ORGANIZER),
+        event: { ...event, suspendedAt: new Date(), eventAccesses: [access(callerId, AccessLevel.ORGANIZER)] },
+      } as never);
+
+      await expect(service.resolveReport(reportId, callerId, "REMOVE_MEMBER")).rejects.toMatchObject({
+        response: { code: "EVENT_SUSPENDED" },
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it("refuses a report with the platform with 403 REPORT_ESCALATED, changing nothing", async () => {
       setup(reportFor(AccessLevel.ORGANIZER, { queue: "PLATFORM" }));
 

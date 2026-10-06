@@ -310,6 +310,8 @@ export class ReportsService {
     // organizer can't judge a report about themselves or their own photo, nor
     // one they filed, for instance before they were promoted.
     if (loaded.queue === ReportQueue.PLATFORM) throw new ApiException("REPORT_ESCALATED", { reportId });
+    // A suspended event is read-only for its organizers (§8).
+    if (event.suspendedAt) throw new ApiException("EVENT_SUSPENDED");
     if (loaded.reportedUserId === callerId || loaded.reporterId === callerId) {
       throw new ApiException("CANNOT_RESOLVE_OWN_REPORT", { reportId });
     }

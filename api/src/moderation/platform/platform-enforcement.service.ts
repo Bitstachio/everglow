@@ -123,15 +123,21 @@ export class PlatformEnforcementService {
   async deleteEvent(eventId: string, moderatorId: string): Promise<void> {
     await this.findEvent(eventId);
 
-    const { photoKeys, coverKey, closed } = await this.prisma.$transaction(async (tx) => {
-      const reports = await tx.report.updateMany({
+    const { photoKeys, coverKey, closedIds } = await this.prisma.$transaction(async (tx) => {
+      const reports = await tx.report.updateManyAndReturn({
         where: { eventId, status: ReportStatus.OPEN },
         data: this.closure(ReportStatus.ACTIONED, ReportClosedReason.EVENT_DELETED, moderatorId),
+        select: { id: true },
       });
       const photos = await tx.photo.findMany({ where: { eventId }, select: { s3Key: true } });
       const deleted = await tx.event.delete({ where: { id: eventId } });
-      return { photoKeys: photos.map((photo) => photo.s3Key), coverKey: deleted.coverS3Key, closed: reports.count };
+      return {
+        photoKeys: photos.map((photo) => photo.s3Key),
+        coverKey: deleted.coverS3Key,
+        closedIds: reports.map((report) => report.id),
+      };
     });
+    const closed = closedIds.length;
 
     this.logger.info(
       {
@@ -149,12 +155,17 @@ export class PlatformEnforcementService {
       eventId,
       moderatorId,
     });
+    // The purge copied every reported photo to evidence; an intimate image's
+    // copy goes now, as with any removal of one (§7).
+    await this.evidenceService.discardImages(closedIds);
   }
 
   /**
-   * Suspends an account everywhere. Its OPEN reports close as
-   * ACCOUNT_SUSPENDED, and events it organizes alone are suspended with it:
-   * nobody else could keep them in order. Idempotent.
+   * Suspends an account everywhere. Its OPEN member reports close as
+   * ACCOUNT_SUSPENDED: this is the verdict on them. Reports on its photos stay
+   * open, since closing them would show the photos again; the platform
+   * removes those with its verdicts. Events it organizes alone are suspended
+   * with it: nobody else could keep them in order. Idempotent.
    */
   async suspendUser(userId: string, moderatorId: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { suspendedAt: true } });
@@ -176,7 +187,7 @@ export class PlatformEnforcementService {
     const { closed, events } = await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { suspendedAt: now } });
       const reports = await tx.report.updateMany({
-        where: { reportedUserId: userId, status: ReportStatus.OPEN },
+        where: { reportedUserId: userId, targetType: ReportTargetType.MEMBER, status: ReportStatus.OPEN },
         data: this.closure(ReportStatus.ACTIONED, ReportClosedReason.ACCOUNT_SUSPENDED, moderatorId),
       });
       const suspended = await tx.event.updateMany({

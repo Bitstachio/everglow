@@ -129,14 +129,21 @@ describe("PlatformEnforcementService", () => {
   it("deletes an event whatever its state, closing its OPEN reports first, then purges its objects", async () => {
     prisma.photo.findMany.mockResolvedValue([{ s3Key: "photos/a" }] as never);
     prisma.event.delete.mockResolvedValue({ coverS3Key: "event-covers/c" } as never);
+    prisma.report.updateManyAndReturn.mockResolvedValue([{ id: "r-1" }] as never);
 
     await service.deleteEvent(eventId, moderatorId);
 
-    expect(prisma.report.updateMany).toHaveBeenCalledWith({
+    expect(prisma.report.updateManyAndReturn).toHaveBeenCalledWith({
       where: { eventId, status: "OPEN" },
       data: closure("ACTIONED", "EVENT_DELETED"),
+      select: { id: true },
     });
-    expect(prisma.report.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+    // Intimate images among them lose their evidence copy, after the purge made it.
+    expect(evidence.discardImages).toHaveBeenCalledWith(["r-1"]);
+    expect(purge.purgeObjects.mock.invocationCallOrder[0]).toBeLessThan(
+      evidence.discardImages.mock.invocationCallOrder[0],
+    );
+    expect(prisma.report.updateManyAndReturn.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.event.delete.mock.invocationCallOrder[0],
     );
     expect(purge.purgeObjects).toHaveBeenCalledWith(["photos/a", "event-covers/c"], {
@@ -164,7 +171,8 @@ describe("PlatformEnforcementService", () => {
         data: { suspendedAt: expect.any(Date) as unknown },
       });
       expect(prisma.report.updateMany).toHaveBeenCalledWith({
-        where: { reportedUserId: userId, status: "OPEN" },
+        // Member reports only: closing photo reports would show the photos again.
+        where: { reportedUserId: userId, targetType: "MEMBER", status: "OPEN" },
         data: closure("ACTIONED", "ACCOUNT_SUSPENDED"),
       });
       expect(prisma.event.updateMany).toHaveBeenCalledWith({

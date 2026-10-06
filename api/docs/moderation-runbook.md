@@ -60,7 +60,7 @@ A `CHILD_SAFETY` report is hidden from everyone, organizers included, and held f
    2. For a Canadian user or event, report it to **Cybertip.ca**, and notify the police (S.C. 2011, c. 4).
    3. Record the reference: `PUT /admin/reports/:reportId/authority-report` with `{ reference, submittedAt }`. That holds the report and its evidence for a year from the submission.
    4. Remove the content: `PATCH` with `REMOVE_MEMBER` and `photos: DELETE`. The evidence copy is kept under the hold.
-   5. Suspend the account: `POST /admin/users/:userId/suspend`.
+   5. Suspend the account: `POST /admin/users/:userId/suspend`. It closes their member reports; their photo reports stay open, so remove those photos with step 4 first.
    6. Tell nobody involved why. Nothing the person sees may prejudice an investigation.
 3. **If it isn't:** `DISMISS` it. If it is still objectionable, use the ordinary verdicts instead.
 
