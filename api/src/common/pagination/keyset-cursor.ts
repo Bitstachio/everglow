@@ -65,6 +65,17 @@ export const keysetAfter = (cursor: string | undefined) => {
   return [{ OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }] }];
 };
 
+/** Oldest first, for queues worked from the front: the same keyset, read the other way. */
+export const KEYSET_ORDER_BY_OLDEST: [{ createdAt: "asc" }, { id: "asc" }] = [{ createdAt: "asc" }, { id: "asc" }];
+
+/** WHERE fragments selecting the rows after `cursor` in `KEYSET_ORDER_BY_OLDEST`; none for the first page. */
+export const keysetAfterOldest = (cursor: string | undefined) => {
+  if (!cursor) return [];
+
+  const { createdAt, id } = decodeKeysetCursor(cursor);
+  return [{ OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gt: id } }] }];
+};
+
 /** Turns `limit + 1` fetched rows into a page: the extra row only signals that a next page exists. */
 export const toKeysetPage = <T extends KeysetCursor>(rows: T[], limit: number): KeysetPage<T> => {
   const hasMore = rows.length > limit;

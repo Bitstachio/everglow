@@ -1,4 +1,4 @@
-import { Report } from "generated/prisma/client";
+import { Report, ReportActorRole } from "generated/prisma/client";
 import { KeysetPage } from "src/common/pagination/keyset-cursor";
 import { ReportListResponseDto } from "../dto/report-list-response.dto";
 import { ReportResponseDto } from "../dto/report-response.dto";
@@ -19,7 +19,8 @@ export class ReportMapper {
       queue: report.queue,
       closedReason: report.closedReason,
       closedByRole: report.closedByRole,
-      resolvedById: report.resolvedById,
+      // Who at Everglow closed it is not the organizers' to know.
+      resolvedById: report.closedByRole === ReportActorRole.PLATFORM ? null : report.resolvedById,
       resolvedAt: report.resolvedAt,
       createdAt: report.createdAt,
     };

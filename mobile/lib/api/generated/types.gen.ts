@@ -301,7 +301,7 @@ export type ReportResponseDto = {
    */
   closedByRole: ReportActorRole | null;
   /**
-   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted.
+   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted.
    */
   resolvedById: string | null;
   resolvedAt: string | null;
@@ -550,6 +550,153 @@ export type EventBanListResponseDto = {
 
 export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
 
+export type ReportEscalation =
+  | "SEVERE_REASON"
+  | "TARGET_IS_ORGANIZER"
+  | "TARGET_IS_SOLE_ORGANIZER"
+  | "TARGET_IS_EVENT"
+  | "HIDE_THRESHOLD_REACHED"
+  | "EVENT_UNDER_REVIEW"
+  | "ORGANIZER_TIMEOUT"
+  | "GALLERY_CLOSED"
+  | "SEVERE_DISMISSED"
+  | "TARGET_DELETED"
+  | "CHILD_SAFETY"
+  | "INTIMATE_IMAGE";
+
+export type ReportHoldReason = "CHILD_SAFETY" | "INTIMATE_IMAGE" | "LAW_ENFORCEMENT" | "LEGAL";
+
+export type ReportEvidenceSummaryDto = {
+  /**
+   * Whether the reported object was copied to evidence before it was deleted.
+   */
+  quarantined: boolean;
+  /**
+   * Hex SHA-256 of the evidence copy.
+   */
+  sha256: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  /**
+   * The reported member, the photo's uploader, or who set the cover, as at filing.
+   */
+  subjectUserId: string | null;
+  /**
+   * Their username as at filing.
+   */
+  subjectUsername: string | null;
+};
+
+export type PlatformReportResponseDto = {
+  id: string;
+  /**
+   * Null once the event has been deleted; only closed reports outlive their event.
+   */
+  eventId: string | null;
+  /**
+   * The event's title when the report was filed.
+   */
+  eventTitle: string;
+  targetType: ReportTargetType;
+  /**
+   * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
+   */
+  photoId: string | null;
+  /**
+   * The reported member, or the uploader of the reported photo. Null once that account has been deleted, or when the photo had no uploader left.
+   */
+  reportedUserId: string | null;
+  reason: ReportReason;
+  note: string | null;
+  /**
+   * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
+   */
+  status: ReportStatus;
+  /**
+   * Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).
+   */
+  queue: ReportQueue;
+  /**
+   * Why the report closed. Null while OPEN, and on reports closed before it was recorded.
+   */
+  closedReason: ReportClosedReason | null;
+  /**
+   * In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.
+   */
+  closedByRole: ReportActorRole | null;
+  /**
+   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted.
+   */
+  resolvedById: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  /**
+   * Null once that account is deleted.
+   */
+  reporterId: string | null;
+  escalationReasons: Array<ReportEscalation>;
+  /**
+   * When it reached the platform's queue.
+   */
+  escalatedAt: string | null;
+  /**
+   * The retention purge skips the report until then.
+   */
+  holdUntil: string | null;
+  holdReason: ReportHoldReason | null;
+  /**
+   * CyberTipline or police reference.
+   */
+  authorityReference: string | null;
+  evidence: ReportEvidenceSummaryDto | null;
+};
+
+export type PlatformReportListResponseDto = {
+  items: Array<PlatformReportResponseDto>;
+  /**
+   * Opaque cursor for the next page; null on the last.
+   */
+  nextCursor: string | null;
+};
+
+export type EvidenceUrlResponseDto = {
+  /**
+   * A short-lived GET URL for the reported object, or its evidence copy.
+   */
+  url: string;
+  expiresAt: string;
+};
+
+export type ResolvePlatformReportDto = {
+  /**
+   * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
+   */
+  action: ReportResolutionAction;
+  /**
+   * REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.
+   */
+  photos?: MemberPhotos;
+};
+
+export type SetReportHoldDto = {
+  /**
+   * The retention purge keeps the report and its evidence until then.
+   */
+  until: string;
+  reason: ReportHoldReason;
+};
+
+export type RecordAuthorityReportDto = {
+  /**
+   * The CyberTipline report number, or the police file number.
+   */
+  reference: string;
+  /**
+   * When it was submitted. Defaults to now; the report is held for a year from then.
+   */
+  submittedAt?: string;
+};
+
 export type ApiErrorDto = {
   message: string;
   /**
@@ -576,6 +723,7 @@ export type ApiErrorDto = {
     | "EVENT_STILL_ACTIVE"
     | "EVENT_STORAGE_LIMIT_REACHED"
     | "EVENT_UNDER_REVIEW"
+    | "EVIDENCE_NOT_AVAILABLE"
     | "FORBIDDEN"
     | "IMAGE_INVALID_SIZE"
     | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -590,6 +738,7 @@ export type ApiErrorDto = {
     | "ORGANIZER_BLOCKED_BY_CALLER"
     | "ORGANIZER_ONLY"
     | "PASSWORD_CHANGE_NOT_AVAILABLE"
+    | "PLATFORM_MODERATOR_ONLY"
     | "RATE_LIMIT_EXCEEDED"
     | "REMOVED_FROM_EVENT"
     | "REPORTED_MEMBER_GONE"
@@ -2049,3 +2198,333 @@ export type EventsControllerConfirmCoverUploadResponses = {
 
 export type EventsControllerConfirmCoverUploadResponse =
   EventsControllerConfirmCoverUploadResponses[keyof EventsControllerConfirmCoverUploadResponses];
+
+export type PlatformModerationControllerListReportsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Opaque cursor: the nextCursor value from the previous page. Omit for the first page.
+     */
+    cursor?: string;
+    limit?: number;
+    /**
+     * Whose queue. The platform can read the organizers' queue too.
+     */
+    queue?: ReportQueue;
+    status?: ReportStatus;
+    /**
+     * Only this event's reports.
+     */
+    eventId?: string;
+  };
+  url: "/api/v2/admin/reports";
+};
+
+export type PlatformModerationControllerListReportsErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerListReportsError =
+  PlatformModerationControllerListReportsErrors[keyof PlatformModerationControllerListReportsErrors];
+
+export type PlatformModerationControllerListReportsResponses = {
+  /**
+   * Reports, oldest first
+   */
+  200: {
+    data: PlatformReportListResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PlatformModerationControllerListReportsResponse =
+  PlatformModerationControllerListReportsResponses[keyof PlatformModerationControllerListReportsResponses];
+
+export type PlatformModerationControllerGetReportData = {
+  body?: never;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/reports/{reportId}";
+};
+
+export type PlatformModerationControllerGetReportErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerGetReportError =
+  PlatformModerationControllerGetReportErrors[keyof PlatformModerationControllerGetReportErrors];
+
+export type PlatformModerationControllerGetReportResponses = {
+  /**
+   * The report
+   */
+  200: {
+    data: PlatformReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PlatformModerationControllerGetReportResponse =
+  PlatformModerationControllerGetReportResponses[keyof PlatformModerationControllerGetReportResponses];
+
+export type PlatformModerationControllerResolveReportData = {
+  body: ResolvePlatformReportDto;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/reports/{reportId}";
+};
+
+export type PlatformModerationControllerResolveReportErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerResolveReportError =
+  PlatformModerationControllerResolveReportErrors[keyof PlatformModerationControllerResolveReportErrors];
+
+export type PlatformModerationControllerResolveReportResponses = {
+  /**
+   * The resolved report
+   */
+  200: {
+    data: PlatformReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PlatformModerationControllerResolveReportResponse =
+  PlatformModerationControllerResolveReportResponses[keyof PlatformModerationControllerResolveReportResponses];
+
+export type PlatformModerationControllerEvidenceUrlData = {
+  body?: never;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/reports/{reportId}/evidence-url";
+};
+
+export type PlatformModerationControllerEvidenceUrlErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerEvidenceUrlError =
+  PlatformModerationControllerEvidenceUrlErrors[keyof PlatformModerationControllerEvidenceUrlErrors];
+
+export type PlatformModerationControllerEvidenceUrlResponses = {
+  /**
+   * A GET URL and when it expires
+   */
+  201: {
+    data: EvidenceUrlResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PlatformModerationControllerEvidenceUrlResponse =
+  PlatformModerationControllerEvidenceUrlResponses[keyof PlatformModerationControllerEvidenceUrlResponses];
+
+export type PlatformModerationControllerReleaseHoldData = {
+  body?: never;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/reports/{reportId}/hold";
+};
+
+export type PlatformModerationControllerReleaseHoldErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerReleaseHoldError =
+  PlatformModerationControllerReleaseHoldErrors[keyof PlatformModerationControllerReleaseHoldErrors];
+
+export type PlatformModerationControllerReleaseHoldResponses = {
+  /**
+   * The report, no longer held
+   */
+  200: {
+    data: PlatformReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PlatformModerationControllerReleaseHoldResponse =
+  PlatformModerationControllerReleaseHoldResponses[keyof PlatformModerationControllerReleaseHoldResponses];
+
+export type PlatformModerationControllerSetHoldData = {
+  body: SetReportHoldDto;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/reports/{reportId}/hold";
+};
+
+export type PlatformModerationControllerSetHoldErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerSetHoldError =
+  PlatformModerationControllerSetHoldErrors[keyof PlatformModerationControllerSetHoldErrors];
+
+export type PlatformModerationControllerSetHoldResponses = {
+  /**
+   * The held report
+   */
+  200: {
+    data: PlatformReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PlatformModerationControllerSetHoldResponse =
+  PlatformModerationControllerSetHoldResponses[keyof PlatformModerationControllerSetHoldResponses];
+
+export type PlatformModerationControllerRecordAuthorityReportData = {
+  body: RecordAuthorityReportDto;
+  path: {
+    reportId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/reports/{reportId}/authority-report";
+};
+
+export type PlatformModerationControllerRecordAuthorityReportErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerRecordAuthorityReportError =
+  PlatformModerationControllerRecordAuthorityReportErrors[keyof PlatformModerationControllerRecordAuthorityReportErrors];
+
+export type PlatformModerationControllerRecordAuthorityReportResponses = {
+  /**
+   * The report
+   */
+  200: {
+    data: PlatformReportResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type PlatformModerationControllerRecordAuthorityReportResponse =
+  PlatformModerationControllerRecordAuthorityReportResponses[keyof PlatformModerationControllerRecordAuthorityReportResponses];
+
+export type PlatformModerationControllerLiftReviewData = {
+  body?: never;
+  path: {
+    eventId: string;
+  };
+  query?: never;
+  url: "/api/v2/admin/events/{eventId}/lift-review";
+};
+
+export type PlatformModerationControllerLiftReviewErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator
+   */
+  403: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type PlatformModerationControllerLiftReviewError =
+  PlatformModerationControllerLiftReviewErrors[keyof PlatformModerationControllerLiftReviewErrors];
+
+export type PlatformModerationControllerLiftReviewResponses = {
+  /**
+   * Review lifted (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type PlatformModerationControllerLiftReviewResponse =
+  PlatformModerationControllerLiftReviewResponses[keyof PlatformModerationControllerLiftReviewResponses];

@@ -54,6 +54,7 @@ describe("ReportsService", () => {
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
     termsAcceptedAt: null,
+    platformRole: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -1456,6 +1457,125 @@ describe("ReportsService", () => {
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("resolveAsPlatform", () => {
+    const moderatorId = "99999999-9999-9999-9999-999999999999";
+    const loadedReport = (overrides: Partial<Report> = {}) => ({
+      ...buildReport({ queue: "PLATFORM", ...overrides }),
+      evidence: { objectS3Key: `photos/${uploaderId}/${eventId}/${photoId}` },
+    });
+
+    beforeEach(() => {
+      prisma.photo.findUnique.mockResolvedValue({ id: photoId, s3Key: "photos/k" } as never);
+      prisma.report.updateManyAndReturn.mockResolvedValue([buildReport({ status: ReportStatus.ACTIONED })]);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("removes the photo and closes every OPEN report on it, in either queue, as the platform", async () => {
+      prisma.report.findUnique.mockResolvedValue(loadedReport() as never);
+      prisma.report.updateManyAndReturn
+        .mockResolvedValueOnce([buildReport({ status: ReportStatus.ACTIONED })])
+        .mockResolvedValueOnce([{ id: "other" }] as never);
+
+      await service.resolveAsPlatform(reportId, moderatorId, "REMOVE_PHOTO");
+
+      const closure = {
+        status: "ACTIONED",
+        closedReason: "PHOTO_REMOVED",
+        closedByRole: "PLATFORM",
+        resolvedById: moderatorId,
+        resolvedAt: expect.any(Date) as unknown,
+      };
+      expect(prisma.report.updateManyAndReturn).toHaveBeenNthCalledWith(1, {
+        where: { id: reportId, status: "OPEN" },
+        data: closure,
+      });
+      expect(prisma.report.updateManyAndReturn).toHaveBeenNthCalledWith(2, {
+        where: { AND: [{ id: { not: reportId } }, { status: "OPEN" }, { photoId }] },
+        data: closure,
+        select: { id: true },
+      });
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId } });
+      expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith(["photos/k"]);
+      // Every report it closed is offered; only actioned, unheld intimate-image ones lose their copy.
+      expect(evidenceService.discardImages).toHaveBeenCalledWith([reportId, "other"]);
+    });
+
+    it("upholds the reports on a photo that is already gone, finding them by their snapshot", async () => {
+      prisma.report.findUnique.mockResolvedValue(loadedReport({ photoId: null }) as never);
+
+      await service.resolveAsPlatform(reportId, moderatorId, "REMOVE_PHOTO");
+
+      expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.report.updateManyAndReturn).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: {
+            AND: [
+              { id: { not: reportId } },
+              { status: "OPEN" },
+              { evidence: { is: { objectS3Key: `photos/${uploaderId}/${eventId}/${photoId}` } } },
+            ],
+          },
+        }),
+      );
+    });
+
+    it("deletes the evidence copies of an intimate image it removes, keeping the hash", async () => {
+      prisma.report.findUnique.mockResolvedValue(
+        loadedReport({ reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE }) as never,
+      );
+      prisma.report.updateManyAndReturn
+        .mockResolvedValueOnce([buildReport({ status: ReportStatus.ACTIONED })])
+        .mockResolvedValueOnce([{ id: "other" }] as never);
+
+      await service.resolveAsPlatform(reportId, moderatorId, "REMOVE_PHOTO");
+
+      expect(evidenceService.discardImages).toHaveBeenCalledWith([reportId, "other"]);
+    });
+
+    it("discards nothing on a dismissal", async () => {
+      prisma.report.findUnique.mockResolvedValue(
+        loadedReport({ reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE }) as never,
+      );
+
+      await service.resolveAsPlatform(reportId, moderatorId, "DISMISS");
+
+      expect(evidenceService.discardImages).not.toHaveBeenCalled();
+    });
+
+    it("takes DISMISS only for a report about the event itself", async () => {
+      prisma.report.findUnique.mockResolvedValue(
+        loadedReport({ targetType: ReportTargetType.EVENT, photoId: null, reportedUserId: null }) as never,
+      );
+
+      await expect(service.resolveAsPlatform(reportId, moderatorId, "REMOVE_MEMBER")).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it("answers 409 for a report that is already closed", async () => {
+      prisma.report.findUnique.mockResolvedValue(loadedReport({ status: ReportStatus.DISMISSED }) as never);
+
+      await expect(service.resolveAsPlatform(reportId, moderatorId, "DISMISS")).rejects.toMatchObject({
+        response: { code: "REPORT_ALREADY_RESOLVED" },
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("removes a member as the platform, banning them with the moderator recorded", async () => {
+      prisma.report.findUnique.mockResolvedValue(
+        loadedReport({ targetType: ReportTargetType.MEMBER, photoId: null }) as never,
+      );
+      prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+
+      await service.resolveAsPlatform(reportId, moderatorId, "REMOVE_MEMBER");
+
+      expect(prisma.eventBan.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ create: { eventId, userId: uploaderId, bannedById: moderatorId } }),
+      );
     });
   });
 

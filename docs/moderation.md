@@ -28,7 +28,8 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 | Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
 | `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons, hiding and holds (§2, §5, §7)                | Built                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62)                                                                                                                                                           |
 | NCMEC and Cybertip.ca registration, the runbooks, the TAKE IT DOWN web form, identical-copy removal (§7) | Planned                 | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the web form and copy matching are filed once this design is agreed                                                                                      |
-| Platform tools: act on any report, suspend accounts and events, lift reviews (§8)                        | Planned                 | [EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59); account suspension is filed once this design is agreed                                               |
+| Platform tools: act on any report, evidence links, holds, lift reviews (§8)                              | Built                   | [EV-59](https://linear.app/mehrshadfb/issue/EV-59)                                                                                                                                                           |
+| Suspending accounts and events, platform event deletion (§8)                                             | Planned                 | [EV-58](https://linear.app/mehrshadfb/issue/EV-58)                                                                                                                                                           |
 | Upload screening (§11)                                                                                   | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
 | Telling organizers about reports and uploaders about removals                                            | Planned                 | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
 
@@ -312,7 +313,7 @@ Reports closed before this existed keep a null `closedReason`; their path can't 
 
 - **Only the platform reviews it.** It is the organizers' own content, so organizers can neither see nor resolve it. The CASL `read` and `update` rules for organizers cover `PHOTO` and `MEMBER` reports only, so the queue leaves event reports out and `PATCH /reports/:reportId` answers 403 for them. Every event report starts in `PLATFORM` (`target_is_event`).
 - **One OPEN event report per member**, enforced by the partial unique index (§1); a repeat returns it, as for the other kinds. A check constraint keeps `reportedUserId` null on event reports; `photoId` was already limited to photo reports.
-- Until the platform tools exist (§8, [EV-58](https://linear.app/mehrshadfb/issue/EV-58)), event reports are resolved in the database.
+- The platform dismisses event reports with `PATCH /admin/reports/:reportId` (§8); suspending or deleting the event is planned ([EV-58](https://linear.app/mehrshadfb/issue/EV-58)).
 - **Who set the cover** is recorded on the event (`Event.coverUpdatedById`, set with the cover and cleared with it) and included in the report's `report.created` and `report.escalated` lines, so the reviewer knows whose image it is.
 
 **The cover is hidden, the text is not.** The cover is the one image of an event that photo reports don't cover, so it is hidden the way photos are (`hiddenEventCoverIds`, `api/src/moderation/event-cover-visibility.ts`), wherever an event's `coverUrl` is returned:
@@ -351,7 +352,7 @@ While an event is under review:
 
 The report that puts the event under review is escalated with `event_under_review` (§9); later reports are not, since the event is already there. The update only matches an event not yet under review, so of two reports that cross the threshold together exactly one says so.
 
-**Only the platform lifts it.** Resolving the reports does not. Until the platform tools exist (§8), the platform clears `underReviewAt` in the database, and closes the reports there too.
+**Only the platform lifts it**, with `POST /admin/events/:eventId/lift-review` (§8). Resolving the reports does not.
 
 ---
 
@@ -546,19 +547,19 @@ Whether the Act covers invite-only galleries is uncertain; we follow it anyway.
 
 ## 8. Platform tools
 
-**Planned** ([EV-58](https://linear.app/mehrshadfb/issue/EV-58), [EV-59](https://linear.app/mehrshadfb/issue/EV-59)). Today the platform works from the logs and the database.
+Report tools are built ([EV-59](https://linear.app/mehrshadfb/issue/EV-59)); suspending accounts and events is **Planned** ([EV-58](https://linear.app/mehrshadfb/issue/EV-58)). The procedures are in [moderation-runbook.md](../api/docs/moderation-runbook.md).
 
-Platform moderators are accounts with a platform-moderator permission. How it is granted is decided in [EV-59](https://linear.app/mehrshadfb/issue/EV-59). Their endpoints sit under an admin-only route prefix and are audit-logged like the organizer path. Every closure records `closedByRole = PLATFORM`.
+Platform moderators are accounts with `User.platformRole = MODERATOR`, granted only in the database. Their endpoints sit under `/admin`, behind `PlatformModeratorGuard`, which reads the role on every request: anyone else gets 403 `PLATFORM_MODERATOR_ONLY`. Every action is audit-logged with the moderator's id, and every closure records `closedByRole = PLATFORM`.
 
 What they can do:
 
-- **See the platform queue** across events, oldest first, with the escalation reasons. They can also see any event's `ORGANIZERS` reports.
-- **Close any report** with the organizer verdicts (§3). The same shared routines run, so there is no second path that deletes photos.
-- **Review evidence** through a logged, short-lived link: the photo while it exists, its quarantined copy after.
-- **Suspend an account.** `User.suspendedAt` makes every request answer 403 `ACCOUNT_SUSPENDED`, and lifting it restores access. It closes the account's reports as `ACCOUNT_SUSPENDED`. Its events keep running for their other organizers; an event it organized alone is suspended too.
-- **Suspend, restore or delete an event** ([EV-58](https://linear.app/mehrshadfb/issue/EV-58)). A suspended event is hidden from its members and reads as `status: "SUSPENDED"`. A deleted one goes with its reports closed first as `EVENT_DELETED`.
-- **Lift a review** (`underReviewAt`) and close event reports.
-- **Set and release holds**, and record an `authorityReference`.
+- **See the platform queue** across events, oldest first, with the escalation reasons, the reporter and the evidence summary (`GET /admin/reports`, `GET /admin/reports/:reportId`). They can also see any event's `ORGANIZERS` reports.
+- **Close any report** with the organizer verdicts (`PATCH /admin/reports/:reportId`, `ReportsService.resolveAsPlatform`). The same shared routines run, so there is no second path that deletes photos. On a photo that is already gone, `REMOVE_PHOTO` upholds the reports, found together by their snapshot. Removing an intimate image deletes its evidence copies and keeps the hash (§7).
+- **Review evidence** through a logged, 5-minute link (`POST /admin/reports/:reportId/evidence-url`, `report.evidence.viewed`): the photo while it exists, its quarantined copy after.
+- **Suspend an account** (planned). `User.suspendedAt` makes every request answer 403 `ACCOUNT_SUSPENDED`, and lifting it restores access. It closes the account's reports as `ACCOUNT_SUSPENDED`. Its events keep running for their other organizers; an event it organized alone is suspended too.
+- **Suspend, restore or delete an event** (planned, [EV-58](https://linear.app/mehrshadfb/issue/EV-58)). A suspended event is hidden from its members and reads as `status: "SUSPENDED"`. A deleted one goes with its reports closed first as `EVENT_DELETED`.
+- **Lift a review** (`POST /admin/events/:eventId/lift-review`) and close event reports with `DISMISS`.
+- **Set and release holds** (`PUT`/`DELETE /admin/reports/:reportId/hold`), and record a CyberTipline or police reference (`PUT /admin/reports/:reportId/authority-report`), which holds the report a year from the submission.
 
 **The target: act within 24 hours of a report reaching the platform**, and within 48 hours of an intimate-image request. Apple's reviewers expect the 24 hours, and the TAKE IT DOWN Act requires the 48. The overdue alert (§9) is the safety net.
 

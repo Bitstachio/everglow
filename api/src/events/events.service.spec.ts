@@ -74,6 +74,7 @@ describe("EventsService", () => {
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
     termsAcceptedAt: null,
+    platformRole: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -87,6 +88,7 @@ describe("EventsService", () => {
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
     termsAcceptedAt: null,
+    platformRole: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -177,6 +179,7 @@ describe("EventsService", () => {
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
     termsAcceptedAt: null,
+    platformRole: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -262,6 +265,7 @@ describe("EventsService", () => {
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
     termsAcceptedAt: null,
+    platformRole: null,
     createdAt: now,
     updatedAt: now,
     details: {

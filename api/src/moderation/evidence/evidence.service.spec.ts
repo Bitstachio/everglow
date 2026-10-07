@@ -158,6 +158,64 @@ describe("EvidenceService", () => {
     });
   });
 
+  describe("discardImages", () => {
+    it("deletes each evidence copy and forgets its objects, keeping the hash", async () => {
+      const key = `evidence/${reportId}/${photoKey}`;
+      prisma.reportEvidence.findMany.mockResolvedValue([{ id: "ev-1", reportId, evidenceS3Key: key }] as never);
+
+      await service.discardImages([reportId]);
+
+      expect(s3Service.deleteObject).toHaveBeenCalledWith(key);
+      expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
+        where: { id: "ev-1" },
+        data: { evidenceS3Key: null, objectS3Key: null, quarantineFailedAt: null },
+      });
+    });
+
+    it("touches only actioned intimate-image reports that aren't held", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValue([]);
+
+      await service.discardImages([reportId, otherReportId], now);
+
+      expect(prisma.reportEvidence.findMany).toHaveBeenCalledWith({
+        where: {
+          reportId: { in: [reportId, otherReportId] },
+          report: {
+            reason: "NON_CONSENSUAL_INTIMATE_IMAGE",
+            status: "ACTIONED",
+            OR: [{ holdUntil: null }, { holdUntil: { lt: now } }],
+          },
+        },
+        select: { id: true, reportId: true, evidenceS3Key: true },
+      });
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it("forgets the original of an image whose copy had failed, so the copy is never retried", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValue([{ id: "ev-1", reportId, evidenceS3Key: null }] as never);
+
+      await service.discardImages([reportId], now);
+
+      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
+        where: { id: "ev-1" },
+        data: { evidenceS3Key: null, objectS3Key: null, quarantineFailedAt: null },
+      });
+    });
+
+    it("keeps the row pointing at a copy it could not delete, and alerts", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValue([
+        { id: "ev-1", reportId, evidenceS3Key: `evidence/${reportId}/x` },
+      ] as never);
+      s3Service.deleteObject.mockRejectedValue(new Error("s3 down"));
+
+      await service.discardImages([reportId]);
+
+      expect(prisma.reportEvidence.update).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
   describe("findKeysAwaitingQuarantine", () => {
     it("returns the keys a report's evidence still needs as the original", async () => {
       prisma.reportEvidence.findMany.mockResolvedValue([{ objectS3Key: photoKey }] as never);

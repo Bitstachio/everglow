@@ -39,6 +39,14 @@ import {
   photosControllerFindOne,
   photosControllerListPhotos,
   photosControllerRemove,
+  platformModerationControllerEvidenceUrl,
+  platformModerationControllerGetReport,
+  platformModerationControllerLiftReview,
+  platformModerationControllerListReports,
+  platformModerationControllerRecordAuthorityReport,
+  platformModerationControllerReleaseHold,
+  platformModerationControllerResolveReport,
+  platformModerationControllerSetHold,
   reportsControllerListReports,
   reportsControllerReportEvent,
   reportsControllerReportMember,
@@ -135,6 +143,30 @@ import type {
   PhotosControllerRemoveData,
   PhotosControllerRemoveError,
   PhotosControllerRemoveResponse,
+  PlatformModerationControllerEvidenceUrlData,
+  PlatformModerationControllerEvidenceUrlError,
+  PlatformModerationControllerEvidenceUrlResponse,
+  PlatformModerationControllerGetReportData,
+  PlatformModerationControllerGetReportError,
+  PlatformModerationControllerGetReportResponse,
+  PlatformModerationControllerLiftReviewData,
+  PlatformModerationControllerLiftReviewError,
+  PlatformModerationControllerLiftReviewResponse,
+  PlatformModerationControllerListReportsData,
+  PlatformModerationControllerListReportsError,
+  PlatformModerationControllerListReportsResponse,
+  PlatformModerationControllerRecordAuthorityReportData,
+  PlatformModerationControllerRecordAuthorityReportError,
+  PlatformModerationControllerRecordAuthorityReportResponse,
+  PlatformModerationControllerReleaseHoldData,
+  PlatformModerationControllerReleaseHoldError,
+  PlatformModerationControllerReleaseHoldResponse,
+  PlatformModerationControllerResolveReportData,
+  PlatformModerationControllerResolveReportError,
+  PlatformModerationControllerResolveReportResponse,
+  PlatformModerationControllerSetHoldData,
+  PlatformModerationControllerSetHoldError,
+  PlatformModerationControllerSetHoldResponse,
   ReportsControllerListReportsData,
   ReportsControllerListReportsError,
   ReportsControllerListReportsResponse,
@@ -1469,6 +1501,285 @@ export const eventsControllerConfirmCoverUploadMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await eventsControllerConfirmCoverUpload({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const platformModerationControllerListReportsQueryKey = (
+  options?: Options<PlatformModerationControllerListReportsData>,
+) => createQueryKey("platformModerationControllerListReports", options);
+
+/**
+ * List reports across events (platform moderators)
+ *
+ * The platform's OPEN reports by default, oldest first. Filter by queue, status or event.
+ */
+export const platformModerationControllerListReportsOptions = (
+  options?: Options<PlatformModerationControllerListReportsData>,
+) =>
+  queryOptions<
+    PlatformModerationControllerListReportsResponse,
+    AxiosError<PlatformModerationControllerListReportsError>,
+    PlatformModerationControllerListReportsResponse,
+    ReturnType<typeof platformModerationControllerListReportsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await platformModerationControllerListReports({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: platformModerationControllerListReportsQueryKey(options),
+  });
+
+export const platformModerationControllerListReportsInfiniteQueryKey = (
+  options?: Options<PlatformModerationControllerListReportsData>,
+): QueryKey<Options<PlatformModerationControllerListReportsData>> =>
+  createQueryKey("platformModerationControllerListReports", options, true);
+
+/**
+ * List reports across events (platform moderators)
+ *
+ * The platform's OPEN reports by default, oldest first. Filter by queue, status or event.
+ */
+export const platformModerationControllerListReportsInfiniteOptions = (
+  options?: Options<PlatformModerationControllerListReportsData>,
+) => {
+  const opts = infiniteQueryOptions<
+    PlatformModerationControllerListReportsResponse,
+    AxiosError<PlatformModerationControllerListReportsError>,
+    InfiniteData<PlatformModerationControllerListReportsResponse>,
+    QueryKey<Options<PlatformModerationControllerListReportsData>>,
+    | string
+    | Pick<QueryKey<Options<PlatformModerationControllerListReportsData>>[0], "body" | "headers" | "path" | "query">
+  >(
+    // @ts-ignore
+    {
+      queryFn: async ({ pageParam, queryKey, signal }) => {
+        // @ts-ignore
+        const page: Pick<
+          QueryKey<Options<PlatformModerationControllerListReportsData>>[0],
+          "body" | "headers" | "path" | "query"
+        > =
+          typeof pageParam === "object"
+            ? pageParam
+            : {
+                query: {
+                  cursor: pageParam,
+                },
+              };
+        const params = createInfiniteParams(queryKey, page);
+        const { data } = await platformModerationControllerListReports({
+          ...options,
+          ...params,
+          signal,
+          throwOnError: true,
+        });
+        return data;
+      },
+      queryKey: platformModerationControllerListReportsInfiniteQueryKey(options),
+    },
+  );
+  return opts as Omit<typeof opts, "initialData">;
+};
+
+export const platformModerationControllerGetReportQueryKey = (
+  options: Options<PlatformModerationControllerGetReportData>,
+) => createQueryKey("platformModerationControllerGetReport", options);
+
+/**
+ * Get a report with who filed it and its evidence summary (platform moderators)
+ */
+export const platformModerationControllerGetReportOptions = (
+  options: Options<PlatformModerationControllerGetReportData>,
+) =>
+  queryOptions<
+    PlatformModerationControllerGetReportResponse,
+    AxiosError<PlatformModerationControllerGetReportError>,
+    PlatformModerationControllerGetReportResponse,
+    ReturnType<typeof platformModerationControllerGetReportQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await platformModerationControllerGetReport({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: platformModerationControllerGetReportQueryKey(options),
+  });
+
+/**
+ * Resolve any report (platform moderators)
+ *
+ * The organizer verdicts, on any OPEN report in either queue. Closes every OPEN report on the same target. REMOVE_PHOTO on a photo that is already gone upholds the reports. A report about the event itself takes DISMISS only. 409 REPORT_ALREADY_RESOLVED once it is closed.
+ */
+export const platformModerationControllerResolveReportMutation = (
+  options?: Partial<Options<PlatformModerationControllerResolveReportData>>,
+): UseMutationOptions<
+  PlatformModerationControllerResolveReportResponse,
+  AxiosError<PlatformModerationControllerResolveReportError>,
+  Options<PlatformModerationControllerResolveReportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerResolveReportResponse,
+    AxiosError<PlatformModerationControllerResolveReportError>,
+    Options<PlatformModerationControllerResolveReportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerResolveReport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Get a short-lived link to what a report is about (platform moderators)
+ *
+ * The evidence copy once there is one, the live object before that. Expires after 5 minutes. Every link is logged. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept.
+ */
+export const platformModerationControllerEvidenceUrlMutation = (
+  options?: Partial<Options<PlatformModerationControllerEvidenceUrlData>>,
+): UseMutationOptions<
+  PlatformModerationControllerEvidenceUrlResponse,
+  AxiosError<PlatformModerationControllerEvidenceUrlError>,
+  Options<PlatformModerationControllerEvidenceUrlData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerEvidenceUrlResponse,
+    AxiosError<PlatformModerationControllerEvidenceUrlError>,
+    Options<PlatformModerationControllerEvidenceUrlData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerEvidenceUrl({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Release a report's hold (platform moderators)
+ */
+export const platformModerationControllerReleaseHoldMutation = (
+  options?: Partial<Options<PlatformModerationControllerReleaseHoldData>>,
+): UseMutationOptions<
+  PlatformModerationControllerReleaseHoldResponse,
+  AxiosError<PlatformModerationControllerReleaseHoldError>,
+  Options<PlatformModerationControllerReleaseHoldData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerReleaseHoldResponse,
+    AxiosError<PlatformModerationControllerReleaseHoldError>,
+    Options<PlatformModerationControllerReleaseHoldData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerReleaseHold({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Hold a report and its evidence past the retention window (platform moderators)
+ */
+export const platformModerationControllerSetHoldMutation = (
+  options?: Partial<Options<PlatformModerationControllerSetHoldData>>,
+): UseMutationOptions<
+  PlatformModerationControllerSetHoldResponse,
+  AxiosError<PlatformModerationControllerSetHoldError>,
+  Options<PlatformModerationControllerSetHoldData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerSetHoldResponse,
+    AxiosError<PlatformModerationControllerSetHoldError>,
+    Options<PlatformModerationControllerSetHoldData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerSetHold({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Record that a report went to NCMEC or the police (platform moderators)
+ *
+ * Stores the reference and holds the report and its evidence for a year from the submission.
+ */
+export const platformModerationControllerRecordAuthorityReportMutation = (
+  options?: Partial<Options<PlatformModerationControllerRecordAuthorityReportData>>,
+): UseMutationOptions<
+  PlatformModerationControllerRecordAuthorityReportResponse,
+  AxiosError<PlatformModerationControllerRecordAuthorityReportError>,
+  Options<PlatformModerationControllerRecordAuthorityReportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerRecordAuthorityReportResponse,
+    AxiosError<PlatformModerationControllerRecordAuthorityReportError>,
+    Options<PlatformModerationControllerRecordAuthorityReportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerRecordAuthorityReport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Lift an event's review (platform moderators)
+ *
+ * Joins and uploads work again. Idempotent. Its reports stay as they are; resolve them separately.
+ */
+export const platformModerationControllerLiftReviewMutation = (
+  options?: Partial<Options<PlatformModerationControllerLiftReviewData>>,
+): UseMutationOptions<
+  PlatformModerationControllerLiftReviewResponse,
+  AxiosError<PlatformModerationControllerLiftReviewError>,
+  Options<PlatformModerationControllerLiftReviewData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerLiftReviewResponse,
+    AxiosError<PlatformModerationControllerLiftReviewError>,
+    Options<PlatformModerationControllerLiftReviewData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerLiftReview({
         ...options,
         ...fnOptions,
         throwOnError: true,

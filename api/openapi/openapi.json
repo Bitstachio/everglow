@@ -2225,6 +2225,514 @@
           "events"
         ]
       }
+    },
+    "/api/v2/admin/reports": {
+      "get": {
+        "description": "The platform's OPEN reports by default, oldest first. Filter by queue, status or event.",
+        "operationId": "PlatformModerationController_listReports",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor: the nextCursor value from the previous page. Omit for the first page.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "queue",
+            "required": false,
+            "in": "query",
+            "description": "Whose queue. The platform can read the organizers' queue too.",
+            "schema": {
+              "$ref": "#/components/schemas/ReportQueue"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ReportStatus"
+            }
+          },
+          {
+            "name": "eventId",
+            "required": false,
+            "in": "query",
+            "description": "Only this event's reports.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reports, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformReportListResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List reports across events (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/reports/{reportId}": {
+      "get": {
+        "operationId": "PlatformModerationController_getReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get a report with who filed it and its evidence summary (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "The organizer verdicts, on any OPEN report in either queue. Closes every OPEN report on the same target. REMOVE_PHOTO on a photo that is already gone upholds the reports. A report about the event itself takes DISMISS only. 409 REPORT_ALREADY_RESOLVED once it is closed.",
+        "operationId": "PlatformModerationController_resolveReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolvePlatformReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The resolved report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Resolve any report (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/reports/{reportId}/evidence-url": {
+      "post": {
+        "description": "The evidence copy once there is one, the live object before that. Expires after 5 minutes. Every link is logged. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept.",
+        "operationId": "PlatformModerationController_evidenceUrl",
+        "parameters": [
+          {
+            "name": "reportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "A GET URL and when it expires",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EvidenceUrlResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get a short-lived link to what a report is about (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/reports/{reportId}/hold": {
+      "put": {
+        "operationId": "PlatformModerationController_setHold",
+        "parameters": [
+          {
+            "name": "reportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetReportHoldDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The held report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Hold a report and its evidence past the retention window (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "PlatformModerationController_releaseHold",
+        "parameters": [
+          {
+            "name": "reportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report, no longer held",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Release a report's hold (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/reports/{reportId}/authority-report": {
+      "put": {
+        "description": "Stores the reference and holds the report and its evidence for a year from the submission.",
+        "operationId": "PlatformModerationController_recordAuthorityReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordAuthorityReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformReportResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Record that a report went to NCMEC or the police (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/events/{eventId}/lift-review": {
+      "post": {
+        "description": "Joins and uploads work again. Idempotent. Its reports stay as they are; resolve them separately.",
+        "operationId": "PlatformModerationController_liftReview",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Review lifted (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Lift an event's review (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
     }
   },
   "info": {
@@ -2957,7 +3465,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), and once that account has been deleted."
+            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted."
           },
           "resolvedAt": {
             "format": "date-time",
@@ -3510,6 +4018,342 @@
           "VIEWER"
         ]
       },
+      "ReportEscalation": {
+        "type": "string",
+        "enum": [
+          "SEVERE_REASON",
+          "TARGET_IS_ORGANIZER",
+          "TARGET_IS_SOLE_ORGANIZER",
+          "TARGET_IS_EVENT",
+          "HIDE_THRESHOLD_REACHED",
+          "EVENT_UNDER_REVIEW",
+          "ORGANIZER_TIMEOUT",
+          "GALLERY_CLOSED",
+          "SEVERE_DISMISSED",
+          "TARGET_DELETED",
+          "CHILD_SAFETY",
+          "INTIMATE_IMAGE"
+        ]
+      },
+      "ReportHoldReason": {
+        "type": "string",
+        "enum": [
+          "CHILD_SAFETY",
+          "INTIMATE_IMAGE",
+          "LAW_ENFORCEMENT",
+          "LEGAL"
+        ]
+      },
+      "ReportEvidenceSummaryDto": {
+        "type": "object",
+        "properties": {
+          "quarantined": {
+            "type": "boolean",
+            "description": "Whether the reported object was copied to evidence before it was deleted."
+          },
+          "sha256": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hex SHA-256 of the evidence copy."
+          },
+          "contentType": {
+            "type": "string",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "subjectUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The reported member, the photo's uploader, or who set the cover, as at filing."
+          },
+          "subjectUsername": {
+            "type": "string",
+            "nullable": true,
+            "description": "Their username as at filing."
+          }
+        },
+        "required": [
+          "quarantined",
+          "sha256",
+          "contentType",
+          "sizeBytes",
+          "subjectUserId",
+          "subjectUsername"
+        ]
+      },
+      "PlatformReportResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null once the event has been deleted; only closed reports outlive their event."
+          },
+          "eventTitle": {
+            "type": "string",
+            "description": "The event's title when the report was filed."
+          },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportTargetType"
+              }
+            ]
+          },
+          "photoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The reported photo. Null for MEMBER reports, and once the photo has been deleted."
+          },
+          "reportedUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The reported member, or the uploader of the reported photo. Null once that account has been deleted, or when the photo had no uploader left."
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          },
+          "status": {
+            "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportStatus"
+              }
+            ]
+          },
+          "queue": {
+            "description": "Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportQueue"
+              }
+            ]
+          },
+          "closedReason": {
+            "nullable": true,
+            "description": "Why the report closed. Null while OPEN, and on reports closed before it was recorded.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportClosedReason"
+              }
+            ]
+          },
+          "closedByRole": {
+            "nullable": true,
+            "description": "In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportActorRole"
+              }
+            ]
+          },
+          "resolvedById": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted."
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reporterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null once that account is deleted."
+          },
+          "escalationReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportEscalation"
+            }
+          },
+          "escalatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When it reached the platform's queue."
+          },
+          "holdUntil": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "The retention purge skips the report until then."
+          },
+          "holdReason": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportHoldReason"
+              }
+            ]
+          },
+          "authorityReference": {
+            "type": "string",
+            "nullable": true,
+            "description": "CyberTipline or police reference."
+          },
+          "evidence": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportEvidenceSummaryDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "eventId",
+          "eventTitle",
+          "targetType",
+          "photoId",
+          "reportedUserId",
+          "reason",
+          "note",
+          "status",
+          "queue",
+          "closedReason",
+          "closedByRole",
+          "resolvedById",
+          "resolvedAt",
+          "createdAt",
+          "reporterId",
+          "escalationReasons",
+          "escalatedAt",
+          "holdUntil",
+          "holdReason",
+          "authorityReference",
+          "evidence"
+        ]
+      },
+      "PlatformReportListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformReportResponseDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page; null on the last."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "EvidenceUrlResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "A short-lived GET URL for the reported object, or its evidence copy."
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ]
+      },
+      "ResolvePlatformReportDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "description": "REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportResolutionAction"
+              }
+            ]
+          },
+          "photos": {
+            "default": "KEEP",
+            "description": "REMOVE_MEMBER only (400 with any other action): what happens to the other photos the member uploaded to this event. KEEP (default): they stay. DELETE: they are all deleted, and their open reports are closed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberPhotos"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "SetReportHoldDto": {
+        "type": "object",
+        "properties": {
+          "until": {
+            "format": "date-time",
+            "type": "string",
+            "description": "The retention purge keeps the report and its evidence until then."
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportHoldReason"
+              }
+            ]
+          }
+        },
+        "required": [
+          "until",
+          "reason"
+        ]
+      },
+      "RecordAuthorityReportDto": {
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string",
+            "description": "The CyberTipline report number, or the police file number.",
+            "maxLength": 100
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When it was submitted. Defaults to now; the report is held for a year from then."
+          }
+        },
+        "required": [
+          "reference"
+        ]
+      },
       "ApiErrorDto": {
         "type": "object",
         "properties": {
@@ -3539,6 +4383,7 @@
               "EVENT_STILL_ACTIVE",
               "EVENT_STORAGE_LIMIT_REACHED",
               "EVENT_UNDER_REVIEW",
+              "EVIDENCE_NOT_AVAILABLE",
               "FORBIDDEN",
               "IMAGE_INVALID_SIZE",
               "IMAGE_UNSUPPORTED_CONTENT_TYPE",
@@ -3553,6 +4398,7 @@
               "ORGANIZER_BLOCKED_BY_CALLER",
               "ORGANIZER_ONLY",
               "PASSWORD_CHANGE_NOT_AVAILABLE",
+              "PLATFORM_MODERATOR_ONLY",
               "RATE_LIMIT_EXCEEDED",
               "REMOVED_FROM_EVENT",
               "REPORTED_MEMBER_GONE",

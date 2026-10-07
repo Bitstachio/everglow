@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Prisma, ReportStatus } from "generated/prisma/client";
+import { Prisma, ReportReason, ReportStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -107,6 +107,50 @@ export class EvidenceService {
     }
 
     return { deletable: keys.filter((key) => !retained.has(key)), retained: [...retained] };
+  }
+
+  /**
+   * For the intimate-image reports among these that were actioned: deletes
+   * their evidence copies and forgets the objects they point at, keeping the
+   * hash and the metadata. Keeping a copy would undo the removal the person
+   * asked for (docs/moderation.md §7). Reports for any other reason, and
+   * reports under a hold, keep their evidence. A copy that can't be deleted
+   * stays referenced, and goes with the report's purge.
+   */
+  async discardImages(reportIds: string[], now: Date = new Date()): Promise<void> {
+    if (reportIds.length === 0) return;
+
+    const rows = await this.prisma.reportEvidence.findMany({
+      where: {
+        reportId: { in: reportIds },
+        report: {
+          reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE,
+          status: ReportStatus.ACTIONED,
+          OR: [{ holdUntil: null }, { holdUntil: { lt: now } }],
+        },
+      },
+      select: { id: true, reportId: true, evidenceS3Key: true },
+    });
+    for (const row of rows) {
+      try {
+        if (row.evidenceS3Key) await this.s3Service.deleteObject(row.evidenceS3Key);
+        // Without its key the original no longer counts as needed, so a copy
+        // that failed is never retried and the reconciler may take the object.
+        await this.prisma.reportEvidence.update({
+          where: { id: row.id },
+          data: { evidenceS3Key: null, objectS3Key: null, quarantineFailedAt: null },
+        });
+        this.logger.info(
+          { event: "report.evidence.discarded", reportId: row.reportId, audit: true },
+          "Intimate image's evidence copy deleted; its hash is kept",
+        );
+      } catch (error) {
+        this.logger.error(
+          { err: error as Error, event: ALERT_EVENTS.REPORT_EVIDENCE_COPY_FAILED, reportId: row.reportId },
+          "Intimate image's evidence copy could not be deleted",
+        );
+      }
+    }
   }
 
   /**

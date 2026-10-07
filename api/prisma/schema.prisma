@@ -108,6 +108,9 @@ model User {
   // When the account accepted the terms of use (App Store guideline 1.2).
   // Null for accounts onboarded before the client sent `acceptedTerms`.
   termsAcceptedAt     DateTime?
+  // Platform moderators act on any report, across events (docs/moderation.md
+  // §8). Granted only in the database: no endpoint sets it.
+  platformRole        PlatformRole?
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
 
@@ -520,4 +523,9 @@ enum ReportEscalation {
   TARGET_DELETED
   CHILD_SAFETY
   INTIMATE_IMAGE
+}
+
+// A role on the platform itself, above any event (docs/moderation.md §8).
+enum PlatformRole {
+  MODERATOR
 }

@@ -2,6 +2,8 @@
   "CANNOT_BLOCK_SELF": "You can't block yourself.",
   "CANNOT_REPORT_SELF": "You can't report yourself or your own photos.",
   "CANNOT_RESOLVE_OWN_REPORT": "You filed this report or it's about you, so someone else has to handle it.",
+  "EVIDENCE_NOT_AVAILABLE": "There's nothing kept for this report to show.",
+  "PLATFORM_MODERATOR_ONLY": "Only Everglow's moderators can do that.",
   "REPORT_ALREADY_RESOLVED": "This report was already handled.",
   "REPORT_CHANGED_CONCURRENTLY": "Something changed while your report was being sent. Please try again.",
   "REPORT_ESCALATED": "Everglow's team is reviewing this report, so organizers can't change it.",
