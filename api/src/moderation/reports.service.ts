@@ -187,7 +187,8 @@ export class ReportsService {
       target,
       dto,
       { reportedAccessLevel: targetAccess.accessLevel, galleryClosed: isGalleryClosed(event) },
-      { subjectUserId: targetUserId },
+      // Their profile photo is part of what is reported: kept as evidence if it changes.
+      { subjectUserId: targetUserId, subjectAvatarIsObject: true },
     );
   }
 

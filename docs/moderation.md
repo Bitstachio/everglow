@@ -80,7 +80,7 @@ model Report {
 
 model ReportEvidence {  // one per report, written when the report is filed
   reportId            // CASCADE: it lives as long as its report
-  objectS3Key?        // the photo, or the event's cover; no foreign key
+  objectS3Key?        // the photo, the event's cover, or a reported member's avatar; no foreign key
   contentType?, sizeBytes?
   evidenceS3Key?      // the quarantined copy under evidence/ (§7)
   sha256?             // of the copy, computed by S3 while copying
@@ -492,8 +492,8 @@ Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-
 
 ### Evidence
 
-- **A snapshot is written with every report**, in the same transaction (`EvidenceService.writeSnapshot`). `ReportEvidence` holds the reported object's key (the photo, or the event's cover), its type and size, and the subject's id and username at that time. It has no foreign keys to them, so it outlives the photo and the account.
-- **Quarantine instead of purge.** Before any path deletes an object a report is about, it copies the object to `evidence/{reportId}/{original key}` and points the snapshot at the copy, with the SHA-256 S3 computes while copying (`EvidenceService.preserveBeforeDelete`). Every photo and cover delete goes through it (`PhotoPurgeService`, `PhotosService.deletePhoto`, a verdict's photo delete, `ImageUploadService` replacing or removing a cover). That covers deletes by:
+- **A snapshot is written with every report**, in the same transaction (`EvidenceService.writeSnapshot`). `ReportEvidence` holds the reported object's key (the photo, the event's cover, or for a member report the member's profile photo), its type and size, and the subject's id and username at that time. It has no foreign keys to them, so it outlives the photo and the account.
+- **Quarantine instead of purge.** Before any path deletes an object a report is about, it copies the object to `evidence/{reportId}/{original key}` and points the snapshot at the copy, with the SHA-256 S3 computes while copying (`EvidenceService.preserveBeforeDelete`). Every photo, cover and avatar delete goes through it (`PhotoPurgeService`, `PhotosService.deletePhoto`, a verdict's photo delete, `ImageUploadService` replacing or removing a cover or an avatar), so a reported member who swaps their profile photo leaves the reported one in evidence. There is no separate way to report a profile photo: the app has no screen for opening someone else's, so reporting the member covers it. That covers deletes by:
   - the uploader or an organizer;
   - a member's removal or departure;
   - account deletion;

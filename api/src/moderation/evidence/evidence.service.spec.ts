@@ -63,6 +63,32 @@ describe("EvidenceService", () => {
       });
     });
 
+    it("records the subject's avatar as the reported object for a member report", async () => {
+      prisma.userDetails.findUnique.mockResolvedValue({ username: "ana", avatarS3Key: "avatars/u/a" } as never);
+
+      await service.writeSnapshot(prisma, reportId, {
+        subjectUserId: "22222222-2222-2222-2222-222222222222",
+        subjectAvatarIsObject: true,
+      });
+
+      expect(prisma.reportEvidence.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ objectS3Key: "avatars/u/a", subjectUsername: "ana" }) as unknown,
+      });
+    });
+
+    it("records no object for a member without a profile photo", async () => {
+      prisma.userDetails.findUnique.mockResolvedValue({ username: "ana", avatarS3Key: null } as never);
+
+      await service.writeSnapshot(prisma, reportId, {
+        subjectUserId: "22222222-2222-2222-2222-222222222222",
+        subjectAvatarIsObject: true,
+      });
+
+      expect(prisma.reportEvidence.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ objectS3Key: null }) as unknown,
+      });
+    });
+
     it("writes a snapshot with nothing but the report for a target with no subject or object", async () => {
       await service.writeSnapshot(prisma, reportId, {});
 
