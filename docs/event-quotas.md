@@ -110,6 +110,6 @@ Photos are stored in S3.
 
 Most members never download everything, so a realistic event costs much less. The paid plans still need guardrails before they ship:
 
-1. browse with smaller images in the app (thumbnails and display sizes), with originals only on an explicit download;
+1. browse with smaller images in the app (thumbnails and display sizes, designed in [photo-derivatives.md](./photo-derivatives.md)), with originals only on an explicit download;
 2. "Download all" hands out each original once per member, not repeatedly;
 3. put CloudFront in front of the bucket (1 TB free per month, cheaper per GB after).
