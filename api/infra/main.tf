@@ -161,3 +161,22 @@ resource "aws_iam_user_policy" "api_s3" {
     ]
   })
 }
+
+# Upload screening (docs/moderation.md §11). Rekognition reads the photo from
+# the bucket with the API's own credentials, so it needs no access of its own.
+# Only used when MODERATION_SCREENING_ENABLED=true.
+resource "aws_iam_user_policy" "api_rekognition" {
+  name = "everglow-api-rekognition"
+  user = aws_iam_user.api.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "rekognition:DetectModerationLabels"
+        Resource = "*"
+      },
+    ]
+  })
+}

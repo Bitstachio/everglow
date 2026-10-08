@@ -6,6 +6,8 @@ import { BlocksService } from "./blocks.service";
 import { PhotoVisibilityService } from "./photo-visibility.service";
 import { ReportsController } from "./reports.controller";
 import { ReportsService } from "./reports.service";
+import { RekognitionService } from "src/sdk/aws/rekognition/rekognition.service";
+import { UploadScreeningService } from "./screening/upload-screening.service";
 import { StaleReportCheckScheduler } from "./stale-report-check.scheduler";
 
 @Module({
@@ -13,9 +15,18 @@ import { StaleReportCheckScheduler } from "./stale-report-check.scheduler";
   controllers: [ReportsController, BlocksController],
   // PhotoPurgeService is stateless and needs only the global S3Service; it is
   // provided here directly because importing PhotosModule would be a cycle.
-  providers: [ReportsService, BlocksService, PhotoVisibilityService, PhotoPurgeService, StaleReportCheckScheduler],
+  providers: [
+    ReportsService,
+    BlocksService,
+    PhotoVisibilityService,
+    PhotoPurgeService,
+    StaleReportCheckScheduler,
+    RekognitionService,
+    UploadScreeningService,
+  ],
   // The photo read paths use the visibility filter; the platform tools give
   // verdicts through ReportsService.
-  exports: [PhotoVisibilityService, ReportsService],
+  // Upload confirmation screens new photos.
+  exports: [PhotoVisibilityService, ReportsService, UploadScreeningService],
 })
 export class ModerationModule {}
