@@ -84,6 +84,8 @@ Each `url` is a freshly-signed S3 GET URL (TTL ~15min). We don't store URLs — 
 
 ### Why no thumbnails in v1
 
+> **Superseded.** Thumbnails and display sizes are planned in [photo-derivatives.md](./photo-derivatives.md) ([EV-5](https://linear.app/mehrshadfb/issue/EV-5)). Kept below for the history.
+
 Modern mobile image libs (RN `FastImage`, Expo `Image`) lazy-load only visible tiles and cache aggressively. A 50-photo grid loads ~10 visible photos on first paint, caches them forever after. Adding a thumbnail pipeline now is overengineering. Revisit if real usage shows it's slow.
 
 ### Why square grid + `object-fit: cover`
@@ -205,7 +207,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 
 ### Reads / performance
 
-- **Thumbnail generation** (server-side via `sharp` at confirm time, or on-the-fly via S3 Object Lambda + CloudFront). Add when grid scroll feels slow on cellular.
+- **Thumbnail generation**: designed in [photo-derivatives.md](./photo-derivatives.md): eager WebP derivatives made by an isolated Lambda fed by SQS.
 - **CloudFront distribution** with signed cookies. Replaces per-request presigned URLs with stable CDN URLs that cache well on mobile.
 - **EXIF stripping** for privacy (location data on photos).
 - **Width/height stored at confirm** if mobile ever needs non-square layouts.
