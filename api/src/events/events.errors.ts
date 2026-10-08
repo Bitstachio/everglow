@@ -22,6 +22,10 @@ export const EVENT_API_ERRORS = {
     status: HttpStatus.FORBIDDEN,
     message: "Event has open reports",
   },
+  EVENT_SUSPENDED: {
+    status: HttpStatus.FORBIDDEN,
+    message: "Event is suspended",
+  },
   EVENT_UNDER_REVIEW: {
     status: HttpStatus.FORBIDDEN,
     message: "Event is under review",

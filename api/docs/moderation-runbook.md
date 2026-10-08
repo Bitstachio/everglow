@@ -25,6 +25,13 @@ The role is checked on every request (`PlatformModeratorGuard`), so revoking it 
 | `DELETE /admin/reports/:reportId/hold`          | Release the hold                                                                                          |
 | `PUT /admin/reports/:reportId/authority-report` | `{ reference, submittedAt? }`: record a CyberTipline or police report; holds it a year from submission    |
 | `POST /admin/events/:eventId/lift-review`       | End an event's review                                                                                     |
+| `POST /admin/events/:eventId/suspend`           | Hide the event's photos, cover and description; make it read-only                                         |
+| `POST /admin/events/:eventId/restore`           | Lift a suspension and a review; dismiss the reports about the event                                       |
+| `PATCH /admin/events/:eventId`                  | `{ title?, description? }`: fix the event's text                                                          |
+| `DELETE /admin/events/:eventId/cover`           | Remove the cover (copied to evidence first)                                                               |
+| `DELETE /admin/events/:eventId`                 | Delete the event, closing its OPEN reports as `EVENT_DELETED`                                             |
+| `POST /admin/users/:userId/suspend`             | Suspend an account everywhere, and the events it organizes alone                                          |
+| `POST /admin/users/:userId/unsuspend`           | Lift an account's suspension (its events stay suspended until restored)                                   |
 
 **Look only as far as you need.** Open the evidence link only to decide, never forward it, never download it. The link is logged, and so is every read of the bucket by anyone but the API ([photo-privacy.md](../../docs/photo-privacy.md)).
 
@@ -37,7 +44,11 @@ The role is checked on every request (`PlatformModeratorGuard`), so revoking it 
 3. Decide with `PATCH /admin/reports/:reportId`:
    - **Violates the terms:** `REMOVE_PHOTO` for a photo, `REMOVE_MEMBER` for a person (`photos: DELETE` to remove all their photos in the event). On a photo that is already gone, `REMOVE_PHOTO` upholds the report.
    - **Doesn't:** `DISMISS`. A photo hidden by its reports comes back.
-4. For a report about the event itself, decide on the event, then `DISMISS` the report. Lift the review with `POST /admin/events/:eventId/lift-review` once you are done.
+4. For a report about the event itself, decide on the event:
+   - **Fine:** `POST /admin/events/:eventId/restore` dismisses its event reports and lifts the review.
+   - **Fixable:** fix the title or description, or remove the cover, then restore.
+   - **Not acceptable:** `POST /admin/events/:eventId/suspend`, or `DELETE /admin/events/:eventId`.
+5. **Repeat offenders**, and anyone who targets others across events: `POST /admin/users/:userId/suspend`.
 
 ## Child safety (`child_safety`): pages, act now
 
@@ -49,7 +60,8 @@ A `CHILD_SAFETY` report is hidden from everyone, organizers included, and held f
    2. For a Canadian user or event, report it to **Cybertip.ca**, and notify the police (S.C. 2011, c. 4).
    3. Record the reference: `PUT /admin/reports/:reportId/authority-report` with `{ reference, submittedAt }`. That holds the report and its evidence for a year from the submission.
    4. Remove the content: `PATCH` with `REMOVE_MEMBER` and `photos: DELETE`. The evidence copy is kept under the hold.
-   5. Tell nobody involved why. Nothing the person sees may prejudice an investigation.
+   5. Suspend the account: `POST /admin/users/:userId/suspend`. It closes their member reports; their photo reports stay open, so remove those photos with step 4 first.
+   6. Tell nobody involved why. Nothing the person sees may prejudice an investigation.
 3. **If it isn't:** `DISMISS` it. If it is still objectionable, use the ordinary verdicts instead.
 
 ## Intimate image shared without consent (`intimate_image`): pages, 48 hours

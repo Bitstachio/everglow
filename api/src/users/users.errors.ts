@@ -3,6 +3,10 @@ import type { ApiErrorDefinition } from "src/common/errors/api-error.types";
 import { USERNAME_CHANGE_LIMIT, USERNAME_CHANGE_WINDOW_DAYS } from "./users.constants";
 
 export const USER_API_ERRORS = {
+  ACCOUNT_SUSPENDED: {
+    status: HttpStatus.FORBIDDEN,
+    message: "Account is suspended",
+  },
   AVATAR_CHANGED_CONCURRENTLY: {
     status: HttpStatus.CONFLICT,
     message: "Avatar was changed by another request",

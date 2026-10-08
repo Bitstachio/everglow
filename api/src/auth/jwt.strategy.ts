@@ -42,6 +42,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayloadDto): Promise<AuthenticatedUser> {
     // The issue time lets a tombstoned identity tell an old token from a new sign-in.
     const user = await this.usersService.resolveByProviderSub(payload.sub, payload.iat);
-    return { id: user.id, sub: payload.sub };
+    return { id: user.id, sub: payload.sub, suspended: user.suspendedAt != null };
   }
 }

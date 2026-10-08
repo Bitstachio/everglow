@@ -2733,6 +2733,284 @@
           "admin"
         ]
       }
+    },
+    "/api/v2/admin/events/{eventId}/suspend": {
+      "post": {
+        "description": "Hides its photos, cover and description from its members and makes it read-only (403 EVENT_SUSPENDED). Closes its OPEN reports about the event itself as EVENT_SUSPENDED. Idempotent.",
+        "operationId": "PlatformModerationController_suspendEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Event suspended (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Suspend an event (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/events/{eventId}/restore": {
+      "post": {
+        "description": "Lifts a suspension and a review, and dismisses its OPEN reports about the event itself.",
+        "operationId": "PlatformModerationController_restoreEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Event restored (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Restore an event (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/events/{eventId}": {
+      "patch": {
+        "operationId": "PlatformModerationController_editEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditEventAsPlatformDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Event updated (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fix a reported event's title or description (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "description": "Whatever its state. Its OPEN reports close first as EVENT_DELETED and outlive it.",
+        "operationId": "PlatformModerationController_deleteEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Event deleted (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete an event (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/events/{eventId}/cover": {
+      "delete": {
+        "operationId": "PlatformModerationController_removeCover",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cover removed (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a reported event's cover (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/users/{userId}/suspend": {
+      "post": {
+        "description": "Every request but reading and deleting the account answers 403 ACCOUNT_SUSPENDED. Closes its OPEN reports as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent.",
+        "operationId": "PlatformModerationController_suspendUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Account suspended (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Suspend an account (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v2/admin/users/{userId}/unsuspend": {
+      "post": {
+        "operationId": "PlatformModerationController_unsuspendUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Suspension lifted (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "PLATFORM_MODERATOR_ONLY: the caller is not a platform moderator"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Lift an account's suspension (platform moderators)",
+        "tags": [
+          "admin"
+        ]
+      }
     }
   },
   "info": {
@@ -2819,6 +3097,12 @@
             "nullable": true,
             "description": "When the user accepted the terms of use; null if they have not been asked yet."
           },
+          "suspendedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the platform suspended the account, or null. A suspended account can read and delete itself; every other request answers 403 ACCOUNT_SUSPENDED."
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -2833,6 +3117,7 @@
           "isOnboarded",
           "details",
           "termsAcceptedAt",
+          "suspendedAt",
           "createdAt",
           "updatedAt"
         ]
@@ -3652,9 +3937,10 @@
         "type": "string",
         "enum": [
           "ACTIVE",
-          "UNDER_REVIEW"
+          "UNDER_REVIEW",
+          "SUSPENDED"
         ],
-        "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review."
+        "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review. SUSPENDED once the platform suspended it for breaking the terms: its photos, cover and description are hidden, and nothing about it can change (403 EVENT_SUSPENDED) until the platform restores it."
       },
       "GalleryState": {
         "type": "string",
@@ -3746,7 +4032,7 @@
             "description": "Short-lived presigned URL of the event cover image; null when none is set, or while it is hidden from the caller after a report of the event"
           },
           "status": {
-            "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review.",
+            "description": "UNDER_REVIEW once enough members have reported the event itself: members keep access, but no one can join and no photos can be added until the platform finishes its review. SUSPENDED once the platform suspended it for breaking the terms: its photos, cover and description are hidden, and nothing about it can change (403 EVENT_SUSPENDED) until the platform restores it.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/EventStatus"
@@ -4354,6 +4640,21 @@
           "reference"
         ]
       },
+      "EditEventAsPlatformDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "A new description, or null to remove it."
+          }
+        }
+      },
       "ApiErrorDto": {
         "type": "object",
         "properties": {
@@ -4363,6 +4664,7 @@
           "code": {
             "type": "string",
             "enum": [
+              "ACCOUNT_SUSPENDED",
               "ACTIVE_EVENT_LIMIT_REACHED",
               "ALREADY_A_MEMBER",
               "AVATAR_CHANGED_CONCURRENTLY",
@@ -4382,6 +4684,7 @@
               "EVENT_SCHEDULE_LOCKED",
               "EVENT_STILL_ACTIVE",
               "EVENT_STORAGE_LIMIT_REACHED",
+              "EVENT_SUSPENDED",
               "EVENT_UNDER_REVIEW",
               "EVIDENCE_NOT_AVAILABLE",
               "FORBIDDEN",

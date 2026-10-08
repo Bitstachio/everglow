@@ -41,6 +41,7 @@ import { UserAvatarService } from "./user-avatar.service";
 import { UsersService } from "./users.service";
 import { UserWithDetails } from "./users.types";
 import { EventPlanService } from "src/plans/event-plan.service";
+import { AllowSuspended } from "src/auth/allow-suspended.decorator";
 
 @ApiTags("users")
 @ApiBearerAuth("access-token")
@@ -78,6 +79,7 @@ export class UsersController {
   }
 
   @Get("me")
+  @AllowSuspended()
   @ApiOperation({ summary: "Get current user" })
   @ApiWrappedResponse(UserResponseDto, "User profile")
   async findMe(@CurrentUser() user: AuthenticatedUser): Promise<UserResponseDto> {
@@ -158,6 +160,7 @@ export class UsersController {
   }
 
   @Delete("me")
+  @AllowSuspended()
   @RateLimit("sensitive")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete current user" })

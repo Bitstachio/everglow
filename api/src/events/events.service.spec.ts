@@ -75,6 +75,7 @@ describe("EventsService", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -89,6 +90,7 @@ describe("EventsService", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -112,6 +114,7 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -137,6 +140,7 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -159,6 +163,7 @@ describe("EventsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -180,6 +185,7 @@ describe("EventsService", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -266,6 +272,7 @@ describe("EventsService", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -933,6 +940,7 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
+        suspendedAt: null,
         planId: "f0000000-0000-4000-8000-000000000001",
         bonusStorageBytes: 0n,
         galleryWindowDays: null,
@@ -1092,6 +1100,16 @@ describe("EventsService", () => {
       expect((failure as ApiException).getResponse()).toEqual({
         code: "EVENT_UNDER_REVIEW",
         message: resolveApiErrorMessage("EVENT_UNDER_REVIEW"),
+      });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses anyone new while the platform has the event suspended", async () => {
+      setupSuccessfulJoin();
+      prisma.event.findUnique.mockResolvedValue({ ...eventCreatedByUser, suspendedAt: new Date() });
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toMatchObject({
+        response: { code: "EVENT_SUSPENDED" },
       });
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1290,6 +1308,7 @@ describe("EventsService", () => {
         coverS3Key: null,
         coverUpdatedById: null,
         underReviewAt: null,
+        suspendedAt: null,
         planId: "f0000000-0000-4000-8000-000000000001",
         bonusStorageBytes: 0n,
         galleryWindowDays: null,
@@ -1381,6 +1400,37 @@ describe("EventsService", () => {
       await expect(service.getUpdatable(eventId, callerId)).rejects.toThrow(
         new ForbiddenException(RESPONSE_TEMPLATES.ACCESS_DENIED("update", "Event")),
       );
+    });
+  });
+
+  describe("a suspended event", () => {
+    it("is read-only for its organizers: every change answers 403 EVENT_SUSPENDED", async () => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess({ ...eventCreatedByUser, suspendedAt: new Date() }, [organizerAccess]),
+      );
+
+      await expect(service.getUpdatable(eventId, callerId)).rejects.toMatchObject({
+        response: { code: "EVENT_SUSPENDED" },
+      });
+      await expect(service.getUpdatable(eventId, callerId, { readOnly: true })).resolves.toMatchObject({
+        id: eventId,
+      });
+    });
+
+    it("can still be deactivated, which frees the host's place", async () => {
+      jest.useFakeTimers({ now: new Date("2026-10-06T12:00:00.000Z") });
+      try {
+        prisma.event.findUnique.mockResolvedValue(
+          eventWithCallerAccess({ ...eventCreatedByUser, suspendedAt: new Date() }, [organizerAccess]),
+        );
+        prisma.event.updateMany.mockResolvedValue({ count: 1 });
+        prisma.event.findUniqueOrThrow.mockResolvedValue({ ...eventCreatedByUser, suspendedAt: new Date() });
+
+        await expect(service.deactivate(eventId, callerId)).resolves.toBeDefined();
+        expect(prisma.event.updateMany).toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -3050,6 +3100,15 @@ describe("EventsService", () => {
         include: { user: { include: userWithDetailsInclude } },
         orderBy: { createdAt: "desc" },
       });
+    });
+
+    it("still lists the bans of a suspended event: reading is not changing", async () => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess({ ...eventCreatedByUser, suspendedAt: new Date() }, [organizerAccess]),
+      );
+      prisma.eventBan.findMany.mockResolvedValue([]);
+
+      await expect(service.listBans(eventId, callerId)).resolves.toEqual([]);
     });
 
     it("is for organizers only", async () => {

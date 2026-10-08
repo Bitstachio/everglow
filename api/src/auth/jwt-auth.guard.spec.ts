@@ -10,6 +10,8 @@ import { UsersService } from "src/users/users.service";
 import { UserWithDetails } from "src/users/users.types";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { JwtStrategy } from "./jwt.strategy";
+import { Reflector } from "@nestjs/core";
+import { AllowSuspended } from "./allow-suspended.decorator";
 
 // jose 6 is ESM-only, which Jest's CommonJS runtime can't load (Node can).
 // jwks-rsa uses three of its helpers to read tokens and import keys; these
@@ -110,12 +112,39 @@ describe("JwtAuthGuard", () => {
     usersService = mockDeep<UsersService>();
     usersService.resolveByProviderSub.mockResolvedValue({ id: userId, providerSub } as UserWithDetails);
     useStrategyFetchingFrom(jwksUri);
-    guard = new JwtAuthGuard();
+    guard = new JwtAuthGuard(new Reflector());
   });
 
   it("lets a valid token through", async () => {
     expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(true);
     expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub, expect.any(Number));
+  });
+
+  it("refuses a suspended account with 403 ACCOUNT_SUSPENDED on a route that doesn't allow it", async () => {
+    usersService.resolveByProviderSub.mockResolvedValue({
+      id: userId,
+      providerSub,
+      suspendedAt: new Date(),
+    } as UserWithDetails);
+    const request = { headers: { authorization: `Bearer ${signToken(validClaims())}` } };
+    const handler = () => undefined;
+    const context = new ExecutionContextHost([request, {}], class Plain {}, handler);
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({ response: { code: "ACCOUNT_SUSPENDED" } });
+  });
+
+  it("lets a suspended account through a route marked @AllowSuspended()", async () => {
+    usersService.resolveByProviderSub.mockResolvedValue({
+      id: userId,
+      providerSub,
+      suspendedAt: new Date(),
+    } as UserWithDetails);
+    const request = { headers: { authorization: `Bearer ${signToken(validClaims())}` } };
+    const handler = () => undefined;
+    AllowSuspended()(handler, "handler", { value: handler });
+    const context = new ExecutionContextHost([request, {}], class Plain {}, handler);
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 
   it("says there was no token", async () => {

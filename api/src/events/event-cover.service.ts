@@ -67,7 +67,7 @@ export class EventCoverService {
 
   /** The cover as this viewer may see it: null when there is none, or it is hidden from them by a report. */
   async getCoverUrl(event: Event, viewerId: string): Promise<string | null> {
-    if (!event.coverS3Key) return null;
+    if (!event.coverS3Key || event.suspendedAt) return null;
     const hidden = await hiddenEventCoverIds(this.prisma, viewerId, [event.id]);
     return hidden.has(event.id) ? null : this.imageUploads.getDownloadUrl(event.coverS3Key);
   }
@@ -84,7 +84,7 @@ export class EventCoverService {
       events.map(
         async (event): Promise<[string, string | null]> => [
           event.id,
-          hidden.has(event.id) ? null : await this.imageUploads.getDownloadUrl(event.coverS3Key),
+          hidden.has(event.id) || event.suspendedAt ? null : await this.imageUploads.getDownloadUrl(event.coverS3Key),
         ],
       ),
     );

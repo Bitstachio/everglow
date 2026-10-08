@@ -46,6 +46,7 @@ describe("PhotosService", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -74,6 +75,7 @@ describe("PhotosService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -195,6 +197,19 @@ describe("PhotosService", () => {
       expect((failure as ApiException).getResponse()).toEqual({
         code: "EVENT_UNDER_REVIEW",
         message: resolveApiErrorMessage("EVENT_UNDER_REVIEW"),
+      });
+      expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
+    });
+
+    it("refuses new photos in a suspended event, organizers included", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue({
+        ...eventWithAccess([callerAccess("ORGANIZER")]),
+        suspendedAt: new Date(),
+      } as never);
+
+      await expect(service.createUploadSlots(eventId, callerId, files)).rejects.toMatchObject({
+        response: { code: "EVENT_SUSPENDED" },
       });
       expect(photoStorageService.reserveUploadBytes).not.toHaveBeenCalled();
     });

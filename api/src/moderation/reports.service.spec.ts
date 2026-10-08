@@ -55,6 +55,7 @@ describe("ReportsService", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -83,6 +84,7 @@ describe("ReportsService", () => {
     coverS3Key: null,
     coverUpdatedById: null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -1036,6 +1038,18 @@ describe("ReportsService", () => {
 
       expect(failure).toBeInstanceOf(ForbiddenException);
       expect((failure as ForbiddenException).getResponse()).not.toHaveProperty("code", "ORGANIZER_ONLY");
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("refuses any verdict in a suspended event with 403 EVENT_SUSPENDED", async () => {
+      setup({
+        ...reportFor(AccessLevel.ORGANIZER),
+        event: { ...event, suspendedAt: new Date(), eventAccesses: [access(callerId, AccessLevel.ORGANIZER)] },
+      } as never);
+
+      await expect(service.resolveReport(reportId, callerId, "REMOVE_MEMBER")).rejects.toMatchObject({
+        response: { code: "EVENT_SUSPENDED" },
+      });
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 

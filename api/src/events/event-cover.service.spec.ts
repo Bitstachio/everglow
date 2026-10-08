@@ -53,6 +53,7 @@ describe("EventCoverService", () => {
     coverS3Key,
     coverUpdatedById: coverS3Key ? callerId : null,
     underReviewAt: null,
+    suspendedAt: null,
     planId: "f0000000-0000-4000-8000-000000000001",
     bonusStorageBytes: 0n,
     galleryWindowDays: null,
@@ -324,6 +325,13 @@ describe("EventCoverService", () => {
 
       expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
       expect(prisma.report.findMany).not.toHaveBeenCalled();
+    });
+
+    it("hides the cover of a suspended event from everyone", async () => {
+      await expect(
+        service.getCoverUrl({ ...eventWithCover(coverKey), suspendedAt: new Date() }, viewerId),
+      ).resolves.toBeNull();
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
     });
 
     it("hides the cover from a viewer who reported the event", async () => {

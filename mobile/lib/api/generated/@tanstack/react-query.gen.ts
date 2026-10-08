@@ -39,14 +39,21 @@ import {
   photosControllerFindOne,
   photosControllerListPhotos,
   photosControllerRemove,
+  platformModerationControllerDeleteEvent,
+  platformModerationControllerEditEvent,
   platformModerationControllerEvidenceUrl,
   platformModerationControllerGetReport,
   platformModerationControllerLiftReview,
   platformModerationControllerListReports,
   platformModerationControllerRecordAuthorityReport,
   platformModerationControllerReleaseHold,
+  platformModerationControllerRemoveCover,
   platformModerationControllerResolveReport,
+  platformModerationControllerRestoreEvent,
   platformModerationControllerSetHold,
+  platformModerationControllerSuspendEvent,
+  platformModerationControllerSuspendUser,
+  platformModerationControllerUnsuspendUser,
   reportsControllerListReports,
   reportsControllerReportEvent,
   reportsControllerReportMember,
@@ -143,6 +150,12 @@ import type {
   PhotosControllerRemoveData,
   PhotosControllerRemoveError,
   PhotosControllerRemoveResponse,
+  PlatformModerationControllerDeleteEventData,
+  PlatformModerationControllerDeleteEventError,
+  PlatformModerationControllerDeleteEventResponse,
+  PlatformModerationControllerEditEventData,
+  PlatformModerationControllerEditEventError,
+  PlatformModerationControllerEditEventResponse,
   PlatformModerationControllerEvidenceUrlData,
   PlatformModerationControllerEvidenceUrlError,
   PlatformModerationControllerEvidenceUrlResponse,
@@ -161,12 +174,27 @@ import type {
   PlatformModerationControllerReleaseHoldData,
   PlatformModerationControllerReleaseHoldError,
   PlatformModerationControllerReleaseHoldResponse,
+  PlatformModerationControllerRemoveCoverData,
+  PlatformModerationControllerRemoveCoverError,
+  PlatformModerationControllerRemoveCoverResponse,
   PlatformModerationControllerResolveReportData,
   PlatformModerationControllerResolveReportError,
   PlatformModerationControllerResolveReportResponse,
+  PlatformModerationControllerRestoreEventData,
+  PlatformModerationControllerRestoreEventError,
+  PlatformModerationControllerRestoreEventResponse,
   PlatformModerationControllerSetHoldData,
   PlatformModerationControllerSetHoldError,
   PlatformModerationControllerSetHoldResponse,
+  PlatformModerationControllerSuspendEventData,
+  PlatformModerationControllerSuspendEventError,
+  PlatformModerationControllerSuspendEventResponse,
+  PlatformModerationControllerSuspendUserData,
+  PlatformModerationControllerSuspendUserError,
+  PlatformModerationControllerSuspendUserResponse,
+  PlatformModerationControllerUnsuspendUserData,
+  PlatformModerationControllerUnsuspendUserError,
+  PlatformModerationControllerUnsuspendUserResponse,
   ReportsControllerListReportsData,
   ReportsControllerListReportsError,
   ReportsControllerListReportsResponse,
@@ -1780,6 +1808,203 @@ export const platformModerationControllerLiftReviewMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await platformModerationControllerLiftReview({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Suspend an event (platform moderators)
+ *
+ * Hides its photos, cover and description from its members and makes it read-only (403 EVENT_SUSPENDED). Closes its OPEN reports about the event itself as EVENT_SUSPENDED. Idempotent.
+ */
+export const platformModerationControllerSuspendEventMutation = (
+  options?: Partial<Options<PlatformModerationControllerSuspendEventData>>,
+): UseMutationOptions<
+  PlatformModerationControllerSuspendEventResponse,
+  AxiosError<PlatformModerationControllerSuspendEventError>,
+  Options<PlatformModerationControllerSuspendEventData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerSuspendEventResponse,
+    AxiosError<PlatformModerationControllerSuspendEventError>,
+    Options<PlatformModerationControllerSuspendEventData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerSuspendEvent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Restore an event (platform moderators)
+ *
+ * Lifts a suspension and a review, and dismisses its OPEN reports about the event itself.
+ */
+export const platformModerationControllerRestoreEventMutation = (
+  options?: Partial<Options<PlatformModerationControllerRestoreEventData>>,
+): UseMutationOptions<
+  PlatformModerationControllerRestoreEventResponse,
+  AxiosError<PlatformModerationControllerRestoreEventError>,
+  Options<PlatformModerationControllerRestoreEventData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerRestoreEventResponse,
+    AxiosError<PlatformModerationControllerRestoreEventError>,
+    Options<PlatformModerationControllerRestoreEventData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerRestoreEvent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Delete an event (platform moderators)
+ *
+ * Whatever its state. Its OPEN reports close first as EVENT_DELETED and outlive it.
+ */
+export const platformModerationControllerDeleteEventMutation = (
+  options?: Partial<Options<PlatformModerationControllerDeleteEventData>>,
+): UseMutationOptions<
+  PlatformModerationControllerDeleteEventResponse,
+  AxiosError<PlatformModerationControllerDeleteEventError>,
+  Options<PlatformModerationControllerDeleteEventData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerDeleteEventResponse,
+    AxiosError<PlatformModerationControllerDeleteEventError>,
+    Options<PlatformModerationControllerDeleteEventData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerDeleteEvent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Fix a reported event's title or description (platform moderators)
+ */
+export const platformModerationControllerEditEventMutation = (
+  options?: Partial<Options<PlatformModerationControllerEditEventData>>,
+): UseMutationOptions<
+  PlatformModerationControllerEditEventResponse,
+  AxiosError<PlatformModerationControllerEditEventError>,
+  Options<PlatformModerationControllerEditEventData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerEditEventResponse,
+    AxiosError<PlatformModerationControllerEditEventError>,
+    Options<PlatformModerationControllerEditEventData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerEditEvent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Remove a reported event's cover (platform moderators)
+ */
+export const platformModerationControllerRemoveCoverMutation = (
+  options?: Partial<Options<PlatformModerationControllerRemoveCoverData>>,
+): UseMutationOptions<
+  PlatformModerationControllerRemoveCoverResponse,
+  AxiosError<PlatformModerationControllerRemoveCoverError>,
+  Options<PlatformModerationControllerRemoveCoverData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerRemoveCoverResponse,
+    AxiosError<PlatformModerationControllerRemoveCoverError>,
+    Options<PlatformModerationControllerRemoveCoverData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerRemoveCover({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Suspend an account (platform moderators)
+ *
+ * Every request but reading and deleting the account answers 403 ACCOUNT_SUSPENDED. Closes its OPEN reports as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent.
+ */
+export const platformModerationControllerSuspendUserMutation = (
+  options?: Partial<Options<PlatformModerationControllerSuspendUserData>>,
+): UseMutationOptions<
+  PlatformModerationControllerSuspendUserResponse,
+  AxiosError<PlatformModerationControllerSuspendUserError>,
+  Options<PlatformModerationControllerSuspendUserData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerSuspendUserResponse,
+    AxiosError<PlatformModerationControllerSuspendUserError>,
+    Options<PlatformModerationControllerSuspendUserData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerSuspendUser({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Lift an account's suspension (platform moderators)
+ */
+export const platformModerationControllerUnsuspendUserMutation = (
+  options?: Partial<Options<PlatformModerationControllerUnsuspendUserData>>,
+): UseMutationOptions<
+  PlatformModerationControllerUnsuspendUserResponse,
+  AxiosError<PlatformModerationControllerUnsuspendUserError>,
+  Options<PlatformModerationControllerUnsuspendUserData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PlatformModerationControllerUnsuspendUserResponse,
+    AxiosError<PlatformModerationControllerUnsuspendUserError>,
+    Options<PlatformModerationControllerUnsuspendUserData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await platformModerationControllerUnsuspendUser({
         ...options,
         ...fnOptions,
         throwOnError: true,

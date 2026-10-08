@@ -13,6 +13,8 @@ export const latestEventDate = (now: Date = new Date()): Date => {
 export const EVENT_STATUSES = {
   ACTIVE: "ACTIVE",
   UNDER_REVIEW: "UNDER_REVIEW",
+  // The platform suspended it (docs/moderation.md §8): hidden and read-only.
+  SUSPENDED: "SUSPENDED",
 } as const;
 
 export type EventStatus = (typeof EVENT_STATUSES)[keyof typeof EVENT_STATUSES];

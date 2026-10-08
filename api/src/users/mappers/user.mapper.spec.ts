@@ -15,6 +15,7 @@ describe("UserMapper", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: null,
@@ -29,6 +30,7 @@ describe("UserMapper", () => {
     deletionAttempts: 0,
     termsAcceptedAt: null,
     platformRole: null,
+    suspendedAt: null,
     createdAt: now,
     updatedAt: now,
     details: {
@@ -58,6 +60,7 @@ describe("UserMapper", () => {
           updatedAt: now,
         },
         termsAcceptedAt: null,
+        suspendedAt: null,
         createdAt: now,
         updatedAt: now,
       });
@@ -69,6 +72,12 @@ describe("UserMapper", () => {
       expect(result.termsAcceptedAt).toEqual(now);
     });
 
+    it("exposes when the account was suspended, so a suspended person sees why", () => {
+      const result = UserMapper.toResponseDto({ ...userWithDetails, suspendedAt: now }, null, null);
+
+      expect(result.suspendedAt).toEqual(now);
+    });
+
     it("maps a user without details and sets isOnboarded to false", () => {
       const result = UserMapper.toResponseDto(userWithoutDetails, null, null);
 
@@ -77,6 +86,7 @@ describe("UserMapper", () => {
         isOnboarded: false,
         details: null,
         termsAcceptedAt: null,
+        suspendedAt: null,
         createdAt: now,
         updatedAt: now,
       });

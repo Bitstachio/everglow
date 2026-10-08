@@ -55,7 +55,9 @@ export class EventResponseDto {
     enumName: "EventStatus",
     description:
       "UNDER_REVIEW once enough members have reported the event itself: members keep access, " +
-      "but no one can join and no photos can be added until the platform finishes its review.",
+      "but no one can join and no photos can be added until the platform finishes its review. " +
+      "SUSPENDED once the platform suspended it for breaking the terms: its photos, cover and description are " +
+      "hidden, and nothing about it can change (403 EVENT_SUSPENDED) until the platform restores it.",
   })
   status: EventStatus;
 
