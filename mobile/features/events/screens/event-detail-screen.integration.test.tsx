@@ -458,6 +458,30 @@ test("downloads a photo to the media library", async () => {
   expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo downloaded successfully!");
 });
 
+test("opens a full-screen viewer with the uploader username and closes it", async () => {
+  await renderScreen({
+    photos: [buildPhoto({ addedById: "user-2" })],
+    participants: [
+      buildParticipant(),
+      buildParticipant({
+        userId: "user-2",
+        username: "grace",
+        name: "Grace Hopper",
+        accessLevel: "PARTICIPANT",
+      }),
+    ],
+  });
+  await screen.findByLabelText("View event photo photo-1");
+  const user = userEvent.setup();
+  await user.press(screen.getByLabelText("View event photo photo-1"));
+
+  expect(screen.getByTestId("event-photo-viewer")).toBeOnTheScreen();
+  expect(screen.getByText("@grace")).toBeOnTheScreen();
+  await user.press(screen.getByLabelText("Close photo"));
+  expect(screen.queryByTestId("event-photo-viewer")).not.toBeOnTheScreen();
+  expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
+});
+
 test("leaves the event as a non-admin member", async () => {
   mockUser = { id: "user-2" };
   await renderScreen({
