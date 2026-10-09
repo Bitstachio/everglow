@@ -37,13 +37,7 @@ export const EventPhotoViewer = ({
   const usernameLabel = uploader?.username ? `@${uploader.username}` : "Unknown";
 
   return (
-    <Modal
-      testID="event-photo-viewer"
-      animationType="fade"
-      visible
-      transparent={false}
-      onRequestClose={onClose}
-    >
+    <Modal testID="event-photo-viewer" animationType="fade" visible transparent={false} onRequestClose={onClose}>
       <View className="flex-1 bg-black">
         <View
           className="absolute left-0 right-0 top-0 z-10 flex-row items-center justify-between gap-3 px-4"
