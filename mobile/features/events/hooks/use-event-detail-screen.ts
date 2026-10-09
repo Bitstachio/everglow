@@ -91,6 +91,7 @@ export const useEventDetailScreen = () => {
   const deletePhotoMutation = useDeleteEventPhotoMutation();
 
   const [membersSheetVisible, setMembersSheetVisible] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoResponseDto | null>(null);
   const [uploadStatus, setUploadStatus] = useState<PhotoUploadStatus | null>(null);
 
   const event = eventQuery.data ?? null;
@@ -223,6 +224,7 @@ export const useEventDetailScreen = () => {
             { eventId, photoId: photo.id },
             {
               onSuccess: () => {
+                setSelectedPhoto((current) => (current?.id === photo.id ? null : current));
                 Alert.alert("Success", "Photo deleted successfully");
               },
               onError: (error) => {
@@ -291,6 +293,7 @@ export const useEventDetailScreen = () => {
     uploadStatus,
     storageLabel: event ? formatEventStorage(event) : null,
     membersSheetVisible,
+    selectedPhoto,
     onRefresh,
     handleOpenSettings,
     handleUploadImage,
@@ -300,5 +303,7 @@ export const useEventDetailScreen = () => {
     handleDownloadPhoto,
     handleOpenMembers: () => setMembersSheetVisible(true),
     handleCloseMembers: () => setMembersSheetVisible(false),
+    handleOpenPhoto: (photo: PhotoResponseDto) => setSelectedPhoto(photo),
+    handleClosePhoto: () => setSelectedPhoto(null),
   };
 };

@@ -14,6 +14,7 @@ import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { EventCover } from "../components/event-cover";
 import { EventDetailInfo } from "../components/event-detail-info";
 import { EventMembersSheet } from "../components/event-members-sheet";
+import { EventPhotoViewer } from "../components/event-photo-viewer";
 import { EventPhotosSection } from "../components/event-photos-section";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 
@@ -30,6 +31,7 @@ const EventDetailScreen = () => {
     uploadStatus,
     storageLabel,
     membersSheetVisible,
+    selectedPhoto,
     onRefresh,
     handleOpenSettings,
     handleUploadImage,
@@ -39,6 +41,8 @@ const EventDetailScreen = () => {
     handleDownloadPhoto,
     handleOpenMembers,
     handleCloseMembers,
+    handleOpenPhoto,
+    handleClosePhoto,
   } = useEventDetailScreen();
 
   if (isLoading || !event) {
@@ -108,6 +112,7 @@ const EventDetailScreen = () => {
             uploadStatus={uploadStatus}
             storageLabel={storageLabel}
             onUpload={handleUploadImage}
+            onOpen={handleOpenPhoto}
             onDownload={handleDownloadPhoto}
             onDelete={handleDeletePhoto}
           />
@@ -128,6 +133,16 @@ const EventDetailScreen = () => {
           onRemove={handleRemoveMember}
         />
       ) : null}
+
+      <EventPhotoViewer
+        photo={selectedPhoto}
+        participants={participants}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
+        onClose={handleClosePhoto}
+        onDownload={handleDownloadPhoto}
+        onDelete={handleDeletePhoto}
+      />
     </ThemedView>
   );
 };

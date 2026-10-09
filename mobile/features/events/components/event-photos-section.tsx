@@ -16,6 +16,7 @@ type EventPhotosSectionProps = {
   /** The gallery's storage, e.g. "1.2 GB of 3 GB used". */
   storageLabel: string | null;
   onUpload: () => void;
+  onOpen: (photo: Photo) => void;
   onDownload: (photo: Photo) => void;
   onDelete: (photo: Photo) => void;
 };
@@ -27,6 +28,7 @@ export const EventPhotosSection = ({
   uploadStatus,
   storageLabel,
   onUpload,
+  onOpen,
   onDownload,
   onDelete,
 }: EventPhotosSectionProps) => {
@@ -93,11 +95,18 @@ export const EventPhotosSection = ({
                   const canDelete = isAdmin || photo.addedById === currentUserId;
                   return (
                     <View key={photo.id} className="flex-1 overflow-hidden rounded-xl" style={{ aspectRatio: 3 / 2 }}>
-                      <Image
-                        accessibilityLabel={`Event photo ${photo.id}`}
-                        source={{ uri: photo.url }}
-                        className="h-full w-full bg-surface"
-                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`View event photo ${photo.id}`}
+                        onPress={() => onOpen(photo)}
+                        className="h-full w-full"
+                      >
+                        <Image
+                          accessibilityLabel={`Event photo ${photo.id}`}
+                          source={{ uri: photo.url }}
+                          className="h-full w-full bg-surface"
+                        />
+                      </Pressable>
                       <View className="absolute bottom-2 right-2">
                         <IconButton
                           accessibilityLabel={`Download photo ${photo.id}`}

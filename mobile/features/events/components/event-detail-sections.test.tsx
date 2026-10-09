@@ -34,6 +34,7 @@ test("photos section shows empty state and upload control", async () => {
       uploadStatus={null}
       storageLabel={null}
       onUpload={onUpload}
+      onOpen={jest.fn()}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
     />,
@@ -52,6 +53,7 @@ test("photos section shows the gallery's storage and one progress label while up
       uploadStatus={{ phase: "uploading", done: 34, total: 120 }}
       storageLabel="1.2 GB of 3 GB used"
       onUpload={onUpload}
+      onOpen={jest.fn()}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
     />,
@@ -62,6 +64,26 @@ test("photos section shows the gallery's storage and one progress label while up
   expect(button).toBeDisabled();
   await userEvent.setup().press(button);
   expect(onUpload).not.toHaveBeenCalled();
+});
+
+test("photos section opens a photo when the tile is pressed", async () => {
+  const onOpen = jest.fn();
+  const photo = buildPhoto();
+  await render(
+    <EventPhotosSection
+      photos={[photo]}
+      currentUserId="user-1"
+      isAdmin={false}
+      uploadStatus={null}
+      storageLabel={null}
+      onUpload={jest.fn()}
+      onOpen={onOpen}
+      onDownload={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  );
+  await userEvent.setup().press(screen.getByLabelText("View event photo photo-1"));
+  expect(onOpen).toHaveBeenCalledWith(photo);
 });
 
 test("photos section wires download and delete for own photos", async () => {
@@ -76,6 +98,7 @@ test("photos section wires download and delete for own photos", async () => {
       uploadStatus={null}
       storageLabel={null}
       onUpload={jest.fn()}
+      onOpen={jest.fn()}
       onDownload={onDownload}
       onDelete={onDelete}
     />,
@@ -96,6 +119,7 @@ test("photos section hides delete for other members' photos", async () => {
       uploadStatus={null}
       storageLabel={null}
       onUpload={jest.fn()}
+      onOpen={jest.fn()}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
     />,
@@ -111,6 +135,7 @@ test("photos section shows that the selection is being prepared before the uploa
       uploadStatus={{ phase: "preparing" }}
       storageLabel={null}
       onUpload={jest.fn()}
+      onOpen={jest.fn()}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
     />,
