@@ -36,6 +36,8 @@ test("photos section shows empty state and upload control", async () => {
       onUpload={onUpload}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
+      failedUploads={[]}
+      onFailedUploadPress={jest.fn()}
     />,
   );
   expect(screen.getByText("No photos yet")).toBeOnTheScreen();
@@ -54,6 +56,8 @@ test("photos section shows the gallery's storage and one progress label while up
       onUpload={onUpload}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
+      failedUploads={[]}
+      onFailedUploadPress={jest.fn()}
     />,
   );
   expect(screen.getByText("1.2 GB of 3 GB used")).toBeOnTheScreen();
@@ -78,6 +82,8 @@ test("photos section wires download and delete for own photos", async () => {
       onUpload={jest.fn()}
       onDownload={onDownload}
       onDelete={onDelete}
+      failedUploads={[]}
+      onFailedUploadPress={jest.fn()}
     />,
   );
   const user = userEvent.setup();
@@ -98,6 +104,8 @@ test("photos section hides delete for other members' photos", async () => {
       onUpload={jest.fn()}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
+      failedUploads={[]}
+      onFailedUploadPress={jest.fn()}
     />,
   );
   expect(screen.queryByLabelText("Delete photo photo-1")).not.toBeOnTheScreen();
@@ -113,6 +121,8 @@ test("photos section shows that the selection is being prepared before the uploa
       onUpload={jest.fn()}
       onDownload={jest.fn()}
       onDelete={jest.fn()}
+      failedUploads={[]}
+      onFailedUploadPress={jest.fn()}
     />,
   );
   expect(screen.getByText("Preparing photos…")).toBeOnTheScreen();
@@ -145,4 +155,47 @@ test("members sheet lists roles and allows removing non-organizers", async () =>
   expect(screen.queryByLabelText("Remove Ada Lovelace")).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByLabelText("Remove Grace Hopper"));
   expect(onRemove).toHaveBeenCalledWith("user-2");
+});
+
+test("photos section shows photos that failed to upload first, and opens their actions", async () => {
+  const onFailedUploadPress = jest.fn();
+  await render(
+    <EventPhotosSection
+      photos={[buildPhoto()]}
+      isAdmin
+      uploadStatus={null}
+      storageLabel={null}
+      onUpload={jest.fn()}
+      onDownload={jest.fn()}
+      onDelete={jest.fn()}
+      failedUploads={[{ uri: "file://failed.jpg" }]}
+      onFailedUploadPress={onFailedUploadPress}
+    />,
+  );
+  expect(screen.queryByText("No photos yet")).not.toBeOnTheScreen();
+  expect(screen.getByText("Not uploaded")).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Photo not uploaded. Retry or remove" }));
+  expect(onFailedUploadPress).toHaveBeenCalledWith("file://failed.jpg");
+});
+
+test("photos section shows failed uploads even when the gallery is empty, and locks them while uploading", async () => {
+  const onFailedUploadPress = jest.fn();
+  await render(
+    <EventPhotosSection
+      photos={[]}
+      isAdmin
+      uploadStatus={{ phase: "uploading", done: 0, total: 1 }}
+      storageLabel={null}
+      onUpload={jest.fn()}
+      onDownload={jest.fn()}
+      onDelete={jest.fn()}
+      failedUploads={[{ uri: "file://failed.jpg" }]}
+      onFailedUploadPress={onFailedUploadPress}
+    />,
+  );
+  expect(screen.queryByText("No photos yet")).not.toBeOnTheScreen();
+  const tile = screen.getByRole("button", { name: "Photo not uploaded. Retry or remove" });
+  expect(tile).toBeDisabled();
+  await userEvent.setup().press(tile);
+  expect(onFailedUploadPress).not.toHaveBeenCalled();
 });

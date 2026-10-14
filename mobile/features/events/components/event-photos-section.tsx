@@ -3,7 +3,7 @@ import { H2 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
-import { CirclePlus, Download, Images, Trash2 } from "lucide-react-native";
+import { CirclePlus, Download, Images, RotateCw, Trash2 } from "lucide-react-native";
 import { Image, Pressable, View } from "react-native";
 import type { Photo, PhotoUploadStatus } from "../types";
 
@@ -13,22 +13,29 @@ type EventPhotosSectionProps = {
   isAdmin: boolean;
   /** Null while nothing is uploading. */
   uploadStatus: PhotoUploadStatus | null;
+  /** Photos that did not upload, shown first as tiles the member can retry. */
+  failedUploads: { uri: string }[];
   /** The gallery's storage, e.g. "1.2 GB of 3 GB used". */
   storageLabel: string | null;
   onUpload: () => void;
   onDownload: (photo: Photo) => void;
   onDelete: (photo: Photo) => void;
+  onFailedUploadPress: (uri: string) => void;
 };
+
+type GalleryTile = { kind: "failed"; key: string; uri: string } | { kind: "photo"; key: string; photo: Photo };
 
 export const EventPhotosSection = ({
   photos,
   currentUserId,
   isAdmin,
   uploadStatus,
+  failedUploads,
   storageLabel,
   onUpload,
   onDownload,
   onDelete,
+  onFailedUploadPress,
 }: EventPhotosSectionProps) => {
   const isUploading = uploadStatus !== null;
   const progressLabel = !uploadStatus
@@ -36,6 +43,10 @@ export const EventPhotosSection = ({
     : uploadStatus.phase === "preparing"
       ? "Preparing photos…"
       : `Uploading ${uploadStatus.done} of ${uploadStatus.total}`;
+  const tiles: GalleryTile[] = [
+    ...failedUploads.map(({ uri }): GalleryTile => ({ kind: "failed", key: `failed:${uri}`, uri })),
+    ...photos.map((photo): GalleryTile => ({ kind: "photo", key: photo.id, photo })),
+  ];
 
   return (
     <View className="gap-4">
@@ -75,7 +86,7 @@ export const EventPhotosSection = ({
         </Pressable>
       </View>
 
-      {photos.length === 0 ? (
+      {tiles.length === 0 ? (
         <View className="items-center gap-3 rounded-2xl border border-border bg-background p-8">
           <AppIcon icon={Images} size="xl" className="text-muted" />
           <ThemedText className="text-base font-semibold">No photos yet</ThemedText>
@@ -85,11 +96,34 @@ export const EventPhotosSection = ({
         </View>
       ) : (
         <View className="gap-3">
-          {Array.from({ length: Math.ceil(photos.length / 2) }, (_, rowIndex) => {
-            const row = photos.slice(rowIndex * 2, rowIndex * 2 + 2);
+          {Array.from({ length: Math.ceil(tiles.length / 2) }, (_, rowIndex) => {
+            const row = tiles.slice(rowIndex * 2, rowIndex * 2 + 2);
             return (
-              <View key={row[0]?.id ?? rowIndex} className="flex-row gap-3">
-                {row.map((photo) => {
+              <View key={row[0]?.key ?? rowIndex} className="flex-row gap-3">
+                {row.map((tile) => {
+                  if (tile.kind === "failed") {
+                    return (
+                      <Pressable
+                        key={tile.key}
+                        accessibilityRole="button"
+                        accessibilityLabel="Photo not uploaded. Retry or remove"
+                        accessibilityState={{ disabled: isUploading }}
+                        disabled={isUploading}
+                        onPress={() => onFailedUploadPress(tile.uri)}
+                        className="flex-1 overflow-hidden rounded-xl"
+                        style={{ aspectRatio: 3 / 2 }}
+                      >
+                        <Image source={{ uri: tile.uri }} className="h-full w-full bg-surface opacity-40" />
+                        <View className="absolute inset-0 items-center justify-center gap-1">
+                          <View className="h-11 w-11 items-center justify-center rounded-full bg-danger">
+                            <AppIcon icon={RotateCw} size="sm" className="text-accent-foreground" />
+                          </View>
+                          <ThemedText className="text-xs font-semibold">Not uploaded</ThemedText>
+                        </View>
+                      </Pressable>
+                    );
+                  }
+                  const { photo } = tile;
                   const canDelete = isAdmin || photo.addedById === currentUserId;
                   return (
                     <View key={photo.id} className="flex-1 overflow-hidden rounded-xl" style={{ aspectRatio: 3 / 2 }}>
