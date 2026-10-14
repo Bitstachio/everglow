@@ -2,7 +2,8 @@ import { photosControllerConfirmUploads, photosControllerCreateUploadUrls } from
 import type { ConfirmPhotoResultDto, UploadFileDto, UploadSlotResponseDto } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { getErrorCode, isApiError } from "@/lib/api/errors";
-import { putFile, readFileBlob } from "@/lib/api/upload-file";
+import { File } from "expo-file-system";
+import { FileSystemSessionType, FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
 
 /** The API's `MAX_UPLOAD_BATCH_SIZE`: files per mint and per confirm. */
 export const PHOTO_UPLOAD_BATCH_SIZE = 20;
@@ -103,13 +104,22 @@ const confirmSlots = async (eventId: string, photoIds: string[]): Promise<Confir
   }
 };
 
-/** PUTs one file to its slot. False when it cannot: the bytes changed since they were measured, or storage refused them. */
+/**
+ * PUTs one file to its slot on the OS background uploader (`docs/photos-architecture.md`):
+ * iOS keeps sending it while the app is suspended, where a `fetch` would be
+ * cancelled, and the promise settles once the app is back. False when it
+ * cannot: the bytes changed since they were measured, or storage refused them.
+ */
 const putToSlot = async (file: EventPhotoFile, slot: UploadSlotResponseDto): Promise<boolean> => {
   try {
-    const blob = await readFileBlob(file.uri);
-    if (blob.size !== file.sizeBytes) return false;
-    await putFile(blob, file.contentType, slot);
-    return true;
+    if (new File(file.uri).size !== file.sizeBytes) return false;
+    const { status } = await uploadAsync(slot.uploadUrl, file.uri, {
+      httpMethod: "PUT",
+      uploadType: FileSystemUploadType.BINARY_CONTENT,
+      sessionType: FileSystemSessionType.BACKGROUND,
+      headers: { "Content-Type": file.contentType },
+    });
+    return status >= 200 && status < 300;
   } catch {
     return false;
   }
