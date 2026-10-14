@@ -1,0 +1,11 @@
+name: Mac smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  echo:
+    runs-on: macos-latest
+    steps:
+      - name: Hello from macOS
+        run: echo "hello from $(uname -a)"
