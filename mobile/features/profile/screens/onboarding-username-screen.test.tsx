@@ -8,9 +8,14 @@ import { OnboardingDraftProvider } from "../onboarding-draft";
 import OnboardingUsernameScreen from "./onboarding-username-screen";
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 const mockBack = jest.fn();
 jest.mock("expo-router", () => ({
-  router: { push: (href: unknown) => mockPush(href), back: () => mockBack() },
+  router: {
+    push: (href: unknown) => mockPush(href),
+    replace: (href: unknown) => mockReplace(href),
+    back: () => mockBack(),
+  },
 }));
 
 // Pencil marks render already drawn, so no animation runs outside act().
@@ -99,7 +104,7 @@ test("offers free names when it's taken, and tapping one fills it in", async () 
   expect(screen.getByLabelText("Username")).toHaveDisplayValue("maya.chen");
 });
 
-test("Continue waits for an available name and the terms, then completes onboarding", async () => {
+test("Continue waits for an available name and the terms, completes onboarding, then asks for a photo", async () => {
   const user = userEvent.setup();
   mockAvailability.mockReturnValue(state({ status: "available", username: "maya.chen", canSubmit: true }));
   await renderStep("maya.chen");
@@ -116,6 +121,7 @@ test("Continue waits for an available name and the terms, then completes onboard
       acceptedTerms: true,
     }),
   );
+  expect(mockReplace).toHaveBeenCalledWith("/onboarding/photo");
 });
 
 test("opens the terms and the privacy policy from the sentence", async () => {
@@ -140,6 +146,7 @@ test("a name taken just before Continue says so", async () => {
 
   expect(await screen.findByText("Someone has @maya.chen. Try another.")).toBeOnTheScreen();
   expect(mockAlert).not.toHaveBeenCalled();
+  expect(mockReplace).not.toHaveBeenCalled();
 });
 
 test("any other failure is said in an alert", async () => {
