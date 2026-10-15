@@ -102,4 +102,20 @@ Add further test YAML files under `flows/`. Keep reusable subflows in a sibling 
 
 ## CI
 
-`login-smoke` is the path toward CI on a fresh simulator. Before a GitHub macOS job is reliable, staging Auth0 must be configured on the API, the app must be built with staging `EXPO_PUBLIC_*`, and Password AutoFill should be disabled on the simulator. Upload `.maestro/results/` even on failure.
+GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) (`workflow_dispatch`) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios`.
+
+Required repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `E2E_EMAIL` / `E2E_PASSWORD` | Seeded Auth0 user for Universal Login |
+| `EXPO_PUBLIC_API_URL` | Public HTTPS API (not `localhost`); Auth0 on that API must match the mobile tenant |
+| `EXPO_PUBLIC_AUTH0_DOMAIN` | Native app Auth0 domain |
+| `EXPO_PUBLIC_AUTH0_CLIENT_ID` | Native app client id |
+| `EXPO_PUBLIC_AUTH0_AUDIENCE` | API audience (same as API `AUTH0_AUDIENCE`) |
+
+```sh
+gh workflow run macos-smoke.yml --ref <branch-with-workflow>
+```
+
+Artifacts upload `.maestro/results/` (including failures).
