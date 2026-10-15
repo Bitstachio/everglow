@@ -4,12 +4,17 @@ import { useEffect, useState } from "react";
 import { Animated } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
-import { pencilStrokes, type PencilMark } from "./grease-pencil-paths";
+import { pencilArrow, pencilStrokes, type PencilMark, type Point } from "./grease-pencil-paths";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 type GreasePencilProps = {
-  mark: PencilMark;
+  /** A mark sized to the box, or `arrow` from `from` to `to` (box coordinates). */
+  mark: PencilMark | "arrow";
+  from?: Point;
+  to?: Point;
+  /** How far an arrow bows to the left of its direction, as a fraction of its length. */
+  bend?: number;
   width: number;
   height: number;
   /** Pencil on the ground; ink-blue on paper. Default: pencil. */
@@ -77,10 +82,14 @@ export const GreasePencil = ({
   strokeWidth = 3,
   seed = 1,
   drawOn = false,
+  from = [0, height],
+  to = [width, 0],
+  bend = 0.25,
 }: GreasePencilProps) => {
   const reduceMotion = useReduceMotion();
   const color = tone === "pencil" ? colorTokens.dark.pencil : colorTokens.dark.inkBlue;
-  const strokes = pencilStrokes(mark, width, height, strokeWidth, seed);
+  const strokes =
+    mark === "arrow" ? pencilArrow(from, to, bend, seed) : pencilStrokes(mark, width, height, strokeWidth, seed);
 
   return (
     <Svg

@@ -28,10 +28,13 @@ type FilmStripProps = {
 // Enough holes to cross the widest phone; the row clips the rest.
 const HOLES = Array.from({ length: 48 }, (_, i) => i);
 
-const Sprockets = () => (
-  <View className="h-1.5 flex-row gap-2 overflow-hidden px-1">
+// A row of 9pt holes, 9pt apart, inset 3.5pt from the strip's edge.
+const Sprockets = ({ edge }: { edge: "top" | "bottom" }) => (
+  <View
+    className={`absolute left-0 right-0 h-1.5 flex-row gap-2.25 overflow-hidden ${edge === "top" ? "top-1" : "bottom-1"}`}
+  >
     {HOLES.map((hole) => (
-      <View key={hole} className="h-1.5 w-2 rounded-xs bg-sprocket" />
+      <View key={hole} className="h-1.5 w-2.25 rounded-xs bg-sprocket" />
     ))}
   </View>
 );
@@ -46,7 +49,9 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
 
   return (
     <View onLayout={frame.circled ? onLayout : undefined} className="aspect-11/9 flex-1">
-      <View className="h-full w-full items-center justify-center overflow-hidden rounded-frame bg-frame-empty">
+      <View
+        className={`h-full w-full items-center justify-center overflow-hidden rounded-frame ${frame.caption ? "bg-viewer" : "bg-frame-empty"}`}
+      >
         {source !== undefined ? (
           <Photo
             source={source}
@@ -81,14 +86,14 @@ export const FilmStrip = ({ frames, className = "" }: FilmStripProps) => (
   <View
     accessibilityElementsHidden
     importantForAccessibility="no-hide-descendants"
-    className={`gap-2 bg-rebate py-1 ${className}`.trim()}
+    className={`bg-rebate py-3.25 ${className}`.trim()}
   >
-    <Sprockets />
+    <Sprockets edge="top" />
     <View className="flex-row gap-1 px-1">
       {frames.map((frame, index) => (
         <Frame key={frame.key} frame={frame} seed={index + 1} />
       ))}
     </View>
-    <Sprockets />
+    <Sprockets edge="bottom" />
   </View>
 );

@@ -1,4 +1,4 @@
-import { pencilStrokes } from "./grease-pencil-paths";
+import { pencilArrow, pencilStrokes } from "./grease-pencil-paths";
 
 test("a ring is one stroke that runs past where it started", () => {
   const [stroke, ...rest] = pencilStrokes("ring", 100, 60, 3);
@@ -22,4 +22,12 @@ test("a cross is two strokes; the other marks are one", () => {
 test("the same seed draws the same mark", () => {
   expect(pencilStrokes("ring", 80, 50, 3, 4)).toEqual(pencilStrokes("ring", 80, 50, 3, 4));
   expect(pencilStrokes("ring", 80, 50, 3, 4)).not.toEqual(pencilStrokes("ring", 80, 50, 3, 5));
+});
+
+test("an arrow is a curved shaft ending at its point, then a head there", () => {
+  const [shaft, head] = pencilArrow([0, 100], [40, 0]);
+  expect(shaft.d.endsWith("L40.0 0.0")).toBe(true);
+  expect(head.d).toContain("L40.0 0.0");
+  // It bows: the shaft is longer than the straight line.
+  expect(shaft.length).toBeGreaterThan(Math.hypot(40, 100));
 });
