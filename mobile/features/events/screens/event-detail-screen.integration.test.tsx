@@ -339,8 +339,8 @@ test("does not upload a selection bigger than the storage left", async () => {
 });
 
 test.each([
-  ["EVENT_STORAGE_LIMIT_REACHED", "This gallery is full. There isn't enough storage left for these photos."],
-  ["EVENT_GALLERY_CLOSED", "This event's gallery has closed."],
+  ["EVENT_STORAGE_LIMIT_REACHED", "There isn't enough room left on this roll for these photos."],
+  ["EVENT_GALLERY_CLOSED", "This roll has closed. No one can join or add photos anymore."],
 ])("stops on %s, says how many were uploaded, and refetches the event", async (code, message) => {
   pickPhotos(25);
   const mint = mintSlotPerFile();
