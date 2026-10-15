@@ -43,7 +43,6 @@ const RootNavigator = () => {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       {/* The first screen after launch fades in; a redirect would otherwise slide it in like a push. */}
       <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
-      <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="privacy-policy" options={{ title: t("screens.privacyPolicy"), headerBackTitle: backTitle }} />
       <Stack.Screen name="terms-of-use" options={{ title: t("screens.termsOfUse"), headerBackTitle: backTitle }} />

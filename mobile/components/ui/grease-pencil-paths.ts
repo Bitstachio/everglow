@@ -6,7 +6,7 @@
 
 export type PencilMark = "ring" | "tick" | "cross" | "underline" | "strike";
 
-type Point = [number, number];
+export type Point = [number, number];
 
 export type PencilStroke = {
   /** SVG path data. */
@@ -59,6 +59,31 @@ const ring = (width: number, height: number, inset: number, seed: number): Point
 const line = (from: Point, to: Point, bow: number, seed: number): Point[] => {
   const mid: Point = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2 + bow];
   return sampleQuad(from, mid, to).map(([x, y], i) => [x, y + 0.6 * wobble(i, seed)]);
+};
+
+/**
+ * A hand-drawn arrow from `from` to `to`: one curved stroke that bows to the
+ * left of its direction by `bend` (a fraction of its length), then a two-stroke
+ * head at `to`. Points are in the drawing's own coordinates.
+ */
+export const pencilArrow = (from: Point, to: Point, bend = 0.25, seed = 1): PencilStroke[] => {
+  const [dx, dy] = [to[0] - from[0], to[1] - from[1]];
+  const length = Math.hypot(dx, dy) || 1;
+  const control: Point = [
+    (from[0] + to[0]) / 2 + (dy / length) * length * bend,
+    (from[1] + to[1]) / 2 - (dx / length) * length * bend,
+  ];
+  const shaft = sampleQuad(from, control, to, 32).map(
+    // Wobble along the shaft, none at the ends so it starts and lands exactly.
+    ([x, y], i): Point => [x + 0.6 * Math.sin((Math.PI * i) / 32) * wobble(i, seed), y],
+  );
+  const angle = Math.atan2(to[1] - control[1], to[0] - control[0]);
+  const head = 12;
+  const barb = (side: number): Point => [
+    to[0] - head * Math.cos(angle + side * 0.5),
+    to[1] - head * Math.sin(angle + side * 0.5),
+  ];
+  return [toStroke(shaft), toStroke([barb(-1), to, barb(1)])];
 };
 
 export const pencilStrokes = (
