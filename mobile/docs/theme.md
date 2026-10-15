@@ -110,4 +110,4 @@ NativeWind maps `className` on core React Native views only. `expo-image` and `r
 
 ## Out of scope (migrate later)
 
-Two older screens (`features/events/screens/events-screen.tsx`, `features/profile/screens/onboarding-screen.tsx`) still use `StyleSheet`, with colours read from `colorTokens`. They move to classes when their chapters are rebuilt; do not extend them.
+One older screen (`features/events/screens/events-screen.tsx`) still uses `StyleSheet`, with colours read from `colorTokens`. It moves to classes when its chapter is rebuilt; do not extend it.

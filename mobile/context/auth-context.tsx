@@ -172,7 +172,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (err: any) {
       const message = err?.message || i18n.t("auth.onboardingFailed", { ns: "common" });
       setError(message);
-      throw new Error(message);
+      // Keep the API error so the caller can read its code (USERNAME_TAKEN).
+      throw err instanceof Error ? err : new Error(message);
     } finally {
       setIsLoading(false);
     }

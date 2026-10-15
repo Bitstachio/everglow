@@ -16,6 +16,8 @@ export type { UsernameAvailabilityState, UsernameAvailabilityStatus } from "../l
 type UseUsernameAvailabilityOptions = {
   /** When the candidate matches this (normalized), skip the network check. */
   currentUsername?: string;
+  /** The person's name, so a taken username comes back with suggestions built from it. */
+  name?: string;
   debounceMs?: number;
 };
 
@@ -23,6 +25,7 @@ type RemoteResult = {
   username: string;
   available: boolean;
   reason: UsernameAvailabilityReason | null;
+  suggestions: string[];
 };
 
 const idleState = (username = ""): UsernameAvailabilityState => ({
@@ -31,6 +34,7 @@ const idleState = (username = ""): UsernameAvailabilityState => ({
   reason: null,
   message: null,
   canSubmit: false,
+  suggestions: [],
 });
 
 const deriveLocalState = (rawUsername: string, currentUsername?: string): UsernameAvailabilityState | null => {
@@ -46,6 +50,7 @@ const deriveLocalState = (rawUsername: string, currentUsername?: string): Userna
       reason: null,
       message: null,
       canSubmit: true,
+      suggestions: [],
     };
   }
 
@@ -56,6 +61,7 @@ const deriveLocalState = (rawUsername: string, currentUsername?: string): Userna
       reason: "INVALID_FORMAT",
       message: usernameAvailabilityMessage("INVALID_FORMAT"),
       canSubmit: false,
+      suggestions: [],
     };
   }
 
@@ -69,7 +75,7 @@ const deriveLocalState = (rawUsername: string, currentUsername?: string): Userna
  */
 export const useUsernameAvailability = (
   rawUsername: string,
-  { currentUsername, debounceMs = USERNAME_AVAILABILITY_DEBOUNCE_MS }: UseUsernameAvailabilityOptions = {},
+  { currentUsername, name, debounceMs = USERNAME_AVAILABILITY_DEBOUNCE_MS }: UseUsernameAvailabilityOptions = {},
 ): UsernameAvailabilityState => {
   const normalized = normalizeUsername(rawUsername);
   const localState = useMemo(() => deriveLocalState(rawUsername, currentUsername), [rawUsername, currentUsername]);
@@ -92,12 +98,13 @@ export const useUsernameAvailability = (
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const result = await checkUsernameAvailability(normalized, controller.signal);
+          const result = await checkUsernameAvailability(normalized, { name, signal: controller.signal });
           if (requestId !== requestIdRef.current) return;
           setRemote({
             username: result.username,
             available: result.available,
             reason: (result.reason ?? null) as UsernameAvailabilityReason | null,
+            suggestions: result.suggestions ?? [],
           });
         } catch (error) {
           if (controller.signal.aborted || requestId !== requestIdRef.current) return;
@@ -113,6 +120,7 @@ export const useUsernameAvailability = (
             username: normalized,
             available: false,
             reason: null,
+            suggestions: [],
           });
         }
       })();
@@ -122,7 +130,7 @@ export const useUsernameAvailability = (
       clearTimeout(timer);
       controller.abort();
     };
-  }, [localState, normalized, debounceMs, pausedUntil, clock]);
+  }, [localState, normalized, name, debounceMs, pausedUntil, clock]);
 
   if (localState) return localState;
 
@@ -133,6 +141,7 @@ export const useUsernameAvailability = (
       reason: null,
       message: "Too many checks. Try again in a moment.",
       canSubmit: false,
+      suggestions: [],
     };
   }
 
@@ -144,6 +153,7 @@ export const useUsernameAvailability = (
         reason: null,
         message: "Username is available",
         canSubmit: true,
+        suggestions: [],
       };
     }
     if (remote.reason) {
@@ -153,6 +163,7 @@ export const useUsernameAvailability = (
         reason: remote.reason,
         message: usernameAvailabilityMessage(remote.reason) ?? "This username is unavailable",
         canSubmit: false,
+        suggestions: remote.suggestions,
       };
     }
     return {
@@ -161,6 +172,7 @@ export const useUsernameAvailability = (
       reason: null,
       message: "Could not check availability. Please try again.",
       canSubmit: false,
+      suggestions: [],
     };
   }
 
@@ -170,5 +182,6 @@ export const useUsernameAvailability = (
     reason: null,
     message: "Checking availability…",
     canSubmit: false,
+    suggestions: [],
   };
 };
