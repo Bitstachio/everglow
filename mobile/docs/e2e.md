@@ -6,7 +6,7 @@ This document covers end-to-end testing for the Everglow mobile app: what we use
 
 **Tool:** [Maestro](https://maestro.dev/) — a separate CLI (not an npm dependency). Flows are YAML under `.maestro/`; `config.yaml` controls discovery.
 
-**Sample flow:** `.maestro/flows/profile.yaml` — Profile tab opens and dismisses the edit form.
+**Sample flows:** `.maestro/flows/login-smoke.yaml` (Auth0 login → Events), `.maestro/flows/profile.yaml` (Account Settings smoke; needs an existing session unless login ran first).
 
 ## Layout
 
@@ -52,7 +52,14 @@ pnpm test:e2e:ios
 
 # Android emulator
 pnpm test:e2e:android
+
+# Login smoke only (clears app state, runs helpers/login.yaml). Export Auth0
+# creds in the shell — nested pnpm `--` breaks Maestro's argv:
+E2E_EMAIL=user1@everglow.social E2E_PASSWORD='your-test-password' \
+  pnpm test:e2e:login:ios
 ```
+
+Point `EXPO_PUBLIC_API_URL` at staging when exercising seeded Neon users. Staging API Auth0 (`AUTH0_DOMAIN` / `AUTH0_AUDIENCE`) must match the mobile tenant or login succeeds in Auth0 and then fails on API calls. On iOS Simulator, disable Password AutoFill if Maestro cannot type into the Auth0 password field.
 
 The platform scripts supply the different identifiers from `app.json`:
 
@@ -89,6 +96,10 @@ The flow deliberately preserves app data with `clearState: false`: it requires a
 
 Add further test YAML files under `flows/`. Keep reusable subflows in a sibling `helpers/` directory and call them with `runFlow` so they are not discovered as standalone tests.
 
+## Login helper
+
+`helpers/login.yaml` taps `login-submit`, drives Auth0 Universal Login with `E2E_EMAIL` / `E2E_PASSWORD`, and waits for `events-profile-button`. It is not discovered as its own test; `flows/login-smoke.yaml` calls it after `clearState: true`. Seeded users (`api` `pnpm run seed:staging-e2e`) skip onboarding.
+
 ## CI
 
-This initial test is intended for a prepared local device. Before enabling it in CI, provide a native build, an emulator/simulator, a test backend/account, and an automated Auth0 login/setup flow. A fresh CI device has no session and cannot run this profile test alone. Once those prerequisites are automated, use the same commands and upload `.maestro/results/` even on failure.
+`login-smoke` is the path toward CI on a fresh simulator. Before a GitHub macOS job is reliable, staging Auth0 must be configured on the API, the app must be built with staging `EXPO_PUBLIC_*`, and Password AutoFill should be disabled on the simulator. Upload `.maestro/results/` even on failure.

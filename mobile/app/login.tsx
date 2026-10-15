@@ -57,7 +57,13 @@ export default function LoginScreen() {
             </View>
           )}
           <View style={styles.form}>
-            <Button title={t("auth.login.submit")} onPress={handleLogin} isLoading={isLoading} disabled={isLoading} />
+            <Button
+              title={t("auth.login.submit")}
+              onPress={handleLogin}
+              isLoading={isLoading}
+              disabled={isLoading}
+              testID="login-submit"
+            />
           </View>
           <View style={styles.footer}>
             <Text style={[styles.footerText, isDark ? styles.footerTextDark : styles.footerTextLight]}>
