@@ -18,7 +18,7 @@ const RootLayout = () => (
         <QueryProvider>
           <AppThemeProvider>
             <RootNavigator />
-            <StatusBar style="auto" />
+            <StatusBar style="light" />
           </AppThemeProvider>
         </QueryProvider>
       </AuthProvider>
@@ -41,6 +41,7 @@ const RootNavigator = () => {
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="privacy-policy" options={{ title: t("screens.privacyPolicy"), headerBackTitle: backTitle }} />
       <Stack.Screen name="terms-of-use" options={{ title: t("screens.termsOfUse"), headerBackTitle: backTitle }} />
+      <Stack.Screen name="design-kit" options={{ headerShown: false }} />
       <Stack.Protected guard={isAuthenticated && isOnboarded}>
         <Stack.Screen name="events/index" options={{ headerShown: false }} />
         <Stack.Screen

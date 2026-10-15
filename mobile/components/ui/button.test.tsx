@@ -24,3 +24,15 @@ test("honors the disabled prop", async () => {
   fireEvent.press(screen.getByRole("button", { name: "Join" }));
   expect(onPress).not.toHaveBeenCalled();
 });
+
+test("a destructive leader carries a warning icon and names the action", async () => {
+  await render(<Button title="Cut and remove 148" variant="danger" mark="▸" />);
+  expect(screen.getByRole("button", { name: "Cut and remove 148" })).toBeOnTheScreen();
+  expect(screen.getByTestId("phosphor-Warning")).toBeOnTheScreen();
+});
+
+test("the leader's end mark is decorative", async () => {
+  await render(<Button title="Load the roll" mark="▸" />);
+  expect(screen.queryByText("▸")).not.toBeOnTheScreen();
+  expect(screen.getByText("▸", { includeHiddenElements: true })).toHaveProp("importantForAccessibility", "no");
+});

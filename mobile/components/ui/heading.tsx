@@ -7,19 +7,19 @@ type HeadingProps = {
 };
 
 export const H1 = ({ children, className = "" }: HeadingProps) => (
-  <ThemedText accessibilityRole="header" tone="strong" className={`text-2xl font-bold ${className}`.trim()}>
+  <ThemedText accessibilityRole="header" tone="strong" className={`font-display text-2xl ${className}`.trim()}>
     {children}
   </ThemedText>
 );
 
 export const H2 = ({ children, className = "" }: HeadingProps) => (
-  <ThemedText accessibilityRole="header" tone="strong" className={`text-xl font-bold ${className}`.trim()}>
+  <ThemedText accessibilityRole="header" tone="strong" className={`font-display text-xl ${className}`.trim()}>
     {children}
   </ThemedText>
 );
 
 export const H3 = ({ children, className = "" }: HeadingProps) => (
-  <ThemedText accessibilityRole="header" tone="strong" className={`text-lg font-semibold ${className}`.trim()}>
+  <ThemedText accessibilityRole="header" tone="strong" className={`font-sans-semibold text-lg ${className}`.trim()}>
     {children}
   </ThemedText>
 );

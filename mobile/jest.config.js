@@ -12,5 +12,6 @@ module.exports = {
   moduleNameMapper: {
     "\\.svg": "<rootDir>/__mocks__/svgMock.js",
     "^lucide-react-native$": "<rootDir>/__mocks__/lucide-react-native.js",
+    "^phosphor-react-native$": "<rootDir>/__mocks__/phosphor-react-native.js",
   },
 };
