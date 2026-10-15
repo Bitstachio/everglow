@@ -5,63 +5,114 @@
 @import "nativewind/theme";
 
 /*
- * Semantic theme tokens. Light values live in `@theme` so Tailwind generates
- * the utilities (`bg-background`, `text-foreground`, ...); the dark block below
- * overrides them. NativeWind re-evaluates `prefers-color-scheme` against
- * `Appearance` on native, so the switch needs no JavaScript.
- *
- * The dark override is also what keeps these variables alive: the native
- * compiler constant-folds any custom property declared only once.
+ * Design tokens for the contact-sheet design (docs/theme.md). The app is dark
+ * only, so every value is declared once here; there is no light/dark pair.
  *
  * Mirrors `theme/tokens.ts`, which exists for props NativeWind can't style.
  */
 @theme {
-  --color-background: #ffffff;
-  --color-surface: #f8fafc;
-  --color-elevated: #ffffff;
+  /* Semantic names the existing screens use, mapped onto the film palette. */
+  --color-background: #0e0e0e;
+  --color-surface: #151515;
+  --color-elevated: #1b1b1b;
 
-  --color-strong: #0f172a;
-  --color-foreground: #1e293b;
-  --color-muted: #64748b;
-  --color-subtle: #94a3b8;
+  --color-strong: #f4f4f4;
+  --color-foreground: #f4f4f4;
+  --color-muted: #a3a3a3;
+  --color-subtle: #8a8a8a;
 
-  --color-accent: #4f46e5;
-  --color-accent-hover: #4338ca;
-  --color-accent-active: #3730a3;
-  --color-accent-foreground: #ffffff;
+  --color-accent: #f4f4f4;
+  --color-accent-hover: #ffffff;
+  --color-accent-active: #d4d4d4;
+  --color-accent-foreground: #0e0e0e;
 
-  --color-border: #e2e8f0;
-  --color-border-muted: #f1f5f9;
+  --color-border: #2e2e2e;
+  --color-border-muted: #1f1f1f;
 
   /* Baked-in alpha — avoid bg-black/45; Tailwind v4 color-mix can fail silently on native. */
-  --color-scrim: #0000008c;
+  --color-scrim: #000000b3;
 
-  --color-danger: #dc2626;
-  --color-warning: #d97706;
-  --color-success: #16a34a;
-}
+  --color-danger: #ff4f6d;
+  --color-warning: #f4f4f4;
+  --color-success: #f4f4f4;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #0b1220;
-    --color-surface: #111827;
-    --color-elevated: #1f2937;
+  /* The contact sheet's own names (design system tokens). */
+  --color-ground: #0e0e0e;
+  --color-rebate: #050505;
+  --color-sprocket: #262626;
+  --color-frame-empty: #1b1b1b;
+  --color-sheet: #151515;
+  --color-line: #1f1f1f;
+  --color-text: #f4f4f4;
+  --color-text-2: #a3a3a3;
+  --color-edge: #8a8a8a;
+  --color-leader: #f4f4f4;
+  --color-on-leader: #0e0e0e;
+  --color-pencil: #ff4f6d;
+  --color-stamp: #e11d48;
+  --color-paper: #eee8df;
+  --color-paper-ink: #1a1714;
+  --color-paper-ink-2: #6b645c;
+  --color-paper-rule: #1a171438;
+  --color-ink-blue: #1d2a6b;
+  --color-viewer: #000000;
 
-    --color-strong: #f8fafc;
-    --color-foreground: #e2e8f0;
-    --color-muted: #94a3b8;
-    --color-subtle: #64748b;
+  /*
+   * One family per weight: custom fonts can't be bolded with fontWeight on
+   * Android. Names are the PostScript names, which are also the file names
+   * in assets/fonts (docs/ui-scale.md, Typeface).
+   */
+  --font-display: "FunnelDisplay-SemiBold";
+  --font-sans: "FunnelSans-Regular";
+  --font-sans-medium: "FunnelSans-Medium";
+  --font-sans-semibold: "FunnelSans-SemiBold";
+  --font-mono: "IBMPlexMono-Medium";
+  --font-mono-semibold: "IBMPlexMono-SemiBold";
+  --font-hand: "NanumPen-Regular";
 
-    --color-accent: #818cf8;
-    --color-accent-hover: #a5b4fc;
-    --color-accent-active: #6366f1;
-    --color-accent-foreground: #0f172a;
+  /*
+   * Size names must not repeat a colour name (`text-edge` would be both, and
+   * the colour wins), hence edge-print and leader-label.
+   *
+   * Type scale. Line heights are ratios (line / size), as in Tailwind's own
+   * scale: NativeWind multiplies them by the font size. Letter spacing is in px.
+   */
+  --text-title-event: 40px;
+  --text-title-event--line-height: calc(40 / 40);
+  --text-title-event--letter-spacing: -1.4px;
+  --text-title-screen: 34px;
+  --text-title-screen--line-height: calc(36 / 34);
+  --text-title-screen--letter-spacing: -1px;
+  --text-title-roll: 24px;
+  --text-title-roll--line-height: calc(28 / 24);
+  --text-title-roll--letter-spacing: -0.6px;
+  --text-wordmark: 22px;
+  --text-wordmark--line-height: calc(24 / 22);
+  --text-wordmark--letter-spacing: -0.4px;
+  --text-body: 15px;
+  --text-body--line-height: calc(20 / 15);
+  --text-name: 16px;
+  --text-name--line-height: calc(20 / 16);
+  --text-edge-print: 10.5px;
+  --text-edge-print--line-height: calc(14 / 10.5);
+  --text-edge-print--letter-spacing: 1.26px;
+  --text-frame-label: 9.5px;
+  --text-frame-label--line-height: calc(12 / 9.5);
+  --text-frame-label--letter-spacing: 0.95px;
+  --text-leader-label: 13.5px;
+  --text-leader-label--line-height: calc(16 / 13.5);
+  --text-leader-label--letter-spacing: 1.35px;
+  --text-text-button: 12.5px;
+  --text-text-button--line-height: calc(16 / 12.5);
+  --text-text-button--letter-spacing: 1.5px;
+  --text-counter: 64px;
+  --text-counter--line-height: calc(64 / 64);
+  --text-note: 28px;
+  --text-note--line-height: calc(26 / 28);
+  --text-filled-in: 30px;
+  --text-filled-in--line-height: calc(26 / 30);
 
-    --color-border: #334155;
-    --color-border-muted: #1e293b;
-
-    --color-danger: #f87171;
-    --color-warning: #fbbf24;
-    --color-success: #4ade80;
-  }
+  --radius-frame: 2px;
+  --radius-paper: 4px;
+  --radius-leader: 6px;
 }
