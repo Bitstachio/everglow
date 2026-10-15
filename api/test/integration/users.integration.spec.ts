@@ -313,6 +313,12 @@ describe("UsersController (integration)", () => {
 
   describe("GET /users/username-availability", () => {
     const path = `${USERS_BASE_PATH}/username-availability`;
+    type Availability = WrappedResponse<{
+      username: string;
+      available: boolean;
+      reason: string | null;
+      suggestions: string[];
+    }>;
 
     it("returns available for a free username", async () => {
       prisma.userDetails.findFirst.mockResolvedValue(null);
@@ -323,68 +329,58 @@ describe("UsersController (integration)", () => {
         .set(authHeader())
         .expect(200);
 
-      const body = response.body as WrappedResponse<{
-        username: string;
-        available: boolean;
-        reason: string | null;
-      }>;
-      expect(body.data).toEqual({
+      expect((response.body as Availability).data).toEqual({
         username: "jane.doe",
         available: true,
         reason: null,
+        suggestions: [],
       });
     });
 
     it("returns INVALID_FORMAT for a short username", async () => {
       const response = await request(httpServer).get(path).query({ username: "ab" }).set(authHeader()).expect(200);
 
-      const body = response.body as WrappedResponse<{
-        username: string;
-        available: boolean;
-        reason: string | null;
-      }>;
-      expect(body.data).toEqual({
+      expect((response.body as Availability).data).toEqual({
         username: "ab",
         available: false,
         reason: "INVALID_FORMAT",
+        suggestions: [],
       });
       expect(prisma.userDetails.findFirst).not.toHaveBeenCalled();
     });
 
-    it("returns RESERVED for a reserved username", async () => {
+    it("returns RESERVED for a reserved username, with free alternatives", async () => {
+      prisma.userDetails.findMany.mockResolvedValue([]);
+
       const response = await request(httpServer).get(path).query({ username: "support" }).set(authHeader()).expect(200);
 
-      const body = response.body as WrappedResponse<{
-        username: string;
-        available: boolean;
-        reason: string | null;
-      }>;
-      expect(body.data).toEqual({
-        username: "support",
-        available: false,
-        reason: "RESERVED",
-      });
+      const { data } = response.body as Availability;
+      expect(data).toMatchObject({ username: "support", available: false, reason: "RESERVED" });
+      expect(data.suggestions).toHaveLength(4);
     });
 
-    it("returns TAKEN when another user holds the username", async () => {
+    it("returns TAKEN with free names built from the name", async () => {
       prisma.userDetails.findFirst.mockResolvedValue({ userId: "other-user" } as never);
+      prisma.userDetails.findMany.mockResolvedValue([{ username: "maya.chen" }] as never);
 
       const response = await request(httpServer)
         .get(path)
-        .query({ username: "taken.name" })
+        .query({ username: "maya", name: "Maya Chen" })
         .set(authHeader())
         .expect(200);
 
-      const body = response.body as WrappedResponse<{
-        username: string;
-        available: boolean;
-        reason: string | null;
-      }>;
-      expect(body.data).toEqual({
-        username: "taken.name",
-        available: false,
-        reason: "TAKEN",
-      });
+      const { data } = response.body as Availability;
+      expect(data).toMatchObject({ username: "maya", available: false, reason: "TAKEN" });
+      expect(data.suggestions.slice(0, 2)).toEqual(["mayachen", "maya_c"]);
+      expect(data.suggestions).not.toContain("maya.chen");
+    });
+
+    it("returns 400 for a name longer than the column", async () => {
+      await request(httpServer)
+        .get(path)
+        .query({ username: "maya", name: "m".repeat(256) })
+        .set(authHeader())
+        .expect(400);
     });
 
     it("returns 401 when the access token is missing", async () => {
