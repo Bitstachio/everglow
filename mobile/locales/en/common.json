@@ -19,23 +19,7 @@
   "auth": {
     "failed": "Authentication failed. Please try again.",
     "onboardingFailed": "Could not complete onboarding.",
-    "notConfigured": "Auth0 is not configured. Set EXPO_PUBLIC_AUTH0_DOMAIN, EXPO_PUBLIC_AUTH0_CLIENT_ID and EXPO_PUBLIC_AUTH0_AUDIENCE.",
-    "login": {
-      "title": "Welcome Back",
-      "subtitle": "Sign in securely to continue",
-      "submit": "Log In",
-      "noAccount": "Don't have an account?",
-      "signUpLink": "Sign Up",
-      "failedTitle": "Login Failed"
-    },
-    "signup": {
-      "title": "Create Account",
-      "subtitle": "Sign up to get started",
-      "submit": "Sign Up",
-      "hasAccount": "Already have an account?",
-      "signInLink": "Sign In",
-      "failedTitle": "Signup Failed"
-    }
+    "notConfigured": "Auth0 is not configured. Set EXPO_PUBLIC_AUTH0_DOMAIN, EXPO_PUBLIC_AUTH0_CLIENT_ID and EXPO_PUBLIC_AUTH0_AUDIENCE."
   },
   "screens": {
     "privacyPolicy": "Privacy Policy",
