@@ -49,16 +49,12 @@ export const BottomSheet = ({
         </View>
 
         <Animated.View style={{ transform: [{ translateY: sheetTranslateY }] }}>
-          <View className="rounded-t-3xl bg-background px-4 pt-3" style={{ paddingBottom: 24 + insets.bottom }}>
+          <View className="border-t-2 border-text bg-sheet px-5 pt-5" style={{ paddingBottom: 24 + insets.bottom }}>
             <View className="gap-4">
-              <View className="items-center">
-                <View className="h-1 w-10 rounded-full bg-border" />
-              </View>
-
               {title ? (
                 <View className="flex-row items-center justify-between gap-3">
                   <H2 className="flex-1">{title}</H2>
-                  <IconButton accessibilityLabel={closeLabel} onPress={onClose} className="bg-surface">
+                  <IconButton accessibilityLabel={closeLabel} onPress={onClose}>
                     <Ionicons name="close" size={18} color={colorTokens[colorScheme].muted} />
                   </IconButton>
                 </View>

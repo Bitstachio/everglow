@@ -56,6 +56,9 @@
   --color-paper-rule: #1a171438;
   --color-ink-blue: #1d2a6b;
   --color-viewer: #000000;
+  /* Outlines on the ground: ghost leaders, icon buttons. */
+  --color-outline: #ffffff66;
+  --color-outline-soft: #ffffff2e;
 
   /*
    * One family per weight: custom fonts can't be bolded with fontWeight on

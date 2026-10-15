@@ -18,12 +18,12 @@ type ChipProps = Omit<PressableProps, "children"> & {
 
 const VARIANT_CLASSES: Record<ChipVariant, { idle: string; selected: string }> = {
   outline: {
-    idle: "border border-border bg-background",
-    selected: "border border-strong bg-surface",
+    idle: "border border-outline-soft bg-transparent",
+    selected: "border border-text bg-sheet",
   },
   soft: {
-    idle: "bg-surface",
-    selected: "bg-border",
+    idle: "bg-sheet",
+    selected: "bg-leader",
   },
 };
 
@@ -41,7 +41,7 @@ export const Chip = ({
   const isDisabled = disabled ?? false;
   const surface = selected ? VARIANT_CLASSES[variant].selected : VARIANT_CLASSES[variant].idle;
   const labelTone = selected ? "foreground" : variant === "soft" ? "muted" : "foreground";
-  const labelWeight = selected && variant === "soft" ? "font-semibold" : "font-medium";
+  const labelInk = selected && variant === "soft" ? "text-on-leader" : "";
 
   return (
     <Pressable
@@ -52,7 +52,7 @@ export const Chip = ({
       disabled={isDisabled}
       hitSlop={4}
       className={[
-        "h-11 flex-row items-center justify-center gap-2 rounded-xl",
+        "h-11 flex-row items-center justify-center gap-2 rounded-paper",
         variant === "soft" ? "px-3" : "px-4",
         surface,
         isDisabled ? "opacity-50" : "",
@@ -63,7 +63,7 @@ export const Chip = ({
       {...props}
     >
       {icon ? <View className="items-center justify-center">{icon}</View> : null}
-      <ThemedText className={`text-sm ${labelWeight}`} tone={labelTone}>
+      <ThemedText className={`font-mono-semibold text-text-button uppercase ${labelInk}`.trim()} tone={labelTone}>
         {label}
       </ThemedText>
     </Pressable>

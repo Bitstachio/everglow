@@ -15,6 +15,12 @@ const buildNavigationTheme = (scheme: "light" | "dark"): Theme => {
 
   return {
     ...base,
+    fonts: {
+      regular: { fontFamily: "FunnelSans-Regular", fontWeight: "normal" },
+      medium: { fontFamily: "FunnelSans-Medium", fontWeight: "normal" },
+      bold: { fontFamily: "FunnelSans-SemiBold", fontWeight: "normal" },
+      heavy: { fontFamily: "FunnelDisplay-SemiBold", fontWeight: "normal" },
+    },
     colors: {
       ...base.colors,
       primary: colors.accent,

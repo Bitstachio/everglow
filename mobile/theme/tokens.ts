@@ -50,6 +50,8 @@ const palette = {
   paperRule: "#1A171438",
   inkBlue: "#1D2A6B",
   viewer: "#000000",
+  outline: "#FFFFFF66",
+  outlineSoft: "#FFFFFF2E",
 } as const;
 
 export const colorTokens = {

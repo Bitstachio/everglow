@@ -255,65 +255,51 @@ The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet;
 
 ### Which component to use
 
-| Need                      | Component / class                                                                                     |
-| ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Page title in the body    | `H1`                                                                                                  |
-| Sheet or section title    | `H2`                                                                                                  |
-| Subsection                | `H3`                                                                                                  |
-| Native stack header title | Leave to Expo Router / React Navigation (about 17pt, platform chrome). Do not put `H1` in the header. |
-| Body copy                 | `ThemedText` (default `tone="foreground"`, `text-base`)                                               |
-| Secondary / supporting    | `ThemedText tone="muted"` plus `text-sm`                                                              |
-| Placeholder, timestamp    | `tone="subtle"` plus `text-xs` or `text-sm`                                                           |
-| Destructive               | `tone="danger"`                                                                                       |
-| Button label              | Owned by `Button` (`text-base font-semibold`)                                                         |
-| Field label / error       | Owned by `Input`                                                                                      |
+| Need                        | Component                                                                  |
+| --------------------------- | -------------------------------------------------------------------------- |
+| Event title, screen title   | `Display` (`variant="event"` / `"screen"`; `dim` for the grey second line) |
+| A roll's name on Home       | `Display variant="roll"`                                                   |
+| "Everglow" in a header      | `Wordmark`                                                                 |
+| Running text                | `ThemedText` with `text-body` (Funnel Sans by default)                     |
+| Counts, dates, labels       | `EdgePrint`, with the key value in `EdgeValue`                             |
+| A label under a frame       | `EdgePrint size="frame-label"`                                             |
+| A handwritten note          | `PencilNote` (at most one per screen; `tone="ink"` on paper)               |
+| Circle, tick, cross, strike | `GreasePencil`                                                             |
+| Any action                  | `Button` (the leader)                                                      |
+| A top-bar icon              | `IconButton` around an `AppIcon`                                           |
+| The ground's grain          | `FilmGrain`, last child of a full-screen container                         |
+| Native stack header title   | Leave to Expo Router; the navigation theme sets Funnel Sans                |
 
-Headings use `tone="strong"`. Body uses `foreground`. Do not pick a type size to fake hierarchy when a heading component exists.
+`H1`, `H2` and `H3` remain for screens not rebuilt yet; they now set Funnel Display (H1, H2) and Funnel Sans SemiBold (H3). Every component can be seen on a device at `everglowmobile://design-kit` in development builds.
 
 ### Weight rules
 
-| Weight | Token           | Use                                      |
-| ------ | --------------- | ---------------------------------------- |
-| 400    | `font-normal`   | Body, captions                           |
-| 500    | `font-medium`   | Labels, chips, secondary actions as text |
-| 600    | `font-semibold` | Buttons, H3, list titles                 |
-| 700    | `font-bold`     | H1, H2, display                          |
-
-Two nearby sizes should not share the same weight and color. If an H3 and a body line sit together, the H3 is semibold/strong and the body is regular/foreground.
+The weight is in the family (see [Typeface](#typeface)). Use `font-sans-medium` for a name, `font-sans-semibold` for emphasis in running text, and `font-mono-semibold` for an edge-print value. Do not add `font-bold` or `font-semibold` to these families.
 
 ## Radius
 
-Keep Tailwind's default radius scale. Only these steps are in bounds:
+| Class            | px   | Use                                    |
+| ---------------- | ---- | -------------------------------------- |
+| `rounded-frame`  | 2    | Photo frames in strips and the grid    |
+| `rounded-paper`  | 4    | Envelope, ticket, lab card, film boxes |
+| `rounded-leader` | 6    | Leader buttons                         |
+| `rounded-full`   | 9999 | Only the shutter and 40pt icon buttons |
 
-| Token | px   | Class          | Use                                        |
-| ----- | ---- | -------------- | ------------------------------------------ |
-| sm    | 4    | `rounded-sm`   | Avoid in UI chrome                         |
-| lg    | 8    | `rounded-lg`   | Small chips, nested controls               |
-| xl    | 12   | `rounded-xl`   | Filter chips, compact tiles                |
-| 2xl   | 16   | `rounded-2xl`  | **Default.** Inputs, buttons, cards        |
-| 3xl   | 24   | `rounded-3xl`  | Sheet top corners, large media tiles       |
-| full  | 9999 | `rounded-full` | Avatars, icon buttons, pills, sheet handle |
-
-Inputs and primary buttons are `rounded-2xl` and 48px tall. That pairing is the product look. Do not mix `rounded-md` (6px) or `rounded-none` on controls. Images that bleed to a card edge may use the card's radius; full-bleed photos in a feed can be square (`rounded-none`) like Instagram posts.
+Nothing else is rounded: no pills, no rounded cards. The older `rounded-xl` … `rounded-3xl` steps remain only on screens not rebuilt yet.
 
 ## Control sizes and tap targets
 
-Apple asks for 44pt minimum. Material asks for 48dp. Cross-platform default: **48px for primary controls, 44px absolute minimum.**
+Apple asks for 44pt minimum. Material asks for 48dp.
 
-| Control                    | Size         | Class                                 | Notes                                       |
-| -------------------------- | ------------ | ------------------------------------- | ------------------------------------------- |
-| Primary / secondary button | 48           | `h-12`                                | Full width (`w-full`) on screens and sheets |
-| Text input                 | 48           | `h-12`                                | Horizontal padding `px-4`                   |
-| Icon button (visual)       | 36           | `h-9 w-9`                             | Add `hitSlop={8}` so the hit box is 52      |
-| Close / sheet icon         | 36           | `h-9 w-9`                             | Same hitSlop                                |
-| Compact chip               | 36-44        | `h-9` / `h-11`                        | hitSlop if below 44                         |
-| List row                   | 48-56        | `min-h-12` / `min-h-14`               | Tappable row, not only the trailing icon    |
-| Avatar sm / md / lg        | 32 / 40 / 48 | `h-8 w-8` / `h-10 w-10` / `h-12 w-12` | Always `rounded-full`                       |
-| Tab bar / stack header     | system       |                                       | Do not restyle to this scale                |
+| Control           | Size | Class       | Notes                                                   |
+| ----------------- | ---- | ----------- | ------------------------------------------------------- |
+| Leader (`Button`) | 58   | `h-14.5`    | Full width; `px-5`; label left, optional end mark right |
+| Text button       | 44   | `h-11`      | `Button variant="ghost"`                                |
+| Icon button       | 40   | `size-10`   | Round outline; `hitSlop={8}` makes the hit box 56       |
+| The shutter       | 78   | `size-19.5` | The only other round control                            |
+| List row          | 48+  | `min-h-12`  | Tappable row, not only the trailing icon                |
 
-Disabled controls keep layout size and use `opacity-50`. Do not shrink a disabled button.
-
-Inline `Pressable` text (not a `Button`) still needs a 44pt hit box: wrap to `min-h-11` or set `hitSlop`.
+Disabled controls keep layout size and use `opacity-50`. Inline `Pressable` text still needs a 44pt hit box: wrap to `min-h-11` or set `hitSlop`.
 
 ## Icons
 
@@ -327,7 +313,7 @@ Pairing:
 | `text-base` button / row | `sm` or `md` (20/24)   | `gap-2` (8)  |
 | Empty state              | `lg` (32) or `xl` (48) | `gap-3` (12) |
 
-Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorTokens[scheme].muted`). Do not hardcode hex.
+Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorTokens.dark.text`). Do not hardcode hex.
 
 ## Color pairing (quick)
 
