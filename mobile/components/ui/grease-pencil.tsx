@@ -19,7 +19,6 @@ type GreasePencilProps = {
   seed?: number;
   /** Draw the mark on (250 ms). Reduce Motion shows it already drawn. */
   drawOn?: boolean;
-  className?: string;
 };
 
 const DRAW_MS = 250;
@@ -78,7 +77,6 @@ export const GreasePencil = ({
   strokeWidth = 3,
   seed = 1,
   drawOn = false,
-  className,
 }: GreasePencilProps) => {
   const reduceMotion = useReduceMotion();
   const color = tone === "pencil" ? colorTokens.dark.pencil : colorTokens.dark.inkBlue;
@@ -91,7 +89,6 @@ export const GreasePencil = ({
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className={className}
     >
       {strokes.map((stroke, index) => (
         <Stroke

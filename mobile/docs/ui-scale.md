@@ -268,9 +268,21 @@ The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet;
 | Any action                  | `Button` (the leader)                                                      |
 | A top-bar icon              | `IconButton` around an `AppIcon`                                           |
 | The ground's grain          | `FilmGrain`, last child of a full-screen container                         |
+| An event on Home            | `FilmStrip` (frames are photos, blank numbered frames, or dimmed)          |
+| A photo in the gallery      | `ContactFrame`, three to a row; `selected` circles it, `isNew` ticks it    |
+| Adding photos               | `Shutter`                                                                  |
+| The gallery opening         | `FrameCounter`                                                             |
+| Choosing the gallery length | `FilmBox`, four in a row                                                   |
+| The invite                  | `LabEnvelope`, with a `Stamp` beside it                                    |
+| Reporting                   | `LabTicket`                                                                |
+| The account                 | `LabCard`                                                                  |
+| A confirmation              | `Slip` inside a `BottomSheet` with no sheet title                          |
+| One choice among several    | `OptionRow`, grouped in a `radiogroup` view                                |
+| A person on the roll call   | `RollCallRow`                                                              |
+| Any photo                   | `Photo` (expo-image with `className` support)                              |
 | Native stack header title   | Leave to Expo Router; the navigation theme sets Funnel Sans                |
 
-`H1`, `H2` and `H3` remain for screens not rebuilt yet; they now set Funnel Display (H1, H2) and Funnel Sans SemiBold (H3). Every component can be seen on a device at `everglowmobile://design-kit` in development builds.
+`H1`, `H2` and `H3` remain for screens not rebuilt yet; they now set Funnel Display (H1, H2) and Funnel Sans SemiBold (H3). Every component can be seen on a device at `everglowmobile://design-kit` in development builds (`?only=<section>` shows one section). Paper components take every string from the caller, so screens pass translated copy.
 
 ### Weight rules
 

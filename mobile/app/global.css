@@ -59,6 +59,8 @@
   /* Outlines on the ground: ghost leaders, icon buttons. */
   --color-outline: #ffffff66;
   --color-outline-soft: #ffffff2e;
+  /* The envelope's flap, a shade under the paper. */
+  --color-paper-flap: #e2dbd0;
 
   /*
    * One family per weight: custom fonts can't be bolded with fontWeight on
@@ -86,6 +88,9 @@
   --text-title-screen: 34px;
   --text-title-screen--line-height: calc(36 / 34);
   --text-title-screen--letter-spacing: -1px;
+  --text-title-slip: 28px;
+  --text-title-slip--line-height: calc(30 / 28);
+  --text-title-slip--letter-spacing: -0.8px;
   --text-title-roll: 24px;
   --text-title-roll--line-height: calc(28 / 24);
   --text-title-roll--letter-spacing: -0.6px;
@@ -118,4 +123,7 @@
   --radius-frame: 2px;
   --radius-paper: 4px;
   --radius-leader: 6px;
+
+  /* Paper lying on the dark ground. */
+  --shadow-paper: 0 24px 50px #00000099;
 }
