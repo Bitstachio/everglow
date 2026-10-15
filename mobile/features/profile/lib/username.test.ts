@@ -1,4 +1,10 @@
-import { isUsernameFormatValid, normalizeUsername, usernameAvailabilityMessage, usernameSchema } from "./username";
+import {
+  isUsernameFormatValid,
+  normalizeUsername,
+  usernameAvailabilityMessage,
+  usernameRuleBreak,
+  usernameSchema,
+} from "./username";
 
 describe("normalizeUsername", () => {
   it("trims and lowercases", () => {
@@ -32,5 +38,21 @@ describe("usernameAvailabilityMessage", () => {
     expect(usernameAvailabilityMessage("TAKEN")).toBe("This username is taken");
     expect(usernameAvailabilityMessage("RESERVED")).toBe("This username is reserved");
     expect(usernameAvailabilityMessage(null)).toBeNull();
+  });
+});
+
+describe("usernameRuleBreak", () => {
+  it("passes a username that follows the rule, and an empty field", () => {
+    expect(usernameRuleBreak("maya.chen_26")).toBeNull();
+    expect(usernameRuleBreak("")).toBeNull();
+  });
+
+  it("lists spaces and each other character once, in typing order", () => {
+    expect(usernameRuleBreak("maya chen!!-")).toEqual({ kind: "characters", spaces: true, characters: ["!", "-"] });
+  });
+
+  it("reports the length after the characters", () => {
+    expect(usernameRuleBreak("ma")).toEqual({ kind: "tooShort" });
+    expect(usernameRuleBreak("m".repeat(31))).toEqual({ kind: "tooLong" });
   });
 });
