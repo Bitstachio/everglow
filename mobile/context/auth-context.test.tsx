@@ -10,7 +10,10 @@ const mockReplace = jest.fn();
 const mockGetUserProfile = jest.fn();
 let mockUnauthorized: (() => void) | null = null;
 
-jest.mock("expo-router", () => ({ router: { replace: (href: unknown) => mockReplace(href) } }));
+jest.mock("expo-router", () => ({
+  router: { replace: (href: unknown) => mockReplace(href) },
+  usePathname: () => "/events",
+}));
 jest.mock("@/lib/auth", () => ({ authService: { getUserProfile: () => mockGetUserProfile() } }));
 jest.mock("@/lib/api/axios-instance", () => ({
   setUnauthorizedHandler: (handler: (() => void) | null) => {
