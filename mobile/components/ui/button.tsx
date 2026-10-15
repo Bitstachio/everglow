@@ -35,10 +35,10 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 };
 
 const LABEL_CLASSES: Record<ButtonVariant, string> = {
-  primary: "text-leader text-on-leader",
-  secondary: "text-leader text-text",
-  outline: "text-leader text-text",
-  danger: "text-leader text-text",
+  primary: "text-leader-label text-on-leader",
+  secondary: "text-leader-label text-text",
+  outline: "text-leader-label text-text",
+  danger: "text-leader-label text-text",
   ghost: "text-text-button text-text",
 };
 

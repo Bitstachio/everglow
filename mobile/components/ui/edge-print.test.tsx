@@ -8,7 +8,7 @@ test("prints metadata in uppercase mono, with the value brighter", async () => {
     </EdgePrint>,
   );
   const line = screen.getByText(/3 GB/);
-  expect(line).toHaveProp("className", expect.stringContaining("font-mono uppercase text-edge"));
+  expect(line).toHaveProp("className", expect.stringContaining("font-mono uppercase text-edge-print text-edge"));
   expect(screen.getByText("1.2")).toHaveProp("className", expect.stringContaining("text-text"));
 });
 

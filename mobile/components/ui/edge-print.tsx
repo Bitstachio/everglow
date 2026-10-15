@@ -13,7 +13,7 @@ type EdgePrintProps = Omit<TextProps, "children"> & {
 };
 
 const SIZE_CLASSES: Record<EdgePrintSize, string> = {
-  edge: "text-edge",
+  edge: "text-edge-print",
   "frame-label": "text-frame-label",
 };
 
