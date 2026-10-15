@@ -1,7 +1,10 @@
 import { EdgePrint } from "@/components/ui/edge-print";
+import { useReduceMotion } from "@/hooks/use-reduce-motion";
+import { usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+import { Animated, Text, View } from "react-native";
 
 /**
  * 01.1 Launch: the name alone on grainy black while the session is checked.
@@ -27,5 +30,46 @@ export const LaunchScreen = () => {
         <EdgePrint>{t("launch.status")}</EdgePrint>
       </View>
     </View>
+  );
+};
+
+const CURTAIN_FADE_MS = 250;
+// If the start route somehow never redirects, lift the curtain anyway.
+const CURTAIN_TIMEOUT_MS = 1500;
+
+/**
+ * The launch screen kept over the app while the start route redirects to the
+ * first real screen, then faded out. Without it the hand-off shows a moment
+ * of empty ground before the first screen appears.
+ */
+export const LaunchCurtain = () => {
+  const pathname = usePathname();
+  const reduceMotion = useReduceMotion();
+  const [opacity] = useState(() => new Animated.Value(1));
+  const [timedOut, setTimedOut] = useState(false);
+  const [lifted, setLifted] = useState(false);
+  const arrived = pathname !== "/" || timedOut;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), CURTAIN_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!arrived) return;
+    const fade = Animated.timing(opacity, {
+      toValue: 0,
+      duration: reduceMotion ? 0 : CURTAIN_FADE_MS,
+      useNativeDriver: true,
+    });
+    fade.start(({ finished }) => finished && setLifted(true));
+    return () => fade.stop();
+  }, [arrived, opacity, reduceMotion]);
+
+  if (lifted) return null;
+  return (
+    <Animated.View pointerEvents="none" className="absolute inset-0" style={{ opacity }}>
+      <LaunchScreen />
+    </Animated.View>
   );
 };

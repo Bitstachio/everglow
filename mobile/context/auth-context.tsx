@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { LaunchScreen } from "@/components/launch-screen";
+import { LaunchCurtain, LaunchScreen } from "@/components/launch-screen";
 import i18n from "@/i18n/instance";
 import { router } from "expo-router";
 import { authService, OnboardingData, User } from "@/lib/auth";
@@ -173,7 +173,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return <LaunchScreen />;
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <LaunchCurtain />
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
