@@ -106,13 +106,13 @@ GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/work
 
 Required repository secrets:
 
-| Secret | Purpose |
-| --- | --- |
-| `E2E_EMAIL` / `E2E_PASSWORD` | Seeded Auth0 user for Universal Login |
-| `EXPO_PUBLIC_API_URL` | Public HTTPS API (not `localhost`); Auth0 on that API must match the mobile tenant |
-| `EXPO_PUBLIC_AUTH0_DOMAIN` | Native app Auth0 domain |
-| `EXPO_PUBLIC_AUTH0_CLIENT_ID` | Native app client id |
-| `EXPO_PUBLIC_AUTH0_AUDIENCE` | API audience (same as API `AUTH0_AUDIENCE`) |
+| Secret                        | Purpose                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `E2E_EMAIL` / `E2E_PASSWORD`  | Seeded Auth0 user for Universal Login                                              |
+| `EXPO_PUBLIC_API_URL`         | Public HTTPS API (not `localhost`); Auth0 on that API must match the mobile tenant |
+| `EXPO_PUBLIC_AUTH0_DOMAIN`    | Native app Auth0 domain                                                            |
+| `EXPO_PUBLIC_AUTH0_CLIENT_ID` | Native app client id                                                               |
+| `EXPO_PUBLIC_AUTH0_AUDIENCE`  | API audience (same as API `AUTH0_AUDIENCE`)                                        |
 
 ```sh
 gh workflow run macos-smoke.yml --ref <branch-with-workflow>
