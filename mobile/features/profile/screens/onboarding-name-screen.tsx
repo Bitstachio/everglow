@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { FilmGrain } from "@/components/ui/film-grain";
-import { PencilNote } from "@/components/ui/pencil-note";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
@@ -31,8 +30,10 @@ const OnboardingNameScreen = () => {
           onChangeText={setName}
           autoFocus
           autoCapitalize="words"
-          autoComplete="name"
-          textContentType="name"
+          // No iOS AutoFill: the name comes from the sign-in, and AutoFill's
+          // bubble over an emptied field takes the keyboard's input.
+          autoComplete="off"
+          textContentType="none"
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={onNext}
@@ -44,13 +45,10 @@ const OnboardingNameScreen = () => {
         <SignatureFrame
           number={t("name.frameNumber")}
           signature={signature}
+          note={t("name.note")}
+          showNote={hasTyped}
           accessibilityLabel={t("name.frameA11y", { name: signature })}
         />
-        {hasTyped ? (
-          <PencilNote accessibilityElementsHidden importantForAccessibility="no" className="mt-4 -rotate-3">
-            {t("name.note")}
-          </PencilNote>
-        ) : null}
       </View>
 
       <View className="mt-auto px-5 pb-1">

@@ -7,7 +7,7 @@
     "frameNumber": "▸ 142",
     "frameUnsigned": "Your name",
     "frameA11y": "A sample photo, signed {{name}}",
-    "note": "↑ how it shows on your photos"
+    "note": "how it shows\non your photos"
   },
   "username": {
     "label": "Your handle · people find you by it",

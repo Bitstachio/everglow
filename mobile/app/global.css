@@ -122,6 +122,13 @@
   --text-note--line-height: calc(26 / 28);
   --text-filled-in: 30px;
   --text-filled-in--line-height: calc(26 / 30);
+  /* Text inputs take no line height: iOS re-measures the field and the first
+     letter jumps when one is set. Sizes and tracking match title-event and
+     title-slip. */
+  --text-input-name: 40px;
+  --text-input-name--letter-spacing: -1.4px;
+  --text-input-handle: 28px;
+  --text-input-handle--letter-spacing: -0.8px;
 
   --radius-frame: 2px;
   --radius-paper: 4px;

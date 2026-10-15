@@ -57,7 +57,7 @@ test("signs the sample frame as you type, then goes on to the username", async (
   await user.type(screen.getByLabelText("Your name"), "Maya");
 
   expect(screen.getByRole("image", { name: "A sample photo, signed Maya" })).toBeOnTheScreen();
-  expect(screen.getByText("↑ how it shows on your photos", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.getByText("how it shows\non your photos", { includeHiddenElements: true })).toBeOnTheScreen();
   await user.press(screen.getByRole("button", { name: "Next" }));
   expect(mockPush).toHaveBeenCalledWith("/onboarding/username");
 });
