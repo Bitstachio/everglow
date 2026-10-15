@@ -11,6 +11,8 @@ http:
   path: '/'
   # Nest serves the API under /api/v2 (same as the image HEALTHCHECK).
   healthcheck: '/api/v2'
+  # DNS for this name is a Namecheap CNAME to the environment load balancer.
+  alias: api-staging.everglow.social
 
 # Configuration for your containers and service.
 image:

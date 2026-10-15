@@ -11,10 +11,11 @@ type: Environment
 #   vpc:
 #     id:
 
-# Configure the load balancers in your environment, once created.
-# http:
-#   public:
-#   private:
+# Public ACM certificate for api-staging.everglow.social (DNS stays at Namecheap).
+http:
+  public:
+    certificates:
+      - arn:aws:acm:us-east-1:626300432392:certificate/00a94f8b-cbe0-4dd5-9be8-fd2f2198eb0e
 
 # Configure observability for your environment resources.
 observability:
