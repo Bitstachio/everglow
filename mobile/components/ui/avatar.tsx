@@ -42,7 +42,7 @@ export const Avatar = ({ userId, name, uri, size = "md" }: AvatarProps) => {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className={`${classes.container} items-center justify-center overflow-hidden rounded-full bg-accent`}
+      className={`${classes.container} items-center justify-center overflow-hidden rounded-paper bg-frame-empty`}
     >
       {showImage && uri ? (
         <Image
@@ -55,7 +55,7 @@ export const Avatar = ({ userId, name, uri, size = "md" }: AvatarProps) => {
           onError={() => setFailedUri(uri)}
         />
       ) : (
-        <ThemedText className={`${classes.text} font-bold text-accent-foreground`}>{getInitial(name)}</ThemedText>
+        <ThemedText className={`${classes.text} font-display text-text`}>{getInitial(name)}</ThemedText>
       )}
     </View>
   );

@@ -2,6 +2,7 @@ import { colorTokens } from "@/theme/tokens";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
+import { EdgePrint } from "../edge-print";
 import { IconButton } from "../icon-button";
 import { useInput } from "./use-input";
 
@@ -17,7 +18,7 @@ export const Input = ({ label, error, secureTextEntry, editable = true, classNam
 
   return (
     <View className="w-full gap-2">
-      {label ? <Text className="text-sm font-medium text-foreground">{label}</Text> : null}
+      {label ? <EdgePrint>{label}</EdgePrint> : null}
 
       <View className="gap-1">
         <View className="relative justify-center">
@@ -28,8 +29,8 @@ export const Input = ({ label, error, secureTextEntry, editable = true, classNam
             placeholderTextColor={colorTokens[colorScheme].subtle}
             accessibilityState={{ disabled: isDisabled }}
             className={[
-              "h-12 rounded-2xl border bg-background px-4 text-base text-foreground",
-              error ? "border-danger" : "border-border",
+              "h-12 border-b-2 bg-transparent font-sans text-name text-text",
+              error ? "border-pencil" : "border-text",
               showToggle ? "pr-12" : "",
               isDisabled ? "opacity-50" : "",
               className,
@@ -48,7 +49,7 @@ export const Input = ({ label, error, secureTextEntry, editable = true, classNam
         </View>
 
         {error ? (
-          <Text accessibilityRole="alert" className="text-xs text-danger">
+          <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
             {error}
           </Text>
         ) : null}
