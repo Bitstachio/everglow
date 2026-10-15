@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Pressable, ScrollView } from "react-native";
 import { Input } from "@/components/ui/input/input";
 import { Button } from "@/components/ui/button";
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { useOnboardingScreen } from "../hooks/use-onboarding-screen";
 
 const OnboardingScreen = () => {
@@ -22,16 +22,14 @@ const OnboardingScreen = () => {
     openPrivacyPolicy,
     handleSubmit,
   } = useOnboardingScreen();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={[styles.content, isDark ? styles.contentDark : styles.contentLight]}>
+        <View style={[styles.content, styles.contentColors]}>
           <View style={styles.header}>
-            <Text style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}>Finish setting up</Text>
-            <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
+            <Text style={[styles.title, styles.titleColors]}>Finish setting up</Text>
+            <Text style={[styles.subtitle, styles.subtitleColors]}>
               Tell us how you&apos;d like to appear in Everglow
             </Text>
           </View>
@@ -62,10 +60,7 @@ const OnboardingScreen = () => {
               autoComplete="username"
             />
             {availability.status === "checking" || availability.status === "available" ? (
-              <Text
-                style={[styles.availabilityHint, isDark ? styles.availabilityHintDark : styles.availabilityHintLight]}
-                accessibilityLiveRegion="polite"
-              >
+              <Text style={[styles.availabilityHint, styles.availabilityHintColors]} accessibilityLiveRegion="polite">
                 {availability.message}
               </Text>
             ) : null}
@@ -76,29 +71,17 @@ const OnboardingScreen = () => {
                 accessibilityLabel="I agree to the Terms of Use and Privacy Policy"
                 onPress={toggleAcceptedTerms}
                 hitSlop={8}
-                style={[
-                  styles.checkbox,
-                  isDark ? styles.checkboxDark : styles.checkboxLight,
-                  acceptedTerms && (isDark ? styles.checkboxCheckedDark : styles.checkboxCheckedLight),
-                ]}
+                style={[styles.checkbox, styles.checkboxColors, acceptedTerms && styles.checkboxCheckedColors]}
               >
                 {acceptedTerms ? <Text style={styles.checkmark}>✓</Text> : null}
               </Pressable>
-              <Text style={[styles.consentText, isDark ? styles.subtitleDark : styles.subtitleLight]}>
+              <Text style={[styles.consentText, styles.subtitleColors]}>
                 I agree to the{" "}
-                <Text
-                  accessibilityRole="link"
-                  onPress={openTermsOfUse}
-                  style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}
-                >
+                <Text accessibilityRole="link" onPress={openTermsOfUse} style={[styles.link, styles.linkColors]}>
                   Terms of Use
                 </Text>{" "}
                 and{" "}
-                <Text
-                  accessibilityRole="link"
-                  onPress={openPrivacyPolicy}
-                  style={[styles.link, isDark ? styles.linkDark : styles.linkLight]}
-                >
+                <Text accessibilityRole="link" onPress={openPrivacyPolicy} style={[styles.link, styles.linkColors]}>
                   Privacy Policy
                 </Text>
                 , including no objectionable content or abusive behaviour.
@@ -131,11 +114,8 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  contentLight: {
-    backgroundColor: "#F9FAFB",
-  },
-  contentDark: {
-    backgroundColor: "#111827",
+  contentColors: {
+    backgroundColor: colorTokens.background,
   },
   header: {
     marginBottom: 32,
@@ -145,29 +125,23 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 8,
   },
-  titleLight: {
-    color: "#111827",
-  },
-  titleDark: {
-    color: "#F9FAFB",
+  titleColors: {
+    color: colorTokens.text,
   },
   subtitle: {
     fontSize: 16,
   },
-  subtitleLight: {
-    color: "#6B7280",
-  },
-  subtitleDark: {
-    color: "#9CA3AF",
+  subtitleColors: {
+    color: colorTokens.muted,
   },
   errorContainer: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: colorTokens.surface,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
   errorText: {
-    color: "#DC2626",
+    color: colorTokens.danger,
     fontSize: 14,
   },
   form: {
@@ -178,11 +152,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: -4,
   },
-  availabilityHintLight: {
-    color: "#6B7280",
-  },
-  availabilityHintDark: {
-    color: "#9CA3AF",
+  availabilityHintColors: {
+    color: colorTokens.muted,
   },
   consentRow: {
     flexDirection: "row",
@@ -199,22 +170,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 1,
   },
-  checkboxLight: {
-    borderColor: "#9CA3AF",
+  checkboxColors: {
+    borderColor: colorTokens.subtle,
   },
-  checkboxDark: {
-    borderColor: "#6B7280",
-  },
-  checkboxCheckedLight: {
-    backgroundColor: "#4F46E5",
-    borderColor: "#4F46E5",
-  },
-  checkboxCheckedDark: {
-    backgroundColor: "#818CF8",
-    borderColor: "#818CF8",
+  checkboxCheckedColors: {
+    backgroundColor: colorTokens.accent,
+    borderColor: colorTokens.accent,
   },
   checkmark: {
-    color: "#FFFFFF",
+    color: colorTokens.accentForeground,
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -227,14 +191,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textDecorationLine: "underline",
   },
-  linkLight: {
-    color: "#4F46E5",
-  },
-  linkDark: {
-    color: "#818CF8",
+  linkColors: {
+    color: colorTokens.accent,
   },
   consentError: {
-    color: "#DC2626",
+    color: colorTokens.danger,
     fontSize: 14,
     marginTop: -4,
   },

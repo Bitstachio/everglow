@@ -1,5 +1,4 @@
 import { ThemedText } from "@/components/ui/themed-text";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
@@ -22,7 +21,7 @@ export const SettingsRow = ({
   disabled = false,
   destructive = false,
 }: SettingsRowProps) => {
-  const colors = colorTokens[useColorScheme()];
+  const colors = colorTokens;
   return (
     <Pressable
       accessibilityRole="button"

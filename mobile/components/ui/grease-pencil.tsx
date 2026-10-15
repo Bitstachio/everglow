@@ -87,7 +87,7 @@ export const GreasePencil = ({
   bend = 0.25,
 }: GreasePencilProps) => {
   const reduceMotion = useReduceMotion();
-  const color = tone === "pencil" ? colorTokens.dark.pencil : colorTokens.dark.inkBlue;
+  const color = tone === "pencil" ? colorTokens.pencil : colorTokens.inkBlue;
   const strokes =
     mark === "arrow" ? pencilArrow(from, to, bend, seed) : pencilStrokes(mark, width, height, strokeWidth, seed);
 

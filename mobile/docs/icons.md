@@ -4,7 +4,7 @@ UI icons go through `AppIcon`. The contact-sheet design uses **Phosphor** (`phos
 
 ## How it works
 
-- **Phosphor:** import a named icon from `phosphor-react-native` and pass it to `AppIcon`. Phosphor icons don't read NativeWind classes; pass `color` from `colorTokens.dark`.
+- **Phosphor:** import a named icon from `phosphor-react-native` and pass it to `AppIcon`. Phosphor icons don't read NativeWind classes; pass `color` from `colorTokens`.
 - **Lucide (legacy):** import a named icon from `lucide-react-native` and pass it to `AppIcon`.
 - **Custom SVGs:** `react-native-svg-transformer` turns `assets/icons/*.svg` into components at build time. Author them with `currentColor` fill/stroke.
 
@@ -15,12 +15,12 @@ import { AppIcon } from "@/components/ui/app-icon";
 import { colorTokens } from "@/theme/tokens";
 import { CaretLeft } from "phosphor-react-native";
 
-<AppIcon icon={CaretLeft} size="sm" color={colorTokens.dark.text} />;
+<AppIcon icon={CaretLeft} size="sm" color={colorTokens.text} />;
 ```
 
 Size tokens live in `constants/icons.ts` (`xs`–`xl`). Prefer a token; use a number only when you need something outside that scale.
 
-Lucide icons take NativeWind `text-*` classes with the default `color="currentColor"`. Phosphor icons need an explicit `color` from `colorTokens.dark` (`text`, `edge`, `onLeader`). Do not hardcode hex.
+Lucide icons take NativeWind `text-*` classes with the default `color="currentColor"`. Phosphor icons need an explicit `color` from `colorTokens` (`text`, `edge`, `onLeader`). Do not hardcode hex.
 
 ## Rules
 

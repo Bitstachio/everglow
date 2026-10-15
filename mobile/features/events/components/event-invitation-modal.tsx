@@ -3,7 +3,6 @@ import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { H3 } from "@/components/ui/heading";
 import { ThemedText } from "@/components/ui/themed-text";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
 import { Copy } from "lucide-react-native";
 import { Alert, Clipboard, Pressable, Share, View } from "react-native";
@@ -17,8 +16,6 @@ type EventInvitationModalProps = {
 };
 
 export const EventInvitationModal = ({ visible, onClose, event }: EventInvitationModalProps) => {
-  const colorScheme = useColorScheme();
-
   if (!event) return null;
 
   const handleCopyLink = async () => {
@@ -61,8 +58,8 @@ export const EventInvitationModal = ({ visible, onClose, event }: EventInvitatio
           <QRCode
             value={event.invitationUrl}
             size={180}
-            backgroundColor={colorTokens[colorScheme].background}
-            color={colorTokens[colorScheme].strong}
+            backgroundColor={colorTokens.background}
+            color={colorTokens.strong}
           />
         </View>
         <ThemedText className="text-center text-sm" tone="muted">

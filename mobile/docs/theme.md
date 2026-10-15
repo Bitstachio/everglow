@@ -69,7 +69,7 @@ CSS cannot import TypeScript, and some **native APIs do not take `className`**. 
 
 We keep native stack headers and tab bars (swipe-back, platform back, safe areas) and theme them to match `global.css`. `theme/tokens.ts` is the hex map for that. `AppThemeProvider` only builds Expo Router’s `Theme` (`primary`, `background`, `card`, `text`, `border`).
 
-Both `colorTokens.light` and `colorTokens.dark` point at the one palette, so code that indexes by color scheme keeps working.
+`colorTokens` is the palette itself: read a colour directly (`colorTokens.muted`). There is no colour-scheme hook and nothing branches on light or dark.
 
 The same JS values are valid for props such as `ActivityIndicator` `color` or an icon `color` when `currentColor` is not an option. Prefer a parent `text-*` class and `color="currentColor"` first.
 
@@ -110,6 +110,4 @@ NativeWind maps `className` on core React Native views only. `expo-image` and `r
 
 ## Out of scope (migrate later)
 
-Legacy Expo starter files outside `components/ui/` (`constants/theme.ts`,
-`components/themed-text.tsx`, some feature screens) still use StyleSheet or old
-palette class names. Migrate those when touching the screen; do not extend them.
+Two older screens (`features/events/screens/events-screen.tsx`, `features/profile/screens/onboarding-screen.tsx`) still use `StyleSheet`, with colours read from `colorTokens`. They move to classes when their chapters are rebuilt; do not extend them.

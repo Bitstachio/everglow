@@ -32,7 +32,7 @@ export const LabEnvelope = ({ title, number, fields, options, footer, code, acce
   <View accessible accessibilityLabel={accessibilityLabel} className="pt-3">
     <View className="absolute left-0 right-0 top-0 h-3.5">
       <Svg width="100%" height="100%" viewBox="0 0 100 14" preserveAspectRatio="none">
-        <Polygon points="0,14 8,0 92,0 100,14" fill={colorTokens.dark.paperFlap} />
+        <Polygon points="0,14 8,0 92,0 100,14" fill={colorTokens.paperFlap} />
       </Svg>
     </View>
     <Paper>

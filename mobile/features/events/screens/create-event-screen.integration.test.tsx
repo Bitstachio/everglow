@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 import "../testing/date-picker-mock";
 // The integration harness supplies the real data provider and observes native services.
 // eslint-disable-next-line no-restricted-imports
@@ -42,7 +42,6 @@ const submit = async (title = "Meetup") => {
 };
 
 beforeEach(() => {
-  mockColorScheme.mockReturnValue("light");
   mockCreate.mockReset().mockResolvedValue({ data: { data: buildEvent() } });
   mockBack.mockReset();
   mockReplace.mockReset();
@@ -87,22 +86,18 @@ test.each(["ios", "android"] as const)(
   },
 );
 
-test.each(["light", "dark"])(
-  "validates required fields then accepts an optional description in %s mode",
-  async (theme) => {
-    mockColorScheme.mockReturnValue(theme);
-    await renderScreen();
-    await userEvent.setup().press(screen.getByText("Create Event"));
-    expect(await screen.findByText("Event title is required.")).toBeOnTheScreen();
-    expect(mockCreate).not.toHaveBeenCalled();
-    await submit();
-    expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
-    expect(mockCreate).toHaveBeenCalledWith({
-      body: { title: "Meetup", date: expect.any(String) },
-      throwOnError: true,
-    });
-  },
-);
+test("validates required fields then accepts an optional description", async () => {
+  await renderScreen();
+  await userEvent.setup().press(screen.getByText("Create Event"));
+  expect(await screen.findByText("Event title is required.")).toBeOnTheScreen();
+  expect(mockCreate).not.toHaveBeenCalled();
+  await submit();
+  expect(await screen.findByText("Your event is live")).toBeOnTheScreen();
+  expect(mockCreate).toHaveBeenCalledWith({
+    body: { title: "Meetup", date: expect.any(String) },
+    throwOnError: true,
+  });
+});
 
 test("displays date validation from the real form", async () => {
   await renderScreen();

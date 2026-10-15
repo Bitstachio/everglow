@@ -1,19 +1,17 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert, Clipboard, Share } from "react-native";
 import { buildEvent } from "../testing/fixtures";
 import { EventInvitationModal } from "./event-invitation-modal";
 
 beforeEach(() => {
-  mockColorScheme.mockReturnValue("light");
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
   jest.spyOn(Clipboard, "setString").mockImplementation(() => {});
   jest.spyOn(Share, "share").mockResolvedValue({ action: Share.sharedAction });
 });
 afterEach(() => jest.restoreAllMocks());
 
-test.each(["light", "dark"])("shows event details and invitation in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("shows event details and invitation", async () => {
   const event = buildEvent();
   await render(<EventInvitationModal visible event={event} onClose={jest.fn()} />);
   expect(screen.getByText(event.title)).toBeOnTheScreen();

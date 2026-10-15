@@ -1,5 +1,4 @@
 import { colorTokens, type ColorTokenName } from "@/theme/tokens";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import i18n from "@/i18n/instance";
 import { ActivityIndicator } from "react-native";
 
@@ -20,8 +19,7 @@ const TONE_TO_TOKEN: Record<SpinnerTone, ColorTokenName> = {
 };
 
 export const Spinner = ({ size = "small", label, tone = "accent" }: SpinnerProps) => {
-  const colorScheme = useColorScheme();
-  const color = colorTokens[colorScheme][TONE_TO_TOKEN[tone]];
+  const color = colorTokens[TONE_TO_TOKEN[tone]];
   const accessibilityLabel = label ?? i18n.t("actions.loading", { ns: "common" });
 
   return <ActivityIndicator accessibilityLabel={accessibilityLabel} size={size} color={color} />;

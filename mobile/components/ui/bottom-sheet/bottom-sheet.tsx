@@ -1,6 +1,5 @@
 import { H2 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import i18n from "@/i18n/instance";
 import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,7 +28,6 @@ export const BottomSheet = ({
   closeAccessibilityLabel,
 }: BottomSheetProps) => {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
   const { presented, scrimOpacity, sheetTranslateY, pointerEvents } = useBottomSheetPresentation(visible);
   const dismissLabel = dismissAccessibilityLabel ?? i18n.t("actions.dismiss", { ns: "common" });
   const closeLabel = closeAccessibilityLabel ?? i18n.t("actions.close", { ns: "common" });
@@ -55,7 +53,7 @@ export const BottomSheet = ({
                 <View className="flex-row items-center justify-between gap-3">
                   <H2 className="flex-1">{title}</H2>
                   <IconButton accessibilityLabel={closeLabel} onPress={onClose}>
-                    <Ionicons name="close" size={18} color={colorTokens[colorScheme].muted} />
+                    <Ionicons name="close" size={18} color={colorTokens.muted} />
                   </IconButton>
                 </View>
               ) : null}

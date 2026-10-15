@@ -27,7 +27,7 @@ export const Shutter = ({ accessibilityLabel, label, disabled = false, className
       {...props}
     >
       <View className="size-15 items-center justify-center rounded-full bg-leader">
-        <AppIcon icon={Plus} size="md" color={colorTokens.dark.onLeader} />
+        <AppIcon icon={Plus} size="md" color={colorTokens.onLeader} />
       </View>
     </Pressable>
     {label ? <EdgePrint tone="text">{label}</EdgePrint> : null}

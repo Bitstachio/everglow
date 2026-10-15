@@ -1,4 +1,4 @@
-import { mockCameraPermission, mockColorScheme } from "../testing/native-mocks";
+import { mockCameraPermission } from "../testing/native-mocks";
 // Integration tests compose the real screen with its data provider.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -65,7 +65,6 @@ const enterInvitation = async (value = "invite-token") =>
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockFocused = true;
-  mockColorScheme.mockReturnValue("light");
   mockCameraPermission.mockReturnValue({ granted: true });
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
   mockJoin.mockReset().mockResolvedValue({ data: { data: buildEvent() } });
@@ -74,8 +73,7 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-test.each(["light", "dark"])("loads and displays the empty Events page in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("loads and displays the empty Events page", async () => {
   const pending = deferred<unknown>();
   mockFindAll.mockReturnValue(pending.promise);
   await renderScreen();
