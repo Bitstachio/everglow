@@ -71,6 +71,9 @@
   --font-hand: "NanumPen-Regular";
 
   /*
+   * Size names must not repeat a colour name (`text-edge` would be both, and
+   * the colour wins), hence edge-print and leader-label.
+   *
    * Type scale. Line heights are ratios (line / size), as in Tailwind's own
    * scale: NativeWind multiplies them by the font size. Letter spacing is in px.
    */
@@ -90,15 +93,15 @@
   --text-body--line-height: calc(20 / 15);
   --text-name: 16px;
   --text-name--line-height: calc(20 / 16);
-  --text-edge: 10.5px;
-  --text-edge--line-height: calc(14 / 10.5);
-  --text-edge--letter-spacing: 1.26px;
+  --text-edge-print: 10.5px;
+  --text-edge-print--line-height: calc(14 / 10.5);
+  --text-edge-print--letter-spacing: 1.26px;
   --text-frame-label: 9.5px;
   --text-frame-label--line-height: calc(12 / 9.5);
   --text-frame-label--letter-spacing: 0.95px;
-  --text-leader: 13.5px;
-  --text-leader--line-height: calc(16 / 13.5);
-  --text-leader--letter-spacing: 1.35px;
+  --text-leader-label: 13.5px;
+  --text-leader-label--line-height: calc(16 / 13.5);
+  --text-leader-label--letter-spacing: 1.35px;
   --text-text-button: 12.5px;
   --text-text-button--line-height: calc(16 / 12.5);
   --text-text-button--letter-spacing: 1.5px;

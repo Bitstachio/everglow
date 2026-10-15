@@ -241,13 +241,15 @@ Registered in `app/global.css` as `--text-*`, with line height and letter spacin
 | `text-wordmark`     | 22   | 24   | -0.4     | display       | "Everglow" in the header                        |
 | `text-name`         | 16   | 20   | 0        | sans-medium   | People in a roll call                           |
 | `text-body`         | 15   | 20   | 0        | sans          | Running text, list names                        |
-| `text-leader`       | 13.5 | 16   | 1.35     | mono-semibold | Leader button labels, uppercase                 |
+| `text-leader-label` | 13.5 | 16   | 1.35     | mono-semibold | Leader button labels, uppercase                 |
 | `text-text-button`  | 12.5 | 16   | 1.5      | mono-semibold | Text buttons, uppercase                         |
-| `text-edge`         | 10.5 | 14   | 1.26     | mono          | Edge print, uppercase                           |
+| `text-edge-print`   | 10.5 | 14   | 1.26     | mono          | Edge print, uppercase                           |
 | `text-frame-label`  | 9.5  | 12   | 0.95     | mono          | Labels under frames, uppercase                  |
 | `text-counter`      | 64   | 64   | 0        | mono-semibold | The frame counter                               |
 | `text-note`         | 28   | 26   | 0        | hand          | Pencil notes, at most one per screen            |
 | `text-filled-in`    | 30   | 26   | 0        | hand          | Details written on paper                        |
+
+A size name must never repeat a colour name: `text-edge` would mean both the 10.5pt size and the `edge` colour, and the colour wins. Hence `text-edge-print` and `text-leader-label`.
 
 The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet; new work uses the scale above.
 
