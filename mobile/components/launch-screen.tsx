@@ -5,8 +5,9 @@ import { Text, View } from "react-native";
 
 /**
  * 01.1 Launch: the name alone on grainy black while the session is checked.
- * The native splash shows the same wordmark at the same size and centre
- * (assets/images/splash-wordmark.png), so the hand-off doesn't jump.
+ * The native splash (assets/images/splash-wordmark.png) is this screen's
+ * wordmark and edge print, captured at the same size and centre, so the
+ * hand-off only adds the grain. Regenerate it if this layout changes.
  */
 export const LaunchScreen = () => {
   const { t } = useTranslation("start");
