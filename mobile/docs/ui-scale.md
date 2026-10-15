@@ -12,7 +12,7 @@ The app is portrait-only on iOS and Android. Layouts do not adapt to landscape.
 
 Slick, dense, content-first. Think Instagram and WhatsApp, not a marketing landing page and not a desktop settings panel.
 
-- Inter for all UI text (see [Typeface](#typeface)). Until Inter is loaded via `expo-font`, the system UI sans is the stand-in; sizes and weights below still apply.
+- Funnel, IBM Plex Mono and Nanum Pen for all text (see [Typeface](#typeface)), on a dark-only film palette ([Theme](./theme.md)).
 - Same tokens on iOS and Android. Native chrome (stack headers, tab bars, date pickers, keyboards) stays platform-native.
 - Tight grouping, open sectioning: related items sit 8-12px apart; separate sections sit 24px apart.
 - 16px page gutters. Full-width primary buttons. Soft rounding (16px on controls), not pills on every block and not sharp 4px rectangles.
@@ -213,32 +213,43 @@ Center the illustration and copy in the remaining viewport **above** the footer.
 
 ## Typeface
 
-**Inter**, with system UI sans as fallback.
+Four families from the contact-sheet design ([EV-133](https://linear.app/mehrshadfb/issue/EV-133)), all SIL OFL 1.1, bundled as static files in `assets/fonts/` and embedded by the `expo-font` config plugin (`app.json`). Each weight is its own family, because custom fonts can't be bolded with `fontWeight` on Android.
 
-Load four weights only: 400 Regular, 500 Medium, 600 Semibold, 700 Bold. Do not load Thin, ExtraLight, ExtraBold, or Black. Do not italicize UI copy.
+| Class                | Family (PostScript name) | Use                                                                     |
+| -------------------- | ------------------------ | ----------------------------------------------------------------------- |
+| `font-display`       | `FunnelDisplay-SemiBold` | Names and titles: event titles, screen titles, roll names, the wordmark |
+| `font-sans`          | `FunnelSans-Regular`     | Running text                                                            |
+| `font-sans-medium`   | `FunnelSans-Medium`      | People's names in lists                                                 |
+| `font-sans-semibold` | `FunnelSans-SemiBold`    | Emphasis inside running text                                            |
+| `font-mono`          | `IBMPlexMono-Medium`     | Edge print: frame numbers, counts, dates, labels (uppercase)            |
+| `font-mono-semibold` | `IBMPlexMono-SemiBold`   | Leader and text-button labels, the frame counter                        |
+| `font-hand`          | `NanumPen-Regular`       | Grease-pencil notes and details filled in on paper                      |
 
-Inter is a screen font: large x-height, clear at 14-16px. That is why body stays at 16 and captions never drop below 12 (Apple's floor is 11; 12 is the readable default for Inter captions).
+Do not combine these classes with `font-medium`, `font-semibold` or `font-bold`: the weight is in the family. Changing a font means a native rebuild (`expo prebuild`), not a reload.
 
-When Inter is wired, register it as `--font-sans` in `app/global.css` and apply `font-sans` at the root. Do not set `fontFamily` on individual screens.
+The Funnel files are static weights cut from the variable fonts; IBM Plex Mono and Nanum Pen are the upstream files unmodified (both have Reserved Font Names, so they can't be subset without renaming). Licences are beside each file.
 
 ## Type scale
 
-Sizes are in density-independent pixels. Line heights are explicit px, not unitless CSS, so NativeWind and React Native agree.
+Registered in `app/global.css` as `--text-*`, with line height and letter spacing built in, so one class sets all three. Letter spacing is in px because native has no `em`.
 
-| Role            | Size | Line | Weight    | Class                     | Use                                                 |
-| --------------- | ---- | ---- | --------- | ------------------------- | --------------------------------------------------- |
-| Caption         | 12   | 16   | 400 / 500 | `text-xs`                 | Timestamps, helper, error, badges                   |
-| Label / meta    | 14   | 20   | 500       | `text-sm font-medium`     | Field labels, chip labels, list meta                |
-| Body            | 16   | 24   | 400       | `text-base`               | Default reading text, input value, empty-state body |
-| Body emphasis   | 16   | 24   | 600       | `text-base font-semibold` | Button labels, list titles                          |
-| Subtitle (H3)   | 18   | 24   | 600       | `text-lg font-semibold`   | Subsection titles, empty-state titles               |
-| Title (H2)      | 20   | 28   | 700       | `text-xl font-bold`       | Sheet titles, in-screen section headers             |
-| Page title (H1) | 24   | 32   | 700       | `text-2xl font-bold`      | In-content screen titles (no native header)         |
-| Display         | 30   | 36   | 700       | `text-3xl font-bold`      | Auth / onboarding hero only                         |
+| Class               | Size | Line | Tracking | Family        | Use                                             |
+| ------------------- | ---- | ---- | -------- | ------------- | ----------------------------------------------- |
+| `text-title-event`  | 40   | 40   | -1.4     | display       | Event title over the cover                      |
+| `text-title-screen` | 34   | 36   | -1       | display       | Screen titles; the second line in `text-text-2` |
+| `text-title-roll`   | 24   | 28   | -0.6     | display       | Event names on Home rolls                       |
+| `text-wordmark`     | 22   | 24   | -0.4     | display       | "Everglow" in the header                        |
+| `text-name`         | 16   | 20   | 0        | sans-medium   | People in a roll call                           |
+| `text-body`         | 15   | 20   | 0        | sans          | Running text, list names                        |
+| `text-leader`       | 13.5 | 16   | 1.35     | mono-semibold | Leader button labels, uppercase                 |
+| `text-text-button`  | 12.5 | 16   | 1.5      | mono-semibold | Text buttons, uppercase                         |
+| `text-edge`         | 10.5 | 14   | 1.26     | mono          | Edge print, uppercase                           |
+| `text-frame-label`  | 9.5  | 12   | 0.95     | mono          | Labels under frames, uppercase                  |
+| `text-counter`      | 64   | 64   | 0        | mono-semibold | The frame counter                               |
+| `text-note`         | 28   | 26   | 0        | hand          | Pencil notes, at most one per screen            |
+| `text-filled-in`    | 30   | 26   | 0        | hand          | Details written on paper                        |
 
-Do not use `text-4xl` or larger. Do not use `text-[11px]` or `text-[13px]`. If 14 feels large for a timestamp, use `text-xs` (12), not a custom 13.
-
-Letter spacing stays default for 12-18px. `tracking-tight` is allowed only on `text-2xl` / `text-3xl`.
+The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet; new work uses the scale above.
 
 ### Which component to use
 

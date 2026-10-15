@@ -57,8 +57,7 @@ describe("buildAuth0UniversalLoginTheme", () => {
     expect(withLogo.widget.logo_url).toBe("https://cdn.example/logo.png");
   });
 
-  it("does not use dark tokens for the hosted theme", () => {
-    expect(theme.colors.primary_button).not.toBe(colorTokens.dark.accent);
+  it("uses the app's page background for the hosted page", () => {
     expect(theme.page_background.background_color).toBe(colorTokens.light.background);
   });
 });
