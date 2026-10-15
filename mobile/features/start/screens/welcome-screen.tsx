@@ -38,8 +38,9 @@ const layoutOf = (event: LayoutChangeEvent): Box => event.nativeEvent.layout;
 
 /**
  * 01.2 Welcome: the contact sheet is the pitch. A night's photos as three
- * strips laid askew, running off both edges. In pencil, a ring between two
- * frames of the middle strip and a curved arrow up to it from the note.
+ * strips laid askew, running off both edges. In pencil, a ring around one
+ * photo in the middle strip and a curved arrow up to it from the note. (The
+ * drawing puts the ring between two frames; here it sits on a photo.)
  */
 const WelcomeScreen = () => {
   const { t } = useTranslation("start");
@@ -49,14 +50,14 @@ const WelcomeScreen = () => {
   const [noteRow, setNoteRow] = useState<Box | null>(null);
   const [note, setNote] = useState<Box | null>(null);
 
-  // The ring sits on the gap between the middle strip's third and fourth frames.
+  // The ring circles the middle strip's third frame, the one fully on screen.
   const ring = (() => {
     if (!sheet || !middleStrip) return null;
     const frameWidth = (sheet.width - 2 * FRAME_GAP - 3 * FRAME_GAP) / 4;
     const frameHeight = frameWidth / FRAME_RATIO;
-    const cx = FRAME_GAP + 3 * (frameWidth + FRAME_GAP) - FRAME_GAP / 2;
+    const cx = FRAME_GAP + 2 * (frameWidth + FRAME_GAP) + frameWidth / 2;
     const cy = middleStrip.y + STRIP_BASE + frameHeight / 2;
-    const [rx, ry] = [frameWidth * 0.44, frameHeight * 0.5];
+    const [rx, ry] = [frameWidth * 0.5 + 6, frameHeight * 0.5 + 8];
     return { cx, cy, rx, ry };
   })();
 
@@ -79,7 +80,7 @@ const WelcomeScreen = () => {
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="flex-1">
         <View
           onLayout={(event) => setSheet(layoutOf(event))}
-          className="absolute -left-11.5 -right-11.5 top-1.5 -rotate-5 gap-2.5"
+          className="absolute -left-11.5 -right-11.5 top-8 -rotate-5 gap-2.5"
         >
           <EdgePrint numberOfLines={1} ellipsizeMode="clip" className="px-15 opacity-80">
             {EDGE_TOP}
@@ -95,9 +96,9 @@ const WelcomeScreen = () => {
           <View onLayout={(event) => setMiddleStrip(layoutOf(event))}>
             <FilmStrip
               frames={[
-                { key: "e", image: trip02 },
+                { key: "e", image: birthday01 },
                 { key: "f", image: wedding04 },
-                { key: "g", image: birthday01 },
+                { key: "g", image: trip02 },
                 { key: "h", image: nightout01 },
               ]}
             />
