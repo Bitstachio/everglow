@@ -52,6 +52,7 @@ const palette = {
   viewer: "#000000",
   outline: "#FFFFFF66",
   outlineSoft: "#FFFFFF2E",
+  paperFlap: "#E2DBD0",
 } as const;
 
 export const colorTokens = {

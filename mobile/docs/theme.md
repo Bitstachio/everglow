@@ -94,8 +94,14 @@ If you change a hex in `global.css`, change the matching key in `theme/tokens.ts
 | `stamp`                                                       | `#e11d48`             | The invite's decorative stamp                    |
 | `paper`, `paper-ink`, `paper-ink-2`, `paper-rule`, `ink-blue` | `#eee8df` …           | The envelope, ticket and lab card                |
 | `viewer`                                                      | `#000000`             | The photo viewer                                 |
+| `paper-flap`                                                  | `#e2dbd0`             | The envelope's flap                              |
+| `outline` / `outline-soft`                                    | white at 40% / 18%    | Outlined leaders / icon buttons                  |
 
-`warning` and `success` stay registered for old call sites and are plain text colour: the design has no status colours.
+`shadow-paper` lays paper on the ground. `warning` and `success` stay registered for old call sites and are plain text colour: the design has no status colours.
+
+## Third-party views and `className`
+
+NativeWind maps `className` on core React Native views only. `expo-image` and `react-native-svg`'s `Svg` ignore it, so a size or position class on them does nothing. Use `Photo` (`components/ui/photo.tsx`, a `styled` wrapper) for images, and put an `Svg` inside a `View` that carries the classes. Transform scale classes (`scale-88`) compile to percentages that native rejects; shrink with padding instead.
 
 ## Adding a token
 
