@@ -1,3 +1,5 @@
+import { CantConnectScreen } from "@/components/cant-connect-screen";
+import { LaunchScreen } from "@/components/launch-screen";
 import { AppIcon } from "@/components/ui/app-icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -30,7 +32,8 @@ import { ScrollView, View } from "react-native";
 /*
  * Development-only gallery of the contact-sheet components, for checking them
  * against the design system on a device. Open everglowmobile://design-kit, or
- * everglowmobile://design-kit?only=<section title> for one section.
+ * everglowmobile://design-kit?only=<section title> for one section, or
+ * ?screen=launch|cant-connect for an app-wide screen that is hard to reach.
  * The copy is sample data, so it is not translated. Photos come from
  * picsum.photos, so the film sections need a network connection.
  */
@@ -53,8 +56,10 @@ const PEOPLE = [
 ] as const;
 
 const DesignKitScreen = () => {
-  const { only } = useLocalSearchParams<{ only?: string }>();
+  const { only, screen } = useLocalSearchParams<{ only?: string; screen?: string }>();
   if (!__DEV__) return <Redirect href="/" />;
+  if (screen === "launch") return <LaunchScreen />;
+  if (screen === "cant-connect") return <CantConnectScreen onRetry={() => undefined} isRetrying={false} />;
 
   const text = colorTokens.dark.text;
 

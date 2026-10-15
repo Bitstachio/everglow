@@ -31,7 +31,7 @@ export const CantConnectScreen = ({ onRetry, isRetrying }: CantConnectScreenProp
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
-      <View className="flex-1 justify-center gap-10">
+      <View className="flex-1 gap-28 pt-28">
         <View className="gap-3 px-5">
           <EdgePrint>{t("connection.edge")}</EdgePrint>
           <Display dim={t("connection.titleDim")}>{t("connection.title")}</Display>

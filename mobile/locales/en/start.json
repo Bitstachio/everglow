@@ -20,7 +20,7 @@
   },
   "signedOut": {
     "edge": "Signed out",
-    "title": "Sign in again to see your rolls.",
+    "title": "Sign in again\nto see your rolls.",
     "body": "For your safety, Everglow signs you out after a while. Your rolls and photos are where you left them.",
     "signIn": "Sign in"
   }

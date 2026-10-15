@@ -66,12 +66,12 @@ test("the contact sheet is decorative", async () => {
 test("after a 401 the welcome opens with the signed-out slip", async () => {
   mockParams = { signedOut: "1" };
   await renderWelcome();
-  expect(screen.getByRole("header", { name: "Sign in again to see your rolls." })).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "Sign in again\nto see your rolls." })).toBeOnTheScreen();
   fireEvent.press(screen.getAllByRole("button", { name: "Sign in" }).at(-1)!);
   await waitFor(() => expect(mockLogin).toHaveBeenCalledTimes(1));
 });
 
 test("a normal visit has no slip", async () => {
   await renderWelcome();
-  expect(screen.queryByText("Sign in again to see your rolls.")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Sign in again\nto see your rolls.")).not.toBeOnTheScreen();
 });
