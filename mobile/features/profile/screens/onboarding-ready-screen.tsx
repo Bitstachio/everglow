@@ -17,7 +17,7 @@ const OnboardingReadyScreen = () => {
     <SafeAreaView className="flex-1 bg-ground">
       <View className="px-5.5 pt-16">
         <LabCard {...card} />
-        <Stamp title={t("ready.stamp")} subtitle={t("ready.stampSub")} className="absolute -bottom-8 right-12" />
+        <Stamp title={t("ready.stamp")} subtitle={t("ready.stampSub")} className="absolute -bottom-3 right-12" />
       </View>
 
       <View className="px-5 pt-16">
