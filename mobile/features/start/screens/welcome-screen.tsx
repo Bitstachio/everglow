@@ -157,7 +157,6 @@ const WelcomeScreen = () => {
           {t("welcome.title")}
         </Display>
         <Button title={t("welcome.start")} mark="▸" onPress={onStart} isLoading={isLoading} />
-        <EdgePrint>{t("welcome.free")}</EdgePrint>
       </View>
       <FilmGrain />
     </SafeAreaView>
