@@ -520,35 +520,48 @@ describe("UsersService", () => {
   });
 
   describe("checkUsernameAvailability", () => {
-    it("returns INVALID_FORMAT for too-short usernames", async () => {
+    it("returns INVALID_FORMAT for too-short usernames, with no suggestions", async () => {
       await expect(service.checkUsernameAvailability(userId, "ab")).resolves.toEqual({
         username: "ab",
         available: false,
         reason: "INVALID_FORMAT",
+        suggestions: [],
       });
+      expect(prisma.userDetails.findFirst).not.toHaveBeenCalled();
+      expect(prisma.userDetails.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns RESERVED for reserved usernames, with free alternatives", async () => {
+      prisma.userDetails.findMany.mockResolvedValue([]);
+
+      const result = await service.checkUsernameAvailability(userId, "Admin");
+
+      expect(result).toMatchObject({ username: "admin", available: false, reason: "RESERVED" });
+      expect(result.suggestions).toHaveLength(4);
+      expect(result.suggestions.every((name) => name.startsWith("admin") && name !== "admin")).toBe(true);
       expect(prisma.userDetails.findFirst).not.toHaveBeenCalled();
     });
 
-    it("returns RESERVED for reserved usernames", async () => {
-      await expect(service.checkUsernameAvailability(userId, "Admin")).resolves.toEqual({
-        username: "admin",
-        available: false,
-        reason: "RESERVED",
-      });
-      expect(prisma.userDetails.findFirst).not.toHaveBeenCalled();
-    });
-
-    it("returns TAKEN when another user holds the username", async () => {
+    it("returns TAKEN when another user holds the username, suggesting free names from the name", async () => {
       prisma.userDetails.findFirst.mockResolvedValue({ userId: "other-user" } as never);
+      prisma.userDetails.findMany.mockResolvedValue([{ username: "maya.chen" }] as never);
 
-      await expect(service.checkUsernameAvailability(userId, "Jane.Doe")).resolves.toEqual({
-        username: "jane.doe",
-        available: false,
-        reason: "TAKEN",
-      });
+      const result = await service.checkUsernameAvailability(userId, "Maya", "Maya Chen");
+
+      expect(result).toMatchObject({ username: "maya", available: false, reason: "TAKEN" });
+      expect(result.suggestions).toEqual([
+        "mayachen",
+        "maya_c",
+        expect.stringMatching(/^maya\.c\d\d$/),
+        expect.stringMatching(/^maya\.\d\d$/),
+      ]);
       expect(prisma.userDetails.findFirst).toHaveBeenCalledWith({
-        where: { username: "jane.doe", NOT: { userId } },
+        where: { username: "maya", NOT: { userId } },
         select: { userId: true },
+      });
+      expect(prisma.userDetails.findMany).toHaveBeenCalledWith({
+        where: { username: { in: expect.arrayContaining(["maya.chen", "mayachen"]) as string[] }, NOT: { userId } },
+        select: { username: true },
       });
     });
 
@@ -559,7 +572,9 @@ describe("UsersService", () => {
         username: "jane.doe",
         available: true,
         reason: null,
+        suggestions: [],
       });
+      expect(prisma.userDetails.findMany).not.toHaveBeenCalled();
     });
   });
 

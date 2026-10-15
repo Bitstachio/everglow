@@ -62,6 +62,10 @@ export type UsernameAvailabilityResponseDto = {
    * Why the username is unavailable; null when available
    */
   reason: "INVALID_FORMAT" | "TAKEN" | "RESERVED";
+  /**
+   * Up to four free usernames built from the candidate and the optional name, best first. Empty unless reason is TAKEN or RESERVED.
+   */
+  suggestions: Array<string>;
 };
 
 /**
@@ -825,6 +829,10 @@ export type UsersControllerCheckUsernameAvailabilityData = {
      * Candidate username. Normalized (trim + lowercase) in the response.
      */
     username: string;
+    /**
+     * The person's name. When the username is taken or reserved, suggestions are built from it too.
+     */
+    name?: string;
   };
   url: "/api/v2/users/username-availability";
 };

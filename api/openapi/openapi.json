@@ -84,6 +84,17 @@
               "example": "jane.doe",
               "type": "string"
             }
+          },
+          {
+            "name": "name",
+            "required": false,
+            "in": "query",
+            "description": "The person's name. When the username is taken or reserved, suggestions are built from it too.",
+            "schema": {
+              "maxLength": 255,
+              "example": "Jane Smith",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3188,12 +3199,26 @@
               "RESERVED"
             ],
             "description": "Why the username is unavailable; null when available"
+          },
+          "suggestions": {
+            "example": [
+              "jane.doe.smith",
+              "jane.doesmith",
+              "jane.doe_s",
+              "jane.doe.s26"
+            ],
+            "description": "Up to four free usernames built from the candidate and the optional name, best first. Empty unless reason is TAKEN or RESERVED.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "username",
           "available",
-          "reason"
+          "reason",
+          "suggestions"
         ]
       },
       "AccountPlan": {
