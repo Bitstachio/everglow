@@ -34,7 +34,7 @@ export const FrameCounter = ({ count, label, accessibilityLabel }: FrameCounterP
                 y1={DIAL / 2 - outer * Math.cos(radians)}
                 x2={DIAL / 2 + inner * Math.sin(radians)}
                 y2={DIAL / 2 - inner * Math.cos(radians)}
-                stroke={colorTokens.dark.edge}
+                stroke={colorTokens.edge}
                 strokeWidth={2}
                 strokeLinecap="round"
               />

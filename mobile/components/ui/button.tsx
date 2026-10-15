@@ -64,7 +64,7 @@ export const Button = ({
   ...props
 }: ButtonProps) => {
   const isDisabled = disabled || isLoading;
-  const tint = colorTokens.dark[ICON_TOKEN[variant]];
+  const tint = colorTokens[ICON_TOKEN[variant]];
   const leadingIcon = variant === "danger" ? Warning : icon;
 
   return (

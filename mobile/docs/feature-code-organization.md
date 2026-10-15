@@ -88,7 +88,7 @@ Feature-specific UI pieces used by one or more screens in the same feature. A co
 Do **not** add sophisticated logic to the component body (presentation lifecycle, multi-step local state + effects, platform-specific orchestration). Extract it into a hook:
 
 - **Component-private** → same-named folder next to the component (`events-list-filters-sheet/use-events-list-filters-sheet.ts`). Import relatively (`./use-…`). Do not put these in `features/<name>/hooks/` (that folder is for screen/form hooks; ESLint also blocks components from importing it).
-- **Reusable across features** → app-wide `hooks/` (for example, `useColorScheme`).
+- **Reusable across features** → app-wide `hooks/` (for example, `useReduceMotion`).
 - **Screen/form orchestration** → `features/<name>/hooks/` and pass results down as props.
 
 Keep the component file flat when it is only JSX plus trivial derived UI. See [Code conventions: Component logic and hooks](./code-conventions.md#component-logic-and-hooks).
@@ -131,7 +131,7 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 | Location         | Role                                                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `components/ui/` | Reusable primitives (`Button`, `Input`, …). Compose these. Private component hooks colocate in a same-named folder when needed. |
-| `hooks/`         | Cross-feature hooks (for example, `useColorScheme`). Not for hooks owned by a single UI component.                              |
+| `hooks/`         | Cross-feature hooks (for example, `useReduceMotion`). Not for hooks owned by a single UI component.                             |
 | `context/`       | Global state (for example, `AuthProvider` / `useAuth`)                                                                          |
 | `lib/`           | Shared utilities and the API client                                                                                             |
 | `providers/`     | App-level providers wired in `app/_layout.tsx`                                                                                  |

@@ -1,5 +1,4 @@
 import { colorTokens } from "@/theme/tokens";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
 import { EdgePrint } from "../edge-print";
@@ -12,7 +11,6 @@ type InputProps = TextInputProps & {
 };
 
 export const Input = ({ label, error, secureTextEntry, editable = true, className = "", ...props }: InputProps) => {
-  const colorScheme = useColorScheme();
   const { showToggle, isDisabled, isSecure, toggleAccessibilityLabel, toggleIconName, onTogglePasswordVisibility } =
     useInput({ secureTextEntry, editable });
 
@@ -26,7 +24,7 @@ export const Input = ({ label, error, secureTextEntry, editable = true, classNam
             {...props}
             editable={editable}
             secureTextEntry={isSecure}
-            placeholderTextColor={colorTokens[colorScheme].subtle}
+            placeholderTextColor={colorTokens.subtle}
             accessibilityState={{ disabled: isDisabled }}
             className={[
               "h-12 border-b-2 bg-transparent font-sans text-name text-text",
@@ -42,7 +40,7 @@ export const Input = ({ label, error, secureTextEntry, editable = true, classNam
           {showToggle ? (
             <View className="absolute right-3">
               <IconButton accessibilityLabel={toggleAccessibilityLabel} onPress={onTogglePasswordVisibility}>
-                <Ionicons name={toggleIconName} size={20} color={colorTokens[colorScheme].muted} />
+                <Ionicons name={toggleIconName} size={20} color={colorTokens.muted} />
               </IconButton>
             </View>
           ) : null}

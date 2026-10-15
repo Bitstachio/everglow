@@ -1,11 +1,9 @@
 import type { ComponentProps, ReactNode } from "react";
 import type { CameraView } from "expo-camera";
 
-export const mockColorScheme = jest.fn(() => "light");
 export const mockRequestPermission = jest.fn();
 export const mockCameraPermission = jest.fn((): { granted: boolean } | null => ({ granted: true }));
 
-jest.mock("@/hooks/use-color-scheme", () => ({ useColorScheme: () => mockColorScheme() }));
 jest.mock("react-native-safe-area-context", () => {
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
   return {

@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 // Integration tests compose the real screen with its data provider.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -45,7 +45,6 @@ const renderScreen = async () => {
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockFocused = true;
-  mockColorScheme.mockReturnValue("light");
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
   mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});

@@ -1,9 +1,8 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { EventActionCard } from "./event-action-card";
 
-test.each(["light", "dark"])("renders and activates actions in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("renders and activates actions", async () => {
   const onPress = jest.fn();
   await render(<EventActionCard title="Create Event" description="Host your own meetup" onPress={onPress} />);
   expect(screen.getByText("Host your own meetup")).toBeOnTheScreen();

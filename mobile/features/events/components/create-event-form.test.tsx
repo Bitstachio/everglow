@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 import "../testing/date-picker-mock";
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { useForm } from "react-hook-form";
@@ -28,15 +28,12 @@ const FormProbe = (props: Partial<Omit<ComponentProps<typeof CreateEventForm>, "
   );
 };
 const originalOS = Platform.OS;
-beforeEach(() => {
-  mockColorScheme.mockReturnValue("light");
-});
+beforeEach(() => {});
 afterEach(() => {
   Platform.OS = originalOS;
 });
 
-test.each(["light", "dark"])("renders editable fields and server errors in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("renders editable fields and server errors", async () => {
   await render(<FormProbe error="Server unavailable" />);
   expect(screen.getByText("Create an Event")).toBeOnTheScreen();
   expect(screen.getByPlaceholderText("Enter event name")).toHaveDisplayValue("Meetup");
@@ -112,8 +109,7 @@ test("disables text editing and picker controls while submitting", async () => {
   expect(screen.queryByText("Create Event")).not.toBeOnTheScreen();
 });
 
-test.each(["light", "dark"])("shows the returned event, link and QR in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("shows the returned event, link and QR", async () => {
   const event = buildEvent();
   await render(<FormProbe createdEvent={event} />);
   expect(screen.getByText("Your event is live")).toBeOnTheScreen();

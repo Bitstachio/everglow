@@ -7,28 +7,28 @@ import {
 } from "./auth0-universal-login";
 
 describe("buildAuth0UniversalLoginTheme", () => {
-  const theme = buildAuth0UniversalLoginTheme(colorTokens.light);
+  const theme = buildAuth0UniversalLoginTheme(colorTokens);
 
-  it("maps light tokens to Auth0 color fields from the credential-changes map", () => {
+  it("maps the app tokens to Auth0 color fields from the credential-changes map", () => {
     expect(theme.colors).toMatchObject({
-      input_background: colorTokens.light.background,
-      widget_background: colorTokens.light.surface,
-      header: colorTokens.light.strong,
-      body_text: colorTokens.light.foreground,
-      input_filled_text: colorTokens.light.foreground,
-      secondary_button_label: colorTokens.light.foreground,
-      input_labels_placeholders: colorTokens.light.muted,
-      icons: colorTokens.light.muted,
-      primary_button: colorTokens.light.accent,
-      base_focus_color: colorTokens.light.accent,
-      links_focused_components: colorTokens.light.accent,
-      base_hover_color: colorTokens.light.accentHover,
-      primary_button_label: colorTokens.light.accentForeground,
-      widget_border: colorTokens.light.border,
-      input_border: colorTokens.light.border,
-      secondary_button_border: colorTokens.light.border,
-      error: colorTokens.light.danger,
-      success: colorTokens.light.success,
+      input_background: colorTokens.background,
+      widget_background: colorTokens.surface,
+      header: colorTokens.strong,
+      body_text: colorTokens.foreground,
+      input_filled_text: colorTokens.foreground,
+      secondary_button_label: colorTokens.foreground,
+      input_labels_placeholders: colorTokens.muted,
+      icons: colorTokens.muted,
+      primary_button: colorTokens.accent,
+      base_focus_color: colorTokens.accent,
+      links_focused_components: colorTokens.accent,
+      base_hover_color: colorTokens.accentHover,
+      primary_button_label: colorTokens.accentForeground,
+      widget_border: colorTokens.border,
+      input_border: colorTokens.border,
+      secondary_button_border: colorTokens.border,
+      error: colorTokens.danger,
+      success: colorTokens.success,
     });
   });
 
@@ -51,22 +51,22 @@ describe("buildAuth0UniversalLoginTheme", () => {
   });
 
   it("preserves an existing logo URL when provided", () => {
-    const withLogo = buildAuth0UniversalLoginTheme(colorTokens.light, {
+    const withLogo = buildAuth0UniversalLoginTheme(colorTokens, {
       logoUrl: "https://cdn.example/logo.png",
     });
     expect(withLogo.widget.logo_url).toBe("https://cdn.example/logo.png");
   });
 
   it("uses the app's page background for the hosted page", () => {
-    expect(theme.page_background.background_color).toBe(colorTokens.light.background);
+    expect(theme.page_background.background_color).toBe(colorTokens.background);
   });
 });
 
 describe("buildAuth0TenantBrandingColors", () => {
-  it("sets primary and page background from light accent and background", () => {
-    expect(buildAuth0TenantBrandingColors(colorTokens.light)).toEqual({
-      primary: colorTokens.light.accent,
-      page_background: colorTokens.light.background,
+  it("sets primary and page background from the accent and background", () => {
+    expect(buildAuth0TenantBrandingColors(colorTokens)).toEqual({
+      primary: colorTokens.accent,
+      page_background: colorTokens.background,
     });
   });
 });

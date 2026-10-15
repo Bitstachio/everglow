@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
@@ -59,7 +59,6 @@ const confirmDestructiveAlert = () => {
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockEventId = "event-1";
-  mockColorScheme.mockReturnValue("light");
   mockFindOne.mockReset();
   mockGetParticipants.mockReset();
   mockRemove.mockReset().mockResolvedValue({});

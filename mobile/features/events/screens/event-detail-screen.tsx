@@ -1,4 +1,3 @@
-import { ThemedView } from "@/components/themed-view";
 import { AppIcon } from "@/components/ui/app-icon";
 import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/ui/heading";
@@ -6,7 +5,6 @@ import { IconButton } from "@/components/ui/icon-button";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemedText } from "@/components/ui/themed-text";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
 import { ChevronRight, Settings } from "lucide-react-native";
 import { Stack } from "expo-router";
@@ -18,7 +16,6 @@ import { EventPhotosSection } from "../components/event-photos-section";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 
 const EventDetailScreen = () => {
-  const colorScheme = useColorScheme();
   const {
     event,
     photos,
@@ -43,17 +40,17 @@ const EventDetailScreen = () => {
 
   if (isLoading || !event) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1 bg-background">
         <Stack.Screen options={{ title: "Event Details", headerBackTitle: "Back" }} />
         <View className="flex-1 items-center justify-center">
           <Spinner size="large" label="Loading event" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1 bg-background">
       <Stack.Screen
         options={{
           title: "Event Details",
@@ -76,7 +73,7 @@ const EventDetailScreen = () => {
               testID="event-detail-refresh"
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={colorTokens[colorScheme].foreground}
+              tintColor={colorTokens.foreground}
             />
           }
         >
@@ -128,7 +125,7 @@ const EventDetailScreen = () => {
           onRemove={handleRemoveMember}
         />
       ) : null}
-    </ThemedView>
+    </View>
   );
 };
 

@@ -1,4 +1,4 @@
-import { mockCameraPermission, mockRequestPermission, mockColorScheme } from "../testing/native-mocks";
+import { mockCameraPermission, mockRequestPermission } from "../testing/native-mocks";
 import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert } from "react-native";
 import { QRScanner } from "./qr-scanner";
@@ -6,7 +6,6 @@ import { QRScanner } from "./qr-scanner";
 beforeEach(() => {
   mockCameraPermission.mockReturnValue({ granted: true });
   mockRequestPermission.mockReset();
-  mockColorScheme.mockReturnValue("light");
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -21,8 +20,7 @@ test("waits for permission state", async () => {
   expect(screen.queryByText("Camera Access Required")).not.toBeOnTheScreen();
 });
 
-test.each(["light", "dark"])("explains missing permission and allows cancellation in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("explains missing permission and allows cancellation", async () => {
   mockCameraPermission.mockReturnValue({ granted: false });
   const onClose = jest.fn();
   await render(<QRScanner visible onClose={onClose} onScan={jest.fn()} />);

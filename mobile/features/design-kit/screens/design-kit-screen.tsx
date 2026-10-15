@@ -61,7 +61,7 @@ const DesignKitScreen = () => {
   if (screen === "launch") return <LaunchScreen />;
   if (screen === "cant-connect") return <CantConnectScreen onRetry={() => undefined} isRetrying={false} />;
 
-  const text = colorTokens.dark.text;
+  const text = colorTokens.text;
 
   return (
     <SafeAreaView className="flex-1 bg-ground">

@@ -3,11 +3,11 @@
  * icon and spinner colors. Class-based styling reads the same values from the
  * CSS custom properties in `app/global.css`; keep the two in sync.
  *
- * The app is dark only (the contact-sheet design, docs/theme.md). Both scheme
- * keys point at one palette so code that indexes by color scheme keeps working.
+ * The app is dark only (the contact-sheet design, docs/theme.md): one palette,
+ * read directly, for example `colorTokens.muted`.
  */
 
-const palette = {
+export const colorTokens = {
   // Semantic names every screen already uses, mapped onto the film palette.
   background: "#0E0E0E",
   surface: "#151515",
@@ -55,12 +55,4 @@ const palette = {
   paperFlap: "#E2DBD0",
 } as const;
 
-export const colorTokens = {
-  light: palette,
-  dark: palette,
-} as const;
-
-export type ColorSchemeName = keyof typeof colorTokens;
-export type ColorTokenName = keyof typeof palette;
-
-export const Colors = colorTokens;
+export type ColorTokenName = keyof typeof colorTokens;

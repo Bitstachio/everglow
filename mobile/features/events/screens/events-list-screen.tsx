@@ -1,4 +1,3 @@
-import { ThemedView } from "@/components/themed-view";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
@@ -33,7 +32,7 @@ const EventsListScreen = () => {
   } = useEventsListScreen();
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1 bg-background">
       <ScrollView
         className="flex-1"
         contentContainerStyle={styles.content}
@@ -72,7 +71,7 @@ const EventsListScreen = () => {
           event={selectedEvent}
         />
       )}
-    </ThemedView>
+    </View>
   );
 };
 

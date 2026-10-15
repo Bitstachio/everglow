@@ -325,7 +325,7 @@ Pairing:
 | `text-base` button / row | `sm` or `md` (20/24)   | `gap-2` (8)  |
 | Empty state              | `lg` (32) or `xl` (48) | `gap-3` (12) |
 
-Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorTokens.dark.text`). Do not hardcode hex.
+Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorTokens.text`). Do not hardcode hex.
 
 ## Color pairing (quick)
 

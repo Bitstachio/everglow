@@ -1,5 +1,5 @@
 import { Avatar } from "@/components/ui/avatar";
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { colorTokens } from "@/theme/tokens";
 import { EventActionCard } from "../components/event-action-card";
 import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
@@ -10,8 +10,6 @@ import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const EventsScreen = () => {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const insets = useSafeAreaInsets();
   const {
     events,
@@ -35,9 +33,9 @@ const EventsScreen = () => {
   } = useEventsScreen();
 
   return (
-    <View style={[styles.container, isDark ? styles.containerDark : styles.containerLight]}>
+    <View style={[styles.container, styles.containerColors]}>
       <View style={[styles.brandHeader, { paddingTop: insets.top + 16 }]}>
-        <Text accessibilityRole="header" style={[styles.wordmark, isDark ? styles.textDark : styles.textLight]}>
+        <Text accessibilityRole="header" style={[styles.wordmark, styles.textColors]}>
           Everglow
         </Text>
         <TouchableOpacity
@@ -51,12 +49,12 @@ const EventsScreen = () => {
         </TouchableOpacity>
       </View>
       <ScrollView
-        style={[styles.scrollView, isDark ? styles.containerDark : styles.containerLight]}
+        style={[styles.scrollView, styles.containerColors]}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl testID="events-refresh" refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.header}>
-          <Text style={[styles.subtitle, isDark ? styles.subtitleDark : styles.subtitleLight]}>
+          <Text style={[styles.subtitle, styles.subtitleColors]}>
             Discover events, join with QR codes or links, and create your own meetups to share with the community.
           </Text>
         </View>
@@ -113,11 +111,8 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  containerLight: {
-    backgroundColor: "#F9FAFB",
-  },
-  containerDark: {
-    backgroundColor: "#111827",
+  containerColors: {
+    backgroundColor: colorTokens.background,
   },
   content: {
     paddingHorizontal: 24,
@@ -145,17 +140,11 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
   },
-  subtitleLight: {
-    color: "#6B7280",
+  subtitleColors: {
+    color: colorTokens.muted,
   },
-  subtitleDark: {
-    color: "#9CA3AF",
-  },
-  textLight: {
-    color: "#111827",
-  },
-  textDark: {
-    color: "#F9FAFB",
+  textColors: {
+    color: colorTokens.text,
   },
   actionCards: {
     flexDirection: "row",

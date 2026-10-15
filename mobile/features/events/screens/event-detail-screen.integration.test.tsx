@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 // The integration harness supplies the real data provider and observes native services.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -143,7 +143,6 @@ const confirmDestructiveAlert = () => {
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockEventId = "event-1";
-  mockColorScheme.mockReturnValue("light");
   mockFindOne.mockReset();
   mockListPhotos.mockReset();
   mockGetParticipants.mockReset();
@@ -178,8 +177,7 @@ afterEach(() => {
   clients.splice(0).forEach((client) => client.clear());
 });
 
-test.each(["light", "dark"] as const)("loads event details for an organizer in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("loads event details for an organizer", async () => {
   await renderScreen({
     photos: [buildPhoto()],
     participants: [

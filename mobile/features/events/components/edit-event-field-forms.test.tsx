@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 import "../testing/date-picker-mock";
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { useForm } from "react-hook-form";
@@ -9,7 +9,6 @@ import { EditEventTitleForm } from "./edit-event-title-form";
 const onSubmit = jest.fn();
 
 beforeEach(() => {
-  mockColorScheme.mockReturnValue("light");
   onSubmit.mockReset();
 });
 
