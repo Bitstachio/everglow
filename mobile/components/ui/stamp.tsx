@@ -28,7 +28,7 @@ export const Stamp = ({ title, subtitle, tone = "stamp", className = "" }: Stamp
         .filter(Boolean)
         .join(" ")}
     >
-      <Text className={`font-mono-semibold text-leader uppercase ${ink}`}>{title}</Text>
+      <Text className={`font-mono-semibold text-leader-label uppercase ${ink}`}>{title}</Text>
       {subtitle ? <Text className={`font-mono text-frame-label uppercase ${ink}`}>{subtitle}</Text> : null}
     </View>
   );

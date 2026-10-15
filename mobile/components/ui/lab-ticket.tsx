@@ -43,10 +43,10 @@ export const LabTicket = ({ title, number, options, divider, footer }: LabTicket
               </View>
             ) : null}
           </View>
-          <Text className="flex-1 font-mono text-edge uppercase text-paper-ink">{option.label}</Text>
+          <Text className="flex-1 font-mono text-edge-print uppercase text-paper-ink">{option.label}</Text>
         </Pressable>
         {divider?.afterKey === option.key ? (
-          <Text className="pb-0.5 pt-3 font-mono-semibold text-edge uppercase text-stamp">{divider.label}</Text>
+          <Text className="pb-0.5 pt-3 font-mono-semibold text-edge-print uppercase text-stamp">{divider.label}</Text>
         ) : null}
       </View>
     ))}

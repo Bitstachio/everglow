@@ -47,14 +47,14 @@ export const LabEnvelope = ({ title, number, fields, options, footer, code, acce
           {options.map((option) => (
             <View key={option.label} className="flex-row items-center gap-1.5">
               <PaperBox checked={option.checked} />
-              <Text className="font-mono text-edge uppercase text-paper-ink">{option.label}</Text>
+              <Text className="font-mono text-edge-print uppercase text-paper-ink">{option.label}</Text>
             </View>
           ))}
         </View>
       ) : null}
       {footer || code ? (
         <View className="flex-row items-end justify-between pt-3.5">
-          <Text className="flex-1 font-mono text-edge uppercase text-paper-ink-2">{footer}</Text>
+          <Text className="flex-1 font-mono text-edge-print uppercase text-paper-ink-2">{footer}</Text>
           {code}
         </View>
       ) : null}

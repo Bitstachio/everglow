@@ -28,15 +28,15 @@ export const Paper = ({ children, tilt = "left", className = "" }: PaperProps) =
 /** The printed head of a paper: what it is on the left, its number on the right, a rule beneath. */
 export const PaperHead = ({ title, number }: { title: string; number?: string }) => (
   <View className="flex-row items-baseline justify-between border-b-2 border-paper-ink pb-2">
-    <Text className="font-mono-semibold text-edge uppercase text-paper-ink">{title}</Text>
-    {number ? <Text className="font-mono text-edge uppercase text-paper-ink-2">{number}</Text> : null}
+    <Text className="font-mono-semibold text-edge-print uppercase text-paper-ink">{title}</Text>
+    {number ? <Text className="font-mono text-edge-print uppercase text-paper-ink-2">{number}</Text> : null}
   </View>
 );
 
 /** A printed label with a value filled in by hand, on a ruled line. */
 export const PaperField = ({ label, value }: { label: string; value?: ReactNode }) => (
   <View className="flex-row items-baseline gap-3 border-b border-paper-rule pb-1 pt-2.5">
-    <Text className="w-19 font-mono text-edge uppercase text-paper-ink-2">{label}</Text>
+    <Text className="w-19 font-mono text-edge-print uppercase text-paper-ink-2">{label}</Text>
     <Text className="flex-1 font-hand text-filled-in text-ink-blue" numberOfLines={1}>
       {value ?? " "}
     </Text>
