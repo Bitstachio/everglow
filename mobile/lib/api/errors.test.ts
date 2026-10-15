@@ -1,5 +1,5 @@
 import { API_ERROR_MESSAGES } from "./error-messages";
-import { createApiError, getErrorCode, getErrorMessage, isApiError, toApiError } from "./errors";
+import { createApiError, getErrorCode, getErrorMessage, isApiError, isConnectionError, toApiError } from "./errors";
 
 describe("toApiError", () => {
   it("hides 5xx response bodies from the UI", () => {
@@ -98,5 +98,23 @@ describe("createApiError", () => {
     const error = createApiError("taken", { status: 409, code: "USERNAME_TAKEN" });
     expect(isApiError(error)).toBe(true);
     expect(error.status).toBe(409);
+  });
+});
+
+describe("isConnectionError", () => {
+  it("is true for a request that got no response", () => {
+    expect(isConnectionError(toApiError({ request: {}, message: "Network Error" }))).toBe(true);
+  });
+
+  it("is true when a gateway says the API is down", () => {
+    for (const status of [502, 503, 504]) {
+      expect(isConnectionError(toApiError({ response: { status } }))).toBe(true);
+    }
+  });
+
+  it("is false for answers from the API and for other errors", () => {
+    expect(isConnectionError(toApiError({ response: { status: 500 } }))).toBe(false);
+    expect(isConnectionError(toApiError({ response: { status: 403, data: { code: "FORBIDDEN" } } }))).toBe(false);
+    expect(isConnectionError(new Error("boom"))).toBe(false);
   });
 });

@@ -10,5 +10,18 @@
     "caption": "Every photo from the night, one roll",
     "note": "that’s us, 2 a.m.",
     "failedTitle": "Couldn’t sign in"
+  },
+  "connection": {
+    "edge": "No connection",
+    "title": "The lab is out",
+    "titleDim": "of reach.",
+    "body": "Check your Wi-Fi or mobile data. If you’re connected, Everglow may be down for a moment.",
+    "retry": "Try again"
+  },
+  "signedOut": {
+    "edge": "Signed out",
+    "title": "Sign in again\nto see your rolls.",
+    "body": "For your safety, Everglow signs you out after a while. Your rolls and photos are where you left them.",
+    "signIn": "Sign in"
   }
 }

@@ -9,6 +9,7 @@ import wedding04 from "@/assets/images/welcome/wedding-04.jpg";
 import wedding06 from "@/assets/images/welcome/wedding-06.jpg";
 import wedding09 from "@/assets/images/welcome/wedding-09.jpg";
 import wedding11 from "@/assets/images/welcome/wedding-11.jpg";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Display, Wordmark } from "@/components/ui/display";
 import { EdgePrint } from "@/components/ui/edge-print";
@@ -17,6 +18,7 @@ import { FilmStrip } from "@/components/ui/film-strip";
 import { GreasePencil } from "@/components/ui/grease-pencil";
 import { PencilNote } from "@/components/ui/pencil-note";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { Slip } from "@/components/ui/slip";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View, type LayoutChangeEvent, type LayoutRectangle } from "react-native";
@@ -44,7 +46,7 @@ const layoutOf = (event: LayoutChangeEvent): Box => event.nativeEvent.layout;
  */
 const WelcomeScreen = () => {
   const { t } = useTranslation("start");
-  const { isLoading, onStart, onSignIn } = useWelcomeScreen();
+  const { isLoading, onStart, onSignIn, showSignedOut, onDismissSignedOut, onSignInAgain } = useWelcomeScreen();
   const [sheet, setSheet] = useState<Box | null>(null);
   const [middleStrip, setMiddleStrip] = useState<Box | null>(null);
   const [noteRow, setNoteRow] = useState<Box | null>(null);
@@ -159,6 +161,12 @@ const WelcomeScreen = () => {
         <Button title={t("welcome.start")} mark="▸" onPress={onStart} isLoading={isLoading} />
       </View>
       <FilmGrain />
+
+      <BottomSheet visible={showSignedOut} onClose={onDismissSignedOut}>
+        <Slip edge={t("signedOut.edge")} title={t("signedOut.title")} body={t("signedOut.body")}>
+          <Button title={t("signedOut.signIn")} mark="▸" onPress={onSignInAgain} />
+        </Slip>
+      </BottomSheet>
     </SafeAreaView>
   );
 };
