@@ -91,9 +91,9 @@ test("asks for camera permission and stops when it is denied", async () => {
   expect(alert).toHaveBeenCalledWith("Permission Required", expect.stringContaining("camera"));
 });
 
-test("explains a conflict with another organizer", async () => {
+test("explains a conflict with another host", async () => {
   mockSetCover.mockRejectedValue(
-    createApiError("Another organizer changed the cover at the same time. Please try again.", {
+    createApiError("Another host changed the cover at the same time. Please try again.", {
       status: 409,
       code: "COVER_CHANGED_CONCURRENTLY",
     }),
@@ -102,7 +102,7 @@ test("explains a conflict with another organizer", async () => {
 
   await choose(result, "Choose from Library");
 
-  expect(alert).toHaveBeenCalledWith("Could not update cover", expect.stringContaining("Another organizer"));
+  expect(alert).toHaveBeenCalledWith("Could not update cover", expect.stringContaining("Another host"));
 });
 
 test("backs off for Retry-After after a 429", async () => {

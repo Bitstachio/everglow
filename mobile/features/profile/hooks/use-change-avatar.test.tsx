@@ -107,7 +107,7 @@ test("offers removal only when an avatar is set", async () => {
 
 test("explains a conflict with another device", async () => {
   mockSetAvatar.mockRejectedValue(
-    createApiError("Your profile photo was changed on another device. Please try again.", {
+    createApiError("Your photo was changed on another device. Please try again.", {
       status: 409,
       code: "AVATAR_CHANGED_CONCURRENTLY",
     }),
