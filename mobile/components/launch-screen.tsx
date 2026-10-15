@@ -1,4 +1,5 @@
 import { EdgePrint } from "@/components/ui/edge-print";
+import * as SplashScreen from "expo-splash-screen";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 
@@ -7,7 +8,8 @@ import { Text, View } from "react-native";
  * The native splash (assets/images/splash-wordmark.png) is this screen's
  * wordmark and edge print, captured at the same size and centre, so the
  * hand-off is invisible. No grain here: the native splash can't carry it.
- * Regenerate the splash image if this layout changes.
+ * Regenerate the splash image if this layout changes. The native splash is
+ * hidden once this has laid out (see app/_layout.tsx), never before.
  */
 export const LaunchScreen = () => {
   const { t } = useTranslation("start");
@@ -17,6 +19,7 @@ export const LaunchScreen = () => {
       accessibilityRole="progressbar"
       accessibilityLabel={t("launch.status")}
       accessibilityState={{ busy: true }}
+      onLayout={() => void SplashScreen.hideAsync()}
       className="flex-1 items-center justify-center bg-ground"
     >
       <Text className="font-display text-title-launch text-text">Everglow</Text>

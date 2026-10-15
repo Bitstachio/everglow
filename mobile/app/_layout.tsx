@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useTranslation } from "react-i18next";
 import { Auth0Provider } from "react-native-auth0";
@@ -7,6 +8,10 @@ import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AppThemeProvider } from "@/theme/provider";
 import "./global.css";
+
+// The native splash stays up until the launch screen, which looks identical,
+// has painted (components/launch-screen.tsx), so the hand-off has no gap.
+void SplashScreen.preventAutoHideAsync();
 
 const AUTH0_DOMAIN = process.env.EXPO_PUBLIC_AUTH0_DOMAIN ?? "";
 const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID ?? "";
@@ -36,14 +41,15 @@ const RootNavigator = () => {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
+      {/* The first screen after launch fades in; a redirect would otherwise slide it in like a push. */}
+      <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
-      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="privacy-policy" options={{ title: t("screens.privacyPolicy"), headerBackTitle: backTitle }} />
       <Stack.Screen name="terms-of-use" options={{ title: t("screens.termsOfUse"), headerBackTitle: backTitle }} />
       <Stack.Screen name="design-kit" options={{ headerShown: false }} />
       <Stack.Protected guard={isAuthenticated && isOnboarded}>
-        <Stack.Screen name="events/index" options={{ headerShown: false }} />
+        <Stack.Screen name="events/index" options={{ headerShown: false, animation: "fade" }} />
         <Stack.Screen
           name="account-settings"
           options={{ title: t("screens.accountSettings"), headerBackTitle: backTitle }}
