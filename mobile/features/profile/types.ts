@@ -4,6 +4,7 @@ export type {
   PasswordChangeTicketResponseDto,
   UpdateUserDto,
   UserDetailsResponseDto,
+  UserLimitsResponseDto,
   UserResponseDto,
   UsernameAvailabilityResponseDto,
 } from "@/lib/api/generated";

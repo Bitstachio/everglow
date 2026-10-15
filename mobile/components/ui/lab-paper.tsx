@@ -8,12 +8,12 @@ import { Text, View } from "react-native";
 
 type PaperProps = {
   children: ReactNode;
-  /** Lay the paper slightly askew, like an object on a table. Default: true. */
-  tilt?: "left" | "right" | false;
+  /** Lay the paper slightly askew, like an object on a table. Default: left. */
+  tilt?: "left" | "slight" | "right" | false;
   className?: string;
 };
 
-const TILT_CLASSES = { left: "-rotate-2", right: "rotate-1" } as const;
+const TILT_CLASSES = { left: "-rotate-2", slight: "-rotate-1", right: "rotate-1" } as const;
 
 export const Paper = ({ children, tilt = "left", className = "" }: PaperProps) => (
   <View

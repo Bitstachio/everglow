@@ -21,7 +21,8 @@ export type UsernameView =
  * 02.3–02.6 Username, and the terms. Lowercase as you type; the rule is
  * checked on the phone first, then availability after a short pause. A taken
  * or reserved name offers free ones built from your name. Continue sends
- * name, username and accepted terms together, which completes onboarding.
+ * name, username and accepted terms together, which completes onboarding,
+ * then goes on to the photo.
  */
 export const useOnboardingUsernameScreen = () => {
   const { t } = useTranslation(["onboarding", "common"]);
@@ -75,6 +76,7 @@ export const useOnboardingUsernameScreen = () => {
     if (!canContinue) return;
     try {
       await completeOnboarding({ name: name.trim(), username: normalized, acceptedTerms: true });
+      router.replace("/onboarding/photo");
     } catch (err) {
       const code = getErrorCode(err);
       if (code === "USERNAME_TAKEN" || code === "USERNAME_RESERVED") {
