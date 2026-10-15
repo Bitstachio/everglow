@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { buildEvent } from "../testing/fixtures";
 import { EventsList } from "./events-list";
@@ -20,7 +20,6 @@ jest.mock("expo-router", () => {
 });
 beforeEach(() => {
   mockPush.mockReset();
-  mockColorScheme.mockReturnValue("light");
 });
 
 test("shows loading without displaying stale cards or the empty state", async () => {
@@ -30,8 +29,7 @@ test("shows loading without displaying stale cards or the empty state", async ()
   expect(screen.queryByText("No events yet")).not.toBeOnTheScreen();
 });
 
-test.each(["light", "dark"])("shows empty-state guidance in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("shows empty-state guidance", async () => {
   await render(<EventsList title="Upcoming Events" isLoading={false} events={[]} />);
   expect(screen.getByText("Upcoming Events")).toBeOnTheScreen();
   expect(screen.getByText("No events yet")).toBeOnTheScreen();

@@ -19,8 +19,14 @@ const TONE_CLASSES: Record<TextTone, string> = {
   danger: "text-danger",
 };
 
+// Funnel Sans unless the caller picks another family (font-display, font-mono, …).
+const HAS_FAMILY = /\bfont-(display|sans|mono|hand)/;
+
 export const ThemedText = ({ children, className = "", tone = "foreground", ...props }: ThemedTextProps) => (
-  <Text className={`${TONE_CLASSES[tone]} ${className}`.trim()} {...props}>
+  <Text
+    className={[HAS_FAMILY.test(className) ? "" : "font-sans", TONE_CLASSES[tone], className].filter(Boolean).join(" ")}
+    {...props}
+  >
     {children}
   </Text>
 );

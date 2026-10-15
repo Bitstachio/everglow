@@ -12,7 +12,7 @@ The app is portrait-only on iOS and Android. Layouts do not adapt to landscape.
 
 Slick, dense, content-first. Think Instagram and WhatsApp, not a marketing landing page and not a desktop settings panel.
 
-- Inter for all UI text (see [Typeface](#typeface)). Until Inter is loaded via `expo-font`, the system UI sans is the stand-in; sizes and weights below still apply.
+- Funnel, IBM Plex Mono and Nanum Pen for all text (see [Typeface](#typeface)), on a dark-only film palette ([Theme](./theme.md)).
 - Same tokens on iOS and Android. Native chrome (stack headers, tab bars, date pickers, keyboards) stays platform-native.
 - Tight grouping, open sectioning: related items sit 8-12px apart; separate sections sit 24px apart.
 - 16px page gutters. Full-width primary buttons. Soft rounding (16px on controls), not pills on every block and not sharp 4px rectangles.
@@ -213,94 +213,105 @@ Center the illustration and copy in the remaining viewport **above** the footer.
 
 ## Typeface
 
-**Inter**, with system UI sans as fallback.
+Four families from the contact-sheet design ([EV-133](https://linear.app/mehrshadfb/issue/EV-133)), all SIL OFL 1.1, bundled as static files in `assets/fonts/` and embedded by the `expo-font` config plugin (`app.json`). Each weight is its own family, because custom fonts can't be bolded with `fontWeight` on Android.
 
-Load four weights only: 400 Regular, 500 Medium, 600 Semibold, 700 Bold. Do not load Thin, ExtraLight, ExtraBold, or Black. Do not italicize UI copy.
+| Class                | Family (PostScript name) | Use                                                                     |
+| -------------------- | ------------------------ | ----------------------------------------------------------------------- |
+| `font-display`       | `FunnelDisplay-SemiBold` | Names and titles: event titles, screen titles, roll names, the wordmark |
+| `font-sans`          | `FunnelSans-Regular`     | Running text                                                            |
+| `font-sans-medium`   | `FunnelSans-Medium`      | People's names in lists                                                 |
+| `font-sans-semibold` | `FunnelSans-SemiBold`    | Emphasis inside running text                                            |
+| `font-mono`          | `IBMPlexMono-Medium`     | Edge print: frame numbers, counts, dates, labels (uppercase)            |
+| `font-mono-semibold` | `IBMPlexMono-SemiBold`   | Leader and text-button labels, the frame counter                        |
+| `font-hand`          | `NanumPen-Regular`       | Grease-pencil notes and details filled in on paper                      |
 
-Inter is a screen font: large x-height, clear at 14-16px. That is why body stays at 16 and captions never drop below 12 (Apple's floor is 11; 12 is the readable default for Inter captions).
+Do not combine these classes with `font-medium`, `font-semibold` or `font-bold`: the weight is in the family. Changing a font means a native rebuild (`expo prebuild`), not a reload.
 
-When Inter is wired, register it as `--font-sans` in `app/global.css` and apply `font-sans` at the root. Do not set `fontFamily` on individual screens.
+The Funnel files are static weights cut from the variable fonts; IBM Plex Mono and Nanum Pen are the upstream files unmodified (both have Reserved Font Names, so they can't be subset without renaming). Licences are beside each file.
 
 ## Type scale
 
-Sizes are in density-independent pixels. Line heights are explicit px, not unitless CSS, so NativeWind and React Native agree.
+Registered in `app/global.css` as `--text-*`, with line height and letter spacing built in, so one class sets all three. Letter spacing is in px because native has no `em`.
 
-| Role            | Size | Line | Weight    | Class                     | Use                                                 |
-| --------------- | ---- | ---- | --------- | ------------------------- | --------------------------------------------------- |
-| Caption         | 12   | 16   | 400 / 500 | `text-xs`                 | Timestamps, helper, error, badges                   |
-| Label / meta    | 14   | 20   | 500       | `text-sm font-medium`     | Field labels, chip labels, list meta                |
-| Body            | 16   | 24   | 400       | `text-base`               | Default reading text, input value, empty-state body |
-| Body emphasis   | 16   | 24   | 600       | `text-base font-semibold` | Button labels, list titles                          |
-| Subtitle (H3)   | 18   | 24   | 600       | `text-lg font-semibold`   | Subsection titles, empty-state titles               |
-| Title (H2)      | 20   | 28   | 700       | `text-xl font-bold`       | Sheet titles, in-screen section headers             |
-| Page title (H1) | 24   | 32   | 700       | `text-2xl font-bold`      | In-content screen titles (no native header)         |
-| Display         | 30   | 36   | 700       | `text-3xl font-bold`      | Auth / onboarding hero only                         |
+| Class               | Size | Line | Tracking | Family        | Use                                             |
+| ------------------- | ---- | ---- | -------- | ------------- | ----------------------------------------------- |
+| `text-title-event`  | 40   | 40   | -1.4     | display       | Event title over the cover                      |
+| `text-title-screen` | 34   | 36   | -1       | display       | Screen titles; the second line in `text-text-2` |
+| `text-title-roll`   | 24   | 28   | -0.6     | display       | Event names on Home rolls                       |
+| `text-wordmark`     | 22   | 24   | -0.4     | display       | "Everglow" in the header                        |
+| `text-name`         | 16   | 20   | 0        | sans-medium   | People in a roll call                           |
+| `text-body`         | 15   | 20   | 0        | sans          | Running text, list names                        |
+| `text-leader-label` | 13.5 | 16   | 1.35     | mono-semibold | Leader button labels, uppercase                 |
+| `text-text-button`  | 12.5 | 16   | 1.5      | mono-semibold | Text buttons, uppercase                         |
+| `text-edge-print`   | 10.5 | 14   | 1.26     | mono          | Edge print, uppercase                           |
+| `text-frame-label`  | 9.5  | 12   | 0.95     | mono          | Labels under frames, uppercase                  |
+| `text-counter`      | 64   | 64   | 0        | mono-semibold | The frame counter                               |
+| `text-note`         | 28   | 26   | 0        | hand          | Pencil notes, at most one per screen            |
+| `text-filled-in`    | 30   | 26   | 0        | hand          | Details written on paper                        |
 
-Do not use `text-4xl` or larger. Do not use `text-[11px]` or `text-[13px]`. If 14 feels large for a timestamp, use `text-xs` (12), not a custom 13.
+A size name must never repeat a colour name: `text-edge` would mean both the 10.5pt size and the `edge` colour, and the colour wins. Hence `text-edge-print` and `text-leader-label`.
 
-Letter spacing stays default for 12-18px. `tracking-tight` is allowed only on `text-2xl` / `text-3xl`.
+The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet; new work uses the scale above.
 
 ### Which component to use
 
-| Need                      | Component / class                                                                                     |
-| ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Page title in the body    | `H1`                                                                                                  |
-| Sheet or section title    | `H2`                                                                                                  |
-| Subsection                | `H3`                                                                                                  |
-| Native stack header title | Leave to Expo Router / React Navigation (about 17pt, platform chrome). Do not put `H1` in the header. |
-| Body copy                 | `ThemedText` (default `tone="foreground"`, `text-base`)                                               |
-| Secondary / supporting    | `ThemedText tone="muted"` plus `text-sm`                                                              |
-| Placeholder, timestamp    | `tone="subtle"` plus `text-xs` or `text-sm`                                                           |
-| Destructive               | `tone="danger"`                                                                                       |
-| Button label              | Owned by `Button` (`text-base font-semibold`)                                                         |
-| Field label / error       | Owned by `Input`                                                                                      |
+| Need                        | Component                                                                  |
+| --------------------------- | -------------------------------------------------------------------------- |
+| Event title, screen title   | `Display` (`variant="event"` / `"screen"`; `dim` for the grey second line) |
+| A roll's name on Home       | `Display variant="roll"`                                                   |
+| "Everglow" in a header      | `Wordmark`                                                                 |
+| Running text                | `ThemedText` with `text-body` (Funnel Sans by default)                     |
+| Counts, dates, labels       | `EdgePrint`, with the key value in `EdgeValue`                             |
+| A label under a frame       | `EdgePrint size="frame-label"`                                             |
+| A handwritten note          | `PencilNote` (at most one per screen; `tone="ink"` on paper)               |
+| Circle, tick, cross, strike | `GreasePencil`                                                             |
+| Any action                  | `Button` (the leader)                                                      |
+| A top-bar icon              | `IconButton` around an `AppIcon`                                           |
+| The ground's grain          | `FilmGrain`, last child of a full-screen container                         |
+| An event on Home            | `FilmStrip` (frames are photos, blank numbered frames, or dimmed)          |
+| A photo in the gallery      | `ContactFrame`, three to a row; `selected` circles it, `isNew` ticks it    |
+| Adding photos               | `Shutter`                                                                  |
+| The gallery opening         | `FrameCounter`                                                             |
+| Choosing the gallery length | `FilmBox`, four in a row                                                   |
+| The invite                  | `LabEnvelope`, with a `Stamp` beside it                                    |
+| Reporting                   | `LabTicket`                                                                |
+| The account                 | `LabCard`                                                                  |
+| A confirmation              | `Slip` inside a `BottomSheet` with no sheet title                          |
+| One choice among several    | `OptionRow`, grouped in a `radiogroup` view                                |
+| A person on the roll call   | `RollCallRow`                                                              |
+| Any photo                   | `Photo` (expo-image with `className` support)                              |
+| Native stack header title   | Leave to Expo Router; the navigation theme sets Funnel Sans                |
 
-Headings use `tone="strong"`. Body uses `foreground`. Do not pick a type size to fake hierarchy when a heading component exists.
+`H1`, `H2` and `H3` remain for screens not rebuilt yet; they now set Funnel Display (H1, H2) and Funnel Sans SemiBold (H3). Every component can be seen on a device at `everglowmobile://design-kit` in development builds (`?only=<section>` shows one section). Paper components take every string from the caller, so screens pass translated copy.
 
 ### Weight rules
 
-| Weight | Token           | Use                                      |
-| ------ | --------------- | ---------------------------------------- |
-| 400    | `font-normal`   | Body, captions                           |
-| 500    | `font-medium`   | Labels, chips, secondary actions as text |
-| 600    | `font-semibold` | Buttons, H3, list titles                 |
-| 700    | `font-bold`     | H1, H2, display                          |
-
-Two nearby sizes should not share the same weight and color. If an H3 and a body line sit together, the H3 is semibold/strong and the body is regular/foreground.
+The weight is in the family (see [Typeface](#typeface)). Use `font-sans-medium` for a name, `font-sans-semibold` for emphasis in running text, and `font-mono-semibold` for an edge-print value. Do not add `font-bold` or `font-semibold` to these families.
 
 ## Radius
 
-Keep Tailwind's default radius scale. Only these steps are in bounds:
+| Class            | px   | Use                                    |
+| ---------------- | ---- | -------------------------------------- |
+| `rounded-frame`  | 2    | Photo frames in strips and the grid    |
+| `rounded-paper`  | 4    | Envelope, ticket, lab card, film boxes |
+| `rounded-leader` | 6    | Leader buttons                         |
+| `rounded-full`   | 9999 | Only the shutter and 40pt icon buttons |
 
-| Token | px   | Class          | Use                                        |
-| ----- | ---- | -------------- | ------------------------------------------ |
-| sm    | 4    | `rounded-sm`   | Avoid in UI chrome                         |
-| lg    | 8    | `rounded-lg`   | Small chips, nested controls               |
-| xl    | 12   | `rounded-xl`   | Filter chips, compact tiles                |
-| 2xl   | 16   | `rounded-2xl`  | **Default.** Inputs, buttons, cards        |
-| 3xl   | 24   | `rounded-3xl`  | Sheet top corners, large media tiles       |
-| full  | 9999 | `rounded-full` | Avatars, icon buttons, pills, sheet handle |
-
-Inputs and primary buttons are `rounded-2xl` and 48px tall. That pairing is the product look. Do not mix `rounded-md` (6px) or `rounded-none` on controls. Images that bleed to a card edge may use the card's radius; full-bleed photos in a feed can be square (`rounded-none`) like Instagram posts.
+Nothing else is rounded: no pills, no rounded cards. The older `rounded-xl` … `rounded-3xl` steps remain only on screens not rebuilt yet.
 
 ## Control sizes and tap targets
 
-Apple asks for 44pt minimum. Material asks for 48dp. Cross-platform default: **48px for primary controls, 44px absolute minimum.**
+Apple asks for 44pt minimum. Material asks for 48dp.
 
-| Control                    | Size         | Class                                 | Notes                                       |
-| -------------------------- | ------------ | ------------------------------------- | ------------------------------------------- |
-| Primary / secondary button | 48           | `h-12`                                | Full width (`w-full`) on screens and sheets |
-| Text input                 | 48           | `h-12`                                | Horizontal padding `px-4`                   |
-| Icon button (visual)       | 36           | `h-9 w-9`                             | Add `hitSlop={8}` so the hit box is 52      |
-| Close / sheet icon         | 36           | `h-9 w-9`                             | Same hitSlop                                |
-| Compact chip               | 36-44        | `h-9` / `h-11`                        | hitSlop if below 44                         |
-| List row                   | 48-56        | `min-h-12` / `min-h-14`               | Tappable row, not only the trailing icon    |
-| Avatar sm / md / lg        | 32 / 40 / 48 | `h-8 w-8` / `h-10 w-10` / `h-12 w-12` | Always `rounded-full`                       |
-| Tab bar / stack header     | system       |                                       | Do not restyle to this scale                |
+| Control           | Size | Class       | Notes                                                   |
+| ----------------- | ---- | ----------- | ------------------------------------------------------- |
+| Leader (`Button`) | 58   | `h-14.5`    | Full width; `px-5`; label left, optional end mark right |
+| Text button       | 44   | `h-11`      | `Button variant="ghost"`                                |
+| Icon button       | 40   | `size-10`   | Round outline; `hitSlop={8}` makes the hit box 56       |
+| The shutter       | 78   | `size-19.5` | The only other round control                            |
+| List row          | 48+  | `min-h-12`  | Tappable row, not only the trailing icon                |
 
-Disabled controls keep layout size and use `opacity-50`. Do not shrink a disabled button.
-
-Inline `Pressable` text (not a `Button`) still needs a 44pt hit box: wrap to `min-h-11` or set `hitSlop`.
+Disabled controls keep layout size and use `opacity-50`. Inline `Pressable` text still needs a 44pt hit box: wrap to `min-h-11` or set `hitSlop`.
 
 ## Icons
 
@@ -314,7 +325,7 @@ Pairing:
 | `text-base` button / row | `sm` or `md` (20/24)   | `gap-2` (8)  |
 | Empty state              | `lg` (32) or `xl` (48) | `gap-3` (12) |
 
-Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorTokens[scheme].muted`). Do not hardcode hex.
+Tint with color tokens (`text-foreground`, `color="currentColor"`, or `colorTokens.text`). Do not hardcode hex.
 
 ## Color pairing (quick)
 

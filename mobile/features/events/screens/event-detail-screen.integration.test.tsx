@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 // The integration harness supplies the real data provider and observes native services.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -143,7 +143,6 @@ const confirmDestructiveAlert = () => {
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockEventId = "event-1";
-  mockColorScheme.mockReturnValue("light");
   mockFindOne.mockReset();
   mockListPhotos.mockReset();
   mockGetParticipants.mockReset();
@@ -178,8 +177,7 @@ afterEach(() => {
   clients.splice(0).forEach((client) => client.clear());
 });
 
-test.each(["light", "dark"] as const)("loads event details for an organizer in %s mode", async (theme) => {
-  mockColorScheme.mockReturnValue(theme);
+test("loads event details for an organizer", async () => {
   await renderScreen({
     photos: [buildPhoto()],
     participants: [
@@ -339,8 +337,8 @@ test("does not upload a selection bigger than the storage left", async () => {
 });
 
 test.each([
-  ["EVENT_STORAGE_LIMIT_REACHED", "This gallery is full. There isn't enough storage left for these photos."],
-  ["EVENT_GALLERY_CLOSED", "This event's gallery has closed."],
+  ["EVENT_STORAGE_LIMIT_REACHED", "There isn't enough room left on this roll for these photos."],
+  ["EVENT_GALLERY_CLOSED", "This roll has closed. No one can join or add photos anymore."],
 ])("stops on %s, says how many were uploaded, and refetches the event", async (code, message) => {
   pickPhotos(25);
   const mint = mintSlotPerFile();

@@ -2,56 +2,57 @@
  * Design tokens for props NativeWind can't style — React Navigation's theme,
  * icon and spinner colors. Class-based styling reads the same values from the
  * CSS custom properties in `app/global.css`; keep the two in sync.
+ *
+ * The app is dark only (the contact-sheet design, docs/theme.md): one palette,
+ * read directly, for example `colorTokens.muted`.
  */
 
 export const colorTokens = {
-  light: {
-    background: "#FFFFFF",
-    surface: "#F8FAFC",
-    elevated: "#FFFFFF",
+  // Semantic names every screen already uses, mapped onto the film palette.
+  background: "#0E0E0E",
+  surface: "#151515",
+  elevated: "#1B1B1B",
 
-    strong: "#0F172A",
-    foreground: "#1E293B",
-    muted: "#64748B",
-    subtle: "#94A3B8",
+  strong: "#F4F4F4",
+  foreground: "#F4F4F4",
+  muted: "#A3A3A3",
+  subtle: "#8A8A8A",
 
-    accent: "#4F46E5",
-    accentHover: "#4338CA",
-    accentActive: "#3730A3",
-    accentForeground: "#FFFFFF",
+  accent: "#F4F4F4",
+  accentHover: "#FFFFFF",
+  accentActive: "#D4D4D4",
+  accentForeground: "#0E0E0E",
 
-    border: "#E2E8F0",
-    borderMuted: "#F1F5F9",
+  border: "#2E2E2E",
+  borderMuted: "#1F1F1F",
 
-    danger: "#DC2626",
-    warning: "#D97706",
-    success: "#16A34A",
-  },
-  dark: {
-    background: "#0B1220",
-    surface: "#111827",
-    elevated: "#1F2937",
+  danger: "#FF4F6D",
+  warning: "#F4F4F4",
+  success: "#F4F4F4",
 
-    strong: "#F8FAFC",
-    foreground: "#E2E8F0",
-    muted: "#94A3B8",
-    subtle: "#64748B",
-
-    accent: "#818CF8",
-    accentHover: "#A5B4FC",
-    accentActive: "#6366F1",
-    accentForeground: "#0F172A",
-
-    border: "#334155",
-    borderMuted: "#1E293B",
-
-    danger: "#F87171",
-    warning: "#FBBF24",
-    success: "#4ADE80",
-  },
+  // The contact sheet's own names (design system tokens).
+  ground: "#0E0E0E",
+  rebate: "#050505",
+  sprocket: "#262626",
+  frameEmpty: "#1B1B1B",
+  sheet: "#151515",
+  line: "#1F1F1F",
+  text: "#F4F4F4",
+  text2: "#A3A3A3",
+  edge: "#8A8A8A",
+  leader: "#F4F4F4",
+  onLeader: "#0E0E0E",
+  pencil: "#FF4F6D",
+  stamp: "#E11D48",
+  paper: "#EEE8DF",
+  paperInk: "#1A1714",
+  paperInk2: "#6B645C",
+  paperRule: "#1A171438",
+  inkBlue: "#1D2A6B",
+  viewer: "#000000",
+  outline: "#FFFFFF66",
+  outlineSoft: "#FFFFFF2E",
+  paperFlap: "#E2DBD0",
 } as const;
 
-export type ColorSchemeName = keyof typeof colorTokens;
-export type ColorTokenName = keyof (typeof colorTokens)["light"];
-
-export const Colors = colorTokens;
+export type ColorTokenName = keyof typeof colorTokens;

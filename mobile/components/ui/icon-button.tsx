@@ -6,7 +6,10 @@ type IconButtonProps = Omit<PressableProps, "children"> & {
   children: ReactNode;
 };
 
-/** 36px visual control with hitSlop so the tap target meets 44pt+. */
+/**
+ * A 40pt round outline button for top bars. With hitSlop the tap target
+ * meets 44pt+. The only round controls are this and the shutter.
+ */
 export const IconButton = ({
   accessibilityLabel,
   children,
@@ -25,7 +28,7 @@ export const IconButton = ({
       disabled={isDisabled}
       hitSlop={hitSlop}
       className={[
-        "h-9 w-9 items-center justify-center rounded-full active:bg-surface",
+        "size-10 items-center justify-center rounded-full border border-outline-soft active:bg-sheet",
         isDisabled ? "opacity-50" : "",
         className,
       ]

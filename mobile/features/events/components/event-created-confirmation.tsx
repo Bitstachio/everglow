@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { H2, H3 } from "@/components/ui/heading";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { ThemedText } from "@/components/ui/themed-text";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { colorTokens } from "@/theme/tokens";
 import { Check, Info, Share } from "lucide-react-native";
 import { useMemo, useState } from "react";
@@ -51,7 +50,6 @@ export const EventCreatedConfirmation = ({
   onGoToEvent,
   onShareLater,
 }: EventCreatedConfirmationProps) => {
-  const colorScheme = useColorScheme();
   const [qrSize, setQrSize] = useState<number | null>(null);
   const [selectedRole, setSelectedRole] = useState<AccessLevel>("PARTICIPANT");
   const [rolesSheetVisible, setRolesSheetVisible] = useState(false);
@@ -75,12 +73,7 @@ export const EventCreatedConfirmation = ({
       <View className="min-h-0 flex-1 gap-3 px-4 pt-4">
         <View className="items-center gap-1">
           <View className="h-11 w-11 items-center justify-center rounded-full bg-accent">
-            <AppIcon
-              icon={Check}
-              size="sm"
-              color={colorTokens[colorScheme].accentForeground}
-              className="text-accent-foreground"
-            />
+            <AppIcon icon={Check} size="sm" color={colorTokens.accentForeground} className="text-accent-foreground" />
           </View>
           <ThemedText className="text-center text-sm font-semibold" tone="muted">
             Your event is live
@@ -174,8 +167,8 @@ export const EventCreatedConfirmation = ({
                 <QRCode
                   value={invitationUrl}
                   size={qrSize}
-                  backgroundColor={colorTokens[colorScheme].background}
-                  color={colorTokens[colorScheme].strong}
+                  backgroundColor={colorTokens.background}
+                  color={colorTokens.strong}
                 />
               </View>
             ) : null}

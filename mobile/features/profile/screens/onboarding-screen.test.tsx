@@ -16,10 +16,6 @@ jest.mock("react-native-auth0", () => ({
   useAuth0: () => ({ user: { name: "Ada Lovelace", email: "ada@example.com" } }),
 }));
 
-jest.mock("@/hooks/use-color-scheme", () => ({
-  useColorScheme: () => "light",
-}));
-
 jest.mock("@/context/auth-context", () => ({
   useAuth: () => ({
     completeOnboarding: mockCompleteOnboarding,

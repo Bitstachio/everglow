@@ -22,9 +22,6 @@ const legacyAppRoutePaths = ["app/events/**"];
 
 // Pre-NativeWind StyleSheet usage. Turn off local/no-stylesheet only for these until migrated.
 const legacyStyleSheetPaths = [
-  "app/login.tsx",
-  "app/signup.tsx",
-  "context/auth-context.tsx",
   "features/profile/screens/onboarding-screen.tsx",
   "features/events/screens/events-list-screen.tsx",
   "features/events/screens/events-screen.tsx",

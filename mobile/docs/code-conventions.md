@@ -96,7 +96,7 @@ Components stay mostly presentational. Do **not** grow sophisticated logic in th
 | Logic ownership                                    | Where it lives           | Layout                                                                           |
 | -------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------- |
 | Tied to one component (private presentation/state) | Next to that component   | Same-named folder: `component-name/component-name.tsx` + `use-component-name.ts` |
-| Reused across unrelated UI surfaces                | `hooks/`                 | Flat file (e.g. `hooks/use-color-scheme.ts`)                                     |
+| Reused across unrelated UI surfaces                | `hooks/`                 | Flat file (e.g. `hooks/use-reduce-motion.ts`)                                    |
 | Feature screen / form orchestration                | `features/<name>/hooks/` | Flat under `hooks/` (screen and form hooks — not component-private)              |
 
 A folder that only wraps the component and its test must stay flat (`local/no-component-folder`). Use a same-named folder when colocating a private hook, util, or subcomponent.
@@ -212,7 +212,7 @@ ESLint blocks imports of feature `hooks/`, `components/`, and `api/` (legacy `ap
 
 ### `hooks/`: app-wide hooks
 
-- Cross-feature hooks (for example, `useColorScheme`).
+- Cross-feature hooks (for example, `useReduceMotion`).
 - Feature screen and form hooks belong in `features/<name>/hooks/`, not here.
 - Hooks private to one UI component belong next to that component (same-named folder), not here. See [Component logic and hooks](#component-logic-and-hooks).
 

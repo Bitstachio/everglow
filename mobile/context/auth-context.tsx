@@ -1,10 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { Spinner } from "@/components/ui/spinner";
+import { CantConnectScreen } from "@/components/cant-connect-screen";
+import { LaunchCurtain, LaunchScreen } from "@/components/launch-screen";
 import i18n from "@/i18n/instance";
 import { router } from "expo-router";
-import { View, StyleSheet } from "react-native";
 import { authService, OnboardingData, User } from "@/lib/auth";
 import { setUnauthorizedHandler } from "@/lib/api/axios-instance";
+import { isConnectionError } from "@/lib/api/errors";
+import { View } from "react-native";
 import {
   clearLocalCredentials,
   hasValidSession,
@@ -40,6 +42,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The step that couldn't reach Everglow (01.7), repeated by Try again.
+  const [pendingStep, setPendingStep] = useState<(() => Promise<User | null>) | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Avoid stale closures when the 401 handler is invoked from the interceptor.
   const handleSessionExpiredRef = useRef<() => void>(() => {});
@@ -61,7 +66,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleSessionExpired = useCallback(async () => {
     await clearLocalCredentials();
     setUser(null);
-    router.replace(LOGIN_ROUTE);
+    // The welcome shows the signed-out slip (01.8) instead of a blank start.
+    router.replace({ pathname: LOGIN_ROUTE, params: { signedOut: "1" } });
   }, []);
 
   useEffect(() => {
@@ -75,22 +81,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => setUnauthorizedHandler(null);
   }, []);
 
+  const loadSession = useCallback(async (): Promise<User | null> => {
+    if (isAuth0Configured() && (await hasValidSession())) {
+      return refreshProfile();
+    }
+    return null;
+  }, [refreshProfile]);
+
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        if (isAuth0Configured() && (await hasValidSession())) {
-          await refreshProfile();
-        }
+        await loadSession();
       } catch (err) {
-        console.error("Auth bootstrap error:", err);
-        setUser(null);
+        if (isConnectionError(err)) {
+          // Keep the session; the person can retry once they're back online.
+          setPendingStep(() => loadSession);
+        } else {
+          console.error("Auth bootstrap error:", err);
+          setUser(null);
+        }
       } finally {
         setIsLoading(false);
         setIsInitialized(true);
       }
     };
     void bootstrap();
-  }, [refreshProfile]);
+  }, [loadSession]);
+
+  const retryConnection = useCallback(async () => {
+    if (!pendingStep) return;
+    setIsRetrying(true);
+    try {
+      const profile = await pendingStep();
+      setPendingStep(null);
+      if (profile) routeForUser(profile);
+    } catch (err) {
+      if (!isConnectionError(err)) setPendingStep(null);
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [pendingStep, routeForUser]);
 
   const authenticate = useCallback(
     async (options?: { signup?: boolean }) => {
@@ -104,7 +134,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         setError(null);
         await loginWithUniversalLogin(options);
-        const profile = await refreshProfile();
+        let profile: User | null;
+        try {
+          profile = await refreshProfile();
+        } catch (err) {
+          if (isConnectionError(err)) {
+            setPendingStep(() => refreshProfile);
+            return;
+          }
+          throw err;
+        }
         routeForUser(profile);
       } catch (err: any) {
         if (isUserCancellation(err)) {
@@ -171,14 +210,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   if (!isInitialized) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Spinner size="large" />
-      </View>
-    );
+    return <LaunchScreen />;
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <LaunchCurtain />
+      {pendingStep ? (
+        <View className="absolute inset-0">
+          <CantConnectScreen onRetry={() => void retryConnection()} isRetrying={isRetrying} />
+        </View>
+      ) : null}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
@@ -188,12 +233,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-  },
-});

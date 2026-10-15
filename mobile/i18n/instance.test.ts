@@ -9,7 +9,7 @@ describe("i18n instance", () => {
     expect(Object.keys(resources)).toContain(defaultLocale);
     expect(resolveDeviceLocale()).toBe(defaultLocale);
     expect(i18n.t("common:error.generic")).toBe("Something went wrong. Please try again.");
-    expect(i18n.t("common:auth.login.title")).toBe("Welcome Back");
+    expect(i18n.t("start:welcome.start")).toBe("Start a roll");
     expect(i18n.t("common:actions.back")).toBe("Back");
   });
 

@@ -56,6 +56,20 @@ export const isApiError = (error: unknown): error is ApiError => error instanceo
 
 export const getErrorCode = (error: unknown): string | undefined => (isApiError(error) ? error.code : undefined);
 
+const UNREACHABLE_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * True when the API couldn't be reached at all: no network, a request that
+ * got no response, or a gateway saying the API is down (502, 503, 504).
+ * Callers show "can't connect" with a retry instead of an error message.
+ */
+export const isConnectionError = (error: unknown): boolean => {
+  if (!isApiError(error)) return false;
+  if (error.status != null) return UNREACHABLE_STATUSES.has(error.status);
+  const cause = error.cause as { request?: unknown; response?: unknown } | undefined;
+  return Boolean(cause?.request) && !cause?.response;
+};
+
 /**
  * Maps transport failures into Error instances. UI copy comes from `code` via
  * i18n (`errors` namespace) — Nest response bodies are never shown (they often

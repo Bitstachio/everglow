@@ -1,4 +1,4 @@
-import { mockColorScheme } from "../testing/native-mocks";
+import "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import { EventDetailInfo } from "./event-detail-info";
 import { EventPhotosSection } from "./event-photos-section";
@@ -6,9 +6,7 @@ import { EventMembersSheet } from "./event-members-sheet";
 import { buildEvent, buildParticipant, buildPhoto } from "../testing/fixtures";
 import { formatEventDateTime, getAccessLevelLabel } from "../utils";
 
-beforeEach(() => {
-  mockColorScheme.mockReturnValue("light");
-});
+beforeEach(() => {});
 
 test("event detail info shows title, formatted date, and description", async () => {
   const event = buildEvent();
