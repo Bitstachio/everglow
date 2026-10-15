@@ -82,6 +82,9 @@
    * Type scale. Line heights are ratios (line / size), as in Tailwind's own
    * scale: NativeWind multiplies them by the font size. Letter spacing is in px.
    */
+  --text-title-launch: 52px;
+  --text-title-launch--line-height: calc(56 / 52);
+  --text-title-launch--letter-spacing: -2px;
   --text-title-event: 40px;
   --text-title-event--line-height: calc(40 / 40);
   --text-title-event--letter-spacing: -1.4px;

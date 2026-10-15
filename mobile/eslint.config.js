@@ -24,7 +24,6 @@ const legacyAppRoutePaths = ["app/events/**"];
 const legacyStyleSheetPaths = [
   "app/login.tsx",
   "app/signup.tsx",
-  "context/auth-context.tsx",
   "features/profile/screens/onboarding-screen.tsx",
   "features/events/screens/events-list-screen.tsx",
   "features/events/screens/events-screen.tsx",

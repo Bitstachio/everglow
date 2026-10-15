@@ -1,8 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { Spinner } from "@/components/ui/spinner";
+import { LaunchCurtain, LaunchScreen } from "@/components/launch-screen";
 import i18n from "@/i18n/instance";
 import { router } from "expo-router";
-import { View, StyleSheet } from "react-native";
 import { authService, OnboardingData, User } from "@/lib/auth";
 import { setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import {
@@ -171,14 +170,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   if (!isInitialized) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Spinner size="large" />
-      </View>
-    );
+    return <LaunchScreen />;
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <LaunchCurtain />
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
@@ -188,12 +188,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-  },
-});
