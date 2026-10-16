@@ -21,9 +21,12 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isOnboarded: boolean;
+  /** Suspended by the platform: the account can only read and delete itself (14.13). */
+  isSuspended: boolean;
   login: () => Promise<void>;
   signup: () => Promise<void>;
-  logout: () => Promise<void>;
+  /** Signs out and goes to `to`, the welcome by default. */
+  logout: (to?: "/login" | "/account-deleted") => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   refreshProfile: () => Promise<User | null>;
   updateUser: (user: User) => void;
@@ -36,6 +39,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const EVENTS_ROUTE = "/events" as const;
 const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
+const SUSPENDED_ROUTE = "/account-suspended" as const;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -52,6 +56,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const routeForUser = useCallback((profile: User | null) => {
     if (!profile) {
       router.replace(LOGIN_ROUTE);
+      return;
+    }
+    if (profile.suspendedAt) {
+      router.replace(SUSPENDED_ROUTE);
       return;
     }
     router.replace(profile.isOnboarded ? EVENTS_ROUTE : ONBOARDING_ROUTE);
@@ -179,7 +187,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (to: typeof LOGIN_ROUTE | "/account-deleted" = LOGIN_ROUTE) => {
     try {
       setIsLoading(true);
       await logoutFromAuth0();
@@ -188,7 +196,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setUser(null);
       setIsLoading(false);
-      router.replace(LOGIN_ROUTE);
+      router.replace(to);
     }
   }, []);
 
@@ -200,6 +208,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isLoading,
     isAuthenticated: !!user,
     isOnboarded: !!user?.isOnboarded,
+    isSuspended: !!user?.suspendedAt,
     login,
     signup,
     logout,

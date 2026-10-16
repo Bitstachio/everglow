@@ -4,7 +4,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider } from "./auth-context";
+import { AuthProvider, useAuth } from "./auth-context";
 
 const mockReplace = jest.fn();
 const mockGetUserProfile = jest.fn();
@@ -88,4 +88,29 @@ test("a 401 sends the person to the welcome with the signed-out slip", async () 
   await screen.findByText("App");
   await act(async () => mockUnauthorized?.());
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: "/login", params: { signedOut: "1" } }));
+});
+
+test("a suspended account is routed to its own screen once it loads", async () => {
+  mockGetUserProfile.mockRejectedValueOnce(offline()).mockResolvedValueOnce({ ...profile, suspendedAt: "2026-10-01" });
+  await renderProvider();
+
+  fireEvent.press(await screen.findByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/account-suspended"));
+});
+
+test("signing out after deleting the account lands on Deleted, not the welcome", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const Probe = () => {
+    const { logout, isAuthenticated } = useAuth();
+    return isAuthenticated ? <Text onPress={() => void logout("/account-deleted")}>Deleted</Text> : null;
+  };
+  await renderWithI18n(
+    <AuthProvider>
+      <Probe />
+    </AuthProvider>,
+    { wrapper: Providers },
+  );
+  fireEvent.press(await screen.findByText("Deleted"));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenLastCalledWith("/account-deleted"));
 });

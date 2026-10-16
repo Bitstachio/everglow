@@ -21,7 +21,6 @@ const AccountSettingsScreen = () => {
     email,
     blockedCount,
     isLoading,
-    isDeleting,
     isChangingPassword,
     signOutVisible,
     onBack,
@@ -50,9 +49,7 @@ const AccountSettingsScreen = () => {
       <TopBar
         title={t("title")}
         left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={onBack} />}
-        right={
-          <Button title={t("edit")} variant="ghost" fullWidth={false} onPress={onEditCard} disabled={isDeleting} />
-        }
+        right={<Button title={t("edit")} variant="ghost" fullWidth={false} onPress={onEditCard} />}
       />
 
       <ScrollView className="flex-1" contentContainerClassName="px-5 pb-8 pt-4">
@@ -61,30 +58,23 @@ const AccountSettingsScreen = () => {
         </View>
 
         <View className="mt-8">
-          <IndexRow label={t("index.username")} value={username} onPress={onOpenUsername} disabled={isDeleting} />
+          <IndexRow label={t("index.username")} value={username} onPress={onOpenUsername} />
           <IndexRow label={t("index.email")} value={email} />
           <IndexRow
             label={t("index.password")}
             value={isChangingPassword ? t("index.passwordOpening") : undefined}
             onPress={onOpenPassword}
-            disabled={isDeleting || isChangingPassword}
+            disabled={isChangingPassword}
           />
           <IndexRow
             label={t("index.blocked")}
             value={blockedCount ? String(blockedCount) : undefined}
             onPress={onOpenBlocked}
-            disabled={isDeleting}
           />
-          <IndexRow label={t("index.terms")} onPress={onOpenTerms} disabled={isDeleting} />
-          <IndexRow label={t("index.privacy")} onPress={onOpenPrivacy} disabled={isDeleting} />
-          <IndexRow label={t("index.signOut")} onPress={onSignOut} disabled={isDeleting} />
-          <IndexRow
-            muted
-            label={t("index.delete")}
-            value={isDeleting ? t("index.deleting") : undefined}
-            onPress={onDeleteAccount}
-            disabled={isDeleting}
-          />
+          <IndexRow label={t("index.terms")} onPress={onOpenTerms} />
+          <IndexRow label={t("index.privacy")} onPress={onOpenPrivacy} />
+          <IndexRow label={t("index.signOut")} onPress={onSignOut} />
+          <IndexRow muted label={t("index.delete")} onPress={onDeleteAccount} />
         </View>
       </ScrollView>
 
