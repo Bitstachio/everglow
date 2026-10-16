@@ -1,4 +1,4 @@
-import { Cta } from "@/components/sections/cta";
+import { Cta } from "@/components/sections/cta/cta";
 import { Faq } from "@/components/sections/faq";
 import { Gone } from "@/components/sections/gone";
 import { Hero } from "@/components/sections/hero";
