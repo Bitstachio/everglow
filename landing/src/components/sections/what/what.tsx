@@ -1,13 +1,13 @@
-import { Container } from "@/components/ui/container";
-import { EdgeLabel } from "@/components/ui/edge-label";
 import { CalendarMock } from "@/components/sections/what/calendar-mock";
 import { KeepTiles } from "@/components/sections/what/keep-tiles";
 import { StoryMock } from "@/components/sections/what/story-mock";
+import { Container } from "@/components/ui/container";
+import { EdgeLabel } from "@/components/ui/edge-label";
 import { getTranslations } from "next-intl/server";
 import Image from "next/image";
 
 const KEEP_TILE_KEYS = [0, 1, 2, 3, 4, 5] as const;
-const STORY_FRAME_KEYS = [0, 1, 2] as const;
+const STORY_TILE_KEYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 export const What = async () => {
   const t = await getTranslations("what");
@@ -18,10 +18,15 @@ export const What = async () => {
     state: t(`keep.tiles.${i}.state`) as "keep" | "dim" | "reject",
   }));
 
-  const storyFrames = STORY_FRAME_KEYS.map((i) => ({
-    credit: t(`share.story.frames.${i}.credit`),
-    src: t(`share.story.frames.${i}.src`),
-  }));
+  const storyTiles = STORY_TILE_KEYS.map((i) => {
+    const dateKey = `share.story.tiles.${i}.date` as const;
+    return {
+      src: t(`share.story.tiles.${i}.src`),
+      area: t(`share.story.tiles.${i}.area`),
+      position: t(`share.story.tiles.${i}.position`),
+      ...(t.has(dateKey) ? { date: t(dateKey) } : {}),
+    };
+  });
 
   return (
     <section id="what" className="scroll-mt-[var(--film-nav-h)] pt-24">
@@ -71,16 +76,18 @@ export const What = async () => {
             </h3>
             <p className="text-muted m-0 max-w-[46ch] leading-[1.55]">{t("share.body")}</p>
           </div>
-          <StoryMock
-            user={t("share.story.user")}
-            time={t("share.story.time")}
-            meta={t("share.story.meta")}
-            title={t("share.story.title")}
-            heroCredit={t("share.story.heroCredit")}
-            note={t("share.story.note")}
-            frames={storyFrames}
-            heroSrc="/design/story-hero.jpg"
-          />
+          <div>
+            <StoryMock
+              user={t("share.story.user")}
+              time={t("share.story.time")}
+              titleLine1={t("share.story.titleLine1")}
+              titleLine2={t("share.story.titleLine2")}
+              tiles={storyTiles}
+            />
+            <p className="text-edge mt-3 max-w-[360px] font-mono text-[9px] leading-3 font-medium tracking-[0.1em] uppercase">
+              {t("share.story.sample")}
+            </p>
+          </div>
         </div>
       </Container>
     </section>

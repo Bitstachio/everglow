@@ -24,18 +24,50 @@
   "share": {
     "eyebrow": "03 · Share",
     "title": "Post it as an Instagram story.",
-    "body": "Turn the album into a story. It comes out as a contact sheet, a look people will start to recognize, without a logo stamped on your post.",
+    "body": "Turn the album into a story. It comes out as a grid of the best photos, with a handwritten title, in a look people will start to recognize, without a logo stamped on your post.",
     "story": {
-      "user": "sam",
+      "user": "me",
       "time": "2h",
-      "meta": "Sat 17.10 · roll of 148 · 9 ppl",
-      "title": "Saturday night, as told by nine people.",
-      "heroCredit": "▸ 031 · Dev",
-      "note": "this guy",
-      "frames": [
-        { "credit": "▸ 044 · Leila", "src": "/design/story-01.jpg" },
-        { "credit": "▸ 072 · Mo", "src": "/design/story-02.jpg" },
-        { "credit": "▸ 109 · Ines", "src": "/design/story-03.jpg" }
+      "titleLine1": "riverdale,",
+      "titleLine2": "then downtown.",
+      "sample": "Sample story.",
+      "tiles": [
+        {
+          "src": "/design/story-grid-02.jpg",
+          "area": "1 / 1 / 4 / 5",
+          "position": "center",
+          "date": "'26 10 16"
+        },
+        {
+          "src": "/design/story-grid-01.jpg",
+          "area": "1 / 5 / 4 / 7",
+          "position": "center 62%"
+        },
+        {
+          "src": "/design/story-grid-03.jpg",
+          "area": "4 / 1 / 7 / 3",
+          "position": "center 45%"
+        },
+        {
+          "src": "/design/story-grid-04.jpg",
+          "area": "4 / 3 / 6 / 5",
+          "position": "35% 62%"
+        },
+        {
+          "src": "/design/story-grid-05.jpg",
+          "area": "6 / 3 / 7 / 5",
+          "position": "center 18%"
+        },
+        {
+          "src": "/design/story-grid-06.jpg",
+          "area": "7 / 1 / 9 / 5",
+          "position": "center"
+        },
+        {
+          "src": "/design/story-grid-07.jpg",
+          "area": "4 / 5 / 9 / 7",
+          "position": "center 45%"
+        }
       ]
     }
   }
