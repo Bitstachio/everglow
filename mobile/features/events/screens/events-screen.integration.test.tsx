@@ -11,6 +11,7 @@ import EventsScreen from "./events-screen";
 import { buildEvent, deferred } from "../testing/fixtures";
 
 const mockFindAll = jest.fn();
+const mockListPhotos = jest.fn();
 const mockJoin = jest.fn();
 const mockPush = jest.fn();
 let mockUser: { id: string; details?: { name?: string; avatarUrl?: string | null } } | null = { id: "user-1" };
@@ -19,6 +20,7 @@ jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => 
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindAll: (...args: unknown[]) => mockFindAll(...args),
   eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
+  photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => {
@@ -56,6 +58,7 @@ beforeEach(() => {
   mockFocused = true;
   mockCameraPermission.mockReturnValue({ granted: true });
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
+  mockListPhotos.mockReset().mockResolvedValue({ data: { data: { items: [], nextCursor: null } } });
   mockJoin.mockReset().mockResolvedValue({ data: { data: buildEvent() } });
   mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
@@ -67,16 +70,16 @@ test("shows the film-strip skeletons while loading, then the first-run empty sta
   mockFindAll.mockReturnValue(pending.promise);
   await renderScreen();
   expect(screen.getByTestId("home-loading")).toBeOnTheScreen();
-  expect(screen.queryByText("No rolls yet.")).not.toBeOnTheScreen();
+  expect(screen.queryByText(/^No rolls yet\./)).not.toBeOnTheScreen();
   pending.resolve({ data: { data: [] } });
-  expect(await screen.findByText("No rolls yet.")).toBeOnTheScreen();
+  expect(await screen.findByText(/^No rolls yet\./)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Start a roll" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Join with an envelope" })).toBeOnTheScreen();
 });
 
 test("starts a roll from the first-run screen", async () => {
   await renderScreen();
-  await screen.findByText("No rolls yet.");
+  await screen.findByText(/^No rolls yet\./);
   await userEvent.setup().press(screen.getByRole("button", { name: "Start a roll" }));
   expect(mockPush).toHaveBeenCalledWith("/events/create");
 });
@@ -99,6 +102,25 @@ test("lists the rolls, groups the closed ones, and opens a roll", async () => {
 
   await userEvent.setup().press(screen.getByRole("button", { name: /Sam & Jo’s wedding/ }));
   expect(mockPush).toHaveBeenCalledWith("/events/live-1");
+});
+
+test("loads the first four photos of open rolls only", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [
+        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" }),
+        buildEvent({ id: "up-1", title: "Friday at Sully’s", galleryState: "UPCOMING" }),
+        buildEvent({ id: "done-1", title: "Lake weekend", galleryState: "CLOSED" }),
+      ],
+    },
+  });
+  await renderScreen();
+  await screen.findByText("Sam & Jo’s wedding");
+
+  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(1));
+  expect(mockListPhotos).toHaveBeenCalledWith(
+    expect.objectContaining({ path: { eventId: "live-1" }, query: { limit: 4 } }),
+  );
 });
 
 test("adds a new event from the rolls list", async () => {
@@ -131,7 +153,7 @@ test("joins with a link through the scanner envelope and refreshes the rolls", a
     return { data: { data: buildEvent() } };
   });
   await renderScreen();
-  await screen.findByText("No rolls yet.");
+  await screen.findByText(/^No rolls yet\./);
   await openJoin();
   await enterInvitation("  https://events.everglow.app/invite/weekend  ");
   await userEvent.setup().press(screen.getByText("Join with Link"));
@@ -155,7 +177,7 @@ test("joins via the real scanner and form workflow", async () => {
     return { data: { data: buildEvent() } };
   });
   await renderScreen();
-  await screen.findByText("No rolls yet.");
+  await screen.findByText(/^No rolls yet\./);
   await openJoin();
   await userEvent.setup().press(screen.getByText("Scan QR Code"));
   await fireEvent(screen.getByTestId("camera"), "barcodeScanned", { data: "  scanned-token  " });
@@ -189,7 +211,7 @@ test("surfaces an unexpected fetch error and recovers on refresh", async () => {
 test("does not fetch without a signed-in user", async () => {
   mockUser = null;
   await renderScreen();
-  expect(screen.getByText("No rolls yet.")).toBeOnTheScreen();
+  expect(screen.getByText(/^No rolls yet\./)).toBeOnTheScreen();
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(mockFindAll).not.toHaveBeenCalled();
 });

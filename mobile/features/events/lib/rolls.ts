@@ -13,6 +13,9 @@ export type GroupedRolls = {
   closed: EventResponseDto[];
 };
 
+/** Frames in a roll's strip on Home. */
+export const ROLL_FRAMES = 4;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const time = (iso: string | null): number => (iso ? new Date(iso).getTime() : NaN);

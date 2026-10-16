@@ -8,14 +8,26 @@ import { FilmStrip, type StripFrame } from "@/components/ui/film-strip";
 import { IconButton } from "@/components/ui/icon-button";
 import { PencilNote } from "@/components/ui/pencil-note";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { colorTokens } from "@/theme/tokens";
 import { QrCode } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { JoinEventSheet } from "../components/join-event-sheet";
 import { RollCard } from "../components/roll-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
+import { useRollPreview } from "../hooks/use-roll-preview";
+import type { Event } from "../types";
 
 const UNEXPOSED: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n), number: n }));
+
+// First run: the first frame is circled for the roll they are about to start.
+const FIRST_ROLL: StripFrame[] = UNEXPOSED.map((frame, i) => (i === 0 ? { ...frame, circled: true } : frame));
+
+/** An open roll loads its first photos for the strip; the rest wait on the events list. */
+const LiveRollCard = ({ event, onPress }: { event: Event; onPress: () => void }) => {
+  const photos = useRollPreview(event);
+  return <RollCard event={event} onPress={onPress} photos={photos} />;
+};
 
 const RollSkeleton = () => (
   <View className="gap-2.5">
@@ -55,7 +67,7 @@ const EventsScreen = () => {
         <Wordmark />
         <View className="flex-row items-center gap-3">
           <IconButton accessibilityLabel={t("header.scanner")} onPress={onScan}>
-            <AppIcon icon={QrCode} className="text-text" />
+            <AppIcon icon={QrCode} size="sm" color={colorTokens.text} />
           </IconButton>
           <Pressable
             testID="events-profile-button"
@@ -89,19 +101,18 @@ const EventsScreen = () => {
             <RollSkeleton />
           </View>
         ) : showFirstRun ? (
-          <View className="gap-4">
-            <FilmStrip frames={UNEXPOSED} />
-            <View className="px-5">
+          <View>
+            <FilmStrip frames={FIRST_ROLL} />
+            <PencilNote className="ml-24 mt-1 self-start -rotate-6">{t("firstRun.note")}</PencilNote>
+            <View className="mt-6 px-5">
               <EdgePrint className="mb-3">{t("firstRun.edge")}</EdgePrint>
-              <Display>{t("firstRun.title")}</Display>
-              <Text className="mt-3 font-sans text-body text-text-2">{t("firstRun.body")}</Text>
-              <PencilNote className="mt-4 self-start -rotate-3">{t("firstRun.note")}</PencilNote>
+              <Display dim={t("firstRun.body")}>{t("firstRun.title")}</Display>
             </View>
           </View>
         ) : (
           <View className="gap-5.5">
             {groups.live.map((event) => (
-              <RollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
+              <LiveRollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
             ))}
             {groups.upcoming.map((event) => (
               <RollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />

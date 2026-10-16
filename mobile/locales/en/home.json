@@ -13,8 +13,8 @@
   },
   "newEvent": "New event",
   "roll": {
-    "people": "{{count}} on the roll",
-    "peopleIn": "Unexposed · {{count}} in",
+    "people": "<value>{{count}}</value> ppl",
+    "peopleIn": "Unexposed · <value>{{count}}</value> ppl in",
     "label": "{{title}}, {{status}}"
   },
   "time": {
