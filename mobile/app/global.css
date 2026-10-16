@@ -126,11 +126,12 @@
   --text-filled-in-card--line-height: calc(24 / 25);
   /* Text inputs take no line height: iOS re-measures the field and the first
      letter jumps when one is set. Sizes and tracking match title-event and
-     title-slip. */
+     title-slip; input-card matches filled-in-card. */
   --text-input-name: 40px;
   --text-input-name--letter-spacing: -1.4px;
   --text-input-handle: 28px;
   --text-input-handle--letter-spacing: -0.8px;
+  --text-input-card: 25px;
 
   --radius-frame: 2px;
   --radius-paper: 4px;

@@ -12,6 +12,7 @@ declare module "i18next" {
       errors: typeof en.errors;
       onboarding: typeof en.onboarding;
       start: typeof en.start;
+      you: typeof en.you;
     };
   }
 }

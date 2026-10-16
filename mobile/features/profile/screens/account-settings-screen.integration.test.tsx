@@ -1,7 +1,9 @@
 // Integration tests compose the real screen with its data hooks.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { renderWithI18n } from "@/testing/render";
+import { screen, userEvent, waitFor } from "@testing-library/react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 // Observe the native alert boundary without replacing screen hooks.
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
@@ -25,11 +27,13 @@ const mockUser = {
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
   usersControllerCreatePasswordChangeTicket: (...args: unknown[]) => mockCreateTicket(...args),
+  usersControllerGetMyLimits: () =>
+    Promise.resolve({ data: { data: { plan: "FREE", limits: { activeEvents: 2 }, usage: { activeEvents: 1 } } } }),
   usersControllerRemoveMe: jest.fn(),
   usersControllerUpdateMe: jest.fn(),
 }));
 jest.mock("react-native-auth0", () => ({
-  useAuth0: () => ({ user: mockAuth0Sub ? { sub: mockAuth0Sub } : null }),
+  useAuth0: () => ({ user: mockAuth0Sub ? { sub: mockAuth0Sub, email: "ada@example.com" } : null }),
 }));
 jest.mock("@/context/auth-context", () => ({
   useAuth: () => ({
@@ -46,6 +50,7 @@ jest.mock("@/lib/auth0", () => ({
 }));
 jest.mock("@/lib/auth0-identity", () => ({
   isDatabaseIdentity: (sub: string | null | undefined) => typeof sub === "string" && sub.startsWith("auth0|"),
+  socialProvider: () => "apple",
 }));
 jest.mock("expo-router", () => ({
   router: {
@@ -56,14 +61,21 @@ jest.mock("expo-router", () => ({
 
 const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
+const initialMetrics = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 47, left: 0, right: 0, bottom: 34 },
+};
+
 const renderScreen = async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false, gcTime: 0 } },
   });
-  return render(
-    <QueryClientProvider client={client}>
-      <AccountSettingsScreen />
-    </QueryClientProvider>,
+  return renderWithI18n(
+    <SafeAreaProvider initialMetrics={initialMetrics}>
+      <QueryClientProvider client={client}>
+        <AccountSettingsScreen />
+      </QueryClientProvider>
+    </SafeAreaProvider>,
   );
 };
 
@@ -81,7 +93,7 @@ beforeEach(() => {
 test("Change Password mints a ticket and opens the Auth0 hosted page", async () => {
   await renderScreen();
 
-  await userEvent.setup().press(screen.getByRole("button", { name: "Change Password" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Password" }));
 
   await waitFor(() => {
     expect(mockCreateTicket).toHaveBeenCalledWith(expect.objectContaining({ throwOnError: true }));
@@ -97,7 +109,7 @@ test("expired credentials after the change clear the session and route to login"
   mockSessionStillValid.mockResolvedValue(false);
   await renderScreen();
 
-  await userEvent.setup().press(screen.getByRole("button", { name: "Change Password" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Password" }));
 
   await waitFor(() => {
     expect(mockClearLocalCredentials).toHaveBeenCalledTimes(1);
@@ -105,19 +117,28 @@ test("expired credentials after the change clear the session and route to login"
   expect(mockReplace).toHaveBeenCalledWith("/login");
 });
 
-test("social identities do not see Change Password", async () => {
+test("social identities are told there is no Everglow password", async () => {
   mockAuth0Sub = "apple|001.abc";
   await renderScreen();
 
-  expect(screen.queryByRole("button", { name: "Change Password" })).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Password" }));
+
+  expect(mockPush).toHaveBeenCalledWith("/password");
   expect(mockCreateTicket).not.toHaveBeenCalled();
+});
+
+test("the lab card reads the plan's limit from the API", async () => {
+  await renderScreen();
+
+  expect(await screen.findByText("1 of 2 running")).toBeOnTheScreen();
+  expect(screen.getByText("@ada.lovelace")).toBeOnTheScreen();
 });
 
 test("ticket failures surface an alert without opening the browser", async () => {
   mockCreateTicket.mockRejectedValue(new Error("Auth0 unavailable"));
   await renderScreen();
 
-  await userEvent.setup().press(screen.getByRole("button", { name: "Change Password" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Password" }));
 
   await waitFor(() => {
     expect(alert).toHaveBeenCalledWith("Could not change password", "Please try again.");
