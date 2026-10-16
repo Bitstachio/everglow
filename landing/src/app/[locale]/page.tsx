@@ -30,7 +30,8 @@ const HomePage = async ({ params }: HomePageProps) => {
       </div>
       {/* Sibling so sticky works for the rest of the page */}
       <SiteNav />
-      <main>
+      {/* Bottom pad so every section (incl. Start) can scroll under the sticky nav */}
+      <main className="pb-[45svh]">
         <PhotoStrip />
         <Usual />
         <What />

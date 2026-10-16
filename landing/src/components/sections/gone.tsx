@@ -6,7 +6,7 @@ export const Gone = async () => {
   const t = await getTranslations("gone");
 
   return (
-    <section id="gone" className="scroll-mt-16 pt-24">
+    <section id="gone" className="scroll-mt-[var(--film-nav-h)] pt-24">
       <Container>
         <div className="bg-paper text-paper-ink grid items-start gap-6 p-6 sm:p-10 md:grid-cols-2 md:gap-14 md:p-14">
           <div>

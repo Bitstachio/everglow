@@ -22,10 +22,11 @@ const ITEMS: NavItem[] = [
 
 export const SiteNav = () => {
   const t = useTranslations("common.nav");
-  const activeId = useActiveSection(SECTION_IDS);
+  const { activeId, selectSection } = useActiveSection(SECTION_IDS);
 
   return (
     <nav
+      data-site-nav
       aria-label={t("ariaLabel")}
       className={cn(
         "bg-rebate sticky top-0 z-40 shrink-0",
@@ -49,6 +50,7 @@ export const SiteNav = () => {
               key={item.id}
               href={`#${item.id}`}
               aria-current={isActive ? "true" : undefined}
+              onClick={() => selectSection(item.id)}
               className={cn(
                 "font-mono rounded-sm px-2.5 py-[7px] text-[11px] leading-none font-medium tracking-[0.12em] uppercase no-underline",
                 "duration-standard transition-colors",

@@ -8,7 +8,7 @@ export const Usual = async () => {
   const t = await getTranslations("usual");
 
   return (
-    <section id="usual" className="scroll-mt-16 pt-24">
+    <section id="usual" className="scroll-mt-[var(--film-nav-h)] pt-24">
       <Container className="grid gap-6 md:grid-cols-2 md:gap-16">
         <div>
           <EdgeLabel className="text-edge mb-3 block">{t("eyebrow")}</EdgeLabel>

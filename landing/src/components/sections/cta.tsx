@@ -9,7 +9,7 @@ export const Cta = async () => {
   const t = await getTranslations("cta");
 
   return (
-    <section id="start" className="scroll-mt-16 pt-28">
+    <section id="start" className="scroll-mt-[var(--film-nav-h)] pt-28">
       <Container>
         <h2 className="font-display text-strong max-w-[14ch] text-[clamp(2.5rem,6vw,4.75rem)] leading-[0.98] font-semibold tracking-[-0.04em]">
           {t("headline")}
