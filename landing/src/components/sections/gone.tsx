@@ -22,13 +22,13 @@ export const Gone = async () => {
           </div>
         </div>
 
-        <div className="border-strong mt-24 grid gap-0 border-t-2 md:grid-cols-2 md:gap-8">
-          <div className="py-5">
-            <EdgeLabel className="text-strong -mt-[76px] mb-2.5 block">{t("is.label")}</EdgeLabel>
+        <div className="border-strong mt-24 grid gap-8 border-t-2 pt-5 md:grid-cols-2">
+          <div>
+            <EdgeLabel className="text-strong mb-2.5 block">{t("is.label")}</EdgeLabel>
             <p className="text-muted m-0 leading-[1.55]">{t("is.body")}</p>
           </div>
-          <div className="py-5">
-            <EdgeLabel className="text-strong -mt-[76px] mb-2.5 block">{t("isnt.label")}</EdgeLabel>
+          <div>
+            <EdgeLabel className="text-strong mb-2.5 block">{t("isnt.label")}</EdgeLabel>
             <p className="text-muted m-0 leading-[1.55]">
               <span className="decoration-pencil decoration-2 line-through">{t("isnt.strike")}</span> {t("isnt.body")}
             </p>

@@ -13,7 +13,6 @@ type StoryMockProps = {
   heroCredit: string;
   note: string;
   frames: StoryFrame[];
-  disclaimer: string;
   heroSrc: string;
 };
 
@@ -25,11 +24,9 @@ export const StoryMock = ({
   heroCredit,
   note,
   frames,
-  disclaimer,
   heroSrc,
 }: StoryMockProps) => (
-  <div>
-    <div className="border-border relative aspect-[9/16] w-[360px] max-w-full overflow-hidden bg-[#0e0e0e] shadow-[0_0_0_1px_var(--border-default)]">
+  <div className="border-border relative aspect-[9/16] w-[360px] max-w-full overflow-hidden bg-[#0e0e0e] shadow-[0_0_0_1px_var(--border-default)]">
       <div
         aria-hidden
         className="absolute top-0 bottom-0 left-1.5 w-2.5 bg-[repeating-linear-gradient(180deg,#262626_0_12px,transparent_12px_24px)]"
@@ -110,8 +107,4 @@ export const StoryMock = ({
         </div>
       </div>
     </div>
-    <p className="font-mono text-edge mt-3 max-w-[360px] text-[9px] leading-3 font-medium tracking-[0.1em] uppercase">
-      {disclaimer}
-    </p>
-  </div>
 );

@@ -79,7 +79,6 @@ export const What = async () => {
             heroCredit={t("share.story.heroCredit")}
             note={t("share.story.note")}
             frames={storyFrames}
-            disclaimer={t("share.story.disclaimer")}
             heroSrc="/design/story-hero.jpg"
           />
         </div>
