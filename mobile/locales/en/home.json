@@ -1,0 +1,37 @@
+{
+  "header": {
+    "scanner": "Scan an envelope",
+    "labCard": "Your lab card"
+  },
+  "firstRun": {
+    "edge": "Roll 00 · unexposed",
+    "title": "No rolls yet.",
+    "body": "Start one for your next night out, or join one someone sends you.",
+    "note": "yours goes here",
+    "startRoll": "Start a roll",
+    "joinEnvelope": "Join with an envelope"
+  },
+  "newEvent": "New event",
+  "roll": {
+    "people": "<value>{{count}}</value> ppl",
+    "peopleIn": "Unexposed · <value>{{count}}</value> ppl in",
+    "label": "{{title}}, {{status}}"
+  },
+  "time": {
+    "left": "{{hours}}h {{minutes}}m left",
+    "open": "Open",
+    "until": "Until {{date}}",
+    "opensAt": "Opens {{when}}",
+    "closedOn": "Closed {{date}}"
+  },
+  "closed": {
+    "heading": "Closed · {{count}}",
+    "note": "Photos removed"
+  },
+  "offline": {
+    "edge": "No connection",
+    "note": "Showing what’s saved",
+    "asOf": "as of {{time}}",
+    "waiting": "Back online to start a roll"
+  }
+}
