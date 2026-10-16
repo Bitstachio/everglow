@@ -1,0 +1,42 @@
+{
+  "eyebrow": "What it does",
+  "headline": "Any app can make a shared album. This is the part after.",
+  "find": {
+    "eyebrow": "01 · Find it",
+    "title": "Your events, on a calendar.",
+    "body": "Every event you've been to or are going to sits on a calendar. Tap the date and the album is there. No scrolling back through a chat for the link someone posted in March.",
+    "calendarLabel": "Oct 2026"
+  },
+  "keep": {
+    "eyebrow": "02 · Keep",
+    "title": "Download the good ones, not all 400.",
+    "body": "Everglow groups photos taken from the same angle and pulls the blurry misses out of the pile. You pick from what is left and download only those.",
+    "imageAlt": "Selecting frames in the Everglow app",
+    "tiles": [
+      { "n": "01", "label": "Keep", "state": "keep" },
+      { "n": "02", "label": "Same angle", "state": "dim" },
+      { "n": "03", "label": "Same angle", "state": "dim" },
+      { "n": "04", "label": "Blurry", "state": "reject" },
+      { "n": "05", "label": "Keep", "state": "keep" },
+      { "n": "06", "label": "Keep", "state": "keep" }
+    ]
+  },
+  "share": {
+    "eyebrow": "03 · Share",
+    "title": "Post it as an Instagram story.",
+    "body": "Turn the album into a story. It comes out as a contact sheet, a look people will start to recognize, without a logo stamped on your post.",
+    "story": {
+      "user": "sam",
+      "time": "2h",
+      "meta": "Sat 17.10 · roll of 148 · 9 ppl",
+      "title": "Saturday night, as told by nine people.",
+      "heroCredit": "▸ 031 · Dev",
+      "note": "this guy",
+      "frames": [
+        { "credit": "▸ 044 · Leila", "src": "/design/story-01.jpg" },
+        { "credit": "▸ 072 · Mo", "src": "/design/story-02.jpg" },
+        { "credit": "▸ 109 · Ines", "src": "/design/story-03.jpg" }
+      ]
+    }
+  }
+}

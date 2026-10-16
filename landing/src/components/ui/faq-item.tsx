@@ -1,26 +1,61 @@
+"use client";
+
 import { cn } from "@/lib/cn";
+import { useId, useState } from "react";
 
 type FaqItemProps = {
   question: string;
   answer: string;
 };
 
-export const FaqItem = ({ question, answer }: FaqItemProps) => (
-  <details className="group border-border border-b py-5 last:border-b-0">
-    <summary
-      className={cn(
-        "text-strong flex cursor-pointer list-none items-center justify-between gap-4 text-left text-lg font-medium tracking-tight",
-        "[&::-webkit-details-marker]:hidden",
-      )}
-    >
-      {question}
-      <span
-        aria-hidden
-        className="text-muted group-open:text-strong shrink-0 text-2xl leading-none font-light transition-transform duration-standard group-open:rotate-45"
+/** Accordion row with a short height + fade transition (respects reduced motion). */
+export const FaqItem = ({ question, answer }: FaqItemProps) => {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+
+  return (
+    <div className="border-border-muted border-b">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "font-display text-strong flex min-h-11 w-full cursor-pointer items-center justify-between gap-4 py-5 text-left text-[22px] leading-[1.25] font-semibold tracking-[-0.02em]",
+          "focus-visible:outline-pencil focus-visible:outline-2 focus-visible:outline-offset-2",
+        )}
       >
-        +
-      </span>
-    </summary>
-    <p className="text-muted mt-3 max-w-2xl text-base leading-relaxed sm:text-lg">{answer}</p>
-  </details>
-);
+        {question}
+        <span
+          aria-hidden
+          className={cn(
+            "font-mono shrink-0 text-[22px] leading-none font-medium",
+            open ? "text-strong" : "text-edge",
+          )}
+        >
+          {open ? "×" : "+"}
+        </span>
+      </button>
+      <div
+        id={panelId}
+        role="region"
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          <p
+            className={cn(
+              "text-muted max-w-[64ch] pb-6 text-[17px] leading-[1.55]",
+              "transition-opacity duration-200 ease-out motion-reduce:transition-none",
+              open ? "opacity-100" : "opacity-0",
+            )}
+          >
+            {answer}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
