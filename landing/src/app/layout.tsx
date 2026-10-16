@@ -45,7 +45,10 @@ const RootLayout = ({ children }: { children: ReactNode }) => (
         "bg-background text-foreground font-sans antialiased",
       )}
     >
-      <div aria-hidden className="film-grain" />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-50 bg-[url('/fx-noise.svg')] bg-size-[220px_220px] opacity-10 mix-blend-screen"
+      />
       {children}
     </body>
   </html>

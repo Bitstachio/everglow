@@ -28,7 +28,7 @@ export const SiteNav = () => {
     <nav
       aria-label={t("ariaLabel")}
       className={cn(
-        "film-strip-nav bg-rebate shrink-0",
+        "bg-rebate sticky top-0 z-40 shrink-0",
         "before:pointer-events-none before:absolute before:inset-x-0 before:top-[3px] before:h-[5px]",
         "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-[3px] after:h-[5px]",
         "before:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",

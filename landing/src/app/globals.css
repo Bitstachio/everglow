@@ -3,6 +3,9 @@
 /*
  * Contact-sheet tokens (design system, chosen 14 Oct 2026). Dark only.
  * Keep in step with mobile/app/global.css and mobile/theme/tokens.ts.
+ *
+ * Component styles live in Tailwind classNames on those components.
+ * This file is tokens, global document chrome, and theme-registered animations only.
  */
 :root {
   --bg-main: #0e0e0e;
@@ -35,6 +38,9 @@
   --ink-blue: #1d2a6b;
 
   --duration-standard: 300ms;
+
+  /* Opening viewport: hero height leaves room for the sticky film-strip */
+  --film-nav-h: 3.25rem;
 }
 
 @theme inline {
@@ -69,48 +75,10 @@
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
   --font-hand: var(--font-nanum-pen), cursive;
   --transition-duration-standard: var(--duration-standard);
-}
 
-body {
-  background-color: var(--bg-main);
-  color: var(--text-primary);
-  font-feature-settings: "lnum" 1;
-  @apply font-sans antialiased;
-}
-
-.film-strip-nav {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-}
-
-/* Film-strip height so the opening shell + nav fill one small viewport. */
-:root {
-  --film-nav-h: 3.25rem;
-}
-
-/* Near-black ground with ~10–14% film grain (design index.html) */
-.film-grain {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-  opacity: 0.1;
-  mix-blend-mode: screen;
-  background: url("/fx-noise.svg");
-  background-size: 220px 220px;
-}
-
-.hero-enter > * {
-  animation: hero-enter 700ms ease-out both;
-}
-
-.hero-enter > :nth-child(2) {
-  animation-delay: 120ms;
-}
-
-.hero-enter > :nth-child(3) {
-  animation-delay: 220ms;
+  --animate-hero-enter: hero-enter 700ms ease-out both;
+  --animate-brand-bloom: brand-bloom 6s ease-in-out infinite;
+  --animate-brand-sheen: brand-sheen 7s ease-in-out infinite;
 }
 
 @keyframes hero-enter {
@@ -122,64 +90,6 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-enter > * {
-    animation: none;
-  }
-
-  .brand-mark__bloom,
-  .brand-mark__text {
-    animation: none;
-  }
-}
-
-/*
- * Everglow wordmark light — glow follows the glyphs only (no full-row aura).
- */
-.brand-mark {
-  position: relative;
-  display: inline-block;
-  isolation: isolate;
-  /* Horizontal only — vertical negative margin was killing hero spacing utilities */
-  padding-inline: 0.18em;
-  margin-inline: -0.18em;
-}
-
-.brand-mark__bloom {
-  position: absolute;
-  inset: 0 0.18em;
-  z-index: 0;
-  pointer-events: none;
-  color: #ffb06a;
-  opacity: 0.5;
-  filter: blur(8px);
-  animation: brand-bloom 6s ease-in-out infinite;
-}
-
-.brand-mark__text {
-  position: relative;
-  z-index: 1;
-  background: linear-gradient(
-    165deg,
-    #ffffff 0%,
-    #fffaf2 28%,
-    #f4f4f4 52%,
-    #ffe0b8 88%,
-    #ffb879 100%
-  );
-  background-size: 100% 140%;
-  background-position: 50% 0%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  filter:
-    drop-shadow(0 0 2px rgba(255, 250, 242, 0.45))
-    drop-shadow(0 0 10px rgba(255, 176, 106, 0.35))
-    drop-shadow(0 0 22px rgba(242, 142, 66, 0.22));
-  animation: brand-sheen 7s ease-in-out infinite;
 }
 
 @keyframes brand-bloom {
@@ -202,4 +112,11 @@ body {
   50% {
     background-position: 50% 100%;
   }
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-feature-settings: "lnum" 1;
+  @apply font-sans antialiased;
 }
