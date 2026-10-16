@@ -1,4 +1,3 @@
-import { Cta } from "@/components/sections/cta/cta";
 import { Faq } from "@/components/sections/faq";
 import { Gone } from "@/components/sections/gone";
 import { Hero } from "@/components/sections/hero";
@@ -30,14 +29,13 @@ const HomePage = async ({ params }: HomePageProps) => {
       </div>
       {/* Sibling so sticky works for the rest of the page */}
       <SiteNav />
-      {/* Bottom pad so every section (incl. Start) can scroll under the sticky nav */}
-      <main className="pb-[45svh]">
+      {/* Just enough pad for FAQ to reach the sticky nav (spy), not a fixed half-viewport */}
+      <main className="pb-[max(6rem,calc(100svh-var(--film-nav-h)-36rem))]">
         <PhotoStrip />
         <Usual />
         <What />
         <Gone />
         <Faq />
-        <Cta />
       </main>
       <SiteFooter />
     </>

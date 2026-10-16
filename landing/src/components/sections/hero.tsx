@@ -1,7 +1,7 @@
+import { WaitlistForm } from "@/components/sections/cta/waitlist-form";
 import { BrandMark } from "@/components/ui/brand-mark";
 import { Container } from "@/components/ui/container";
 import { EdgeLabel } from "@/components/ui/edge-label";
-import { LeaderButton } from "@/components/ui/leader-button";
 import { PencilUnderline } from "@/components/ui/pencil-underline";
 import { cn } from "@/lib/cn";
 import { getTranslations } from "next-intl/server";
@@ -12,6 +12,7 @@ const enter = "animate-hero-enter motion-reduce:animate-none";
 /** Fills the opening viewport above the film-strip nav. */
 export const Hero = async () => {
   const t = await getTranslations("common.hero");
+  const waitlist = await getTranslations("cta");
 
   return (
     <section id="home" className="flex min-h-0 flex-1 flex-col">
@@ -25,7 +26,7 @@ export const Hero = async () => {
           >
             {t("brand")}
           </BrandMark>
-          <EdgeLabel className={cn("text-edge mt-5 mb-4 block sm:mt-6 sm:mb-5", enter, "[animation-delay:120ms]")}>
+          <EdgeLabel className={cn("text-edge mt-4 mb-3 block sm:mt-5 sm:mb-4", enter, "[animation-delay:120ms]")}>
             {t("eyebrow")}
           </EdgeLabel>
           <h1
@@ -35,8 +36,7 @@ export const Hero = async () => {
               "[animation-delay:220ms]",
             )}
           >
-            {t("headlineBefore")}{" "}
-            <PencilUnderline>{t("headlineMark")}</PencilUnderline>
+            {t("headlineBefore")} <PencilUnderline>{t("headlineMark")}</PencilUnderline>
           </h1>
           <p
             className={cn(
@@ -47,11 +47,20 @@ export const Hero = async () => {
           >
             {t("body")}
           </p>
-          <div className={cn("mt-5 flex flex-wrap items-center gap-4 sm:mt-7 sm:gap-5", enter, "[animation-delay:340ms]")}>
-            <LeaderButton href="#start" className="min-h-12 px-6 sm:min-h-[58px] sm:px-8">
-              {t("cta")}
-            </LeaderButton>
-            <span className="font-hand text-pencil text-[1.5rem] leading-none sm:text-[1.75rem]">{t("note")}</span>
+          <div className={cn(enter, "[animation-delay:340ms]")}>
+            <WaitlistForm
+              emailLabel={waitlist("emailLabel")}
+              emailPlaceholder={waitlist("emailPlaceholder")}
+              button={waitlist("button")}
+              submitting={waitlist("submitting")}
+              note={t("note")}
+              copy={{
+                invalidEmail: waitlist("invalidEmail"),
+                notConfigured: waitlist("notConfigured"),
+                error: waitlist("error"),
+                success: waitlist("success"),
+              }}
+            />
           </div>
         </div>
         <div className={cn("relative hidden min-h-0 md:block", enter, "[animation-delay:200ms]")}>

@@ -1,13 +1,10 @@
 {
-  "headline": "Start the album before the night does.",
   "emailLabel": "Email",
   "emailPlaceholder": "you@example.com",
   "button": "Join the waitlist",
   "submitting": "Joining…",
-  "consent": "Launch email only. Nothing else.",
   "success": "You're on the list. We'll email you at launch.",
   "invalidEmail": "Enter a real email address.",
   "error": "That didn't go through. Try again in a moment.",
-  "notConfigured": "Waitlist isn't open yet. Check back soon.",
-  "stores": "App Store / Play links when live"
+  "notConfigured": "Waitlist isn't open yet. Check back soon."
 }

@@ -10,19 +10,12 @@ type WaitlistFormProps = {
   emailPlaceholder: string;
   button: string;
   submitting: string;
-  consent: string;
+  note: string;
   copy: WaitlistFormCopy;
 };
 
 /** Email-only waitlist signup. Posts to `NEXT_PUBLIC_WAITLIST_URL`. */
-export const WaitlistForm = ({
-  emailLabel,
-  emailPlaceholder,
-  button,
-  submitting,
-  consent,
-  copy,
-}: WaitlistFormProps) => {
+export const WaitlistForm = ({ emailLabel, emailPlaceholder, button, submitting, note, copy }: WaitlistFormProps) => {
   const inputId = useId();
   const statusId = useId();
   const { email, setEmail, status, message, onSubmit, isSubmitting, isSuccess } = useWaitlistForm({
@@ -30,8 +23,8 @@ export const WaitlistForm = ({
   });
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 flex max-w-xl flex-col gap-4" noValidate>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+    <form onSubmit={onSubmit} className="mt-5 max-w-[36rem] sm:mt-6" noValidate>
+      <div className="flex items-stretch gap-2.5 sm:gap-3">
         <label htmlFor={inputId} className="sr-only">
           {emailLabel}
         </label>
@@ -49,27 +42,31 @@ export const WaitlistForm = ({
           aria-invalid={status === "error"}
           aria-describedby={message ? statusId : undefined}
           className={cn(
-            "border-border bg-surface text-strong placeholder:text-edge min-h-[58px] flex-1 border px-4",
+            "border-border bg-surface text-strong placeholder:text-edge min-h-12 min-w-0 flex-1 border px-3 sm:min-h-[58px] sm:px-4",
             "font-sans text-base leading-none outline-none",
             "focus-visible:border-strong focus-visible:outline-pencil focus-visible:outline-2 focus-visible:outline-offset-2",
             "disabled:opacity-50",
           )}
         />
-        <LeaderButton type="submit" disabled={isSubmitting} className="sm:shrink-0">
+        <LeaderButton
+          type="submit"
+          disabled={isSubmitting}
+          className="min-h-12 shrink-0 px-3 tracking-[0.08em] whitespace-nowrap sm:min-h-[58px] sm:px-6 sm:tracking-[0.12em]"
+        >
           {isSubmitting ? submitting : button}
         </LeaderButton>
       </div>
-      <p className="text-edge text-sm leading-snug">{consent}</p>
       {message ? (
         <p
           id={statusId}
           role="status"
           aria-live="polite"
-          className={cn("text-sm leading-snug", isSuccess ? "text-success" : "text-pencil")}
+          className={cn("mt-3 text-sm leading-snug", isSuccess ? "text-success" : "text-pencil")}
         >
           {message}
         </p>
       ) : null}
+      <p className="font-hand text-pencil mt-3 text-[1.45rem] leading-none sm:mt-3.5 sm:text-[1.7rem]">{note}</p>
     </form>
   );
 };

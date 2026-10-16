@@ -6,12 +6,12 @@ import { useScrollActiveChip } from "@/components/ui/site-nav/use-scroll-active-
 import { useTranslations } from "next-intl";
 import { useRef } from "react";
 
-const SECTION_IDS = ["usual", "what", "gone", "faq", "start"] as const;
+const SECTION_IDS = ["usual", "what", "gone", "faq"] as const;
 
 type NavItem = {
   id: (typeof SECTION_IDS)[number];
   n: string;
-  labelKey: "usual" | "what" | "gone" | "faq" | "start";
+  labelKey: "usual" | "what" | "gone" | "faq";
 };
 
 const ITEMS: NavItem[] = [
@@ -19,7 +19,6 @@ const ITEMS: NavItem[] = [
   { id: "what", n: "02", labelKey: "what" },
   { id: "gone", n: "03", labelKey: "gone" },
   { id: "faq", n: "04", labelKey: "faq" },
-  { id: "start", n: "05", labelKey: "start" },
 ];
 
 export const SiteNav = () => {
@@ -67,9 +66,9 @@ export const SiteNav = () => {
                   aria-current={isActive ? "true" : undefined}
                   onClick={() => selectSection(item.id)}
                   className={cn(
-                    "font-mono shrink-0 rounded-sm px-2.5 py-[7px] text-[11px] leading-none font-medium tracking-[0.12em] uppercase no-underline",
+                    "shrink-0 rounded-sm px-2.5 py-[7px] font-mono text-[11px] leading-none font-medium tracking-[0.12em] uppercase no-underline",
                     "duration-standard transition-colors",
-                    isActive ? "bg-[#1a1a1a] text-strong" : "text-edge hover:bg-[#1a1a1a] hover:text-strong",
+                    isActive ? "text-strong bg-[#1a1a1a]" : "text-edge hover:text-strong hover:bg-[#1a1a1a]",
                   )}
                 >
                   <span className={cn("mr-1.5 font-medium", isActive ? "text-edge" : "text-[#5e5e5e]")}>{item.n}</span>
