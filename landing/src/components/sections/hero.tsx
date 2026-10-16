@@ -1,4 +1,3 @@
-import { HeroBackdrop } from "@/components/sections/hero-backdrop";
 import { Container } from "@/components/ui/container";
 import { getTranslations } from "next-intl/server";
 
@@ -7,7 +6,6 @@ export const Hero = async () => {
 
   return (
     <section id="home" className="relative flex min-h-screen items-center overflow-hidden">
-      <HeroBackdrop />
       <Container className="relative z-10 pt-28 pb-24 sm:pt-32">
         <div className="hero-enter max-w-xl md:max-w-lg lg:max-w-xl">
           <h1 className="font-display text-strong text-5xl font-semibold tracking-tight sm:text-6xl md:text-7xl">
