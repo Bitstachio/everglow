@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useAuth0 } from "react-native-auth0";
 import { useDeleteProfileMutation } from "../api/mutations";
+import { useBlocksQuery } from "../api/queries";
 import type { DeleteAccountPhotoPolicy } from "../types";
 import { useChangePassword } from "./use-change-password";
 import { useLabCard } from "./use-lab-card";
@@ -18,6 +19,7 @@ export const useProfileScreen = () => {
   const deleteProfileMutation = useDeleteProfileMutation();
   const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
   const [signOutVisible, setSignOutVisible] = useState(false);
+  const { data: blocks } = useBlocksQuery();
 
   const confirmDeleteAccount = (photos: DeleteAccountPhotoPolicy) => {
     Alert.alert(
@@ -65,6 +67,7 @@ export const useProfileScreen = () => {
     card,
     username: details ? `@${details.username}` : undefined,
     email: auth0User?.email ?? undefined,
+    blockedCount: blocks?.length,
     isLoading,
     isDeleting: deleteProfileMutation.isPending,
     isChangingPassword,
@@ -75,6 +78,7 @@ export const useProfileScreen = () => {
     // Email and password accounts go straight to Auth0's page (14.6); Apple
     // and Google accounts have no Everglow password (14.7).
     onOpenPassword: canChangePassword ? handleChangePassword : () => router.push("/password"),
+    onOpenBlocked: () => router.push("/blocked-people"),
     onOpenTerms: () => router.push("/terms-of-use"),
     onOpenPrivacy: () => router.push("/privacy-policy"),
     onSignOut: () => setSignOutVisible(true),
