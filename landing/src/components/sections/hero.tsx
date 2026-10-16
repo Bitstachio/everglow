@@ -5,33 +5,41 @@ import { PencilUnderline } from "@/components/ui/pencil-underline";
 import { getTranslations } from "next-intl/server";
 import Image from "next/image";
 
+/** Fills the opening viewport above the film-strip nav. */
 export const Hero = async () => {
   const t = await getTranslations("common.hero");
 
   return (
-    <section id="home" className="scroll-mt-24">
-      <Container className="grid items-center gap-10 py-12 md:grid-cols-2 md:gap-14 md:py-16 lg:gap-14">
-        <div className="hero-enter">
-          <EdgeLabel className="text-edge mb-5 block">{t("eyebrow")}</EdgeLabel>
-          <h1 className="font-display text-strong max-w-[11ch] text-[clamp(3rem,8.5vw,6.75rem)] leading-[0.95] font-semibold tracking-[-0.045em]">
+    <section id="home" className="flex min-h-0 flex-1 flex-col">
+      <Container className="grid min-h-0 flex-1 items-center gap-8 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:items-stretch md:gap-6 md:py-5 lg:gap-8">
+        <div className="hero-enter flex min-w-0 flex-col justify-center">
+          <p className="font-display text-strong mb-3 text-[clamp(1.75rem,3.5vw,2.5rem)] leading-none font-semibold tracking-[-0.03em] sm:mb-4">
+            {t("brand")}
+          </p>
+          <EdgeLabel className="text-edge mb-4 block sm:mb-5">{t("eyebrow")}</EdgeLabel>
+          <h1 className="font-display text-strong max-w-[11ch] text-[clamp(2.25rem,6.5vw,4.75rem)] leading-[0.95] font-semibold tracking-[-0.045em]">
             {t("headlineBefore")}{" "}
             <PencilUnderline>{t("headlineMark")}</PencilUnderline>
           </h1>
-          <p className="text-muted mt-7 max-w-[54ch] text-xl leading-[1.55]">{t("body")}</p>
-          <div className="mt-9 flex flex-wrap items-center gap-5">
-            <LeaderButton href="#start">{t("cta")}</LeaderButton>
-            <span className="font-hand text-pencil text-[1.75rem] leading-none">{t("note")}</span>
+          <p className="text-muted mt-4 max-w-[54ch] text-base leading-[1.55] sm:mt-5 sm:text-lg md:text-xl">
+            {t("body")}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-4 sm:mt-7 sm:gap-5">
+            <LeaderButton href="#start" className="min-h-12 px-6 sm:min-h-[58px] sm:px-8">
+              {t("cta")}
+            </LeaderButton>
+            <span className="font-hand text-pencil text-[1.5rem] leading-none sm:text-[1.75rem]">{t("note")}</span>
           </div>
         </div>
-        <div className="justify-self-center">
+        <div className="relative hidden min-h-0 md:block">
           <Image
             src="/design/hero-phone.jpg"
             alt={t("imageAlt")}
             width={600}
             height={1200}
             priority
-            className="border-border block w-full max-w-[300px] rounded-[40px] shadow-[0_0_0_1px_var(--border-default)]"
-            sizes="300px"
+            className="border-border absolute top-0 left-1/2 h-full w-auto max-w-full -translate-x-1/2 rounded-[36px] object-contain shadow-[0_0_0_1px_var(--border-default)] lg:rounded-[40px]"
+            sizes="(min-width: 1024px) 45vw, 42vw"
           />
         </div>
       </Container>

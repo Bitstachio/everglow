@@ -6,7 +6,6 @@ import { PhotoStrip } from "@/components/sections/photo-strip";
 import { Usual } from "@/components/sections/usual";
 import { What } from "@/components/sections/what/what";
 import { SiteFooter } from "@/components/ui/site-footer";
-import { SiteHeader } from "@/components/ui/site-header";
 import { SiteNav } from "@/components/ui/site-nav/site-nav";
 import { routing } from "@/i18n/routing";
 import { hasLocale } from "next-intl";
@@ -25,10 +24,13 @@ const HomePage = async ({ params }: HomePageProps) => {
 
   return (
     <>
-      <SiteHeader />
-      <main>
+      {/* Hero fills the fold; film-strip sits on the bottom edge */}
+      <div className="flex h-[calc(100svh-var(--film-nav-h))] flex-col">
         <Hero />
-        <SiteNav />
+      </div>
+      {/* Sibling so sticky works for the rest of the page */}
+      <SiteNav />
+      <main>
         <PhotoStrip />
         <Usual />
         <What />

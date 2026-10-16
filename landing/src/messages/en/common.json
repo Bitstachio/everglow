@@ -3,12 +3,9 @@
     "title": "Everglow",
     "description": "One shared album per event. Someone makes it, sends the link, and everyone adds their photos."
   },
-  "header": {
-    "brand": "Everglow",
-    "cta": "Make an event"
-  },
   "nav": {
     "ariaLabel": "Sections",
+    "brand": "Everglow",
     "usual": "The usual",
     "what": "What it does",
     "gone": "Then it's gone",
@@ -16,6 +13,7 @@
     "start": "Start"
   },
   "hero": {
+    "brand": "Everglow",
     "eyebrow": "Shared photo albums for events",
     "headlineBefore": "Everyone took photos.",
     "headlineMark": "Nobody has them.",

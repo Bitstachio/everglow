@@ -28,14 +28,20 @@ export const SiteNav = () => {
     <nav
       aria-label={t("ariaLabel")}
       className={cn(
-        "film-strip-nav bg-rebate",
+        "film-strip-nav bg-rebate shrink-0",
         "before:pointer-events-none before:absolute before:inset-x-0 before:top-[3px] before:h-[5px]",
         "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-[3px] after:h-[5px]",
         "before:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
         "after:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
       )}
     >
-      <div className="mx-auto flex max-w-[1240px] gap-1.5 overflow-x-auto px-4 py-3.5 whitespace-nowrap sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1240px] items-center gap-1.5 overflow-x-auto px-4 py-3 whitespace-nowrap sm:px-6 lg:px-8">
+        <a
+          href="#home"
+          className="font-display text-strong mr-3 shrink-0 text-[15px] leading-none font-semibold tracking-[-0.02em] no-underline"
+        >
+          {t("brand")}
+        </a>
         {ITEMS.map((item) => {
           const isActive = activeId === item.id;
           return (

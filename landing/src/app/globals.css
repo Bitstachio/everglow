@@ -84,6 +84,11 @@ body {
   z-index: 40;
 }
 
+/* Film-strip height so the opening shell + nav fill one small viewport. */
+:root {
+  --film-nav-h: 3.25rem;
+}
+
 /* Near-black ground with ~10–14% film grain (design index.html) */
 .film-grain {
   position: fixed;
