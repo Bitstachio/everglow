@@ -1,20 +1,51 @@
 {
   "metadata": {
     "title": "Everglow",
-    "description": "Event photos in one place, for the people who were there."
+    "description": "One shared album per event. Someone makes it, sends the link, and everyone adds their photos."
+  },
+  "header": {
+    "brand": "Everglow",
+    "cta": "Make an event"
   },
   "nav": {
-    "brand": "Everglow",
-    "how": "How",
-    "faq": "FAQ",
-    "ariaLabel": "Primary"
+    "ariaLabel": "Sections",
+    "usual": "The usual",
+    "what": "What it does",
+    "gone": "Then it's gone",
+    "faq": "Questions",
+    "start": "Start"
   },
   "hero": {
-    "brand": "Everglow",
-    "headline": "Why are we dumping pictures from a night out in a group chat?",
-    "body": "Let's put them somewhere people can actually find and enjoy (without scrolling a hundred times)."
+    "eyebrow": "Shared photo albums for events",
+    "headlineBefore": "Everyone took photos.",
+    "headlineMark": "Nobody has them.",
+    "body": "Everglow is one shared album per event. Someone makes it, sends the link, and everyone adds their photos. That's the whole thing.",
+    "cta": "Make an event",
+    "note": "no group chat required",
+    "imageAlt": "The open gallery in the Everglow app"
+  },
+  "photos": {
+    "frames": [
+      {
+        "label": "01 · [PHOTO]",
+        "caption": "Someone mid-bite. They didn't know."
+      },
+      {
+        "label": "02 · [PHOTO]",
+        "caption": "The group shot, one blink."
+      },
+      {
+        "label": "03 · [PHOTO]",
+        "caption": "A parking lot after, 11:48pm."
+      },
+      {
+        "label": "04 · [PHOTO]",
+        "caption": "The table, before anyone sat down."
+      }
+    ]
   },
   "footer": {
-    "copyright": "© 2026 Everglow"
+    "copyright": "© 2026 Everglow · everglow.social",
+    "contact": "hello@everglow.social"
   }
 }

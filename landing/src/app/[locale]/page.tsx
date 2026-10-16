@@ -1,7 +1,12 @@
+import { Cta } from "@/components/sections/cta";
 import { Faq } from "@/components/sections/faq";
+import { Gone } from "@/components/sections/gone";
 import { Hero } from "@/components/sections/hero";
-import { How } from "@/components/sections/how";
+import { PhotoStrip } from "@/components/sections/photo-strip";
+import { Usual } from "@/components/sections/usual";
+import { What } from "@/components/sections/what/what";
 import { SiteFooter } from "@/components/ui/site-footer";
+import { SiteHeader } from "@/components/ui/site-header";
 import { SiteNav } from "@/components/ui/site-nav/site-nav";
 import { routing } from "@/i18n/routing";
 import { hasLocale } from "next-intl";
@@ -20,11 +25,16 @@ const HomePage = async ({ params }: HomePageProps) => {
 
   return (
     <>
-      <SiteNav />
+      <SiteHeader />
       <main>
         <Hero />
-        <How />
+        <SiteNav />
+        <PhotoStrip />
+        <Usual />
+        <What />
+        <Gone />
         <Faq />
+        <Cta />
       </main>
       <SiteFooter />
     </>

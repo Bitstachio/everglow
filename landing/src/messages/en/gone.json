@@ -1,0 +1,16 @@
+{
+  "eyebrow": "The part we'd want to know about",
+  "headline": "It doesn't last forever.",
+  "body1": "The host picks how long the album stays open: 3, 7, 14 or 30 days. Then it closes and the photos are removed.",
+  "body2": "So save the ones you want before then. We'd rather say it now than have you find out later.",
+  "note": "Pick up by 17 Nov, then it's gone.",
+  "is": {
+    "label": "What it is",
+    "body": "One album per event, for the people who were there. You join with a link or a QR code."
+  },
+  "isnt": {
+    "label": "What it isn't",
+    "strike": "A feed.",
+    "body": "There's nothing to scroll and nobody to perform for. It's an album."
+  }
+}

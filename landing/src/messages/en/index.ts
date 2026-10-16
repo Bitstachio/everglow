@@ -1,11 +1,17 @@
 import common from "./common.json";
-import how from "./how.json";
+import usual from "./usual.json";
+import what from "./what.json";
+import gone from "./gone.json";
 import faq from "./faq.json";
+import cta from "./cta.json";
 
 const messages = {
   common,
-  how,
+  usual,
+  what,
+  gone,
   faq,
+  cta,
 };
 
 export default messages;

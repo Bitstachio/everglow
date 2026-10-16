@@ -4,50 +4,57 @@ import { cn } from "@/lib/cn";
 import { useActiveSection } from "@/components/ui/site-nav/use-active-section";
 import { useTranslations } from "next-intl";
 
-const SECTION_IDS = ["home", "how", "faq"] as const;
+const SECTION_IDS = ["usual", "what", "gone", "faq", "start"] as const;
 
-type NavLinkProps = {
-  href: string;
-  isActive: boolean;
-  children: string;
+type NavItem = {
+  id: (typeof SECTION_IDS)[number];
+  n: string;
+  labelKey: "usual" | "what" | "gone" | "faq" | "start";
 };
 
-const NavLink = ({ href, isActive, children }: NavLinkProps) => (
-  <a
-    href={href}
-    aria-current={isActive ? "true" : undefined}
-    className={cn(
-      "duration-standard rounded-sm px-4 py-2 font-mono text-[11px] tracking-[0.12em] uppercase transition-colors",
-      isActive ? "bg-elevated text-strong font-semibold" : "text-edge hover:text-strong font-medium",
-    )}
-  >
-    {children}
-  </a>
-);
+const ITEMS: NavItem[] = [
+  { id: "usual", n: "01", labelKey: "usual" },
+  { id: "what", n: "02", labelKey: "what" },
+  { id: "gone", n: "03", labelKey: "gone" },
+  { id: "faq", n: "04", labelKey: "faq" },
+  { id: "start", n: "05", labelKey: "start" },
+];
 
 export const SiteNav = () => {
   const t = useTranslations("common.nav");
   const activeId = useActiveSection(SECTION_IDS);
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-5 sm:pt-6">
-      <nav
-        aria-label={t("ariaLabel")}
-        className={cn(
-          "pointer-events-auto flex items-center gap-0.5 px-1.5 py-1.5 sm:px-2 sm:py-2",
-          "border-border bg-rebate/80 border backdrop-blur-md",
-        )}
-      >
-        <NavLink href="#home" isActive={activeId === "home"}>
-          {t("brand")}
-        </NavLink>
-        <NavLink href="#how" isActive={activeId === "how"}>
-          {t("how")}
-        </NavLink>
-        <NavLink href="#faq" isActive={activeId === "faq"}>
-          {t("faq")}
-        </NavLink>
-      </nav>
-    </header>
+    <nav
+      aria-label={t("ariaLabel")}
+      className={cn(
+        "film-strip-nav bg-rebate",
+        "before:pointer-events-none before:absolute before:inset-x-0 before:top-[3px] before:h-[5px]",
+        "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-[3px] after:h-[5px]",
+        "before:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
+        "after:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
+      )}
+    >
+      <div className="mx-auto flex max-w-[1240px] gap-1.5 overflow-x-auto px-4 py-3.5 whitespace-nowrap sm:px-6 lg:px-8">
+        {ITEMS.map((item) => {
+          const isActive = activeId === item.id;
+          return (
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              aria-current={isActive ? "true" : undefined}
+              className={cn(
+                "font-mono rounded-sm px-2.5 py-[7px] text-[11px] leading-none font-medium tracking-[0.12em] uppercase no-underline",
+                "duration-standard transition-colors",
+                isActive ? "bg-[#1a1a1a] text-strong" : "text-edge hover:bg-[#1a1a1a] hover:text-strong",
+              )}
+            >
+              <span className={cn("mr-1.5 font-medium", isActive ? "text-edge" : "text-[#5e5e5e]")}>{item.n}</span>
+              {t(item.labelKey)}
+            </a>
+          );
+        })}
+      </div>
+    </nav>
   );
 };

@@ -78,6 +78,12 @@ body {
   @apply font-sans antialiased;
 }
 
+.film-strip-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
 /* Near-black ground with ~10–14% film grain (design index.html) */
 .film-grain {
   position: fixed;

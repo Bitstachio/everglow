@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-const NAV_OFFSET_PX = 120;
+/** Sticky film-strip height + a little breathing room. */
+const NAV_OFFSET_PX = 64;
 
 /** The last section whose top has crossed the nav line. */
 export const useActiveSection = (sectionIds: readonly string[]) => {
