@@ -54,6 +54,7 @@ const RootNavigator = () => {
         <Stack.Screen name="edit-card" options={{ headerShown: false }} />
         <Stack.Screen name="edit-username" options={{ headerShown: false }} />
         <Stack.Screen name="password" options={{ headerShown: false }} />
+        <Stack.Screen name="blocked-people" options={{ headerShown: false }} />
         <Stack.Screen name="events/list" options={{ title: t("screens.myEvents"), headerBackTitle: backTitle }} />
         <Stack.Screen name="events/create" options={{ title: t("screens.createEvent"), headerBackTitle: backTitle }} />
         <Stack.Screen name="events/[id]/index" />

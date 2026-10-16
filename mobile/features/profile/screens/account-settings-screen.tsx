@@ -19,6 +19,7 @@ const AccountSettingsScreen = () => {
     card,
     username,
     email,
+    blockedCount,
     isLoading,
     isDeleting,
     isChangingPassword,
@@ -27,6 +28,7 @@ const AccountSettingsScreen = () => {
     onEditCard,
     onOpenUsername,
     onOpenPassword,
+    onOpenBlocked,
     onOpenTerms,
     onOpenPrivacy,
     onSignOut,
@@ -66,6 +68,12 @@ const AccountSettingsScreen = () => {
             value={isChangingPassword ? t("index.passwordOpening") : undefined}
             onPress={onOpenPassword}
             disabled={isDeleting || isChangingPassword}
+          />
+          <IndexRow
+            label={t("index.blocked")}
+            value={blockedCount ? String(blockedCount) : undefined}
+            onPress={onOpenBlocked}
+            disabled={isDeleting}
           />
           <IndexRow label={t("index.terms")} onPress={onOpenTerms} disabled={isDeleting} />
           <IndexRow label={t("index.privacy")} onPress={onOpenPrivacy} disabled={isDeleting} />

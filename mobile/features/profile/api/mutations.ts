@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
 import {
+  blocksControllerUnblock,
   usersControllerConfirmAvatarUpload,
   usersControllerCreateAvatarUploadUrl,
   usersControllerCreatePasswordChangeTicket,
@@ -15,6 +16,7 @@ import { retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
 import type { AvatarImage } from "../lib/avatar-image";
 import { profileKeys } from "./keys";
 import type {
+  BlockedUserResponseDto,
   DeleteAccountPhotoPolicy,
   PasswordChangeTicketResponseDto,
   UpdateUserDto,
@@ -126,5 +128,41 @@ export const useRemoveAvatarMutation = () => {
       queryClient.setQueryData(profileKeys.me(), updated);
     },
     onError: refetchUserAfterAvatarConflict,
+  });
+};
+
+const STALE_AFTER_UNBLOCK = new Set(["photosControllerListPhotos", "eventsControllerGetParticipants"]);
+
+/**
+ * Unblock someone. Silent: they are never told. The row leaves the list at
+ * once and comes back if the request fails.
+ */
+export const useUnblockMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string, { previous?: BlockedUserResponseDto[] }>({
+    mutationFn: async (userId) => {
+      await blocksControllerUnblock({ path: { userId }, throwOnError: true });
+    },
+    onMutate: async (userId) => {
+      await queryClient.cancelQueries({ queryKey: profileKeys.blocks() });
+      const previous = queryClient.getQueryData<BlockedUserResponseDto[]>(profileKeys.blocks());
+      queryClient.setQueryData<BlockedUserResponseDto[]>(profileKeys.blocks(), (items) =>
+        items?.filter((item) => item.userId !== userId),
+      );
+      return { previous };
+    },
+    onError: (_error, _userId, context) => {
+      if (context?.previous) queryClient.setQueryData(profileKeys.blocks(), context.previous);
+    },
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profileKeys.blocks() }),
+        // Their photos come back in shared rolls, and the roll call drops its mark.
+        queryClient.invalidateQueries({
+          predicate: (query) => STALE_AFTER_UNBLOCK.has((query.queryKey[0] as { _id?: string } | undefined)?._id ?? ""),
+        }),
+      ]);
+    },
   });
 };
