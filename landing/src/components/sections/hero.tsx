@@ -1,3 +1,4 @@
+import { BrandMark } from "@/components/ui/brand-mark";
 import { Container } from "@/components/ui/container";
 import { EdgeLabel } from "@/components/ui/edge-label";
 import { LeaderButton } from "@/components/ui/leader-button";
@@ -13,10 +14,10 @@ export const Hero = async () => {
     <section id="home" className="flex min-h-0 flex-1 flex-col">
       <Container className="grid min-h-0 flex-1 items-center gap-8 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:items-stretch md:gap-6 md:py-5 lg:gap-8">
         <div className="hero-enter flex min-w-0 flex-col justify-center">
-          <p className="font-display text-strong mb-3 text-[clamp(1.75rem,3.5vw,2.5rem)] leading-none font-semibold tracking-[-0.03em] sm:mb-4">
+          <BrandMark className="font-display text-[clamp(1.75rem,3.5vw,2.5rem)] leading-none font-semibold tracking-[-0.03em]">
             {t("brand")}
-          </p>
-          <EdgeLabel className="text-edge mb-4 block sm:mb-5">{t("eyebrow")}</EdgeLabel>
+          </BrandMark>
+          <EdgeLabel className="text-edge mt-5 mb-4 block sm:mt-6 sm:mb-5">{t("eyebrow")}</EdgeLabel>
           <h1 className="font-display text-strong max-w-[11ch] text-[clamp(2.25rem,6.5vw,4.75rem)] leading-[0.95] font-semibold tracking-[-0.045em]">
             {t("headlineBefore")}{" "}
             <PencilUnderline>{t("headlineMark")}</PencilUnderline>

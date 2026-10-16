@@ -128,4 +128,78 @@ body {
   .hero-enter > * {
     animation: none;
   }
+
+  .brand-mark__bloom,
+  .brand-mark__text {
+    animation: none;
+  }
+}
+
+/*
+ * Everglow wordmark light — glow follows the glyphs only (no full-row aura).
+ */
+.brand-mark {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+  /* Horizontal only — vertical negative margin was killing hero spacing utilities */
+  padding-inline: 0.18em;
+  margin-inline: -0.18em;
+}
+
+.brand-mark__bloom {
+  position: absolute;
+  inset: 0 0.18em;
+  z-index: 0;
+  pointer-events: none;
+  color: #ffb06a;
+  opacity: 0.5;
+  filter: blur(8px);
+  animation: brand-bloom 6s ease-in-out infinite;
+}
+
+.brand-mark__text {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(
+    165deg,
+    #ffffff 0%,
+    #fffaf2 28%,
+    #f4f4f4 52%,
+    #ffe0b8 88%,
+    #ffb879 100%
+  );
+  background-size: 100% 140%;
+  background-position: 50% 0%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 250, 242, 0.45))
+    drop-shadow(0 0 10px rgba(255, 176, 106, 0.35))
+    drop-shadow(0 0 22px rgba(242, 142, 66, 0.22));
+  animation: brand-sheen 7s ease-in-out infinite;
+}
+
+@keyframes brand-bloom {
+  0%,
+  100% {
+    opacity: 0.38;
+    filter: blur(7px);
+  }
+  50% {
+    opacity: 0.58;
+    filter: blur(9px);
+  }
+}
+
+@keyframes brand-sheen {
+  0%,
+  100% {
+    background-position: 50% 0%;
+  }
+  50% {
+    background-position: 50% 100%;
+  }
 }
