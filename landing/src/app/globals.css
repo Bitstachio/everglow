@@ -31,6 +31,8 @@
   /* Strawberry grease pencil — marks only, never fills or buttons */
   --pencil: #ff4f6d;
   --stamp: #e11d48;
+  /* Soft film-lab green — quiet confirmations on dark ground */
+  --success: #6ecf8a;
 
   --paper: #eee8df;
   --paper-ink: #1a1714;
@@ -62,6 +64,7 @@
 
   --color-pencil: var(--pencil);
   --color-stamp: var(--stamp);
+  --color-success: var(--success);
   --color-paper: var(--paper);
   --color-paper-ink: var(--paper-ink);
   --color-paper-ink-2: var(--paper-ink-2);

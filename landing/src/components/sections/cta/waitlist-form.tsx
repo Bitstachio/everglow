@@ -65,7 +65,7 @@ export const WaitlistForm = ({
           id={statusId}
           role="status"
           aria-live="polite"
-          className={cn("text-sm leading-snug", isSuccess ? "text-muted" : "text-pencil")}
+          className={cn("text-sm leading-snug", isSuccess ? "text-success" : "text-pencil")}
         >
           {message}
         </p>
