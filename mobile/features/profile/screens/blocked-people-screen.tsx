@@ -24,7 +24,7 @@ const BlockedPeopleScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-ground">
       <TopBar
-        title={count === undefined ? t("blocked.edge") : t("blocked.edgeCount", { count })}
+        title={count ? t("blocked.edgeCount", { count }) : t("blocked.edge")}
         left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={onBack} />}
       />
       <ScrollView className="flex-1" contentContainerClassName="px-5 pb-8 pt-4">
