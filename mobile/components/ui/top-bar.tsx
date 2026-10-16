@@ -17,13 +17,13 @@ type TopBarProps = {
 /** A screen's top bar: back or cancel on the left, the place in edge print, an action on the right. */
 export const TopBar = ({ title, left, right }: TopBarProps) => (
   <View className="h-14 flex-row items-center px-5">
-    <View className="flex-1 items-start">{left}</View>
+    <View className="flex-1 flex-row justify-start">{left}</View>
     {title ? (
       <EdgePrint accessibilityRole="header" numberOfLines={1}>
         {title}
       </EdgePrint>
     ) : null}
-    <View className="flex-1 items-end">{right}</View>
+    <View className="flex-1 flex-row justify-end">{right}</View>
   </View>
 );
 

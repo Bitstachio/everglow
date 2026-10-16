@@ -51,7 +51,7 @@ const RootNavigator = () => {
         <Stack.Screen name="events/index" options={{ headerShown: false, animation: "fade" }} />
         {/* Chapter 14, You: each screen draws its own top bar. */}
         <Stack.Screen name="account-settings" options={{ headerShown: false }} />
-        <Stack.Screen name="edit-card" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="edit-card" options={{ headerShown: false }} />
         <Stack.Screen name="edit-username" options={{ headerShown: false }} />
         <Stack.Screen name="password" options={{ headerShown: false }} />
         <Stack.Screen name="events/list" options={{ title: t("screens.myEvents"), headerBackTitle: backTitle }} />
