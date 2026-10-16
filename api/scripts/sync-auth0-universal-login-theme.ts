@@ -41,14 +41,14 @@ async function main(): Promise<void> {
   const client = new ManagementClient({ domain, clientId, clientSecret });
 
   const current = await client.branding.themes.getDefault();
-  const theme = buildAuth0UniversalLoginTheme(colorTokens.light, {
+  const theme = buildAuth0UniversalLoginTheme(colorTokens, {
     logoUrl: logoUrl ?? current.widget.logo_url ?? "",
   });
 
   await client.branding.themes.update(current.themeId, theme);
   console.log(`Updated Universal Login theme ${current.themeId}`);
 
-  const brandingColors = buildAuth0TenantBrandingColors(colorTokens.light);
+  const brandingColors = buildAuth0TenantBrandingColors(colorTokens);
   await client.branding.update({
     colors: {
       primary: brandingColors.primary,
