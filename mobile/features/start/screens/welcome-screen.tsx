@@ -76,7 +76,14 @@ const WelcomeScreen = () => {
     <SafeAreaView className="flex-1 overflow-hidden bg-ground">
       <View className="z-10 h-11 flex-row items-center justify-between px-5">
         <Wordmark />
-        <Button title={t("welcome.signIn")} variant="ghost" fullWidth={false} onPress={onSignIn} disabled={isLoading} />
+        <Button
+          title={t("welcome.signIn")}
+          variant="ghost"
+          fullWidth={false}
+          onPress={onSignIn}
+          disabled={isLoading}
+          testID="login-submit"
+        />
       </View>
 
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="flex-1">
