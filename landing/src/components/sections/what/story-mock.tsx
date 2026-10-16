@@ -1,110 +1,70 @@
+import { cn } from "@/lib/cn";
 import Image from "next/image";
 
-type StoryFrame = {
-  credit: string;
+type StoryTile = {
   src: string;
+  /** CSS grid-area: rowStart / colStart / rowEnd / colEnd */
+  area: string;
+  position?: string;
+  date?: string;
 };
 
 type StoryMockProps = {
   user: string;
   time: string;
-  meta: string;
-  title: string;
-  heroCredit: string;
-  note: string;
-  frames: StoryFrame[];
-  heroSrc: string;
+  titleLine1: string;
+  titleLine2: string;
+  tiles: StoryTile[];
 };
 
-export const StoryMock = ({
-  user,
-  time,
-  meta,
-  title,
-  heroCredit,
-  note,
-  frames,
-  heroSrc,
-}: StoryMockProps) => (
-  <div className="border-border relative aspect-[9/16] w-[360px] max-w-full overflow-hidden bg-[#0e0e0e] shadow-[0_0_0_1px_var(--border-default)]">
-      <div
-        aria-hidden
-        className="absolute top-0 bottom-0 left-1.5 w-2.5 bg-[repeating-linear-gradient(180deg,#262626_0_12px,transparent_12px_24px)]"
-      />
-      <div
-        aria-hidden
-        className="absolute top-0 right-1.5 bottom-0 w-2.5 bg-[repeating-linear-gradient(180deg,#262626_0_12px,transparent_12px_24px)]"
-      />
-      <div className="absolute top-3.5 right-[26px] left-[26px] h-[3px] bg-[rgba(244,244,244,0.25)]">
-        <div className="bg-strong h-full w-2/5" />
-      </div>
-      <div className="font-sans text-strong absolute top-7 left-[26px] flex items-center gap-2 text-xs font-semibold">
-        <span className="bg-border size-[26px] rounded-full" />
-        {user}
-        <span className="text-edge font-normal">{time}</span>
-      </div>
-      <div className="absolute top-[84px] right-[26px] bottom-[30px] left-[26px] flex flex-col">
-        <div className="font-mono text-edge text-[9.5px] leading-3 font-medium tracking-[0.1em] uppercase">
-          {meta}
-        </div>
-        <div className="font-display relative mt-2 mb-3.5 text-[30px] leading-[0.98] font-semibold tracking-[-0.04em]">
-          {title}
-          <svg
-            viewBox="0 0 100 8"
-            preserveAspectRatio="none"
-            aria-hidden
-            className="pointer-events-none absolute right-[6%] bottom-[-6px] h-2 w-[46%] overflow-visible"
+/** Instagram-story phone: profile chrome + handwritten title + bento of the night. */
+export const StoryMock = ({ user, time, titleLine1, titleLine2, tiles }: StoryMockProps) => (
+  <div className="border-border relative aspect-[9/16] w-[360px] max-w-full overflow-hidden bg-[#0e0e0e] text-[#eee8df] shadow-[0_0_0_1px_var(--border-default)]">
+    <div className="absolute inset-x-4 top-3.5 z-10 flex gap-1">
+      <span className="bg-strong h-[3px] flex-1 rounded-full" />
+      <span className="h-[3px] flex-1 rounded-full bg-[rgba(244,244,244,0.28)]" />
+      <span className="h-[3px] flex-1 rounded-full bg-[rgba(244,244,244,0.28)]" />
+    </div>
+
+    <div className="absolute top-7 left-4 z-10 flex items-center gap-2">
+      <span className="bg-border size-[26px] shrink-0 rounded-full" aria-hidden />
+      <span className="text-strong font-sans text-xs font-semibold">{user}</span>
+      <span className="text-edge text-xs font-normal">{time}</span>
+    </div>
+
+    <div className="absolute inset-x-4 top-[58px] bottom-4 flex flex-col">
+      <p className="font-hand shrink-0 -rotate-2 text-[42px] leading-[0.92]">
+        <span className="block">{titleLine1}</span>
+        <span className="block">{titleLine2}</span>
+      </p>
+
+      <div className="mt-3 grid min-h-0 flex-1 grid-cols-6 grid-rows-8 gap-1.5">
+        {tiles.map((tile) => (
+          <div
+            key={`${tile.src}-${tile.area}`}
+            className="bg-elevated relative overflow-hidden rounded-[10px]"
+            style={{ gridArea: tile.area }}
           >
-            <path d="M1 5 Q50 8 99 3" fill="none" stroke="#ff4f6d" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </div>
-        <div className="relative">
-          <Image
-            src={heroSrc}
-            alt=""
-            width={600}
-            height={400}
-            className="block aspect-[3/2] w-full object-cover"
-          />
-          <svg
-            viewBox="0 0 100 66"
-            preserveAspectRatio="none"
-            aria-hidden
-            className="pointer-events-none absolute inset-0 h-full w-full"
-          >
-            <path
-              d="M57 10 C70 12 73 40 63 56 C54 64 42 58 42 36 C42 20 48 10 58 9 C62 9 64 11 63 14"
-              fill="none"
-              stroke="#ff4f6d"
-              strokeWidth="1.6"
-              strokeLinecap="round"
+            <Image
+              src={tile.src}
+              alt=""
+              fill
+              sizes="(min-width: 768px) 220px, 46vw"
+              className="object-cover"
+              style={{ objectPosition: tile.position ?? "center" }}
             />
-          </svg>
-        </div>
-        <div className="mt-1.5 mb-3 flex items-baseline justify-between">
-          <span className="font-mono text-edge text-[8.5px] leading-3 font-medium tracking-[0.1em] uppercase">
-            {heroCredit.split("·")[0]}·{" "}
-            <b className="text-strong font-semibold">{heroCredit.split("·")[1]?.trim()}</b>
-          </span>
-          <span className="font-hand text-pencil -rotate-3 text-[22px] leading-none">{note}</span>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {frames.map((frame) => (
-            <div key={frame.src}>
-              <Image
-                src={frame.src}
-                alt=""
-                width={200}
-                height={250}
-                className="block aspect-[4/5] w-full object-cover"
-              />
-              <div className="font-mono text-edge mt-1 text-[8.5px] leading-3 font-medium tracking-[0.1em] uppercase">
-                {frame.credit.split("·")[0]}·{" "}
-                <b className="text-strong font-semibold">{frame.credit.split("·")[1]?.trim()}</b>
-              </div>
-            </div>
-          ))}
-        </div>
+            {tile.date ? (
+              <span
+                className={cn(
+                  "text-pencil absolute right-2 bottom-1.5 font-mono text-[9px] leading-none font-semibold tracking-[0.06em]",
+                )}
+              >
+                {tile.date}
+              </span>
+            ) : null}
+          </div>
+        ))}
       </div>
     </div>
+  </div>
 );
