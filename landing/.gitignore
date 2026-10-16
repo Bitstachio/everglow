@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+workers/**/node_modules
+workers/**/.wrangler
 /.pnp
 .pnp.*
 .yarn/*

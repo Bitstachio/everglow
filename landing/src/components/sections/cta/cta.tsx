@@ -1,9 +1,7 @@
 import { Container } from "@/components/ui/container";
 import { EdgeLabel } from "@/components/ui/edge-label";
-import { LeaderButton } from "@/components/ui/leader-button";
 import { getTranslations } from "next-intl/server";
-
-const WAITLIST_URL = process.env.NEXT_PUBLIC_WAITLIST_URL ?? "#start";
+import { WaitlistForm } from "./waitlist-form";
 
 export const Cta = async () => {
   const t = await getTranslations("cta");
@@ -14,10 +12,20 @@ export const Cta = async () => {
         <h2 className="font-display text-strong max-w-[14ch] text-[clamp(2.5rem,6vw,4.75rem)] leading-[0.98] font-semibold tracking-[-0.04em]">
           {t("headline")}
         </h2>
-        <div className="mt-8 flex flex-wrap items-center gap-5">
-          <LeaderButton href={WAITLIST_URL}>{t("button")}</LeaderButton>
-          <EdgeLabel className="text-edge">{t("stores")}</EdgeLabel>
-        </div>
+        <WaitlistForm
+          emailLabel={t("emailLabel")}
+          emailPlaceholder={t("emailPlaceholder")}
+          button={t("button")}
+          submitting={t("submitting")}
+          consent={t("consent")}
+          copy={{
+            invalidEmail: t("invalidEmail"),
+            notConfigured: t("notConfigured"),
+            error: t("error"),
+            success: t("success"),
+          }}
+        />
+        <EdgeLabel className="text-edge mt-6 block">{t("stores")}</EdgeLabel>
       </Container>
     </section>
   );
