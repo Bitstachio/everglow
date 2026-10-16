@@ -3,7 +3,7 @@ import { EdgeLabel } from "@/components/ui/edge-label";
 import { FaqItem } from "@/components/ui/faq-item";
 import { getTranslations } from "next-intl/server";
 
-const FAQ_KEYS = ["cameraRoll", "join", "others", "story"] as const;
+const FAQ_KEYS = ["cameraRoll", "join", "others"] as const;
 
 /** Single-column accordion — not a title/answers two-column split. */
 export const Faq = async () => {
