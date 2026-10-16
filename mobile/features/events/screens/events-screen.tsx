@@ -1,156 +1,150 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { Avatar } from "@/components/ui/avatar";
-import { colorTokens } from "@/theme/tokens";
-import { EventActionCard } from "../components/event-action-card";
-import { EventInvitationModal } from "../components/event-invitation-modal";
-import { EventsList } from "../components/events-list";
+import { Button } from "@/components/ui/button";
+import { Display, Wordmark } from "@/components/ui/display";
+import { EdgePrint } from "@/components/ui/edge-print";
+import { FilmGrain } from "@/components/ui/film-grain";
+import { FilmStrip, type StripFrame } from "@/components/ui/film-strip";
+import { IconButton } from "@/components/ui/icon-button";
+import { PencilNote } from "@/components/ui/pencil-note";
+import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { QrCode } from "phosphor-react-native";
+import { useTranslation } from "react-i18next";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { JoinEventSheet } from "../components/join-event-sheet";
+import { RollCard } from "../components/roll-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
-import { CirclePlus, QrCode } from "lucide-react-native";
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const UNEXPOSED: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n), number: n }));
+
+const RollSkeleton = () => (
+  <View className="gap-2.5">
+    <View className="mx-5 h-6 w-48 rounded-xs bg-sheet" />
+    <FilmStrip frames={UNEXPOSED} />
+    <View className="mx-5 h-2.5 w-36 rounded-xs bg-sheet" />
+  </View>
+);
 
 const EventsScreen = () => {
-  const insets = useSafeAreaInsets();
+  const { t } = useTranslation("home");
   const {
-    events,
+    groups,
+    hasRolls,
     isLoading,
-    refreshing,
-    currentUserId,
+    isRefreshing,
+    isOffline,
+    savedAtLabel,
     profileAvatar,
-    handleOpenAccountSettings,
     joinSheetVisible,
-    selectedEvent,
-    invitationModalVisible,
-    onRefresh,
-    handleJoinViaLink,
     form,
     onSubmit,
-    handleOpenJoinSheet,
-    handleCloseJoinSheet,
-    handleCreateEvent,
-    handleEventShare,
-    handleCloseInvitationModal,
+    onScanViaSheet,
+    onRefresh,
+    onNewEvent,
+    onScan,
+    onOpenRoll,
+    onOpenCard,
+    onCloseJoinSheet,
   } = useEventsScreen();
 
+  const showFirstRun = !isLoading && !hasRolls && !isOffline;
+
   return (
-    <View style={[styles.container, styles.containerColors]}>
-      <View style={[styles.brandHeader, { paddingTop: insets.top + 16 }]}>
-        <Text accessibilityRole="header" style={[styles.wordmark, styles.textColors]}>
-          Everglow
-        </Text>
-        <TouchableOpacity
-          testID="events-profile-button"
-          accessibilityRole="button"
-          accessibilityLabel="Account Settings"
-          onPress={handleOpenAccountSettings}
-          style={styles.profileControl}
-        >
-          <Avatar {...profileAvatar} size="header" />
-        </TouchableOpacity>
+    <SafeAreaView className="flex-1 bg-ground">
+      <View className="h-11 flex-row items-center justify-between px-5">
+        <Wordmark />
+        <View className="flex-row items-center gap-3">
+          <IconButton accessibilityLabel={t("header.scanner")} onPress={onScan}>
+            <AppIcon icon={QrCode} className="text-text" />
+          </IconButton>
+          <Pressable
+            testID="events-profile-button"
+            accessibilityRole="button"
+            accessibilityLabel={t("header.labCard")}
+            onPress={onOpenCard}
+          >
+            <Avatar {...profileAvatar} size="header" />
+          </Pressable>
+        </View>
       </View>
+
+      {isOffline ? (
+        <View className="mt-3 flex-row items-center justify-between border-y border-line px-5 py-2">
+          <EdgePrint tone="text">{t("offline.edge")}</EdgePrint>
+          <EdgePrint>
+            {savedAtLabel ? `${t("offline.note")} · ${t("offline.asOf", { time: savedAtLabel })}` : t("offline.note")}
+          </EdgePrint>
+        </View>
+      ) : null}
+
       <ScrollView
-        style={[styles.scrollView, styles.containerColors]}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
-        refreshControl={<RefreshControl testID="events-refresh" refreshing={refreshing} onRefresh={onRefresh} />}
+        className="flex-1"
+        contentContainerClassName="pb-6 pt-6"
+        refreshControl={<RefreshControl testID="home-refresh" refreshing={isRefreshing} onRefresh={onRefresh} />}
       >
-        <View style={styles.header}>
-          <Text style={[styles.subtitle, styles.subtitleColors]}>
-            Discover events, join with QR codes or links, and create your own meetups to share with the community.
-          </Text>
-        </View>
-
-        <View style={styles.actionCards}>
-          <EventActionCard
-            title="Join Event"
-            description="Scan QR or paste link"
-            icon={QrCode}
-            onPress={handleOpenJoinSheet}
-          />
-          <EventActionCard
-            title="Create Event"
-            description="Host your own meetup"
-            icon={CirclePlus}
-            onPress={handleCreateEvent}
-          />
-        </View>
-
-        <EventsList
-          title="My Events"
-          isLoading={isLoading}
-          events={events}
-          onEventShare={handleEventShare}
-          currentUserId={currentUserId}
-          seeAllHref="/events/list"
-        />
+        {isLoading ? (
+          <View testID="home-loading" className="gap-5.5">
+            <RollSkeleton />
+            <RollSkeleton />
+            <RollSkeleton />
+          </View>
+        ) : showFirstRun ? (
+          <View className="gap-4">
+            <FilmStrip frames={UNEXPOSED} />
+            <View className="px-5">
+              <EdgePrint className="mb-3">{t("firstRun.edge")}</EdgePrint>
+              <Display>{t("firstRun.title")}</Display>
+              <Text className="mt-3 font-sans text-body text-text-2">{t("firstRun.body")}</Text>
+              <PencilNote className="mt-4 self-start -rotate-3">{t("firstRun.note")}</PencilNote>
+            </View>
+          </View>
+        ) : (
+          <View className="gap-5.5">
+            {groups.live.map((event) => (
+              <RollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
+            ))}
+            {groups.upcoming.map((event) => (
+              <RollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
+            ))}
+            {groups.closed.length > 0 ? (
+              <View className="mt-1.5 flex-row items-center justify-between border-t-2 border-text px-5 pt-2.5">
+                <EdgePrint tone="text">{t("closed.heading", { count: groups.closed.length })}</EdgePrint>
+                <EdgePrint>{t("closed.note")}</EdgePrint>
+              </View>
+            ) : null}
+            {groups.closed.map((event) => (
+              <RollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
+            ))}
+          </View>
+        )}
       </ScrollView>
+
+      <View className="gap-3 px-5 pb-1">
+        {showFirstRun ? (
+          <>
+            <Button title={t("firstRun.startRoll")} mark="+" onPress={onNewEvent} />
+            <Button title={t("firstRun.joinEnvelope")} variant="secondary" mark="▸" onPress={onScan} />
+          </>
+        ) : (
+          <>
+            <Button title={t("newEvent")} mark="+" onPress={onNewEvent} disabled={isOffline} />
+            {isOffline ? <EdgePrint className="self-center">{t("offline.waiting")}</EdgePrint> : null}
+          </>
+        )}
+      </View>
+
+      <FilmGrain />
 
       <JoinEventSheet
         visible={joinSheetVisible}
-        onClose={handleCloseJoinSheet}
+        onClose={onCloseJoinSheet}
         control={form.control}
         isSubmitting={form.formState.isSubmitting}
         onSubmit={onSubmit}
-        onScan={handleJoinViaLink}
+        onScan={onScanViaSheet}
       />
-
-      {selectedEvent && (
-        <EventInvitationModal
-          visible={invitationModalVisible}
-          onClose={handleCloseInvitationModal}
-          event={selectedEvent}
-        />
-      )}
-    </View>
+    </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  containerColors: {
-    backgroundColor: colorTokens.background,
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  brandHeader: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  wordmark: {
-    fontSize: 28,
-    fontWeight: "bold",
-  },
-  profileControl: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  subtitle: {
-    fontSize: 16,
-  },
-  subtitleColors: {
-    color: colorTokens.muted,
-  },
-  textColors: {
-    color: colorTokens.text,
-  },
-  actionCards: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
-  },
-});
 
 export default EventsScreen;

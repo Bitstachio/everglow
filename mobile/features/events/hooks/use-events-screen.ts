@@ -1,24 +1,36 @@
 import { useAuth } from "@/context/auth-context";
-import { getErrorMessage } from "@/lib/api/errors";
+import { getErrorMessage, isConnectionError } from "@/lib/api/errors";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "react-native";
 import { useJoinEventForm } from "./use-join-event-form";
 import { useEventsQuery } from "../api/queries";
+import { groupRolls } from "../lib/rolls";
 import type { Event } from "../types";
 
 export const useEventsScreen = () => {
   const router = useRouter();
   const { user } = useAuth();
-  const { data: events = [], isLoading, isRefetching, error, errorUpdatedAt, refetch } = useEventsQuery(user?.id);
+  const {
+    data: events = [],
+    isLoading,
+    isRefetching,
+    isError,
+    error,
+    errorUpdatedAt,
+    dataUpdatedAt,
+    refetch,
+  } = useEventsQuery(user?.id);
   const [joinSheetVisible, setJoinSheetVisible] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
+  // A connection error keeps the last-loaded rolls on screen (03.5); any other
+  // failure is unexpected, so surface it.
+  const isOffline = isError && isConnectionError(error);
   useEffect(() => {
-    if (error) {
+    if (isError && !isConnectionError(error)) {
       Alert.alert("Error", getErrorMessage(error, "Failed to fetch events"));
     }
-  }, [error, errorUpdatedAt]);
+  }, [isError, error, errorUpdatedAt]);
 
   // Legacy detail pages do not invalidate queries yet. Refresh when returning.
   useFocusEffect(
@@ -27,9 +39,16 @@ export const useEventsScreen = () => {
     }, [refetch, user?.id]),
   );
 
-  const onRefresh = () => {
-    if (user?.id) void refetch({ cancelRefetch: false });
-  };
+  const groups = useMemo(() => groupRolls(events), [events]);
+  const hasRolls = events.length > 0;
+
+  const savedAtLabel = useMemo(
+    () =>
+      dataUpdatedAt
+        ? new Date(dataUpdatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })
+        : null,
+    [dataUpdatedAt],
+  );
 
   const { form, onSubmit, onScan } = useJoinEventForm({
     visible: joinSheetVisible,
@@ -44,25 +63,26 @@ export const useEventsScreen = () => {
   });
 
   return {
-    events,
+    groups,
+    hasRolls,
     isLoading,
-    refreshing: isRefetching,
-    currentUserId: user?.id,
+    isRefreshing: isRefetching,
+    isOffline,
+    savedAtLabel,
     profileAvatar: { userId: user?.id ?? "", name: user?.details?.name, uri: user?.details?.avatarUrl },
-    handleOpenAccountSettings: () => router.push("/account-settings"),
     joinSheetVisible,
-    selectedEvent,
-    invitationModalVisible: selectedEvent !== null,
-    onRefresh,
     form,
     onSubmit,
-    handleJoinViaLink: onScan,
-    handleOpenJoinSheet: () => setJoinSheetVisible(true),
-    handleCloseJoinSheet: () => {
+    onScanViaSheet: onScan,
+    onRefresh: () => {
+      if (user?.id) void refetch({ cancelRefetch: false });
+    },
+    onNewEvent: () => router.push("/events/create"),
+    onScan: () => setJoinSheetVisible(true),
+    onOpenRoll: (event: Event) => router.push(`/events/${event.id}`),
+    onOpenCard: () => router.push("/account-settings"),
+    onCloseJoinSheet: () => {
       if (!form.formState.isSubmitting) setJoinSheetVisible(false);
     },
-    handleCreateEvent: () => router.push("/events/create"),
-    handleEventShare: (event: Event) => setSelectedEvent(event),
-    handleCloseInvitationModal: () => setSelectedEvent(null),
   };
 };

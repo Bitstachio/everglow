@@ -1,10 +1,13 @@
+import { createApiError } from "@/lib/api/errors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert, Button, Text, View } from "react-native";
+import { buildEvent } from "../testing/fixtures";
 import { useEventsScreen } from "./use-events-screen";
 
 const mockFindAll = jest.fn();
 const mockJoin = jest.fn();
+const mockPush = jest.fn();
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
@@ -12,36 +15,39 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
 }));
 jest.mock("@/context/auth-context", () => ({
-  useAuth: () => ({ user: { id: "user-1" } }),
+  useAuth: () => ({ user: { id: "user-1", details: { name: "Ada", avatarUrl: null } } }),
 }));
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: mockPush }),
   useFocusEffect: (callback: () => void) => {
     const { useEffect } = jest.requireActual<typeof import("react")>("react");
     useEffect(callback, [callback]);
   },
 }));
 
-const EventsProbe = () => {
-  const { events, isLoading, handleJoinViaLink } = useEventsScreen();
+const Probe = () => {
+  const { groups, isLoading, isOffline, onNewEvent, onOpenRoll } = useEventsScreen();
+  const firstLive = groups.live[0];
   return (
     <View>
       <Text>{isLoading ? "Loading" : "Loaded"}</Text>
-      {events.map((event) => (
-        <Text key={event.id}>{event.title}</Text>
-      ))}
-      <Button title="Join" onPress={() => void handleJoinViaLink("https://example.com/invite")} />
+      <Text testID="offline">{isOffline ? "offline" : "online"}</Text>
+      <Text testID="live">{groups.live.length}</Text>
+      <Text testID="upcoming">{groups.upcoming.length}</Text>
+      <Text testID="closed">{groups.closed.length}</Text>
+      <Button title="New event" onPress={onNewEvent} />
+      {firstLive ? <Button title="Open roll" onPress={() => onOpenRoll(firstLive)} /> : null}
     </View>
   );
 };
 
-const renderEvents = async () => {
+const renderHome = async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false, gcTime: 0 } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <EventsProbe />
+      <Probe />
     </QueryClientProvider>,
   );
 };
@@ -49,34 +55,50 @@ const renderEvents = async () => {
 beforeEach(() => {
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
   mockJoin.mockReset();
+  mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
 afterEach(() => jest.restoreAllMocks());
 
-test("joining refreshes the displayed event list through query invalidation", async () => {
-  const event = { id: "event-1", title: "Weekend meetup" };
-  mockJoin.mockImplementation(async () => {
-    mockFindAll.mockResolvedValue({ data: { data: [event] } });
-    return { data: { data: event } };
+test("groups the rolls by gallery state", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [
+        buildEvent({ id: "open", galleryState: "OPEN" }),
+        buildEvent({ id: "upcoming", galleryState: "UPCOMING" }),
+        buildEvent({ id: "closed", galleryState: "CLOSED" }),
+      ],
+    },
   });
-  await renderEvents();
+  await renderHome();
   await screen.findByText("Loaded");
-  await userEvent.setup().press(screen.getByRole("button", { name: "Join" }));
-  expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "You have successfully joined the event!");
+  expect(screen.getByTestId("live")).toHaveTextContent("1");
+  expect(screen.getByTestId("upcoming")).toHaveTextContent("1");
+  expect(screen.getByTestId("closed")).toHaveTextContent("1");
 });
 
-test("joining shows the normalized API error", async () => {
-  mockJoin.mockRejectedValue(new Error("Invitation has expired"));
-  await renderEvents();
+test("routes to create and to a roll's page", async () => {
+  mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "roll-7", galleryState: "OPEN" })] } });
+  await renderHome();
   await screen.findByText("Loaded");
-  await userEvent.setup().press(screen.getByRole("button", { name: "Join" }));
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to join event"));
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "New event" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/create");
+  await user.press(screen.getByRole("button", { name: "Open roll" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/roll-7");
 });
 
-test("list failures show the normalized API error", async () => {
-  mockFindAll.mockRejectedValue(new Error("Network unavailable"));
-  await renderEvents();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to fetch events"));
+test("a connection failure shows the offline state without alerting", async () => {
+  mockFindAll.mockRejectedValue(createApiError("gateway", { status: 503 }));
+  await renderHome();
+  await waitFor(() => expect(screen.getByTestId("offline")).toHaveTextContent("offline"));
+  expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+test("an unexpected failure is surfaced", async () => {
+  mockFindAll.mockRejectedValue(new Error("boom"));
+  await renderHome();
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", expect.any(String)));
+  expect(screen.getByTestId("offline")).toHaveTextContent("online");
 });
