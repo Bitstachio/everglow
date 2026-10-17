@@ -20,4 +20,12 @@ export class UsernameAvailabilityResponseDto {
     description: "Why the username is unavailable; null when available",
   })
   reason: UsernameAvailabilityReason;
+
+  @ApiProperty({
+    type: [String],
+    example: ["jane.doe.smith", "jane.doesmith", "jane.doe_s", "jane.doe.s26"],
+    description:
+      "Up to four free usernames built from the candidate and the optional name, best first. Empty unless reason is TAKEN or RESERVED.",
+  })
+  suggestions: string[];
 }

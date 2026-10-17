@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString, MaxLength } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from "class-validator";
 import { STRING_LIMITS } from "src/common/constants/schema.constants";
 
 export class UsernameAvailabilityQueryDto {
@@ -12,4 +12,14 @@ export class UsernameAvailabilityQueryDto {
   @IsNotEmpty()
   @MaxLength(STRING_LIMITS.USERNAME)
   username: string;
+
+  @ApiPropertyOptional({
+    example: "Jane Smith",
+    maxLength: STRING_LIMITS.STANDARD,
+    description: "The person's name. When the username is taken or reserved, suggestions are built from it too.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(STRING_LIMITS.STANDARD)
+  name?: string;
 }
