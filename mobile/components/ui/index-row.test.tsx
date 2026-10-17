@@ -23,3 +23,9 @@ test("a disabled row does not open", async () => {
   await userEvent.setup().press(row);
   expect(onPress).not.toHaveBeenCalled();
 });
+
+test("an action done on the spot has no arrow", async () => {
+  await render(<IndexRow action label="Sign out" onPress={jest.fn()} />);
+  expect(screen.getByRole("button", { name: "Sign out" })).toBeOnTheScreen();
+  expect(screen.queryByText("›")).not.toBeOnTheScreen();
+});

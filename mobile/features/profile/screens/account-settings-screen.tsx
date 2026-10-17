@@ -60,7 +60,7 @@ const AccountSettingsScreen = () => {
           <LabCard {...card} />
         </View>
 
-        <View className="mt-8">
+        <View className="mt-11.5">
           <IndexRow label={t("index.username")} value={username} onPress={onOpenUsername} disabled={isDeleting} />
           <IndexRow label={t("index.email")} value={email} />
           <IndexRow
@@ -77,7 +77,7 @@ const AccountSettingsScreen = () => {
           />
           <IndexRow label={t("index.terms")} onPress={onOpenTerms} disabled={isDeleting} />
           <IndexRow label={t("index.privacy")} onPress={onOpenPrivacy} disabled={isDeleting} />
-          <IndexRow label={t("index.signOut")} onPress={onSignOut} disabled={isDeleting} />
+          <IndexRow action label={t("index.signOut")} onPress={onSignOut} disabled={isDeleting} />
           <IndexRow
             muted
             label={t("index.delete")}

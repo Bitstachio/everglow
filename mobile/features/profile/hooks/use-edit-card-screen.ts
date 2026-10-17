@@ -15,6 +15,7 @@ export const useEditCardScreen = () => {
   return {
     title: card.title,
     photoUri: card.photoUri,
+    photoCacheKey: card.photoCacheKey,
     username: user?.details ? `@${user.details.username}` : "",
     form,
     hasAvatar,

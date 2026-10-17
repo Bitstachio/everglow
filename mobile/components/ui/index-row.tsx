@@ -14,6 +14,8 @@ type IndexRowProps = {
   muted?: boolean;
   /** The value in full white, for a setting that is on. */
   lit?: boolean;
+  /** Done on the spot, such as Sign out: no "›", since it opens nothing. */
+  action?: boolean;
 };
 
 /**
@@ -28,9 +30,11 @@ export const IndexRow = ({
   first = false,
   muted = false,
   lit = false,
+  action = false,
 }: IndexRowProps) => {
+  const arrow = Boolean(onPress) && !action;
   const className = [
-    "min-h-12 flex-row items-center justify-between gap-4 border-b border-line py-3.5",
+    "flex-row items-center justify-between gap-4 border-b border-line py-4.25",
     first ? "border-t-2 border-t-text" : "",
     onPress ? "active:bg-sheet" : "",
     disabled ? "opacity-50" : "",
@@ -40,9 +44,9 @@ export const IndexRow = ({
   const content = (
     <>
       <EdgePrint tone={muted ? "edge" : "text"}>{label}</EdgePrint>
-      {value || onPress ? (
+      {value || arrow ? (
         <EdgePrint tone={lit ? "text" : "edge"} numberOfLines={1} className="shrink">
-          {[value, onPress ? "›" : null].filter(Boolean).join(" ")}
+          {[value, arrow ? "›" : null].filter(Boolean).join(" ")}
         </EdgePrint>
       ) : null}
     </>

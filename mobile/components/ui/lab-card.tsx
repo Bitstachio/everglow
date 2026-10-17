@@ -11,13 +11,15 @@ type LabCardProps = {
   title: string;
   /** The person's photo, shown in black and white. Without one, a camera marks the empty spot. */
   photoUri?: string;
+  /** Cache key for the presigned `photoUri`, which changes on every fetch (`getAvatarCacheKey`). */
+  photoCacheKey?: string;
   /** Name, username, plan: printed labels with values in hand. */
   fields: { label: string; value?: ReactNode }[];
   accessibilityLabel: string;
 };
 
 /** Your account, as a lab card: photo on the left, details filled in by hand below printed labels. */
-export const LabCard = ({ title, photoUri, fields, accessibilityLabel }: LabCardProps) => (
+export const LabCard = ({ title, photoUri, photoCacheKey, fields, accessibilityLabel }: LabCardProps) => (
   <View accessible accessibilityLabel={accessibilityLabel}>
     <Paper tilt="slight">
       <View className="flex-row gap-3.5">
@@ -25,7 +27,12 @@ export const LabCard = ({ title, photoUri, fields, accessibilityLabel }: LabCard
           {photoUri ? (
             // Black and white on the card; photos on rolls stay in colour.
             <Monochrome className="h-full w-full">
-              <Photo source={{ uri: photoUri }} contentFit="cover" className="h-full w-full" />
+              <Photo
+                testID="lab-card-photo"
+                source={{ uri: photoUri, cacheKey: photoCacheKey }}
+                contentFit="cover"
+                className="h-full w-full"
+              />
             </Monochrome>
           ) : (
             <Camera size={22} color={colorTokens.paperInk2} />
