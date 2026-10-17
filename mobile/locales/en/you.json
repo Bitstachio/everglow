@@ -24,8 +24,12 @@
     "save": "Save",
     "changePhoto": "Change photo",
     "addPhoto": "Add a photo",
+    "updatingPhoto": "Adding your photo",
     "nameA11y": "Name",
-    "namePlaceholder": "Your name"
+    "namePlaceholder": "Your name",
+    "nameRequired": "Your frames need a name",
+    "nameTooLong": "255 characters at most",
+    "failed": "Couldn’t save your card. Try again."
   },
   "username": {
     "title": "Username",
@@ -36,6 +40,7 @@
     "limit": "You can change it twice every 14 days",
     "body": "Your old handle becomes free for anyone after the change.",
     "change": "Change to @{{username}}",
+    "failed": "Couldn’t change your username. Try again.",
     "laterTitle": "You can change it",
     "laterTitleDim": "again on {{date}}.",
     "laterBody": "Usernames change at most twice every 14 days, so people can find each other."

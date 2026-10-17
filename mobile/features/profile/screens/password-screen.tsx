@@ -3,11 +3,9 @@ import { Display } from "@/components/ui/display";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
-import { socialProvider } from "@/lib/auth0-identity";
-import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
-import { useAuth0 } from "react-native-auth0";
+import { usePasswordScreen } from "../hooks/use-password-screen";
 
 const BODY = {
   apple: "password.socialBodyApple",
@@ -22,24 +20,22 @@ const BODY = {
  */
 const PasswordScreen = () => {
   const { t } = useTranslation(["you", "common"]);
-  const { user } = useAuth0();
-  const provider = socialProvider(user?.sub);
-  const close = () => (router.canGoBack() ? router.back() : router.replace("/account-settings"));
+  const { provider, onClose } = usePasswordScreen();
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
       <TopBar
         title={t("password.title")}
-        left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={close} />}
+        left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={onClose} />}
       />
       <View className="px-5 pt-10">
-        <Display dim={t("password.socialTitleDim", { provider: t(`providers.${provider ?? "other"}`) })}>
+        <Display dim={t("password.socialTitleDim", { provider: t(`providers.${provider}`) })}>
           {t("password.socialTitle")}
         </Display>
-        <Text className="mt-3 font-sans text-body text-text-2">{t(BODY[provider ?? "other"])}</Text>
+        <Text className="mt-3 font-sans text-body text-text-2">{t(BODY[provider])}</Text>
       </View>
       <View className="mt-auto px-5 pb-1">
-        <Button title={t("password.ok")} variant="secondary" mark="✓" onPress={close} />
+        <Button title={t("password.ok")} variant="secondary" mark="✓" onPress={onClose} />
       </View>
       <FilmGrain />
     </SafeAreaView>

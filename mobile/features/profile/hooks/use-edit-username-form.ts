@@ -2,6 +2,7 @@ import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useUpdateProfileMutation } from "../api/mutations";
 import { editUsernameSchema, normalizeUsername, type EditUsernameValues } from "../lib/username";
 import { useUsernameAvailability } from "./use-username-availability";
@@ -16,6 +17,7 @@ type UseEditUsernameFormParams = {
 };
 
 export const useEditUsernameForm = ({ initialUsername, onSuccess, onLimited }: UseEditUsernameFormParams) => {
+  const { t } = useTranslation("you");
   const mutation = useUpdateProfileMutation();
   const submitting = useRef(false);
   const form = useForm<EditUsernameValues>({
@@ -59,7 +61,7 @@ export const useEditUsernameForm = ({ initialUsername, onSuccess, onLimited }: U
           return;
         }
         form.setError("root.server", {
-          message: getErrorMessage(error, "Couldn’t change your username. Try again."),
+          message: getErrorMessage(error, t("username.failed")),
         });
       } finally {
         submitting.current = false;

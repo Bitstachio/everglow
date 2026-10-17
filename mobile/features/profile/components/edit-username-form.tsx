@@ -57,7 +57,8 @@ export const EditUsernameForm = ({
                 prefix="@"
                 accessibilityLabel={t("username.fieldA11y")}
                 value={field.value}
-                onChangeText={field.onChange}
+                // Lowercased as typed, as in onboarding (02.3).
+                onChangeText={(typed) => field.onChange(typed.toLowerCase())}
                 onBlur={field.onBlur}
                 autoFocus
                 autoCapitalize="none"

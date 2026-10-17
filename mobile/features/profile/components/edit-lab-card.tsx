@@ -9,6 +9,7 @@ import { Text, TextInput, View, type TextInputProps } from "react-native";
 type EditLabCardProps = Pick<TextInputProps, "value" | "onChangeText" | "onBlur" | "onSubmitEditing" | "editable"> & {
   title: string;
   photoUri?: string;
+  photoCacheKey?: string;
   isUpdatingPhoto: boolean;
   photoBusyLabel: string;
   nameLabel: string;
@@ -25,6 +26,7 @@ type EditLabCardProps = Pick<TextInputProps, "value" | "onChangeText" | "onBlur"
 export const EditLabCard = ({
   title,
   photoUri,
+  photoCacheKey,
   isUpdatingPhoto,
   photoBusyLabel,
   nameLabel,
@@ -41,7 +43,7 @@ export const EditLabCard = ({
           <Spinner label={photoBusyLabel} />
         ) : photoUri ? (
           <Monochrome className="h-full w-full">
-            <Photo source={{ uri: photoUri }} contentFit="cover" className="h-full w-full" />
+            <Photo source={{ uri: photoUri, cacheKey: photoCacheKey }} contentFit="cover" className="h-full w-full" />
           </Monochrome>
         ) : (
           <Camera size={22} color={colorTokens.paperInk2} />
