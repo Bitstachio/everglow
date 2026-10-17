@@ -234,7 +234,7 @@ const DesignKitScreen = () => {
             photoUri={photo(40)}
             fields={[
               { label: "Name", value: "Maya Chen" },
-              { label: "Signs as", value: "@maya.chen" },
+              { label: "Signs frames as", value: "@maya.chen" },
               { label: "Free roll", value: "1 of 2 running" },
             ]}
             accessibilityLabel="Maya Chen, @maya.chen"

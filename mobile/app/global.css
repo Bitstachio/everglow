@@ -122,6 +122,8 @@
   --text-note--line-height: calc(26 / 28);
   --text-filled-in: 30px;
   --text-filled-in--line-height: calc(26 / 30);
+  --text-filled-in-card: 25px;
+  --text-filled-in-card--line-height: calc(24 / 25);
   /* Text inputs take no line height: iOS re-measures the field and the first
      letter jumps when one is set. Sizes and tracking match title-event and
      title-slip. */

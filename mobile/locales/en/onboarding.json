@@ -32,5 +32,41 @@
     "termsA11y": "I agree to the terms and the privacy policy",
     "continue": "Continue",
     "failedTitle": "Couldn’t save your lab card"
+  },
+  "card": {
+    "title": "Lab card · since {{since}}",
+    "name": "Name",
+    "signsAs": "Signs frames as",
+    "freeRoll": "Free roll",
+    "rolls": "Rolls",
+    "running": "{{count}} of {{limit}} running",
+    "runningNoLimit": "{{count}} running",
+    "a11y": "Your lab card: {{name}}, @{{username}}"
+  },
+  "photo": {
+    "skip": "Skip",
+    "title": "Add a face",
+    "titleDim": "to the name.",
+    "body": "So people know whose frames they’re looking at. Black and white on the card, full colour on your photos.",
+    "take": "Take a photo",
+    "choose": "Choose from library",
+    "permissionTitle": "Everglow can’t reach your photos",
+    "cameraDenied": "Allow camera access in Settings to take your photo.",
+    "libraryDenied": "Allow photo access in Settings to choose your photo.",
+    "failedTitle": "Couldn’t open your photos"
+  },
+  "crop": {
+    "cancel": "Cancel",
+    "title": "Move and scale",
+    "use": "Use",
+    "hint": "Pinch to zoom · it shows in black and white on your card",
+    "failedTitle": "Couldn’t add your photo"
+  },
+  "ready": {
+    "stamp": "Ready",
+    "stampSub": "Onboarded",
+    "title": "You’re set,",
+    "body": "Start a roll for your next night out, or join one with an envelope someone sends you.",
+    "go": "Go to your rolls"
   }
 }
