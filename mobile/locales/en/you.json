@@ -1,0 +1,57 @@
+{
+  "title": "You",
+  "edit": "Edit",
+  "index": {
+    "username": "Username",
+    "email": "Email",
+    "password": "Password",
+    "passwordOpening": "Opening…",
+    "terms": "Terms of use",
+    "privacy": "Privacy",
+    "signOut": "Sign out",
+    "delete": "Delete account",
+    "deleting": "Deleting…"
+  },
+  "signOut": {
+    "title": "Sign out?",
+    "body": "Your rolls and photos stay. Sign in again any time.",
+    "confirm": "Sign out",
+    "cancel": "Cancel"
+  },
+  "editCard": {
+    "title": "Edit card",
+    "cancel": "Cancel",
+    "save": "Save",
+    "changePhoto": "Change photo",
+    "addPhoto": "Add a photo",
+    "nameA11y": "Name",
+    "namePlaceholder": "Your name"
+  },
+  "username": {
+    "title": "Username",
+    "fieldA11y": "Username",
+    "checking": "Checking…",
+    "available": "Available",
+    "taken": "Taken",
+    "limit": "You can change it twice every 14 days",
+    "body": "Your old handle becomes free for anyone after the change.",
+    "change": "Change to @{{username}}",
+    "laterTitle": "You can change it",
+    "laterTitleDim": "again on {{date}}.",
+    "laterBody": "Usernames change at most twice every 14 days, so people can find each other."
+  },
+  "password": {
+    "title": "Password",
+    "socialTitle": "You sign in",
+    "socialTitleDim": "with {{provider}}.",
+    "socialBodyApple": "There’s no Everglow password to change. Manage your Apple ID in Settings › Apple Account.",
+    "socialBodyGoogle": "There’s no Everglow password to change. Manage your Google Account in its settings.",
+    "socialBodyOther": "There’s no Everglow password to change. Manage it where you sign in.",
+    "ok": "Ok"
+  },
+  "providers": {
+    "apple": "Apple",
+    "google": "Google",
+    "other": "another account"
+  }
+}

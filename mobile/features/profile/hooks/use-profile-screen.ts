@@ -1,30 +1,23 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import { router } from "expo-router";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Alert } from "react-native";
+import { useAuth0 } from "react-native-auth0";
 import { useDeleteProfileMutation } from "../api/mutations";
 import type { DeleteAccountPhotoPolicy } from "../types";
-import { useChangeAvatar } from "./use-change-avatar";
 import { useChangePassword } from "./use-change-password";
+import { useLabCard } from "./use-lab-card";
 
+/** 14.1 You: the lab card, and the index of everything else on the account. */
 export const useProfileScreen = () => {
   const { user, logout, isLoading } = useAuth();
+  const { user: auth0User } = useAuth0();
+  const { card } = useLabCard();
   const deleting = useRef(false);
   const deleteProfileMutation = useDeleteProfileMutation();
   const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
-  const { hasAvatar, isUpdatingAvatar, handleChangeAvatar } = useChangeAvatar();
-
-  const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: logout,
-      },
-    ]);
-  };
+  const [signOutVisible, setSignOutVisible] = useState(false);
 
   const confirmDeleteAccount = (photos: DeleteAccountPhotoPolicy) => {
     Alert.alert(
@@ -65,24 +58,31 @@ export const useProfileScreen = () => {
     );
   };
 
-  const username = user?.details?.username ?? "Not set";
+  const details = user?.details;
 
   return {
     user,
-    username,
-    handleOpenUsername: () => router.push("/edit-username"),
-    handleOpenDisplayName: () => router.push("/edit-display-name"),
-    handleOpenPrivacyPolicy: () => router.push("/privacy-policy"),
-    handleOpenTermsOfUse: () => router.push("/terms-of-use"),
-    hasAvatar,
-    isUpdatingAvatar,
-    handleChangeAvatar,
-    canChangePassword,
-    isChangingPassword,
-    handleChangePassword,
-    isDeleting: deleteProfileMutation.isPending,
+    card,
+    username: details ? `@${details.username}` : undefined,
+    email: auth0User?.email ?? undefined,
     isLoading,
-    handleLogout,
-    handleDeleteAccount,
+    isDeleting: deleteProfileMutation.isPending,
+    isChangingPassword,
+    signOutVisible,
+    onBack: () => (router.canGoBack() ? router.back() : router.replace("/events")),
+    onEditCard: () => router.push("/edit-card"),
+    onOpenUsername: () => router.push("/edit-username"),
+    // Email and password accounts go straight to Auth0's page (14.6); Apple
+    // and Google accounts have no Everglow password (14.7).
+    onOpenPassword: canChangePassword ? handleChangePassword : () => router.push("/password"),
+    onOpenTerms: () => router.push("/terms-of-use"),
+    onOpenPrivacy: () => router.push("/privacy-policy"),
+    onSignOut: () => setSignOutVisible(true),
+    onCloseSignOut: () => setSignOutVisible(false),
+    onConfirmSignOut: () => {
+      setSignOutVisible(false);
+      void logout();
+    },
+    onDeleteAccount: handleDeleteAccount,
   };
 };

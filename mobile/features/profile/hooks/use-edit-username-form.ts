@@ -11,9 +11,11 @@ export type { EditUsernameValues };
 type UseEditUsernameFormParams = {
   initialUsername: string;
   onSuccess: () => void;
+  /** USERNAME_CHANGE_LIMITED: both changes are used. Refresh the profile to learn when it opens again. */
+  onLimited?: () => void;
 };
 
-export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsernameFormParams) => {
+export const useEditUsernameForm = ({ initialUsername, onSuccess, onLimited }: UseEditUsernameFormParams) => {
   const mutation = useUpdateProfileMutation();
   const submitting = useRef(false);
   const form = useForm<EditUsernameValues>({
@@ -52,8 +54,12 @@ export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsern
           form.setError("username", { message: getErrorMessage(error) });
           return;
         }
+        if (code === "USERNAME_CHANGE_LIMITED" && onLimited) {
+          onLimited();
+          return;
+        }
         form.setError("root.server", {
-          message: getErrorMessage(error, "Could not update your username. Please try again."),
+          message: getErrorMessage(error, "Couldn’t change your username. Try again."),
         });
       } finally {
         submitting.current = false;

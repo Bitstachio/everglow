@@ -6,7 +6,7 @@ import { z } from "zod";
 import { useUpdateProfileMutation } from "../api/mutations";
 
 const editDisplayNameSchema = z.object({
-  name: z.string().trim().min(1, "Display name is required").max(255, "Display name must be 255 characters or fewer"),
+  name: z.string().trim().min(1, "Your frames need a name").max(255, "255 characters at most"),
 });
 
 export type EditDisplayNameValues = z.infer<typeof editDisplayNameSchema>;
@@ -45,7 +45,7 @@ export const useEditDisplayNameForm = ({ initialName, onSuccess }: UseEditDispla
         onSuccess();
       } catch (error) {
         form.setError("root.server", {
-          message: getErrorMessage(error, "Could not update your display name. Please try again."),
+          message: getErrorMessage(error, "Couldn’t save your card. Try again."),
         });
       } finally {
         submitting.current = false;

@@ -1,137 +1,93 @@
-import { AppIcon } from "@/components/ui/app-icon";
-import { Avatar } from "@/components/ui/avatar";
-import { H3 } from "@/components/ui/heading";
-import { Spinner } from "@/components/ui/spinner";
-import { ThemedText } from "@/components/ui/themed-text";
-import { Camera } from "lucide-react-native";
-import { Pressable, ScrollView, View } from "react-native";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
+import { Button } from "@/components/ui/button";
+import { FilmGrain } from "@/components/ui/film-grain";
+import { IndexRow } from "@/components/ui/index-row";
+import { LabCard } from "@/components/ui/lab-card";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
-import { SettingsRow } from "@/components/ui/settings-row";
+import { Slip } from "@/components/ui/slip";
+import { Spinner } from "@/components/ui/spinner";
+import { BackButton, TopBar } from "@/components/ui/top-bar";
+import { useTranslation } from "react-i18next";
+import { ScrollView, View } from "react-native";
 import { useProfileScreen } from "../hooks/use-profile-screen";
 
+/** 14.1 Lab card, and 14.10 the sign-out slip. Opened from your photo on Home. */
 const AccountSettingsScreen = () => {
+  const { t } = useTranslation(["you", "common"]);
   const {
     user,
+    card,
     username,
-    handleOpenUsername,
-    handleOpenDisplayName,
-    handleOpenPrivacyPolicy,
-    handleOpenTermsOfUse,
-    hasAvatar,
-    isUpdatingAvatar,
-    handleChangeAvatar,
-    canChangePassword,
-    isChangingPassword,
-    handleChangePassword,
+    email,
     isLoading,
     isDeleting,
-    handleLogout,
-    handleDeleteAccount,
+    isChangingPassword,
+    signOutVisible,
+    onBack,
+    onEditCard,
+    onOpenUsername,
+    onOpenPassword,
+    onOpenTerms,
+    onOpenPrivacy,
+    onSignOut,
+    onCloseSignOut,
+    onConfirmSignOut,
+    onDeleteAccount,
   } = useProfileScreen();
-  if (isLoading)
+
+  if (isLoading || !user) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <Spinner label="Loading profile" />
+      <View className="flex-1 items-center justify-center bg-ground">
+        <Spinner label={t("common:actions.loading")} />
       </View>
     );
-  if (!user)
-    return (
-      <View className="flex-1 justify-center bg-background p-4">
-        <ThemedText>Sign in to view your profile.</ThemedText>
-      </View>
-    );
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-4 pt-4 pb-6">
-        <View className="items-center gap-4 rounded-2xl bg-surface p-6">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={hasAvatar ? "Change profile photo" : "Add profile photo"}
-            accessibilityState={{ busy: isUpdatingAvatar, disabled: isDeleting || isUpdatingAvatar }}
-            onPress={handleChangeAvatar}
-            disabled={isDeleting || isUpdatingAvatar}
-          >
-            <Avatar userId={user.id} name={user.details?.name} uri={user.details?.avatarUrl} size="lg" />
-            <View className="absolute -right-1 -bottom-1 h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-background">
-              {isUpdatingAvatar ? (
-                <Spinner label="Updating profile photo" />
-              ) : (
-                <AppIcon icon={Camera} size="sm" className="text-foreground" />
-              )}
-            </View>
-          </Pressable>
+    <SafeAreaView className="flex-1 bg-ground">
+      <TopBar
+        title={t("title")}
+        left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={onBack} />}
+        right={
+          <Button title={t("edit")} variant="ghost" fullWidth={false} onPress={onEditCard} disabled={isDeleting} />
+        }
+      />
+
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-8 pt-4">
+        <View className="px-0.5">
+          <LabCard {...card} />
         </View>
 
-        <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <SettingsRow
-            title="Username"
-            description={username}
-            icon="at-outline"
-            onPress={handleOpenUsername}
+        <View className="mt-8">
+          <IndexRow label={t("index.username")} value={username} onPress={onOpenUsername} disabled={isDeleting} />
+          <IndexRow label={t("index.email")} value={email} />
+          <IndexRow
+            label={t("index.password")}
+            value={isChangingPassword ? t("index.passwordOpening") : undefined}
+            onPress={onOpenPassword}
+            disabled={isDeleting || isChangingPassword}
+          />
+          <IndexRow label={t("index.terms")} onPress={onOpenTerms} disabled={isDeleting} />
+          <IndexRow label={t("index.privacy")} onPress={onOpenPrivacy} disabled={isDeleting} />
+          <IndexRow label={t("index.signOut")} onPress={onSignOut} disabled={isDeleting} />
+          <IndexRow
+            muted
+            label={t("index.delete")}
+            value={isDeleting ? t("index.deleting") : undefined}
+            onPress={onDeleteAccount}
             disabled={isDeleting}
           />
-          <View className="h-px bg-border" />
-          <SettingsRow
-            title="Display Name"
-            description={user.details?.name || "Not set"}
-            icon="person-outline"
-            onPress={handleOpenDisplayName}
-            disabled={isDeleting}
-          />
-        </View>
-
-        {canChangePassword ? (
-          <View className="gap-3">
-            <H3>Security</H3>
-            <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-              <SettingsRow
-                title={isChangingPassword ? "Opening password page…" : "Change Password"}
-                description="Update your sign-in password"
-                icon="lock-closed-outline"
-                onPress={handleChangePassword}
-                disabled={isDeleting || isChangingPassword}
-              />
-            </View>
-          </View>
-        ) : null}
-        <View className="gap-3">
-          <H3>About</H3>
-          <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-            <SettingsRow
-              title="Privacy Policy"
-              description="How we handle your data"
-              icon="shield-checkmark-outline"
-              onPress={handleOpenPrivacyPolicy}
-              disabled={isDeleting}
-            />
-            <View className="h-px bg-border" />
-            <SettingsRow
-              title="Terms of Use"
-              description="The rules for using Everglow"
-              icon="document-text-outline"
-              onPress={handleOpenTermsOfUse}
-              disabled={isDeleting}
-            />
-          </View>
-        </View>
-        <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <SettingsRow title="Log Out" icon="log-out-outline" onPress={handleLogout} disabled={isDeleting} />
-        </View>
-        <View className="gap-3">
-          <H3>Danger Zone</H3>
-          <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-            <SettingsRow
-              title={isDeleting ? "Deleting account…" : "Delete Account"}
-              description="Permanently remove your account. You choose what happens to your shared photos."
-              icon="trash-outline"
-              onPress={handleDeleteAccount}
-              destructive
-              disabled={isDeleting}
-            />
-          </View>
         </View>
       </ScrollView>
+
+      <FilmGrain />
+
+      <BottomSheet visible={signOutVisible} onClose={onCloseSignOut}>
+        <Slip edge={email} title={t("signOut.title")} body={t("signOut.body")}>
+          <Button title={t("signOut.confirm")} mark="⇥" onPress={onConfirmSignOut} />
+          <Button title={t("signOut.cancel")} variant="secondary" mark="‹" onPress={onCloseSignOut} />
+        </Slip>
+      </BottomSheet>
     </SafeAreaView>
   );
 };

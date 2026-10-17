@@ -1,39 +1,38 @@
-import { render, screen, userEvent } from "@testing-library/react-native";
+import { renderWithI18n } from "@/testing/render";
+import { screen, userEvent } from "@testing-library/react-native";
 import { useForm } from "react-hook-form";
 import { EditUsernameForm } from "./edit-username-form";
 import type { UsernameAvailabilityState } from "../lib/username";
 
-jest.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 12, left: 0 }),
-}));
-
 const available: UsernameAvailabilityState = {
   status: "available",
-  username: "ada",
+  username: "ada.l",
   reason: null,
   message: "Username is available",
   canSubmit: true,
   suggestions: [],
 };
 
-type EditUsernameFormProbeProps = {
+type ProbeProps = {
+  username?: string;
   isDirty?: boolean;
   isSubmitting?: boolean;
   availability?: UsernameAvailabilityState;
   onSubmit?: () => void;
 };
 
-const EditUsernameFormProbe = ({
-  isDirty = false,
+const Probe = ({
+  username = "ada.l",
+  isDirty = true,
   isSubmitting = false,
   availability = available,
   onSubmit = jest.fn(),
-}: EditUsernameFormProbeProps) => {
-  const { control } = useForm<{ username: string }>({ defaultValues: { username: "ada" } });
-
+}: ProbeProps) => {
+  const { control } = useForm<{ username: string }>({ defaultValues: { username } });
   return (
     <EditUsernameForm
       control={control}
+      username={username}
       isDirty={isDirty}
       isSubmitting={isSubmitting}
       availability={availability}
@@ -42,31 +41,29 @@ const EditUsernameFormProbe = ({
   );
 };
 
-test("renders the current username and format guidance without a change cap", async () => {
-  await render(<EditUsernameFormProbe />);
-
-  expect(screen.getByLabelText("Username")).toHaveDisplayValue("ada");
-  expect(screen.getByText(/lowercase letters, numbers, periods, or underscores/i)).toBeOnTheScreen();
-  expect(screen.queryByText(/5 times within 30 minutes/i)).not.toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-});
-
-test("submits when dirty and available", async () => {
+test("a free handle is ticked and changes from the leader", async () => {
   const onSubmit = jest.fn();
-  const user = userEvent.setup();
-  await render(<EditUsernameFormProbe isDirty onSubmit={onSubmit} />);
+  await renderWithI18n(<Probe onSubmit={onSubmit} />);
 
-  const saveButton = screen.getByRole("button", { name: "Save" });
-  expect(saveButton).toBeEnabled();
-  await user.press(saveButton);
-
+  expect(screen.getByLabelText("Username")).toHaveDisplayValue("ada.l");
+  expect(screen.getByText("Available")).toBeOnTheScreen();
+  expect(screen.getByText("You can change it twice every 14 days")).toBeOnTheScreen();
+  expect(screen.getByText("Your old handle becomes free for anyone after the change.")).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Change to @ada.l" }));
   expect(onSubmit).toHaveBeenCalledTimes(1);
 });
 
-test("keeps Save disabled while availability forbids submit", async () => {
-  await render(
-    <EditUsernameFormProbe
-      isDirty
+test("the current handle can't be changed to itself", async () => {
+  await renderWithI18n(<Probe username="ada" isDirty={false} availability={{ ...available, username: "ada" }} />);
+
+  expect(screen.queryByText("Available")).not.toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Change to @ada" })).toBeDisabled();
+});
+
+test("a taken handle says so in pencil and can't be used", async () => {
+  await renderWithI18n(
+    <Probe
+      username="taken"
       availability={{
         status: "unavailable",
         username: "taken",
@@ -78,17 +75,17 @@ test("keeps Save disabled while availability forbids submit", async () => {
     />,
   );
 
+  expect(screen.getByText("Taken")).toBeOnTheScreen();
   expect(screen.getByText("This username is taken")).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Change to @taken" })).toBeDisabled();
 });
 
-test("disables editing and saving while submitting", async () => {
+test("editing and the leader wait while the change is saved", async () => {
   const onSubmit = jest.fn();
-  await render(<EditUsernameFormProbe isDirty isSubmitting onSubmit={onSubmit} />);
+  await renderWithI18n(<Probe isSubmitting onSubmit={onSubmit} />);
 
-  expect(screen.getByLabelText("Username")).toBeDisabled();
-  const saveButton = screen.getByRole("button", { name: "Save" });
-  expect(saveButton).toBeDisabled();
-  expect(saveButton).toBeBusy();
-  expect(onSubmit).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Username")).toHaveProp("editable", false);
+  const leader = screen.getByRole("button", { name: "Change to @ada.l" });
+  expect(leader).toBeDisabled();
+  expect(leader).toBeBusy();
 });

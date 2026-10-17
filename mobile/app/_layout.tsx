@@ -49,15 +49,11 @@ const RootNavigator = () => {
       <Stack.Screen name="design-kit" options={{ headerShown: false }} />
       <Stack.Protected guard={isAuthenticated && isOnboarded}>
         <Stack.Screen name="events/index" options={{ headerShown: false, animation: "fade" }} />
-        <Stack.Screen
-          name="account-settings"
-          options={{ title: t("screens.accountSettings"), headerBackTitle: backTitle }}
-        />
-        <Stack.Screen name="edit-username" options={{ title: t("screens.editUsername"), headerBackTitle: backTitle }} />
-        <Stack.Screen
-          name="edit-display-name"
-          options={{ title: t("screens.editDisplayName"), headerBackTitle: backTitle }}
-        />
+        {/* Chapter 14, You: each screen draws its own top bar. */}
+        <Stack.Screen name="account-settings" options={{ headerShown: false }} />
+        <Stack.Screen name="edit-card" options={{ headerShown: false }} />
+        <Stack.Screen name="edit-username" options={{ headerShown: false }} />
+        <Stack.Screen name="password" options={{ headerShown: false }} />
         <Stack.Screen name="events/list" options={{ title: t("screens.myEvents"), headerBackTitle: backTitle }} />
         <Stack.Screen name="events/create" options={{ title: t("screens.createEvent"), headerBackTitle: backTitle }} />
         <Stack.Screen name="events/[id]/index" />
