@@ -1,6 +1,7 @@
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { buildImageS3Key, IMAGE_ORPHAN_MIN_AGE_MS } from "src/images/images.constants";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { OrphanSourceRegistry } from "src/storage/orphan-source.registry";
 import { UserAvatarOrphanSource } from "./user-avatar-orphan-source";
@@ -10,6 +11,7 @@ describe("UserAvatarOrphanSource", () => {
   let source: UserAvatarOrphanSource;
   let prisma: DeepMockProxy<PrismaClient>;
   let registry: OrphanSourceRegistry;
+  let evidenceService: { findKeysAwaitingQuarantine: jest.Mock };
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const referencedKey = buildImageS3Key(USER_AVATAR_S3_KEY_PREFIX, userId, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -18,7 +20,12 @@ describe("UserAvatarOrphanSource", () => {
   beforeEach(() => {
     prisma = mockDeep<PrismaClient>();
     registry = new OrphanSourceRegistry();
-    source = new UserAvatarOrphanSource(registry, prisma as unknown as PrismaService);
+    evidenceService = { findKeysAwaitingQuarantine: jest.fn().mockResolvedValue([]) };
+    source = new UserAvatarOrphanSource(
+      registry,
+      prisma as unknown as PrismaService,
+      evidenceService as unknown as EvidenceService,
+    );
   });
 
   it("registers the avatars/ prefix with the image minimum age", () => {
@@ -45,5 +52,12 @@ describe("UserAvatarOrphanSource", () => {
       where: { avatarS3Key: { in: [referencedKey, abandonedKey] } },
       select: { avatarS3Key: true },
     });
+  });
+
+  it("keeps a reported avatar whose evidence copy hasn't been made, though no profile references it", async () => {
+    prisma.userDetails.findMany.mockResolvedValue([]);
+    evidenceService.findKeysAwaitingQuarantine.mockResolvedValue([abandonedKey]);
+
+    await expect(source.findReferencedKeys([referencedKey, abandonedKey])).resolves.toEqual([abandonedKey]);
   });
 });

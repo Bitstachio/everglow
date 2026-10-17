@@ -488,7 +488,8 @@ model ReportEvidence {
   id                 String    @id @default(uuid()) @db.Uuid
   reportId           String    @unique @db.Uuid
   // The reported object: the photo for a PHOTO report, the event's cover for
-  // an EVENT report. Null for a MEMBER report, or an event with no cover.
+  // an EVENT report, the member's avatar for a MEMBER report. Null when there
+  // is none.
   objectS3Key        String?
   contentType        String?
   sizeBytes          Int?
