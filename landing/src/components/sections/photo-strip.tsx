@@ -1,12 +1,14 @@
 import { EdgeLabel } from "@/components/ui/edge-label";
+import { cn } from "@/lib/cn";
 import { getTranslations } from "next-intl/server";
 import Image from "next/image";
 
+/** Per-frame crop: `position` is object-position; `scale` is a Tailwind scale-* class. */
 const FRAMES = [
-  { key: 0, src: "/photos/barbod.jpg", position: "center 28%" },
-  { key: 1, src: "/photos/mehrshad.jpg", position: "center top" },
-  { key: 2, src: "/photos/amir.jpg", position: "center 48%" },
-  { key: 3, src: "/photos/peashoo.jpg", position: "center 68%" },
+  { key: 0, src: "/photos/barbod.jpg", position: "center 50%", scale: "scale-120" },
+  { key: 1, src: "/photos/mehrshad.jpg", position: "center 20%", scale: "scale-100" },
+  { key: 2, src: "/photos/amir.jpg", position: "center 60%", scale: "scale-110" },
+  { key: 3, src: "/photos/peashoo.jpg", position: "center 68%", scale: "scale-100" },
 ] as const;
 
 /** Contact-sheet frames. Captions sit under the print, not on it. */
@@ -24,7 +26,7 @@ export const PhotoStrip = async () => {
                 alt={t(`frames.${frame.key}.alt`)}
                 fill
                 sizes="(min-width: 768px) 22vw, 46vw"
-                className="object-cover"
+                className={cn("object-cover", frame.scale)}
                 style={{ objectPosition: frame.position }}
               />
             </div>
