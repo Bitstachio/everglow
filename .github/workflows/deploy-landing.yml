@@ -51,8 +51,7 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          # Optional until the waitlist worker is live (EV-43). Set as a repo
-          # Actions variable when the production worker URL is known.
+          # Waitlist worker URL (EV-43). Empty until the Cloudflare Worker is live.
           NEXT_PUBLIC_WAITLIST_URL: ${{ vars.NEXT_PUBLIC_WAITLIST_URL }}
 
       - uses: actions/upload-pages-artifact@v3
