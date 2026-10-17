@@ -36,7 +36,7 @@ export const BlockedPersonRow = ({
   disabled = false,
 }: BlockedPersonRowProps) => (
   <View className="min-h-14 flex-row items-center gap-3 border-b border-line py-2.5">
-    <EdgePrint className="w-6">{String(number).padStart(2, "0")}</EdgePrint>
+    <EdgePrint className="w-6 text-outline">{String(number).padStart(2, "0")}</EdgePrint>
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
