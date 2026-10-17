@@ -15,7 +15,6 @@ const mockScreen = {
   email: "ada@example.com" as string | undefined,
   blockedCount: 2 as number | undefined,
   isLoading: false,
-  isDeleting: false,
   isChangingPassword: false,
   signOutVisible: false,
   onBack: jest.fn(),
@@ -48,7 +47,6 @@ const renderScreen = () =>
 beforeEach(() => {
   jest.clearAllMocks();
   mockScreen.user = { id: "user-1" };
-  mockScreen.isDeleting = false;
   mockScreen.isChangingPassword = false;
   mockScreen.signOutVisible = false;
 });
@@ -76,14 +74,6 @@ test.each([
   await renderScreen();
   await userEvent.setup().press(screen.getByRole("button", { name }));
   expect(mockScreen[handler]).toHaveBeenCalledTimes(1);
-});
-
-test("the index waits while the account is being deleted", async () => {
-  mockScreen.isDeleting = true;
-  await renderScreen();
-  expect(screen.getByRole("button", { name: "Delete account, Deleting…" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
 });
 
 test("Password waits while Auth0's page opens", async () => {
