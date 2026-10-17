@@ -1,6 +1,7 @@
 import type { UsersControllerRemoveMeData } from "@/lib/api/generated";
 
 export type {
+  BlockedUserResponseDto,
   PasswordChangeTicketResponseDto,
   UpdateUserDto,
   UserDetailsResponseDto,

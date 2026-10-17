@@ -26,6 +26,7 @@ const mockUser = {
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
+  blocksControllerList: () => Promise.resolve({ data: { data: { items: [] } } }),
   usersControllerCreatePasswordChangeTicket: (...args: unknown[]) => mockCreateTicket(...args),
   usersControllerGetMyLimits: () =>
     Promise.resolve({ data: { data: { plan: "FREE", limits: { activeEvents: 2 }, usage: { activeEvents: 1 } } } }),
