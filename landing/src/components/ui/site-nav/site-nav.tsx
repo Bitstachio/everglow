@@ -2,53 +2,83 @@
 
 import { cn } from "@/lib/cn";
 import { useActiveSection } from "@/components/ui/site-nav/use-active-section";
+import { useScrollActiveChip } from "@/components/ui/site-nav/use-scroll-active-chip";
 import { useTranslations } from "next-intl";
+import { useRef } from "react";
 
-const SECTION_IDS = ["home", "how", "faq"] as const;
+const SECTION_IDS = ["usual", "what", "gone", "faq"] as const;
 
-type NavLinkProps = {
-  href: string;
-  isActive: boolean;
-  children: string;
+type NavItem = {
+  id: (typeof SECTION_IDS)[number];
+  n: string;
+  labelKey: "usual" | "what" | "gone" | "faq";
 };
 
-const NavLink = ({ href, isActive, children }: NavLinkProps) => (
-  <a
-    href={href}
-    aria-current={isActive ? "true" : undefined}
-    className={cn(
-      "rounded-full px-4 py-2 text-sm tracking-tight transition-colors duration-standard",
-      isActive ? "bg-strong/8 text-strong font-semibold" : "text-strong/70 hover:text-strong font-medium",
-    )}
-  >
-    {children}
-  </a>
-);
+const ITEMS: NavItem[] = [
+  { id: "usual", n: "01", labelKey: "usual" },
+  { id: "what", n: "02", labelKey: "what" },
+  { id: "gone", n: "03", labelKey: "gone" },
+  { id: "faq", n: "04", labelKey: "faq" },
+];
 
 export const SiteNav = () => {
   const t = useTranslations("common.nav");
-  const activeId = useActiveSection(SECTION_IDS);
+  const { activeId, selectSection } = useActiveSection(SECTION_IDS);
+  const tapeRef = useRef<HTMLDivElement>(null);
+  useScrollActiveChip(activeId, tapeRef);
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-5 sm:pt-6">
-      <nav
-        aria-label={t("ariaLabel")}
-        className={cn(
-          "pointer-events-auto flex items-center gap-0.5 rounded-full px-1.5 py-1.5 sm:px-2 sm:py-2",
-          "border border-white/70 bg-white/55 shadow-[0_8px_30px_rgba(26,26,29,0.08)]",
-          "ring-1 ring-black/[0.04] backdrop-blur-2xl backdrop-saturate-150",
-        )}
-      >
-        <NavLink href="#home" isActive={activeId === "home"}>
+    <nav
+      data-site-nav
+      aria-label={t("ariaLabel")}
+      className={cn(
+        "bg-rebate sticky top-0 z-40 shrink-0",
+        "before:pointer-events-none before:absolute before:inset-x-0 before:top-[3px] before:h-[5px]",
+        "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-[3px] after:h-[5px]",
+        "before:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
+        "after:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
+      )}
+    >
+      <div className="mx-auto flex max-w-[1240px] items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
+        <a
+          href="#home"
+          className="font-display text-strong shrink-0 text-[15px] leading-none font-semibold tracking-[-0.02em] no-underline"
+        >
           {t("brand")}
-        </NavLink>
-        <NavLink href="#how" isActive={activeId === "how"}>
-          {t("how")}
-        </NavLink>
-        <NavLink href="#faq" isActive={activeId === "faq"}>
-          {t("faq")}
-        </NavLink>
-      </nav>
-    </header>
+        </a>
+
+        <div className="relative min-w-0 flex-1">
+          <div
+            ref={tapeRef}
+            className={cn(
+              "flex items-center gap-1.5 overflow-x-auto whitespace-nowrap",
+              "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              "mask-[linear-gradient(90deg,transparent,black_12px,black_calc(100%-16px),transparent)]",
+            )}
+          >
+            {ITEMS.map((item) => {
+              const isActive = activeId === item.id;
+              return (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  data-nav-section={item.id}
+                  aria-current={isActive ? "true" : undefined}
+                  onClick={() => selectSection(item.id)}
+                  className={cn(
+                    "shrink-0 rounded-sm px-2.5 py-[7px] font-mono text-[11px] leading-none font-medium tracking-[0.12em] uppercase no-underline",
+                    "duration-standard transition-colors",
+                    isActive ? "text-strong bg-[#1a1a1a]" : "text-edge hover:text-strong hover:bg-[#1a1a1a]",
+                  )}
+                >
+                  <span className={cn("mr-1.5 font-medium", isActive ? "text-edge" : "text-[#5e5e5e]")}>{item.n}</span>
+                  {t(item.labelKey)}
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </nav>
   );
 };

@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+workers/**/node_modules
+workers/**/.wrangler
 /.pnp
 .pnp.*
 .yarn/*
@@ -45,3 +47,4 @@ next-env.d.ts
 
 # JetBrains IDE
 .idea/
+.dev.vars
