@@ -1,5 +1,5 @@
 import { buildEvent } from "../testing/fixtures";
-import { formatClosedOn, formatClosesOn, formatOpensOn, groupRolls, isLastDay, rollTime } from "./rolls";
+import { formatClosedOn, formatClosesOn, formatOpensOn, groupRolls, hasClosed, isLastDay, rollTime } from "./rolls";
 
 const NOW = new Date("2026-10-16T12:00:00.000Z");
 
@@ -75,9 +75,22 @@ describe("rollTime", () => {
     expect(rollTime(event, NOW)).toEqual({ kind: "closedOn", iso: "2026-09-21T00:00:00.000Z" });
   });
 
-  it("floors the count to zero once the window has passed", () => {
+  it("reads as closed once the window has passed since the list loaded", () => {
     const event = buildEvent({ galleryState: "OPEN", galleryClosesAt: "2026-10-16T11:59:00.000Z" });
-    expect(rollTime(event, NOW)).toEqual({ kind: "closingSoon", hours: 0, minutes: 0 });
+    expect(rollTime(event, NOW)).toEqual({ kind: "closedOn", iso: "2026-10-16T11:59:00.000Z" });
+    expect(isLastDay(event, NOW)).toBe(false);
+  });
+});
+
+describe("hasClosed", () => {
+  it("is true only for an open roll whose window has run out", () => {
+    const passed = "2026-10-16T11:59:00.000Z";
+    expect(hasClosed(buildEvent({ galleryState: "OPEN", galleryClosesAt: passed }), NOW)).toBe(true);
+    expect(hasClosed(buildEvent({ galleryState: "OPEN", galleryClosesAt: "2026-10-16T17:00:00.000Z" }), NOW)).toBe(
+      false,
+    );
+    expect(hasClosed(buildEvent({ galleryState: "OPEN", galleryClosesAt: null }), NOW)).toBe(false);
+    expect(hasClosed(buildEvent({ galleryState: "CLOSED", galleryClosesAt: passed }), NOW)).toBe(false);
   });
 });
 

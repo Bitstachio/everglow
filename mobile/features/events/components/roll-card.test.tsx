@@ -72,7 +72,12 @@ test("shows when a closed roll's photos went", async () => {
 });
 
 test("fills an open roll's strip with its latest photos, then blank frames", async () => {
-  const event = buildEvent({ galleryState: "OPEN", galleryClosesAt: "2026-11-21T00:00:00.000Z", coverUrl: null });
+  const event = buildEvent({
+    galleryState: "OPEN",
+    galleryClosesAt: "2026-11-21T00:00:00.000Z",
+    coverUrl: null,
+    usage: { members: 24, storageBytes: "0" },
+  });
 
   await renderWithI18n(
     <RollCard
@@ -85,10 +90,10 @@ test("fills an open roll's strip with its latest photos, then blank frames", asy
     />,
   );
 
-  expect(screen.queryByText("01", HIDDEN)).not.toBeOnTheScreen();
-  expect(screen.queryByText("02", HIDDEN)).not.toBeOnTheScreen();
-  expect(screen.getByText("03", HIDDEN)).toBeOnTheScreen();
-  expect(screen.getByText("04", HIDDEN)).toBeOnTheScreen();
+  expect(screen.queryByText("1", HIDDEN)).not.toBeOnTheScreen();
+  expect(screen.queryByText("2", HIDDEN)).not.toBeOnTheScreen();
+  expect(screen.getByText("3", HIDDEN)).toBeOnTheScreen();
+  expect(screen.getByText("4", HIDDEN)).toBeOnTheScreen();
 });
 
 test("shows the cover in the first frame until an open roll has photos", async () => {
@@ -96,10 +101,11 @@ test("shows the cover in the first frame until an open roll has photos", async (
     galleryState: "OPEN",
     galleryClosesAt: "2026-11-21T00:00:00.000Z",
     coverUrl: "https://cdn/cover.jpg",
+    usage: { members: 24, storageBytes: "0" },
   });
 
   await renderWithI18n(<RollCard event={event} now={NOW} />);
 
-  expect(screen.queryByText("01", HIDDEN)).not.toBeOnTheScreen();
-  expect(screen.getByText("02", HIDDEN)).toBeOnTheScreen();
+  expect(screen.queryByText("1", HIDDEN)).not.toBeOnTheScreen();
+  expect(screen.getByText("2", HIDDEN)).toBeOnTheScreen();
 });

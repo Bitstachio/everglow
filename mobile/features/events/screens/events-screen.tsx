@@ -24,15 +24,20 @@ const UNEXPOSED: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n), numbe
 const FIRST_ROLL: StripFrame[] = UNEXPOSED.map((frame, i) => (i === 0 ? { ...frame, circled: true } : frame));
 
 /** An open roll loads its first photos for the strip; the rest wait on the events list. */
-const LiveRollCard = ({ event, onPress }: { event: Event; onPress: () => void }) => {
+type LiveRollCardProps = { event: Event; now: Date; savedAt: string | null; onPress: () => void };
+
+const LiveRollCard = ({ event, now, savedAt, onPress }: LiveRollCardProps) => {
   const photos = useRollPreview(event);
-  return <RollCard event={event} onPress={onPress} photos={photos} />;
+  return <RollCard event={event} now={now} savedAt={savedAt} onPress={onPress} photos={photos} />;
 };
+
+// While loading, the frames are blank: no numbers until the rolls arrive (03.2).
+const LOADING: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n) }));
 
 const RollSkeleton = () => (
   <View className="gap-2.5">
-    <View className="mx-5 h-6 w-48 rounded-xs bg-sheet" />
-    <FilmStrip frames={UNEXPOSED} />
+    <View className="mx-5 h-5.5 w-50 rounded-xs bg-sheet" />
+    <FilmStrip frames={LOADING} />
     <View className="mx-5 h-2.5 w-36 rounded-xs bg-sheet" />
   </View>
 );
@@ -46,6 +51,7 @@ const EventsScreen = () => {
     isRefreshing,
     isOffline,
     savedAtLabel,
+    now,
     profileAvatar,
     joinSheetVisible,
     form,
@@ -60,6 +66,8 @@ const EventsScreen = () => {
   } = useEventsScreen();
 
   const showFirstRun = !isLoading && !hasRolls && !isOffline;
+  // Offline, each roll says when it was last loaded (03.5).
+  const offlineAsOf = isOffline ? savedAtLabel : null;
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
@@ -81,17 +89,15 @@ const EventsScreen = () => {
       </View>
 
       {isOffline ? (
-        <View className="mt-3 flex-row items-center justify-between border-y border-line px-5 py-2">
+        <View className="mx-5 mb-3 mt-2.5 flex-row items-center justify-between border-b border-t border-outline-soft py-2">
           <EdgePrint tone="text">{t("offline.edge")}</EdgePrint>
-          <EdgePrint>
-            {savedAtLabel ? `${t("offline.note")} · ${t("offline.asOf", { time: savedAtLabel })}` : t("offline.note")}
-          </EdgePrint>
+          <EdgePrint>{hasRolls ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
         </View>
       ) : null}
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="pb-6 pt-6"
+        contentContainerClassName="pb-6 pt-3.5"
         refreshControl={<RefreshControl testID="home-refresh" refreshing={isRefreshing} onRefresh={onRefresh} />}
       >
         {isLoading ? (
@@ -101,9 +107,11 @@ const EventsScreen = () => {
             <RollSkeleton />
           </View>
         ) : showFirstRun ? (
-          <View>
+          <View className="mt-9.5">
             <FilmStrip frames={FIRST_ROLL} />
-            <PencilNote className="ml-24 mt-1 self-start -rotate-6">{t("firstRun.note")}</PencilNote>
+            <View className="-mt-1 ml-34 self-start -rotate-4">
+              <PencilNote>{t("firstRun.note")}</PencilNote>
+            </View>
             <View className="mt-6 px-5">
               <EdgePrint className="mb-3">{t("firstRun.edge")}</EdgePrint>
               <Display dim={t("firstRun.body")}>{t("firstRun.title")}</Display>
@@ -112,19 +120,37 @@ const EventsScreen = () => {
         ) : (
           <View className="gap-5.5">
             {groups.live.map((event) => (
-              <LiveRollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
+              <LiveRollCard
+                key={event.id}
+                event={event}
+                now={now}
+                savedAt={offlineAsOf}
+                onPress={() => onOpenRoll(event)}
+              />
             ))}
             {groups.upcoming.map((event) => (
-              <RollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
+              <RollCard
+                key={event.id}
+                event={event}
+                now={now}
+                savedAt={offlineAsOf}
+                onPress={() => onOpenRoll(event)}
+              />
             ))}
             {groups.closed.length > 0 ? (
-              <View className="mt-1.5 flex-row items-center justify-between border-t-2 border-text px-5 pt-2.5">
+              <View className="mx-5 mb-1.5 mt-7.75 flex-row items-center justify-between border-t-2 border-text pt-2.5">
                 <EdgePrint tone="text">{t("closed.heading", { count: groups.closed.length })}</EdgePrint>
                 <EdgePrint>{t("closed.note")}</EdgePrint>
               </View>
             ) : null}
             {groups.closed.map((event) => (
-              <RollCard key={event.id} event={event} onPress={() => onOpenRoll(event)} />
+              <RollCard
+                key={event.id}
+                event={event}
+                now={now}
+                savedAt={offlineAsOf}
+                onPress={() => onOpenRoll(event)}
+              />
             ))}
           </View>
         )}
@@ -153,6 +179,7 @@ const EventsScreen = () => {
         isSubmitting={form.formState.isSubmitting}
         onSubmit={onSubmit}
         onScan={onScanViaSheet}
+        startOnScanner
       />
     </SafeAreaView>
   );

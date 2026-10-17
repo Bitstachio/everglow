@@ -27,6 +27,8 @@ type RollCardProps = {
   photos?: RollPhoto[];
   /** Injectable clock so the last-day countdown is deterministic in tests. */
   now?: Date;
+  /** Offline, when the list was last loaded ("21:40"). It replaces the roll's time (03.5). */
+  savedAt?: string | null;
 };
 
 type Size = { width: number; height: number };
@@ -53,13 +55,14 @@ const buildFrames = (event: EventResponseDto, photos: RollPhoto[]): StripFrame[]
 };
 
 /** One roll on Home (03.3–03.4): the name, a film strip, and a line of edge print. */
-export const RollCard = ({ event, onPress, photos = [], now = new Date() }: RollCardProps) => {
+export const RollCard = ({ event, onPress, photos = [], now = new Date(), savedAt = null }: RollCardProps) => {
   const { t } = useTranslation("home");
   const [noteSize, setNoteSize] = useState<Size>({ width: 0, height: 0 });
   const [stripSize, setStripSize] = useState<Size>({ width: 0, height: 0 });
 
   const descriptor = rollTime(event, now);
-  const lastDay = isLastDay(event, now);
+  // Offline the countdown would be stale, so it isn't shown (03.5).
+  const lastDay = savedAt === null && isLastDay(event, now);
   const upcoming = event.galleryState === "UPCOMING";
   const closed = event.galleryState === "CLOSED";
   const seed = event.title.length + 1;
@@ -87,8 +90,14 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date() }: Roll
               <PencilNote>{timeText}</PencilNote>
             </View>
             {noteSize.width > 0 ? (
-              <View className="absolute -left-2 -top-1">
-                <GreasePencil mark="ring" width={noteSize.width + 16} height={noteSize.height + 8} seed={seed} drawOn />
+              <View className="absolute -left-2.75 -top-2.5">
+                <GreasePencil
+                  mark="ring"
+                  width={noteSize.width + 22}
+                  height={noteSize.height + 20}
+                  seed={seed}
+                  drawOn
+                />
               </View>
             ) : null}
           </View>
@@ -97,9 +106,10 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date() }: Roll
 
       <View onLayout={(event) => setStripSize(sizeOf(event))}>
         <FilmStrip frames={buildFrames(event, photos)} />
+        {/* Crossed out across the frames, clear of the sprocket holes. */}
         {closed && stripSize.width > 0 ? (
-          <View className="absolute left-0 top-0">
-            <GreasePencil mark="cross" width={stripSize.width} height={stripSize.height} seed={seed} />
+          <View className="absolute left-10 top-5.25">
+            <GreasePencil mark="cross" width={stripSize.width - 80} height={stripSize.height - 42} seed={seed} />
           </View>
         ) : null}
       </View>
@@ -112,8 +122,9 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date() }: Roll
             values={{ count: event.usage.members }}
             components={{ value: <EdgeValue>{null}</EdgeValue> }}
           />
+          {savedAt ? ` · ${t("offline.asOf", { time: savedAt })}` : null}
         </EdgePrint>
-        {lastDay ? null : <EdgePrint>{timeText}</EdgePrint>}
+        {lastDay || savedAt ? null : <EdgePrint>{timeText}</EdgePrint>}
       </View>
     </Pressable>
   );

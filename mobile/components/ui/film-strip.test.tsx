@@ -10,8 +10,8 @@ test("prints a blank frame's number and hides the preview strip from assistive t
       ]}
     />,
   );
-  expect(screen.queryByText("04")).not.toBeOnTheScreen();
-  expect(screen.getByText("04", { includeHiddenElements: true })).toBeTruthy();
+  expect(screen.queryByText("4")).not.toBeOnTheScreen();
+  expect(screen.getByText("4", { includeHiddenElements: true })).toBeTruthy();
 });
 
 test("caches a photo by its key, since a presigned URL changes on every fetch", async () => {

@@ -50,6 +50,11 @@ const renderScreen = async () => {
 };
 
 const openJoin = async () => userEvent.setup().press(screen.getByRole("button", { name: "Scan an envelope" }));
+// The scanner opens first (06.1); closing it leaves the paste field.
+const openPasteField = async () => {
+  await openJoin();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close scanner" }));
+};
 const enterInvitation = async (value = "invite-token") =>
   userEvent.setup().paste(screen.getByLabelText("Invitation URL or token"), value);
 
@@ -150,7 +155,20 @@ test("shows the offline banner and blocks a new event when the lab can't be reac
   expect(await screen.findByText("No connection")).toBeOnTheScreen();
   expect(screen.getByText("Back online to start a roll")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "New event" })).toBeDisabled();
+  expect(screen.getByText("Nothing saved yet")).toBeOnTheScreen();
   expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+test("keeps the saved rolls on screen when the connection drops", async () => {
+  mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Nadia turns 30" })] } });
+  await renderScreen();
+  await screen.findByText("Nadia turns 30");
+  mockFindAll.mockRejectedValue(createApiError("gateway", { status: 503 }));
+  await fireEvent(screen.getByTestId("home-refresh"), "refresh");
+  expect(await screen.findByText("Showing what’s saved")).toBeOnTheScreen();
+  expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
+  // Each roll says when it was loaded, in place of its time (03.5).
+  expect(screen.getByText(/ppl · as of \d\d:\d\d$/)).toBeOnTheScreen();
 });
 
 test("opens the lab card from the header avatar", async () => {
@@ -160,25 +178,26 @@ test("opens the lab card from the header avatar", async () => {
   expect(mockPush).toHaveBeenCalledWith("/account-settings");
 });
 
-test("joins with a link through the scanner envelope and refreshes the rolls", async () => {
+test("joins with a pasted link, opens the roll and refreshes the rolls", async () => {
   mockJoin.mockImplementation(async () => {
     mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Weekend meetup" })] } });
     return { data: { data: buildEvent() } };
   });
   await renderScreen();
   await screen.findByText(/^No rolls yet\./);
-  await openJoin();
+  await openPasteField();
   await enterInvitation("  https://events.everglow.app/invite/weekend  ");
   await userEvent.setup().press(screen.getByText("Join with Link"));
   expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
   await waitFor(() => expect(screen.queryByText("Join an Event")).not.toBeOnTheScreen());
   expect(mockJoin).toHaveBeenCalledWith({ body: { invitationUrl: buildEvent().invitationUrl }, throwOnError: true });
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "You have successfully joined the event!");
+  expect(mockPush).toHaveBeenCalledWith(`/events/${buildEvent().id}`);
+  expect(Alert.alert).not.toHaveBeenCalled();
 });
 
 test("blocks invalid invitation input without sending a request", async () => {
   await renderScreen();
-  await openJoin();
+  await openPasteField();
   await userEvent.setup().press(screen.getByText("Join with Link"));
   expect(await screen.findByText("Please paste the invitation URL or invite token.")).toBeOnTheScreen();
   expect(mockJoin).not.toHaveBeenCalled();
@@ -191,8 +210,7 @@ test("joins via the real scanner and form workflow", async () => {
   });
   await renderScreen();
   await screen.findByText(/^No rolls yet\./);
-  await openJoin();
-  await userEvent.setup().press(screen.getByText("Scan QR Code"));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Join with an envelope" }));
   await fireEvent(screen.getByTestId("camera"), "barcodeScanned", { data: "  scanned-token  " });
   expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
   expect(mockJoin).toHaveBeenCalledWith({ body: { invitationUrl: "scanned-token" }, throwOnError: true });
@@ -215,7 +233,7 @@ test("pull-to-refresh retains current rolls until the refreshed list arrives", a
 test("surfaces an unexpected fetch error and recovers on refresh", async () => {
   mockFindAll.mockRejectedValue(new Error("boom"));
   await renderScreen();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to fetch events"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your rolls", "Please try again"));
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Nadia turns 30" })] } });
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(await screen.findByText("Nadia turns 30")).toBeOnTheScreen();

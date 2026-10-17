@@ -1,6 +1,6 @@
 import { createApiError } from "@/lib/api/errors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert, Button, Text, View } from "react-native";
 import { buildEvent } from "../testing/fixtures";
 import { useEventsScreen } from "./use-events-screen";
@@ -99,6 +99,27 @@ test("a connection failure shows the offline state without alerting", async () =
 test("an unexpected failure is surfaced", async () => {
   mockFindAll.mockRejectedValue(new Error("boom"));
   await renderHome();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", expect.any(String)));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your rolls", expect.any(String)));
   expect(screen.getByTestId("offline")).toHaveTextContent("online");
+});
+
+test("fetches the rolls again once a roll's last day runs out", async () => {
+  jest.useFakeTimers();
+  try {
+    const closesAt = new Date(Date.now() + 90 * 1000).toISOString();
+    mockFindAll.mockResolvedValue({
+      data: { data: [buildEvent({ galleryState: "OPEN", galleryClosesAt: closesAt })] },
+    });
+    await renderHome();
+    await screen.findByText("Loaded");
+    expect(mockFindAll).toHaveBeenCalledTimes(1);
+
+    await act(async () => jest.advanceTimersByTime(60 * 1000));
+    expect(mockFindAll).toHaveBeenCalledTimes(1);
+    await act(async () => jest.advanceTimersByTime(60 * 1000));
+
+    await waitFor(() => expect(mockFindAll).toHaveBeenCalledTimes(2));
+  } finally {
+    jest.useRealTimers();
+  }
 });

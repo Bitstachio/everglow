@@ -60,16 +60,21 @@ export const rollTime = (event: EventResponseDto, now: Date = new Date()): RollT
   // OPEN
   if (!event.galleryClosesAt) return { kind: "open" };
   const msLeft = new Date(event.galleryClosesAt).getTime() - now.getTime();
+  // Closed since the list loaded; Home fetches it again.
+  if (msLeft <= 0) return { kind: "closedOn", iso: event.galleryClosesAt };
   if (msLeft <= DAY_MS) {
-    const left = Math.max(0, msLeft);
     return {
       kind: "closingSoon",
-      hours: Math.floor(left / (60 * 60 * 1000)),
-      minutes: Math.floor((left % (60 * 60 * 1000)) / (60 * 1000)),
+      hours: Math.floor(msLeft / (60 * 60 * 1000)),
+      minutes: Math.floor((msLeft % (60 * 60 * 1000)) / (60 * 1000)),
     };
   }
   return { kind: "closesOn", iso: event.galleryClosesAt };
 };
+
+/** An open roll whose window has run out since the list loaded. */
+export const hasClosed = (event: EventResponseDto, now: Date = new Date()): boolean =>
+  event.galleryState === "OPEN" && event.galleryClosesAt !== null && new Date(event.galleryClosesAt) <= now;
 
 /** On its last day, an open roll's time is circled in pencil (03.3). */
 export const isLastDay = (event: EventResponseDto, now: Date = new Date()): boolean =>

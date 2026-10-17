@@ -3,6 +3,7 @@
     "scanner": "Scan an envelope",
     "labCard": "Your lab card"
   },
+  "failedTitle": "Couldn’t load your rolls",
   "firstRun": {
     "edge": "Roll 00 · unexposed",
     "title": "No rolls yet.",
@@ -32,6 +33,7 @@
     "edge": "No connection",
     "note": "Showing what’s saved",
     "asOf": "as of {{time}}",
-    "waiting": "Back online to start a roll"
+    "waiting": "Back online to start a roll",
+    "nothingSaved": "Nothing saved yet"
   }
 }

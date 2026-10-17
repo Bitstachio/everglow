@@ -50,7 +50,10 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
   const source = frame.uri ? { uri: frame.uri, cacheKey: frame.cacheKey } : frame.image;
 
   return (
-    <View onLayout={frame.circled ? onLayout : undefined} className="aspect-11/9 flex-1">
+    <View
+      onLayout={frame.circled ? onLayout : undefined}
+      className={`aspect-11/9 flex-1 ${frame.circled ? "z-10" : ""}`.trim()}
+    >
       <View
         className={`h-full w-full items-center justify-center overflow-hidden rounded-frame ${frame.caption ? "bg-viewer" : "bg-frame-empty"}`}
       >
@@ -67,13 +70,14 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
           </Text>
         ) : frame.number !== undefined ? (
           <EdgePrint size="frame-label" className="absolute bottom-1 left-1.5">
-            {String(frame.number).padStart(2, "0")}
+            {frame.number}
           </EdgePrint>
         ) : null}
       </View>
       {frame.circled && size.width > 0 ? (
-        <View className="absolute -left-2 -top-2">
-          <GreasePencil mark="ring" width={size.width + 16} height={size.height + 16} seed={seed} drawOn />
+        // Drawn a little off-centre, as by hand: shifted right onto the next frame.
+        <View className="absolute -top-2.5 left-1">
+          <GreasePencil mark="ring" width={size.width + 18} height={size.height + 18} seed={seed} drawOn />
         </View>
       ) : null}
     </View>

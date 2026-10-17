@@ -3,14 +3,18 @@ import { getErrorMessage, isConnectionError } from "@/lib/api/errors";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { useJoinEventForm } from "./use-join-event-form";
 import { eventsKeys } from "../api/keys";
 import { useEventsQuery } from "../api/queries";
-import { groupRolls, ROLL_FRAMES } from "../lib/rolls";
+import { groupRolls, hasClosed, isLastDay, ROLL_FRAMES } from "../lib/rolls";
 import type { Event } from "../types";
 
+const MINUTE_MS = 60 * 1000;
+
 export const useEventsScreen = () => {
+  const { t } = useTranslation(["home", "common"]);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -31,9 +35,9 @@ export const useEventsScreen = () => {
   const isOffline = isError && isConnectionError(error);
   useEffect(() => {
     if (isError && !isConnectionError(error)) {
-      Alert.alert("Error", getErrorMessage(error, "Failed to fetch events"));
+      Alert.alert(t("failedTitle"), getErrorMessage(error, t("common:actions.tryAgain")));
     }
-  }, [isError, error, errorUpdatedAt]);
+  }, [isError, error, errorUpdatedAt, t]);
 
   // Legacy detail pages do not invalidate queries yet. Refresh when returning.
   useFocusEffect(
@@ -45,6 +49,20 @@ export const useEventsScreen = () => {
   const groups = useMemo(() => groupRolls(events), [events]);
   const hasRolls = events.length > 0;
 
+  // A roll on its last day counts down by the minute (03.3). One that closes
+  // while Home is open is fetched again, so it moves below with the closed ones.
+  const [now, setNow] = useState(() => new Date());
+  const countingDown = groups.live.some((event) => isLastDay(event, now));
+  useEffect(() => {
+    if (!countingDown) return;
+    const timer = setInterval(() => setNow(new Date()), MINUTE_MS);
+    return () => clearInterval(timer);
+  }, [countingDown]);
+  const rollClosed = groups.live.some((event) => hasClosed(event, now));
+  useEffect(() => {
+    if (rollClosed) void refetch({ cancelRefetch: false });
+  }, [rollClosed, refetch]);
+
   const savedAtLabel = useMemo(
     () =>
       dataUpdatedAt
@@ -55,13 +73,10 @@ export const useEventsScreen = () => {
 
   const { form, onSubmit, onScan } = useJoinEventForm({
     visible: joinSheetVisible,
+    // Joined or already in, the roll simply opens (06.6–06.7).
     onSuccess: (result) => {
       setJoinSheetVisible(false);
-      const wasAlreadyJoined = events.some((event) => event.id === result.id);
-      Alert.alert(
-        wasAlreadyJoined ? "Already Joined" : "Success",
-        wasAlreadyJoined ? "You are already a member of this event." : "You have successfully joined the event!",
-      );
+      router.push(`/events/${result.id}`);
     },
   });
 
@@ -72,6 +87,7 @@ export const useEventsScreen = () => {
     isRefreshing: isRefetching,
     isOffline,
     savedAtLabel,
+    now,
     profileAvatar: { userId: user?.id ?? "", name: user?.details?.name, uri: user?.details?.avatarUrl },
     joinSheetVisible,
     form,
