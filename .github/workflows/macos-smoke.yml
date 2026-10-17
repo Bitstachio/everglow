@@ -3,9 +3,134 @@ name: Mac smoke
 on:
   workflow_dispatch:
 
+concurrency:
+  group: macos-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  echo:
+  login-ios:
+    name: Maestro login (iOS)
     runs-on: macos-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+      EXPO_PUBLIC_AUTH0_DOMAIN: ${{ secrets.EXPO_PUBLIC_AUTH0_DOMAIN }}
+      EXPO_PUBLIC_AUTH0_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_AUTH0_CLIENT_ID }}
+      EXPO_PUBLIC_AUTH0_AUDIENCE: ${{ secrets.EXPO_PUBLIC_AUTH0_AUDIENCE }}
+      EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL: everglowmobile://password-change/result
+      MAESTRO_VERSION: "2.10.0"
+
     steps:
-      - name: Hello from macOS
-        run: echo "hello from $(uname -a)"
+      - uses: actions/checkout@v4
+
+      - name: Require E2E and Expo secrets
+        run: |
+          missing=0
+          for name in E2E_EMAIL E2E_PASSWORD EXPO_PUBLIC_API_URL \
+            EXPO_PUBLIC_AUTH0_DOMAIN EXPO_PUBLIC_AUTH0_CLIENT_ID EXPO_PUBLIC_AUTH0_AUDIENCE; do
+            if [ -z "${!name}" ]; then
+              echo "Missing repository secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Set secrets with: gh secret set <NAME>"
+            echo "EXPO_PUBLIC_API_URL must be a public HTTPS API (not localhost)."
+            exit 1
+          fi
+          case "$EXPO_PUBLIC_API_URL" in
+            http://localhost*|http://127.0.0.1*)
+              echo "EXPO_PUBLIC_API_URL cannot be localhost on a GitHub runner."
+              exit 1
+              ;;
+          esac
+
+      - name: Write mobile/.env for the Release build
+        run: |
+          {
+            echo "EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}"
+            echo "EXPO_PUBLIC_AUTH0_DOMAIN=${EXPO_PUBLIC_AUTH0_DOMAIN}"
+            echo "EXPO_PUBLIC_AUTH0_CLIENT_ID=${EXPO_PUBLIC_AUTH0_CLIENT_ID}"
+            echo "EXPO_PUBLIC_AUTH0_AUDIENCE=${EXPO_PUBLIC_AUTH0_AUDIENCE}"
+            echo "EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL=${EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL}"
+          } > .env
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Maestro
+        working-directory: ${{ github.workspace }}
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | MAESTRO_VERSION="$MAESTRO_VERSION" bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Boot iPhone simulator
+        id: sim
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          devices = []
+          for runtime, items in data.get("devices", {}).items():
+              for d in items:
+                  if d.get("isAvailable") and d.get("name", "").startswith("iPhone"):
+                      devices.append(d["udid"])
+          if not devices:
+              sys.exit("No available iPhone simulator")
+          print(devices[-1])
+          ')"
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          echo "udid=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$DEVICE_ID" || true
+          open -a Simulator
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          # Reduce Auth0 password-field fights with iOS AutoFill.
+          xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false || true
+
+      - name: Prebuild native iOS project
+        run: pnpm exec expo prebuild --platform ios --non-interactive
+
+      - name: Build and install Release (no Metro)
+        run: >
+          pnpm exec expo run:ios
+          --configuration Release
+          --device "$DEVICE_ID"
+          --no-bundler
+
+      - name: Maestro login smoke
+        run: pnpm run test:e2e:login:ios
+
+      - name: Upload Maestro results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-login-ios-${{ github.run_id }}
+          path: |
+            mobile/.maestro/results/
+          if-no-files-found: ignore
+          retention-days: 7

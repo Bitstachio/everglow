@@ -80,3 +80,14 @@ test("resets the scanner when the parent closes and reopens", async () => {
   expect(screen.getByText("Join an Event")).toBeOnTheScreen();
   expect(screen.queryByTestId("camera")).not.toBeOnTheScreen();
 });
+
+test("opens straight on the scanner, and closing it leaves the paste field", async () => {
+  await render(<SheetProbe startOnScanner />);
+  expect(screen.getByTestId("camera")).toBeOnTheScreen();
+  expect(screen.queryByText("Join an Event")).not.toBeOnTheScreen();
+
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close scanner" }));
+
+  expect(screen.queryByTestId("camera")).not.toBeOnTheScreen();
+  expect(screen.getByLabelText("Invitation URL or token")).toBeOnTheScreen();
+});

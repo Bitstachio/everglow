@@ -1,0 +1,74 @@
+{
+  "eyebrow": "What it does",
+  "headline": "Any app can make a shared album. This is the part after.",
+  "find": {
+    "eyebrow": "01 · Find it",
+    "title": "Your events, on a calendar.",
+    "body": "Every event you've been to or are going to sits on a calendar. Tap the date and the album is there. No scrolling back through a chat for the link someone posted in March.",
+    "calendarLabel": "Oct 2026"
+  },
+  "keep": {
+    "eyebrow": "02 · Keep",
+    "title": "Download the good ones, not all 400.",
+    "body": "Everglow groups photos taken from the same angle and pulls the blurry misses out of the pile. You pick from what is left and download only those.",
+    "imageAlt": "Selecting frames in the Everglow app",
+    "tiles": [
+      { "n": "01", "label": "Keep", "state": "keep" },
+      { "n": "02", "label": "Same angle", "state": "dim" },
+      { "n": "03", "label": "Same angle", "state": "dim" },
+      { "n": "04", "label": "Blurry", "state": "reject" },
+      { "n": "05", "label": "Keep", "state": "keep" },
+      { "n": "06", "label": "Keep", "state": "keep" }
+    ]
+  },
+  "share": {
+    "eyebrow": "03 · Share",
+    "title": "Post it as an Instagram story.",
+    "body": "Turn the album into a story. It comes out as a grid of the best photos, with a handwritten title, in a look people will start to recognize, without a logo stamped on your post.",
+    "story": {
+      "user": "me",
+      "time": "2h",
+      "titleLine1": "riverdale,",
+      "titleLine2": "then downtown.",
+      "sample": "Sample story.",
+      "tiles": [
+        {
+          "src": "/design/story-grid-02.jpg",
+          "area": "1 / 1 / 4 / 5",
+          "position": "center",
+          "date": "'26 10 16"
+        },
+        {
+          "src": "/design/story-grid-01.jpg",
+          "area": "1 / 5 / 4 / 7",
+          "position": "center 62%"
+        },
+        {
+          "src": "/design/story-grid-03.jpg",
+          "area": "4 / 1 / 7 / 3",
+          "position": "center 45%"
+        },
+        {
+          "src": "/design/story-grid-04.jpg",
+          "area": "4 / 3 / 6 / 5",
+          "position": "35% 62%"
+        },
+        {
+          "src": "/design/story-grid-05.jpg",
+          "area": "6 / 3 / 7 / 5",
+          "position": "center 18%"
+        },
+        {
+          "src": "/design/story-grid-06.jpg",
+          "area": "7 / 1 / 9 / 5",
+          "position": "center"
+        },
+        {
+          "src": "/design/story-grid-07.jpg",
+          "area": "4 / 5 / 9 / 7",
+          "position": "center 45%"
+        }
+      ]
+    }
+  }
+}

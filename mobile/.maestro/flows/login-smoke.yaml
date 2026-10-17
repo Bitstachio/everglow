@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+name: Log in reaches Events home
+tags:
+  - smoke
+  - login
+---
+# Fresh install session, then Auth0 login via helpers/login.yaml.
+# Example (from mobile/, app already built and Metro running if debug):
+#   pnpm test:e2e:login:ios -- \
+#     -e E2E_EMAIL=user1@everglow.social \
+#     -e E2E_PASSWORD='…'
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow: ../helpers/login.yaml
+- assertVisible: "Everglow"
+- assertVisible:
+    id: "events-profile-button"
