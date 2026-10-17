@@ -13,6 +13,9 @@ export type GroupedRolls = {
   closed: EventResponseDto[];
 };
 
+/** A photo on a roll's strip. Its URL is presigned, so the cache key names it instead. */
+export type RollPhoto = { uri: string; cacheKey: string };
+
 /** Frames in a roll's strip on Home. */
 export const ROLL_FRAMES = 4;
 

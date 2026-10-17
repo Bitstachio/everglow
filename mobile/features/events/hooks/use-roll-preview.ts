@@ -1,9 +1,9 @@
 import { useRollPreviewQuery } from "../api/queries";
-import { ROLL_FRAMES } from "../lib/rolls";
+import { ROLL_FRAMES, type RollPhoto } from "../lib/rolls";
 import type { Event } from "../types";
 
-/** The URLs of an open roll's first photos, for its strip on Home. Other rolls have none to show. */
-export const useRollPreview = (event: Event): string[] => {
+/** An open roll's latest photos, for its strip on Home. Other rolls have none to show. */
+export const useRollPreview = (event: Event): RollPhoto[] => {
   const { data: photos = [] } = useRollPreviewQuery(event.id, ROLL_FRAMES, event.galleryState === "OPEN");
-  return photos.map((photo) => photo.url);
+  return photos.map((photo) => ({ uri: photo.url, cacheKey: `photo:${photo.id}` }));
 };

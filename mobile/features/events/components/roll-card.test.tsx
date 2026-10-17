@@ -71,10 +71,19 @@ test("shows when a closed roll's photos went", async () => {
   expect(screen.getByText(/^Closed /)).toBeOnTheScreen();
 });
 
-test("fills an open roll's strip with its first photos, then blank frames", async () => {
+test("fills an open roll's strip with its latest photos, then blank frames", async () => {
   const event = buildEvent({ galleryState: "OPEN", galleryClosesAt: "2026-11-21T00:00:00.000Z", coverUrl: null });
 
-  await renderWithI18n(<RollCard event={event} now={NOW} photos={["https://cdn/a.jpg", "https://cdn/b.jpg"]} />);
+  await renderWithI18n(
+    <RollCard
+      event={event}
+      now={NOW}
+      photos={[
+        { uri: "https://cdn/a.jpg", cacheKey: "photo:a" },
+        { uri: "https://cdn/b.jpg", cacheKey: "photo:b" },
+      ]}
+    />,
+  );
 
   expect(screen.queryByText("01", HIDDEN)).not.toBeOnTheScreen();
   expect(screen.queryByText("02", HIDDEN)).not.toBeOnTheScreen();

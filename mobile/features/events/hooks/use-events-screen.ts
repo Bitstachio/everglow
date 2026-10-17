@@ -1,15 +1,18 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage, isConnectionError } from "@/lib/api/errors";
+import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "react-native";
 import { useJoinEventForm } from "./use-join-event-form";
+import { eventsKeys } from "../api/keys";
 import { useEventsQuery } from "../api/queries";
-import { groupRolls } from "../lib/rolls";
+import { groupRolls, ROLL_FRAMES } from "../lib/rolls";
 import type { Event } from "../types";
 
 export const useEventsScreen = () => {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const {
     data: events = [],
@@ -75,7 +78,12 @@ export const useEventsScreen = () => {
     onSubmit,
     onScanViaSheet: onScan,
     onRefresh: () => {
-      if (user?.id) void refetch({ cancelRefetch: false });
+      if (!user?.id) return;
+      void refetch({ cancelRefetch: false });
+      // The strips load separately, so pulling down refreshes them too.
+      for (const event of groups.live) {
+        void queryClient.invalidateQueries({ queryKey: eventsKeys.preview(event.id, ROLL_FRAMES) });
+      }
     },
     onNewEvent: () => router.push("/events/create"),
     onScan: () => setJoinSheetVisible(true),

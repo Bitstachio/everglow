@@ -104,7 +104,7 @@ test("lists the rolls, groups the closed ones, and opens a roll", async () => {
   expect(mockPush).toHaveBeenCalledWith("/events/live-1");
 });
 
-test("loads the first four photos of open rolls only", async () => {
+test("loads the latest four photos of open rolls only", async () => {
   mockFindAll.mockResolvedValue({
     data: {
       data: [
@@ -121,6 +121,19 @@ test("loads the first four photos of open rolls only", async () => {
   expect(mockListPhotos).toHaveBeenCalledWith(
     expect.objectContaining({ path: { eventId: "live-1" }, query: { limit: 4 } }),
   );
+});
+
+test("pull-to-refresh reloads the open rolls' photos too", async () => {
+  mockFindAll.mockResolvedValue({
+    data: { data: [buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" })] },
+  });
+  await renderScreen();
+  await screen.findByText("Sam & Jo’s wedding");
+  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(1));
+
+  await fireEvent(screen.getByTestId("home-refresh"), "refresh");
+
+  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(2));
 });
 
 test("adds a new event from the rolls list", async () => {

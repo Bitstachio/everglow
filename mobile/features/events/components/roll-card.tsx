@@ -14,15 +14,17 @@ import {
   isLastDay,
   ROLL_FRAMES,
   rollTime,
+  type RollPhoto,
   type RollTime,
 } from "../lib/rolls";
 import type { EventResponseDto } from "../types";
+import { getEventCoverCacheKey } from "./event-cover";
 
 type RollCardProps = {
   event: EventResponseDto;
   onPress?: () => void;
-  /** URLs of an open roll's first photos, oldest first. Blank frames fill the rest. */
-  photos?: string[];
+  /** An open roll's latest photos, newest first. Blank frames fill the rest. */
+  photos?: RollPhoto[];
   /** Injectable clock so the last-day countdown is deterministic in tests. */
   now?: Date;
 };
@@ -37,13 +39,15 @@ const sizeOf = (event: LayoutChangeEvent): Size => ({
 // An open roll shows its first photos, or its cover until it has any. Upcoming
 // rolls are unexposed and closed ones have lost their photos, so their frames
 // are blank. A blank frame carries its number.
-const buildFrames = (event: EventResponseDto, photos: string[]): StripFrame[] => {
+const buildFrames = (event: EventResponseDto, photos: RollPhoto[]): StripFrame[] => {
   const closed = event.galleryState === "CLOSED";
-  const exposed =
-    event.galleryState !== "OPEN" ? [] : photos.length > 0 ? photos : event.coverUrl ? [event.coverUrl] : [];
+  const cover = event.coverUrl
+    ? [{ uri: event.coverUrl, cacheKey: getEventCoverCacheKey(event.id, event.coverUrl) }]
+    : [];
+  const exposed = event.galleryState !== "OPEN" ? [] : photos.length > 0 ? photos : cover;
   return Array.from({ length: ROLL_FRAMES }, (_, i) => {
-    const uri = exposed[i];
-    if (uri) return { key: `${event.id}-photo-${i}`, uri };
+    const photo = exposed[i];
+    if (photo) return { key: `${event.id}-photo-${i}`, ...photo };
     return { key: `${event.id}-${i + 1}`, number: i + 1, dim: closed };
   });
 };

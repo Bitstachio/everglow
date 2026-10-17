@@ -49,7 +49,7 @@ export const useEventPhotosQuery = (eventId: string | undefined) =>
     },
   });
 
-/** The first `limit` photos of an open roll, for its strip on Home. */
+/** The latest `limit` photos of an open roll, for its strip on Home. */
 export const useRollPreviewQuery = (eventId: string, limit: number, enabled: boolean) =>
   useQuery({
     queryKey: eventsKeys.preview(eventId, limit),

@@ -8,6 +8,8 @@ export type StripFrame = {
   key: string;
   /** Photo URL. */
   uri?: string;
+  /** Cache key for a presigned `uri`, which changes on every fetch. */
+  cacheKey?: string;
   /** A bundled photo (`import photo from "@/assets/…jpg"`). */
   image?: number;
   /** A frame that carries a short line of text instead of a photo. */
@@ -45,7 +47,7 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
     const { width, height } = event.nativeEvent.layout;
     setSize({ width: Math.round(width), height: Math.round(height) });
   };
-  const source = frame.uri ? { uri: frame.uri } : frame.image;
+  const source = frame.uri ? { uri: frame.uri, cacheKey: frame.cacheKey } : frame.image;
 
   return (
     <View onLayout={frame.circled ? onLayout : undefined} className="aspect-11/9 flex-1">
@@ -54,6 +56,7 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
       >
         {source !== undefined ? (
           <Photo
+            testID="film-strip-photo"
             source={source}
             contentFit="cover"
             className={`h-full w-full ${frame.dim ? "opacity-35" : ""}`.trim()}
