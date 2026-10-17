@@ -22,7 +22,7 @@ Email                    app → API → Auth0 Management API
 
 Only a database identity can do either. The Auth0 `sub` looks like `auth0|…`. Apple (`apple|…`) and every other social connection have no password, and the email belongs to the identity provider. Hide both Security rows for those users.
 
-`mobile/app/onboarding.tsx` already reads `auth0User.email` from `useAuth0()`. Use that same profile: `sub` decides which rows to show, `email` is the address on the profile. Do not add an email field to the Everglow user response to feed the screen.
+Onboarding (`mobile/features/profile/onboarding-draft.tsx`) already reads the Auth0 profile from `useAuth0()`. Use that same profile: `sub` decides which rows to show, `email` is the address on the profile. Do not add an email field to the Everglow user response to feed the screen.
 
 ---
 

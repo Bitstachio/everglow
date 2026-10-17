@@ -1,0 +1,36 @@
+{
+  "step": "Step {{step}} of {{total}}",
+  "next": "Next",
+  "name": {
+    "label": "Sign your frames · your name",
+    "placeholder": "Your name",
+    "frameNumber": "▸ 142",
+    "frameUnsigned": "Your name",
+    "frameA11y": "A sample photo, signed {{name}}",
+    "note": "how it shows\non your photos"
+  },
+  "username": {
+    "label": "Your handle · people find you by it",
+    "fieldA11y": "Username",
+    "checking": "Checking…",
+    "available": "Available",
+    "taken": "Taken",
+    "rule": "a–z · 0–9 · dots and underscores · 3 to 30",
+    "ruleSentence": "Use a–z, 0–9, dots and underscores, 3 to 30",
+    "changeLimit": "You can change it twice every 14 days",
+    "notAllowed": "No {{list}}",
+    "spaces": "spaces",
+    "listOr": "{{head}} or {{last}}",
+    "tooShort": "At least 3 characters",
+    "tooLong": "30 characters at most",
+    "takenFree": "Someone has @{{username}}. These are free:",
+    "takenTryAnother": "Someone has @{{username}}. Try another.",
+    "useSuggestion": "Use @{{username}}",
+    "checkFailed": "Couldn’t check that one. Keep typing to try again.",
+    "paused": "Too many checks. Try again in a moment.",
+    "terms": "I agree to the <terms>terms</terms> and the <privacy>privacy policy</privacy>.",
+    "termsA11y": "I agree to the terms and the privacy policy",
+    "continue": "Continue",
+    "failedTitle": "Couldn’t save your lab card"
+  }
+}

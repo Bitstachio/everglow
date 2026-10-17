@@ -10,6 +10,7 @@ declare module "i18next" {
     resources: {
       common: typeof en.common;
       errors: typeof en.errors;
+      onboarding: typeof en.onboarding;
       start: typeof en.start;
     };
   }

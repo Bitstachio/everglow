@@ -13,6 +13,7 @@ const available: UsernameAvailabilityState = {
   reason: null,
   message: "Username is available",
   canSubmit: true,
+  suggestions: [],
 };
 
 type EditUsernameFormProbeProps = {
@@ -72,6 +73,7 @@ test("keeps Save disabled while availability forbids submit", async () => {
         reason: "TAKEN",
         message: "This username is taken",
         canSubmit: false,
+        suggestions: [],
       }}
     />,
   );

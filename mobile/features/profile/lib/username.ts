@@ -19,6 +19,8 @@ export type UsernameAvailabilityState = {
   message: string | null;
   /** True when the candidate may be submitted (own username or API said available). */
   canSubmit: boolean;
+  /** Free alternatives from the API when the candidate is taken or reserved, best first. */
+  suggestions: string[];
 };
 
 /** Trim and lowercase. Does not validate format. */
@@ -52,3 +54,23 @@ export const editUsernameSchema = z.object({
 });
 
 export type EditUsernameValues = z.infer<typeof editUsernameSchema>;
+
+export type UsernameRuleBreak =
+  | { kind: "characters"; spaces: boolean; characters: string[] }
+  | { kind: "tooShort" }
+  | { kind: "tooLong" };
+
+/**
+ * What a typed username breaks, worked out before the server is asked, or
+ * null when it follows the rule. Characters are listed once each, in the
+ * order they were typed.
+ */
+export const usernameRuleBreak = (typed: string): UsernameRuleBreak | null => {
+  if (!typed) return null;
+  const spaces = /\s/.test(typed);
+  const characters = [...new Set(typed.replace(/[a-z0-9._\s]/g, ""))];
+  if (spaces || characters.length > 0) return { kind: "characters", spaces, characters };
+  if (typed.length < USERNAME_MIN_LENGTH) return { kind: "tooShort" };
+  if (typed.length > USERNAME_MAX_LENGTH) return { kind: "tooLong" };
+  return null;
+};

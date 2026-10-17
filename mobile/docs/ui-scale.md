@@ -248,6 +248,10 @@ Registered in `app/global.css` as `--text-*`, with line height and letter spacin
 | `text-counter`      | 64   | 64   | 0        | mono-semibold | The frame counter                               |
 | `text-note`         | 28   | 26   | 0        | hand          | Pencil notes, at most one per screen            |
 | `text-filled-in`    | 30   | 26   | 0        | hand          | Details written on paper                        |
+| `text-input-name`   | 40   | none | -1.4     | display       | The name field in onboarding                    |
+| `text-input-handle` | 28   | none | -0.8     | display       | The username field in onboarding                |
+
+Text inputs use the `text-input-*` sizes, which set no line height: on iOS a line height on a `TextInput` makes the first typed letter jump. Give the input a fixed height instead.
 
 A size name must never repeat a colour name: `text-edge` would mean both the 10.5pt size and the `edge` colour, and the colour wins. Hence `text-edge-print` and `text-leader-label`.
 
