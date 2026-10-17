@@ -11,4 +11,7 @@ export const eventsKeys = {
   detail: (eventId: string) => eventsControllerFindOneQueryKey({ path: { eventId } }),
   participants: (eventId: string) => eventsControllerGetParticipantsQueryKey({ path: { eventId } }),
   photos: (eventId: string) => photosControllerListPhotosQueryKey({ path: { eventId } }),
+  /** A roll's first frames on Home. Nested under `photos`, so invalidating those refreshes it. */
+  preview: (eventId: string, limit: number) =>
+    photosControllerListPhotosQueryKey({ path: { eventId }, query: { limit } }),
 };

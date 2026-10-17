@@ -1,0 +1,34 @@
+# Reusable Auth0 Universal Login. Not discovered as a standalone test.
+# Requires -e E2E_EMAIL=… -e E2E_PASSWORD=… (and APP_ID from the platform script).
+# On iOS Simulator, turn off Settings → Passwords → Password Options → AutoFill
+# Passwords if inputText fails on the password field.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible:
+      id: "login-submit"
+    timeout: 30000
+- tapOn:
+    id: "login-submit"
+# iOS ASWebAuthenticationSession: “app Wants to Use auth0…”.
+- tapOn:
+    text: "Continue"
+    optional: true
+# Auth0 New UL: email + password on one page. Do not tap Continue until both are filled —
+# early Continue shows "Password is required", and (?i)password then matches that error text.
+- extendedWaitUntil:
+    visible: "Email address"
+    timeout: 60000
+- tapOn: "Email address"
+- inputText: ${E2E_EMAIL}
+- extendedWaitUntil:
+    visible: "Password"
+    timeout: 30000
+- tapOn: "Password"
+- inputText: ${E2E_PASSWORD}
+- tapOn: "Continue"
+# Seeded staging users skip onboarding and land on Events.
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 60000

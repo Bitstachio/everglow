@@ -1,0 +1,4 @@
+# Isolated package so installs do not rewrite landing/pnpm-lock.yaml.
+allowBuilds:
+  esbuild: true
+  workerd: true

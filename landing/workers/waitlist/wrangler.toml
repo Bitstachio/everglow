@@ -1,0 +1,14 @@
+name = "everglow-waitlist"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Secrets (set with `wrangler secret put`):
+#   RESEND_API_KEY
+# Vars:
+#   RESEND_SEGMENT_ID = "<segment id from Resend>"
+#   ALLOWED_ORIGINS   = "https://everglow.social,https://www.everglow.social,http://localhost:3000"
+
+[vars]
+# Replace after creating the waitlist segment in Resend.
+RESEND_SEGMENT_ID = "ce3a71c7-99ec-4104-9d78-b52a4b0ea185"
+ALLOWED_ORIGINS = "https://everglow.social,https://www.everglow.social,http://localhost:3000,http://localhost:3001"
