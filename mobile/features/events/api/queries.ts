@@ -49,6 +49,22 @@ export const useEventPhotosQuery = (eventId: string | undefined) =>
     },
   });
 
+/** The latest `limit` photos of an open roll, for its strip on Home. */
+export const useRollPreviewQuery = (eventId: string, limit: number, enabled: boolean) =>
+  useQuery({
+    queryKey: eventsKeys.preview(eventId, limit),
+    enabled,
+    queryFn: async ({ signal }): Promise<PhotoResponseDto[]> => {
+      const { data } = await photosControllerListPhotos({
+        path: { eventId },
+        query: { limit },
+        signal,
+        throwOnError: true,
+      });
+      return unwrapEnvelope(data).items;
+    },
+  });
+
 export const useEventParticipantsQuery = (eventId: string | undefined) =>
   useQuery({
     queryKey: eventsKeys.participants(eventId ?? ""),

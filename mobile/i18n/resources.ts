@@ -4,12 +4,13 @@ import { locales } from "./config";
 
 export const defaultNS = "common" as const;
 
-export const ns = ["common", "errors", "onboarding", "start"] as const;
+export const ns = ["common", "errors", "home", "onboarding", "start"] as const;
 
 export const resources = {
   en: {
     common: en.common,
     errors: en.errors,
+    home: en.home,
     onboarding: en.onboarding,
     start: en.start,
   },
