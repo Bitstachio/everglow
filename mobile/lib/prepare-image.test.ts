@@ -44,6 +44,13 @@ test("crops a panorama to a centred 16:9 window", async () => {
   expect(mockContext.crop).toHaveBeenCalledWith({ originX: 2222, originY: 0, width: 3556, height: 2000 });
 });
 
+test("crops the part the person chose instead of the centre", async () => {
+  const crop = { originX: 120, originY: 900, width: 1500, height: 1500 };
+  await prepareImage({ uri: "file://photo.jpg", width: 3024, height: 4032 }, { aspect: [1, 1], maxWidth: 1024, crop });
+  expect(mockContext.crop).toHaveBeenCalledWith(crop);
+  expect(mockContext.resize).toHaveBeenCalledWith({ width: 1024, height: 1024 });
+});
+
 test("releases native images even when saving fails", async () => {
   mockImage.saveAsync.mockRejectedValue(new Error("disk full"));
   await expect(prepareImage({ uri: "file://photo.jpg", width: 160, height: 90 }, wide)).rejects.toThrow("disk full");

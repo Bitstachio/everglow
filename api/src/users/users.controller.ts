@@ -75,7 +75,7 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: UsernameAvailabilityQueryDto,
   ): Promise<UsernameAvailabilityResponseDto> {
-    return this.usersService.checkUsernameAvailability(user.id, query.username);
+    return this.usersService.checkUsernameAvailability(user.id, query.username, query.name);
   }
 
   @Get("me")

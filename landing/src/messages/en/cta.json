@@ -1,0 +1,10 @@
+{
+  "emailLabel": "Email",
+  "emailPlaceholder": "you@example.com",
+  "button": "Join the waitlist",
+  "submitting": "Joining…",
+  "success": "You're on the list. We'll email you at launch.",
+  "invalidEmail": "Enter a real email address.",
+  "error": "That didn't go through. Try again in a moment.",
+  "notConfigured": "Waitlist isn't open yet. Check back soon."
+}

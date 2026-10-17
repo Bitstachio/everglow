@@ -43,7 +43,11 @@ const Stroke = ({
   animate: boolean;
   delay: number;
 }) => {
-  const [offset] = useState(() => new Animated.Value(animate ? length : 0));
+  // Hidden means the dash sits a cap's width before the path's start; the gap
+  // after it outlasts the path, so no round cap shows at either end until the
+  // line itself arrives.
+  const hidden = length + strokeWidth;
+  const [offset] = useState(() => new Animated.Value(animate ? hidden : 0));
 
   useEffect(() => {
     if (!animate) {
@@ -63,7 +67,7 @@ const Stroke = ({
       strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeDasharray={[length, length]}
+      strokeDasharray={[length, length + 2 * strokeWidth]}
       strokeDashoffset={offset}
     />
   );

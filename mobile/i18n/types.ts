@@ -11,6 +11,7 @@ declare module "i18next" {
       common: typeof en.common;
       errors: typeof en.errors;
       home: typeof en.home;
+      onboarding: typeof en.onboarding;
       start: typeof en.start;
     };
   }

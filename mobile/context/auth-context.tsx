@@ -167,12 +167,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       setError(null);
       const profile = await authService.completeOnboarding(data);
+      // The caller goes on to the rest of onboarding (the photo step).
       setUser(profile);
-      router.replace(EVENTS_ROUTE);
     } catch (err: any) {
       const message = err?.message || i18n.t("auth.onboardingFailed", { ns: "common" });
       setError(message);
-      throw new Error(message);
+      // Keep the API error so the caller can read its code (USERNAME_TAKEN).
+      throw err instanceof Error ? err : new Error(message);
     } finally {
       setIsLoading(false);
     }

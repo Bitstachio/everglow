@@ -1,20 +1,51 @@
 {
   "metadata": {
     "title": "Everglow",
-    "description": "Event photos in one place, for the people who were there."
+    "description": "One shared album per event. Someone makes it, sends the link, and everyone adds their photos."
   },
   "nav": {
+    "ariaLabel": "Sections",
     "brand": "Everglow",
-    "how": "How",
-    "faq": "FAQ",
-    "ariaLabel": "Primary"
+    "usual": "The usual",
+    "what": "What it does",
+    "gone": "Then it's gone",
+    "faq": "Questions"
   },
   "hero": {
     "brand": "Everglow",
-    "headline": "Why are we dumping pictures from a night out in a group chat?",
-    "body": "Let's put them somewhere people can actually find and enjoy (without scrolling a hundred times)."
+    "eyebrow": "Shared photo albums for events",
+    "headlineBefore": "Everyone took photos.",
+    "headlineMark": "Nobody has them.",
+    "body": "Everglow is one shared album per event. Someone makes it, sends the link, and everyone adds their photos. That's the whole thing.",
+    "note": "we'll email you when we publish",
+    "imageAlt": "The open gallery in the Everglow app"
+  },
+  "photos": {
+    "frames": [
+      {
+        "label": "01",
+        "caption": "Barbod (co-founder), under the table with grapes. New Year's superstition. He was asking for a girlfriend.",
+        "alt": "Barbod sitting on the floor under a dining table, eating grapes"
+      },
+      {
+        "label": "02",
+        "caption": "Mehrshad (co-founder) playing Risk. He's losing.",
+        "alt": "Mehrshad standing over a Risk board"
+      },
+      {
+        "label": "03",
+        "caption": "Amir (co-founder) and his brother, going fishing. For when the jobs go to AI.",
+        "alt": "Amir and his brother in waders, about to go fishing"
+      },
+      {
+        "label": "04",
+        "caption": "Peashoo. Emotional support.",
+        "alt": "Peashoo the cat sitting on the floor and looking up"
+      }
+    ]
   },
   "footer": {
-    "copyright": "© 2026 Everglow"
+    "copyright": "© 2026 Everglow · everglow.social",
+    "contact": "hello@everglow.social"
   }
 }

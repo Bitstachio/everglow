@@ -20,7 +20,7 @@ import {
   USERNAME_CHANGE_WINDOW_DAYS,
 } from "./users.constants";
 import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
-import { normalizeUsername, usernameFormatReason } from "./username";
+import { normalizeUsername, USERNAME_SUGGESTION_COUNT, usernameCandidates, usernameFormatReason } from "./username";
 
 /** Fields the account-deletion saga needs; callers may pass a lean select. */
 export type AccountDeletionUser = Pick<
@@ -141,13 +141,26 @@ export class UsersService {
   /**
    * Advisory check for the edit-username / onboarding fields. The caller's own
    * current username reports as available. Uniqueness on write is still enforced
-   * by the database (see USERNAME_TAKEN).
+   * by the database (see USERNAME_TAKEN). A taken or reserved name comes with
+   * free alternatives built from it and the caller's `name`.
    */
-  async checkUsernameAvailability(callerId: string, raw: string): Promise<UsernameAvailabilityResponseDto> {
+  async checkUsernameAvailability(
+    callerId: string,
+    raw: string,
+    name?: string,
+  ): Promise<UsernameAvailabilityResponseDto> {
     const username = normalizeUsername(raw);
     const formatReason = usernameFormatReason(username);
-    if (formatReason) {
-      return { username, available: false, reason: formatReason };
+    if (formatReason === "INVALID_FORMAT") {
+      return { username, available: false, reason: formatReason, suggestions: [] };
+    }
+    if (formatReason === "RESERVED") {
+      return {
+        username,
+        available: false,
+        reason: formatReason,
+        suggestions: await this.freeUsernames(callerId, username, name),
+      };
     }
 
     const taken = await this.prisma.userDetails.findFirst({
@@ -156,10 +169,26 @@ export class UsersService {
     });
 
     if (taken) {
-      return { username, available: false, reason: "TAKEN" };
+      return {
+        username,
+        available: false,
+        reason: "TAKEN",
+        suggestions: await this.freeUsernames(callerId, username, name),
+      };
     }
 
-    return { username, available: true, reason: null };
+    return { username, available: true, reason: null, suggestions: [] };
+  }
+
+  /** The first few candidates for `username` that nobody else holds, in one query. */
+  private async freeUsernames(callerId: string, username: string, name?: string): Promise<string[]> {
+    const candidates = usernameCandidates(username, name);
+    const held = await this.prisma.userDetails.findMany({
+      where: { username: { in: candidates }, NOT: { userId: callerId } },
+      select: { username: true },
+    });
+    const heldNames = new Set(held.map((row) => row.username));
+    return candidates.filter((candidate) => !heldNames.has(candidate)).slice(0, USERNAME_SUGGESTION_COUNT);
   }
 
   async remove(id: string, photoPolicy: AccountDeletionPhotoPolicy): Promise<void> {

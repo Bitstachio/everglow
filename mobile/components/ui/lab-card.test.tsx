@@ -11,3 +11,10 @@ test("reads as one summary of the account", async () => {
   );
   expect(screen.getByLabelText("Maya Chen, @maya.chen")).toBeOnTheScreen();
 });
+
+test("marks the empty photo spot when there is no photo yet", async () => {
+  await render(
+    <LabCard title="Lab card" fields={[{ label: "Name", value: "Maya" }]} accessibilityLabel="Maya, @maya" />,
+  );
+  expect(screen.getByText("Maya", { includeHiddenElements: true })).toBeOnTheScreen();
+});

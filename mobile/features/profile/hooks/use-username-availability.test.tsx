@@ -47,18 +47,29 @@ test("debounces and reports an available username", async () => {
 
   await waitFor(() => expect(result.current.status).toBe("available"));
   expect(result.current.canSubmit).toBe(true);
-  expect(mockCheck).toHaveBeenCalledWith("ada.lovelace", expect.any(AbortSignal));
+  expect(mockCheck).toHaveBeenCalledWith("ada.lovelace", { name: undefined, signal: expect.any(AbortSignal) });
 });
 
-test("reports taken usernames from the API", async () => {
-  mockCheck.mockResolvedValue({ username: "taken.name", available: false, reason: "TAKEN" });
-  const { result } = await renderHook(() => useUsernameAvailability("taken.name"));
+test("reports taken usernames from the API with the suggestions built from the name", async () => {
+  mockCheck.mockResolvedValue({
+    username: "maya",
+    available: false,
+    reason: "TAKEN",
+    suggestions: ["maya.chen", "mayachen"],
+  });
+  const { result } = await renderHook(() => useUsernameAvailability("maya", { name: "Maya Chen" }));
 
   await act(async () => {
     jest.advanceTimersByTime(300);
   });
   await waitFor(() => expect(result.current.status).toBe("unavailable"));
-  expect(result.current).toMatchObject({ reason: "TAKEN", message: "This username is taken", canSubmit: false });
+  expect(result.current).toMatchObject({
+    reason: "TAKEN",
+    message: "This username is taken",
+    canSubmit: false,
+    suggestions: ["maya.chen", "mayachen"],
+  });
+  expect(mockCheck).toHaveBeenCalledWith("maya", { name: "Maya Chen", signal: expect.any(AbortSignal) });
 });
 
 test("pauses after RATE_LIMIT_EXCEEDED until Retry-After elapses", async () => {

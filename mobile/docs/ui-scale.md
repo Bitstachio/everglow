@@ -233,21 +233,26 @@ The Funnel files are static weights cut from the variable fonts; IBM Plex Mono a
 
 Registered in `app/global.css` as `--text-*`, with line height and letter spacing built in, so one class sets all three. Letter spacing is in px because native has no `em`.
 
-| Class               | Size | Line | Tracking | Family        | Use                                             |
-| ------------------- | ---- | ---- | -------- | ------------- | ----------------------------------------------- |
-| `text-title-event`  | 40   | 40   | -1.4     | display       | Event title over the cover                      |
-| `text-title-screen` | 34   | 36   | -1       | display       | Screen titles; the second line in `text-text-2` |
-| `text-title-roll`   | 24   | 28   | -0.6     | display       | Event names on Home rolls                       |
-| `text-wordmark`     | 22   | 24   | -0.4     | display       | "Everglow" in the header                        |
-| `text-name`         | 16   | 20   | 0        | sans-medium   | People in a roll call                           |
-| `text-body`         | 15   | 20   | 0        | sans          | Running text, list names                        |
-| `text-leader-label` | 13.5 | 16   | 1.35     | mono-semibold | Leader button labels, uppercase                 |
-| `text-text-button`  | 12.5 | 16   | 1.5      | mono-semibold | Text buttons, uppercase                         |
-| `text-edge-print`   | 10.5 | 14   | 1.26     | mono          | Edge print, uppercase                           |
-| `text-frame-label`  | 9.5  | 12   | 0.95     | mono          | Labels under frames, uppercase                  |
-| `text-counter`      | 64   | 64   | 0        | mono-semibold | The frame counter                               |
-| `text-note`         | 28   | 26   | 0        | hand          | Pencil notes, at most one per screen            |
-| `text-filled-in`    | 30   | 26   | 0        | hand          | Details written on paper                        |
+| Class                 | Size | Line | Tracking | Family        | Use                                             |
+| --------------------- | ---- | ---- | -------- | ------------- | ----------------------------------------------- |
+| `text-title-event`    | 40   | 40   | -1.4     | display       | Event title over the cover                      |
+| `text-title-screen`   | 34   | 36   | -1       | display       | Screen titles; the second line in `text-text-2` |
+| `text-title-roll`     | 24   | 28   | -0.6     | display       | Event names on Home rolls                       |
+| `text-wordmark`       | 22   | 24   | -0.4     | display       | "Everglow" in the header                        |
+| `text-name`           | 16   | 20   | 0        | sans-medium   | People in a roll call                           |
+| `text-body`           | 15   | 20   | 0        | sans          | Running text, list names                        |
+| `text-leader-label`   | 13.5 | 16   | 1.35     | mono-semibold | Leader button labels, uppercase                 |
+| `text-text-button`    | 12.5 | 16   | 1.5      | mono-semibold | Text buttons, uppercase                         |
+| `text-edge-print`     | 10.5 | 14   | 1.26     | mono          | Edge print, uppercase                           |
+| `text-frame-label`    | 9.5  | 12   | 0.95     | mono          | Labels under frames, uppercase                  |
+| `text-counter`        | 64   | 64   | 0        | mono-semibold | The frame counter                               |
+| `text-note`           | 28   | 26   | 0        | hand          | Pencil notes, at most one per screen            |
+| `text-filled-in`      | 30   | 26   | 0        | hand          | Details written on paper                        |
+| `text-filled-in-card` | 25   | 24   | 0        | hand          | Details on the lab card                         |
+| `text-input-name`     | 40   | none | -1.4     | display       | The name field in onboarding                    |
+| `text-input-handle`   | 28   | none | -0.8     | display       | The username field in onboarding                |
+
+Text inputs use the `text-input-*` sizes, which set no line height: on iOS a line height on a `TextInput` makes the first typed letter jump. Give the input a fixed height instead.
 
 A size name must never repeat a colour name: `text-edge` would mean both the 10.5pt size and the `edge` colour, and the colour wins. Hence `text-edge-print` and `text-leader-label`.
 
@@ -280,6 +285,7 @@ The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet;
 | One choice among several    | `OptionRow`, grouped in a `radiogroup` view                                |
 | A person on the roll call   | `RollCallRow`                                                              |
 | Any photo                   | `Photo` (expo-image with `className` support)                              |
+| A photo in black and white  | `Photo` inside `Monochrome` (`filter: grayscale` is Android only)          |
 | Native stack header title   | Leave to Expo Router; the navigation theme sets Funnel Sans                |
 
 `H1`, `H2` and `H3` remain for screens not rebuilt yet; they now set Funnel Display (H1, H2) and Funnel Sans SemiBold (H3). Every component can be seen on a device at `everglowmobile://design-kit` in development builds (`?only=<section>` shows one section). Paper components take every string from the caller, so screens pass translated copy.

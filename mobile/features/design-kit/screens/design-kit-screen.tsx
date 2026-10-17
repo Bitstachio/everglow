@@ -24,6 +24,9 @@ import { Slip } from "@/components/ui/slip";
 import { Stamp } from "@/components/ui/stamp";
 import { ThemedText } from "@/components/ui/themed-text";
 import { colorTokens } from "@/theme/tokens";
+import { OnboardingDraftProvider } from "@/features/profile/onboarding-draft";
+import OnboardingNameScreen from "@/features/profile/screens/onboarding-name-screen";
+import OnboardingUsernameScreen from "@/features/profile/screens/onboarding-username-screen";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { CaretLeft, DotsThree, QrCode } from "phosphor-react-native";
 import { type ReactNode } from "react";
@@ -34,6 +37,8 @@ import { ScrollView, View } from "react-native";
  * against the design system on a device. Open everglowmobile://design-kit, or
  * everglowmobile://design-kit?only=<section title> for one section, or
  * ?screen=launch|cant-connect for an app-wide screen that is hard to reach.
+ * ?screen=onboarding-name|onboarding-username with &name=, &username= and
+ * &terms=1 for an onboarding step already filled in.
  * The copy is sample data, so it is not translated. Photos come from
  * picsum.photos, so the film sections need a network connection.
  */
@@ -56,10 +61,26 @@ const PEOPLE = [
 ] as const;
 
 const DesignKitScreen = () => {
-  const { only, screen } = useLocalSearchParams<{ only?: string; screen?: string }>();
+  const { only, screen, name, username, terms } = useLocalSearchParams<{
+    only?: string;
+    screen?: string;
+    name?: string;
+    username?: string;
+    terms?: string;
+  }>();
   if (!__DEV__) return <Redirect href="/" />;
   if (screen === "launch") return <LaunchScreen />;
   if (screen === "cant-connect") return <CantConnectScreen onRetry={() => undefined} isRetrying={false} />;
+  if (screen === "onboarding-name" || screen === "onboarding-username") {
+    return (
+      <OnboardingDraftProvider
+        key={`${screen}:${name}:${username}:${terms}`}
+        initial={{ name, username, acceptedTerms: terms === "1" }}
+      >
+        {screen === "onboarding-name" ? <OnboardingNameScreen /> : <OnboardingUsernameScreen />}
+      </OnboardingDraftProvider>
+    );
+  }
 
   const text = colorTokens.text;
 
@@ -213,7 +234,7 @@ const DesignKitScreen = () => {
             photoUri={photo(40)}
             fields={[
               { label: "Name", value: "Maya Chen" },
-              { label: "Signs as", value: "@maya.chen" },
+              { label: "Signs frames as", value: "@maya.chen" },
               { label: "Free roll", value: "1 of 2 running" },
             ]}
             accessibilityLabel="Maya Chen, @maya.chen"
