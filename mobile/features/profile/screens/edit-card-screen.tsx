@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { EdgePrint } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { TopBar } from "@/components/ui/top-bar";
@@ -71,9 +70,7 @@ const EditCardScreen = () => {
             <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
               {error}
             </Text>
-          ) : (
-            <EdgePrint>{t("editCard.note")}</EdgePrint>
-          )}
+          ) : null}
         </View>
       </View>
 

@@ -4,8 +4,8 @@ import { forwardRef, type ReactNode } from "react";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
 
 type OnboardingFieldProps = Omit<TextInputProps, "className"> & {
-  /** Edge print above the field. */
-  label: string;
+  /** Edge print above the field; leave it out when the top bar already names it (14.3). */
+  label?: string;
   /** `name` is the large step 1 field; `handle` the username. */
   size: "name" | "handle";
   /** Printed before the value, dimmed: "@". */
@@ -28,7 +28,7 @@ export const OnboardingField = forwardRef<TextInput, OnboardingFieldProps>(
     const filled = Boolean(value);
     return (
       <View className="gap-2.5">
-        <EdgePrint>{label}</EdgePrint>
+        {label ? <EdgePrint>{label}</EdgePrint> : null}
         <View
           className={`flex-row items-center gap-2 border-b-2 pb-2 ${filled ? "border-text" : "border-outline-soft"}`}
         >

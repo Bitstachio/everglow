@@ -29,7 +29,7 @@ export const EditUsernameForm = ({
   error,
   onSubmit,
 }: EditUsernameFormProps) => {
-  const { t } = useTranslation(["you", "onboarding"]);
+  const { t } = useTranslation("you");
   const normalized = normalizeUsername(username);
   const changed = isDirty && availability.username === normalized;
   const isFree = changed && availability.status === "available";
@@ -53,7 +53,6 @@ export const EditUsernameForm = ({
             name="username"
             render={({ field }) => (
               <OnboardingField
-                label={t("onboarding:username.label")}
                 size="handle"
                 prefix="@"
                 accessibilityLabel={t("username.fieldA11y")}
@@ -80,7 +79,7 @@ export const EditUsernameForm = ({
             )}
           />
           {isFree ? (
-            <View className="absolute -top-1 right-20">
+            <View className="absolute -top-7 right-7">
               <GreasePencil mark="tick" width={26} height={26} seed={3} drawOn />
             </View>
           ) : null}

@@ -22,9 +22,9 @@ const EditUsernameScreen = () => {
       />
       {opensOn ? (
         <View className="px-5 pt-6">
-          <View className="flex-row items-center gap-2 border-b-2 border-outline-soft pb-2">
+          <View className="flex-row items-center gap-2 border-b-2 border-text pb-2">
             <Text className="font-display text-title-slip text-outline">@</Text>
-            <Text className="font-display text-title-slip text-edge">{currentUsername}</Text>
+            <Text className="font-display text-title-slip text-outline">{currentUsername}</Text>
           </View>
           <Display variant="slip" className="mt-7" dim={t("username.laterTitleDim", { date: opensOn })}>
             {t("username.laterTitle")}

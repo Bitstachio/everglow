@@ -59,7 +59,7 @@ const AccountSettingsScreen = () => {
         </View>
 
         <View className="mt-8">
-          <IndexRow first label={t("index.username")} value={username} onPress={onOpenUsername} disabled={isDeleting} />
+          <IndexRow label={t("index.username")} value={username} onPress={onOpenUsername} disabled={isDeleting} />
           <IndexRow label={t("index.email")} value={email} />
           <IndexRow
             label={t("index.password")}

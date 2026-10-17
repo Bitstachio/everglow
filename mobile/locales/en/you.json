@@ -25,8 +25,7 @@
     "changePhoto": "Change photo",
     "addPhoto": "Add a photo",
     "nameA11y": "Name",
-    "namePlaceholder": "Your name",
-    "note": "Your frames are signed with this name from now on."
+    "namePlaceholder": "Your name"
   },
   "username": {
     "title": "Username",
