@@ -76,7 +76,7 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date(), savedA
       onPress={onPress}
       className="active:opacity-80"
     >
-      <View className="flex-row items-baseline justify-between px-5 pb-2.5">
+      <View className="z-10 flex-row items-baseline justify-between px-5 pb-2.5">
         <Display
           variant="roll"
           className={`flex-1 ${upcoming || closed ? "text-text-2" : ""}`.trim()}
