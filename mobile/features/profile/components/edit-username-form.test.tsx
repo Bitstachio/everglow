@@ -1,8 +1,11 @@
 import { renderWithI18n } from "@/testing/render";
-import { screen, userEvent } from "@testing-library/react-native";
+import { fireEvent, screen, userEvent } from "@testing-library/react-native";
 import { useForm } from "react-hook-form";
 import { EditUsernameForm } from "./edit-username-form";
 import type { UsernameAvailabilityState } from "../lib/username";
+
+// The pencil tick draws on instantly, so its animation doesn't outlive a test.
+jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
 const available: UsernameAvailabilityState = {
   status: "available",
@@ -88,4 +91,11 @@ test("editing and the leader wait while the change is saved", async () => {
   const leader = screen.getByRole("button", { name: "Change to @ada.l" });
   expect(leader).toBeDisabled();
   expect(leader).toBeBusy();
+});
+
+test("lowercases the handle as it is typed, as in onboarding", async () => {
+  await renderWithI18n(<Probe username="" isDirty={false} />);
+  const field = screen.getByLabelText("Username");
+  await fireEvent.changeText(field, "Ada");
+  expect(field).toHaveProp("value", "ada");
 });

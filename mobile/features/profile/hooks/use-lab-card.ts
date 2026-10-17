@@ -1,3 +1,4 @@
+import { getAvatarCacheKey } from "@/components/ui/avatar";
 import { useAuth } from "@/context/auth-context";
 import { useTranslation } from "react-i18next";
 import { useMyLimitsQuery } from "../api/queries";
@@ -26,6 +27,7 @@ export const useLabCard = () => {
     card: {
       title: t("card.title", { since }),
       photoUri: details?.avatarUrl ?? undefined,
+      photoCacheKey: user && details?.avatarUrl ? getAvatarCacheKey(user.id, details.avatarUrl) : undefined,
       fields: [
         { label: t("card.name"), value: details?.name },
         { label: t("card.signsAs"), value: details ? `@${details.username}` : undefined },

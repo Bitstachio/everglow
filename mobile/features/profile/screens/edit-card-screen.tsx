@@ -11,8 +11,18 @@ import { useEditCardScreen } from "../hooks/use-edit-card-screen";
 /** 14.2 Edit the card. Name and photo are edited on the card itself. */
 const EditCardScreen = () => {
   const { t } = useTranslation(["you", "onboarding"]);
-  const { title, photoUri, username, form, hasAvatar, isUpdatingAvatar, onChangePhoto, onSave, onCancel } =
-    useEditCardScreen();
+  const {
+    title,
+    photoUri,
+    photoCacheKey,
+    username,
+    form,
+    hasAvatar,
+    isUpdatingAvatar,
+    onChangePhoto,
+    onSave,
+    onCancel,
+  } = useEditCardScreen();
   const { isSubmitting, isDirty, errors } = form.formState;
   const error = errors.name?.message ?? errors.root?.server?.message;
 
@@ -41,8 +51,9 @@ const EditCardScreen = () => {
             <EditLabCard
               title={title}
               photoUri={photoUri}
+              photoCacheKey={photoCacheKey}
               isUpdatingPhoto={isUpdatingAvatar}
-              photoBusyLabel={t("editCard.changePhoto")}
+              photoBusyLabel={t("editCard.updatingPhoto")}
               nameLabel={t("onboarding:card.name")}
               namePlaceholder={t("editCard.namePlaceholder")}
               nameA11y={t("editCard.nameA11y")}
@@ -57,12 +68,12 @@ const EditCardScreen = () => {
           )}
         />
 
-        <View className="mt-5 items-start gap-2 px-2">
+        <View className="mt-17 items-start gap-2 px-2">
           <Button
             title={hasAvatar ? t("editCard.changePhoto") : t("editCard.addPhoto")}
             variant="ghost"
             fullWidth={false}
-            className="-ml-2"
+            className="ml-2.5"
             onPress={onChangePhoto}
             disabled={isUpdatingAvatar || isSubmitting}
           />
