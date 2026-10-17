@@ -90,7 +90,7 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date(), savedA
               <PencilNote>{timeText}</PencilNote>
             </View>
             {noteSize.width > 0 ? (
-              <View className="absolute -left-6 -top-4">
+              <View className="absolute -left-6 -top-5.5">
                 <GreasePencil
                   mark="ring"
                   width={noteSize.width + 48}
