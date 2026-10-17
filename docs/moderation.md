@@ -19,19 +19,20 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 
 ## Built and planned
 
-| Part                                                                                                     | Status                  | Issue                                                                                                                                                                                                        |
-| -------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits            | Built                   | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
-| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                  | Built                   | [EV-114](https://linear.app/mehrshadfb/issue/EV-114)                                                                                                                                                         |
-| Report history: reports outlive their event, and record why and by whom they closed (§1, §3)             | Built, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
-| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)            | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
-| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
-| `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons, hiding and holds (§2, §5, §7)                | Built                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62)                                                                                                                                                           |
-| NCMEC and Cybertip.ca registration, the runbooks, the TAKE IT DOWN web form, identical-copy removal (§7) | Planned                 | [EV-62](https://linear.app/mehrshadfb/issue/EV-62); the web form and copy matching are filed once this design is agreed                                                                                      |
-| Platform tools: act on any report, evidence links, holds, lift reviews (§8)                              | Built                   | [EV-59](https://linear.app/mehrshadfb/issue/EV-59)                                                                                                                                                           |
-| Suspending accounts and events, fixing and deleting events (§8)                                          | Built                   | [EV-58](https://linear.app/mehrshadfb/issue/EV-58)                                                                                                                                                           |
-| Upload screening (§11)                                                                                   | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
-| Telling organizers about reports and uploaders about removals                                            | Planned                 | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
+| Part                                                                                                                | Status                  | Issue                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reports on photos, members and events; hiding; blocks; bans; under review; terms; rate limits                       | Built                   | [EV-7](https://linear.app/mehrshadfb/issue/EV-7), [EV-38](https://linear.app/mehrshadfb/issue/EV-38), [EV-56](https://linear.app/mehrshadfb/issue/EV-56), [EV-11](https://linear.app/mehrshadfb/issue/EV-11) |
+| Two queues: where a report starts, what moves it to the platform, who may close it (§3)                             | Built                   | [EV-114](https://linear.app/mehrshadfb/issue/EV-114)                                                                                                                                                         |
+| Report history: reports outlive their event, and record why and by whom they closed (§1, §3)                        | Built, replaces PR #142 | [EV-60](https://linear.app/mehrshadfb/issue/EV-60)                                                                                                                                                           |
+| Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)                       | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
+| Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                           | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
+| `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons, hiding and holds (§2, §5, §7)                           | Built                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62)                                                                                                                                                           |
+| The runbook ([moderation-runbook.md](../api/docs/moderation-runbook.md))                                            | Built                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62)                                                                                                                                                           |
+| NCMEC and Cybertip.ca registration, the CSAE standards page, the TAKE IT DOWN web form, identical-copy removal (§7) | Planned                 | [EV-116](https://linear.app/mehrshadfb/issue/EV-116)                                                                                                                                                         |
+| Platform tools: act on any report, evidence links, holds, lift reviews (§8)                                         | Built                   | [EV-59](https://linear.app/mehrshadfb/issue/EV-59)                                                                                                                                                           |
+| Suspending accounts and events, fixing and deleting events (§8)                                                     | Built                   | [EV-58](https://linear.app/mehrshadfb/issue/EV-58)                                                                                                                                                           |
+| Upload screening (§11)                                                                                              | Built, off by default   | [EV-115](https://linear.app/mehrshadfb/issue/EV-115)                                                                                                                                                         |
+| Telling organizers about reports and uploaders about removals                                                       | Planned                 | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
 
 ## Who moderates
 
@@ -56,7 +57,7 @@ model Report {
   eventId?           // SET NULL
   eventTitle         // the event's title when the report was filed
   reporterId?        // SET NULL; null from the start on an automated report (§11)
-  source             // USER | AUTOMATED (planned, §11)
+  source             // USER | AUTOMATED (§11)
   targetType         // PHOTO | MEMBER | EVENT
   photoId?           // SET NULL, PHOTO reports only
   reportedUserId?    // SET NULL: the reported member, or the uploader of the reported photo
@@ -136,14 +137,13 @@ Account deletion is never refused because of a report or a block, and `AccountDe
 
 Added by hand in the migrations. Each is written so that a later `SET NULL` still passes: a comparison with `NULL` is `NULL`, and a `CHECK` only rejects `FALSE`.
 
-| Constraint                                | Rule                                                                                                                           |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `Report_member_target_has_no_photo_check` | `targetType = 'PHOTO' OR photoId IS NULL`                                                                                      |
-| `Report_reporter_is_not_reported_check`   | `reporterId <> reportedUserId`                                                                                                 |
-| `Report_resolution_matches_status_check`  | OPEN has no `resolvedAt` and no `resolvedById`; a closed report has a `resolvedAt`                                             |
-| `Report_closure_matches_status_check`     | OPEN has no `closedReason` and no `closedByRole`; a closed report has both, or neither if it closed before they were recorded  |
-| `Report_user_source_has_reporter_check`   | Planned. `source = 'AUTOMATED' OR reporterId IS NOT NULL` at insert (a trigger, not a CHECK, since `SET NULL` must still pass) |
-| `UserBlock_no_self_block_check`           | `blockerId <> blockedId`                                                                                                       |
+| Constraint                                | Rule                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `Report_member_target_has_no_photo_check` | `targetType = 'PHOTO' OR photoId IS NULL`                                                                                     |
+| `Report_reporter_is_not_reported_check`   | `reporterId <> reportedUserId`                                                                                                |
+| `Report_resolution_matches_status_check`  | OPEN has no `resolvedAt` and no `resolvedById`; a closed report has a `resolvedAt`                                            |
+| `Report_closure_matches_status_check`     | OPEN has no `closedReason` and no `closedByRole`; a closed report has both, or neither if it closed before they were recorded |
+| `UserBlock_no_self_block_check`           | `blockerId <> blockedId`                                                                                                      |
 
 ### One OPEN report per reporter and target
 
@@ -395,7 +395,7 @@ The threshold is evaluated when photos are read, not stored on the photo. Member
   AND: [
     { reports: { none: { reporterId: callerId, status: OPEN } } },                          // rule 1
     { reports: { none: { status: OPEN, reason: { in: SEVERE_REPORT_REASONS } } } },         // rules 3 and 4
-    { reports: { none: { status: OPEN, source: AUTOMATED } } },                             // rule 3 (planned)
+    { reports: { none: { status: OPEN, source: AUTOMATED } } },                             // rule 3
     { id: { notIn: photoIdsOverThreshold } },                                               // rule 2
     { NOT: { addedBy: { is: { OR: [blockedByCaller, blockedTheCaller] } } } },              // blocks, §6
   ],
@@ -538,7 +538,7 @@ From May 19, 2026, a platform that hosts user content must remove a non-consensu
 
 - **In the app**, the request is a `NON_CONSENSUAL_INTIMATE_IMAGE` report. It hides the image from everyone at once (§5), pages, and starts the 48-hour clock from `createdAt`.
 - **Outside the app**, the person may not be a member, or may not have an account. A public request form on the website collects what the Act asks for: a signature, enough to find the image, a statement that it was shared without consent, and contact details. The platform files it as a report on their behalf.
-- **Identical copies** are found by SHA-256 across all events and removed with it. Planned: photos don't record their hash at upload yet, only evidence copies do.
+- **Identical copies** are found by SHA-256 across all events and removed with it. Planned ([EV-116](https://linear.app/mehrshadfb/issue/EV-116)): photos don't record their hash at upload yet, only evidence copies do.
 - The privacy policy and the website describe the process in plain language.
 
 Whether the Act covers invite-only galleries is uncertain; we follow it anyway.
@@ -604,7 +604,7 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 | `gallery_closed`           | The gallery closed with the report OPEN, or it was filed after close.                                                                    |
 | `severe_dismissed`         | An organizer dismissed a severe report.                                                                                                  |
 | `target_deleted`           | The photo or account was deleted without a verdict, and the report is severe or already with the platform.                               |
-| `automated_flag`           | Planned. Upload screening flagged the photo (§11).                                                                                       |
+| `automated_flag`           | Upload screening flagged the photo (§11).                                                                                                |
 
 A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged.
 
@@ -625,18 +625,28 @@ The app's onboarding screen shows an explicit consent control that links to the 
 
 ## 11. Upload screening
 
-**Planned** (filed once this design is agreed). Apple's guideline 1.2 asks for "a method for filtering objectionable material from being posted". Reports and hiding act only after a photo is up; screening catches the worst of it before anyone sees it.
+Built, off until it is switched on (`MODERATION_SCREENING_ENABLED=true`). Apple's guideline 1.2 asks for "a method for filtering objectionable material from being posted". Reports and hiding act only after a photo is up; screening catches the worst of it before anyone else sees it.
 
-- **When.** Upload confirmation calls Amazon Rekognition `DetectModerationLabels` on the object already in S3. The photo becomes `READY` as today.
-- **Flagged photos.** A photo with a label above the configured confidence in the nudity, violence or exploitation categories gets an automated report:
-  - `source: AUTOMATED`, no reporter, a reason mapped from the label;
-  - in `PLATFORM` (`automated_flag`);
-  - hidden from everyone but organizers until it is judged (§5, rule 3).
+- **When.** Upload confirmation marks the photos `READY`, then screens them before it answers (`UploadScreeningService`, called from `PhotosService.confirmUploads`). Amazon Rekognition's `DetectModerationLabels` reads each object straight from the bucket with the API's credentials. The photos are screened in parallel, each with a timeout (`SCREENING_TIMEOUT_MS`, 5 seconds).
+- **Flagged photos.** A label at or above `SCREENING_MIN_CONFIDENCE` (80%) in one of these categories, or under one, files an automated report (`ReportsService.fileAutomatedReport`, `SCREENING_CATEGORIES`):
 
-  The uploader isn't told.
+  | Rekognition category                                | Reason             |
+  | --------------------------------------------------- | ------------------ |
+  | Explicit, Explicit Nudity, Explicit Sexual Activity | `NUDITY_OR_SEXUAL` |
+  | Violence, Graphic Violence, Visually Disturbing     | `VIOLENCE`         |
+  | Hate Symbols                                        | `HARASSMENT`       |
 
-- **Failure is open.** If the call fails, the photo is published, a warning is logged, and nothing retries. Uploads never wait on the screen.
-- **Disclosure.** The privacy policy names image screening by a service provider, as Apple guideline 5.1.2(i) asks.
+  The report has `source: AUTOMATED` and no reporter. It goes straight to `PLATFORM` (`automated_flag`, plus `severe_reason` for nudity or violence), with its evidence snapshot, and a note listing the labels for the reviewer. One OPEN automated report per photo. The photo is hidden from everyone but organizers until the platform judges it (§5, rule 3). The uploader isn't told.
+
+  Swimwear, alcohol, rude gestures and the like are ordinary at a party and file nothing.
+
+- **Failure is open.** If Rekognition fails or times out, the photo is published, `photo.screening.failed` is logged, and nothing retries. Uploads never fail because of the screen.
+- **JPEG and PNG only.** Rekognition reads no other format. A HEIC or WebP photo, which is what iPhones upload as they are, is published unscreened and logged as `photo.screening.skipped`. Screening those needs a JPEG derivative, which comes with thumbnails or compression ([EV-94](https://linear.app/mehrshadfb/issue/EV-94)).
+- **One OPEN automated report per photo**, enforced by a partial unique index, so two confirms of the same upload file one.
+- **Before switching it on:**
+  - apply the `api_rekognition` IAM policy (`api/infra/main.tf`);
+  - check in dev that Rekognition can read a KMS-encrypted photo with the API's credentials;
+  - name image screening by a service provider in the privacy policy, as Apple guideline 5.1.2(i) asks.
 - **Not in scope.** Matching against known child sexual abuse material (PhotoDNA, Thorn Safer) is for later. It needs an application and a contract, and the law doesn't require it at our size.
 
 ---

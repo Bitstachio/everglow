@@ -18,9 +18,11 @@ import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosService } from "./photos.service";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
+import { UploadScreeningService } from "src/moderation/screening/upload-screening.service";
 
 describe("PhotosService", () => {
   let evidenceService: EvidenceServiceMock;
+  let uploadScreeningService: { screen: jest.Mock };
   let service: PhotosService;
   let prisma: DeepMockProxy<PrismaClient>;
   let s3Service: {
@@ -140,6 +142,7 @@ describe("PhotosService", () => {
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     evidenceService = buildEvidenceServiceMock();
+    uploadScreeningService = { screen: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -148,6 +151,7 @@ describe("PhotosService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: S3Service, useValue: s3Service },
         { provide: EvidenceService, useValue: evidenceService },
+        { provide: UploadScreeningService, useValue: uploadScreeningService },
         { provide: PhotoStorageService, useValue: photoStorageService },
         { provide: PhotoVisibilityService, useValue: photoVisibilityService },
         { provide: PinoLogger, useValue: logger },
@@ -496,6 +500,8 @@ describe("PhotosService", () => {
       expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
       expect(s3Service.deleteObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, mismatchedPhotoId));
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId, mismatchedPhotoId));
+      // Only the photos that became READY are screened, before the response.
+      expect(uploadScreeningService.screen).toHaveBeenCalledWith([expect.objectContaining({ id: photoId })]);
     });
 
     it("flips verified photos to READY and reports per-photo results for a mixed batch", async () => {

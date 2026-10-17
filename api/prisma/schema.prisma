@@ -338,6 +338,9 @@ model Report {
   eventTitle         String              @db.VarChar(100)
   // Null once the reporter's account is deleted: the report stays as evidence.
   reporterId         String?             @db.Uuid
+  // USER for a member's report; AUTOMATED for one filed by upload screening,
+  // which has no reporter (docs/moderation.md §11).
+  source             ReportSource        @default(USER)
   targetType         ReportTargetType
   // Set for PHOTO reports; null again once that photo is deleted.
   photoId            String?             @db.Uuid
@@ -393,6 +396,9 @@ model Report {
   @@unique([reporterId, eventId, reportedUserId], where: { status: "OPEN", targetType: "MEMBER" })
   // One OPEN report per member about the event itself.
   @@unique([reporterId, eventId], where: { status: "OPEN", targetType: "EVENT" })
+  // One OPEN automated report per photo: two confirms of the same upload
+  // can't both file one (docs/moderation.md §11).
+  @@unique([photoId], where: { status: "OPEN", source: "AUTOMATED" })
   // Organizer queue (status filter, newest first) and the per-event lookup of
   // photos whose open reports reached the hide threshold.
   @@index([eventId, status, createdAt])
@@ -529,9 +535,16 @@ enum ReportEscalation {
   TARGET_DELETED
   CHILD_SAFETY
   INTIMATE_IMAGE
+  AUTOMATED_FLAG
 }
 
 // A role on the platform itself, above any event (docs/moderation.md §8).
 enum PlatformRole {
   MODERATOR
+}
+
+// Who filed a report (docs/moderation.md §11).
+enum ReportSource {
+  USER
+  AUTOMATED
 }
