@@ -68,12 +68,12 @@ const EditCardScreen = () => {
           )}
         />
 
-        <View className="mt-5 items-start gap-2 px-2">
+        <View className="mt-17 items-start gap-2 px-2">
           <Button
             title={hasAvatar ? t("editCard.changePhoto") : t("editCard.addPhoto")}
             variant="ghost"
             fullWidth={false}
-            className="-ml-2"
+            className="ml-2.5"
             onPress={onChangePhoto}
             disabled={isUpdatingAvatar || isSubmitting}
           />
