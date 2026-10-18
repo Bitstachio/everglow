@@ -84,9 +84,6 @@ export const What = async () => {
               titleLine2={t("share.story.titleLine2")}
               tiles={storyTiles}
             />
-            <p className="text-edge mt-3 max-w-[360px] font-mono text-[9px] leading-3 font-medium tracking-[0.1em] uppercase">
-              {t("share.story.sample")}
-            </p>
           </div>
         </div>
       </Container>
