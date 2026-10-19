@@ -6,13 +6,11 @@ import { buildEvent } from "../testing/fixtures";
 import { useEventsScreen } from "./use-events-screen";
 
 const mockFindAll = jest.fn();
-const mockJoin = jest.fn();
 const mockPush = jest.fn();
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindAll: (...args: unknown[]) => mockFindAll(...args),
-  eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
 }));
 jest.mock("@/context/auth-context", () => ({
   useAuth: () => ({ user: { id: "user-1", details: { name: "Ada", avatarUrl: null } } }),
@@ -26,7 +24,7 @@ jest.mock("expo-router", () => ({
 }));
 
 const Probe = () => {
-  const { groups, isLoading, isOffline, onNewEvent, onOpenRoll } = useEventsScreen();
+  const { groups, isLoading, isOffline, onNewEvent, onOpenRoll, onScan } = useEventsScreen();
   const firstLive = groups.live[0];
   return (
     <View>
@@ -36,6 +34,7 @@ const Probe = () => {
       <Text testID="upcoming">{groups.upcoming.length}</Text>
       <Text testID="closed">{groups.closed.length}</Text>
       <Button title="New event" onPress={onNewEvent} />
+      <Button title="Scan" onPress={onScan} />
       {firstLive ? <Button title="Open roll" onPress={() => onOpenRoll(firstLive)} /> : null}
     </View>
   );
@@ -54,7 +53,6 @@ const renderHome = async () => {
 
 beforeEach(() => {
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
-  mockJoin.mockReset();
   mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
@@ -78,13 +76,15 @@ test("groups the rolls by gallery state", async () => {
   expect(screen.getByTestId("closed")).toHaveTextContent("1");
 });
 
-test("routes to create and to a roll's page", async () => {
+test("routes to create, to the scanner and to a roll's page", async () => {
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "roll-7", galleryState: "OPEN" })] } });
   await renderHome();
   await screen.findByText("Loaded");
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "New event" }));
   expect(mockPush).toHaveBeenCalledWith("/events/create");
+  await user.press(screen.getByRole("button", { name: "Scan" }));
+  expect(mockPush).toHaveBeenCalledWith("/join");
   await user.press(screen.getByRole("button", { name: "Open roll" }));
   expect(mockPush).toHaveBeenCalledWith("/events/roll-7");
 });

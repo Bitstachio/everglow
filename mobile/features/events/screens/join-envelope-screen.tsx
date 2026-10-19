@@ -114,6 +114,7 @@ const JoinEnvelopeScreen = () => {
     onRetry,
     onBack,
     onBackToRolls,
+    onScanAnother,
   } = useJoinEnvelopeScreen();
 
   const views = envelope?.admits === "view";
@@ -188,6 +189,8 @@ const JoinEnvelopeScreen = () => {
             />
             <Button title={t("open.notNow")} variant="ghost" onPress={onBackToRolls} disabled={isJoining} />
           </>
+        ) : refusal === "NOT_VALID" ? (
+          <Button title={t("refused.scanAnother")} variant="secondary" mark="▸" onPress={onScanAnother} />
         ) : refusal ? (
           <Button title={t("open.backToRolls")} variant="secondary" mark="‹" onPress={onBackToRolls} />
         ) : (
