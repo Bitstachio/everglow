@@ -46,6 +46,8 @@ export const BlockedPersonRow = ({
       accessibilityLabel={unblockA11y}
       variant="ghost"
       fullWidth={false}
+      // Flush with the rule, as drawn: the ghost button's own padding would inset it.
+      className="-mr-2"
       onPress={onUnblock}
     />
   </View>
