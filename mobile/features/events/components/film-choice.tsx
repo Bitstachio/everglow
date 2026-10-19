@@ -35,7 +35,9 @@ export const FilmChoice = ({ heading, unit, options, selected, onSelect, circled
 
   return (
     <View>
-      <EdgePrint className="mb-2.5">{heading}</EdgePrint>
+      <EdgePrint className="mb-2.5" numberOfLines={1} adjustsFontSizeToFit>
+        {heading}
+      </EdgePrint>
       <View
         accessibilityRole="radiogroup"
         className="flex-row gap-2"

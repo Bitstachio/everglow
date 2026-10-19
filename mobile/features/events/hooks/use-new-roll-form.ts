@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getErrorMessage } from "@/lib/api/errors";
 import type { TFunction } from "i18next";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -14,7 +14,7 @@ const makeNewRollSchema = (t: TFunction<"create">) =>
     title: z.string().trim().min(1, t("validation.nameRequired")).max(100, t("validation.nameTooLong")),
     description: z.string().trim().max(255, t("validation.lineTooLong")),
     date: z.date(),
-    /** One of the plan's `galleryWindowOptions`; null on a plan that never closes. */
+    /** The film the host picked from the plan's `galleryWindowOptions`; null keeps the plan's default. */
     galleryWindowDays: z.number().int().positive().nullable(),
   });
 
@@ -39,19 +39,15 @@ export const useNewRollForm = ({ newEvent, onCreated }: UseNewRollFormParams) =>
     galleryWindowDays: null,
   }));
   const form = useForm<NewRollValues>({ resolver: zodResolver(schema), defaultValues, mode: "onTouched" });
-
-  // The plan's default film is chosen until the host picks another.
-  const defaultDays = newEvent?.defaultGalleryWindowDays ?? null;
-  const { reset } = form;
-  useEffect(() => {
-    reset({ ...defaultValues, galleryWindowDays: defaultDays }, { keepDirtyValues: true });
-  }, [defaultDays, defaultValues, reset]);
+  // Until the host picks a film, the plan's default is the one chosen. Null on a plan that never closes.
+  const film = (picked: number | null) => picked ?? newEvent?.defaultGalleryWindowDays ?? null;
 
   const onSubmit = () =>
-    form.handleSubmit(async ({ title, description, date, galleryWindowDays }) => {
+    form.handleSubmit(async ({ title, description, date, galleryWindowDays: picked }) => {
       if (submitting.current) return;
       submitting.current = true;
       form.clearErrors("root");
+      const galleryWindowDays = film(picked);
       try {
         const event = await mutation.mutateAsync({
           title,
@@ -67,5 +63,5 @@ export const useNewRollForm = ({ newEvent, onCreated }: UseNewRollFormParams) =>
       }
     })();
 
-  return { form, onSubmit };
+  return { form, onSubmit, film };
 };

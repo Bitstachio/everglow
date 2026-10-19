@@ -6,6 +6,8 @@ import { renderWithI18n } from "@/testing/render";
 import { act, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Keyboard } from "react-native";
 import NewRollScreen from "./new-roll-screen";
+// Seed the limits cache at the integration boundary.
+import { profileKeys } from "@/features/profile/api/keys";
 import { buildEvent, deferred } from "../testing/fixtures";
 
 const mockCreate = jest.fn();
@@ -169,6 +171,27 @@ test("offers only the days the API allows", async () => {
   expect(screen.getByRole("button", { name: "Fri 20 Nov" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Previous month" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Next month" })).toBeDisabled();
+});
+
+test("chooses the plan's default film when the limits are already loaded", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  client.setQueryData(profileKeys.limits(), limits({ defaultGalleryWindowDays: 7 }).data.data);
+  await renderWithI18n(
+    <QueryClientProvider client={client}>
+      <NewRollScreen />
+    </QueryClientProvider>,
+  );
+
+  expect(screen.getByRole("radio", { name: "A week, 7-day roll" })).toBeChecked();
+  const user = userEvent.setup();
+  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await waitFor(() =>
+    expect(mockCreate).toHaveBeenCalledWith({
+      body: expect.objectContaining({ galleryWindowDays: 7 }),
+      throwOnError: true,
+    }),
+  );
 });
 
 test("prints any other length the API offers in days", async () => {

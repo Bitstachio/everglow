@@ -51,15 +51,20 @@ export const useNewRollScreen = () => {
   const router = useRouter();
   const limitsQuery = useMyLimitsQuery();
   const newEvent = limitsQuery.data?.newEvent;
-  const { form, onSubmit } = useNewRollForm({
+  const {
+    form,
+    onSubmit,
+    film: chosenFilm,
+  } = useNewRollForm({
     newEvent,
     onCreated: (event) => router.replace(`/events/${event.id}`),
   });
-  const [title, description, date, galleryWindowDays] = useWatch({
+  const [title, description, date, pickedFilm] = useWatch({
     control: form.control,
     name: ["title", "description", "date", "galleryWindowDays"],
   });
-  const { dirtyFields, errors, isSubmitting } = form.formState;
+  const galleryWindowDays = chosenFilm(pickedFilm);
+  const { errors, isSubmitting } = form.formState;
   const guestLineRef = useRef<TextInput>(null);
   const keyboardVisible = useKeyboardVisible();
 
@@ -133,7 +138,7 @@ export const useNewRollScreen = () => {
     film: {
       options: filmOptions,
       selected: galleryWindowDays,
-      circled: Boolean(dirtyFields.galleryWindowDays),
+      circled: pickedFilm !== null,
       onSelect: (days: number) => form.setValue("galleryWindowDays", days, { shouldDirty: true }),
       opens: formatShortDay(gallery.opensAt),
       closes: gallery.closesAt ? formatShortDay(gallery.closesAt) : null,

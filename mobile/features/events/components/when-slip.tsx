@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Display } from "@/components/ui/display";
 import { EdgePrint } from "@/components/ui/edge-print";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { CalendarDayState } from "../lib/new-roll";
 
@@ -39,8 +39,11 @@ type WhenSlipProps = {
   onSet: () => void;
 };
 
-// Each time is w-20 with gap-2.5, so four fill the slip and the chosen one sits second.
-const TIME_STEP = 90;
+// Four times fill the slip's width, 10pt apart inside its 20pt margins, and
+// the chosen one opens second from the left.
+const TIMES_IN_VIEW = 4;
+const TIME_GAP = 10;
+const TIME_MARGIN = 20;
 
 const DAY_CLASSES: Record<CalendarDayState, { cell: string; text: string }> = {
   open: { cell: "", text: "text-text" },
@@ -69,6 +72,7 @@ const StepButton = ({ glyph, step }: { glyph: string; step: MonthStep }) => (
  */
 export const WhenSlip = ({ edge, month, previous, next, weekdays, days, times, setLabel, onSet }: WhenSlipProps) => {
   const timesRef = useRef<ScrollView>(null);
+  const [timeWidth, setTimeWidth] = useState(0);
   const selectedTime = Math.max(
     0,
     times.findIndex((time) => time.selected),
@@ -116,8 +120,16 @@ export const WhenSlip = ({ edge, month, previous, next, weekdays, days, times, s
         horizontal
         showsHorizontalScrollIndicator={false}
         className="-mx-5 mt-3.5"
-        contentContainerClassName="gap-2.5 px-5"
-        onLayout={() => timesRef.current?.scrollTo({ x: Math.max(0, selectedTime - 1) * TIME_STEP, animated: false })}
+        contentContainerStyle={{ paddingHorizontal: TIME_MARGIN, gap: TIME_GAP }}
+        onLayout={(event) =>
+          setTimeWidth(
+            (event.nativeEvent.layout.width - 2 * TIME_MARGIN - (TIMES_IN_VIEW - 1) * TIME_GAP) / TIMES_IN_VIEW,
+          )
+        }
+        // Once the times have their width, bring the chosen one in, second from the left.
+        onContentSizeChange={() =>
+          timesRef.current?.scrollTo({ x: Math.max(0, selectedTime - 1) * (timeWidth + TIME_GAP), animated: false })
+        }
       >
         {times.map((time) => (
           <Pressable
@@ -127,8 +139,9 @@ export const WhenSlip = ({ edge, month, previous, next, weekdays, days, times, s
             accessibilityState={{ selected: time.selected, disabled: time.disabled }}
             disabled={time.disabled}
             onPress={time.onPress}
+            style={{ width: timeWidth }}
             className={[
-              "h-13.5 w-20 items-center justify-center rounded-paper",
+              "h-13.5 items-center justify-center rounded-paper",
               time.selected ? "border-2 border-text" : "border border-outline-soft",
               time.disabled ? "opacity-30" : "",
             ]
