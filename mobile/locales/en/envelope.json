@@ -27,6 +27,36 @@
     "adds": "Adds-photos envelope for {{title}}",
     "view": "View-only envelope for {{title}}"
   },
+  "share": {
+    "cta": "Share the link",
+    "message": "{{title}} · join the roll\n{{url}}",
+    "failedTitle": "Couldn’t share the link"
+  },
+  "copy": {
+    "cta": "Copy link",
+    "done": "Copied"
+  },
+  "reset": {
+    "cta": "Reset ›",
+    "a11y": {
+      "adds": "Reset the adds-photos envelope",
+      "view": "Reset the view-only envelope"
+    },
+    "edge": {
+      "adds": "Adds-photos envelope",
+      "view": "View-only envelope"
+    },
+    "title": "Reset this envelope?",
+    "body_one": "The current QR and link stop working at once and you get new ones. The {{other}} envelope keeps working, and the person already in stays.",
+    "body_other": "The current QR and link stop working at once and you get new ones. The {{other}} envelope keeps working, and the {{count}} people already in stay.",
+    "other": {
+      "adds": "view-only",
+      "view": "adds-photos"
+    },
+    "confirm": "Reset it",
+    "cancel": "Keep it",
+    "failedTitle": "Couldn’t reset the envelope"
+  },
   "loadFailed": "Couldn’t load the envelope.",
   "retry": "Try again"
 }
