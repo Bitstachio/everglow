@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getErrorMessage } from "@/lib/api/errors";
+import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
 import type { TFunction } from "i18next";
 import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -25,10 +25,12 @@ type UseNewRollFormParams = {
   newEvent: NewEventResponseDto | undefined;
   /** Runs once the roll exists, before the form stops submitting; it must not throw. */
   onCreated: (event: EventResponseDto) => void | Promise<void>;
+  /** The account is already running as many rolls as its plan allows (04.8). */
+  onLimitReached?: () => void;
 };
 
 /** 04.1–04.4 The new roll's label, time and film, created on Load the roll. */
-export const useNewRollForm = ({ newEvent, onCreated }: UseNewRollFormParams) => {
+export const useNewRollForm = ({ newEvent, onCreated, onLimitReached }: UseNewRollFormParams) => {
   const { t } = useTranslation("create");
   const mutation = useCreateEventMutation();
   const submitting = useRef(false);
@@ -59,6 +61,7 @@ export const useNewRollForm = ({ newEvent, onCreated }: UseNewRollFormParams) =>
           })
           .catch((error: unknown) => {
             form.setError("root.server", { message: getErrorMessage(error, t("failed")) });
+            if (getErrorCode(error) === "ACTIVE_EVENT_LIMIT_REACHED") onLimitReached?.();
             return null;
           });
         if (event) await onCreated(event);

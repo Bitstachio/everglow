@@ -2,6 +2,7 @@ import "../testing/native-mocks";
 // The integration harness supplies the real data provider.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createApiError } from "@/lib/api/errors";
 import { renderWithI18n } from "@/testing/render";
 import { act, screen, userEvent, waitFor } from "@testing-library/react-native";
 // Observe the native alert boundary without replacing screen hooks.
@@ -25,6 +26,8 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerCreateCoverUploadUrl: (...args: unknown[]) => mockMintCover(...args),
   eventsControllerConfirmCoverUpload: (...args: unknown[]) => mockConfirmCover(...args),
   usersControllerGetMyLimits: (...args: unknown[]) => mockLimits(...args),
+  eventsControllerFindAll: (...args: unknown[]) => mockFindAll(...args),
+  photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
 }));
 // Native boundaries: the photo picker, the on-device crop and the byte upload.
 jest.mock("expo-image-picker", () => ({
@@ -42,19 +45,34 @@ jest.mock("@/lib/api/upload-file", () => ({
     return { uploadId: "upload-1" };
   },
 }));
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, back: mockBack }) }));
+const mockDispatch = jest.fn();
+const mockFindAll = jest.fn();
+const mockListPhotos = jest.fn();
+let mockPrevent: { prevent: boolean; callback: (event: { data: { action: unknown } }) => void };
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ replace: mockReplace, back: mockBack }),
+  useNavigation: () => ({ dispatch: mockDispatch }),
+}));
+// React Navigation asks this before the screen goes, by Close, a swipe or the system back.
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: (prevent: boolean, callback: typeof mockPrevent.callback) => {
+    mockPrevent = { prevent, callback };
+  },
+}));
+jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
 // Sunday 1 November 2026, 09:41 on the device's clock.
 const NOW = new Date(2026, 10, 1, 9, 41);
 
-const limits = (newEvent: Record<string, unknown> = {}) => ({
+const limits = (newEvent: Record<string, unknown> = {}, account: Record<string, unknown> = {}) => ({
   data: {
     data: {
       plan: "FREE",
       limits: { activeEvents: 2 },
       usage: { activeEvents: 0 },
       nextClosingEvent: null,
+      ...account,
       newEvent: {
         plan: "FREE",
         galleryWindowOptions: [3, 7, 14, 30],
@@ -106,6 +124,9 @@ beforeEach(() => {
   mockLimits.mockReset().mockResolvedValue(limits());
   mockReplace.mockReset();
   mockBack.mockReset();
+  mockDispatch.mockReset();
+  mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
+  mockListPhotos.mockReset().mockResolvedValue({ data: { data: { items: [] } } });
   mockMintCover.mockReset().mockResolvedValue({
     data: { data: { uploadId: "upload-1", uploadUrl: "https://upload.example.com/1", expiresAt: "2030-01-01" } },
   });
@@ -313,8 +334,113 @@ test("waits for the film, and offers to try again if it can't be had", async () 
   expect(await screen.findByText("Tonight · 20:00 · edit ›")).toBeOnTheScreen();
 });
 
-test("closes back to Home", async () => {
+const back = { type: "GO_BACK" };
+
+/** What React Navigation does as the screen is about to go: ask the screen first. */
+const leaveScreen = () =>
+  act(() => {
+    if (mockPrevent.prevent) mockPrevent.callback({ data: { action: back } });
+    else mockDispatch(back);
+  });
+
+test("closes an empty roll without asking", async () => {
   await renderScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Close" }));
   expect(mockBack).toHaveBeenCalledTimes(1);
+
+  await leaveScreen();
+  expect(screen.queryByText("Throw this roll away?")).not.toBeOnTheScreen();
+  expect(mockDispatch).toHaveBeenCalledWith(back);
+});
+
+test("asks before throwing away a roll with anything filled in", async () => {
+  await renderScreen();
+  const user = userEvent.setup();
+  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
+
+  await leaveScreen();
+  expect(await screen.findByText("Throw this roll away?")).toBeOnTheScreen();
+  expect(screen.getByText("Nothing has been created. You can start again any time.")).toBeOnTheScreen();
+  // The label drops its edit link while a slip is over it.
+  expect(screen.getByText("Tonight · 20:00")).toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Keep editing" }));
+  expect(mockDispatch).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Roll name")).toHaveDisplayValue("Nadia turns 30");
+
+  await leaveScreen();
+  await user.press(await screen.findByRole("button", { name: "Throw it away" }));
+  expect(mockDispatch).toHaveBeenCalledWith(back);
+});
+
+test("counts a first frame as something to lose", async () => {
+  await renderScreen();
+  await chooseCover();
+  await screen.findByText("Change ›");
+
+  await leaveScreen();
+  expect(await screen.findByText("Throw this roll away?")).toBeOnTheScreen();
+});
+
+test("goes without asking once the roll is loaded", async () => {
+  await renderScreen();
+  const user = userEvent.setup();
+  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/loaded"));
+
+  await leaveScreen();
+  expect(mockDispatch).toHaveBeenCalledWith(back);
+  expect(screen.queryByText("Throw this roll away?")).not.toBeOnTheScreen();
+});
+
+// Two rolls you started: a party that frees a spot on Saturday 14 November, and a wedding coming up.
+const party = buildEvent({
+  id: "party",
+  title: "Nadia turns 30",
+  galleryState: "OPEN",
+  galleryClosesAt: new Date(2026, 10, 14, 19).toISOString(),
+});
+const wedding = buildEvent({ id: "wedding", title: "Sam & Jo", galleryState: "UPCOMING" });
+const full = {
+  usage: { activeEvents: 2 },
+  nextClosingEvent: { id: "party", title: "Nadia turns 30", galleryClosesAt: party.galleryClosesAt },
+};
+
+test("shows the rolls in use instead of the form when the plan's rolls are all running", async () => {
+  mockLimits.mockResolvedValue(limits({}, full));
+  mockFindAll.mockResolvedValue({ data: { data: [party, wedding] } });
+  await renderWithI18n(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <NewRollScreen />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("Free plan · 2 of 2 running")).toBeOnTheScreen();
+  expect(screen.getByText(/Both rolls/)).toBeOnTheScreen();
+  expect(
+    screen.getByText(
+      /A free account runs 2 rolls at a time\. Nadia turns 30 closes on Sat 14 Nov, then a spot opens\./,
+    ),
+  ).toBeOnTheScreen();
+  expect(await screen.findByText("free on 14 Nov ↑")).toBeOnTheScreen();
+  expect(screen.queryByLabelText("Roll name")).not.toBeOnTheScreen();
+  expect(mockPrevent.prevent).toBe(false);
+
+  await userEvent.setup().press(screen.getByRole("button", { name: "Back to your rolls" }));
+  expect(mockBack).toHaveBeenCalledTimes(1);
+});
+
+test("shows the rolls in use when the create is refused for the limit", async () => {
+  // As the client's interceptor hands it over (`toApiError`).
+  mockCreate.mockRejectedValueOnce(
+    createApiError("Active event limit reached", { status: 403, code: "ACTIVE_EVENT_LIMIT_REACHED" }),
+  );
+  await renderScreen();
+  mockLimits.mockResolvedValue(limits({}, full));
+  const user = userEvent.setup();
+  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+
+  expect(await screen.findByText("Free plan · 2 of 2 running")).toBeOnTheScreen();
+  expect(mockReplace).not.toHaveBeenCalled();
 });

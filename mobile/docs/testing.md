@@ -109,6 +109,12 @@ their native boundaries; the suite checks the cover is minted and confirmed for 
 that the roll still loads when the cover doesn't take. The Loaded suite renders the envelope from
 the cache the create fills, and checks where Send the envelope, Go to the roll and Close lead.
 
+Leaving is asked about through React Navigation's `usePreventRemove`, which the suite replaces so a
+test can play the moment the screen is about to go: an empty roll goes at once, one with a name or
+a first frame shows the "Throw this roll away?" slip, and a loaded roll goes without asking. The
+rolls-in-use screen (04.8) shows instead of the form when `GET /users/me/limits` says every roll
+the plan allows is running, and after a create refused with `ACTIVE_EVENT_LIMIT_REACHED`.
+
 The form-hook probe covers the payload (trimming, the optional line, the plan's default film, and a
 plan that never closes), validation, and retrying after a failure. Date helpers have their own unit
 tests in `features/events/lib/new-roll.test.ts`.
