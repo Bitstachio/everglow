@@ -50,6 +50,8 @@ const RootNavigator = () => {
       <Stack.Screen name="design-kit" options={{ headerShown: false }} />
       {/* 14.12: shown once the account is gone and its session cleared. */}
       <Stack.Screen name="account-deleted" options={{ headerShown: false, animation: "fade", gestureEnabled: false }} />
+      {/* 06.3: an invite opens here signed out too, sealed until sign-in. */}
+      <Stack.Screen name="join/[token]" options={{ headerShown: false }} />
       {/* A suspended account can still delete itself (14.13 → 14.11). */}
       <Stack.Protected guard={isAuthenticated}>
         <Stack.Screen name="delete-account" options={{ headerShown: false }} />
@@ -67,9 +69,8 @@ const RootNavigator = () => {
         <Stack.Screen name="blocked-people" options={{ headerShown: false }} />
         <Stack.Screen name="events/list" options={{ title: t("screens.myEvents"), headerBackTitle: backTitle }} />
         <Stack.Screen name="events/create" options={{ title: t("screens.createEvent"), headerBackTitle: backTitle }} />
-        {/* Chapter 06, Join: the scanner, and the envelope a guest opens. */}
+        {/* Chapter 06, Join: the scanner. The envelope is above, open to everyone. */}
         <Stack.Screen name="join/index" options={{ headerShown: false }} />
-        <Stack.Screen name="join/[token]" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/index" />
         <Stack.Screen
           name="events/[id]/settings"

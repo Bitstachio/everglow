@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Display } from "@/components/ui/display";
+import { Display, Wordmark } from "@/components/ui/display";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
@@ -96,7 +96,7 @@ const refusalCopy = (
 /**
  * 06.4–06.13 The envelope a guest opens before joining: whose roll it is,
  * who's on it, when to pick the photos up and what it admits, or, returned
- * and dimmed, why it doesn't admit them.
+ * and dimmed, why it doesn't admit them. Signed out, it's sealed (06.3).
  */
 const JoinEnvelopeScreen = () => {
   const { t } = useTranslation("join");
@@ -111,6 +111,8 @@ const JoinEnvelopeScreen = () => {
     isJoining,
     onJoin,
     onUnblockAndJoin,
+    isSigningIn,
+    onSignIn,
     onRetry,
     onBack,
     onBackToRolls,
@@ -121,6 +123,34 @@ const JoinEnvelopeScreen = () => {
   const refused = refusal ? refusalCopy(t, refusal, { host, memberLimit, closedOn }) : null;
   const hostName = host ?? t("open.theHost");
   const edge = refusal === "NOT_VALID" ? t("refused.edgeNotValid") : refusal ? envelope?.title : undefined;
+
+  if (status === "sealed") {
+    return (
+      <SafeAreaView className="flex-1 bg-ground">
+        <View className="h-11 flex-row items-center px-5">
+          <Wordmark />
+        </View>
+        <View className="flex-1">
+          <View className="mx-7.5 mt-4 scale-86">
+            <RollEnvelope title="" sealed accessibilityLabel={t("sealed.label")} />
+            <View className="absolute right-0 top-10">
+              <Stamp title={t("sealed.stamp")} subtitle={t("sealed.stampSub")} />
+            </View>
+          </View>
+          <View className="mt-auto px-5 pb-4">
+            <Display variant="slip" dim={t("sealed.dim")}>
+              {t("sealed.title")}
+            </Display>
+            <Text className="mt-2 font-sans text-body text-text-2">{t("sealed.body")}</Text>
+          </View>
+        </View>
+        <View className="px-5 pb-1">
+          <Button title={t("sealed.signIn")} mark="▸" onPress={onSignIn} isLoading={isSigningIn} />
+        </View>
+        <FilmGrain />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
