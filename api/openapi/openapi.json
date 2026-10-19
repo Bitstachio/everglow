@@ -1431,6 +1431,62 @@
         ]
       }
     },
+    "/api/v2/events/invites/{token}/preview": {
+      "get": {
+        "description": "Whether the caller can join with this invite now, and if not, why: `state` is JOINABLE or the code POST /events/join would refuse with. No cover or photos. An unknown token, a reset one, and an organizer's block on the caller are the same 404. Rate limited like join, so tokens can't be probed.",
+        "operationId": "EventsController_previewInvite",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "description": "The invite token: the last path segment of an invitation link",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The event the invite leads to, and whether the caller can join",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvitePreviewResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Preview the event an invite leads to, before joining",
+        "tags": [
+          "events"
+        ]
+      }
+    },
     "/api/v2/events/{eventId}": {
       "get": {
         "operationId": "EventsController_findOne",
@@ -4194,6 +4250,130 @@
           "invitationUrl"
         ]
       },
+      "InvitePreviewState": {
+        "type": "string",
+        "enum": [
+          "JOINABLE",
+          "ALREADY_A_MEMBER",
+          "EVENT_GALLERY_CLOSED",
+          "REMOVED_FROM_EVENT",
+          "EVENT_SUSPENDED",
+          "EVENT_UNDER_REVIEW",
+          "ORGANIZER_BLOCKED_BY_CALLER",
+          "EVENT_MEMBER_LIMIT_REACHED"
+        ],
+        "description": "JOINABLE when POST /events/join would succeed now. Otherwise the code it would refuse with, checked in the same order: ALREADY_A_MEMBER, EVENT_GALLERY_CLOSED, REMOVED_FROM_EVENT, EVENT_SUSPENDED, EVENT_UNDER_REVIEW, ORGANIZER_BLOCKED_BY_CALLER, EVENT_MEMBER_LIMIT_REACHED. The member count is read without the join lock, so a join can still be refused with EVENT_MEMBER_LIMIT_REACHED."
+      },
+      "InviteAccessLevel": {
+        "type": "string",
+        "enum": [
+          "PARTICIPANT",
+          "VIEWER"
+        ],
+        "description": "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks."
+      },
+      "InviteHostResponseDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null once their profile is gone."
+          }
+        },
+        "required": [
+          "userId",
+          "name"
+        ]
+      },
+      "InvitePreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "description": "JOINABLE when POST /events/join would succeed now. Otherwise the code it would refuse with, checked in the same order: ALREADY_A_MEMBER, EVENT_GALLERY_CLOSED, REMOVED_FROM_EVENT, EVENT_SUSPENDED, EVENT_UNDER_REVIEW, ORGANIZER_BLOCKED_BY_CALLER, EVENT_MEMBER_LIMIT_REACHED. The member count is read without the join lock, so a join can still be refused with EVENT_MEMBER_LIMIT_REACHED.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InvitePreviewState"
+              }
+            ]
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The event's id, only when the caller is already a member (ALREADY_A_MEMBER); null otherwise."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "date": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "accessLevel": {
+            "description": "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InviteAccessLevel"
+              }
+            ]
+          },
+          "galleryState": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GalleryState"
+              }
+            ]
+          },
+          "galleryOpensAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When the gallery opens."
+          },
+          "galleryClosesAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the gallery closes and its photos are removed. Null on a plan that never closes."
+          },
+          "memberCount": {
+            "type": "number",
+            "description": "Members of every role, organizers included."
+          },
+          "memberLimit": {
+            "type": "number",
+            "nullable": true,
+            "description": "How many members the event's plan allows, every role counted; null for no limit."
+          },
+          "host": {
+            "nullable": true,
+            "description": "Who hosts the event: the organizer the caller blocked when the state is ORGANIZER_BLOCKED_BY_CALLER, so they can be unblocked; otherwise the creator while they organize it, or the longest-standing organizer. Null when no organizer is left.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InviteHostResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "eventId",
+          "title",
+          "date",
+          "accessLevel",
+          "galleryState",
+          "galleryOpensAt",
+          "galleryClosesAt",
+          "memberCount",
+          "memberLimit",
+          "host"
+        ]
+      },
       "UpdateEventDto": {
         "type": "object",
         "properties": {
@@ -4320,13 +4500,6 @@
         },
         "required": [
           "items"
-        ]
-      },
-      "InviteAccessLevel": {
-        "type": "string",
-        "enum": [
-          "PARTICIPANT",
-          "VIEWER"
         ]
       },
       "ReportEscalation": {

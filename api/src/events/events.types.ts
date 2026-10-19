@@ -1,6 +1,8 @@
-import { AccessLevel, Prisma } from "generated/prisma/client";
+import { AccessLevel, Event, Prisma } from "generated/prisma/client";
 import { blockByCallerArgs } from "src/moderation/moderation.types";
 import { userWithDetailsInclude } from "src/users/users.types";
+import type { InvitePreviewState } from "./events.constants";
+import type { EventInviteAccessLevel } from "./events.invitation";
 
 export const eventWithCallerAccessInclude = (userId: string) =>
   ({
@@ -33,3 +35,21 @@ export type EventAccessWithUser = Prisma.EventAccessGetPayload<{
 export const eventBanWithUserInclude = { user: { include: userWithDetailsInclude } } as const;
 
 export type EventBanWithUser = Prisma.EventBanGetPayload<{ include: typeof eventBanWithUserInclude }>;
+
+/** An organizer, as an invite names them: who hosts the event. */
+export type InviteHost = {
+  userId: string;
+  /** Null once their profile is gone. */
+  name: string | null;
+};
+
+/** What an invite leads to, for someone deciding whether to join. No images: only members see those. */
+export type InvitePreview = {
+  state: InvitePreviewState;
+  event: Event;
+  accessLevel: EventInviteAccessLevel;
+  memberCount: number;
+  memberLimit: number | null;
+  /** The organizer the caller blocked when that is what stops them; otherwise the creator, or the longest-standing organizer. */
+  host: InviteHost | null;
+};
