@@ -511,6 +511,7 @@ describe("EventsController (integration)", () => {
       eventId: string | null;
       title: string;
       date: string;
+      invitationUrl: string;
       accessLevel: string;
       galleryState: string;
       galleryOpensAt: string;
@@ -547,6 +548,7 @@ describe("EventsController (integration)", () => {
         eventId: null,
         title: event.title,
         date: event.date.toISOString(),
+        invitationUrl: buildInvitationUrl(TEST_INVITE_TOKEN),
         accessLevel: "PARTICIPANT",
         galleryState: expect.any(String) as string,
         galleryOpensAt: event.galleryOpensAt.toISOString(),

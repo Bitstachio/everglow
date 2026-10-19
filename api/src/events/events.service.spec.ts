@@ -1257,6 +1257,7 @@ describe("EventsService", () => {
       expect(preview).toEqual({
         state: "JOINABLE",
         event: eventWithAccessOnly,
+        token: invitationUrl,
         accessLevel: AccessLevel.PARTICIPANT,
         memberCount: 24,
         memberLimit: 30,

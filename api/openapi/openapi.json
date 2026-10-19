@@ -4315,6 +4315,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "invitationUrl": {
+            "type": "string",
+            "description": "The invite's shareable link, as organizers share it: what a QR code on the envelope carries."
+          },
           "accessLevel": {
             "description": "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.",
             "allOf": [
@@ -4365,6 +4369,7 @@
           "eventId",
           "title",
           "date",
+          "invitationUrl",
           "accessLevel",
           "galleryState",
           "galleryOpensAt",

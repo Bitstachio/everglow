@@ -533,6 +533,10 @@ export type InvitePreviewResponseDto = {
   title: string;
   date: string;
   /**
+   * The invite's shareable link, as organizers share it: what a QR code on the envelope carries.
+   */
+  invitationUrl: string;
+  /**
    * What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.
    */
   accessLevel: InviteAccessLevel;

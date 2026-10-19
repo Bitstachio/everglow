@@ -47,6 +47,8 @@ export type InviteHost = {
 export type InvitePreview = {
   state: InvitePreviewState;
   event: Event;
+  /** The invite's token, which the shareable link is built from. */
+  token: string;
   accessLevel: EventInviteAccessLevel;
   memberCount: number;
   memberLimit: number | null;

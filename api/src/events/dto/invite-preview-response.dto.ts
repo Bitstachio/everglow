@@ -39,6 +39,11 @@ export class InvitePreviewResponseDto {
   date: Date;
 
   @ApiProperty({
+    description: "The invite's shareable link, as organizers share it: what a QR code on the envelope carries.",
+  })
+  invitationUrl: string;
+
+  @ApiProperty({
     enum: INVITE_ACCESS_LEVELS,
     enumName: "InviteAccessLevel",
     description: "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.",

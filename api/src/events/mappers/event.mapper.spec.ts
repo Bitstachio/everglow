@@ -237,6 +237,7 @@ describe("EventMapper", () => {
     const preview: InvitePreview = {
       state: "JOINABLE",
       event: { ...event, coverS3Key: "event-covers/x/y" },
+      token: inviteToken,
       accessLevel: AccessLevel.VIEWER,
       memberCount: 24,
       memberLimit: 30,
@@ -251,6 +252,7 @@ describe("EventMapper", () => {
         eventId: null,
         title: "Summer BBQ",
         date: event.date,
+        invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}`,
         accessLevel: AccessLevel.VIEWER,
         galleryState: "OPEN",
         galleryOpensAt: event.galleryOpensAt,

@@ -66,6 +66,7 @@ export class EventMapper {
       eventId: preview.state === INVITE_PREVIEW_STATES.ALREADY_A_MEMBER ? event.id : null,
       title: event.title,
       date: event.date,
+      invitationUrl: buildInvitationUrl(preview.token),
       accessLevel: preview.accessLevel,
       galleryState: galleryStateOf(event),
       galleryOpensAt: event.galleryOpensAt,
