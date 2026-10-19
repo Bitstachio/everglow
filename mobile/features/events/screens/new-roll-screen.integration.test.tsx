@@ -174,6 +174,7 @@ test("offers only the days the API allows", async () => {
 });
 
 test("chooses the plan's default film when the limits are already loaded", async () => {
+  mockLimits.mockResolvedValue(limits({ defaultGalleryWindowDays: 7 }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(profileKeys.limits(), limits({ defaultGalleryWindowDays: 7 }).data.data);
   await renderWithI18n(
