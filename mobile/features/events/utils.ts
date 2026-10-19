@@ -48,48 +48,6 @@ export const EVENT_ROLE_OPTIONS: { value: AccessLevel; label: string }[] = [
   { value: "VIEWER", label: "Viewer" },
 ];
 
-/** Order used on the post-create invite screen (default first). Organizer is assigned on the event page. */
-export const INVITE_ROLE_TAB_ORDER: AccessLevel[] = ["PARTICIPANT", "VIEWER"];
-
-export const getInviteRoleHint = (accessLevel: AccessLevel) => {
-  switch (accessLevel) {
-    case "PARTICIPANT":
-      return "Can upload photos · default for guests";
-    case "VIEWER":
-      return "View only — no uploads";
-    default:
-      return "";
-  }
-};
-
-export type EventRoleExplainer = {
-  accessLevel: AccessLevel;
-  summary: string;
-  can: string[];
-  cannot: string[];
-};
-
-export const EVENT_ROLE_EXPLAINERS: EventRoleExplainer[] = [
-  {
-    accessLevel: "PARTICIPANT",
-    summary: "Best for most guests.",
-    can: ["View and upload photos", "Default invite for guests"],
-    cannot: ["Can't manage members or event settings"],
-  },
-  {
-    accessLevel: "VIEWER",
-    summary: "Look, don't contribute.",
-    can: ["View photos only"],
-    cannot: ["Can't upload photos"],
-  },
-  {
-    accessLevel: "ORGANIZER",
-    summary: "Trusted co-hosts only.",
-    can: ["Full event control", "Manage members and invites"],
-    cannot: ["Can only be assigned on the event page"],
-  },
-];
-
 /** Prefer `invites`; fall back to the legacy single URL as Participant. */
 export const resolveEventInvites = (
   event: Pick<Event, "invitationUrl" | "invites">,

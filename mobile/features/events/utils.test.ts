@@ -9,7 +9,6 @@ import {
   formatEventDateTime,
   formatFilterDay,
   getAccessLevelLabel,
-  getInviteRoleHint,
   hasActiveEventsListFilters,
   inviteUrlForRole,
   resolveEventInvites,
@@ -38,12 +37,6 @@ test("resolves invites with a participant fallback", () => {
   expect(resolveEventInvites({ invitationUrl: "https://x/invite/a", invites: [] })).toEqual([
     { accessLevel: "PARTICIPANT", invitationUrl: "https://x/invite/a" },
   ]);
-});
-
-test("returns role hints for the invite tabs", () => {
-  expect(getInviteRoleHint("PARTICIPANT")).toContain("upload");
-  expect(getInviteRoleHint("VIEWER")).toContain("View only");
-  expect(getInviteRoleHint("ORGANIZER")).toBe("");
 });
 
 test("returns all events when filters are empty", () => {
