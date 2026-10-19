@@ -217,3 +217,50 @@ test("one person on the roll reads in the singular", async () => {
   const { result } = await render();
   expect(result.current.reset.body).toMatch(/the person already in stays\.$/);
 });
+
+test("05.6 a closed roll's envelope is shut, with the day its photos went", async () => {
+  mockEvent = {
+    data: buildEvent({
+      galleryState: "CLOSED",
+      galleryClosesAt: new Date(2026, 8, 21, 12, 0).toISOString(),
+      invites: [],
+    }),
+  };
+  const { result } = await render();
+
+  expect(result.current.state).toBe("closed");
+  expect(result.current.shut).toEqual({
+    state: "closed",
+    stamp: "Closed",
+    stampLine: "No new guests",
+    date: "21 Sep",
+  });
+  expect(result.current.envelope).toMatchObject({ admits: "adds", pickUpBy: "21 Sep, gone" });
+  expect(result.current.invitationUrl).toBeNull();
+});
+
+test("05.7 a roll under review is on hold, and its links are kept back", async () => {
+  mockEvent = { data: buildEvent({ status: "UNDER_REVIEW" }) };
+  const { result } = await render();
+  await act(() => result.current.onSelectKind("view"));
+
+  expect(result.current.shut).toEqual({
+    state: "onHold",
+    stamp: "On hold",
+    stampLine: "Under review",
+    date: undefined,
+  });
+  expect(result.current.envelope?.admits).toBe("adds");
+  expect(result.current.invitationUrl).toBeNull();
+});
+
+test("a suspended roll's envelope is shut too", async () => {
+  mockEvent = { data: buildEvent({ status: "SUSPENDED" }) };
+  const { result } = await render();
+  expect(result.current.shut).toMatchObject({ state: "suspended", stamp: "Suspended" });
+});
+
+test("an open roll's envelope is not shut", async () => {
+  const { result } = await render();
+  expect(result.current).toMatchObject({ state: "open", shut: null });
+});
