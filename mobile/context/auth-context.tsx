@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CantConnectScreen } from "@/components/cant-connect-screen";
 import { LaunchCurtain, LaunchScreen } from "@/components/launch-screen";
 import i18n from "@/i18n/instance";
@@ -52,6 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // The step that couldn't reach Everglow (01.7), repeated by Try again.
   const [pendingStep, setPendingStep] = useState<(() => Promise<User | null>) | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+  const queryClient = useQueryClient();
 
   // Avoid stale closures when the 401 handler is invoked from the interceptor.
   const handleSessionExpiredRef = useRef<() => void>(() => {});
@@ -84,13 +86,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return profile;
   }, []);
 
+  // Nothing cached for one account may show to the next one signed in on this phone.
+  const clearAccount = useCallback(() => {
+    queryClient.clear();
+    setUser(null);
+  }, [queryClient]);
+
   const handleSessionExpired = useCallback(async () => {
     if (signedOutRef.current) return;
     await clearLocalCredentials();
-    setUser(null);
+    clearAccount();
     // The welcome shows the signed-out slip (01.8) instead of a blank start.
     router.replace({ pathname: LOGIN_ROUTE, params: { signedOut: "1" } });
-  }, []);
+  }, [clearAccount]);
 
   useEffect(() => {
     handleSessionExpiredRef.current = () => {
@@ -222,19 +230,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const logout = useCallback(async (to: SignedOutRoute = LOGIN_ROUTE) => {
-    signedOutRef.current = true;
-    try {
-      setIsLoading(true);
-      await logoutFromAuth0();
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      setUser(null);
-      setIsLoading(false);
-      router.replace(to);
-    }
-  }, []);
+  const logout = useCallback(
+    async (to: SignedOutRoute = LOGIN_ROUTE) => {
+      signedOutRef.current = true;
+      try {
+        setIsLoading(true);
+        await logoutFromAuth0();
+      } catch (err) {
+        console.error("Logout error:", err);
+      } finally {
+        clearAccount();
+        setIsLoading(false);
+        router.replace(to);
+      }
+    },
+    [clearAccount],
+  );
 
   const updateUser = useCallback((updatedUser: User) => setUser(updatedUser), []);
   const clearError = useCallback(() => setError(null), []);

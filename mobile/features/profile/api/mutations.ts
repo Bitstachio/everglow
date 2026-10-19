@@ -40,17 +40,13 @@ export const useUpdateProfileMutation = () => {
 };
 
 export const useDeleteProfileMutation = () => {
-  const queryClient = useQueryClient();
-
   // `photos` is required by the API: KEEP leaves the photos in the events they
   // were added to with the uploader removed, DELETE removes them everywhere.
-  // Both are irreversible, so the caller has to say which one it wants.
+  // Both are irreversible, so the caller has to say which one it wants. The
+  // caller signs out next, and signing out clears every cached query.
   return useMutation<void, Error, DeleteAccountPhotoPolicy>({
     mutationFn: async (photos) => {
       await usersControllerRemoveMe({ query: { photos }, throwOnError: true });
-    },
-    onSuccess: () => {
-      queryClient.removeQueries({ queryKey: profileKeys.all });
     },
   });
 };
