@@ -1,0 +1,216 @@
+import { Button } from "@/components/ui/button";
+import { Display } from "@/components/ui/display";
+import { EdgePrint } from "@/components/ui/edge-print";
+import { FilmGrain } from "@/components/ui/film-grain";
+import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { Stamp } from "@/components/ui/stamp";
+import { BackButton, TopBar } from "@/components/ui/top-bar";
+import { colorTokens } from "@/theme/tokens";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
+import { Text, View } from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import { RollEnvelope } from "../components/roll-envelope";
+import { useJoinEnvelopeScreen, type JoinRefusal } from "../hooks/use-join-envelope-screen";
+
+/** The QR's side on the envelope, as drawn. */
+const CODE_SIZE = 78;
+
+type RefusalCopy = { stamp: string; stampSub: string; title: string; dim: string; body: string };
+
+type RefusalFacts = { host: string | null; memberLimit: number | null; closedOn: string | null };
+
+/** What a returned envelope says (06.8–06.13), and the stamp on it. */
+const refusalCopy = (
+  t: TFunction<"join">,
+  refusal: JoinRefusal,
+  { host, memberLimit, closedOn }: RefusalFacts,
+): RefusalCopy => {
+  const returned = t("refused.returned");
+  switch (refusal) {
+    case "EVENT_MEMBER_LIMIT_REACHED":
+      return {
+        stamp: returned,
+        stampSub: t("refused.full.stamp"),
+        title: memberLimit ? t("refused.full.title", { limit: memberLimit }) : t("refused.full.titleNoLimit"),
+        dim: memberLimit ? t("refused.full.dim") : t("refused.full.dimNoLimit"),
+        body: !memberLimit
+          ? t("refused.full.bodyNoLimit")
+          : host
+            ? t("refused.full.body", { host, limit: memberLimit })
+            : t("refused.full.bodyNoHost", { limit: memberLimit }),
+      };
+    case "NOT_VALID":
+      return {
+        stamp: returned,
+        stampSub: t("refused.notValid.stamp"),
+        title: t("refused.notValid.title"),
+        dim: t("refused.notValid.dim"),
+        body: t("refused.notValid.body"),
+      };
+    case "REMOVED_FROM_EVENT":
+      return {
+        stamp: returned,
+        stampSub: t("refused.removed.stamp"),
+        title: t("refused.removed.title"),
+        dim: t("refused.removed.dim"),
+        body: t("refused.removed.body"),
+      };
+    case "EVENT_GALLERY_CLOSED":
+      return {
+        stamp: returned,
+        stampSub: t("refused.closed.stamp"),
+        title: t("refused.closed.title"),
+        dim: t("refused.closed.dim"),
+        body: closedOn ? t("refused.closed.body", { date: closedOn }) : t("refused.closed.bodyNoDate"),
+      };
+    case "EVENT_UNDER_REVIEW":
+      return {
+        stamp: t("refused.onHold.stamp"),
+        stampSub: t("refused.onHold.stampSub"),
+        title: t("refused.onHold.title"),
+        dim: t("refused.onHold.dim"),
+        body: t("refused.onHold.body"),
+      };
+    case "EVENT_SUSPENDED":
+      return {
+        stamp: returned,
+        stampSub: t("refused.suspended.stamp"),
+        title: t("refused.suspended.title"),
+        dim: t("refused.suspended.dim"),
+        body: t("refused.suspended.body"),
+      };
+    case "ORGANIZER_BLOCKED_BY_CALLER": {
+      const name = host ?? t("open.theHost");
+      return {
+        stamp: returned,
+        stampSub: t("refused.blocked.stamp"),
+        title: t("refused.blocked.title", { host: name }),
+        dim: t("refused.blocked.dim", { host: name }),
+        body: t("refused.blocked.body", { host: name }),
+      };
+    }
+  }
+};
+
+/**
+ * 06.4–06.13 The envelope a guest opens before joining: whose roll it is,
+ * who's on it, when to pick the photos up and what it admits, or, returned
+ * and dimmed, why it doesn't admit them.
+ */
+const JoinEnvelopeScreen = () => {
+  const { t } = useTranslation("join");
+  const {
+    status,
+    refusal,
+    envelope,
+    host,
+    memberLimit,
+    closedOn,
+    failureMessage,
+    isJoining,
+    onJoin,
+    onUnblockAndJoin,
+    onRetry,
+    onBack,
+    onBackToRolls,
+  } = useJoinEnvelopeScreen();
+
+  const views = envelope?.admits === "view";
+  const refused = refusal ? refusalCopy(t, refusal, { host, memberLimit, closedOn }) : null;
+  const hostName = host ?? t("open.theHost");
+  const edge = refusal === "NOT_VALID" ? t("refused.edgeNotValid") : refusal ? envelope?.title : undefined;
+
+  return (
+    <SafeAreaView className="flex-1 bg-ground">
+      <TopBar title={edge} left={<BackButton accessibilityLabel={t("open.back")} onPress={onBack} />} />
+
+      <View className="flex-1">
+        <View className="mx-7.5 mt-2.5">
+          <View className={status === "ready" ? "" : "opacity-50"}>
+            <RollEnvelope
+              title={envelope?.title ?? ""}
+              startsAt={envelope?.startsAt}
+              peopleCount={envelope?.peopleCount}
+              pickUpBy={envelope?.pickUpBy}
+              admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "adds" : undefined)}
+              code={
+                status === "ready" && envelope ? (
+                  <QRCode
+                    value={envelope.invitationUrl}
+                    size={CODE_SIZE}
+                    color={colorTokens.paperInk}
+                    backgroundColor={colorTokens.paper}
+                  />
+                ) : undefined
+              }
+              accessibilityLabel={
+                envelope ? t("envelope.label", { title: envelope.title }) : t("envelope.labelLoading")
+              }
+            />
+          </View>
+          {refused ? (
+            <View className="absolute -bottom-8 right-8">
+              <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
+            </View>
+          ) : null}
+        </View>
+
+        {status === "ready" ? (
+          <View className="mr-1 mt-6 items-end">
+            <Stamp
+              title={views ? t("open.stampView") : t("open.stampAdds")}
+              subtitle={views ? t("open.stampViewSub") : t("open.stampAddsSub")}
+            />
+          </View>
+        ) : null}
+
+        {refused || status === "failed" ? (
+          <View className="mt-auto px-5 pb-4">
+            <Display variant="slip" dim={refused ? refused.dim : t("open.failedDim")}>
+              {refused ? refused.title : t("open.failedTitle")}
+            </Display>
+            <Text className="mt-2 font-sans text-body text-text-2">{refused ? refused.body : failureMessage}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View className="gap-2.5 px-5 pb-1">
+        {status === "failed" ? (
+          <Button title={t("open.tryAgain")} variant="secondary" mark="▸" onPress={onRetry} />
+        ) : refusal === "ORGANIZER_BLOCKED_BY_CALLER" ? (
+          <>
+            <Button
+              title={t("refused.blocked.unblock", { host: hostName })}
+              mark="▸"
+              onPress={onUnblockAndJoin}
+              isLoading={isJoining}
+            />
+            <Button title={t("open.notNow")} variant="ghost" onPress={onBackToRolls} disabled={isJoining} />
+          </>
+        ) : refusal ? (
+          <Button title={t("open.backToRolls")} variant="secondary" mark="‹" onPress={onBackToRolls} />
+        ) : (
+          <>
+            <Button
+              title={views ? t("open.joinView") : t("open.joinAdds")}
+              mark="▸"
+              onPress={onJoin}
+              isLoading={isJoining || status === "loading"}
+            />
+            <EdgePrint className="text-center">
+              {status === "ready"
+                ? views
+                  ? t("open.invitedView", { host: hostName })
+                  : t("open.invitedAdds", { host: hostName })
+                : " "}
+            </EdgePrint>
+          </>
+        )}
+      </View>
+      <FilmGrain />
+    </SafeAreaView>
+  );
+};
+
+export default JoinEnvelopeScreen;

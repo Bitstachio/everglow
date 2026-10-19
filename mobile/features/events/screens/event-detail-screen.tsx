@@ -9,10 +9,12 @@ import { colorTokens } from "@/theme/tokens";
 import { ChevronRight, Settings } from "lucide-react-native";
 import { Stack } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { ArrivalNote } from "../components/arrival-note";
 import { EventCover } from "../components/event-cover";
 import { EventDetailInfo } from "../components/event-detail-info";
 import { EventMembersSheet } from "../components/event-members-sheet";
 import { EventPhotosSection } from "../components/event-photos-section";
+import { useArrivalNote } from "../hooks/use-arrival-note";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 
 const EventDetailScreen = () => {
@@ -37,6 +39,7 @@ const EventDetailScreen = () => {
     handleOpenMembers,
     handleCloseMembers,
   } = useEventDetailScreen();
+  const arrivalNote = useArrivalNote();
 
   if (isLoading || !event) {
     return (
@@ -116,6 +119,12 @@ const EventDetailScreen = () => {
           </View>
         ) : null}
       </SafeAreaView>
+
+      {arrivalNote ? (
+        <View className="absolute left-4 right-4 top-4">
+          <ArrivalNote label={arrivalNote} />
+        </View>
+      ) : null}
 
       {isAdmin ? (
         <EventMembersSheet

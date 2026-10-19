@@ -1,0 +1,124 @@
+{
+  "scan": {
+    "edge": "Join a roll",
+    "close": "Close",
+    "torchOn": "Turn on the light",
+    "torchOff": "Turn off the light",
+    "lookingFor": "Looking for",
+    "target": "an Everglow envelope",
+    "title": "Point at someone’s invite.",
+    "hint": "Any QR from an Everglow envelope or link works.",
+    "pasteInstead": "Paste a link instead",
+    "cameraOff": "The camera is off",
+    "allowCamera": "Allow the camera",
+    "openSettings": "Open Settings"
+  },
+  "paste": {
+    "edge": "Paste a link",
+    "title": "From a message?",
+    "label": "Invite link",
+    "placeholder": "everglow.social/join/…",
+    "fromClipboard": "Found on your clipboard",
+    "open": "Open the envelope"
+  },
+  "envelope": {
+    "lab": "Everglow photo lab",
+    "number": "No. 0418",
+    "name": "Name",
+    "date": "Date",
+    "onTheRoll": "On the roll",
+    "pickUpBy": "Pick up by",
+    "adds": "Adds photos",
+    "view": "View only",
+    "footerScan": "Scan with any camera",
+    "footerView": "Admits: view only",
+    "footerSealed": "Sealed until you sign in",
+    "people_one": "{{count}} person so far",
+    "people_other": "{{count}} people so far",
+    "pickUp": "{{date}}, then it’s gone",
+    "unknown": "— — —",
+    "label": "Envelope for {{title}}",
+    "labelLoading": "Opening the envelope"
+  },
+  "open": {
+    "back": "Back",
+    "joinAdds": "Join and add photos",
+    "joinView": "Join to look",
+    "invitedAdds": "Invited by {{host}} · it’s free",
+    "invitedView": "You can look and save · invited by {{host}}",
+    "theHost": "the host",
+    "stampAdds": "Join",
+    "stampAddsSub": "The roll",
+    "stampView": "Look",
+    "stampViewSub": "Only",
+    "joinFailed": "Couldn’t join",
+    "failedTitle": "Couldn’t open",
+    "failedDim": "the envelope.",
+    "tryAgain": "Try again",
+    "backToRolls": "Back to your rolls",
+    "notNow": "Not now"
+  },
+  "arrived": {
+    "joined_ordinal_one": "You’re on the roll · {{count}}st",
+    "joined_ordinal_two": "You’re on the roll · {{count}}nd",
+    "joined_ordinal_few": "You’re on the roll · {{count}}rd",
+    "joined_ordinal_other": "You’re on the roll · {{count}}th",
+    "joinedNoPlace": "You’re on the roll",
+    "already": "You’re already on this roll"
+  },
+  "refused": {
+    "edgeNotValid": "Envelope",
+    "returned": "Returned",
+    "scanAnother": "Scan another",
+    "full": {
+      "stamp": "Roll full",
+      "title": "All {{limit}} spots",
+      "dim": "are taken.",
+      "titleNoLimit": "This roll",
+      "dimNoLimit": "is full.",
+      "body": "{{host}}’s roll holds {{limit}} people. Ask {{host}} to make room.",
+      "bodyNoHost": "This roll holds {{limit}} people. Ask the host to make room.",
+      "bodyNoLimit": "Ask the host to make room."
+    },
+    "notValid": {
+      "stamp": "Not valid",
+      "title": "This envelope",
+      "dim": "doesn’t open.",
+      "body": "It may have been reset or mistyped. Ask whoever sent it for a new one."
+    },
+    "removed": {
+      "stamp": "Removed",
+      "title": "You were removed",
+      "dim": "from this roll.",
+      "body": "A host removed you, so this envelope doesn’t admit you. Only a host can let you back in."
+    },
+    "closed": {
+      "stamp": "Closed",
+      "title": "This roll",
+      "dim": "has closed.",
+      "body": "The gallery closed on {{date}} and its photos were removed.",
+      "bodyNoDate": "The gallery has closed and its photos were removed."
+    },
+    "onHold": {
+      "stamp": "On hold",
+      "stampSub": "Review",
+      "title": "Joining is",
+      "dim": "on hold.",
+      "body": "Everglow is reviewing this roll. Try the envelope again later."
+    },
+    "suspended": {
+      "stamp": "Suspended",
+      "title": "This roll",
+      "dim": "was suspended.",
+      "body": "Everglow suspended it for breaking our terms, so no one can join it."
+    },
+    "blocked": {
+      "stamp": "Blocked",
+      "title": "You blocked {{host}}.",
+      "dim": "{{host}} hosts this roll.",
+      "body": "To join, unblock {{host}} first. They won’t be told either way.",
+      "unblock": "Unblock {{host}} and join",
+      "unblockFailed": "Couldn’t unblock"
+    }
+  }
+}
