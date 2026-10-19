@@ -47,6 +47,9 @@ import type {
   EventsControllerListBansData,
   EventsControllerListBansErrors,
   EventsControllerListBansResponses,
+  EventsControllerPreviewInviteData,
+  EventsControllerPreviewInviteErrors,
+  EventsControllerPreviewInviteResponses,
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlErrors,
   EventsControllerRegenerateInvitationUrlResponses,
@@ -634,6 +637,24 @@ export const eventsControllerJoin = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * Preview the event an invite leads to, before joining
+ *
+ * Whether the caller can join with this invite now, and if not, why: `state` is JOINABLE or the code POST /events/join would refuse with. No cover or photos. An unknown token, a reset one, and an organizer's block on the caller are the same 404. Rate limited like join, so tokens can't be probed.
+ */
+export const eventsControllerPreviewInvite = <ThrowOnError extends boolean = false>(
+  options: Options<EventsControllerPreviewInviteData, ThrowOnError>,
+): RequestResult<EventsControllerPreviewInviteResponses, EventsControllerPreviewInviteErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    EventsControllerPreviewInviteResponses,
+    EventsControllerPreviewInviteErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/events/invites/{token}/preview",
+    ...options,
   });
 
 /**
