@@ -254,6 +254,12 @@ refetch the event and its members so the screen reflects the change. The
 the detail screen, renders nothing when `coverUrl` is null, and caches by
 event id and uploaded object like `Avatar`.
 
+A new roll's first frame (04.5) is picked before the roll exists:
+`useNewRollCover` crops and re-encodes it on the device, and once the create
+returns, `useSetNewRollCoverMutation` uploads it to the new roll. If that
+upload fails the roll is still loaded, and the host is told to add the cover
+from the roll's settings.
+
 ## Event photos
 
 Add Photos on the event detail screen opens the library picker with multiple

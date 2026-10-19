@@ -68,6 +68,7 @@ const RootNavigator = () => {
         <Stack.Screen name="events/list" options={{ title: t("screens.myEvents"), headerBackTitle: backTitle }} />
         {/* Chapter 04, load a roll: it draws its own top bar. */}
         <Stack.Screen name="events/create" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/loaded" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/index" />
         <Stack.Screen
           name="events/[id]/settings"
