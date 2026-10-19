@@ -24,9 +24,6 @@
   "screens": {
     "privacyPolicy": "Privacy Policy",
     "termsOfUse": "Terms of Use",
-    "accountSettings": "Account Settings",
-    "editUsername": "Edit Username",
-    "editDisplayName": "Edit Profile",
     "myEvents": "My Events",
     "createEvent": "Create Event",
     "eventSettings": "Event Settings",

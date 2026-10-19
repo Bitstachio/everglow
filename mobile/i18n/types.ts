@@ -13,6 +13,7 @@ declare module "i18next" {
       home: typeof en.home;
       onboarding: typeof en.onboarding;
       start: typeof en.start;
+      you: typeof en.you;
     };
   }
 }

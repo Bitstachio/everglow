@@ -61,8 +61,8 @@ test("saves only the trimmed name and then reports success", async () => {
 });
 
 test.each([
-  ["   ", "Display name is required"],
-  ["a".repeat(256), "Display name must be 255 characters or fewer"],
+  ["   ", "Your frames need a name"],
+  ["a".repeat(256), "255 characters at most"],
 ])("rejects invalid name %s", async (name, message) => {
   await render(<Probe />);
   const user = await fillName(name);
@@ -77,7 +77,7 @@ test("preserves the draft after a failure and allows retry", async () => {
   await render(<Probe onSuccess={success} />);
   const user = await fillName("Grace");
   await user.press(screen.getByRole("button", { name: "Save" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Could not update your display name. Please try again.");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Couldn’t save your card. Try again.");
   expect(screen.getByLabelText("Display Name")).toHaveDisplayValue("Grace");
   expect(success).not.toHaveBeenCalled();
   await user.press(screen.getByRole("button", { name: "Save" }));
