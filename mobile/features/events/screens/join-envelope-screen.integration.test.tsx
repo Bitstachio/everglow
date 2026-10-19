@@ -231,6 +231,9 @@ describe("Refusals", () => {
     expect(stampText("Not valid")).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Envelope" })).toBeOnTheScreen();
     expect(screen.getAllByText("— — —")).toHaveLength(4);
+
+    await press("Scan another");
+    expect(mockRouter.replace).toHaveBeenCalledWith("/join");
   });
 
   test("06.10 removed by a host", async () => {
