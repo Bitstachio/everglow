@@ -29,6 +29,7 @@ jest.mock("@/context/auth-context", () => ({
     isLoading: false,
   }),
 }));
+jest.mock("../api/queries", () => ({ useBlocksQuery: () => ({ data: [{ userId: "u2" }, { userId: "u3" }] }) }));
 jest.mock("../api/mutations", () => ({
   useDeleteProfileMutation: () => ({ mutateAsync: mockDelete, isPending: false }),
 }));
@@ -113,6 +114,7 @@ test("ignores duplicate confirmations while deletion is pending", async () => {
 test.each([
   ["onEditCard", "/edit-card"],
   ["onOpenUsername", "/edit-username"],
+  ["onOpenBlocked", "/blocked-people"],
   ["onOpenPrivacy", "/privacy-policy"],
   ["onOpenTerms", "/terms-of-use"],
 ] as const)("%s opens %s", async (handler, path) => {
@@ -158,4 +160,5 @@ test("shows the handle and the sign-in email", async () => {
   const { result } = await renderHook(() => useProfileScreen());
   expect(result.current.username).toBe("@ada");
   expect(result.current.email).toBe("ada@example.com");
+  expect(result.current.blockedCount).toBe(2);
 });

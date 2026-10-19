@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
 import {
+  blocksControllerUnblock,
   usersControllerConfirmAvatarUpload,
   usersControllerCreateAvatarUploadUrl,
   usersControllerCreatePasswordChangeTicket,
@@ -15,6 +16,7 @@ import { retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
 import type { AvatarImage } from "../lib/avatar-image";
 import { profileKeys } from "./keys";
 import type {
+  BlockedUserResponseDto,
   DeleteAccountPhotoPolicy,
   PasswordChangeTicketResponseDto,
   UpdateUserDto,
@@ -126,5 +128,53 @@ export const useRemoveAvatarMutation = () => {
       queryClient.setQueryData(profileKeys.me(), updated);
     },
     onError: refetchUserAfterAvatarConflict,
+  });
+};
+
+const UNBLOCK_KEY = ["profile", "unblock"] as const;
+
+/** Every roll's photos and roll call, whichever roll: blocks hide photos and mark the roll call. */
+const ROLL_QUERIES_AFTER_UNBLOCK = [
+  [{ _id: "photosControllerListPhotos" }],
+  [{ _id: "eventsControllerGetParticipants" }],
+];
+
+/**
+ * Unblock someone. Silent: they are never told. The row leaves the list at
+ * once and comes back if the request fails.
+ */
+export const useUnblockMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string, { previous?: BlockedUserResponseDto[] }>({
+    mutationKey: UNBLOCK_KEY,
+    mutationFn: async (userId) => {
+      await blocksControllerUnblock({ path: { userId }, throwOnError: true });
+    },
+    onMutate: async (userId) => {
+      await queryClient.cancelQueries({ queryKey: profileKeys.blocks() });
+      const previous = queryClient.getQueryData<BlockedUserResponseDto[]>(profileKeys.blocks());
+      queryClient.setQueryData<BlockedUserResponseDto[]>(profileKeys.blocks(), (items) =>
+        items?.filter((item) => item.userId !== userId),
+      );
+      return { previous };
+    },
+    onError: (_error, userId, context) => {
+      // Put back only this person, in their place: another unblock may have gone through since.
+      queryClient.setQueryData<BlockedUserResponseDto[]>(profileKeys.blocks(), (items) =>
+        context?.previous?.filter(
+          (item) => item.userId === userId || items?.some((left) => left.userId === item.userId),
+        ),
+      );
+    },
+    onSettled: async () => {
+      // Refetch once the last of several quick unblocks settles, so an earlier refetch can't bring a row back.
+      if (queryClient.isMutating({ mutationKey: UNBLOCK_KEY }) > 1) return;
+      await Promise.all(
+        [profileKeys.blocks(), ...ROLL_QUERIES_AFTER_UNBLOCK].map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      );
+    },
   });
 };
