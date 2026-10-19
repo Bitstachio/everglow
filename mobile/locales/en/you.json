@@ -10,8 +10,7 @@
     "terms": "Terms of use",
     "privacy": "Privacy",
     "signOut": "Sign out",
-    "delete": "Delete account",
-    "deleting": "Deleting…"
+    "delete": "Delete account"
   },
   "signOut": {
     "title": "Sign out?",
@@ -72,5 +71,41 @@
     "loadFailed": "Couldn’t load the people you blocked.",
     "retry": "Try again",
     "failedTitle": "Couldn’t unblock"
+  },
+  "delete": {
+    "edge": "Delete account",
+    "title": "Delete your",
+    "titleDim": "account?",
+    "framesEdge": "Your frames on other rolls",
+    "keep": "Leave them",
+    "keepBody": "They stay until each roll closes, unsigned",
+    "remove": "Delete them",
+    "removeBody": "Removed for everyone now",
+    "rollsEdge": "Rolls you started or are alone on",
+    "rollsBody": "A roll you host alone goes to its longest-standing member. One with no one else on it is deleted with its photos.",
+    "rollStays": "Stays with the people on it",
+    "rollDeleted": "Deleted · no one else on it",
+    "rollsFailed": "Couldn’t load your rolls.",
+    "retry": "Try again",
+    "confirm": "Delete my account",
+    "note": "Can’t be undone · sign-in is removed too",
+    "choose": "Choose what happens to your frames first",
+    "failedTitle": "Couldn’t delete your account"
+  },
+  "deleted": {
+    "stamp": "Closed",
+    "stampSub": "Account",
+    "title": "Your account",
+    "titleDim": "is deleted.",
+    "body": "Thanks for the photos. You can start again any time.",
+    "start": "Back to the start"
+  },
+  "suspended": {
+    "edge": "Account suspended",
+    "title": "Your account is",
+    "titleDim": "on hold.",
+    "body": "You can’t join, add or change anything while Everglow reviews it. You can still delete your account.",
+    "signOut": "Sign out",
+    "delete": "Delete my account"
   }
 }

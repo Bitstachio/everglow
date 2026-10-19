@@ -74,7 +74,7 @@ Screen-level hooks named `use<ScreenName>`. A screen hook should:
 
 Export hooks as named exports. Additional named hooks for the same feature (for example, a form hook) also live in `hooks/`.
 
-**Example:** `useProfileScreen` manages the edit modal and delete/logout flows. Profile edit submit lives in `useEditProfileForm` (see [Forms](./forms.md)).
+**Example:** `useProfileScreen` manages the sign-out slip and where each row leads. Profile edit submit lives in `useEditProfileForm` (see [Forms](./forms.md)).
 
 ### `components/`
 
@@ -124,7 +124,7 @@ Route-specific params, layouts, and navigation guards can live in `app/`, but sc
 
 ## Account Settings
 
-`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, security and legal sections, logout, and account deletion. Deletion asks for the photo policy and then confirms the irreversible action. Tapping the profile photo opens a menu to take a photo, choose one from the library, or remove the current one (see [Profile photo](#profile-photo)). Change Password is available for Auth0 database identities (`auth0|…`): the app mints a ticket from `POST /users/me/password-change-ticket`, opens Auth0's hosted page in the system auth browser, and clears the local session if credentials die afterward. Social identities do not see the Change Password row. Signed-out password reset is Auth0 Universal Login’s own link (opened by Log In); the app does not duplicate it on the home screen (see [Credential changes](../../docs/credential-changes.md)). Profile email edits do not change the Auth0 sign-in email.
+`app/account-settings.tsx` re-exports `screens/account-settings-screen.tsx`. The root stack provides the title and Back control. The screen composes profile editing, security and legal sections, and logout. Delete account opens its own screen (`/delete-account`, 14.11), which asks for the photo policy, lists what happens to each roll the person started or is alone on, and signs out onto `/account-deleted` (14.12) once the API has deleted the account. An account with `suspendedAt` lands on `/account-suspended` (14.13) at launch, after sign-in, or as soon as a request answers `ACCOUNT_SUSPENDED`; from there it can only sign out or delete itself. Tapping the profile photo opens a menu to take a photo, choose one from the library, or remove the current one (see [Profile photo](#profile-photo)). Change Password is available for Auth0 database identities (`auth0|…`): the app mints a ticket from `POST /users/me/password-change-ticket`, opens Auth0's hosted page in the system auth browser, and clears the local session if credentials die afterward. Social identities do not see the Change Password row. Signed-out password reset is Auth0 Universal Login’s own link (opened by Log In); the app does not duplicate it on the home screen (see [Credential changes](../../docs/credential-changes.md)). Profile email edits do not change the Auth0 sign-in email.
 
 ## Shared folders outside `features/`
 

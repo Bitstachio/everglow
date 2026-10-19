@@ -34,7 +34,7 @@ const RootLayout = () => (
 export default RootLayout;
 
 const RootNavigator = () => {
-  const { isAuthenticated, isOnboarded } = useAuth();
+  const { isAuthenticated, isOnboarded, isSuspended } = useAuth();
   const { t } = useTranslation("common");
   const backTitle = t("actions.back");
 
@@ -47,7 +47,16 @@ const RootNavigator = () => {
       <Stack.Screen name="privacy-policy" options={{ title: t("screens.privacyPolicy"), headerBackTitle: backTitle }} />
       <Stack.Screen name="terms-of-use" options={{ title: t("screens.termsOfUse"), headerBackTitle: backTitle }} />
       <Stack.Screen name="design-kit" options={{ headerShown: false }} />
-      <Stack.Protected guard={isAuthenticated && isOnboarded}>
+      {/* 14.12: shown once the account is gone and its session cleared. */}
+      <Stack.Screen name="account-deleted" options={{ headerShown: false, animation: "fade", gestureEnabled: false }} />
+      {/* A suspended account can still delete itself (14.13 → 14.11). */}
+      <Stack.Protected guard={isAuthenticated}>
+        <Stack.Screen name="delete-account" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={isAuthenticated && isSuspended}>
+        <Stack.Screen name="account-suspended" options={{ headerShown: false, animation: "fade" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={isAuthenticated && isOnboarded && !isSuspended}>
         <Stack.Screen name="events/index" options={{ headerShown: false, animation: "fade" }} />
         {/* Chapter 14, You: each screen draws its own top bar. */}
         <Stack.Screen name="account-settings" options={{ headerShown: false }} />

@@ -29,3 +29,9 @@ test("an action done on the spot has no arrow", async () => {
   expect(screen.getByRole("button", { name: "Sign out" })).toBeOnTheScreen();
   expect(screen.queryByText("›")).not.toBeOnTheScreen();
 });
+
+test("a long label keeps to one line and leaves the value whole", async () => {
+  await render(<IndexRow label="Leo’s first birthday at the lake house" value="Deleted · no one else on it" />);
+  expect(screen.getByText("Leo’s first birthday at the lake house")).toHaveProp("numberOfLines", 1);
+  expect(screen.getByText("Deleted · no one else on it")).toBeOnTheScreen();
+});

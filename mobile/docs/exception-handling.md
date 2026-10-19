@@ -19,6 +19,7 @@ There is no React error boundary for API failures. The global handler is the
 HTTP / network failure
   → axios response interceptor (lib/api/axios-instance.ts)
       → 401: optional session-expired callback (auth context)
+      → 403 ACCOUNT_SUSPENDED: optional suspended callback (auth context)
       → Promise.reject(toApiError(error))
   → feature mutation / query / form catch or onError
       → getErrorMessage(error, "Fallback…") for display
@@ -38,7 +39,12 @@ On every failed response:
 
 1. If status is **401**, call the handler registered via `setUnauthorizedHandler`
    (wired from auth context to clear the session and send the user to login).
-2. Reject with **`toApiError(error)`** so callers always see an `ApiError`
+   It does nothing after a deliberate sign-out: a deleted account's token
+   answers 401 at once, and that must not replace the Deleted screen.
+2. If the code is **`ACCOUNT_SUSPENDED`**, call the handler registered via
+   `setSuspendedHandler` (auth context reloads the account and opens the
+   suspended screen, once).
+3. Reject with **`toApiError(error)`** so callers always see an `ApiError`
    (or a safe wrapper), never a raw Axios error.
 
 Success responses pass through unchanged. Request errors (no response) also go
