@@ -9,6 +9,7 @@ export type {
   NewEventResponseDto,
   PhotoResponseDto,
   UpdateEventDto,
+  UserLimitsResponseDto,
 } from "@/lib/api/generated";
 export type { EditEventDateValues } from "./hooks/use-edit-event-date-form";
 export type { EditEventDescriptionValues } from "./hooks/use-edit-event-description-form";

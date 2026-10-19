@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { createApiError } from "@/lib/api/errors";
 import { renderWithI18n } from "@/testing/render";
 import { screen, userEvent } from "@testing-library/react-native";
 import { Text, View } from "react-native";
@@ -20,11 +21,13 @@ const NEW_EVENT: NewEventResponseDto = {
 const Probe = ({
   newEvent = NEW_EVENT,
   onCreated = jest.fn(),
+  onLimitReached,
 }: {
   newEvent?: NewEventResponseDto;
   onCreated?: () => void;
+  onLimitReached?: () => void;
 }) => {
-  const { form, onSubmit } = useNewRollForm({ newEvent, onCreated });
+  const { form, onSubmit } = useNewRollForm({ newEvent, onCreated, onLimitReached });
   const { errors } = form.formState;
   const error = errors.title?.message ?? errors.root?.server?.message;
   return (
@@ -102,4 +105,17 @@ test("keeps the roll and says why when it didn't load", async () => {
   await user.press(screen.getByRole("button", { name: "Load" }));
   expect(mockCreate).toHaveBeenCalledTimes(2);
   expect(onCreated).toHaveBeenCalledTimes(1);
+});
+
+test("reports a refused create when every roll the plan allows is running", async () => {
+  mockCreate.mockRejectedValueOnce(
+    createApiError("Active event limit reached", { status: 403, code: "ACTIVE_EVENT_LIMIT_REACHED" }),
+  );
+  const onLimitReached = jest.fn();
+  await renderWithI18n(<Probe onLimitReached={onLimitReached} />);
+  const user = userEvent.setup();
+  await user.paste(screen.getByLabelText("Name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Load" }));
+
+  expect(onLimitReached).toHaveBeenCalledTimes(1);
 });

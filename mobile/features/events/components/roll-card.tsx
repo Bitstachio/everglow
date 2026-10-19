@@ -38,10 +38,12 @@ const sizeOf = (event: LayoutChangeEvent): Size => ({
   height: Math.round(event.nativeEvent.layout.height),
 });
 
-// An open roll shows its first photos, or its cover until it has any. Upcoming
-// rolls are unexposed and closed ones have lost their photos, so their frames
-// are blank. A blank frame carries its number.
-const buildFrames = (event: EventResponseDto, photos: RollPhoto[]): StripFrame[] => {
+/**
+ * An open roll shows its first photos, or its cover until it has any. Upcoming
+ * rolls are unexposed and closed ones have lost their photos, so their frames
+ * are blank. A blank frame carries its number.
+ */
+export const buildFrames = (event: EventResponseDto, photos: RollPhoto[]): StripFrame[] => {
   const closed = event.galleryState === "CLOSED";
   const cover = event.coverUrl
     ? [{ uri: event.coverUrl, cacheKey: getEventCoverCacheKey(event.id, event.coverUrl) }]
