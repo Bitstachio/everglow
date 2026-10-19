@@ -18,6 +18,19 @@ export const extractInvitationToken = (input: string): string => {
   return path.split("/").filter(Boolean).at(-1) ?? trimmed;
 };
 
+/** An invite link's path, on any host or the app's own scheme: `/join/<token>` or `/invite/<token>`. */
+const INVITE_PATH = /^(?:[a-z][a-z\d+.-]*:\/\/[^/]*)?\/*(?:join|invite)\/([^/?#]+)\/?(?:[?#].*)?$/i;
+
+/**
+ * Where a link that opened the app should land: the envelope for an invite
+ * link (`everglowmobile://join/k8Qm2`, `…/invite/k8Qm2`, or a web link once
+ * EV-140 routes one here), unchanged for anything else.
+ */
+export const routeForIncomingLink = (path: string): string => {
+  const token = INVITE_PATH.exec(path.trim())?.[1];
+  return token ? `/join/${token}` : path;
+};
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**

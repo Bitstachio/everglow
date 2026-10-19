@@ -1,5 +1,6 @@
 import "../testing/native-mocks";
 import { createApiError } from "@/lib/api/errors";
+import { clearPendingInvite, takePendingInvite } from "@/lib/pending-invite";
 import { renderWithI18n } from "@/testing/render";
 // Integration tests compose the real screen with its data hooks.
 // eslint-disable-next-line no-restricted-imports
@@ -23,7 +24,11 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
   blocksControllerUnblock: (...args: unknown[]) => mockUnblock(...args),
 }));
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "me" }, updateUser: jest.fn() }) }));
+const mockLogin = jest.fn();
+let mockAuth = { isAuthenticated: true, isOnboarded: true, isSuspended: false, isLoading: false };
+jest.mock("@/context/auth-context", () => ({
+  useAuth: () => ({ ...mockAuth, user: { id: "me" }, updateUser: jest.fn(), login: () => mockLogin() }),
+}));
 jest.mock("expo-router", () => ({
   router: {
     replace: (...args: unknown[]) => mockRouter.replace(...args),
@@ -57,6 +62,9 @@ const press = async (name: string | RegExp) => userEvent.setup().press(screen.ge
 
 beforeEach(() => {
   jest.clearAllMocks();
+  clearPendingInvite();
+  mockAuth = { isAuthenticated: true, isOnboarded: true, isSuspended: false, isLoading: false };
+  mockLogin.mockResolvedValue(undefined);
   mockToken = "k8Qm2";
   mockRouter.canGoBack.mockReturnValue(true);
   mockPreview.mockImplementation(() => previewed());
@@ -353,5 +361,67 @@ describe("Leaving", () => {
     await renderScreen();
     await press("Back");
     expect(mockRouter.dismissTo).toHaveBeenCalledWith("/events");
+  });
+});
+
+describe("06.3 Not signed in yet", () => {
+  beforeEach(() => {
+    mockAuth = { isAuthenticated: false, isOnboarded: false, isSuspended: false, isLoading: false };
+  });
+
+  test("shows a sealed envelope and nothing about the roll", async () => {
+    await renderScreen();
+
+    expect(screen.getByLabelText("A sealed envelope")).toBeOnTheScreen();
+    expect(screen.getByText("Sealed until you sign in")).toBeOnTheScreen();
+    expect(screen.getByRole("header", { name: "You’ve been invited\nto a roll." })).toBeOnTheScreen();
+    expect(screen.getByText("Sign in to open the envelope and see whose it is.")).toBeOnTheScreen();
+    expect(stampText("Sealed")).toBeOnTheScreen();
+    expect(screen.queryByText("— — —")).not.toBeOnTheScreen();
+    expect(mockPreview).not.toHaveBeenCalled();
+  });
+
+  test("keeps the invite while they sign in", async () => {
+    await renderScreen();
+
+    await press("Sign in to open it");
+
+    expect(mockLogin).toHaveBeenCalledTimes(1);
+    expect(takePendingInvite()).toBe("k8Qm2");
+  });
+
+  test("says so when signing in fails", async () => {
+    mockLogin.mockRejectedValue(new Error("Auth0 is not configured"));
+    await renderScreen();
+
+    await press("Sign in to open it");
+
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t sign in", "Auth0 is not configured"));
+  });
+
+  test("waits while signing in", async () => {
+    mockAuth = { ...mockAuth, isLoading: true };
+    await renderScreen();
+    expect(screen.getByRole("button", { name: "Sign in to open it" })).toBeDisabled();
+  });
+});
+
+describe("Signed in but not ready to join", () => {
+  test("finishes onboarding first, with the invite waiting", async () => {
+    mockAuth = { isAuthenticated: true, isOnboarded: false, isSuspended: false, isLoading: false };
+    await renderScreen();
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith("/onboarding"));
+    expect(takePendingInvite()).toBe("k8Qm2");
+    expect(mockPreview).not.toHaveBeenCalled();
+  });
+
+  test("a suspended account goes to its own screen", async () => {
+    mockAuth = { isAuthenticated: true, isOnboarded: true, isSuspended: true, isLoading: false };
+    await renderScreen();
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith("/account-suspended"));
+    expect(mockPreview).not.toHaveBeenCalled();
+    expect(takePendingInvite()).toBeNull();
   });
 });

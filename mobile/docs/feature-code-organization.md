@@ -285,6 +285,31 @@ returns, which takes seconds for a large selection.
 settles, so the storage line and a gallery that closed mid-upload are current.
 Deleting a photo refetches the event too, since it frees storage.
 
+## Joining a roll
+
+Chapter 06. Home's scanner button and "Join with an envelope" open `/join`
+(`join-scan-screen.tsx`, 06.1): the camera reads QR codes, and Paste a link
+(06.2) offers a link found on the clipboard. Either one replaces the scanner
+with `/join/[token]` (`join-envelope-screen.tsx`), so going back lands on
+Home. Tokens are read the way the API reads them (`extractInvitationToken` in
+`lib/invite.ts`: a bare token, or a link's last path segment on any domain).
+
+The envelope reads `GET /events/invites/:token/preview`. It shows the roll and
+joins it (06.4, 06.5); a member goes straight to the roll (06.7), and a join
+lands on it with a note saying which member they are (06.6, `ArrivalNote`).
+Every other preview state, and a 404, is a returned envelope saying why
+(06.8–06.13). When a join is refused because the roll changed since it
+opened, the preview is fetched again and shows the new state. "Unblock and
+join" lifts the caller's own block on the host, then joins.
+
+`/join/[token]` is open signed out: it shows a sealed envelope (06.3), since
+the preview needs an account. "Sign in to open it" keeps the token in
+`lib/pending-invite.ts` (memory only, for the session); the auth context
+lands on the envelope after sign-in, or after onboarding's last step for a
+new account. Links in the app's own scheme (`everglowmobile://join/<token>`
+or `…/invite/<token>`) reach the envelope through `app/+native-intent.tsx`.
+Universal links and the invite web page are EV-140.
+
 ## Legal pages
 
 The About rows open the protected `/privacy-policy` and `/terms-of-use`

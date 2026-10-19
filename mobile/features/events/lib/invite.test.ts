@@ -1,4 +1,11 @@
-import { extractInvitationToken, firstName, formatEnvelopeDate, formatPickUpDate, looksLikeInvite } from "./invite";
+import {
+  extractInvitationToken,
+  firstName,
+  formatEnvelopeDate,
+  formatPickUpDate,
+  looksLikeInvite,
+  routeForIncomingLink,
+} from "./invite";
 
 describe("extractInvitationToken", () => {
   test.each([
@@ -49,5 +56,29 @@ describe("formatting", () => {
   test("names the host by their first name", () => {
     expect(firstName("Sam Rivera")).toBe("Sam");
     expect(firstName("  Jo  ")).toBe("Jo");
+  });
+});
+
+describe("routeForIncomingLink", () => {
+  test.each([
+    ["everglowmobile://join/k8Qm2", "/join/k8Qm2"],
+    ["everglowmobile://invite/k8Qm2", "/join/k8Qm2"],
+    ["everglowmobile:///invite/k8Qm2/", "/join/k8Qm2"],
+    ["/invite/k8Qm2", "/join/k8Qm2"],
+    ["/join/k8Qm2?utm_source=x", "/join/k8Qm2"],
+    ["https://events.everglow.app/invite/k8Qm2", "/join/k8Qm2"],
+    ["https://everglow.social/join/k8Qm2", "/join/k8Qm2"],
+  ])("sends %s to the envelope", (path, route) => {
+    expect(routeForIncomingLink(path)).toBe(route);
+  });
+
+  test.each([
+    "everglowmobile://design-kit",
+    "/events/roll-1",
+    "everglowmobile://example.auth0.com/ios/com.example/callback?code=abc",
+    "/join",
+    "/join/k8Qm2/extra",
+  ])("leaves %s alone", (path) => {
+    expect(routeForIncomingLink(path)).toBe(path);
   });
 });

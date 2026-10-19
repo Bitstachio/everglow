@@ -1,4 +1,5 @@
 import { toApiError } from "@/lib/api/errors";
+import { clearPendingInvite, savePendingInvite, takePendingInvite } from "@/lib/pending-invite";
 import { renderWithI18n } from "@/testing/render";
 import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -73,6 +74,7 @@ beforeEach(() => {
   mockUnauthorized = null;
   mockSuspended = null;
   mockLogoutFromAuth0.mockReset().mockResolvedValue(undefined);
+  clearPendingInvite();
 });
 
 test("opening the app offline keeps the session and offers to try again", async () => {
@@ -219,4 +221,58 @@ test("a request refused with ACCOUNT_SUSPENDED mid-session reloads the account o
   await act(async () => mockSuspended?.());
   expect(mockGetUserProfile).toHaveBeenCalledTimes(calls + 1);
   expect(mockReplace).toHaveBeenCalledTimes(1);
+});
+
+const SignIn = () => {
+  const { login } = useAuth();
+  return (
+    <Pressable accessibilityRole="button" onPress={() => void login()}>
+      <Text>Sign in</Text>
+    </Pressable>
+  );
+};
+
+const renderSignedOut = async () => {
+  mockGetUserProfile.mockResolvedValueOnce(null);
+  await renderWithI18n(
+    <AuthProvider>
+      <SignIn />
+    </AuthProvider>,
+    { wrapper: Providers },
+  );
+  await screen.findByText("Sign in");
+};
+
+test("signing in opens the envelope that was waiting (06.3)", async () => {
+  await renderSignedOut();
+  savePendingInvite("k8Qm2");
+  mockGetUserProfile.mockResolvedValue(profile);
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/join/k8Qm2"));
+  expect(takePendingInvite()).toBeNull();
+});
+
+test("signing in before onboarding keeps the invite waiting for the end of it", async () => {
+  await renderSignedOut();
+  savePendingInvite("k8Qm2");
+  mockGetUserProfile.mockResolvedValue({ ...profile, isOnboarded: false });
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/onboarding"));
+  expect(takePendingInvite()).toBe("k8Qm2");
+});
+
+test("signing out forgets a waiting invite, so the next account doesn't open it", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  await renderProvider();
+  await screen.findByText("App");
+  savePendingInvite("k8Qm2");
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign out" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+  expect(takePendingInvite()).toBeNull();
 });
