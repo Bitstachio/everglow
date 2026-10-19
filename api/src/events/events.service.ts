@@ -302,7 +302,15 @@ export class EventsService {
       return INVITE_PREVIEW_STATES.JOINABLE;
     })();
 
-    return { state, event, token: invite.token, accessLevel: invite.accessLevel, memberCount, memberLimit: limits.memberLimit, host };
+    return {
+      state,
+      event,
+      token: invite.token,
+      accessLevel: invite.accessLevel,
+      memberCount,
+      memberLimit: limits.memberLimit,
+      host,
+    };
   }
 
   async findOne(eventId: string, callerId: string): Promise<Event> {
