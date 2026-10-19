@@ -9,8 +9,9 @@ import { useMyLimitsQuery } from "../api/queries";
  */
 export const useLabCard = () => {
   const { t, i18n } = useTranslation("onboarding");
-  const { user } = useAuth();
-  const { data: limits } = useMyLimitsQuery();
+  const { user, isSuspended } = useAuth();
+  // A suspended account can only read itself; the API refuses its limits.
+  const { data: limits } = useMyLimitsQuery({ enabled: !isSuspended });
   const details = user?.details;
 
   const since = user

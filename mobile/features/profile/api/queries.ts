@@ -22,9 +22,10 @@ export const checkUsernameAvailability = async (
 };
 
 /** The plan and how many rolls you're running against its limit. */
-export const useMyLimitsQuery = () =>
+export const useMyLimitsQuery = ({ enabled = true }: { enabled?: boolean } = {}) =>
   useQuery({
     queryKey: profileKeys.limits(),
+    enabled,
     queryFn: async ({ signal }): Promise<UserLimitsResponseDto> => {
       const { data } = await usersControllerGetMyLimits({ signal, throwOnError: true });
       return unwrapEnvelope(data);

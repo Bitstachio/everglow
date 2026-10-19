@@ -1,5 +1,4 @@
 import { act, renderHook } from "@testing-library/react-native";
-import { Alert } from "react-native";
 import { useProfileScreen } from "./use-profile-screen";
 
 const mockPush = jest.fn();
@@ -21,7 +20,6 @@ jest.mock("./use-lab-card", () => ({
 }));
 
 const mockLogout = jest.fn();
-const mockDelete = jest.fn();
 jest.mock("@/context/auth-context", () => ({
   useAuth: () => ({
     user: { id: "user-1", details: { username: "ada", name: "Ada" } },
@@ -30,9 +28,6 @@ jest.mock("@/context/auth-context", () => ({
   }),
 }));
 jest.mock("../api/queries", () => ({ useBlocksQuery: () => ({ data: [{ userId: "u2" }, { userId: "u3" }] }) }));
-jest.mock("../api/mutations", () => ({
-  useDeleteProfileMutation: () => ({ mutateAsync: mockDelete, isPending: false }),
-}));
 const mockChangePassword = jest.fn();
 jest.mock("./use-change-password", () => ({
   useChangePassword: () => ({
@@ -42,73 +37,11 @@ jest.mock("./use-change-password", () => ({
   }),
 }));
 
-const alert = jest.spyOn(Alert, "alert");
-const pressAlertButton = (title: string) => {
-  const buttons = alert.mock.calls.at(-1)?.[2];
-  const button = buttons?.find((item) => item.text === title);
-  if (!button) throw new Error(`Missing alert button: ${title}`);
-  return button.onPress?.();
-};
-
 beforeEach(() => {
   jest.clearAllMocks();
-  mockDelete.mockResolvedValue(undefined);
   mockLogout.mockResolvedValue(undefined);
   mockSub = "auth0|user-1";
   mockCanGoBack = true;
-});
-
-test.each([
-  ["Keep shared photos", "KEEP"],
-  ["Delete my photos", "DELETE"],
-])("requires confirmation before deleting with %s", async (choice, policy) => {
-  const { result } = await renderHook(() => useProfileScreen());
-  result.current.onDeleteAccount();
-  expect(mockDelete).not.toHaveBeenCalled();
-  pressAlertButton(choice);
-  expect(mockDelete).not.toHaveBeenCalled();
-  await pressAlertButton("Delete Account");
-  expect(mockDelete).toHaveBeenCalledWith(policy);
-  expect(mockLogout).toHaveBeenCalledTimes(1);
-});
-
-test("canceling either confirmation leaves the account intact", async () => {
-  const { result } = await renderHook(() => useProfileScreen());
-  result.current.onDeleteAccount();
-  pressAlertButton("Cancel");
-  result.current.onDeleteAccount();
-  pressAlertButton("Keep shared photos");
-  pressAlertButton("Cancel");
-  expect(mockDelete).not.toHaveBeenCalled();
-  expect(mockLogout).not.toHaveBeenCalled();
-});
-
-test("failed deletion shows an error without logging out", async () => {
-  mockDelete.mockRejectedValue(new Error("Offline"));
-  const { result } = await renderHook(() => useProfileScreen());
-  result.current.onDeleteAccount();
-  pressAlertButton("Delete my photos");
-  await pressAlertButton("Delete Account");
-  expect(alert).toHaveBeenLastCalledWith("Could not delete account", expect.any(String));
-  expect(mockLogout).not.toHaveBeenCalled();
-});
-
-test("ignores duplicate confirmations while deletion is pending", async () => {
-  let resolveDeletion!: () => void;
-  mockDelete.mockReturnValue(
-    new Promise<void>((resolve) => {
-      resolveDeletion = resolve;
-    }),
-  );
-  const { result } = await renderHook(() => useProfileScreen());
-  result.current.onDeleteAccount();
-  pressAlertButton("Keep shared photos");
-  const pending = pressAlertButton("Delete Account");
-  await pressAlertButton("Delete Account");
-  expect(mockDelete).toHaveBeenCalledTimes(1);
-  resolveDeletion();
-  await pending;
-  expect(mockLogout).toHaveBeenCalledTimes(1);
 });
 
 test.each([
@@ -116,6 +49,7 @@ test.each([
   ["onOpenUsername", "/edit-username"],
   ["onOpenBlocked", "/blocked-people"],
   ["onOpenPrivacy", "/privacy-policy"],
+  ["onDeleteAccount", "/delete-account"],
   ["onOpenTerms", "/terms-of-use"],
 ] as const)("%s opens %s", async (handler, path) => {
   const { result } = await renderHook(() => useProfileScreen());
