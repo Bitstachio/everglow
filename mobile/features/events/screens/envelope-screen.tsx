@@ -5,23 +5,25 @@ import { FilmGrain } from "@/components/ui/film-grain";
 import { IconButton } from "@/components/ui/icon-button";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Slip } from "@/components/ui/slip";
+import { Stamp } from "@/components/ui/stamp";
 import { TopBar } from "@/components/ui/top-bar";
 import { colorTokens } from "@/theme/tokens";
 import { X } from "phosphor-react-native";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { EnvelopeSwitch } from "../components/envelope-switch";
 import { RollEnvelope } from "../components/roll-envelope";
 import { useEnvelopeScreen } from "../hooks/use-envelope-screen";
 
-/** 05.1–05.5 The envelope: what a host sends so people can join the roll. */
+/** 05.1–05.7 The envelope: what a host sends so people can join the roll. */
 const EnvelopeScreen = () => {
   const { t } = useTranslation("envelope");
   const {
     edge,
     envelope,
     invitationUrl,
+    shut,
     kind,
     kinds,
     isLoading,
@@ -56,6 +58,24 @@ const EnvelopeScreen = () => {
           </View>
         ) : isLoading || !envelope ? (
           <View testID="envelope-loading" className="mx-7.5 mt-14 h-80 -rotate-2 rounded-paper bg-sheet" />
+        ) : shut ? (
+          <>
+            {/* No one new comes in: the envelope lies dimmed under a stamp that says why (05.6–05.7). */}
+            <View className="mx-7.5 mt-9.5 opacity-55">
+              <RollEnvelope {...envelope} />
+            </View>
+            <View className="h-26">
+              <Stamp title={shut.stamp} subtitle={shut.stampLine} className="absolute right-14.5 top-2" />
+            </View>
+            <Text className="mt-24 px-5 font-sans text-body text-text-2">
+              <Trans
+                t={t}
+                i18nKey={`${shut.state}.body`}
+                values={{ date: shut.date }}
+                components={{ value: <Text className="font-sans-semibold text-text" /> }}
+              />
+            </Text>
+          </>
         ) : (
           <>
             <View className="px-5">

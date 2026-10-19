@@ -7,20 +7,23 @@ import { Alert, Clipboard, Share } from "react-native";
 import { useRegenerateInviteMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import {
+  closedOn,
   ENVELOPE_KINDS,
   envelopeAccessLevel,
+  envelopeState,
   envelopeUrl,
   formatEnvelopeDate,
+  formatEnvelopeDay,
   type EnvelopeKind,
 } from "../lib/envelope";
-import { formatClosesOn } from "../lib/rolls";
 
 /** How long Copy link reads "Copied". */
 const COPIED_MS = 2000;
 
 /**
- * 05.1–05.5 The host's envelopes: one admits people who add photos, the other
- * people who only look. Each is shared, copied or reset on its own.
+ * 05.1–05.7 The host's envelopes: one admits people who add photos, the other
+ * people who only look. Each is shared, copied or reset on its own while the
+ * roll is open; a closed or on-hold roll shows why no one new can come in.
  */
 export const useEnvelopeScreen = () => {
   const { t } = useTranslation("envelope");
@@ -50,21 +53,42 @@ export const useEnvelopeScreen = () => {
     if (notHost && eventId) router.replace(`/events/${eventId}`);
   }, [notHost, eventId, router]);
 
+  const state = event ? envelopeState(event) : "open";
+  const isOpen = state === "open";
+  // Shut, the adds-photos envelope stays on the table without its code (05.6–05.7).
+  const shown: EnvelopeKind = isOpen ? kind : "adds";
+
+  const pickUpBy = () => {
+    if (!event) return undefined;
+    if (state === "closed") return t("pickUp.gone", { date: formatEnvelopeDay(closedOn(event)) });
+    return event.galleryClosesAt
+      ? t("pickUp.until", { date: formatEnvelopeDay(event.galleryClosesAt) })
+      : t("pickUp.never");
+  };
+
   const envelope =
     event && isHost
       ? {
           title: event.title,
           startsAt: formatEnvelopeDate(event.date),
           peopleCount: event.usage.members,
-          pickUpBy: event.galleryClosesAt
-            ? t("pickUp.until", { date: formatClosesOn(event.galleryClosesAt) })
-            : t("pickUp.never"),
-          admits: kind,
-          accessibilityLabel: t(`label.${kind}`, { title: event.title }),
+          pickUpBy: pickUpBy(),
+          admits: shown,
+          accessibilityLabel: t(`label.${shown}`, { title: event.title }),
         }
       : null;
 
-  const invitationUrl = event ? envelopeUrl(event, kind) : null;
+  const invitationUrl = event && isOpen ? envelopeUrl(event, kind) : null;
+
+  const shut =
+    event && state !== "open"
+      ? {
+          state,
+          stamp: t(`${state}.stamp`),
+          stampLine: t(`${state}.stampLine`),
+          date: state === "closed" ? formatEnvelopeDay(closedOn(event)) : undefined,
+        }
+      : null;
 
   const onShare = async () => {
     if (!event || !invitationUrl) return;
@@ -97,6 +121,8 @@ export const useEnvelopeScreen = () => {
     edge: event ? t("edge", { title: event.title }) : null,
     envelope,
     invitationUrl,
+    state,
+    shut,
     kind,
     kinds: ENVELOPE_KINDS.map((key) => ({ key, label: t(`switch.${key}`) })),
     isLoading,

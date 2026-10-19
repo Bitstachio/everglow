@@ -1,5 +1,6 @@
 {
   "edge": "Envelope · {{title}}",
+  "open": "Send the envelope",
   "close": "Close the envelope",
   "switch": {
     "adds": "Adds photos",
@@ -21,7 +22,8 @@
   },
   "pickUp": {
     "until": "{{date}}, then it’s gone",
-    "never": "It stays open"
+    "never": "It stays open",
+    "gone": "{{date}}, gone"
   },
   "label": {
     "adds": "Adds-photos envelope for {{title}}",
@@ -56,6 +58,21 @@
     "confirm": "Reset it",
     "cancel": "Keep it",
     "failedTitle": "Couldn’t reset the envelope"
+  },
+  "closed": {
+    "stamp": "Closed",
+    "stampLine": "No new guests",
+    "body": "The roll closed on <value>{{date}}</value> and its photos were removed, so no one new can join."
+  },
+  "onHold": {
+    "stamp": "On hold",
+    "stampLine": "Under review",
+    "body": "Everglow is reviewing this roll after reports. Until then the envelope doesn’t admit anyone new. People already in can still look."
+  },
+  "suspended": {
+    "stamp": "Suspended",
+    "stampLine": "No new guests",
+    "body": "This roll was suspended for breaking our terms, so no one new can join."
   },
   "loadFailed": "Couldn’t load the envelope.",
   "retry": "Try again"
