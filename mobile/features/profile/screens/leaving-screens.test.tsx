@@ -12,7 +12,8 @@ jest.mock("expo-router", () => ({
   router: { replace: (href: unknown) => mockReplace(href), push: (href: unknown) => mockPush(href) },
 }));
 const mockLogout = jest.fn();
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ logout: mockLogout }) }));
+let mockAuthLoading = false;
+jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ logout: mockLogout, isLoading: mockAuthLoading }) }));
 jest.mock("../hooks/use-lab-card", () => ({
   useLabCard: () => ({ card: { title: "Lab card", fields: [], accessibilityLabel: "Your lab card: Ada, @ada" } }),
 }));
@@ -23,8 +24,11 @@ const mockDeleteScreen = {
     { id: "e1", title: "Nadia turns 30", fate: "stays" as const },
     { id: "e2", title: "Picnic, just me", fate: "deleted" as const },
   ],
+  showRolls: true,
+  rollsFailed: false,
   isDeleting: false,
   onChoosePhotos: jest.fn(),
+  onRetryRolls: jest.fn(),
   onDelete: jest.fn(),
   onBack: jest.fn(),
 };
@@ -43,7 +47,11 @@ const renderScreen = (ui: React.ReactElement) =>
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAuthLoading = false;
   mockDeleteScreen.photos = null;
+  mockDeleteScreen.showRolls = true;
+  mockDeleteScreen.rollsFailed = false;
+  mockDeleteScreen.isDeleting = false;
 });
 
 describe("14.11 Delete account", () => {
@@ -70,6 +78,29 @@ describe("14.11 Delete account", () => {
     expect(screen.getByLabelText("Nadia turns 30, Stays with the people on it")).toBeOnTheScreen();
     expect(screen.getByLabelText("Picnic, just me, Deleted · no one else on it")).toBeOnTheScreen();
   });
+
+  test("says when the rolls couldn't load, and tries again", async () => {
+    mockDeleteScreen.rollsFailed = true;
+    await renderScreen(<DeleteAccountScreen />);
+    expect(screen.getByText("Couldn’t load your rolls.")).toBeOnTheScreen();
+    expect(screen.queryByLabelText("Nadia turns 30, Stays with the people on it")).not.toBeOnTheScreen();
+    await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
+    expect(mockDeleteScreen.onRetryRolls).toHaveBeenCalledTimes(1);
+  });
+
+  test("leaves the rolls section out when there's nothing in it", async () => {
+    mockDeleteScreen.showRolls = false;
+    await renderScreen(<DeleteAccountScreen />);
+    expect(screen.queryByText("Rolls you started or are alone on")).not.toBeOnTheScreen();
+  });
+
+  test("the leader waits while the account is being deleted", async () => {
+    mockDeleteScreen.photos = "DELETE";
+    mockDeleteScreen.isDeleting = true;
+    await renderScreen(<DeleteAccountScreen />);
+    expect(screen.getByRole("button", { name: "Delete my account" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /^Leave them/ })).toBeDisabled();
+  });
 });
 
 test("14.12 Deleted goes back to the start", async () => {
@@ -94,5 +125,12 @@ describe("14.13 Suspended account", () => {
     expect(mockPush).toHaveBeenCalledWith("/delete-account");
     await user.press(screen.getByRole("button", { name: "Sign out" }));
     expect(mockLogout).toHaveBeenCalledTimes(1);
+  });
+
+  test("waits while signing out", async () => {
+    mockAuthLoading = true;
+    await renderScreen(<AccountSuspendedScreen />);
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete my account" })).toBeDisabled();
   });
 });

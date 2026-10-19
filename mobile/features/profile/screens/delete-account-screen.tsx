@@ -13,7 +13,8 @@ import { useDeleteAccountScreen } from "../hooks/use-delete-account-screen";
 /** 14.11 Delete account: what happens to your frames, and to each roll you started. */
 const DeleteAccountScreen = () => {
   const { t } = useTranslation(["you", "common"]);
-  const { photos, rolls, isDeleting, onChoosePhotos, onDelete, onBack } = useDeleteAccountScreen();
+  const { photos, rolls, showRolls, rollsFailed, isDeleting, onChoosePhotos, onRetryRolls, onDelete, onBack } =
+    useDeleteAccountScreen();
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
@@ -24,8 +25,8 @@ const DeleteAccountScreen = () => {
       <ScrollView className="flex-1" contentContainerClassName="px-5 pb-6 pt-4">
         <Display dim={t("delete.titleDim")}>{t("delete.title")}</Display>
 
-        <View className="mt-7">
-          <EdgePrint className="mb-1">{t("delete.framesEdge")}</EdgePrint>
+        <View className="mt-9.5">
+          <EdgePrint>{t("delete.framesEdge")}</EdgePrint>
           <View accessibilityRole="radiogroup">
             <OptionRow
               title={t("delete.keep")}
@@ -44,19 +45,34 @@ const DeleteAccountScreen = () => {
           </View>
         </View>
 
-        <View className="mt-7">
-          <EdgePrint className="mb-1">{t("delete.rollsEdge")}</EdgePrint>
-          <Text className="mb-3 font-sans text-body text-text-2">{t("delete.rollsBody")}</Text>
-          {rolls.map((roll, index) => (
-            <IndexRow
-              key={roll.id}
-              first={index === 0}
-              label={roll.title}
-              value={roll.fate === "deleted" ? t("delete.rollDeleted") : t("delete.rollStays")}
-              lit
-            />
-          ))}
-        </View>
+        {showRolls ? (
+          <View className="mt-9.5">
+            <EdgePrint className="mb-1">{t("delete.rollsEdge")}</EdgePrint>
+            <Text className="mb-3 font-sans text-body text-text-2">{t("delete.rollsBody")}</Text>
+            {rollsFailed ? (
+              <View className="items-start gap-2">
+                <Text className="font-sans text-body text-text-2">{t("delete.rollsFailed")}</Text>
+                <Button
+                  title={t("delete.retry")}
+                  variant="ghost"
+                  fullWidth={false}
+                  className="-ml-2"
+                  onPress={onRetryRolls}
+                />
+              </View>
+            ) : (
+              rolls.map((roll, index) => (
+                <IndexRow
+                  key={roll.id}
+                  first={index === 0}
+                  label={roll.title}
+                  value={roll.fate === "deleted" ? t("delete.rollDeleted") : t("delete.rollStays")}
+                  lit
+                />
+              ))
+            )}
+          </View>
+        ) : null}
       </ScrollView>
 
       <View className="gap-2.5 px-5 pb-1 pt-3">
