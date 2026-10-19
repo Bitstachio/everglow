@@ -43,7 +43,10 @@ export const IndexRow = ({
     .join(" ");
   const content = (
     <>
-      <EdgePrint tone={muted ? "edge" : "text"}>{label}</EdgePrint>
+      {/* The label gets what the value leaves, so a long roll title shortens before its state does. */}
+      <EdgePrint tone={muted ? "edge" : "text"} numberOfLines={1} className="flex-1">
+        {label}
+      </EdgePrint>
       {value || arrow ? (
         <EdgePrint tone={lit ? "text" : "edge"} numberOfLines={1} className="shrink">
           {[value, arrow ? "›" : null].filter(Boolean).join(" ")}
