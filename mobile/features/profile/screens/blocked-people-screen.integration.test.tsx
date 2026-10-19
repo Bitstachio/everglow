@@ -83,6 +83,26 @@ test("a failed unblock puts the row back and says so", async () => {
   expect(await screen.findByText("Leila Haddad")).toBeOnTheScreen();
 });
 
+test("a failed unblock puts back only that row when another went through", async () => {
+  const rejectLeila = Promise.withResolvers<never>();
+  mockUnblock.mockImplementation(({ path }: { path: { userId: string } }) =>
+    path.userId === "u-leila" ? rejectLeila.promise : Promise.resolve({}),
+  );
+  await renderScreen();
+  await screen.findByText("Leila Haddad");
+  mockList.mockImplementation(() => listed(blocks.slice(0, 1)));
+  const user = userEvent.setup();
+
+  await user.press(screen.getByRole("button", { name: "Unblock Leila Haddad" }));
+  await user.press(screen.getByRole("button", { name: "Unblock No lab card" }));
+  rejectLeila.reject(new Error("Offline"));
+
+  expect(await screen.findByText("Leila Haddad")).toBeOnTheScreen();
+  expect(screen.queryByText("No lab card")).not.toBeOnTheScreen();
+  // One refetch, after both have settled.
+  await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+});
+
 test("nobody blocked", async () => {
   mockList.mockImplementation(() => listed([]));
   await renderScreen();
