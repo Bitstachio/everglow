@@ -4,7 +4,7 @@ import { LaunchCurtain, LaunchScreen } from "@/components/launch-screen";
 import i18n from "@/i18n/instance";
 import { router } from "expo-router";
 import { authService, OnboardingData, User } from "@/lib/auth";
-import { setUnauthorizedHandler } from "@/lib/api/axios-instance";
+import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import { isConnectionError } from "@/lib/api/errors";
 import { View } from "react-native";
 import {
@@ -26,7 +26,7 @@ interface AuthContextType {
   login: () => Promise<void>;
   signup: () => Promise<void>;
   /** Signs out and goes to `to`, the welcome by default. */
-  logout: (to?: "/login" | "/account-deleted") => Promise<void>;
+  logout: (to?: SignedOutRoute) => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   refreshProfile: () => Promise<User | null>;
   updateUser: (user: User) => void;
@@ -41,6 +41,9 @@ const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
 const SUSPENDED_ROUTE = "/account-suspended" as const;
 
+/** Where signing out lands: the welcome, or Deleted (14.12) after deleting the account. */
+type SignedOutRoute = typeof LOGIN_ROUTE | "/account-deleted";
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,6 +55,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Avoid stale closures when the 401 handler is invoked from the interceptor.
   const handleSessionExpiredRef = useRef<() => void>(() => {});
+  // Set by a deliberate sign-out until the next sign-in. A deleted account's
+  // token answers 401 at once, and a refetch racing the sign-out must not turn
+  // Deleted (14.12) into the signed-out welcome.
+  const signedOutRef = useRef(false);
+  const userRef = useRef<User | null>(null);
+  const checkingSuspensionRef = useRef(false);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const routeForUser = useCallback((profile: User | null) => {
     if (!profile) {
@@ -72,6 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const handleSessionExpired = useCallback(async () => {
+    if (signedOutRef.current) return;
     await clearLocalCredentials();
     setUser(null);
     // The welcome shows the signed-out slip (01.8) instead of a blank start.
@@ -88,6 +102,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUnauthorizedHandler(() => handleSessionExpiredRef.current());
     return () => setUnauthorizedHandler(null);
   }, []);
+
+  // A suspension that starts mid-session: requests start answering
+  // ACCOUNT_SUSPENDED, so reload the account once and land on 14.13.
+  const handleSuspended = useCallback(async () => {
+    if (checkingSuspensionRef.current || !userRef.current || userRef.current.suspendedAt) return;
+    checkingSuspensionRef.current = true;
+    try {
+      const profile = await refreshProfile();
+      if (profile?.suspendedAt) router.replace(SUSPENDED_ROUTE);
+    } catch {
+      // The next refused request checks again.
+    } finally {
+      checkingSuspensionRef.current = false;
+    }
+  }, [refreshProfile]);
+
+  useEffect(() => {
+    setSuspendedHandler(() => void handleSuspended());
+    return () => setSuspendedHandler(null);
+  }, [handleSuspended]);
 
   const loadSession = useCallback(async (): Promise<User | null> => {
     if (isAuth0Configured() && (await hasValidSession())) {
@@ -141,6 +175,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setIsLoading(true);
         setError(null);
+        signedOutRef.current = false;
         await loginWithUniversalLogin(options);
         let profile: User | null;
         try {
@@ -187,7 +222,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const logout = useCallback(async (to: typeof LOGIN_ROUTE | "/account-deleted" = LOGIN_ROUTE) => {
+  const logout = useCallback(async (to: SignedOutRoute = LOGIN_ROUTE) => {
+    signedOutRef.current = true;
     try {
       setIsLoading(true);
       await logoutFromAuth0();
