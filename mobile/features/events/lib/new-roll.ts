@@ -150,3 +150,11 @@ export const formatMonth = (month: Date): string =>
 export const WEEKDAY_INITIALS: readonly string[] = Array.from({ length: 7 }, (_, i) =>
   new Date(2026, 0, 4 + i).toLocaleDateString("en-GB", { weekday: "narrow" }),
 );
+
+/** "Sat 7 Nov, 7 pm" or "Sat 7 Nov, 7:30 pm": when it happens, written on the envelope. */
+export const formatEnvelopeDate = (date: Date): string => {
+  const hours = date.getHours() % 12 || 12;
+  const minutes = date.getMinutes();
+  const clock = minutes ? `${hours}:${String(minutes).padStart(2, "0")}` : String(hours);
+  return `${formatLongDay(date)}, ${clock} ${date.getHours() < 12 ? "am" : "pm"}`;
+};

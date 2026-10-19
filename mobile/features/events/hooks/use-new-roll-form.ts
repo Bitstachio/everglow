@@ -23,7 +23,8 @@ export type NewRollValues = z.infer<ReturnType<typeof makeNewRollSchema>>;
 type UseNewRollFormParams = {
   /** What the API offers a new roll (`GET /users/me/limits`); undefined until it has loaded. */
   newEvent: NewEventResponseDto | undefined;
-  onCreated: (event: EventResponseDto) => void;
+  /** Runs once the roll exists, before the form stops submitting; it must not throw. */
+  onCreated: (event: EventResponseDto) => void | Promise<void>;
 };
 
 /** 04.1–04.4 The new roll's label, time and film, created on Load the roll. */
@@ -49,15 +50,18 @@ export const useNewRollForm = ({ newEvent, onCreated }: UseNewRollFormParams) =>
       form.clearErrors("root");
       const galleryWindowDays = film(picked);
       try {
-        const event = await mutation.mutateAsync({
-          title,
-          ...(description ? { description } : {}),
-          date: date.toISOString(),
-          ...(galleryWindowDays === null ? {} : { galleryWindowDays }),
-        });
-        onCreated(event);
-      } catch (error) {
-        form.setError("root.server", { message: getErrorMessage(error, t("failed")) });
+        const event = await mutation
+          .mutateAsync({
+            title,
+            ...(description ? { description } : {}),
+            date: date.toISOString(),
+            ...(galleryWindowDays === null ? {} : { galleryWindowDays }),
+          })
+          .catch((error: unknown) => {
+            form.setError("root.server", { message: getErrorMessage(error, t("failed")) });
+            return null;
+          });
+        if (event) await onCreated(event);
       } finally {
         submitting.current = false;
       }

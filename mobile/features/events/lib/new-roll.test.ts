@@ -4,6 +4,7 @@ import {
   calendarMonth,
   defaultRollDate,
   formatClock,
+  formatEnvelopeDate,
   formatLongDay,
   formatMinutes,
   formatMonth,
@@ -93,4 +94,6 @@ test("formats the day, time and month as the drawings print them", () => {
   expect(formatMinutes(9 * 60 + 30)).toBe("09:30");
   expect(formatMonth(date)).toBe("November 2026");
   expect(WEEKDAY_INITIALS).toEqual(["S", "M", "T", "W", "T", "F", "S"]);
+  expect(formatEnvelopeDate(date)).toBe("Sat 7 Nov, 7 pm");
+  expect(formatEnvelopeDate(at(2026, 11, 8, 0, 30))).toBe("Sun 8 Nov, 12:30 am");
 });

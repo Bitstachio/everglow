@@ -3,7 +3,8 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { Keyboard, type TextInput } from "react-native";
+import { Alert, Keyboard, type TextInput } from "react-native";
+import { useSetNewRollCoverMutation } from "../api/mutations";
 import {
   addMonths,
   atMinutes,
@@ -21,6 +22,7 @@ import {
   TIME_SLOTS,
   WEEKDAY_INITIALS,
 } from "../lib/new-roll";
+import { useNewRollCover } from "./use-new-roll-cover";
 import { useNewRollForm } from "./use-new-roll-form";
 
 export type NewRollStatus = "loading" | "ready" | "notReady";
@@ -42,8 +44,8 @@ const useKeyboardVisible = () => {
 };
 
 /**
- * 04.1–04.4 A new roll: its name and a line for guests, when it happens, and
- * the film. The film on offer, its default and the latest date all come from
+ * 04.1–04.5 A new roll: its name and a line for guests, when it happens, the
+ * film and its first frame. The film on offer, its default and the latest date all come from
  * the API (`GET /users/me/limits`), never from the app.
  */
 export const useNewRollScreen = () => {
@@ -51,13 +53,25 @@ export const useNewRollScreen = () => {
   const router = useRouter();
   const limitsQuery = useMyLimitsQuery();
   const newEvent = limitsQuery.data?.newEvent;
+  const { cover, isPreparing: isPreparingCover, onPickCover } = useNewRollCover();
+  const setCoverMutation = useSetNewRollCoverMutation();
   const {
     form,
     onSubmit,
     film: chosenFilm,
   } = useNewRollForm({
     newEvent,
-    onCreated: (event) => router.replace(`/events/${event.id}`),
+    // The roll is loaded either way; a cover that didn't take can be added from its settings.
+    onCreated: async (event) => {
+      if (cover) {
+        try {
+          await setCoverMutation.mutateAsync({ eventId: event.id, image: cover });
+        } catch {
+          Alert.alert(t("cover.didntTakeTitle"), t("cover.didntTake"));
+        }
+      }
+      router.replace(`/events/${event.id}/loaded`);
+    },
   });
   const [title, description, date, pickedFilm] = useWatch({
     control: form.control,
@@ -123,7 +137,7 @@ export const useNewRollScreen = () => {
     status: (limitsQuery.isPending ? "loading" : newEvent ? "ready" : "notReady") as NewRollStatus,
     onRetry: () => void limitsQuery.refetch(),
     form,
-    canLoad: title.trim().length > 0,
+    canLoad: title.trim().length > 0 && !isPreparingCover,
     isLoading: isSubmitting,
     error: errors.title?.message ?? errors.description?.message ?? errors.root?.server?.message,
     onLoad: onSubmit,
@@ -142,6 +156,13 @@ export const useNewRollScreen = () => {
       onSelect: (days: number) => form.setValue("galleryWindowDays", days, { shouldDirty: true }),
       opens: formatShortDay(gallery.opensAt),
       closes: gallery.closesAt ? formatShortDay(gallery.closesAt) : null,
+    },
+    cover: {
+      uri: cover?.uri,
+      isPreparing: isPreparingCover,
+      actionLabel: cover ? t("cover.change") : t("cover.add"),
+      accessibilityLabel: cover ? t("cover.changeA11y") : t("cover.addA11y"),
+      onPress: onPickCover,
     },
     when: {
       visible: whenVisible,
