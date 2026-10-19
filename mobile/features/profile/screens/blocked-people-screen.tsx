@@ -57,6 +57,7 @@ const BlockedPeopleScreen = () => {
                 number={index + 1}
                 name={person.name}
                 handle={person.handle}
+                initials={person.initials}
                 unblockLabel={t("blocked.unblock")}
                 unblockA11y={t("blocked.unblockA11y", { name: person.name })}
                 onUnblock={() => onUnblock(person.userId)}

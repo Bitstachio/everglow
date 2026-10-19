@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { useUnblockMutation } from "../api/mutations";
 import { useBlocksQuery } from "../api/queries";
+import { initials } from "../lib/initials";
 
 /** 14.8 Blocked people. Unblocking is silent and takes effect at once. */
 export const useBlockedPeopleScreen = () => {
@@ -15,6 +16,7 @@ export const useBlockedPeopleScreen = () => {
     userId: block.userId,
     name: block.name ?? (block.username ? `@${block.username}` : t("blocked.noProfile")),
     handle: block.name && block.username ? `@${block.username}` : undefined,
+    initials: initials(block.name ?? block.username ?? ""),
   }));
 
   return {
