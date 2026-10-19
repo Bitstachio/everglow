@@ -19,14 +19,15 @@ const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID ?? "";
 const RootLayout = () => (
   <I18nProvider>
     <Auth0Provider domain={AUTH0_DOMAIN} clientId={AUTH0_CLIENT_ID}>
-      <AuthProvider>
-        <QueryProvider>
+      {/* Above AuthProvider, which clears the cache whenever the account signs out. */}
+      <QueryProvider>
+        <AuthProvider>
           <AppThemeProvider>
             <RootNavigator />
             <StatusBar style="light" />
           </AppThemeProvider>
-        </QueryProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </QueryProvider>
     </Auth0Provider>
   </I18nProvider>
 );

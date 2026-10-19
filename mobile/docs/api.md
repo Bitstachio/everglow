@@ -22,7 +22,7 @@ Prefer wrapping generated helpers in feature `api/` hooks rather than calling th
 
 ## React Query (`lib/query/`, `providers/query-provider.tsx`)
 
-- `QueryProvider` wraps the app in `app/_layout.tsx`
+- `QueryProvider` wraps the app in `app/_layout.tsx`, above `AuthProvider`, which clears the cache on sign-out and when a 401 ends the session
 - Default query options: 60s stale time, 2 retries, refetch on focus
 - Feature mutations should update or invalidate keys from the feature's `keys.ts`
 
@@ -40,18 +40,17 @@ Export hooks and key factories as named exports. Screens and presentational comp
 
 ### `keys.ts`
 
-Define a key factory object with an `all` root key and specific key functions. Reuse generated query key helpers from the OpenAPI client when available.
+Define a key factory object with specific key functions. Reuse generated query key helpers from the OpenAPI client when available.
 
 ```ts
 import { usersControllerFindMeQueryKey } from "@/lib/api/generated/@tanstack/react-query.gen";
 
 export const profileKeys = {
-  all: ["profile"] as const,
   me: () => usersControllerFindMeQueryKey(),
 };
 ```
 
-Use `profileKeys.all` for broad invalidation and `profileKeys.me()` for a specific cache entry.
+Generated keys do not share a feature prefix, so a root key like `["profile"]` would not match them; invalidate the specific keys a change affects. Features don't clean up on sign-out: `AuthProvider` clears the whole cache whenever the account signs out.
 
 ### `queries.ts`
 

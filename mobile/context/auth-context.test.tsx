@@ -1,10 +1,11 @@
 import { toApiError } from "@/lib/api/errors";
 import { renderWithI18n } from "@/testing/render";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
-import { Text } from "react-native";
+import { Pressable, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider } from "./auth-context";
+import { AuthProvider, useAuth } from "./auth-context";
 
 const mockReplace = jest.fn();
 const mockGetUserProfile = jest.fn();
@@ -33,13 +34,25 @@ const initialMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
+let queryClient: QueryClient;
 const Providers = ({ children }: { children: ReactNode }) => (
-  <SafeAreaProvider initialMetrics={initialMetrics}>{children}</SafeAreaProvider>
+  <SafeAreaProvider initialMetrics={initialMetrics}>
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  </SafeAreaProvider>
 );
+const SignOut = () => {
+  const { logout } = useAuth();
+  return (
+    <Pressable accessibilityRole="button" onPress={() => void logout()}>
+      <Text>Sign out</Text>
+    </Pressable>
+  );
+};
 const renderProvider = () =>
   renderWithI18n(
     <AuthProvider>
       <Text>App</Text>
+      <SignOut />
     </AuthProvider>,
     { wrapper: Providers },
   );
@@ -48,6 +61,7 @@ const offline = () => toApiError({ request: {}, message: "Network Error" });
 const profile = { id: "u1", isOnboarded: true };
 
 beforeEach(() => {
+  queryClient = new QueryClient();
   mockReplace.mockReset();
   mockGetUserProfile.mockReset();
   mockUnauthorized = null;
@@ -88,4 +102,26 @@ test("a 401 sends the person to the welcome with the signed-out slip", async () 
   await screen.findByText("App");
   await act(async () => mockUnauthorized?.());
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: "/login", params: { signedOut: "1" } }));
+});
+
+test("signing out drops everything cached for the account", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  await renderProvider();
+  await screen.findByText("App");
+  queryClient.setQueryData(["blocks"], [{ userId: "u2" }]);
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign out" }));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+  expect(queryClient.getQueryData(["blocks"])).toBeUndefined();
+});
+
+test("a 401 drops everything cached for the account", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  await renderProvider();
+  await screen.findByText("App");
+  queryClient.setQueryData(["blocks"], [{ userId: "u2" }]);
+
+  await act(async () => mockUnauthorized?.());
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: "/login", params: { signedOut: "1" } }));
+  expect(queryClient.getQueryData(["blocks"])).toBeUndefined();
 });
