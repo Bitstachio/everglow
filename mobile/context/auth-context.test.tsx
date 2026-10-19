@@ -13,6 +13,8 @@ const mockGetUserProfile = jest.fn();
 let mockUnauthorized: (() => void) | null = null;
 let mockSuspended: (() => void) | null = null;
 const mockLogoutFromAuth0 = jest.fn();
+const mockStoredIdentity = jest.fn();
+const mockLogin = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { replace: (href: unknown) => mockReplace(href) },
@@ -30,9 +32,10 @@ jest.mock("@/lib/api/axios-instance", () => ({
 jest.mock("@/lib/auth0", () => ({
   isAuth0Configured: () => true,
   hasValidSession: async () => true,
+  getSignedInIdentity: () => mockStoredIdentity(),
   clearLocalCredentials: async () => undefined,
   isUserCancellation: () => false,
-  loginWithUniversalLogin: async () => undefined,
+  loginWithUniversalLogin: () => mockLogin(),
   logoutFromAuth0: () => mockLogoutFromAuth0(),
 }));
 
@@ -54,6 +57,16 @@ const SignOut = () => {
     </Pressable>
   );
 };
+const renderAuth = () =>
+  renderHook(() => useAuth(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <I18nProvider>
+        <Providers>
+          <AuthProvider>{children}</AuthProvider>
+        </Providers>
+      </I18nProvider>
+    ),
+  });
 const renderProvider = () =>
   renderWithI18n(
     <AuthProvider>
@@ -65,6 +78,8 @@ const renderProvider = () =>
 
 const offline = () => toApiError({ request: {}, message: "Network Error" });
 const profile = { id: "u1", isOnboarded: true };
+const ada = { sub: "auth0|ada", email: "ada@example.com", name: "Ada" };
+const ben = { sub: "google-oauth2|ben", email: "ben@example.com", name: "Ben" };
 
 beforeEach(() => {
   queryClient = new QueryClient();
@@ -73,6 +88,8 @@ beforeEach(() => {
   mockUnauthorized = null;
   mockSuspended = null;
   mockLogoutFromAuth0.mockReset().mockResolvedValue(undefined);
+  mockStoredIdentity.mockReset().mockResolvedValue(ada);
+  mockLogin.mockReset().mockResolvedValue(ben);
 });
 
 test("opening the app offline keeps the session and offers to try again", async () => {
@@ -166,15 +183,7 @@ test("a deleted account's 401s during and after the sign-out leave Deleted on sc
   mockGetUserProfile.mockResolvedValue(profile);
   let finishSignOut!: () => void;
   mockLogoutFromAuth0.mockReturnValue(new Promise<void>((resolve) => (finishSignOut = resolve)));
-  const { result } = await renderHook(() => useAuth(), {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <I18nProvider>
-        <Providers>
-          <AuthProvider>{children}</AuthProvider>
-        </Providers>
-      </I18nProvider>
-    ),
-  });
+  const { result } = await renderAuth();
   await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
 
   let signingOut!: Promise<void>;
@@ -219,4 +228,32 @@ test("a request refused with ACCOUNT_SUSPENDED mid-session reloads the account o
   await act(async () => mockSuspended?.());
   expect(mockGetUserProfile).toHaveBeenCalledTimes(calls + 1);
   expect(mockReplace).toHaveBeenCalledTimes(1);
+});
+
+test("opening the app with a session knows who is signed in", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const { result } = await renderAuth();
+
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+});
+
+test("signing out forgets who was signed in, and the next sign-in is someone else", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => result.current.logout());
+  expect(result.current.identity).toBeNull();
+
+  await act(async () => result.current.login());
+  expect(result.current.identity).toEqual(ben);
+});
+
+test("a 401 forgets who was signed in", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => mockUnauthorized?.());
+  await waitFor(() => expect(result.current.identity).toBeNull());
 });

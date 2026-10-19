@@ -1,7 +1,7 @@
+import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import { isDatabaseIdentity } from "@/lib/auth0-identity";
 import { clearLocalCredentials, openPasswordChangeTicket, sessionStillValid } from "@/lib/auth0";
-import { useAuth0 } from "react-native-auth0";
 import { useRef, useState } from "react";
 import { Alert } from "react-native";
 import { router } from "expo-router";
@@ -16,12 +16,12 @@ const LOGIN_ROUTE = "/login" as const;
  * and send the user to login rather than trying to keep a dead session.
  */
 export const useChangePassword = () => {
-  const { user: auth0User } = useAuth0();
+  const { identity } = useAuth();
   const ticketMutation = useCreatePasswordChangeTicketMutation();
   const [isOpeningBrowser, setIsOpeningBrowser] = useState(false);
   const inFlight = useRef(false);
 
-  const canChangePassword = isDatabaseIdentity(auth0User?.sub);
+  const canChangePassword = isDatabaseIdentity(identity?.sub);
   const isChangingPassword = ticketMutation.isPending || isOpeningBrowser;
 
   const handleChangePassword = async () => {
