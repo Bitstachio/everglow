@@ -1,8 +1,10 @@
 import { AppIcon } from "@/components/ui/app-icon";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IconButton } from "@/components/ui/icon-button";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { Slip } from "@/components/ui/slip";
 import { TopBar } from "@/components/ui/top-bar";
 import { colorTokens } from "@/theme/tokens";
 import { X } from "phosphor-react-native";
@@ -13,11 +15,28 @@ import { EnvelopeSwitch } from "../components/envelope-switch";
 import { RollEnvelope } from "../components/roll-envelope";
 import { useEnvelopeScreen } from "../hooks/use-envelope-screen";
 
-/** 05.1–05.2 The envelope: what a host sends so people can join the roll. */
+/** 05.1–05.5 The envelope: what a host sends so people can join the roll. */
 const EnvelopeScreen = () => {
   const { t } = useTranslation("envelope");
-  const { edge, envelope, invitationUrl, kind, kinds, isLoading, isError, onSelectKind, onRetry, onClose } =
-    useEnvelopeScreen();
+  const {
+    edge,
+    envelope,
+    invitationUrl,
+    kind,
+    kinds,
+    isLoading,
+    isError,
+    copied,
+    reset,
+    onSelectKind,
+    onShare,
+    onCopy,
+    onReset,
+    onCloseReset,
+    onConfirmReset,
+    onRetry,
+    onClose,
+  } = useEnvelopeScreen();
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
@@ -60,7 +79,43 @@ const EnvelopeScreen = () => {
           </>
         )}
       </ScrollView>
+
+      {envelope && invitationUrl ? (
+        <View className="gap-2.5 px-5 pb-1 pt-3">
+          <Button title={t("share.cta")} mark="↗" onPress={onShare} />
+          <View className="flex-row justify-between">
+            <Button
+              title={copied ? t("copy.done") : t("copy.cta")}
+              variant="ghost"
+              fullWidth={false}
+              className="-ml-2"
+              onPress={onCopy}
+            />
+            <Button
+              title={t("reset.cta")}
+              accessibilityLabel={reset.a11y}
+              variant="ghost"
+              fullWidth={false}
+              className="-mr-2 opacity-80"
+              onPress={onReset}
+            />
+          </View>
+        </View>
+      ) : null}
       <FilmGrain />
+
+      <BottomSheet visible={reset.visible} onClose={onCloseReset}>
+        <Slip edge={reset.edge} title={t("reset.title")} body={reset.body}>
+          <Button title={t("reset.confirm")} mark="↻" isLoading={reset.isResetting} onPress={onConfirmReset} />
+          <Button
+            title={t("reset.cancel")}
+            variant="secondary"
+            mark="‹"
+            disabled={reset.isResetting}
+            onPress={onCloseReset}
+          />
+        </Slip>
+      </BottomSheet>
     </SafeAreaView>
   );
 };

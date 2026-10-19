@@ -1,12 +1,27 @@
 import { useAuth } from "@/context/auth-context";
+import { getErrorMessage } from "@/lib/api/errors";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert, Clipboard, Share } from "react-native";
+import { useRegenerateInviteMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
-import { ENVELOPE_KINDS, envelopeUrl, formatEnvelopeDate, type EnvelopeKind } from "../lib/envelope";
+import {
+  ENVELOPE_KINDS,
+  envelopeAccessLevel,
+  envelopeUrl,
+  formatEnvelopeDate,
+  type EnvelopeKind,
+} from "../lib/envelope";
 import { formatClosesOn } from "../lib/rolls";
 
-/** 05.1–05.2 The host's envelopes: one admits people who add photos, the other people who only look. */
+/** How long Copy link reads "Copied". */
+const COPIED_MS = 2000;
+
+/**
+ * 05.1–05.5 The host's envelopes: one admits people who add photos, the other
+ * people who only look. Each is shared, copied or reset on its own.
+ */
 export const useEnvelopeScreen = () => {
   const { t } = useTranslation("envelope");
   const router = useRouter();
@@ -16,7 +31,12 @@ export const useEnvelopeScreen = () => {
 
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
+  const regenerate = useRegenerateInviteMutation(eventId ?? "");
   const [kind, setKind] = useState<EnvelopeKind>("adds");
+  const [resetVisible, setResetVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   const event = eventQuery.data;
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
@@ -44,15 +64,62 @@ export const useEnvelopeScreen = () => {
         }
       : null;
 
+  const invitationUrl = event ? envelopeUrl(event, kind) : null;
+
+  const onShare = async () => {
+    if (!event || !invitationUrl) return;
+    try {
+      await Share.share({ message: t("share.message", { title: event.title, url: invitationUrl }) });
+    } catch (error) {
+      Alert.alert(t("share.failedTitle"), getErrorMessage(error));
+    }
+  };
+
+  const onCopy = () => {
+    if (!invitationUrl) return;
+    Clipboard.setString(invitationUrl);
+    setCopied(true);
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
+  };
+
+  const onConfirmReset = async () => {
+    try {
+      await regenerate.mutateAsync(envelopeAccessLevel(kind));
+      setResetVisible(false);
+    } catch (error) {
+      setResetVisible(false);
+      Alert.alert(t("reset.failedTitle"), getErrorMessage(error));
+    }
+  };
+
   return {
     edge: event ? t("edge", { title: event.title }) : null,
     envelope,
-    invitationUrl: event ? envelopeUrl(event, kind) : null,
+    invitationUrl,
     kind,
     kinds: ENVELOPE_KINDS.map((key) => ({ key, label: t(`switch.${key}`) })),
     isLoading,
     isError,
-    onSelectKind: setKind,
+    copied,
+    reset: {
+      visible: resetVisible,
+      edge: t(`reset.edge.${kind}`),
+      body: t("reset.body", { count: event?.usage.members ?? 0, other: t(`reset.other.${kind}`) }),
+      a11y: t(`reset.a11y.${kind}`),
+      isResetting: regenerate.isPending,
+    },
+    onSelectKind: (next: EnvelopeKind) => {
+      setKind(next);
+      setCopied(false);
+    },
+    onShare,
+    onCopy,
+    onReset: () => setResetVisible(true),
+    onCloseReset: () => {
+      if (!regenerate.isPending) setResetVisible(false);
+    },
+    onConfirmReset,
     onRetry: () => {
       void eventQuery.refetch();
       void participantsQuery.refetch();
