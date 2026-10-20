@@ -3,6 +3,7 @@ import {
   eventsControllerConfirmCoverUpload,
   eventsControllerCreate,
   eventsControllerCreateCoverUploadUrl,
+  eventsControllerDeactivate,
   eventsControllerJoin,
   eventsControllerLeave,
   eventsControllerRemove,
@@ -83,6 +84,21 @@ export const useDeleteEventMutation = () => {
   return useMutation<void, Error, string>({
     mutationFn: async (eventId) => {
       await eventsControllerRemove({ path: { eventId }, throwOnError: true });
+    },
+    onSuccess: async (_data, eventId) => {
+      await invalidateEventCaches(queryClient, eventId);
+    },
+  });
+};
+
+/** Cut the roll: closes the gallery now for everyone. Hosts only; it works on a suspended roll too. */
+export const useDeactivateEventMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<EventResponseDto, Error, string>({
+    mutationFn: async (eventId) => {
+      const { data } = await eventsControllerDeactivate({ path: { eventId }, throwOnError: true });
+      return unwrapEnvelope(data);
     },
     onSuccess: async (_data, eventId) => {
       await invalidateEventCaches(queryClient, eventId);

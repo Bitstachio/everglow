@@ -30,8 +30,8 @@ type FilmStripProps = {
 // Enough holes to cross the widest phone; the row clips the rest.
 const HOLES = Array.from({ length: 48 }, (_, i) => i);
 
-// A row of 9pt holes, 9pt apart, inset 3.5pt from the strip's edge.
-const Sprockets = ({ edge }: { edge: "top" | "bottom" }) => (
+/** A row of 9pt holes, 9pt apart, inset 3.5pt from the edge of a strip of film. */
+export const Sprockets = ({ edge }: { edge: "top" | "bottom" }) => (
   <View
     className={`absolute left-0 right-0 h-1.5 flex-row gap-2.25 overflow-hidden ${edge === "top" ? "top-1" : "bottom-1"}`}
   >

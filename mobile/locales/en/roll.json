@@ -1,0 +1,151 @@
+{
+  "menu": "Roll menu",
+  "sub": {
+    "upcomingHost": "Opens {{when}} · {{days}}-day roll",
+    "upcomingHostOpenEnded": "Opens {{when}}",
+    "upcomingGuest": "Opens {{when}} · hosted by {{host}}",
+    "open": "{{date}} · hosted by {{host}} · roll of {{count}}",
+    "openNoHost": "{{date}} · roll of {{count}}",
+    "hidden": "{{date}} · hosted by {{host}}",
+    "hiddenNoHost": "{{date}}"
+  },
+  "band": {
+    "storage": "<value>{{used}}</value> / {{limit}}",
+    "storageNoLimit": "<value>{{used}}</value> used",
+    "frames_one": "<value>{{count}}</value> frame",
+    "frames_other": "<value>{{count}}</value> frames",
+    "opensIn": "Opens in <value>{{time}}</value>",
+    "left": "<value>{{time}}</value> left",
+    "open": "Open",
+    "onHold": "On hold",
+    "suspended": "Suspended",
+    "hidden": "Hidden",
+    "viewOnly": "View only",
+    "people_one": "<value>{{count}}</value> person ›",
+    "people_other": "<value>{{count}}</value> people ›",
+    "peopleLabel_one": "{{count}} person on the roll",
+    "peopleLabel_other": "{{count}} people on the roll"
+  },
+  "duration": {
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "hoursMinutes": "{{hours}}h {{minutes}}m",
+    "minutes": "{{minutes}}m"
+  },
+  "frame": {
+    "label": "Frame {{number}}",
+    "labelBy": "Frame {{number}}, by {{name}}",
+    "edge": "Frame {{number}}",
+    "edgeBy": "Frame {{number}} · {{name}}",
+    "you": "You",
+    "new": "{{label}}, new"
+  },
+  "footer": {
+    "sendEnvelope": "Send the envelope",
+    "saveAll": "Save all ↓",
+    "saveAllLabel": "Save all frames to Photos",
+    "saving": "Saving {{done}} of {{total}}",
+    "invite": "Invite ▸",
+    "inviteLabel": "Invite people",
+    "people": "People ▸",
+    "peopleLabel": "People on the roll",
+    "addPhotos": "Add photos",
+    "preparing": "Developing…",
+    "developing": "{{done}} of {{total}} developed",
+    "opensAt": "Opens {{when}}",
+    "lockedLabel": "Adding photos opens {{when}}",
+    "viewOnly": "You can look and save",
+    "onHold": "On hold while Everglow reviews",
+    "cut": "Cut the roll ✂",
+    "cutLabel": "Cut the roll",
+    "firstShot": "first shot’s yours ↓"
+  },
+  "opened": {
+    "notification": "The roll is open. Take the first shot.",
+    "now": "now",
+    "counter": "Frames",
+    "counterLabel_one": "{{count}} frame on the roll",
+    "counterLabel_other": "{{count}} frames on the roll",
+    "title": "{{title}}",
+    "isOpen": "is open.",
+    "edge_one": "{{opens}} → {{closes}} · {{count}} person in",
+    "edge_other": "{{opens}} → {{closes}} · {{count}} people in",
+    "edgeOpenEnded_one": "{{opens}} · {{count}} person in",
+    "edgeOpenEnded_other": "{{opens}} · {{count}} people in",
+    "addFirst": "Add the first photos",
+    "look": "Look at the roll"
+  },
+  "closed": {
+    "top": "Closed {{date}}",
+    "edge_one": "{{range}} · {{count}} person",
+    "edge_other": "{{range}} · {{count}} people",
+    "removed": "photos removed {{date}}",
+    "removedLabel": "The photos were removed on {{date}}.",
+    "whoWasThere": "Who was there · {{count}}",
+    "host": "Host"
+  },
+  "notice": {
+    "reviewEdge": "Under review",
+    "reviewBody": "After reports, Everglow is checking this roll. Photos and people stay; nothing new until it’s done.",
+    "suspendedEdge": "Suspended by Everglow",
+    "suspendedBody": "This roll broke the rules, so its photos are hidden for everyone.",
+    "whatThisMeans": "What this means ▸"
+  },
+  "menuSheet": {
+    "people": "People",
+    "settings": "Roll settings",
+    "leave": "Leave the roll"
+  },
+  "leave": {
+    "title": "Leave {{title}}?",
+    "body": "Your frames stay on the roll until it closes. You can come back with the envelope.",
+    "confirm": "Leave",
+    "cancel": "Stay"
+  },
+  "cut": {
+    "title": "Cut the roll?",
+    "body": "It closes for everyone now and stops counting toward your rolls. This can’t be undone.",
+    "confirm": "Cut it",
+    "cancel": "Keep it"
+  },
+  "people": {
+    "edge": "On the roll · {{count}}",
+    "host": "Host",
+    "addsPhotos": "Adds photos",
+    "viewOnly": "View only",
+    "you": "{{name}} (you)",
+    "unknown": "Someone"
+  },
+  "remove": {
+    "title": "Remove {{name}}?",
+    "body": "They leave the roll now. Their frames stay.",
+    "confirm": "Remove from the roll",
+    "cancel": "Keep them"
+  },
+  "viewer": {
+    "close": "Close frame",
+    "save": "Save to Photos",
+    "delete": "Delete frame",
+    "deleteTitle": "Delete frame {{number}}?",
+    "deleteBody": "It’s removed for everyone. This can’t be undone.",
+    "deleteConfirm": "Delete it",
+    "deleteCancel": "Keep it"
+  },
+  "result": {
+    "saved_one": "Saved to Photos.",
+    "saved_other": "{{count}} frames saved to Photos.",
+    "savedSome": "{{saved}} of {{total}} saved. The rest didn’t save; try again.",
+    "saveFailed": "Didn’t save. Try again.",
+    "developed_one": "Developed. It’s on the roll.",
+    "developed_other": "{{count}} developed. They’re on the roll.",
+    "developedSome": "{{done}} of {{total}} developed. The rest didn’t take; add them again.",
+    "didntTake": "Didn’t take. Try again.",
+    "noRoom": "Not enough room: {{needed}} picked, {{left}} left.",
+    "photosAccess": "Allow photo access in Settings to add photos.",
+    "libraryAccess": "Allow photo access in Settings to save frames.",
+    "deleted": "Frame deleted.",
+    "removed": "{{name}} is off the roll.",
+    "left": "You left {{title}}."
+  },
+  "loadFailed": "Couldn’t load this roll"
+}
