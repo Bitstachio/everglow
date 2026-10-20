@@ -4,7 +4,7 @@ import { locales } from "./config";
 
 export const defaultNS = "common" as const;
 
-export const ns = ["common", "errors", "home", "onboarding", "start", "you"] as const;
+export const ns = ["common", "errors", "home", "onboarding", "roll", "start", "you"] as const;
 
 export const resources = {
   en: {
@@ -12,6 +12,7 @@ export const resources = {
     errors: en.errors,
     home: en.home,
     onboarding: en.onboarding,
+    roll: en.roll,
     start: en.start,
     you: en.you,
   },

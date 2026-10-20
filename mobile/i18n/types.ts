@@ -12,6 +12,7 @@ declare module "i18next" {
       errors: typeof en.errors;
       home: typeof en.home;
       onboarding: typeof en.onboarding;
+      roll: typeof en.roll;
       start: typeof en.start;
       you: typeof en.you;
     };

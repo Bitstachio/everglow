@@ -4,9 +4,11 @@ import * as ImagePicker from "expo-image-picker";
 import { File, Paths } from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import {
+  useDeactivateEventMutation,
   useDeleteEventPhotoMutation,
   useLeaveEventMutation,
   useRemoveEventParticipantMutation,
@@ -14,8 +16,10 @@ import {
 } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
-import type { PhotoResponseDto, PhotoUploadStatus } from "../types";
-import { eventStorageLeftBytes, formatEventStorage, formatStorageBytes } from "../utils";
+import { isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened, type SheetFrame } from "../lib/roll-page";
+import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
+import type { EventParticipantResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
+import { eventStorageLeftBytes, formatStorageBytes } from "../utils";
 
 // Event photos upload as picked: no crop step and no re-encode, so group shots
 // and portraits keep their original aspect ratio. Only avatars and covers crop.
@@ -68,69 +72,122 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
   return asset.fileSize ?? 0;
 };
 
-const uploadedSummary = (uploaded: number, total: number) =>
-  total === 1
-    ? uploaded === 1
-      ? "Your photo was uploaded."
-      : "Your photo wasn't uploaded."
-    : `${uploaded} of ${total} photos uploaded.`;
+/** Saves one frame to the phone's library. */
+const saveToLibrary = async (photo: PhotoResponseDto) => {
+  const downloaded = await File.downloadFileAsync(photo.url, Paths.cache, { idempotent: true });
+  await MediaLibrary.createAssetAsync(downloaded.uri);
+};
 
+/** What the sheet over the roll shows: the menu, people, or a slip. */
+export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove";
+
+/** How long a result stays in the footer. */
+const NOTICE_MS = 4000;
+
+/** 07.1–07.11: the roll, through its whole life, for each role. */
 export const useEventDetailScreen = () => {
+  const { t } = useTranslation("roll");
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
 
   const eventQuery = useEventQuery(eventId);
-  const photosQuery = useEventPhotosQuery(eventId);
+  const event = eventQuery.data ?? null;
+  // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
+  const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
+  const photosQuery = useEventPhotosQuery(eventId, hasPhotos);
   const participantsQuery = useEventParticipantsQuery(eventId);
 
   const leaveEventMutation = useLeaveEventMutation();
+  const deactivateMutation = useDeactivateEventMutation();
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
   const uploadPhotosMutation = useUploadEventPhotosMutation();
   const deletePhotoMutation = useDeleteEventPhotoMutation();
 
-  const [membersSheetVisible, setMembersSheetVisible] = useState(false);
+  // When this device last looked, read once: the ticks stay for this visit.
+  const [lastVisit] = useState(() => (eventId ? readLastVisit(eventId) : null));
+  const [openedDismissed, setOpenedDismissed] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
   const [uploadStatus, setUploadStatus] = useState<PhotoUploadStatus | null>(null);
+  const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const event = eventQuery.data ?? null;
-  const photos = photosQuery.data ?? [];
+  const [openFrame, setOpenFrame] = useState<SheetFrame | null>(null);
+  const [isSavingFrame, setIsSavingFrame] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+
+  // One sheet over the roll whose content changes, so one modal never opens
+  // from another: iOS drops a modal presented while another is closing.
+  const [sheet, setSheet] = useState<RollSheet | null>(null);
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
+  const closeSheet = () => setSheet(null);
+
+  const photos = hasPhotos ? (photosQuery.data ?? []) : [];
   const participants = participantsQuery.data ?? [];
+  const role = event ? rollRole(event, participants, user?.id) : "viewer";
+  const stage = event ? rollStage(event, photos.length) : "open";
+  const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("frame.you"));
 
-  const currentParticipant = participants.find((participant) => participant.userId === user?.id);
-  const isAdmin = event?.creatorId === user?.id || currentParticipant?.accessLevel === "ORGANIZER";
-
-  const isLoading = eventQuery.isLoading || photosQuery.isLoading || participantsQuery.isLoading;
+  const isLoading = eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading);
   const refreshing = eventQuery.isRefetching || photosQuery.isRefetching || participantsQuery.isRefetching;
 
   useEffect(() => {
+    if (eventId) writeLastVisit(eventId);
+  }, [eventId]);
+
+  // The time left counts down while the roll is on screen.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
     if (!eventQuery.isError) return;
-    Alert.alert("Error", getErrorMessage(eventQuery.error, "Failed to load event details"));
+    Alert.alert(t("loadFailed"), getErrorMessage(eventQuery.error));
     router.back();
-  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, router]);
+  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, router, t]);
+
+  const showNotice = (message: string) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(message);
+    noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
+  };
 
   const onRefresh = () => {
-    void Promise.all([eventQuery.refetch(), photosQuery.refetch(), participantsQuery.refetch()]);
+    setNow(new Date());
+    void Promise.all([
+      eventQuery.refetch(),
+      participantsQuery.refetch(),
+      ...(hasPhotos ? [photosQuery.refetch()] : []),
+    ]);
   };
 
-  const handleOpenSettings = () => {
-    if (!eventId) return;
-    router.push(`/events/${eventId}/settings`);
-  };
+  const onBack = () => (router.canGoBack() ? router.back() : router.replace("/events"));
 
-  const handleUploadImage = async () => {
+  const onAddPhotos = async () => {
     if (!eventId) return;
 
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Please grant photo library access to upload images.");
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showNotice(t("result.photosAccess"));
         return;
       }
 
       // Set before the picker opens: once the member taps Add, iOS copies every
       // selected photo into the app before the picker returns, which takes
-      // seconds for a large selection. The button shows it from the moment the
+      // seconds for a large selection. The shutter shows it from the moment the
       // picker closes.
       setUploadStatus({ phase: "preparing" });
       const result = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
@@ -144,9 +201,8 @@ export const useEventDetailScreen = () => {
       const selectedBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
       const storageLeft = event ? eventStorageLeftBytes(event) : null;
       if (storageLeft !== null && selectedBytes > storageLeft) {
-        Alert.alert(
-          "Not Enough Storage",
-          `${total === 1 ? "This photo needs" : `These ${total} photos need`} ${formatStorageBytes(selectedBytes)}, but this gallery has ${formatStorageBytes(storageLeft)} left.`,
+        showNotice(
+          t("result.noRoom", { needed: formatStorageBytes(selectedBytes), left: formatStorageBytes(storageLeft) }),
         );
         return;
       }
@@ -159,146 +215,190 @@ export const useEventDetailScreen = () => {
         onProgress: ({ done }) => setUploadStatus({ phase: "uploading", done: done + total - files.length, total }),
       });
 
-      if (error) {
-        Alert.alert(
-          "Upload Stopped",
-          `${getErrorMessage(error, "Failed to upload photos.")} ${uploadedSummary(uploaded, total)}`,
-        );
+      if (error && uploaded === 0) {
+        showNotice(getErrorMessage(error, t("result.didntTake")));
       } else if (uploaded === total) {
-        Alert.alert("Success", total === 1 ? "Photo uploaded successfully!" : `${total} photos uploaded successfully!`);
-      } else if (total === 1) {
-        Alert.alert("Error", "Your photo couldn't be uploaded. Please try again.");
+        showNotice(t("result.developed", { count: total }));
+      } else if (uploaded === 0) {
+        showNotice(t("result.didntTake"));
       } else {
-        Alert.alert(
-          "Upload Finished",
-          `${uploadedSummary(uploaded, total)} The rest couldn't be uploaded. Try adding them again.`,
-        );
+        showNotice(t("result.developedSome", { done: uploaded, total }));
       }
     } catch (error) {
-      Alert.alert("Error", getErrorMessage(error, "Failed to upload photos"));
+      showNotice(getErrorMessage(error, t("result.didntTake")));
     } finally {
       setUploadStatus(null);
     }
   };
 
-  const handleLeaveEvent = () => {
-    if (!eventId) return;
-
-    Alert.alert("Leave Event", "Are you sure you want to leave this event?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Leave",
-        style: "destructive",
-        onPress: () => {
-          leaveEventMutation.mutate(eventId, {
-            onSuccess: () => {
-              Alert.alert("Success", "You have left the event");
-              router.replace("/events");
-            },
-            onError: (error) => {
-              Alert.alert("Error", getErrorMessage(error, "Failed to leave event"));
-            },
-          });
-        },
-      },
-    ]);
+  const ensureLibraryAccess = async () => {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status === "granted") return true;
+    showNotice(t("result.libraryAccess"));
+    return false;
   };
 
-  const handleDeletePhoto = (photo: PhotoResponseDto) => {
-    if (!eventId) return;
+  const onSaveAll = async () => {
+    if (photos.length === 0 || saving) return;
+    if (!(await ensureLibraryAccess())) return;
 
-    const canDelete = isAdmin || photo.addedById === user?.id;
-    if (!canDelete) {
-      Alert.alert("Permission Denied", "You can only delete your own photos");
-      return;
+    const total = photos.length;
+    let saved = 0;
+    setSaving({ done: 0, total });
+    for (const photo of photos) {
+      try {
+        await saveToLibrary(photo);
+        saved += 1;
+      } catch {
+        // Keep going: one frame that won't save shouldn't stop the rest.
+      }
+      setSaving({ done: saved, total });
     }
+    setSaving(null);
 
-    Alert.alert("Delete Photo", "Are you sure you want to delete this photo?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          deletePhotoMutation.mutate(
-            { eventId, photoId: photo.id },
-            {
-              onSuccess: () => {
-                Alert.alert("Success", "Photo deleted successfully");
-              },
-              onError: (error) => {
-                Alert.alert("Error", getErrorMessage(error, "Failed to delete photo"));
-              },
-            },
-          );
-        },
-      },
-    ]);
+    if (saved === total) showNotice(t("result.saved", { count: total }));
+    else if (saved === 0) showNotice(t("result.saveFailed"));
+    else showNotice(t("result.savedSome", { saved, total }));
   };
 
-  const handleRemoveMember = (participantUserId: string) => {
-    if (!eventId) return;
+  const onSaveFrame = async () => {
+    if (!openFrame) return;
+    if (!(await ensureLibraryAccess())) return;
+    setIsSavingFrame(true);
+    try {
+      await saveToLibrary(openFrame.photo);
+      showNotice(t("result.saved", { count: 1 }));
+    } catch {
+      showNotice(t("result.saveFailed"));
+    } finally {
+      setIsSavingFrame(false);
+    }
+  };
 
-    const participant = participants.find((entry) => entry.userId === participantUserId);
-    setMembersSheetVisible(false);
-
-    Alert.alert(
-      "Remove Member",
-      `Are you sure you want to remove ${participant?.username ? `@${participant.username}` : participant?.name || "this member"} from the event?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => {
-            removeParticipantMutation.mutate(participantUserId, {
-              onSuccess: () => {
-                Alert.alert("Success", "Member removed successfully");
-              },
-              onError: (error) => {
-                Alert.alert("Error", getErrorMessage(error, "Failed to remove member"));
-              },
-            });
-          },
+  const onConfirmDeleteFrame = () => {
+    if (!eventId || !openFrame) return;
+    deletePhotoMutation.mutate(
+      { eventId, photoId: openFrame.photo.id },
+      {
+        onSuccess: () => {
+          setConfirmDeleteVisible(false);
+          setOpenFrame(null);
+          showNotice(t("result.deleted"));
         },
-      ],
+        onError: (error) => {
+          setConfirmDeleteVisible(false);
+          showNotice(getErrorMessage(error));
+        },
+      },
     );
   };
 
-  const handleDownloadPhoto = async (photo: PhotoResponseDto) => {
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Required", "Please grant media library access to download photos.");
-        return;
-      }
-
-      const downloadedFile = await File.downloadFileAsync(photo.url, Paths.cache);
-      await MediaLibrary.createAssetAsync(downloadedFile.uri);
-      Alert.alert("Success", "Photo downloaded successfully!");
-    } catch (error) {
-      Alert.alert("Error", getErrorMessage(error, "Failed to download photo"));
-    }
+  const onConfirmLeave = () => {
+    if (!eventId || !event) return;
+    leaveEventMutation.mutate(eventId, {
+      onSuccess: () => {
+        closeSheet();
+        router.replace("/events");
+      },
+      onError: (error) => {
+        closeSheet();
+        showNotice(getErrorMessage(error));
+      },
+    });
   };
+
+  const onConfirmCut = () => {
+    if (!eventId) return;
+    deactivateMutation.mutate(eventId, {
+      onSuccess: closeSheet,
+      onError: (error) => {
+        closeSheet();
+        showNotice(getErrorMessage(error));
+      },
+    });
+  };
+
+  const onConfirmRemove = () => {
+    if (!removing) return;
+    const name = removing.name;
+    removeParticipantMutation.mutate(removing.userId, {
+      onSuccess: () => {
+        closeSheet();
+        showNotice(t("result.removed", { name }));
+      },
+      onError: (error) => {
+        closeSheet();
+        showNotice(getErrorMessage(error));
+      },
+    });
+  };
+
+  const openedVisible = !openedDismissed && event !== null && shouldShowOpened(event, lastVisit);
+  const openFrameIsDeletable =
+    openFrame !== null &&
+    stage !== "underReview" &&
+    (role === "host" || (openFrame.photo.addedById !== null && openFrame.photo.addedById === user?.id));
 
   return {
     event,
-    photos,
     participants,
+    frames,
+    role,
+    stage,
+    now,
+    lastDay: event ? isRollLastDay(event, now) : false,
     isLoading,
     refreshing,
-    isAdmin,
     currentUserId: user?.id,
     uploadStatus,
-    storageLabel: event ? formatEventStorage(event) : null,
-    membersSheetVisible,
+    saving,
+    notice,
+    openedVisible,
+    openFrame,
+    openFrameIsDeletable,
+    isSavingFrame,
+    isDeletingFrame: deletePhotoMutation.isPending,
+    confirmDeleteVisible,
+    sheet,
+    inviteVisible,
+    isLeaving: leaveEventMutation.isPending,
+    isCutting: deactivateMutation.isPending,
+    removing,
+    isRemoving: removeParticipantMutation.isPending,
     onRefresh,
-    handleOpenSettings,
-    handleUploadImage,
-    handleLeaveEvent,
-    handleDeletePhoto,
-    handleRemoveMember,
-    handleDownloadPhoto,
-    handleOpenMembers: () => setMembersSheetVisible(true),
-    handleCloseMembers: () => setMembersSheetVisible(false),
+    onBack,
+    onDismissOpened: () => setOpenedDismissed(true),
+    onAddFirstPhotos: () => {
+      setOpenedDismissed(true);
+      void onAddPhotos();
+    },
+    onAddPhotos: () => void onAddPhotos(),
+    onSaveAll: () => void onSaveAll(),
+    onOpenFrame: setOpenFrame,
+    onCloseFrame: () => setOpenFrame(null),
+    onSaveFrame: () => void onSaveFrame(),
+    onDeleteFrame: () => setConfirmDeleteVisible(true),
+    onCancelDeleteFrame: () => setConfirmDeleteVisible(false),
+    onConfirmDeleteFrame,
+    onOpenMenu: () => setSheet("menu"),
+    onCloseSheet: closeSheet,
+    onOpenPeople: () => setSheet("people"),
+    onOpenInvite: () => setInviteVisible(true),
+    onCloseInvite: () => setInviteVisible(false),
+    onOpenSettings: () => {
+      closeSheet();
+      if (eventId) router.push(`/events/${eventId}/settings`);
+    },
+    onLeave: () => setSheet("leave"),
+    onConfirmLeave,
+    onCut: () => setSheet("cut"),
+    onConfirmCut,
+    onRemove: (participant: EventParticipantResponseDto) => {
+      setRemoving(participant);
+      setSheet("remove");
+    },
+    onBackToPeople: () => setSheet("people"),
+    onConfirmRemove,
+    onOpenRules: () => router.push("/terms-of-use"),
   };
 };
