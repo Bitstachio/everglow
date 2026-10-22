@@ -764,6 +764,18 @@ describe("ReportsService", () => {
       eventAccesses: accessLevel ? [access(callerId, accessLevel)] : [],
     });
 
+    it("records the member's profile photo as what is reported, in the evidence snapshot", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.VIEWER));
+      prisma.report.createManyAndReturn.mockResolvedValue([memberReport({ reason: dto.reason })]);
+
+      await service.reportMember(eventId, targetUserId, callerId, dto);
+
+      expect(evidenceService.writeSnapshot).toHaveBeenCalledWith(prisma, expect.any(String), {
+        subjectUserId: targetUserId,
+        subjectAvatarIsObject: true,
+      });
+    });
+
     it("lets a member report another member of the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.VIEWER));
       prisma.report.createManyAndReturn.mockResolvedValue([memberReport({ reason: dto.reason })]);

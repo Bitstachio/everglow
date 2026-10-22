@@ -13,6 +13,11 @@ export interface EvidenceSnapshot {
   contentType?: string | null;
   sizeBytes?: number | null;
   subjectUserId?: string | null;
+  /**
+   * Record the subject's current avatar as the reported object: a member
+   * report is how a profile photo gets reported (docs/moderation.md §7).
+   */
+  subjectAvatarIsObject?: boolean;
 }
 
 /** Which of the keys a delete path may now delete, and which it must keep. */
@@ -61,13 +66,17 @@ export class EvidenceService {
    */
   async writeSnapshot(tx: Prisma.TransactionClient, reportId: string, snapshot: EvidenceSnapshot): Promise<void> {
     const subject = snapshot.subjectUserId
-      ? await tx.userDetails.findUnique({ where: { userId: snapshot.subjectUserId }, select: { username: true } })
+      ? await tx.userDetails.findUnique({
+          where: { userId: snapshot.subjectUserId },
+          select: { username: true, avatarS3Key: true },
+        })
       : null;
+    const objectS3Key = snapshot.subjectAvatarIsObject ? (subject?.avatarS3Key ?? null) : snapshot.objectS3Key;
 
     await tx.reportEvidence.create({
       data: {
         reportId,
-        objectS3Key: snapshot.objectS3Key ?? null,
+        objectS3Key: objectS3Key ?? null,
         contentType: snapshot.contentType ?? null,
         sizeBytes: snapshot.sizeBytes ?? null,
         subjectUserId: snapshot.subjectUserId ?? null,
