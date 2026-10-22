@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { AccessLevel, Prisma, ReportStatus } from "generated/prisma/client";
+import { AccessLevel, Prisma, ReportSource, ReportStatus } from "generated/prisma/client";
 import { GALLERY_STATES, galleryStateOf } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { PLATFORM_ONLY_REPORT_REASONS, SEVERE_REPORT_REASONS, reportHideThreshold } from "./moderation.constants";
@@ -53,6 +53,8 @@ export class PhotoVisibilityService {
       AND: [
         { reports: { none: { reporterId: callerId, status: ReportStatus.OPEN } } },
         { reports: { none: { status: ReportStatus.OPEN, reason: { in: [...SEVERE_REPORT_REASONS] } } } },
+        // Flagged by upload screening: hidden until the platform has looked.
+        { reports: { none: { status: ReportStatus.OPEN, source: ReportSource.AUTOMATED } } },
         { id: { notIn: hiddenPhotoIds } },
         {
           // A photo whose uploader is gone (addedById null) matches no block.

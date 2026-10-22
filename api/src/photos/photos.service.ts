@@ -12,6 +12,7 @@ import { ApiException } from "src/common/errors/api.exception";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { UploadScreeningService } from "src/moderation/screening/upload-screening.service";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
@@ -54,6 +55,7 @@ export class PhotosService {
     private readonly photoStorageService: PhotoStorageService,
     private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly evidenceService: EvidenceService,
+    private readonly uploadScreeningService: UploadScreeningService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -217,6 +219,14 @@ export class PhotosService {
       this.logger.info(
         { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verifiedIds.length },
         "Photo uploads confirmed",
+      );
+      // Before the response, so a photo screening flags is hidden before the
+      // uploader's guests can see it (docs/moderation.md §11). Never throws.
+      await this.uploadScreeningService.screen(
+        verifiedIds.flatMap((photoId) => {
+          const photo = photosById.get(photoId);
+          return photo ? [photo] : [];
+        }),
       );
     }
 

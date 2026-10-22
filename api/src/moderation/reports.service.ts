@@ -5,6 +5,7 @@ import {
   AccessLevel,
   Event,
   EventAccess,
+  Photo,
   PhotoStatus,
   Prisma,
   Report,
@@ -13,6 +14,7 @@ import {
   ReportHoldReason,
   ReportQueue,
   ReportReason,
+  ReportSource,
   ReportStatus,
   ReportTargetType,
 } from "generated/prisma/client";
@@ -566,6 +568,75 @@ export class ReportsService {
     }
 
     return { stale, movedToPlatform: moved.length };
+  }
+
+  /**
+   * A report filed by upload screening (docs/moderation.md §11): no reporter,
+   * straight into the platform's queue, and it hides the photo from everyone
+   * but organizers until the platform has looked. One OPEN automated report
+   * per photo; a repeat files nothing. Returns null when nothing was filed.
+   */
+  async fileAutomatedReport(
+    photo: Pick<Photo, "id" | "eventId" | "s3Key" | "contentType" | "sizeBytes" | "addedById">,
+    reason: ReportReason,
+    note: string,
+  ): Promise<Report | null> {
+    const event = await this.prisma.event.findUnique({ where: { id: photo.eventId }, select: { title: true } });
+    if (!event) return null;
+
+    const escalationReasons: ReportEscalation[] = [
+      ReportEscalation.AUTOMATED_FLAG,
+      ...(SEVERE_REPORT_REASONS.includes(reason) ? [ReportEscalation.SEVERE_REASON] : []),
+    ];
+    // `skipDuplicates` against the partial unique index on OPEN automated
+    // reports: of two confirms of the same photo, one files.
+    const created = await this.prisma.$transaction(async (tx) => {
+      const [report] = await tx.report.createManyAndReturn({
+        skipDuplicates: true,
+        data: {
+          eventId: photo.eventId,
+          eventTitle: event.title,
+          reporterId: null,
+          source: ReportSource.AUTOMATED,
+          targetType: ReportTargetType.PHOTO,
+          photoId: photo.id,
+          reportedUserId: photo.addedById,
+          reason,
+          note,
+          queue: ReportQueue.PLATFORM,
+          escalatedAt: new Date(),
+          escalationReasons,
+        },
+      });
+      if (!report) return null;
+      await this.evidenceService.writeSnapshot(tx, report.id, {
+        objectS3Key: photo.s3Key,
+        contentType: photo.contentType,
+        sizeBytes: photo.sizeBytes,
+        subjectUserId: photo.addedById,
+      });
+      return report;
+    });
+    if (!created) return null;
+
+    const fields = {
+      reportId: created.id,
+      eventId: created.eventId,
+      callerId: null,
+      source: created.source,
+      targetType: created.targetType,
+      photoId: created.photoId,
+      reportedUserId: created.reportedUserId,
+      reason: created.reason,
+      queue: created.queue,
+      audit: true,
+    };
+    this.logger.info({ event: "report.created", ...fields }, "Report created by upload screening");
+    this.logger.warn(
+      { event: ALERT_EVENTS.REPORT_ESCALATED, ...fields, escalationReasons: escalationReasons.map(escalationLogName) },
+      "Report needs platform attention",
+    );
+    return created;
   }
 
   /**
