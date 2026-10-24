@@ -184,6 +184,12 @@ export const formatOpensShort = (iso: string): string => {
   return `${weekday} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+/** "16:00": when a roll closed while photos were sending (08.8). */
+export const formatClock = (iso: string): string => {
+  const date = new Date(iso);
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 /** "Sun 18.10": the roll's date under its name. */
 export const formatRollDate = (iso: string): string => {
   const date = new Date(iso);

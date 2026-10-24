@@ -53,6 +53,7 @@ export const colorTokens = {
   outline: "#FFFFFF66",
   outlineSoft: "#FFFFFF2E",
   paperFlap: "#E2DBD0",
+  developer: "#7A4B22",
 } as const;
 
 export type ColorTokenName = keyof typeof colorTokens;
