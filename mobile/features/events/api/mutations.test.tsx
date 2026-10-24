@@ -5,19 +5,15 @@ import { Button, Text, View } from "react-native";
 import { eventsKeys } from "./keys";
 import { useEventsQuery } from "./queries";
 import { buildEvent, deferred } from "../testing/fixtures";
-import { useCreateEventMutation, useUploadEventPhotosMutation } from "./mutations";
+import { useCreateEventMutation, useRefreshRollAfterUpload } from "./mutations";
 
 const mockCreate = jest.fn();
 const mockFindAll = jest.fn();
-const mockCreateUploadUrls = jest.fn();
-const mockConfirmUploads = jest.fn();
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindAll: (...args: unknown[]) => mockFindAll(...args),
   eventsControllerCreate: (...args: unknown[]) => mockCreate(...args),
-  photosControllerCreateUploadUrls: (...args: unknown[]) => mockCreateUploadUrls(...args),
-  photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
 }));
 
 const body = { title: "Meetup", date: "2030-06-15T18:30:00.000Z" };
@@ -98,16 +94,7 @@ test("creation stays pending until the active event list has refreshed", async (
   client.clear();
 });
 
-const originalFetch = globalThis.fetch;
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
-
-test.each([
-  ["succeeds", { data: { data: [{ photoId: "photo-new", uploadUrl: "https://upload.example.com/slot" }] } }],
-  ["stops", undefined],
-])("photo upload refreshes the photos and the event's storage when it %s", async (_outcome, slots) => {
+test("refreshing after an upload invalidates the photos and the event's storage", async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
   });
@@ -116,22 +103,10 @@ test.each([
   const wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  mockCreateUploadUrls.mockReset();
-  if (slots) mockCreateUploadUrls.mockResolvedValue(slots);
-  else mockCreateUploadUrls.mockRejectedValue(new Error("Network unavailable"));
-  mockConfirmUploads.mockReset().mockResolvedValue({ data: { data: [{ photoId: "photo-new", status: "READY" }] } });
-  globalThis.fetch = jest
-    .fn()
-    .mockResolvedValueOnce({ blob: async () => new Blob(["x"]) })
-    .mockResolvedValueOnce({ ok: true }) as typeof fetch;
 
-  const { result } = await renderHook(() => useUploadEventPhotosMutation(), { wrapper });
-  const outcome = await result.current.mutateAsync({
-    eventId: "event-1",
-    files: [{ uri: "file://photo.jpg", contentType: "image/jpeg", sizeBytes: 1 }],
-  });
+  const { result } = await renderHook(() => useRefreshRollAfterUpload(), { wrapper });
+  await result.current("event-1");
 
-  expect(outcome.uploaded).toBe(slots ? 1 : 0);
   expect(client.getQueryState(eventsKeys.photos("event-1"))?.isInvalidated).toBe(true);
   expect(client.getQueryState(eventsKeys.detail("event-1"))?.isInvalidated).toBe(true);
   client.clear();

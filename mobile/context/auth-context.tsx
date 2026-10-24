@@ -7,6 +7,7 @@ import { router } from "expo-router";
 import { authService, OnboardingData, User } from "@/lib/auth";
 import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import { isConnectionError } from "@/lib/api/errors";
+import { runAccountCleared } from "@/lib/account-cleared";
 import { View } from "react-native";
 import {
   clearLocalCredentials,
@@ -89,6 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Nothing cached for one account may show to the next one signed in on this phone.
   const clearAccount = useCallback(() => {
     queryClient.clear();
+    runAccountCleared();
     setUser(null);
   }, [queryClient]);
 

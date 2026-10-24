@@ -11,20 +11,31 @@ import {
   useDeactivateEventMutation,
   useDeleteEventPhotoMutation,
   useLeaveEventMutation,
+  useRefreshRollAfterUpload,
   useRemoveEventParticipantMutation,
-  useUploadEventPhotosMutation,
 } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
+import { roomShortfall, toTrayItems, type PickedFile, type RoomShortfall } from "../lib/picked-photos";
 import { isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened, type SheetFrame } from "../lib/roll-page";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
-import type { EventParticipantResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
-import { eventStorageLeftBytes, formatStorageBytes } from "../utils";
+import {
+  addToTray,
+  developingFrames,
+  dismissClosed,
+  localFileFor,
+  retryTray,
+  summarizeTray,
+  useUploadTray,
+  type TrayItem,
+} from "../lib/upload-tray";
+import type { EventParticipantResponseDto, PhotoResponseDto } from "../types";
+import { eventStorageLeftBytes } from "../utils";
 
-// Event photos upload as picked: no crop step and no re-encode, so group shots
-// and portraits keep their original aspect ratio. Only avatars and covers crop.
-// A selectionLimit of 0 allows as many as the platform's picker does; the
-// storage check before uploading is what bounds a selection.
+// 08.1: event photos upload as picked: no crop step and no re-encode, so group
+// shots and portraits keep their original aspect ratio. Only avatars and covers
+// crop. A selectionLimit of 0 allows as many as the platform's picker does; the
+// tray sends them 20 at a time, and the room check bounds a selection.
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   mediaTypes: ["images"],
   quality: 1,
@@ -79,7 +90,10 @@ const saveToLibrary = async (photo: PhotoResponseDto) => {
 };
 
 /** What the sheet over the roll shows: the menu, people, or a slip. */
-export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove";
+export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove" | "room";
+
+/** 08.6: picked photos that don't all fit, waiting on Send or Pick again. */
+type RoomCheck = RoomShortfall & { items: TrayItem[]; leftBytes: number };
 
 /** How long a result stays in the footer. */
 const NOTICE_MS = 4000;
@@ -102,7 +116,8 @@ export const useEventDetailScreen = () => {
   const leaveEventMutation = useLeaveEventMutation();
   const deactivateMutation = useDeactivateEventMutation();
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
-  const uploadPhotosMutation = useUploadEventPhotosMutation();
+  const refreshRoll = useRefreshRollAfterUpload();
+  const tray = useUploadTray(eventId);
   const deletePhotoMutation = useDeleteEventPhotoMutation();
 
   // When this device last looked, read once: the ticks stay for this visit.
@@ -110,7 +125,10 @@ export const useEventDetailScreen = () => {
   const [openedDismissed, setOpenedDismissed] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
-  const [uploadStatus, setUploadStatus] = useState<PhotoUploadStatus | null>(null);
+  // From the moment the picker closes until its photos are in the tray: iOS
+  // copies every selected photo into the app first, which takes a while.
+  const [preparing, setPreparing] = useState(false);
+  const [roomCheck, setRoomCheck] = useState<RoomCheck | null>(null);
   const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,8 +147,11 @@ export const useEventDetailScreen = () => {
   const photos = hasPhotos ? (photosQuery.data ?? []) : [];
   const participants = participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
-  const stage = event ? rollStage(event, photos.length) : "open";
   const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("frame.you"));
+  const developing = hasPhotos ? developingFrames(tray.items, photos, frames.length) : [];
+  const stage = event ? rollStage(event, photos.length + developing.length) : "open";
+  const leftBytes = event ? eventStorageLeftBytes(event) : null;
+  const isFull = leftBytes !== null && leftBytes <= 0 && (stage === "open" || stage === "empty");
 
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading);
   const refreshing = eventQuery.isRefetching || photosQuery.isRefetching || participantsQuery.isRefetching;
@@ -175,6 +196,17 @@ export const useEventDetailScreen = () => {
 
   const onBack = () => (router.canGoBack() ? router.back() : router.replace("/events"));
 
+  const openTray = () => {
+    if (eventId) router.push(`/events/${eventId}/tray`);
+  };
+
+  /** Puts the photos in the tray and starts them developing. 08.5 opens the tray to say why some can't go. */
+  const sendToTray = (items: TrayItem[]) => {
+    if (!eventId || items.length === 0) return;
+    addToTray(eventId, items, () => refreshRoll(eventId));
+    if (items.some((item) => item.status.kind === "rejected")) openTray();
+  };
+
   const onAddPhotos = async () => {
     if (!eventId) return;
 
@@ -185,50 +217,49 @@ export const useEventDetailScreen = () => {
         return;
       }
 
-      // Set before the picker opens: once the member taps Add, iOS copies every
-      // selected photo into the app before the picker returns, which takes
-      // seconds for a large selection. The shutter shows it from the moment the
-      // picker closes.
-      setUploadStatus({ phase: "preparing" });
+      setPreparing(true);
       const result = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
       if (result.canceled || !result.assets?.length) return;
 
-      const total = result.assets.length;
-      const files: EventPhotoFile[] = result.assets
-        .map((asset) => ({ uri: asset.uri, contentType: photoContentType(asset), sizeBytes: photoSizeBytes(asset) }))
+      const picked: PickedFile[] = result.assets
+        .map((asset) => ({
+          uri: asset.uri,
+          contentType: photoContentType(asset),
+          sizeBytes: photoSizeBytes(asset),
+          fileName: asset.fileName ?? null,
+          isVideo: asset.type === "video",
+        }))
+        // A file that can't be measured can't be signed for, so it's left out.
         .filter((file) => file.sizeBytes > 0);
+      const items = toTrayItems(picked, (index) => t("tray.fallbackName", { number: index + 1 }));
 
-      const selectedBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
-      const storageLeft = event ? eventStorageLeftBytes(event) : null;
-      if (storageLeft !== null && selectedBytes > storageLeft) {
-        showNotice(
-          t("result.noRoom", { needed: formatStorageBytes(selectedBytes), left: formatStorageBytes(storageLeft) }),
-        );
+      const shortfall = roomShortfall(items, leftBytes);
+      if (shortfall && leftBytes !== null) {
+        setRoomCheck({ ...shortfall, items, leftBytes });
+        setSheet("room");
         return;
       }
-
-      setUploadStatus({ phase: "uploading", done: 0, total });
-      const { uploaded, error } = await uploadPhotosMutation.mutateAsync({
-        eventId,
-        files,
-        // Files that could not be measured were never sent, so they count as done.
-        onProgress: ({ done }) => setUploadStatus({ phase: "uploading", done: done + total - files.length, total }),
-      });
-
-      if (error && uploaded === 0) {
-        showNotice(getErrorMessage(error, t("result.didntTake")));
-      } else if (uploaded === total) {
-        showNotice(t("result.developed", { count: total }));
-      } else if (uploaded === 0) {
-        showNotice(t("result.didntTake"));
-      } else {
-        showNotice(t("result.developedSome", { done: uploaded, total }));
-      }
+      sendToTray(items);
     } catch (error) {
       showNotice(getErrorMessage(error, t("result.didntTake")));
     } finally {
-      setUploadStatus(null);
+      setPreparing(false);
     }
+  };
+
+  /** 08.6 "Send 3": the smallest that fit go; the rest are dropped, and anything rejected still says why. */
+  const onSendWhatFits = () => {
+    if (!roomCheck) return;
+    const fits = new Set(roomCheck.fits.map((item) => item.key));
+    closeSheet();
+    sendToTray(roomCheck.items.filter((item) => fits.has(item.key) || item.status.kind === "rejected"));
+    setRoomCheck(null);
+  };
+
+  const onPickAgain = () => {
+    closeSheet();
+    setRoomCheck(null);
+    void onAddPhotos();
   };
 
   const ensureLibraryAccess = async () => {
@@ -350,7 +381,15 @@ export const useEventDetailScreen = () => {
     isLoading,
     refreshing,
     currentUserId: user?.id,
-    uploadStatus,
+    developing,
+    localFileFor,
+    tray: summarizeTray(tray),
+    trayRunning: tray.running,
+    closedWhileSending: tray.closed && !tray.running ? tray.closed : null,
+    isFull,
+    leftBytes,
+    roomCheck,
+    preparing,
     saving,
     notice,
     openedVisible,
@@ -373,6 +412,15 @@ export const useEventDetailScreen = () => {
       void onAddPhotos();
     },
     onAddPhotos: () => void onAddPhotos(),
+    onOpenTray: openTray,
+    onRetry: () => {
+      if (eventId) retryTray(eventId);
+    },
+    onSendWhatFits,
+    onPickAgain,
+    onDismissClosed: () => {
+      if (eventId) dismissClosed(eventId);
+    },
     onSaveAll: () => void onSaveAll(),
     onOpenFrame: setOpenFrame,
     onCloseFrame: () => setOpenFrame(null),

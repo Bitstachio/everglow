@@ -100,7 +100,7 @@ export const bandStock = (stage: RollStage, role: RollRole): BandStock => {
 export const storagePair = (usedBytes: number, limitBytes: number): { used: string; limit: string } => {
   // Nothing used reads "0 / 3 GB", not "0 B / 3 GB".
   if (usedBytes <= 0) return { used: "0", limit: formatStorageBytes(limitBytes) };
-  const used = formatStorageBytes(usedBytes);
+  const used = formatStorageBytes(usedBytes, { roundDown: true });
   const limit = formatStorageBytes(limitBytes);
   const [usedValue, usedUnit] = used.split(" ");
   return { used: usedUnit === limit.split(" ")[1] ? (usedValue ?? used) : used, limit };
@@ -182,6 +182,12 @@ export const formatOpensShort = (iso: string): string => {
   const date = new Date(iso);
   const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
   return `${weekday} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+/** "16:00": when a roll closed while photos were sending (08.8). */
+export const formatClock = (iso: string): string => {
+  const date = new Date(iso);
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 /** "Sun 18.10": the roll's date under its name. */

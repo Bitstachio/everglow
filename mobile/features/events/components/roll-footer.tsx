@@ -10,7 +10,7 @@ import { View, type LayoutChangeEvent } from "react-native";
  * What sits at the foot of the roll:
  * - leader: one leader, such as "Send the envelope" (07.1)
  * - shutter: Save all · shutter · Invite or People (07.4–07.8)
- * - locked: the shutter locked, with why (07.2, 07.10)
+ * - locked: the shutter locked, with why (07.2, 07.10, 08.7)
  * - viewOnly: Save all · a note · People (07.7)
  * - text: a single text button on the right, such as "Cut the roll" (07.11)
  */
@@ -30,7 +30,7 @@ export type RollFooterProps =
       /** "first shot's yours ↓" over the shutter (07.4). */
       note?: string;
     }
-  | { kind: "locked"; label: string; accessibilityLabel: string; save?: FooterAction }
+  | { kind: "locked"; label: string; accessibilityLabel: string; save?: FooterAction; right?: FooterAction }
   | { kind: "viewOnly"; note: string; save: FooterAction; right: FooterAction }
   | { kind: "text"; action: FooterAction }
   | { kind: "none" };
@@ -136,6 +136,7 @@ export const RollFooter = ({ bottomInset, ...props }: RollFooterProps & RollFoot
             <Row
               left={props.save ? <TextAction action={props.save} /> : null}
               middle={<Shutter accessibilityLabel={props.accessibilityLabel} locked />}
+              right={props.right ? <TextAction action={props.right} /> : null}
             />
             <EdgePrint className="text-center">{props.label}</EdgePrint>
           </View>
