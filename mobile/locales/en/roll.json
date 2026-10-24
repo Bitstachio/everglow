@@ -173,7 +173,6 @@
     "rows": "Files in the tray",
     "row": {
       "developed": "Developed · {{number}}",
-      "sending": "{{sent}} / {{size}}",
       "waiting": "Waiting",
       "offline": "Didn’t take · offline",
       "refused": "Didn’t take",

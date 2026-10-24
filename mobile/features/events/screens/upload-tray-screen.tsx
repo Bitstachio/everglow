@@ -10,7 +10,7 @@ import { ScrollView, Text, View } from "react-native";
 import { TrayRow } from "../components/tray-row";
 import { TrayStrip } from "../components/tray-strip";
 import { useUploadTrayScreen, type TrayEntry } from "../hooks/use-upload-tray-screen";
-import { formatStorageBytes } from "../utils";
+import { formatSentOf } from "../utils";
 
 /** The tray shows its first few frames on a strip. */
 const STRIP_FRAMES = 4;
@@ -40,12 +40,7 @@ const UploadTrayScreen = () => {
       case "developed":
         return { text: number !== null ? t("tray.row.developed", { number }) : t("tray.row.waiting") };
       case "sending":
-        return {
-          text: t("tray.row.sending", {
-            sent: formatStorageBytes(s.bytesSent),
-            size: formatStorageBytes(item.sizeBytes),
-          }),
-        };
+        return { text: formatSentOf(s.bytesSent, item.sizeBytes) };
       case "waiting":
         return { text: t("tray.row.waiting") };
       case "failed":

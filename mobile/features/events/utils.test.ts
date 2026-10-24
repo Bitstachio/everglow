@@ -4,6 +4,7 @@ import {
   displayFilterDay,
   eventStorageLeftBytes,
   formatEventStorage,
+  formatSentOf,
   formatStorageBytes,
   filterEvents,
   formatEventDateTime,
@@ -137,4 +138,23 @@ test("works out the storage left, never below zero, and null without a limit", (
   expect(eventStorageLeftBytes(buildEvent({ limits, usage: { members: 1, storageBytes: "400" } }))).toBe(600);
   expect(eventStorageLeftBytes(buildEvent({ limits, usage: { members: 1, storageBytes: "1200" } }))).toBe(0);
   expect(eventStorageLeftBytes(buildEvent({ limits: { members: null, storageBytes: null } }))).toBeNull();
+});
+
+test.each([
+  [0.6 * 1024 * 1024, 3.1 * 1024 * 1024, "0.6 / 3.1 MB"],
+  [2.1 * 1024 * 1024, 3.4 * 1024 * 1024, "2.1 / 3.4 MB"],
+  [0, 3.4 * 1024 * 1024, "0.0 / 3.4 MB"],
+  [5 * 1024 * 1024, 3.4 * 1024 * 1024, "3.4 / 3.4 MB"],
+  [300, 800, "300 / 800 B"],
+])("formatSentOf(%d, %d) is %s", (sent, total, label) => {
+  expect(formatSentOf(sent, total)).toBe(label);
+});
+
+test("rounds space used down, so a nearly full roll never reads as full", () => {
+  const used = 3 * 1024 ** 3 - 6 * 1024 ** 2;
+  expect(formatStorageBytes(used)).toBe("3 GB");
+  expect(formatStorageBytes(used, { roundDown: true })).toBe("2.9 GB");
+  expect(formatEventStorage(buildEvent({ usage: { members: 1, storageBytes: String(used) } }))).toBe(
+    "2.9 GB of 3 GB used",
+  );
 });

@@ -100,7 +100,7 @@ export const bandStock = (stage: RollStage, role: RollRole): BandStock => {
 export const storagePair = (usedBytes: number, limitBytes: number): { used: string; limit: string } => {
   // Nothing used reads "0 / 3 GB", not "0 B / 3 GB".
   if (usedBytes <= 0) return { used: "0", limit: formatStorageBytes(limitBytes) };
-  const used = formatStorageBytes(usedBytes);
+  const used = formatStorageBytes(usedBytes, { roundDown: true });
   const limit = formatStorageBytes(limitBytes);
   const [usedValue, usedUnit] = used.split(" ");
   return { used: usedUnit === limit.split(" ")[1] ? (usedValue ?? used) : used, limit };

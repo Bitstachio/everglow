@@ -173,3 +173,8 @@ describe("hostName", () => {
     expect(hostName(buildEvent({ creatorId: null }), [])).toBeNull();
   });
 });
+
+test("storagePair rounds the used side down, and a full roll reads 3 / 3 GB", () => {
+  expect(storagePair(3 * 1024 ** 3 - 6 * 1024 ** 2, 3 * 1024 ** 3)).toEqual({ used: "2.9", limit: "3 GB" });
+  expect(storagePair(3 * 1024 ** 3, 3 * 1024 ** 3)).toEqual({ used: "3", limit: "3 GB" });
+});

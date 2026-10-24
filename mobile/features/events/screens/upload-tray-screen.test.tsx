@@ -67,7 +67,7 @@ test("08.3: shows each file's progress, and can cancel the rest or hide", async 
 
   expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 3 developed");
   expect(screen.getByLabelText("IMG_2231, Developed · 149")).toBeOnTheScreen();
-  expect(screen.getByLabelText("IMG_2234, 2.1 MB / 3.4 MB")).toBeOnTheScreen();
+  expect(screen.getByLabelText("IMG_2234, 2.1 / 3.4 MB")).toBeOnTheScreen();
   expect(screen.getByLabelText("IMG_2251, Waiting")).toBeOnTheScreen();
 
   const user = userEvent.setup();
