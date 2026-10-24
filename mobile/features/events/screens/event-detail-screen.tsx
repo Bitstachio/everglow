@@ -344,6 +344,7 @@ const EventDetailScreen = () => {
       {item.kind === "photo" ? (
         <ContactFrame
           uri={item.frame.photo.url}
+          placeholderUri={screen.localFileFor(item.frame.photo.id)}
           number={item.frame.number}
           by={item.frame.by ?? undefined}
           isNew={item.frame.isNew}

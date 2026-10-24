@@ -92,6 +92,18 @@ test("uploads a large selection in batches of 20, one after another, and develop
   expect(onFile).toHaveBeenCalledWith(0, { kind: "sending", bytesSent: 3 });
 });
 
+test("reports each batch's photo ids as soon as they're minted", async () => {
+  const onMinted = jest.fn();
+
+  await uploadEventPhotos("event-1", photoFiles(22), { onMinted, put });
+
+  expect(onMinted).toHaveBeenCalledTimes(2);
+  expect(onMinted.mock.calls[1][0]).toEqual([
+    { index: 20, photoId: "photo-20" },
+    { index: 21, photoId: "photo-21" },
+  ]);
+});
+
 test.each([
   ["EVENT_STORAGE_LIMIT_REACHED", "noRoom"],
   ["EVENT_GALLERY_CLOSED", "closed"],

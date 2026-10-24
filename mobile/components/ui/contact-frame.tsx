@@ -7,6 +7,8 @@ import { Photo } from "./photo";
 type ContactFrameProps = Omit<PressableProps, "children"> & {
   /** Photo URL; omit for an empty frame. */
   uri?: string;
+  /** Shown until `uri` loads, for example the local file of a photo just added. */
+  placeholderUri?: string;
   /** The frame number on the roll. */
   number: number;
   /** Who took it, printed after the number. */
@@ -42,6 +44,7 @@ export const developLook = (amount: number) => {
  */
 export const ContactFrame = ({
   uri,
+  placeholderUri,
   number,
   by,
   selected = false,
@@ -68,6 +71,8 @@ export const ContactFrame = ({
           {uri ? (
             <Photo
               source={{ uri }}
+              placeholder={placeholderUri ? { uri: placeholderUri } : undefined}
+              placeholderContentFit="cover"
               contentFit="cover"
               blurRadius={developing ? developLook(amount).blurRadius : undefined}
               className="h-full w-full"

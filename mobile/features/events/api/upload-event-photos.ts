@@ -59,6 +59,12 @@ export type PutEventPhoto = (
 
 type UploadEventPhotosOptions = {
   onFile?: (index: number, update: EventPhotoUpdate) => void;
+  /**
+   * A batch's slots were minted: each file's photo id, before any bytes are
+   * sent. The API lists a batch's photos newest first by id, so this is
+   * enough to place them on the sheet where they'll land.
+   */
+  onMinted?: (minted: { index: number; photoId: string }[]) => void;
   /** Aborting stops the files in flight and leaves the rest unsent. */
   signal?: AbortSignal;
   /** Waits out a 429; replaced in tests. */
@@ -186,7 +192,7 @@ const runPooled = async (tasks: (() => Promise<void>)[], concurrency: number) =>
 export const uploadEventPhotos = async (
   eventId: string,
   files: EventPhotoFile[],
-  { onFile, signal, sleep = defaultSleep, put = putEventPhoto }: UploadEventPhotosOptions = {},
+  { onFile, onMinted, signal, sleep = defaultSleep, put = putEventPhoto }: UploadEventPhotosOptions = {},
 ): Promise<EventPhotoUploadResult> => {
   const total = files.length;
   let uploaded = 0;
@@ -208,6 +214,7 @@ export const uploadEventPhotos = async (
       failFrom(start, failureFor(error));
       return { total, uploaded, error };
     }
+    onMinted?.(slots.slice(0, batch.length).map((slot, offset) => ({ index: start + offset, photoId: slot.photoId })));
 
     const landed = new Map<string, number>();
     await runPooled(

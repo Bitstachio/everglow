@@ -35,6 +35,8 @@ export type TrayItem = EventPhotoFile & {
   /** The file's name in the library, for example "IMG_2231". */
   name: string;
   status: TrayStatus;
+  /** Once its upload URL is minted: its photo id, and which mint it came from (later mints are newer). */
+  minted?: { photoId: string; seq: number };
 };
 
 export type Tray = {
@@ -51,6 +53,13 @@ const controllers = new Map<string, AbortController>();
 /** Refreshes the roll once a run ends: its photos and storage changed. */
 const settlers = new Map<string, () => Promise<unknown>>();
 const listeners = new Set<() => void>();
+/** The local file of each photo this phone added, so its frame never blanks while the roll's copy loads. */
+const localFiles = new Map<string, string>();
+
+export const localFileFor = (photoId: string): string | undefined => localFiles.get(photoId);
+
+/** Counts mints across every roll, so a later batch always sorts as newer. */
+let mintSeq = 0;
 
 const emit = () => listeners.forEach((listener) => listener());
 
@@ -89,7 +98,10 @@ const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => 
   mapItems(eventId, (item) => {
     if (item.key !== key) return item;
     if (update.kind === "sending") return { ...item, status: { kind: "sending", bytesSent: update.bytesSent } };
-    if (update.kind === "developed") return { ...item, status: { kind: "developed", photoId: update.photoId } };
+    if (update.kind === "developed") {
+      localFiles.set(update.photoId, item.uri);
+      return { ...item, status: { kind: "developed", photoId: update.photoId } };
+    }
     // A cancelled file leaves the tray: it was never on the roll.
     if (update.reason === "cancelled") return null;
     return { ...item, status: { kind: "failed", reason: update.reason } };
@@ -113,6 +125,20 @@ const run = async (eventId: string) => {
         waiting.map(({ uri, contentType, sizeBytes }) => ({ uri, contentType, sizeBytes })),
         {
           signal: controller.signal,
+          onMinted: (minted) => {
+            mintSeq += 1;
+            const seq = mintSeq;
+            const ids = new Map(
+              minted.flatMap(({ index, photoId }) => {
+                const item = waiting[index];
+                return item ? [[item.key, photoId] as const] : [];
+              }),
+            );
+            mapItems(eventId, (item) => {
+              const photoId = ids.get(item.key);
+              return photoId ? { ...item, minted: { photoId, seq } } : item;
+            });
+          },
           onFile: (index, update) => {
             const item = waiting[index];
             if (item) applyUpdate(eventId, item.key, update);
@@ -170,7 +196,8 @@ export const addToTray = (eventId: string, items: TrayItem[], settle: () => Prom
 export const retryTray = (eventId: string, reasons: TrayRetryReason[] = ["connection", "refused"]) => {
   mapItems(eventId, (item) =>
     item.status.kind === "failed" && (reasons as string[]).includes(item.status.reason)
-      ? { ...item, status: { kind: "waiting" } }
+      ? // A retry mints a new slot, so it gets a new photo id.
+        { ...item, status: { kind: "waiting" }, minted: undefined }
       : item,
   );
   void run(eventId);
@@ -202,6 +229,7 @@ export const clearUploadTrays = () => {
   controllers.clear();
   settlers.clear();
   trays.clear();
+  localFiles.clear();
   emit();
 };
 
@@ -275,8 +303,19 @@ export type DevelopingFrame = {
 };
 
 /**
- * The tray's photos at the top of the sheet, newest first, until the roll's
- * own photos include them. Rejected files never reach the sheet.
+ * The roll lists photos newest first: a later mint first, and within one mint
+ * (one timestamp) by id, descending. Files not minted yet will be newer still.
+ */
+const sheetOrder = (a: TrayItem, b: TrayItem): number => {
+  if (!a.minted || !b.minted) return (a.minted ? 1 : 0) - (b.minted ? 1 : 0);
+  if (a.minted.seq !== b.minted.seq) return b.minted.seq - a.minted.seq;
+  return a.minted.photoId < b.minted.photoId ? 1 : a.minted.photoId > b.minted.photoId ? -1 : 0;
+};
+
+/**
+ * The tray's photos at the top of the sheet, in the order the roll will list
+ * them once they land, until the roll's own photos include them. Rejected
+ * files never reach the sheet.
  */
 export const developingFrames = (
   items: TrayItem[],
@@ -284,9 +323,9 @@ export const developingFrames = (
   frameCount: number,
 ): DevelopingFrame[] => {
   const onRoll = new Set(photos.map((photo) => photo.id));
-  const pending = items.filter(
-    ({ status }) => status.kind !== "rejected" && !(status.kind === "developed" && onRoll.has(status.photoId)),
-  );
+  const pending = items
+    .filter(({ status }) => status.kind !== "rejected" && !(status.kind === "developed" && onRoll.has(status.photoId)))
+    .sort(sheetOrder);
   return pending.map((item, index) => ({
     item,
     number: frameCount + pending.length - index,

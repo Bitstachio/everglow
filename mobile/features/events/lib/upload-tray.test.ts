@@ -7,6 +7,7 @@ import {
   developingFrames,
   dismissClosed,
   getTray,
+  localFileFor,
   removeFromTray,
   retryTray,
   summarizeTray,
@@ -17,7 +18,11 @@ import { runAccountCleared } from "@/lib/account-cleared";
 type Upload = (
   eventId: string,
   files: EventPhotoFile[],
-  options: { onFile: (index: number, update: EventPhotoUpdate) => void; signal: AbortSignal },
+  options: {
+    onFile: (index: number, update: EventPhotoUpdate) => void;
+    onMinted: (minted: { index: number; photoId: string }[]) => void;
+    signal: AbortSignal;
+  },
 ) => Promise<unknown>;
 
 const mockUpload = jest.fn<ReturnType<Upload>, Parameters<Upload>>();
@@ -176,4 +181,36 @@ test("puts the tray's photos at the top of the sheet, numbered after the roll, u
     ["b", 4, 0.25, false],
     ["a", 3, 0, true],
   ]);
+});
+
+test("orders developing frames the way the roll will list them once they land", async () => {
+  // The API lists one mint's photos by id, descending, and a later mint first.
+  mockUpload.mockImplementationOnce(async (_eventId, _files, { onMinted, onFile }) => {
+    onMinted([
+      { index: 0, photoId: "b" },
+      { index: 1, photoId: "d" },
+    ]);
+    onMinted([{ index: 2, photoId: "a" }]);
+    onFile(0, { kind: "sending", bytesSent: 10 });
+    await new Promise(() => undefined);
+  });
+  addToTray("event-1", [item("first"), item("second"), item("third"), item("fourth")], settle);
+  await flush();
+
+  const order = developingFrames(getTray("event-1").items, [], 0).map(({ item: frame, number }) => [frame.key, number]);
+  expect(order).toEqual([
+    ["fourth", 4],
+    ["third", 3],
+    ["second", 2],
+    ["first", 1],
+  ]);
+});
+
+test("remembers the local file of a developed photo, until the account is cleared", async () => {
+  addToTray("event-1", [item("a")], settle);
+  await flush();
+
+  expect(localFileFor("file://a.jpg")).toBe("file://a.jpg");
+  runAccountCleared();
+  expect(localFileFor("file://a.jpg")).toBeUndefined();
 });
