@@ -1,19 +1,35 @@
 import { createApiError } from "@/lib/api/errors";
-import { uploadEventPhotos, type EventPhotoFile } from "./upload-event-photos";
+import {
+  putEventPhoto,
+  uploadEventPhotos,
+  type EventPhotoFile,
+  type EventPhotoUpdate,
+  type PutEventPhoto,
+} from "./upload-event-photos";
 
 const mockCreateUploadUrls = jest.fn();
 const mockConfirmUploads = jest.fn();
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
+const mockFileSize = jest.fn();
+const mockUploadAsync = jest.fn();
+const mockUploadTask = jest.fn();
+jest.mock("expo-file-system", () => ({
+  File: jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri) })),
+  UploadTask: jest.fn().mockImplementation((...args: unknown[]) => {
+    mockUploadTask(...args);
+    return { uploadAsync: () => mockUploadAsync() };
+  }),
+  UploadType: { BINARY_CONTENT: 0 },
+}));
 jest.mock("@/lib/api/generated", () => ({
   photosControllerCreateUploadUrls: (...args: unknown[]) => mockCreateUploadUrls(...args),
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
 }));
 
-const originalFetch = globalThis.fetch;
-const fetchMock = jest.fn();
 /** Upload URLs whose PUT storage refuses. */
 let refusedUploadUrls = new Set<string>();
+const put = jest.fn<ReturnType<PutEventPhoto>, Parameters<PutEventPhoto>>();
 
 const photoFiles = (count: number, sizeBytes = 3): EventPhotoFile[] =>
   Array.from({ length: count }, (_, index) => ({
@@ -40,24 +56,26 @@ beforeEach(() => {
   refusedUploadUrls = new Set();
   mockCreateUploadUrls.mockReset().mockImplementation(mintSlots);
   mockConfirmUploads.mockReset().mockImplementation(confirmAllReady);
-  fetchMock.mockReset().mockImplementation(async (url: string, init?: { method?: string }) => {
-    if (init?.method === "PUT") return { ok: !refusedUploadUrls.has(url), status: 403 };
-    return { blob: async () => new Blob(["abc"]) };
+  put.mockReset().mockImplementation(async (file, slot, { onBytes }) => {
+    if (refusedUploadUrls.has(slot.uploadUrl)) throw createApiError("Forbidden", { status: 403 });
+    onBytes(file.sizeBytes);
   });
-  globalThis.fetch = fetchMock as typeof fetch;
 });
 
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+/** Each file's last update, by index. */
+const lastUpdates = (onFile: jest.Mock) => {
+  const updates = new Map<number, EventPhotoUpdate>();
+  for (const [index, update] of onFile.mock.calls as [number, EventPhotoUpdate][]) updates.set(index, update);
+  return [...updates.entries()].sort(([a], [b]) => a - b).map(([, update]) => update);
+};
 
 const mintedBatchSizes = () =>
   mockCreateUploadUrls.mock.calls.map(([request]) => (request as { body: { files: unknown[] } }).body.files.length);
 
-test("uploads a large selection in batches of 20, one after another, with one progress count", async () => {
-  const onProgress = jest.fn();
+test("uploads a large selection in batches of 20, one after another, and develops every file", async () => {
+  const onFile = jest.fn();
 
-  const result = await uploadEventPhotos("event-1", photoFiles(45), { onProgress });
+  const result = await uploadEventPhotos("event-1", photoFiles(45), { onFile, put });
 
   expect(result).toEqual({ total: 45, uploaded: 45, error: null });
   expect(mintedBatchSizes()).toEqual([20, 20, 5]);
@@ -68,31 +86,39 @@ test("uploads a large selection in batches of 20, one after another, with one pr
   });
   expect(mockConfirmUploads).toHaveBeenCalledTimes(3);
   expect(mockConfirmUploads.mock.calls[2][0].body.photoIds).toHaveLength(5);
-  expect(onProgress).toHaveBeenNthCalledWith(1, { done: 0, total: 45 });
-  expect(onProgress).toHaveBeenLastCalledWith({ done: 45, total: 45 });
-  const counts = onProgress.mock.calls.map(([progress]) => progress.done);
-  expect(counts).toEqual([...counts].sort((a, b) => a - b));
+  expect(lastUpdates(onFile)).toEqual(
+    Array.from({ length: 45 }, (_, index) => ({ kind: "developed", photoId: `photo-${index}` })),
+  );
+  expect(onFile).toHaveBeenCalledWith(0, { kind: "sending", bytesSent: 3 });
 });
 
-test.each(["EVENT_STORAGE_LIMIT_REACHED", "EVENT_GALLERY_CLOSED"])(
-  "stops at a batch refused with %s and reports what was uploaded before it",
-  async (code) => {
-    const refusal = createApiError("Refused", { status: 403, code });
-    mockCreateUploadUrls.mockImplementationOnce(mintSlots).mockRejectedValueOnce(refusal);
+test.each([
+  ["EVENT_STORAGE_LIMIT_REACHED", "noRoom"],
+  ["EVENT_GALLERY_CLOSED", "closed"],
+])("stops at a batch refused with %s and fails the rest as %s", async (code, reason) => {
+  const refusal = createApiError("Refused", { status: 403, code });
+  mockCreateUploadUrls.mockImplementationOnce(mintSlots).mockRejectedValueOnce(refusal);
+  const onFile = jest.fn();
 
-    const result = await uploadEventPhotos("event-1", photoFiles(45));
+  const result = await uploadEventPhotos("event-1", photoFiles(45), { onFile, put });
 
-    expect(result).toEqual({ total: 45, uploaded: 20, error: refusal });
-    expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
-    expect(mockConfirmUploads).toHaveBeenCalledTimes(1);
-  },
-);
+  expect(result).toEqual({ total: 45, uploaded: 20, error: refusal });
+  const updates = lastUpdates(onFile);
+  expect(updates.slice(0, 20).every((update) => update.kind === "developed")).toBe(true);
+  expect(updates.slice(20)).toEqual(Array.from({ length: 25 }, () => ({ kind: "failed", reason })));
+  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
+  expect(mockConfirmUploads).toHaveBeenCalledTimes(1);
+});
 
 test("retries a batch once after a storage reservation conflict", async () => {
   const conflict = createApiError("Conflict", { status: 409, code: "STORAGE_RESERVATION_CONFLICT" });
   mockCreateUploadUrls.mockRejectedValueOnce(conflict);
 
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 2, error: null });
+  await expect(uploadEventPhotos("event-1", photoFiles(2), { put })).resolves.toEqual({
+    total: 2,
+    uploaded: 2,
+    error: null,
+  });
   expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
 });
 
@@ -100,7 +126,7 @@ test("stops when the retried batch conflicts again", async () => {
   const conflict = createApiError("Conflict", { status: 409, code: "STORAGE_RESERVATION_CONFLICT" });
   mockCreateUploadUrls.mockRejectedValue(conflict);
 
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({
+  await expect(uploadEventPhotos("event-1", photoFiles(2), { put })).resolves.toEqual({
     total: 2,
     uploaded: 0,
     error: conflict,
@@ -114,7 +140,7 @@ test("waits out a 429 for Retry-After and carries on", async () => {
     .mockRejectedValueOnce(createApiError("Slow down", { status: 429, retryAfterSeconds: 37 }))
     .mockRejectedValueOnce(createApiError("Slow down", { status: 429 }));
 
-  const result = await uploadEventPhotos("event-1", photoFiles(2), { sleep });
+  const result = await uploadEventPhotos("event-1", photoFiles(2), { sleep, put });
 
   expect(result).toEqual({ total: 2, uploaded: 2, error: null });
   expect(sleep.mock.calls).toEqual([[37_000], [5_000]]);
@@ -125,13 +151,13 @@ test("gives up after waiting out three 429s in a row", async () => {
   const rateLimited = createApiError("Slow down", { status: 429, retryAfterSeconds: 1 });
   mockCreateUploadUrls.mockRejectedValue(rateLimited);
 
-  const result = await uploadEventPhotos("event-1", photoFiles(2), { sleep });
+  const result = await uploadEventPhotos("event-1", photoFiles(2), { sleep, put });
 
   expect(result).toEqual({ total: 2, uploaded: 0, error: rateLimited });
   expect(sleep).toHaveBeenCalledTimes(3);
 });
 
-test("counts a file that fails its PUT or confirm and carries on with the rest", async () => {
+test("fails a file refused at its PUT or confirm and carries on with the rest", async () => {
   refusedUploadUrls.add("https://upload.example.com/photo-1");
   mockConfirmUploads.mockImplementation(({ body }: { body: { photoIds: string[] } }) =>
     Promise.resolve({
@@ -141,9 +167,16 @@ test("counts a file that fails its PUT or confirm and carries on with the rest",
     }),
   );
 
-  const result = await uploadEventPhotos("event-1", photoFiles(4));
+  const onFile = jest.fn();
+  const result = await uploadEventPhotos("event-1", photoFiles(4), { onFile, put });
 
   expect(result).toEqual({ total: 4, uploaded: 2, error: null });
+  expect(lastUpdates(onFile)).toEqual([
+    { kind: "developed", photoId: "photo-0" },
+    { kind: "failed", reason: "refused" },
+    { kind: "failed", reason: "refused" },
+    { kind: "developed", photoId: "photo-3" },
+  ]);
   expect(mockConfirmUploads).toHaveBeenCalledWith({
     path: { eventId: "event-1" },
     body: { photoIds: ["photo-0", "photo-2", "photo-3"] },
@@ -151,19 +184,86 @@ test("counts a file that fails its PUT or confirm and carries on with the rest",
   });
 });
 
-test("does not PUT a file whose bytes no longer match the size its URL was signed for", async () => {
-  const result = await uploadEventPhotos("event-1", photoFiles(1, 99));
+test("fails a file whose connection dropped as connection, so it can be retried", async () => {
+  put.mockImplementationOnce(async () => {
+    throw new TypeError("Network request failed");
+  });
+  const onFile = jest.fn();
 
-  expect(result).toEqual({ total: 1, uploaded: 0, error: null });
-  expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(false);
-  expect(mockConfirmUploads).not.toHaveBeenCalled();
+  const result = await uploadEventPhotos("event-1", photoFiles(2), { onFile, put });
+
+  expect(result).toEqual({ total: 2, uploaded: 1, error: null });
+  expect(lastUpdates(onFile)[0]).toEqual({ kind: "failed", reason: "connection" });
+});
+
+test("cancels the files not yet sent when the signal aborts", async () => {
+  const controller = new AbortController();
+  put.mockImplementationOnce(async (file, _slot, { onBytes }) => {
+    onBytes(file.sizeBytes);
+    controller.abort();
+  });
+  const onFile = jest.fn();
+
+  const result = await uploadEventPhotos("event-1", photoFiles(25), { onFile, put, signal: controller.signal });
+
+  const updates = lastUpdates(onFile);
+  expect(updates[0]).toEqual({ kind: "developed", photoId: "photo-0" });
+  expect(updates.slice(4)).toEqual(Array.from({ length: 21 }, () => ({ kind: "failed", reason: "cancelled" })));
+  expect(result.uploaded).toBe(1);
+  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
 });
 
 test("retries a confirm whose response was lost, and counts the batch as failed if it is lost again", async () => {
   mockConfirmUploads.mockRejectedValueOnce(new Error("Network unavailable"));
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 2, error: null });
+  await expect(uploadEventPhotos("event-1", photoFiles(2), { put })).resolves.toEqual({
+    total: 2,
+    uploaded: 2,
+    error: null,
+  });
   expect(mockConfirmUploads).toHaveBeenCalledTimes(2);
 
   mockConfirmUploads.mockReset().mockRejectedValue(new Error("Network unavailable"));
-  await expect(uploadEventPhotos("event-1", photoFiles(2))).resolves.toEqual({ total: 2, uploaded: 0, error: null });
+  await expect(uploadEventPhotos("event-1", photoFiles(2), { put })).resolves.toEqual({
+    total: 2,
+    uploaded: 0,
+    error: null,
+  });
+});
+
+describe("putEventPhoto", () => {
+  const slot = { photoId: "photo-0", uploadUrl: "https://upload.example.com/photo-0" } as Parameters<PutEventPhoto>[1];
+  const [file] = photoFiles(1, 3) as [EventPhotoFile];
+
+  beforeEach(() => {
+    mockFileSize.mockReset().mockReturnValue(3);
+    mockUploadAsync.mockReset().mockResolvedValue({ status: 200, body: "", headers: {} });
+    mockUploadTask.mockReset();
+  });
+
+  test("PUTs the file's bytes with its type and reports bytes sent", async () => {
+    const onBytes = jest.fn();
+    await putEventPhoto(file, slot, { onBytes });
+
+    const [, url, options] = mockUploadTask.mock.calls[0];
+    expect(url).toBe(slot.uploadUrl);
+    expect(options).toMatchObject({ httpMethod: "PUT", headers: { "Content-Type": "image/jpeg" } });
+    options.onProgress({ bytesSent: 2, totalBytes: 3 });
+    expect(onBytes).toHaveBeenCalledWith(2);
+  });
+
+  test("does not PUT a file whose bytes no longer match the size its URL was signed for", async () => {
+    mockFileSize.mockReturnValue(99);
+    await expect(putEventPhoto(file, slot, { onBytes: jest.fn() })).rejects.toThrow("changed");
+    expect(mockUploadTask).not.toHaveBeenCalled();
+  });
+
+  test("rejects when storage refuses the bytes, which the upload reports as refused", async () => {
+    mockUploadAsync.mockResolvedValue({ status: 403, body: "", headers: {} });
+    const onFile = jest.fn();
+
+    const result = await uploadEventPhotos("event-1", [file], { onFile });
+
+    expect(result.uploaded).toBe(0);
+    expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "refused" }]);
+  });
 });
