@@ -19,7 +19,6 @@ test("fills the envelope in with the roll", async () => {
   expect(screen.getByText("Sat 7 Nov, 7 pm")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
   expect(screen.getByText("14 Nov, then it’s gone")).toBeOnTheScreen();
-  expect(screen.getByText("Point any phone camera here. Even the cracked one.")).toBeOnTheScreen();
   expect(screen.getByText("QR")).toBeOnTheScreen();
 });
 
@@ -28,9 +27,11 @@ test("counts one person in the singular", async () => {
   expect(screen.getByText("1 person so far")).toBeOnTheScreen();
 });
 
-test("the view-only envelope says what it admits", async () => {
-  await renderWithI18n(<RollEnvelope {...roll} admits="view" />);
-  expect(screen.getByText("Admits: view only")).toBeOnTheScreen();
+test.each(["adds", "view"] as const)("an open %s envelope prints nothing by its code", async (admits) => {
+  await renderWithI18n(<RollEnvelope {...roll} admits={admits} code={<Text>QR</Text>} />);
+  expect(screen.getByText("QR")).toBeOnTheScreen();
+  expect(screen.queryByText("Sealed until you sign in")).not.toBeOnTheScreen();
+  expect(screen.queryByText(/admits/i)).not.toBeOnTheScreen();
 });
 
 test("a sealed envelope keeps the roll and the code to itself", async () => {

@@ -205,7 +205,6 @@ const DesignKitScreen = () => {
                 { label: "Adds photos", checked: true },
                 { label: "View only", checked: false },
               ]}
-              footer="Point any phone camera here. Even the cracked one."
               accessibilityLabel="Invite to Sam and Jo’s wedding"
             />
             <View className="absolute -bottom-2 right-4">

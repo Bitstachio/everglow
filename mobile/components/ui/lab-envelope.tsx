@@ -12,7 +12,7 @@ type LabEnvelopeProps = {
   fields: EnvelopeField[];
   /** What the envelope admits, as printed boxes: "Adds photos", "View only". */
   options?: EnvelopeOption[];
-  /** Edge print at the bottom left, for example "Point any phone camera here. Even the cracked one.". */
+  /** Edge print at the bottom left, for example "Sealed until you sign in". */
   footer?: string;
   /** The QR code, at the bottom right. */
   code?: ReactNode;

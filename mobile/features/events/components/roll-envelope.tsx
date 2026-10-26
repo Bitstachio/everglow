@@ -57,7 +57,8 @@ export const RollEnvelope = ({
           { label: t("paper.adds"), checked: !sealed && admits === "adds" },
           { label: t("paper.view"), checked: !sealed && admits === "view" },
         ]}
-        footer={sealed ? t("paper.sealed") : admits === "view" ? t("paper.admitsView") : t("paper.scan")}
+        // Only the sealed envelope needs a word by the code: it has none.
+        footer={sealed ? t("paper.sealed") : undefined}
         code={sealed ? undefined : code}
         accessibilityLabel={accessibilityLabel}
       />

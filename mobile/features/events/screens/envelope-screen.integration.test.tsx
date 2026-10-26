@@ -65,7 +65,6 @@ test("05.2 switches to the view-only envelope", async () => {
 
   expect(screen.getByLabelText("View-only envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("tab", { name: "View only", selected: true })).toBeOnTheScreen();
-  expect(screen.getByText("Admits: view only")).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend-viewer")).toBeOnTheScreen();
 });
 
