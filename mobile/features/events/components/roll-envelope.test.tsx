@@ -15,12 +15,11 @@ test("fills the envelope in with the roll", async () => {
   await renderWithI18n(<RollEnvelope {...roll} admits="adds" code={<Text>QR</Text>} />);
 
   expect(screen.getByLabelText("Adds-photos envelope for Nadia turns 30")).toBeOnTheScreen();
-  expect(screen.getByText("Everglow photo lab")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Sat 7 Nov, 7 pm")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
   expect(screen.getByText("14 Nov, then it’s gone")).toBeOnTheScreen();
-  expect(screen.getByText("Scan with any camera")).toBeOnTheScreen();
+  expect(screen.getByText("Point any phone camera here. Even the cracked one.")).toBeOnTheScreen();
   expect(screen.getByText("QR")).toBeOnTheScreen();
 });
 

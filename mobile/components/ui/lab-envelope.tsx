@@ -2,21 +2,17 @@ import { colorTokens } from "@/theme/tokens";
 import { type ReactNode } from "react";
 import { Text, View } from "react-native";
 import Svg, { Polygon } from "react-native-svg";
-import { Paper, PaperBox, PaperField, PaperHead } from "./lab-paper";
+import { Paper, PaperBox, PaperField } from "./lab-paper";
 
 type EnvelopeField = { label: string; value?: ReactNode };
 type EnvelopeOption = { label: string; checked: boolean };
 
 type LabEnvelopeProps = {
-  /** The printed head, for example "Everglow photo lab". */
-  title: string;
-  /** The envelope's number, for example "No. 0418". */
-  number?: string;
   /** Name, date, who's on the roll, pick-up date. Leave values out for a sealed envelope. */
   fields: EnvelopeField[];
   /** What the envelope admits, as printed boxes: "Adds photos", "View only". */
   options?: EnvelopeOption[];
-  /** Edge print at the bottom left, for example "Scan with any camera". */
+  /** Edge print at the bottom left, for example "Point any phone camera here. Even the cracked one.". */
   footer?: string;
   /** The QR code, at the bottom right. */
   code?: ReactNode;
@@ -28,7 +24,7 @@ type LabEnvelopeProps = {
  * The invite: a photo-lab envelope filled in by hand. Every string comes from
  * the caller, translated. Put a `Stamp` beside it to repeat the button.
  */
-export const LabEnvelope = ({ title, number, fields, options, footer, code, accessibilityLabel }: LabEnvelopeProps) => (
+export const LabEnvelope = ({ fields, options, footer, code, accessibilityLabel }: LabEnvelopeProps) => (
   // Flap and paper tilt as one, so the flap stays square on the paper's top edge.
   <View accessible accessibilityLabel={accessibilityLabel} className="-rotate-2 pt-3">
     <View className="absolute left-0 right-0 top-0 h-3.5">
@@ -37,7 +33,6 @@ export const LabEnvelope = ({ title, number, fields, options, footer, code, acce
       </Svg>
     </View>
     <Paper tilt={false}>
-      <PaperHead title={title} number={number} />
       <View className="pt-1">
         {fields.map((field) => (
           <PaperField key={field.label} label={field.label} value={field.value} />
