@@ -1,15 +1,13 @@
 import { useAuth } from "@/context/auth-context";
 import { router } from "expo-router";
 import { useState } from "react";
-import { useAuth0 } from "react-native-auth0";
 import { useBlocksQuery } from "../api/queries";
 import { useChangePassword } from "./use-change-password";
 import { useLabCard } from "./use-lab-card";
 
 /** 14.1 You: the lab card, and the index of everything else on the account. */
 export const useProfileScreen = () => {
-  const { user, logout, isLoading } = useAuth();
-  const { user: auth0User } = useAuth0();
+  const { user, identity, logout, isLoading } = useAuth();
   const { card } = useLabCard();
   const { canChangePassword, isChangingPassword, handleChangePassword } = useChangePassword();
   const [signOutVisible, setSignOutVisible] = useState(false);
@@ -21,7 +19,7 @@ export const useProfileScreen = () => {
     user,
     card,
     username: details ? `@${details.username}` : undefined,
-    email: auth0User?.email ?? undefined,
+    email: identity?.email,
     blockedCount: blocks?.length,
     isLoading,
     isChangingPassword,
