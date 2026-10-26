@@ -32,7 +32,7 @@
     "failedTitle": "Couldn’t share the link"
   },
   "reset": {
-    "cta": "Reset ›",
+    "cta": "Reset",
     "a11y": {
       "adds": "Reset the adds-photos envelope",
       "view": "Reset the view-only envelope"
