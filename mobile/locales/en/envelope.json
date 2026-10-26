@@ -31,10 +31,6 @@
     "message": "{{title}} · join the roll\n{{url}}",
     "failedTitle": "Couldn’t share the link"
   },
-  "copy": {
-    "cta": "Copy link",
-    "done": "Copied"
-  },
   "reset": {
     "cta": "Reset ›",
     "a11y": {

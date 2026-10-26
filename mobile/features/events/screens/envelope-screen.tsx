@@ -1,6 +1,7 @@
 import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { PaperButton } from "@/components/ui/lab-paper";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IconButton } from "@/components/ui/icon-button";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
@@ -25,11 +26,9 @@ const EnvelopeScreen = () => {
     shut,
     isLoading,
     isError,
-    copied,
     reset,
     onSelectKind,
     onShare,
-    onCopy,
     onReset,
     onCloseReset,
     onConfirmReset,
@@ -79,6 +78,11 @@ const EnvelopeScreen = () => {
               <RollEnvelope
                 {...envelope}
                 onSelect={onSelectKind}
+                action={
+                  invitationUrl ? (
+                    <PaperButton title={t("share.cta")} mark="↗" onPress={() => void onShare()} />
+                  ) : undefined
+                }
                 code={
                   invitationUrl ? (
                     <QRCode
@@ -96,25 +100,15 @@ const EnvelopeScreen = () => {
       </ScrollView>
 
       {envelope && invitationUrl ? (
-        <View className="gap-2.5 px-5 pb-1 pt-3">
-          <Button title={t("share.cta")} mark="↗" onPress={onShare} />
-          <View className="flex-row justify-between">
-            <Button
-              title={copied ? t("copy.done") : t("copy.cta")}
-              variant="ghost"
-              fullWidth={false}
-              className="-ml-2"
-              onPress={onCopy}
-            />
-            <Button
-              title={t("reset.cta")}
-              accessibilityLabel={reset.a11y}
-              variant="ghost"
-              fullWidth={false}
-              className="-mr-2 opacity-80"
-              onPress={onReset}
-            />
-          </View>
+        <View className="items-end px-5 pb-1 pt-3">
+          <Button
+            title={t("reset.cta")}
+            accessibilityLabel={reset.a11y}
+            variant="ghost"
+            fullWidth={false}
+            className="-mr-2 opacity-80"
+            onPress={onReset}
+          />
         </View>
       ) : null}
       <FilmGrain />

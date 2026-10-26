@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 /*
  * Shared parts of the lab's paper: the envelope, the ticket and the lab card.
@@ -46,4 +46,44 @@ export const PaperField = ({ label, value }: { label: string; value?: ReactNode 
 /** A printed square box, empty or filled. */
 export const PaperBox = ({ checked }: { checked: boolean }) => (
   <View className={`size-3.5 border-2 border-paper-ink ${checked ? "bg-paper-ink" : ""}`.trim()} />
+);
+
+/**
+ * An action printed on the paper: a ruled line in the same mono type as the
+ * labels, in ink, with a mark at the right end. For the one thing a paper
+ * lets you do, such as the envelope's Share the link.
+ */
+export const PaperButton = ({
+  title,
+  mark,
+  onPress,
+  disabled = false,
+  accessibilityLabel,
+}: {
+  title: string;
+  /** A short glyph at the right end: "↗", "›". Decorative. */
+  mark?: string;
+  onPress: () => void;
+  disabled?: boolean;
+  accessibilityLabel?: string;
+}) => (
+  <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={accessibilityLabel ?? title}
+    accessibilityState={{ disabled }}
+    disabled={disabled}
+    onPress={onPress}
+    className={`min-h-11 flex-row items-center justify-between border-b border-t border-paper-ink active:opacity-60 ${disabled ? "opacity-50" : ""}`.trim()}
+  >
+    <Text className="font-mono-semibold text-edge-print uppercase text-paper-ink">{title}</Text>
+    {mark ? (
+      <Text
+        importantForAccessibility="no"
+        accessibilityElementsHidden
+        className="font-mono-semibold text-edge-print text-paper-ink"
+      >
+        {mark}
+      </Text>
+    ) : null}
+  </Pressable>
 );

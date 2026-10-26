@@ -1,9 +1,9 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Clipboard, Share } from "react-native";
+import { Alert, Share } from "react-native";
 import { useRegenerateInviteMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import {
@@ -16,12 +16,9 @@ import {
   type EnvelopeKind,
 } from "../lib/envelope";
 
-/** How long Copy link reads "Copied". */
-const COPIED_MS = 2000;
-
 /**
  * 05.1–05.7 The host's envelopes: one admits people who add photos, the other
- * people who only look. Each is shared, copied or reset on its own while the
+ * people who only look. Each is shared or reset on its own while the
  * roll is open; a closed or on-hold roll shows why no one new can come in.
  */
 export const useEnvelopeScreen = () => {
@@ -36,9 +33,6 @@ export const useEnvelopeScreen = () => {
   const regenerate = useRegenerateInviteMutation(eventId ?? "");
   const [kind, setKind] = useState<EnvelopeKind>("adds");
   const [resetVisible, setResetVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   const event = eventQuery.data;
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
@@ -100,14 +94,6 @@ export const useEnvelopeScreen = () => {
     }
   };
 
-  const onCopy = () => {
-    if (!invitationUrl) return;
-    Clipboard.setString(invitationUrl);
-    setCopied(true);
-    clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
-  };
-
   const onConfirmReset = async () => {
     try {
       await regenerate.mutateAsync(envelopeAccessLevel(kind));
@@ -127,7 +113,6 @@ export const useEnvelopeScreen = () => {
     kind,
     isLoading,
     isError,
-    copied,
     reset: {
       visible: resetVisible,
       edge: t(`reset.edge.${kind}`),
@@ -135,12 +120,8 @@ export const useEnvelopeScreen = () => {
       a11y: t(`reset.a11y.${kind}`),
       isResetting: regenerate.isPending,
     },
-    onSelectKind: (next: EnvelopeKind) => {
-      setKind(next);
-      setCopied(false);
-    },
+    onSelectKind: setKind,
     onShare,
-    onCopy,
     onReset: () => setResetVisible(true),
     onCloseReset: () => {
       if (!regenerate.isPending) setResetVisible(false);
