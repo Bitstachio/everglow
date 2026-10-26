@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { LabEnvelope } from "./lab-envelope";
+import { PaperButton } from "./lab-paper";
 
 // The pencil arrow renders already drawn, so no animation runs outside act().
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
@@ -37,11 +38,24 @@ test("the note's arrow follows the ticked box", async () => {
   );
   const { rerender } = await render(envelope(true));
   const layoutAt = (x: number) => ({ nativeEvent: { layout: { x, y: 0, width: 120, height: 44 } } });
-  fireEvent(screen.getByRole("radio", { name: "Adds photos" }), "layout", layoutAt(0));
-  fireEvent(screen.getByRole("radio", { name: "View only" }), "layout", layoutAt(136));
+  await fireEvent(screen.getByRole("radio", { name: "Adds photos" }), "layout", layoutAt(0));
+  await fireEvent(screen.getByRole("radio", { name: "View only" }), "layout", layoutAt(136));
   expect(screen.getByTestId("envelope-note", { includeHiddenElements: true })).toHaveStyle({ marginLeft: 0 });
 
   // Ticking the other box moves no box, so no new layout comes: the arrow must still move.
   await rerender(envelope(false));
   expect(screen.getByTestId("envelope-note", { includeHiddenElements: true })).toHaveStyle({ marginLeft: 136 });
+});
+
+test("a printed action at the foot of the paper is a button", async () => {
+  const onPress = jest.fn();
+  await render(
+    <LabEnvelope
+      fields={[{ label: "Name", value: "Test" }]}
+      action={<PaperButton title="Share the link" mark="↗" onPress={onPress} />}
+      accessibilityLabel="Invite"
+    />,
+  );
+  await userEvent.setup().press(screen.getByRole("button", { name: "Share the link" }));
+  expect(onPress).toHaveBeenCalledTimes(1);
 });

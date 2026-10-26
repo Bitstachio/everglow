@@ -5,7 +5,7 @@ import { renderWithI18n } from "@/testing/render";
 import { screen, userEvent, waitFor } from "@testing-library/react-native";
 // The share sheet, clipboard and alerts are the native boundary.
 // eslint-disable-next-line no-restricted-imports
-import { Alert, Clipboard, Share } from "react-native";
+import { Alert, Share } from "react-native";
 import EnvelopeScreen from "./envelope-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
 
@@ -53,7 +53,6 @@ const renderScreen = async (event = nadia, participants = [buildParticipant()]) 
 
 const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 const share = jest.spyOn(Share, "share");
-const copy = jest.spyOn(Clipboard, "setString").mockImplementation(() => {});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -141,14 +140,6 @@ test("05.3 shares the link of the envelope on the table", async () => {
   expect(share).toHaveBeenCalledWith({
     message: "Nadia turns 30 · join the roll\nhttps://events.everglow.app/invite/weekend-viewer",
   });
-});
-
-test("copies the link", async () => {
-  await renderScreen();
-  await userEvent.setup().press(await screen.findByRole("button", { name: "Copy link" }));
-
-  expect(copy).toHaveBeenCalledWith("https://events.everglow.app/invite/weekend");
-  expect(screen.getByRole("button", { name: "Copied" })).toBeOnTheScreen();
 });
 
 test("05.5 resets the envelope after the slip, and the new code replaces the old", async () => {

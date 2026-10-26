@@ -1,6 +1,6 @@
 import { I18nProvider } from "@/providers/i18n-provider";
 import { act, renderHook } from "@testing-library/react-native";
-import { Alert, Clipboard, Share } from "react-native";
+import { Alert, Share } from "react-native";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
 import { useEnvelopeScreen } from "./use-envelope-screen";
 
@@ -36,7 +36,6 @@ jest.mock("expo-router", () => ({
 
 const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 const share = jest.spyOn(Share, "share");
-const copy = jest.spyOn(Clipboard, "setString").mockImplementation(() => {});
 
 const render = () => renderHook(() => useEnvelopeScreen(), { wrapper: I18nProvider });
 
@@ -143,28 +142,6 @@ test("says when the share sheet couldn't open", async () => {
   await act(() => result.current.onShare());
 
   expect(alert).toHaveBeenCalledWith("Couldn’t share the link", expect.any(String));
-});
-
-test("copies the link and says so for a moment", async () => {
-  jest.useFakeTimers();
-  try {
-    const { result } = await render();
-    await act(() => result.current.onCopy());
-
-    expect(copy).toHaveBeenCalledWith("https://events.everglow.app/invite/weekend");
-    expect(result.current.copied).toBe(true);
-    await act(() => jest.advanceTimersByTime(2000));
-    expect(result.current.copied).toBe(false);
-  } finally {
-    jest.useRealTimers();
-  }
-});
-
-test("switching envelopes forgets an earlier copy", async () => {
-  const { result } = await render();
-  await act(() => result.current.onCopy());
-  await act(() => result.current.onSelectKind("view"));
-  expect(result.current.copied).toBe(false);
 });
 
 test("05.5 the reset slip names the envelope and who stays", async () => {

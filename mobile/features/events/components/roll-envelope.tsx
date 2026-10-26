@@ -18,6 +18,8 @@ type RollEnvelopeProps = {
   sealed?: boolean;
   /** The QR code, at the bottom right. */
   code?: ReactNode;
+  /** A button at the foot of the paper (the host's Share the link). */
+  action?: ReactNode;
   /** A pencilled note under the boxes, with an arrow to the ticked one (the host's envelope). */
   note?: string;
   /** Makes the boxes tappable, to switch between the two envelopes (the host's envelope). */
@@ -40,6 +42,7 @@ export const RollEnvelope = ({
   sealed = false,
   code,
   note,
+  action,
   onSelect,
   stamp,
   accessibilityLabel,
@@ -75,6 +78,7 @@ export const RollEnvelope = ({
         footer={sealed ? t("paper.sealed") : undefined}
         code={sealed ? undefined : code}
         note={sealed ? undefined : note}
+        action={sealed ? undefined : action}
         accessibilityLabel={accessibilityLabel}
       />
       {stamp ? <View className="absolute -bottom-2 right-4">{stamp}</View> : null}
