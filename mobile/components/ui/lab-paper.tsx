@@ -49,9 +49,9 @@ export const PaperBox = ({ checked }: { checked: boolean }) => (
 );
 
 /**
- * An action printed on the paper: a ruled line in the same mono type as the
- * labels, in ink, with a mark at the right end. For the one thing a paper
- * lets you do, such as the envelope's Share the link.
+ * An action printed on the paper, in the same mono type as the labels, in
+ * ink, with its mark right after it. For the one thing a paper lets you do,
+ * such as the envelope's Share the link.
  */
 export const PaperButton = ({
   title,
@@ -61,7 +61,7 @@ export const PaperButton = ({
   accessibilityLabel,
 }: {
   title: string;
-  /** A short glyph at the right end: "↗", "›". Decorative. */
+  /** A short glyph after the title: "↗", "›". Decorative. */
   mark?: string;
   onPress: () => void;
   disabled?: boolean;
@@ -73,7 +73,7 @@ export const PaperButton = ({
     accessibilityState={{ disabled }}
     disabled={disabled}
     onPress={onPress}
-    className={`min-h-11 flex-row items-center justify-between border-b border-t border-paper-ink active:opacity-60 ${disabled ? "opacity-50" : ""}`.trim()}
+    className={`min-h-11 flex-row items-center gap-1.5 self-start active:opacity-60 ${disabled ? "opacity-50" : ""}`.trim()}
   >
     <Text className="font-mono-semibold text-edge-print uppercase text-paper-ink">{title}</Text>
     {mark ? (
