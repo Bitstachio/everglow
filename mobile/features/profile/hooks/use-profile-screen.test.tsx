@@ -14,7 +14,6 @@ jest.mock("expo-router", () => ({
   },
 }));
 let mockSub = "auth0|user-1";
-jest.mock("react-native-auth0", () => ({ useAuth0: () => ({ user: { sub: mockSub, email: "ada@example.com" } }) }));
 jest.mock("./use-lab-card", () => ({
   useLabCard: () => ({ card: { title: "Lab card", fields: [], accessibilityLabel: "" } }),
 }));
@@ -23,6 +22,7 @@ const mockLogout = jest.fn();
 jest.mock("@/context/auth-context", () => ({
   useAuth: () => ({
     user: { id: "user-1", details: { username: "ada", name: "Ada" } },
+    identity: { sub: mockSub, email: "ada@example.com" },
     logout: mockLogout,
     isLoading: false,
   }),
