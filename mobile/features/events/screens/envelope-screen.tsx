@@ -9,15 +9,13 @@ import { X } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import { EnvelopeSwitch } from "../components/envelope-switch";
 import { RollEnvelope } from "../components/roll-envelope";
 import { useEnvelopeScreen } from "../hooks/use-envelope-screen";
 
 /** 05.1–05.2 The envelope: what a host sends so people can join the roll. */
 const EnvelopeScreen = () => {
   const { t } = useTranslation("envelope");
-  const { edge, envelope, invitationUrl, kind, kinds, isLoading, isError, onSelectKind, onRetry, onClose } =
-    useEnvelopeScreen();
+  const { edge, envelope, invitationUrl, isLoading, isError, onSelectKind, onRetry, onClose } = useEnvelopeScreen();
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
@@ -39,12 +37,10 @@ const EnvelopeScreen = () => {
           <View testID="envelope-loading" className="mx-7.5 mt-14 h-80 -rotate-2 rounded-paper bg-sheet" />
         ) : (
           <>
-            <View className="px-5">
-              <EnvelopeSwitch options={kinds} selected={kind} onSelect={onSelectKind} />
-            </View>
             <View className="mx-7.5 mt-5">
               <RollEnvelope
                 {...envelope}
+                onSelect={onSelectKind}
                 code={
                   invitationUrl ? (
                     <QRCode

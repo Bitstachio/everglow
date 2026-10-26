@@ -1,7 +1,10 @@
 import { renderWithI18n } from "@/testing/render";
-import { screen } from "@testing-library/react-native";
+import { screen, userEvent } from "@testing-library/react-native";
 import { Text } from "react-native";
 import { RollEnvelope } from "./roll-envelope";
+
+// The pencil note's arrow renders already drawn, so no animation runs outside act().
+jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
 const roll = {
   title: "Nadia turns 30",
@@ -46,4 +49,23 @@ test("a sealed envelope keeps the roll and the code to itself", async () => {
 test("puts a stamp over the corner", async () => {
   await renderWithI18n(<RollEnvelope {...roll} stamp={<Text>Loaded</Text>} />);
   expect(screen.getByText("Loaded")).toBeOnTheScreen();
+});
+
+test("with onSelect the boxes are radio buttons that pick the envelope", async () => {
+  const onSelect = jest.fn();
+  await renderWithI18n(<RollEnvelope {...roll} admits="adds" note="they add photos too" onSelect={onSelect} />);
+
+  expect(screen.getByRole("radio", { name: "Adds photos", checked: true })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("radio", { name: "View only", checked: false }));
+  expect(onSelect).toHaveBeenCalledWith("view");
+  expect(screen.getByText("they add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
+});
+
+test("without onSelect, or sealed, the boxes are only printed", async () => {
+  const { rerender } = await renderWithI18n(<RollEnvelope {...roll} admits="adds" />);
+  expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
+
+  await rerender(<RollEnvelope {...roll} admits="adds" sealed note="they add photos too" onSelect={jest.fn()} />);
+  expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
+  expect(screen.queryByText("they add photos too", { includeHiddenElements: true })).not.toBeOnTheScreen();
 });

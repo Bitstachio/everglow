@@ -1,10 +1,6 @@
 {
   "edge": "Envelope · {{title}}",
   "close": "Close the envelope",
-  "switch": {
-    "adds": "Adds photos",
-    "view": "View only"
-  },
   "paper": {
     "name": "Name",
     "date": "Date",
@@ -15,6 +11,10 @@
     "adds": "Adds photos",
     "view": "View only",
     "sealed": "Sealed until you sign in"
+  },
+  "note": {
+    "adds": "they add photos too",
+    "view": "they can only look and save"
   },
   "pickUp": {
     "until": "{{date}}, then it’s gone",

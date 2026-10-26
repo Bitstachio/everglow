@@ -54,13 +54,10 @@ test("fills the adds-photos envelope in first", async () => {
     peopleCount: 18,
     pickUpBy: "14 Nov, then it’s gone",
     admits: "adds",
+    note: "they add photos too",
     accessibilityLabel: "Adds-photos envelope for Nadia turns 30",
   });
   expect(result.current.invitationUrl).toBe("https://events.everglow.app/invite/weekend");
-  expect(result.current.kinds).toEqual([
-    { key: "adds", label: "Adds photos" },
-    { key: "view", label: "View only" },
-  ]);
 });
 
 test("switches to the view-only envelope and its own link", async () => {

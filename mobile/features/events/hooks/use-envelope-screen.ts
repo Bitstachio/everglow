@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
-import { ENVELOPE_KINDS, envelopeUrl, formatEnvelopeDate, type EnvelopeKind } from "../lib/envelope";
+import { envelopeUrl, formatEnvelopeDate, type EnvelopeKind } from "../lib/envelope";
 import { formatClosesOn } from "../lib/rolls";
 
 /** 05.1–05.2 The host's envelopes: one admits people who add photos, the other people who only look. */
@@ -40,6 +40,7 @@ export const useEnvelopeScreen = () => {
             ? t("pickUp.until", { date: formatClosesOn(event.galleryClosesAt) })
             : t("pickUp.never"),
           admits: kind,
+          note: t(`note.${kind}`),
           accessibilityLabel: t(`label.${kind}`, { title: event.title }),
         }
       : null;
@@ -49,7 +50,6 @@ export const useEnvelopeScreen = () => {
     envelope,
     invitationUrl: event ? envelopeUrl(event, kind) : null,
     kind,
-    kinds: ENVELOPE_KINDS.map((key) => ({ key, label: t(`switch.${key}`) })),
     isLoading,
     isError,
     onSelectKind: setKind,

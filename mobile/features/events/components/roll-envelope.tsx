@@ -18,6 +18,10 @@ type RollEnvelopeProps = {
   sealed?: boolean;
   /** The QR code, at the bottom right. */
   code?: ReactNode;
+  /** A pencilled note under the boxes, with an arrow to the ticked one (the host's envelope). */
+  note?: string;
+  /** Makes the boxes tappable, to switch between the two envelopes (the host's envelope). */
+  onSelect?: (admits: "adds" | "view") => void;
   /** A `Stamp` over the bottom right corner. */
   stamp?: ReactNode;
   accessibilityLabel: string;
@@ -35,6 +39,8 @@ export const RollEnvelope = ({
   admits,
   sealed = false,
   code,
+  note,
+  onSelect,
   stamp,
   accessibilityLabel,
 }: RollEnvelopeProps) => {
@@ -54,12 +60,21 @@ export const RollEnvelope = ({
           { label: t("paper.pickUp"), value: filled(pickUpBy) },
         ]}
         options={[
-          { label: t("paper.adds"), checked: !sealed && admits === "adds" },
-          { label: t("paper.view"), checked: !sealed && admits === "view" },
+          {
+            label: t("paper.adds"),
+            checked: !sealed && admits === "adds",
+            onPress: onSelect && !sealed ? () => onSelect("adds") : undefined,
+          },
+          {
+            label: t("paper.view"),
+            checked: !sealed && admits === "view",
+            onPress: onSelect && !sealed ? () => onSelect("view") : undefined,
+          },
         ]}
         // Only the sealed envelope needs a word by the code: it has none.
         footer={sealed ? t("paper.sealed") : undefined}
         code={sealed ? undefined : code}
+        note={sealed ? undefined : note}
         accessibilityLabel={accessibilityLabel}
       />
       {stamp ? <View className="absolute -bottom-2 right-4">{stamp}</View> : null}

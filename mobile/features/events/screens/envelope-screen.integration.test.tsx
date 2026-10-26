@@ -6,6 +6,9 @@ import { screen, userEvent } from "@testing-library/react-native";
 import EnvelopeScreen from "./envelope-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
 
+// The pencil note's arrow renders already drawn, so no animation runs outside act().
+jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
+
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
 const mockBack = jest.fn();
@@ -50,7 +53,8 @@ test("05.1 shows the adds-photos envelope with its code", async () => {
 
   expect(await screen.findByLabelText("Adds-photos envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Envelope · Nadia turns 30" })).toBeOnTheScreen();
-  expect(screen.getByRole("tab", { name: "Adds photos", selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole("radio", { name: "Adds photos", checked: true })).toBeOnTheScreen();
+  expect(screen.getByText("they add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("Sat 7 Nov, 7 pm")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
   expect(screen.getByText("14 Nov, then it’s gone")).toBeOnTheScreen();
@@ -61,10 +65,12 @@ test("05.2 switches to the view-only envelope", async () => {
   await renderScreen();
   await screen.findByLabelText("Adds-photos envelope for Nadia turns 30");
 
-  await userEvent.setup().press(screen.getByRole("tab", { name: "View only" }));
+  // The boxes on the envelope are the switch.
+  await userEvent.setup().press(screen.getByRole("radio", { name: "View only" }));
 
   expect(screen.getByLabelText("View-only envelope for Nadia turns 30")).toBeOnTheScreen();
-  expect(screen.getByRole("tab", { name: "View only", selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole("radio", { name: "View only", checked: true })).toBeOnTheScreen();
+  expect(screen.getByText("they can only look and save", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend-viewer")).toBeOnTheScreen();
 });
 
@@ -103,7 +109,7 @@ test("a guest is sent back to the roll", async () => {
   await screen.findByTestId("envelope-loading");
   await screen.findByRole("header", { name: "Envelope · Weekend meetup" });
   expect(mockReplace).toHaveBeenCalledWith("/events/event-1");
-  expect(screen.queryByRole("tab")).not.toBeOnTheScreen();
+  expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
 });
 
 test("closing goes back", async () => {
