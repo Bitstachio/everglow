@@ -16,25 +16,44 @@ type JoinEventSheetProps = {
   isSubmitting: boolean;
   onSubmit: () => void;
   onScan: (link: string) => void;
+  /** Open straight on the scanner (06.1); closing it leaves the paste field. */
+  startOnScanner?: boolean;
 };
 
-export const JoinEventSheet = ({ visible, onClose, control, isSubmitting, onSubmit, onScan }: JoinEventSheetProps) => {
+export const JoinEventSheet = ({
+  visible,
+  onClose,
+  control,
+  isSubmitting,
+  onSubmit,
+  onScan,
+  startOnScanner = false,
+}: JoinEventSheetProps) => {
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [scannerDismissed, setScannerDismissed] = useState(false);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- clear transient scanner when parent hides sheet */
     if (!visible) {
       setScannerVisible(false);
+      setScannerDismissed(false);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [visible]);
+
+  const showScanner = scannerVisible || (startOnScanner && visible && !scannerDismissed);
+
+  const handleCloseScanner = () => {
+    setScannerVisible(false);
+    setScannerDismissed(true);
+  };
 
   const handleClose = () => {
     if (!isSubmitting) onClose();
   };
 
   const handleScanSuccess = (data: string) => {
-    setScannerVisible(false);
+    handleCloseScanner();
     onScan(data);
   };
 
@@ -42,8 +61,8 @@ export const JoinEventSheet = ({ visible, onClose, control, isSubmitting, onSubm
     if (!isSubmitting) setScannerVisible(true);
   };
 
-  if (scannerVisible) {
-    return <QRScanner visible={scannerVisible} onClose={() => setScannerVisible(false)} onScan={handleScanSuccess} />;
+  if (showScanner) {
+    return <QRScanner visible onClose={handleCloseScanner} onScan={handleScanSuccess} />;
   }
 
   return (

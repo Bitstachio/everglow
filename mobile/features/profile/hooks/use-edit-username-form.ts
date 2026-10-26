@@ -2,6 +2,7 @@ import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useUpdateProfileMutation } from "../api/mutations";
 import { editUsernameSchema, normalizeUsername, type EditUsernameValues } from "../lib/username";
 import { useUsernameAvailability } from "./use-username-availability";
@@ -11,9 +12,12 @@ export type { EditUsernameValues };
 type UseEditUsernameFormParams = {
   initialUsername: string;
   onSuccess: () => void;
+  /** USERNAME_CHANGE_LIMITED: both changes are used. Refresh the profile to learn when it opens again. */
+  onLimited?: () => void;
 };
 
-export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsernameFormParams) => {
+export const useEditUsernameForm = ({ initialUsername, onSuccess, onLimited }: UseEditUsernameFormParams) => {
+  const { t } = useTranslation("you");
   const mutation = useUpdateProfileMutation();
   const submitting = useRef(false);
   const form = useForm<EditUsernameValues>({
@@ -52,8 +56,12 @@ export const useEditUsernameForm = ({ initialUsername, onSuccess }: UseEditUsern
           form.setError("username", { message: getErrorMessage(error) });
           return;
         }
+        if (code === "USERNAME_CHANGE_LIMITED" && onLimited) {
+          onLimited();
+          return;
+        }
         form.setError("root.server", {
-          message: getErrorMessage(error, "Could not update your username. Please try again."),
+          message: getErrorMessage(error, t("username.failed")),
         });
       } finally {
         submitting.current = false;

@@ -13,10 +13,12 @@ type AvatarProps = {
   size?: AvatarSize;
 };
 
+// Photos of people are paper prints; the header's is round, matching the
+// scanner button beside it.
 const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string }> = {
-  md: { container: "h-10 w-10", text: "text-base" },
-  header: { container: "h-11 w-11", text: "text-lg" },
-  lg: { container: "h-20 w-20", text: "text-3xl" },
+  md: { container: "h-10 w-10 rounded-paper", text: "text-base" },
+  header: { container: "size-10 rounded-full", text: "text-lg" },
+  lg: { container: "h-20 w-20 rounded-paper", text: "text-3xl" },
 };
 
 const FILL = { width: "100%", height: "100%" } as const;
@@ -42,7 +44,7 @@ export const Avatar = ({ userId, name, uri, size = "md" }: AvatarProps) => {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className={`${classes.container} items-center justify-center overflow-hidden rounded-paper bg-frame-empty`}
+      className={`${classes.container} items-center justify-center overflow-hidden bg-frame-empty`}
     >
       {showImage && uri ? (
         <Image

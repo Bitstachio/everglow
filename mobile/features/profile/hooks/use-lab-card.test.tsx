@@ -6,12 +6,23 @@ const mockUser = {
   createdAt: "2026-10-15T12:00:00.000Z",
   details: { name: "Maya Chen", username: "maya.chen", avatarUrl: "https://cdn.example/avatar.jpg" },
 };
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
+let mockSuspended = false;
+jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser, isSuspended: mockSuspended }) }));
 
 let mockLimits: unknown;
-jest.mock("../api/queries", () => ({ useMyLimitsQuery: () => ({ data: mockLimits }) }));
+const mockLimitsQuery = jest.fn();
+jest.mock("../api/queries", () => ({
+  useMyLimitsQuery: (options: unknown) => {
+    mockLimitsQuery(options);
+    return { data: mockLimits };
+  },
+}));
 
 const render = () => renderHook(() => useLabCard(), { wrapper: I18nProvider });
+
+beforeEach(() => {
+  mockSuspended = false;
+});
 
 test("fills the card from the account and the plan's limit", async () => {
   mockLimits = { plan: "FREE", limits: { activeEvents: 2 }, usage: { activeEvents: 0 } };
@@ -40,4 +51,11 @@ test("leaves the rolls line empty until the limits load", async () => {
   mockLimits = undefined;
   const { result } = await render();
   expect(result.current.card.fields[2].value).toBeUndefined();
+});
+
+test("doesn't ask for the limits of a suspended account, which the API refuses", async () => {
+  mockSuspended = true;
+  mockLimits = undefined;
+  await render();
+  expect(mockLimitsQuery).toHaveBeenLastCalledWith({ enabled: false });
 });

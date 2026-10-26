@@ -1,3 +1,6 @@
 .vscode/
 .DS_Store
 *.swp
+
+# Design drawings (local copy, not tracked). See AGENTS.md.
+/design/

@@ -1,11 +1,11 @@
 import { type ReactNode } from "react";
 import { Text, type TextProps } from "react-native";
 
-type DisplayVariant = "event" | "screen" | "roll";
+type DisplayVariant = "event" | "screen" | "slip" | "roll";
 
 type DisplayProps = Omit<TextProps, "children"> & {
   children: ReactNode;
-  /** Event title over a cover, screen title, or a roll's name on Home. Default: screen. */
+  /** Event title over a cover, screen title, a smaller statement such as "You can change it / again on 27 Oct.", or a roll's name on Home. Default: screen. */
   variant?: DisplayVariant;
   /** A second line in the secondary text colour, as in "Both rolls / are in use." */
   dim?: ReactNode;
@@ -15,6 +15,7 @@ type DisplayProps = Omit<TextProps, "children"> & {
 const VARIANT_CLASSES: Record<DisplayVariant, string> = {
   event: "text-title-event",
   screen: "text-title-screen",
+  slip: "text-title-slip",
   roll: "text-title-roll",
 };
 

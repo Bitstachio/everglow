@@ -1,8 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { usersControllerCheckUsernameAvailability, usersControllerGetMyLimits } from "@/lib/api/generated";
+import {
+  blocksControllerList,
+  usersControllerCheckUsernameAvailability,
+  usersControllerGetMyLimits,
+} from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { profileKeys } from "./keys";
-import type { UserLimitsResponseDto, UsernameAvailabilityResponseDto } from "../types";
+import type { BlockedUserResponseDto, UserLimitsResponseDto, UsernameAvailabilityResponseDto } from "../types";
 
 /** `name`, when given, lets the API build suggestions from it if the username is taken. */
 export const checkUsernameAvailability = async (
@@ -18,11 +22,22 @@ export const checkUsernameAvailability = async (
 };
 
 /** The plan and how many rolls you're running against its limit. */
-export const useMyLimitsQuery = () =>
+export const useMyLimitsQuery = ({ enabled = true }: { enabled?: boolean } = {}) =>
   useQuery({
     queryKey: profileKeys.limits(),
+    enabled,
     queryFn: async ({ signal }): Promise<UserLimitsResponseDto> => {
       const { data } = await usersControllerGetMyLimits({ signal, throwOnError: true });
       return unwrapEnvelope(data);
+    },
+  });
+
+/** The people you blocked, most recent first. */
+export const useBlocksQuery = () =>
+  useQuery({
+    queryKey: profileKeys.blocks(),
+    queryFn: async ({ signal }): Promise<BlockedUserResponseDto[]> => {
+      const { data } = await blocksControllerList({ signal, throwOnError: true });
+      return unwrapEnvelope(data).items;
     },
   });
