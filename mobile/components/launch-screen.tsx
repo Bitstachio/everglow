@@ -7,11 +7,11 @@ import { useTranslation } from "react-i18next";
 import { Animated, Image, View } from "react-native";
 
 // The native splash's own picture and size (the expo-splash-screen plugin in
-// app.json: imageWidth 220, 660x400 at 3x), centred the same way, so the
-// hand-off from the native splash to this screen changes no pixel. Points,
+// app.json: imageWidth 220), centred the same way, so the hand-off from the
+// native splash to this screen changes no pixel. The PNG is square, as the
+// plugin pads it, so it lands on whole pixels like the native one. Points,
 // not spacing classes, so the size is exactly the native one.
-const SPLASH_WIDTH = 220;
-const SPLASH_HEIGHT = (SPLASH_WIDTH * 400) / 660;
+const SPLASH_SIZE = 220;
 
 const hideNativeSplash = () => void SplashScreen.hideAsync();
 
@@ -35,7 +35,7 @@ export const LaunchScreen = () => {
       <Image
         testID="launch-wordmark"
         source={splashWordmark}
-        style={{ width: SPLASH_WIDTH, height: SPLASH_HEIGHT }}
+        style={{ width: SPLASH_SIZE, height: SPLASH_SIZE }}
         onLoad={hideNativeSplash}
         // Never leave the native splash up, even if the image can't draw.
         onError={hideNativeSplash}
