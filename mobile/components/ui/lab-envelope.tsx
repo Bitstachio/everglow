@@ -17,9 +17,9 @@ type LabEnvelopeProps = {
   options?: EnvelopeOption[];
   /** Written under the boxes in pencil, with an arrow up to the ticked one: what it lets people do. */
   note?: string;
-  /** Edge print at the bottom left, for example "Sealed until you sign in". */
+  /** Edge print at the bottom, centred, for example "Sealed until you sign in". */
   footer?: string;
-  /** The QR code, at the bottom right. */
+  /** The QR code, centred at the bottom. */
   code?: ReactNode;
   /** Spoken summary of the filled-in envelope, since its parts are laid out visually. */
   accessibilityLabel: string;
@@ -78,15 +78,13 @@ export const LabEnvelope = ({ fields, options, note, footer, code, accessibility
             className="-mt-2 flex-row items-start"
             style={{ marginLeft: tickedX }}
           >
-            <GreasePencil mark="arrow" width={18} height={30} from={[14, 28]} to={[5, 3]} bend={0.25} seed={5} />
-            <PencilNote className="ml-1 mt-3">{note}</PencilNote>
+            <GreasePencil mark="arrow" width={20} height={46} from={[16, 44]} to={[5, 3]} bend={0.25} seed={5} />
+            <PencilNote className="ml-1 mt-7">{note}</PencilNote>
           </View>
         ) : null}
-        {footer || code ? (
-          <View className="flex-row items-end justify-between pt-3.5">
-            <Text className="flex-1 font-mono text-edge-print uppercase text-paper-ink-2">{footer}</Text>
-            {code}
-          </View>
+        {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
+        {footer ? (
+          <Text className="pt-6 text-center font-mono text-edge-print uppercase text-paper-ink-2">{footer}</Text>
         ) : null}
       </Paper>
     </View>
