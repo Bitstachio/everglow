@@ -1,18 +1,26 @@
-import { EdgePrint } from "@/components/ui/edge-print";
+import splashWordmark from "@/assets/images/splash-wordmark.png";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import { usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Animated, Text, View } from "react-native";
+import { Animated, Image, View } from "react-native";
+
+// The native splash's own picture and size (the expo-splash-screen plugin in
+// app.json: imageWidth 220, 660x400 at 3x), centred the same way, so the
+// hand-off from the native splash to this screen changes no pixel. Points,
+// not spacing classes, so the size is exactly the native one.
+const SPLASH_WIDTH = 220;
+const SPLASH_HEIGHT = (SPLASH_WIDTH * 400) / 660;
+
+const hideNativeSplash = () => void SplashScreen.hideAsync();
 
 /**
- * 01.1 Launch: the name alone on grainy black while the session is checked.
- * The native splash (assets/images/splash-wordmark.png) is this screen's
- * wordmark and edge print, captured at the same size and centre, so the
- * hand-off is invisible. No grain here: the native splash can't carry it.
- * Regenerate the splash image if this layout changes. The native splash is
- * hidden once this has laid out (see app/_layout.tsx), never before.
+ * 01.1 Launch: the name alone on black while the session is checked. It draws
+ * the native splash's image rather than live text, because rendered text and
+ * the image never match exactly. No grain here: the native splash can't carry
+ * it. The native splash is hidden once the image has drawn (see
+ * app/_layout.tsx), never before, so there's no blank frame in between.
  */
 export const LaunchScreen = () => {
   const { t } = useTranslation("start");
@@ -22,13 +30,16 @@ export const LaunchScreen = () => {
       accessibilityRole="progressbar"
       accessibilityLabel={t("launch.status")}
       accessibilityState={{ busy: true }}
-      onLayout={() => void SplashScreen.hideAsync()}
       className="flex-1 items-center justify-center bg-ground"
     >
-      <Text className="font-display text-title-launch text-text">Everglow</Text>
-      <View className="absolute left-0 right-0 top-1/2 mt-12 items-center">
-        <EdgePrint>{t("launch.status")}</EdgePrint>
-      </View>
+      <Image
+        testID="launch-wordmark"
+        source={splashWordmark}
+        style={{ width: SPLASH_WIDTH, height: SPLASH_HEIGHT }}
+        onLoad={hideNativeSplash}
+        // Never leave the native splash up, even if the image can't draw.
+        onError={hideNativeSplash}
+      />
     </View>
   );
 };
