@@ -43,6 +43,17 @@ const EnvelopeScreen = () => {
             <AppIcon icon={X} size="sm" color={colorTokens.text} />
           </IconButton>
         }
+        right={
+          envelope && invitationUrl ? (
+            <Button
+              title={t("reset.cta")}
+              accessibilityLabel={reset.a11y}
+              variant="ghost"
+              fullWidth={false}
+              onPress={onReset}
+            />
+          ) : undefined
+        }
       />
       <ScrollView className="flex-1" contentContainerClassName="pb-6 pt-2.5">
         {isError ? (
@@ -79,18 +90,6 @@ const EnvelopeScreen = () => {
         )}
       </ScrollView>
 
-      {envelope && invitationUrl ? (
-        <View className="items-end px-5 pb-1 pt-3">
-          <Button
-            title={t("reset.cta")}
-            accessibilityLabel={reset.a11y}
-            variant="ghost"
-            fullWidth={false}
-            className="-mr-2 opacity-80"
-            onPress={onReset}
-          />
-        </View>
-      ) : null}
       <FilmGrain />
 
       <BottomSheet visible={reset.visible} onClose={onCloseReset}>
