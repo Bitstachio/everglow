@@ -79,16 +79,14 @@ export const LabEnvelope = ({ fields, options, note, footer, code, action, acces
           </View>
         ) : null}
         {note ? (
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            testID="envelope-note"
-            className="-mt-2 flex-row items-start"
-            style={{ marginLeft: tickedX }}
-          >
-            <GreasePencil mark="arrow" width={20} height={46} from={[16, 44]} to={[5, 3]} bend={0.25} seed={5} />
-            {/* Wraps inside the paper when it starts under the right-hand box. */}
-            <PencilNote className="ml-1 mt-7 shrink">{note}</PencilNote>
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="-mt-2">
+            {/* The arrow moves to the ticked box; the note stays at the left on one line, so both envelopes are the same height. */}
+            <View testID="envelope-note" style={{ marginLeft: tickedX }}>
+              <GreasePencil mark="arrow" width={20} height={34} from={[12, 32]} to={[5, 3]} bend={0.25} seed={5} />
+            </View>
+            <PencilNote numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              {note}
+            </PencilNote>
           </View>
         ) : null}
         {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
