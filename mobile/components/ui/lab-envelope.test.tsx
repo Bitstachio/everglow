@@ -4,8 +4,6 @@ import { LabEnvelope } from "./lab-envelope";
 test("reads as one summary and prints the filled-in fields", async () => {
   await render(
     <LabEnvelope
-      title="Everglow photo lab"
-      number="No. 0418"
       fields={[{ label: "Name", value: "Sam & Jo’s wedding" }]}
       options={[{ label: "Adds photos", checked: true }]}
       footer="Scan with any camera"
@@ -18,6 +16,6 @@ test("reads as one summary and prints the filled-in fields", async () => {
 });
 
 test("a sealed envelope leaves its fields blank", async () => {
-  await render(<LabEnvelope title="Everglow photo lab" fields={[{ label: "Name" }]} accessibilityLabel="Invite" />);
+  await render(<LabEnvelope fields={[{ label: "Name" }]} accessibilityLabel="Invite" />);
   expect(screen.getByText("Name")).toBeOnTheScreen();
 });
