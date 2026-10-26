@@ -471,6 +471,10 @@ export type EventResponseDto = {
   deactivatedById: string | null;
   limits: EventLimitsResponseDto;
   usage: EventUsageResponseDto;
+  /**
+   * Photos in the gallery that the caller can see: what GET /events/:eventId/photos lists, without reported, hidden or blocked photos. 0 once the gallery has closed or the event is suspended.
+   */
+  photoCount: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -524,6 +528,10 @@ export type EventParticipantResponseDto = {
    * Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed.
    */
   isBlockedByCaller: boolean;
+  /**
+   * Photos this member added that the caller can see in the gallery, by the same rules as the photo list.
+   */
+  photoCount: number;
 };
 
 export type UpdateParticipantAccessDto = {

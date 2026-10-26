@@ -4121,6 +4121,12 @@
           "usage": {
             "$ref": "#/components/schemas/EventUsageResponseDto"
           },
+          "photoCount": {
+            "type": "number",
+            "minimum": 0,
+            "example": 148,
+            "description": "Photos in the gallery that the caller can see: what GET /events/:eventId/photos lists, without reported, hidden or blocked photos. 0 once the gallery has closed or the event is suspended."
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -4150,6 +4156,7 @@
           "deactivatedById",
           "limits",
           "usage",
+          "photoCount",
           "createdAt",
           "updatedAt"
         ]
@@ -4250,6 +4257,12 @@
           "isBlockedByCaller": {
             "type": "boolean",
             "description": "Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed."
+          },
+          "photoCount": {
+            "type": "number",
+            "minimum": 0,
+            "example": 31,
+            "description": "Photos this member added that the caller can see in the gallery, by the same rules as the photo list."
           }
         },
         "required": [
@@ -4258,7 +4271,8 @@
           "name",
           "accessLevel",
           "avatarUrl",
-          "isBlockedByCaller"
+          "isBlockedByCaller",
+          "photoCount"
         ]
       },
       "UpdateParticipantAccessDto": {

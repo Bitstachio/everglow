@@ -10,6 +10,7 @@ import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { ApiException } from "src/common/errors/api.exception";
 import { EventPlanService } from "src/plans/event-plan.service";
 import { ImageUploadService } from "src/images/image-upload.service";
+import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
@@ -43,6 +44,7 @@ describe("EventsService", () => {
   let service: EventsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoPurgeService: { purgeObjects: jest.Mock };
+  let photoVisibility: { countVisibleByUploader: jest.Mock };
   let imageUploads: { getDownloadUrl: jest.Mock };
   let logger: {
     setContext: jest.Mock;
@@ -302,6 +304,7 @@ describe("EventsService", () => {
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: null,
     isBlockedByCaller: false,
+    photoCount: 0,
   };
 
   // `blocksReceived` is what the include returns: the caller's block on that user, if any.
@@ -377,6 +380,8 @@ describe("EventsService", () => {
     };
 
     photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
+    // Nobody has added a photo unless a test says otherwise.
+    photoVisibility = { countVisibleByUploader: jest.fn().mockResolvedValue(new Map()) };
     // Mirrors the real service: a URL per key, null for a member without an avatar.
     imageUploads = {
       getDownloadUrl: jest.fn((key: string | null) => Promise.resolve(key ? `https://s3.example/${key}?sig=1` : null)),
@@ -392,6 +397,7 @@ describe("EventsService", () => {
           useValue: prisma,
         },
         { provide: PhotoPurgeService, useValue: photoPurgeService },
+        { provide: PhotoVisibilityService, useValue: photoVisibility },
         { provide: ImageUploadService, useValue: imageUploads },
         {
           provide: PinoLogger,
@@ -2699,6 +2705,7 @@ describe("EventsService", () => {
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
           isBlockedByCaller: false,
+          photoCount: 0,
         },
         participantWithDetails,
       ]);
@@ -2736,6 +2743,7 @@ describe("EventsService", () => {
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
           isBlockedByCaller: false,
+          photoCount: 0,
         },
       ]);
     });
@@ -2792,6 +2800,17 @@ describe("EventsService", () => {
       const result = await service.getEventParticipants(eventId, callerId);
 
       expect(result).toEqual([]);
+    });
+
+    it("counts the frames each member added that the caller can see", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
+      photoVisibility.countVisibleByUploader.mockResolvedValue(new Map([[targetUserId, 31]]));
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(photoVisibility.countVisibleByUploader).toHaveBeenCalledWith(callerId, eventId);
+      expect(result.map((member) => member.photoCount)).toEqual([0, 31]);
     });
 
     it("does not expose providerSub in the response shape", async () => {

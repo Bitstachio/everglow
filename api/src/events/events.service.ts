@@ -12,6 +12,7 @@ import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { ImageUploadService } from "src/images/image-upload.service";
+import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { userWithDetailsInclude } from "src/users/users.types";
@@ -41,6 +42,7 @@ export class EventsService {
     private readonly photoPurgeService: PhotoPurgeService,
     private readonly imageUploads: ImageUploadService,
     private readonly eventPlanService: EventPlanService,
+    private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -486,17 +488,22 @@ export class EventsService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     authorize(ability, EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded));
 
-    const accesses = await this.prisma.eventAccess.findMany({
-      where: { eventId },
-      include: eventAccessWithUserInclude(callerId),
-      orderBy: { createdAt: "asc" },
-    });
+    const [accesses, photoCounts] = await Promise.all([
+      this.prisma.eventAccess.findMany({
+        where: { eventId },
+        include: eventAccessWithUserInclude(callerId),
+        orderBy: { createdAt: "asc" },
+      }),
+      this.photoVisibilityService.countVisibleByUploader(callerId, eventId),
+    ]);
 
     // Members who have not onboarded have no profile to show. The avatar key
     // arrives with the details row, so the listing stays at one query;
     // presigning each URL is local signing work, not a network call.
     return Promise.all(
-      accesses.filter((access) => access.user.details).map((access) => this.toEventParticipant(eventId, access)),
+      accesses
+        .filter((access) => access.user.details)
+        .map((access) => this.toEventParticipant(eventId, access, photoCounts.get(access.userId) ?? 0)),
     );
   }
 
@@ -521,8 +528,10 @@ export class EventsService {
       if (organizerCount <= 1) throw new ApiException("LAST_ORGANIZER", { eventId });
     }
 
+    const photoCount =
+      (await this.photoVisibilityService.countVisibleByUploader(callerId, eventId)).get(targetUserId) ?? 0;
     if (targetAccess.accessLevel === accessLevel) {
-      return this.toEventParticipant(eventId, targetAccess);
+      return this.toEventParticipant(eventId, targetAccess, photoCount);
     }
 
     // An organizer can't judge reports about themselves, so promoting a member
@@ -560,7 +569,7 @@ export class EventsService {
     );
     logEscalations(this.logger, escalated, ReportEscalation.TARGET_IS_ORGANIZER, { callerId });
 
-    return this.toEventParticipant(eventId, updated);
+    return this.toEventParticipant(eventId, updated, photoCount);
   }
 
   /**
@@ -708,7 +717,11 @@ export class EventsService {
     });
   }
 
-  private async toEventParticipant(eventId: string, access: EventAccessWithUser): Promise<EventParticipant> {
+  private async toEventParticipant(
+    eventId: string,
+    access: EventAccessWithUser,
+    photoCount: number,
+  ): Promise<EventParticipant> {
     // A member without a profile has no participant to show, as in the roster.
     if (!access.user.details) throw new ApiException("TARGET_NOT_A_MEMBER", { userId: access.userId, eventId });
 
@@ -719,6 +732,7 @@ export class EventsService {
       accessLevel: access.accessLevel,
       avatarUrl: await this.imageUploads.getDownloadUrl(access.user.details.avatarS3Key),
       isBlockedByCaller: access.user.blocksReceived.length > 0,
+      photoCount,
     };
   }
 }

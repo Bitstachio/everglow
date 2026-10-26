@@ -129,6 +129,15 @@ export class EventResponseDto {
   @ApiProperty({ type: EventUsageResponseDto })
   usage: EventUsageResponseDto;
 
+  @ApiProperty({
+    minimum: 0,
+    example: 148,
+    description:
+      "Photos in the gallery that the caller can see: what GET /events/:eventId/photos lists, without reported, " +
+      "hidden or blocked photos. 0 once the gallery has closed or the event is suspended.",
+  })
+  photoCount: number;
+
   @ApiProperty()
   createdAt: Date;
 
