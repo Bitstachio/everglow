@@ -8,7 +8,6 @@ import { useRegenerateInviteMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import {
   closedOn,
-  ENVELOPE_KINDS,
   envelopeAccessLevel,
   envelopeState,
   envelopeUrl,
@@ -74,6 +73,8 @@ export const useEnvelopeScreen = () => {
           peopleCount: event.usage.members,
           pickUpBy: pickUpBy(),
           admits: shown,
+          // A closed or held envelope admits nobody, so there is nothing to pencil in.
+          note: isOpen ? t(`note.${shown}`) : undefined,
           accessibilityLabel: t(`label.${shown}`, { title: event.title }),
         }
       : null;
@@ -124,7 +125,6 @@ export const useEnvelopeScreen = () => {
     state,
     shut,
     kind,
-    kinds: ENVELOPE_KINDS.map((key) => ({ key, label: t(`switch.${key}`) })),
     isLoading,
     isError,
     copied,

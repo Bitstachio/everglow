@@ -12,7 +12,6 @@ import { X } from "phosphor-react-native";
 import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import { EnvelopeSwitch } from "../components/envelope-switch";
 import { RollEnvelope } from "../components/roll-envelope";
 import { useEnvelopeScreen } from "../hooks/use-envelope-screen";
 
@@ -24,8 +23,6 @@ const EnvelopeScreen = () => {
     envelope,
     invitationUrl,
     shut,
-    kind,
-    kinds,
     isLoading,
     isError,
     copied,
@@ -78,12 +75,10 @@ const EnvelopeScreen = () => {
           </>
         ) : (
           <>
-            <View className="px-5">
-              <EnvelopeSwitch options={kinds} selected={kind} onSelect={onSelectKind} />
-            </View>
             <View className="mx-7.5 mt-5">
               <RollEnvelope
                 {...envelope}
+                onSelect={onSelectKind}
                 code={
                   invitationUrl ? (
                     <QRCode
