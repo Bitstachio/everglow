@@ -30,8 +30,10 @@ type LabEnvelopeProps = {
  * the caller, translated. Put a `Stamp` beside it to repeat the button.
  */
 export const LabEnvelope = ({ fields, options, note, footer, code, accessibilityLabel }: LabEnvelopeProps) => {
-  // Where the ticked box sits, so the note's arrow points at it.
-  const [tickedX, setTickedX] = useState(0);
+  // Where each box sits, so the note's arrow can point at whichever is ticked.
+  // Measured once: ticking a box doesn't move any of them.
+  const [boxX, setBoxX] = useState<Record<string, number>>({});
+  const tickedX = boxX[options?.find((option) => option.checked)?.label ?? ""] ?? 0;
 
   return (
     // Flap and paper tilt as one, so the flap stays square on the paper's top edge.
@@ -58,7 +60,10 @@ export const LabEnvelope = ({ fields, options, note, footer, code, accessibility
                 key={option.label}
                 disabled={!option.onPress}
                 onPress={option.onPress}
-                onLayout={option.checked ? (event) => setTickedX(event.nativeEvent.layout.x) : undefined}
+                onLayout={(event) => {
+                  const { x } = event.nativeEvent.layout;
+                  setBoxX((measured) => ({ ...measured, [option.label]: x }));
+                }}
                 accessible={Boolean(option.onPress)}
                 accessibilityRole={option.onPress ? "radio" : undefined}
                 accessibilityState={option.onPress ? { checked: option.checked } : undefined}
@@ -75,11 +80,13 @@ export const LabEnvelope = ({ fields, options, note, footer, code, accessibility
           <View
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
+            testID="envelope-note"
             className="-mt-2 flex-row items-start"
             style={{ marginLeft: tickedX }}
           >
             <GreasePencil mark="arrow" width={20} height={46} from={[16, 44]} to={[5, 3]} bend={0.25} seed={5} />
-            <PencilNote className="ml-1 mt-7">{note}</PencilNote>
+            {/* Wraps inside the paper when it starts under the right-hand box. */}
+            <PencilNote className="ml-1 mt-7 shrink">{note}</PencilNote>
           </View>
         ) : null}
         {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
