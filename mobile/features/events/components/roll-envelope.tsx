@@ -44,7 +44,6 @@ export const RollEnvelope = ({
   return (
     <View className={stamp ? "pb-4" : undefined}>
       <LabEnvelope
-        title={t("paper.head")}
         fields={[
           { label: t("paper.name"), value: filled(title) },
           { label: t("paper.date"), value: filled(startsAt) },
