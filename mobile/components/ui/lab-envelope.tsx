@@ -29,13 +29,14 @@ type LabEnvelopeProps = {
  * the caller, translated. Put a `Stamp` beside it to repeat the button.
  */
 export const LabEnvelope = ({ title, number, fields, options, footer, code, accessibilityLabel }: LabEnvelopeProps) => (
-  <View accessible accessibilityLabel={accessibilityLabel} className="pt-3">
+  // Flap and paper tilt as one, so the flap stays square on the paper's top edge.
+  <View accessible accessibilityLabel={accessibilityLabel} className="-rotate-2 pt-3">
     <View className="absolute left-0 right-0 top-0 h-3.5">
       <Svg width="100%" height="100%" viewBox="0 0 100 14" preserveAspectRatio="none">
         <Polygon points="0,14 8,0 92,0 100,14" fill={colorTokens.paperFlap} />
       </Svg>
     </View>
-    <Paper>
+    <Paper tilt={false}>
       <PaperHead title={title} number={number} />
       <View className="pt-1">
         {fields.map((field) => (
