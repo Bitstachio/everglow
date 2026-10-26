@@ -6,13 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Clipboard, Share } from "react-native";
 import { useRegenerateInviteMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
-import {
-  ENVELOPE_KINDS,
-  envelopeAccessLevel,
-  envelopeUrl,
-  formatEnvelopeDate,
-  type EnvelopeKind,
-} from "../lib/envelope";
+import { envelopeAccessLevel, envelopeUrl, formatEnvelopeDate, type EnvelopeKind } from "../lib/envelope";
 import { formatClosesOn } from "../lib/rolls";
 
 /** How long Copy link reads "Copied". */
@@ -60,6 +54,7 @@ export const useEnvelopeScreen = () => {
             ? t("pickUp.until", { date: formatClosesOn(event.galleryClosesAt) })
             : t("pickUp.never"),
           admits: kind,
+          note: t(`note.${kind}`),
           accessibilityLabel: t(`label.${kind}`, { title: event.title }),
         }
       : null;
@@ -98,7 +93,6 @@ export const useEnvelopeScreen = () => {
     envelope,
     invitationUrl,
     kind,
-    kinds: ENVELOPE_KINDS.map((key) => ({ key, label: t(`switch.${key}`) })),
     isLoading,
     isError,
     copied,
