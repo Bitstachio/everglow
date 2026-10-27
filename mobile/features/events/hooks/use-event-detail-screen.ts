@@ -118,6 +118,11 @@ export const useEventDetailScreen = () => {
     router.push(`/events/${eventId}/settings`);
   };
 
+  const handleOpenEnvelope = () => {
+    if (!eventId) return;
+    router.push(`/events/${eventId}/envelope`);
+  };
+
   const handleUploadImage = async () => {
     if (!eventId) return;
 
@@ -293,6 +298,7 @@ export const useEventDetailScreen = () => {
     membersSheetVisible,
     onRefresh,
     handleOpenSettings,
+    handleOpenEnvelope,
     handleUploadImage,
     handleLeaveEvent,
     handleDeletePhoto,

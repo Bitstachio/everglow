@@ -2,7 +2,7 @@
 
 This document is the structure for change password and change email. Follow it when implementing either flow. It is written for engineers working on the app, the API, or the Auth0 tenant.
 
-The app does not store a password, and it does not treat a sign-in email as profile data. Auth0 holds both. The screen reads the address from the Auth0 profile (`useAuth0()`), not from the Everglow user payload.
+The app does not store a password, and it does not treat a sign-in email as profile data. Auth0 holds both. The screen reads the address from the ID token Auth0 issued at sign-in (`identity` from `useAuth()`), not from the Everglow user payload.
 
 ---
 
@@ -22,7 +22,7 @@ Email                    app → API → Auth0 Management API
 
 Only a database identity can do either. The Auth0 `sub` looks like `auth0|…`. Apple (`apple|…`) and every other social connection have no password, and the email belongs to the identity provider. Hide both Security rows for those users.
 
-Onboarding (`mobile/features/profile/onboarding-draft.tsx`) already reads the Auth0 profile from `useAuth0()`. Use that same profile: `sub` decides which rows to show, `email` is the address on the profile. Do not add an email field to the Everglow user response to feed the screen.
+The auth context (`mobile/context/auth-context.tsx`) keeps that identity: `sub`, `email` and `name` from the ID token, set at sign-in or launch and cleared at every sign-out. Read it with `useAuth().identity`, as onboarding (`mobile/features/profile/onboarding-draft.tsx`) and You do: `sub` decides which rows to show, `email` is the address on the profile. Don't use react-native-auth0's `useAuth0()`: the app signs in through its own client in `mobile/lib/auth0.ts`, which that hook never hears about. Do not add an email field to the Everglow user response to feed the screen.
 
 ---
 

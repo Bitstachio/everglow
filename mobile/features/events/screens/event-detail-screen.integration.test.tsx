@@ -190,6 +190,7 @@ test("loads event details for an organizer", async () => {
   expect(screen.getByText("An afternoon with friends")).toBeOnTheScreen();
   expect(screen.getByLabelText("Event photo photo-1")).toBeOnTheScreen();
   expect(screen.getByLabelText("Event settings")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
   expect(screen.getByLabelText("View all members, 2")).toBeOnTheScreen();
   expect(screen.queryByText("Delete Event")).not.toBeOnTheScreen();
   expect(screen.queryByText("Leave Event")).not.toBeOnTheScreen();
@@ -208,6 +209,7 @@ test("shows leave action for non-admin members without edit or members controls"
   expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
   expect(screen.getByText("Leave Event")).toBeOnTheScreen();
   expect(screen.queryByLabelText("Event settings")).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Send the envelope" })).not.toBeOnTheScreen();
   expect(screen.queryByLabelText(/View all members/)).not.toBeOnTheScreen();
   expect(screen.queryByText("Delete Event")).not.toBeOnTheScreen();
 });
@@ -235,6 +237,13 @@ test("opens event settings from the header action", async () => {
   await screen.findByText("Weekend meetup");
   await userEvent.setup().press(screen.getByLabelText("Event settings"));
   expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
+});
+
+test("a host opens the roll's envelope from the header", async () => {
+  await renderScreen();
+  await screen.findByText("Weekend meetup");
+  await userEvent.setup().press(screen.getByRole("button", { name: "Send the envelope" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
 });
 
 test("shows the gallery's storage, never a photo count", async () => {
