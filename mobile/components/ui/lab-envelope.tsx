@@ -17,8 +17,6 @@ type LabEnvelopeProps = {
   options?: EnvelopeOption[];
   /** Written under the boxes in pencil, with an arrow up to the ticked one: what it lets people do. */
   note?: string;
-  /** Edge print at the bottom, centred, for example "Sealed until you sign in". */
-  footer?: string;
   /** The QR code, centred at the bottom. */
   code?: ReactNode;
   /** An action printed at the foot of the paper, under the code: a `PaperButton`. */
@@ -39,7 +37,6 @@ export const LabEnvelope = ({
   fields,
   options,
   note,
-  footer,
   code,
   action,
   stamp,
@@ -111,9 +108,6 @@ export const LabEnvelope = ({
             </View>
           ) : null}
           {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
-          {footer ? (
-            <Text className="pt-6 text-center font-mono text-edge-print uppercase text-paper-ink-2">{footer}</Text>
-          ) : null}
           {action ? <View className="pt-5">{action}</View> : null}
         </Paper>
       </View>

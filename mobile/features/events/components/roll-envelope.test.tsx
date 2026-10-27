@@ -33,7 +33,6 @@ test("counts one person in the singular", async () => {
 test.each(["adds", "view"] as const)("an open %s envelope prints nothing by its code", async (admits) => {
   await renderWithI18n(<RollEnvelope {...roll} admits={admits} code={<Text>QR</Text>} />);
   expect(screen.getByText("QR")).toBeOnTheScreen();
-  expect(screen.queryByText("Sealed until you sign in")).not.toBeOnTheScreen();
   expect(screen.queryByText(/admits/i)).not.toBeOnTheScreen();
 });
 
@@ -43,7 +42,6 @@ test("a sealed envelope keeps the roll and the code to itself", async () => {
   expect(screen.queryByText("Nadia turns 30")).not.toBeOnTheScreen();
   expect(screen.queryByText("18 people so far")).not.toBeOnTheScreen();
   expect(screen.queryByText("QR")).not.toBeOnTheScreen();
-  expect(screen.getByText("Sealed until you sign in")).toBeOnTheScreen();
 });
 
 test("puts a stamp over the corner", async () => {

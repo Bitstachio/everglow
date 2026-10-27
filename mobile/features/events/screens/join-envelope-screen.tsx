@@ -125,7 +125,7 @@ const JoinEnvelopeScreen = () => {
           <Wordmark />
         </View>
         <View className="flex-1">
-          <View className="mx-7.5 mt-4 scale-86">
+          <View className="mx-7.5 mt-4">
             <RollEnvelope
               title=""
               sealed

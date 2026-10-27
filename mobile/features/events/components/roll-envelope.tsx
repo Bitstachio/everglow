@@ -75,8 +75,6 @@ export const RollEnvelope = ({
           onPress: onSelect && !sealed ? () => onSelect("view") : undefined,
         },
       ]}
-      // Only the sealed envelope needs a word by the code: it has none.
-      footer={sealed ? t("paper.sealed") : undefined}
       code={sealed ? undefined : code}
       note={sealed ? undefined : note}
       action={sealed ? undefined : action}

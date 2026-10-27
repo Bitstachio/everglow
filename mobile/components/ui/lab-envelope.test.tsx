@@ -10,7 +10,6 @@ test("reads as one summary and prints the filled-in fields", async () => {
     <LabEnvelope
       fields={[{ label: "Name", value: "Sam & Jo’s wedding" }]}
       options={[{ label: "Adds photos", checked: true }]}
-      footer="Scan with any camera"
       accessibilityLabel="Invite to Sam and Jo’s wedding"
     />,
   );

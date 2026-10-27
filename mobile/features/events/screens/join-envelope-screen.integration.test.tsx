@@ -379,7 +379,6 @@ describe("06.3 Not signed in yet", () => {
     await renderScreen();
 
     expect(screen.getByLabelText("A sealed envelope")).toBeOnTheScreen();
-    expect(screen.getByText("Sealed until you sign in")).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "You’ve been invited\nto a roll." })).toBeOnTheScreen();
     expect(screen.getByText("Sign in to open the envelope and see whose it is.")).toBeOnTheScreen();
     expect(stampText("Sealed")).toBeOnTheScreen();
