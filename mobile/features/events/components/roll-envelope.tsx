@@ -6,27 +6,32 @@ import { View } from "react-native";
 type RollEnvelopeProps = {
   /** The roll's name. */
   title: string;
-  /** When it happens, as printed: "Sun 18 Oct, 4 pm". */
+  /** When the roll is, formatted: "Sat 7 Nov, 7 pm". */
   startsAt?: string;
-  /** People on the roll so far. */
+  /** Everyone on the roll, hosts included. */
   peopleCount?: number;
-  /** The pick-up line, as printed: "17 Nov, then it’s gone". */
+  /** When the photos go, formatted: "14 Nov, then it’s gone". */
   pickUpBy?: string;
-  /** What the envelope admits; leave it out when nobody knows yet. */
+  /** Which box is ticked: the adds-photos or the view-only envelope. */
   admits?: "adds" | "view";
-  /** Sealed before sign-in (06.3): no details, nothing ticked. */
+  /** Sealed until the guest signs in: nothing filled in, nothing ticked, no code (06.3). */
   sealed?: boolean;
-  /** The QR code at the bottom right. */
+  /** The QR code, at the bottom right. */
   code?: ReactNode;
-  /** A `Stamp`, positioned by the caller with an absolute wrapper. */
+  /** A button at the foot of the paper (the host's Share the link). */
+  action?: ReactNode;
+  /** A pencilled note under the boxes, with an arrow to the ticked one (the host's envelope). */
+  note?: string;
+  /** Makes the boxes tappable, to switch between the two envelopes (the host's envelope). */
+  onSelect?: (admits: "adds" | "view") => void;
+  /** A `Stamp` over the bottom right corner. */
   stamp?: ReactNode;
   accessibilityLabel: string;
 };
 
 /**
- * A roll's envelope (chapters 05 and 06): the lab's paper envelope with the
- * roll's details filled in by hand. Values the caller doesn't have print as
- * dashes, the way a returned envelope that doesn't open reads (06.9).
+ * A roll's envelope: the kit's `LabEnvelope` filled in with the roll. The
+ * printed parts are the lab's; the caller formats what is written in by hand.
  */
 export const RollEnvelope = ({
   title,
@@ -36,42 +41,47 @@ export const RollEnvelope = ({
   admits,
   sealed = false,
   code,
+  note,
+  action,
+  onSelect,
   stamp,
   accessibilityLabel,
 }: RollEnvelopeProps) => {
-  const { t } = useTranslation("join");
-  const unknown = t("envelope.unknown");
-  const filled = (value: string | undefined) => (sealed ? undefined : value || unknown);
-
-  const footer = sealed
-    ? t("envelope.footerSealed")
-    : admits === "view"
-      ? t("envelope.footerView")
-      : t("envelope.footerScan");
+  const { t } = useTranslation("envelope");
+  const filled = (value: string | undefined) => (sealed ? undefined : value);
 
   return (
-    <View>
+    <View className={stamp ? "pb-4" : undefined}>
       <LabEnvelope
-        title={t("envelope.lab")}
-        number={t("envelope.number")}
         fields={[
-          { label: t("envelope.name"), value: filled(title) },
-          { label: t("envelope.date"), value: filled(startsAt) },
+          { label: t("paper.name"), value: filled(title) },
+          { label: t("paper.date"), value: filled(startsAt) },
           {
-            label: t("envelope.onTheRoll"),
-            value: filled(peopleCount === undefined ? undefined : t("envelope.people", { count: peopleCount })),
+            label: t("paper.people"),
+            value: filled(peopleCount === undefined ? undefined : t("paper.peopleCount", { count: peopleCount })),
           },
-          { label: t("envelope.pickUpBy"), value: filled(pickUpBy) },
+          { label: t("paper.pickUp"), value: filled(pickUpBy) },
         ]}
         options={[
-          { label: t("envelope.adds"), checked: !sealed && admits === "adds" },
-          { label: t("envelope.view"), checked: !sealed && admits === "view" },
+          {
+            label: t("paper.adds"),
+            checked: !sealed && admits === "adds",
+            onPress: onSelect && !sealed ? () => onSelect("adds") : undefined,
+          },
+          {
+            label: t("paper.view"),
+            checked: !sealed && admits === "view",
+            onPress: onSelect && !sealed ? () => onSelect("view") : undefined,
+          },
         ]}
-        footer={footer}
+        // Only the sealed envelope needs a word by the code: it has none.
+        footer={sealed ? t("paper.sealed") : undefined}
         code={sealed ? undefined : code}
+        note={sealed ? undefined : note}
+        action={sealed ? undefined : action}
         accessibilityLabel={accessibilityLabel}
       />
-      {stamp}
+      {stamp ? <View className="absolute -bottom-2 right-4">{stamp}</View> : null}
     </View>
   );
 };

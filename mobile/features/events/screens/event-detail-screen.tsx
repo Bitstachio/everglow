@@ -8,6 +8,8 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { colorTokens } from "@/theme/tokens";
 import { ChevronRight, Settings } from "lucide-react-native";
 import { Stack } from "expo-router";
+import { Envelope } from "phosphor-react-native";
+import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { ArrivalNote } from "../components/arrival-note";
 import { EventCover } from "../components/event-cover";
@@ -18,6 +20,7 @@ import { useArrivalNote } from "../hooks/use-arrival-note";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 
 const EventDetailScreen = () => {
+  const { t } = useTranslation("envelope");
   const {
     event,
     photos,
@@ -31,6 +34,7 @@ const EventDetailScreen = () => {
     membersSheetVisible,
     onRefresh,
     handleOpenSettings,
+    handleOpenEnvelope,
     handleUploadImage,
     handleLeaveEvent,
     handleDeletePhoto,
@@ -60,9 +64,14 @@ const EventDetailScreen = () => {
           headerBackTitle: "Back",
           headerRight: () =>
             isAdmin ? (
-              <IconButton accessibilityLabel="Event settings" onPress={handleOpenSettings}>
-                <AppIcon icon={Settings} size="sm" className="text-accent" />
-              </IconButton>
+              <View className="flex-row gap-2">
+                <IconButton accessibilityLabel={t("open")} onPress={handleOpenEnvelope}>
+                  <AppIcon icon={Envelope} size="sm" color={colorTokens.text} />
+                </IconButton>
+                <IconButton accessibilityLabel="Event settings" onPress={handleOpenSettings}>
+                  <AppIcon icon={Settings} size="sm" className="text-accent" />
+                </IconButton>
+              </View>
             ) : null,
         }}
       />

@@ -9,8 +9,8 @@ const mockClearLocalCredentials = jest.fn();
 const mockReplace = jest.fn();
 let mockSub: string | undefined = "auth0|user-1";
 
-jest.mock("react-native-auth0", () => ({
-  useAuth0: () => ({ user: mockSub ? { sub: mockSub } : null }),
+jest.mock("@/context/auth-context", () => ({
+  useAuth: () => ({ identity: mockSub ? { sub: mockSub } : null }),
 }));
 jest.mock("../api/mutations", () => ({
   useCreatePasswordChangeTicketMutation: () => ({

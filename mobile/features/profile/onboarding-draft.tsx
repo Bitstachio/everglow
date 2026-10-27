@@ -1,5 +1,5 @@
+import { useAuth } from "@/context/auth-context";
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { useAuth0 } from "react-native-auth0";
 
 type OnboardingDraft = {
   name: string;
@@ -28,8 +28,8 @@ export const OnboardingDraftProvider = ({
   /** Starting values, for previews in the design kit. */
   initial?: Partial<Pick<OnboardingDraft, "name" | "username" | "acceptedTerms">>;
 }) => {
-  const { user } = useAuth0();
-  const [name, setName] = useState(() => initial?.name ?? nameFromIdentity(user?.name));
+  const { identity } = useAuth();
+  const [name, setName] = useState(() => initial?.name ?? nameFromIdentity(identity?.name));
   const [username, setUsername] = useState(initial?.username ?? "");
   const [acceptedTerms, setAcceptedTerms] = useState(initial?.acceptedTerms ?? false);
 

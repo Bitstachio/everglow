@@ -1,4 +1,4 @@
-import Auth0 from "react-native-auth0";
+import Auth0, { parseIdToken, type User } from "react-native-auth0";
 import * as WebBrowser from "expo-web-browser";
 
 export { isDatabaseIdentity } from "./auth0-identity";
@@ -20,9 +20,17 @@ export const PASSWORD_CHANGE_RESULT_URL =
 // token and silently renew the access token after it expires.
 export const AUTH0_SCOPE = "openid profile email offline_access";
 
-// Single shared client. Its native credentials manager is a process-wide
-// singleton, so tokens saved here are also visible to the Auth0Provider.
+// The app's one Auth0 client: every sign-in, sign-out and token read goes
+// through it, so nothing else holds its own idea of who is signed in.
 export const auth0 = new Auth0({ domain: AUTH0_DOMAIN, clientId: AUTH0_CLIENT_ID });
+
+/** Who Auth0 says is signed in, from the ID token: the subject, email and name. */
+export type SignedInIdentity = Pick<User, "sub" | "email" | "name">;
+
+const identityFrom = (idToken: string): SignedInIdentity => {
+  const { sub, email, name } = parseIdToken(idToken);
+  return { sub, email, name };
+};
 
 export const isAuth0Configured = (): boolean => {
   return Boolean(AUTH0_DOMAIN && AUTH0_CLIENT_ID && AUTH0_AUDIENCE);
@@ -37,9 +45,9 @@ export const isUserCancellation = (error: unknown): boolean => {
 /**
  * Launch Auth0 Universal Login. Pass `signup: true` to land users on the
  * sign-up screen. On success the credentials are persisted in the native
- * credentials manager.
+ * credentials manager, and the identity they carry is returned.
  */
-export const loginWithUniversalLogin = async (options?: { signup?: boolean }): Promise<void> => {
+export const loginWithUniversalLogin = async (options?: { signup?: boolean }): Promise<SignedInIdentity> => {
   const credentials = await auth0.webAuth.authorize(
     {
       scope: AUTH0_SCOPE,
@@ -50,6 +58,17 @@ export const loginWithUniversalLogin = async (options?: { signup?: boolean }): P
   );
 
   await auth0.credentialsManager.saveCredentials(credentials);
+  return identityFrom(credentials.idToken);
+};
+
+/** The identity in the stored credentials, or null when there is no usable session. */
+export const getSignedInIdentity = async (): Promise<SignedInIdentity | null> => {
+  try {
+    const credentials = await auth0.credentialsManager.getCredentials();
+    return credentials.idToken ? identityFrom(credentials.idToken) : null;
+  } catch {
+    return null;
+  }
 };
 
 /** Clear the Auth0 web session and locally stored credentials. */
