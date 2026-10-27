@@ -1,7 +1,6 @@
 import { LabEnvelope } from "@/components/ui/lab-envelope";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { View } from "react-native";
 
 type RollEnvelopeProps = {
   /** The roll's name. */
@@ -24,7 +23,7 @@ type RollEnvelopeProps = {
   note?: string;
   /** Makes the boxes tappable, to switch between the two envelopes (the host's envelope). */
   onSelect?: (admits: "adds" | "view") => void;
-  /** A `Stamp` over the bottom right corner. */
+  /** A `Stamp` on the paper's bottom right corner. */
   stamp?: ReactNode;
   accessibilityLabel: string;
 };
@@ -51,37 +50,35 @@ export const RollEnvelope = ({
   const filled = (value: string | undefined) => (sealed ? undefined : value);
 
   return (
-    <View className={stamp ? "pb-4" : undefined}>
-      <LabEnvelope
-        fields={[
-          { label: t("paper.name"), value: filled(title) },
-          { label: t("paper.date"), value: filled(startsAt) },
-          {
-            label: t("paper.people"),
-            value: filled(peopleCount === undefined ? undefined : t("paper.peopleCount", { count: peopleCount })),
-          },
-          { label: t("paper.pickUp"), value: filled(pickUpBy) },
-        ]}
-        options={[
-          {
-            label: t("paper.adds"),
-            checked: !sealed && admits === "adds",
-            onPress: onSelect && !sealed ? () => onSelect("adds") : undefined,
-          },
-          {
-            label: t("paper.view"),
-            checked: !sealed && admits === "view",
-            onPress: onSelect && !sealed ? () => onSelect("view") : undefined,
-          },
-        ]}
-        // Only the sealed envelope needs a word by the code: it has none.
-        footer={sealed ? t("paper.sealed") : undefined}
-        code={sealed ? undefined : code}
-        note={sealed ? undefined : note}
-        action={sealed ? undefined : action}
-        accessibilityLabel={accessibilityLabel}
-      />
-      {stamp ? <View className="absolute -bottom-2 right-4">{stamp}</View> : null}
-    </View>
+    <LabEnvelope
+      fields={[
+        { label: t("paper.name"), value: filled(title) },
+        { label: t("paper.date"), value: filled(startsAt) },
+        {
+          label: t("paper.people"),
+          value: filled(peopleCount === undefined ? undefined : t("paper.peopleCount", { count: peopleCount })),
+        },
+        { label: t("paper.pickUp"), value: filled(pickUpBy) },
+      ]}
+      options={[
+        {
+          label: t("paper.adds"),
+          checked: !sealed && admits === "adds",
+          onPress: onSelect && !sealed ? () => onSelect("adds") : undefined,
+        },
+        {
+          label: t("paper.view"),
+          checked: !sealed && admits === "view",
+          onPress: onSelect && !sealed ? () => onSelect("view") : undefined,
+        },
+      ]}
+      // Only the sealed envelope needs a word by the code: it has none.
+      footer={sealed ? t("paper.sealed") : undefined}
+      code={sealed ? undefined : code}
+      note={sealed ? undefined : note}
+      action={sealed ? undefined : action}
+      stamp={stamp}
+      accessibilityLabel={accessibilityLabel}
+    />
   );
 };

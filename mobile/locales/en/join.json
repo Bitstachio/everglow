@@ -31,7 +31,10 @@
     "back": "Back",
     "joinAdds": "Join and add photos",
     "joinView": "Join to look",
-    "viewOnly": "You can look and save",
+    "note": {
+      "adds": "you add photos too",
+      "view": "you can only look and save"
+    },
     "stamp": "Invited",
     "stampBy": "by {{host}}",
     "theHost": "the host",
