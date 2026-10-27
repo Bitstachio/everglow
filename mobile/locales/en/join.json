@@ -25,7 +25,8 @@
     "pickUp": "{{date}}, then it’s gone",
     "label": "Envelope for {{title}}",
     "labelLoading": "Opening the envelope",
-    "pickUpNever": "It stays open"
+    "pickUpNever": "It stays open",
+    "pickUpGone": "{{date}}, gone"
   },
   "open": {
     "back": "Back",
@@ -85,8 +86,8 @@
       "stamp": "Closed",
       "title": "This roll",
       "dim": "has closed.",
-      "body": "The gallery closed on {{date}} and its photos were removed.",
-      "bodyNoDate": "The gallery has closed and its photos were removed."
+      "body": "The roll closed on {{date}} and its photos were removed.",
+      "bodyNoDate": "The roll has closed and its photos were removed."
     },
     "onHold": {
       "stamp": "On hold",
