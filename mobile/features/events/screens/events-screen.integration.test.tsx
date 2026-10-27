@@ -1,5 +1,5 @@
+import "../testing/native-mocks";
 import { createApiError } from "@/lib/api/errors";
-import { mockCameraPermission } from "../testing/native-mocks";
 // Integration tests compose the real screen with its data provider.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,14 +12,12 @@ import { buildEvent, deferred } from "../testing/fixtures";
 
 const mockFindAll = jest.fn();
 const mockListPhotos = jest.fn();
-const mockJoin = jest.fn();
 const mockPush = jest.fn();
 let mockUser: { id: string; details?: { name?: string; avatarUrl?: string | null } } | null = { id: "user-1" };
 let mockFocused = true;
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindAll: (...args: unknown[]) => mockFindAll(...args),
-  eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
   photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -50,21 +48,12 @@ const renderScreen = async () => {
 };
 
 const openJoin = async () => userEvent.setup().press(screen.getByRole("button", { name: "Scan an envelope" }));
-// The scanner opens first (06.1); closing it leaves the paste field.
-const openPasteField = async () => {
-  await openJoin();
-  await userEvent.setup().press(screen.getByRole("button", { name: "Close scanner" }));
-};
-const enterInvitation = async (value = "invite-token") =>
-  userEvent.setup().paste(screen.getByLabelText("Invitation URL or token"), value);
 
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockFocused = true;
-  mockCameraPermission.mockReturnValue({ granted: true });
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
   mockListPhotos.mockReset().mockResolvedValue({ data: { data: { items: [], nextCursor: null } } });
-  mockJoin.mockReset().mockResolvedValue({ data: { data: buildEvent() } });
   mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
@@ -178,42 +167,14 @@ test("opens the lab card from the header avatar", async () => {
   expect(mockPush).toHaveBeenCalledWith("/account-settings");
 });
 
-test("joins with a pasted link, opens the roll and refreshes the rolls", async () => {
-  mockJoin.mockImplementation(async () => {
-    mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Weekend meetup" })] } });
-    return { data: { data: buildEvent() } };
-  });
+test("opens the scanner from the header and from the first-run leader (06.1)", async () => {
   await renderScreen();
   await screen.findByText(/^No rolls yet\./);
-  await openPasteField();
-  await enterInvitation("  https://events.everglow.app/invite/weekend  ");
-  await userEvent.setup().press(screen.getByText("Join with Link"));
-  expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
-  await waitFor(() => expect(screen.queryByText("Join an Event")).not.toBeOnTheScreen());
-  expect(mockJoin).toHaveBeenCalledWith({ body: { invitationUrl: buildEvent().invitationUrl }, throwOnError: true });
-  expect(mockPush).toHaveBeenCalledWith(`/events/${buildEvent().id}`);
-  expect(Alert.alert).not.toHaveBeenCalled();
-});
-
-test("blocks invalid invitation input without sending a request", async () => {
-  await renderScreen();
-  await openPasteField();
-  await userEvent.setup().press(screen.getByText("Join with Link"));
-  expect(await screen.findByText("Please paste the invitation URL or invite token.")).toBeOnTheScreen();
-  expect(mockJoin).not.toHaveBeenCalled();
-});
-
-test("joins via the real scanner and form workflow", async () => {
-  mockJoin.mockImplementation(async () => {
-    mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Weekend meetup" })] } });
-    return { data: { data: buildEvent() } };
-  });
-  await renderScreen();
-  await screen.findByText(/^No rolls yet\./);
+  await openJoin();
+  expect(mockPush).toHaveBeenLastCalledWith("/join");
+  mockPush.mockReset();
   await userEvent.setup().press(screen.getByRole("button", { name: "Join with an envelope" }));
-  await fireEvent(screen.getByTestId("camera"), "barcodeScanned", { data: "  scanned-token  " });
-  expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
-  expect(mockJoin).toHaveBeenCalledWith({ body: { invitationUrl: "scanned-token" }, throwOnError: true });
+  expect(mockPush).toHaveBeenLastCalledWith("/join");
 });
 
 test("pull-to-refresh retains current rolls until the refreshed list arrives", async () => {

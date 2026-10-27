@@ -33,7 +33,7 @@ const mockDownloadFile = jest.fn();
 const mockVisits = new Map<string, string>();
 
 let mockUser: { id: string } | null = { id: "user-1" };
-let mockEventId: string | string[] = "event-1";
+let mockParams: { id: string | string[]; arrival?: string; place?: string } = { id: "event-1" };
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
@@ -49,8 +49,9 @@ jest.mock("@/lib/api/generated", () => ({
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
+  router: { setParams: jest.fn() },
   useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush, canGoBack: () => true }),
-  useLocalSearchParams: () => ({ id: mockEventId }),
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock("expo-secure-store", () => ({
   getItem: (key: string) => mockVisits.get(key) ?? null,
@@ -142,7 +143,7 @@ const oneFrame = [buildPhoto({ createdAt: fromNow(-DAY) })];
 
 beforeEach(() => {
   mockUser = { id: "user-1" };
-  mockEventId = "event-1";
+  mockParams = { id: "event-1" };
   mockVisits.clear();
   mockFindOne.mockReset();
   mockListPhotos.mockReset();
@@ -191,6 +192,9 @@ describe("upcoming (07.1, 07.2)", () => {
     expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
     expect(mockListPhotos).not.toHaveBeenCalled();
+
+    await userEvent.setup().press(screen.getByRole("button", { name: "Send the envelope" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
   });
 
   test("a guest finds the shutter locked until it opens", async () => {
@@ -247,8 +251,10 @@ describe("open (07.4–07.8)", () => {
     expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen();
     expect(screen.getByText(/1\.2.*\/ 3 GB/)).toBeOnTheScreen();
     expect(screen.getByText(/23 days.*left/)).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "Invite people" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Add photos" })).toBeEnabled();
+
+    await userEvent.setup().press(screen.getByRole("button", { name: "Invite people" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
   });
 
   test("a guest gets People instead of Invite", async () => {
@@ -302,6 +308,21 @@ describe("open (07.4–07.8)", () => {
 
     expect(await screen.findByLabelText("Frame 3, by You")).toBeOnTheScreen();
     expect(mockListPhotos).toHaveBeenLastCalledWith(expect.objectContaining({ query: { limit: 100, cursor: "next" } }));
+  });
+});
+
+describe("arriving from an envelope (06.6, 06.7)", () => {
+  test("says which member you are after joining", async () => {
+    mockUser = { id: "user-2" };
+    mockParams = { id: "event-1", arrival: "joined", place: "2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    expect(await screen.findByRole("alert")).toHaveTextContent("You’re on the roll · 2nd", { exact: false });
+  });
+
+  test("says you were already on it", async () => {
+    mockParams = { id: "event-1", arrival: "already" };
+    await renderScreen({ photos: oneFrame });
+    expect(await screen.findByRole("alert")).toHaveTextContent("You’re already on this roll", { exact: false });
   });
 });
 

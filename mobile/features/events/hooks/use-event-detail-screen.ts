@@ -18,6 +18,7 @@ import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
 import { isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened, type SheetFrame } from "../lib/roll-page";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
+import { useArrivalNote } from "./use-arrival-note";
 import type { EventParticipantResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
 import { eventStorageLeftBytes, formatStorageBytes } from "../utils";
 
@@ -104,6 +105,8 @@ export const useEventDetailScreen = () => {
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
   const uploadPhotosMutation = useUploadEventPhotosMutation();
   const deletePhotoMutation = useDeleteEventPhotoMutation();
+  // After joining, or opening an envelope you're already on (06.6, 06.7).
+  const arrivalNote = useArrivalNote();
 
   // When this device last looked, read once: the ticks stay for this visit.
   const [lastVisit] = useState(() => (eventId ? readLastVisit(eventId) : null));
@@ -122,7 +125,6 @@ export const useEventDetailScreen = () => {
   // One sheet over the roll whose content changes, so one modal never opens
   // from another: iOS drops a modal presented while another is closing.
   const [sheet, setSheet] = useState<RollSheet | null>(null);
-  const [inviteVisible, setInviteVisible] = useState(false);
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
   const closeSheet = () => setSheet(null);
 
@@ -360,7 +362,7 @@ export const useEventDetailScreen = () => {
     isDeletingFrame: deletePhotoMutation.isPending,
     confirmDeleteVisible,
     sheet,
-    inviteVisible,
+    arrivalNote,
     isLeaving: leaveEventMutation.isPending,
     isCutting: deactivateMutation.isPending,
     removing,
@@ -383,8 +385,10 @@ export const useEventDetailScreen = () => {
     onOpenMenu: () => setSheet("menu"),
     onCloseSheet: closeSheet,
     onOpenPeople: () => setSheet("people"),
-    onOpenInvite: () => setInviteVisible(true),
-    onCloseInvite: () => setInviteVisible(false),
+    // 05: the host's envelope screen, from Send the envelope (07.1) and Invite (07.4–07.8).
+    onOpenEnvelope: () => {
+      if (eventId) router.push(`/events/${eventId}/envelope`);
+    },
     onOpenSettings: () => {
       closeSheet();
       if (eventId) router.push(`/events/${eventId}/settings`);

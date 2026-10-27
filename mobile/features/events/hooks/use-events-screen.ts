@@ -5,7 +5,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
-import { useJoinEventForm } from "./use-join-event-form";
 import { eventsKeys } from "../api/keys";
 import { useEventsQuery } from "../api/queries";
 import { groupRolls, hasClosed, isLastDay, ROLL_FRAMES } from "../lib/rolls";
@@ -28,7 +27,6 @@ export const useEventsScreen = () => {
     dataUpdatedAt,
     refetch,
   } = useEventsQuery(user?.id);
-  const [joinSheetVisible, setJoinSheetVisible] = useState(false);
 
   // A connection error keeps the last-loaded rolls on screen (03.5); any other
   // failure is unexpected, so surface it.
@@ -71,15 +69,6 @@ export const useEventsScreen = () => {
     [dataUpdatedAt],
   );
 
-  const { form, onSubmit, onScan } = useJoinEventForm({
-    visible: joinSheetVisible,
-    // Joined or already in, the roll simply opens (06.6–06.7).
-    onSuccess: (result) => {
-      setJoinSheetVisible(false);
-      router.push(`/events/${result.id}`);
-    },
-  });
-
   return {
     groups,
     hasRolls,
@@ -89,10 +78,6 @@ export const useEventsScreen = () => {
     savedAtLabel,
     now,
     profileAvatar: { userId: user?.id ?? "", name: user?.details?.name, uri: user?.details?.avatarUrl },
-    joinSheetVisible,
-    form,
-    onSubmit,
-    onScanViaSheet: onScan,
     onRefresh: () => {
       if (!user?.id) return;
       void refetch({ cancelRefetch: false });
@@ -102,11 +87,9 @@ export const useEventsScreen = () => {
       }
     },
     onNewEvent: () => router.push("/events/create"),
-    onScan: () => setJoinSheetVisible(true),
+    // 06.1: the header's scanner and "Join with an envelope" both open the scanner.
+    onScan: () => router.push("/join"),
     onOpenRoll: (event: Event) => router.push(`/events/${event.id}`),
     onOpenCard: () => router.push("/account-settings"),
-    onCloseJoinSheet: () => {
-      if (!form.formState.isSubmitting) setJoinSheetVisible(false);
-    },
   };
 };

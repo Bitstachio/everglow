@@ -17,7 +17,7 @@ import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EventInvitationModal } from "../components/event-invitation-modal";
+import { ArrivalNote } from "../components/arrival-note";
 import { FrameViewer } from "../components/frame-viewer";
 import { RollBand } from "../components/roll-band";
 import { RollCover } from "../components/roll-cover";
@@ -159,6 +159,11 @@ const EventDetailScreen = () => {
           )}
           contentContainerStyle={{ paddingBottom: 32 }}
         />
+        {screen.arrivalNote ? (
+          <View pointerEvents="none" className="absolute bottom-8 left-5 right-5">
+            <ArrivalNote label={screen.arrivalNote} />
+          </View>
+        ) : null}
         <Sheets screen={screen} />
         <FilmGrain />
       </SafeAreaView>
@@ -229,7 +234,7 @@ const EventDetailScreen = () => {
   const invite: FooterAction = {
     title: t("footer.invite"),
     accessibilityLabel: t("footer.inviteLabel"),
-    onPress: screen.onOpenInvite,
+    onPress: screen.onOpenEnvelope,
   };
   const upload = screen.uploadStatus;
   const progress = !upload
@@ -242,7 +247,7 @@ const EventDetailScreen = () => {
     switch (stage) {
       case "upcoming":
         return role === "host"
-          ? { kind: "leader", title: t("footer.sendEnvelope"), mark: "↗", onPress: screen.onOpenInvite }
+          ? { kind: "leader", title: t("footer.sendEnvelope"), mark: "↗", onPress: screen.onOpenEnvelope }
           : {
               kind: "locked",
               label: t("footer.opensAt", { when: formatOpensShort(event.galleryOpensAt) }),
@@ -375,6 +380,17 @@ const EventDetailScreen = () => {
         </View>
       ) : null}
 
+      {screen.arrivalNote ? (
+        // At the foot of the roll, over the controls, as drawn (06.7).
+        <View
+          pointerEvents="none"
+          className="absolute left-5 right-5"
+          style={{ bottom: insets.bottom + FOOT_SPACE - 40 }}
+        >
+          <ArrivalNote label={screen.arrivalNote} />
+        </View>
+      ) : null}
+
       <FilmGrain />
       <Sheets screen={screen} />
     </View>
@@ -440,10 +456,6 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           </Slip>
         ) : null}
       </BottomSheet>
-
-      {role === "host" ? (
-        <EventInvitationModal visible={screen.inviteVisible} onClose={screen.onCloseInvite} event={event} />
-      ) : null}
 
       <FrameViewer
         frame={screen.openFrame}

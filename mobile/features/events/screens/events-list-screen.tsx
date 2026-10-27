@@ -1,5 +1,4 @@
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { EventInvitationModal } from "../components/event-invitation-modal";
 import { EventsList } from "../components/events-list";
 import { EventsListFiltersButton } from "../components/events-list-filters-button";
 import { EventsListFiltersSheet } from "../components/events-list-filters-sheet/events-list-filters-sheet";
@@ -12,15 +11,12 @@ const EventsListScreen = () => {
     isLoading,
     refreshing,
     currentUserId,
-    selectedEvent,
-    invitationModalVisible,
     filtersVisible,
     draftFilters,
     filtersActive,
     sortDirection,
     onRefresh,
     handleEventShare,
-    handleCloseInvitationModal,
     handleOpenFilters,
     handleCloseFilters,
     handleChangeFilterRole,
@@ -63,14 +59,6 @@ const EventsListScreen = () => {
         onReset={handleResetFilters}
         onApply={handleApplyFilters}
       />
-
-      {selectedEvent && (
-        <EventInvitationModal
-          visible={invitationModalVisible}
-          onClose={handleCloseInvitationModal}
-          event={selectedEvent}
-        />
-      )}
     </View>
   );
 };

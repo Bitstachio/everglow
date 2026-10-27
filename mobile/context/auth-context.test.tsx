@@ -1,4 +1,5 @@
 import { toApiError } from "@/lib/api/errors";
+import { clearPendingInvite, savePendingInvite, takePendingInvite } from "@/lib/pending-invite";
 import { renderWithI18n } from "@/testing/render";
 import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +14,8 @@ const mockGetUserProfile = jest.fn();
 let mockUnauthorized: (() => void) | null = null;
 let mockSuspended: (() => void) | null = null;
 const mockLogoutFromAuth0 = jest.fn();
+const mockStoredIdentity = jest.fn();
+const mockLogin = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { replace: (href: unknown) => mockReplace(href) },
@@ -30,9 +33,10 @@ jest.mock("@/lib/api/axios-instance", () => ({
 jest.mock("@/lib/auth0", () => ({
   isAuth0Configured: () => true,
   hasValidSession: async () => true,
+  getSignedInIdentity: () => mockStoredIdentity(),
   clearLocalCredentials: async () => undefined,
   isUserCancellation: () => false,
-  loginWithUniversalLogin: async () => undefined,
+  loginWithUniversalLogin: () => mockLogin(),
   logoutFromAuth0: () => mockLogoutFromAuth0(),
 }));
 
@@ -54,6 +58,16 @@ const SignOut = () => {
     </Pressable>
   );
 };
+const renderAuth = () =>
+  renderHook(() => useAuth(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <I18nProvider>
+        <Providers>
+          <AuthProvider>{children}</AuthProvider>
+        </Providers>
+      </I18nProvider>
+    ),
+  });
 const renderProvider = () =>
   renderWithI18n(
     <AuthProvider>
@@ -65,6 +79,8 @@ const renderProvider = () =>
 
 const offline = () => toApiError({ request: {}, message: "Network Error" });
 const profile = { id: "u1", isOnboarded: true };
+const ada = { sub: "auth0|ada", email: "ada@example.com", name: "Ada" };
+const ben = { sub: "google-oauth2|ben", email: "ben@example.com", name: "Ben" };
 
 beforeEach(() => {
   queryClient = new QueryClient();
@@ -73,6 +89,9 @@ beforeEach(() => {
   mockUnauthorized = null;
   mockSuspended = null;
   mockLogoutFromAuth0.mockReset().mockResolvedValue(undefined);
+  clearPendingInvite();
+  mockStoredIdentity.mockReset().mockResolvedValue(ada);
+  mockLogin.mockReset().mockResolvedValue(ben);
 });
 
 test("opening the app offline keeps the session and offers to try again", async () => {
@@ -166,15 +185,7 @@ test("a deleted account's 401s during and after the sign-out leave Deleted on sc
   mockGetUserProfile.mockResolvedValue(profile);
   let finishSignOut!: () => void;
   mockLogoutFromAuth0.mockReturnValue(new Promise<void>((resolve) => (finishSignOut = resolve)));
-  const { result } = await renderHook(() => useAuth(), {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <I18nProvider>
-        <Providers>
-          <AuthProvider>{children}</AuthProvider>
-        </Providers>
-      </I18nProvider>
-    ),
-  });
+  const { result } = await renderAuth();
   await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
 
   let signingOut!: Promise<void>;
@@ -219,4 +230,86 @@ test("a request refused with ACCOUNT_SUSPENDED mid-session reloads the account o
   await act(async () => mockSuspended?.());
   expect(mockGetUserProfile).toHaveBeenCalledTimes(calls + 1);
   expect(mockReplace).toHaveBeenCalledTimes(1);
+});
+
+const SignIn = () => {
+  const { login } = useAuth();
+  return (
+    <Pressable accessibilityRole="button" onPress={() => void login()}>
+      <Text>Sign in</Text>
+    </Pressable>
+  );
+};
+
+const renderSignedOut = async () => {
+  mockGetUserProfile.mockResolvedValueOnce(null);
+  await renderWithI18n(
+    <AuthProvider>
+      <SignIn />
+    </AuthProvider>,
+    { wrapper: Providers },
+  );
+  await screen.findByText("Sign in");
+};
+
+test("signing in opens the envelope that was waiting (06.3)", async () => {
+  await renderSignedOut();
+  savePendingInvite("k8Qm2");
+  mockGetUserProfile.mockResolvedValue(profile);
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/join/k8Qm2"));
+  expect(takePendingInvite()).toBeNull();
+});
+
+test("signing in before onboarding keeps the invite waiting for the end of it", async () => {
+  await renderSignedOut();
+  savePendingInvite("k8Qm2");
+  mockGetUserProfile.mockResolvedValue({ ...profile, isOnboarded: false });
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/onboarding"));
+  expect(takePendingInvite()).toBe("k8Qm2");
+});
+
+test("signing out forgets a waiting invite, so the next account doesn't open it", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  await renderProvider();
+  await screen.findByText("App");
+  savePendingInvite("k8Qm2");
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign out" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+  expect(takePendingInvite()).toBeNull();
+});
+
+test("opening the app with a session knows who is signed in", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const { result } = await renderAuth();
+
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+});
+
+test("signing out forgets who was signed in, and the next sign-in is someone else", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => result.current.logout());
+  expect(result.current.identity).toBeNull();
+
+  await act(async () => result.current.login());
+  expect(result.current.identity).toEqual(ben);
+});
+
+test("a 401 forgets who was signed in", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => mockUnauthorized?.());
+  await waitFor(() => expect(result.current.identity).toBeNull());
 });
