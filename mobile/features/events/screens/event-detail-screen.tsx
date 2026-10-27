@@ -131,7 +131,7 @@ const EventDetailScreen = () => {
 
       {arrivalNote ? (
         // At the foot of the roll, as drawn (06.7), above its bottom button.
-        <View className="absolute bottom-28 left-4 right-4">
+        <View className="absolute bottom-32 left-4 right-4">
           <ArrivalNote label={arrivalNote} />
         </View>
       ) : null}
