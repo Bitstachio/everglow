@@ -16,6 +16,7 @@ import { unwrapEnvelope } from "@/lib/api/envelope";
 import { isApiError } from "@/lib/api/errors";
 import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
 import type { CoverImage } from "../lib/cover-image";
+import { extractInvitationToken } from "../lib/invite";
 import { eventsKeys } from "./keys";
 import {
   uploadEventPhotos,
@@ -59,7 +60,9 @@ export const useJoinEventMutation = () => {
       const { data } = await eventsControllerJoin({ body, throwOnError: true });
       return unwrapEnvelope(data);
     },
-    onSuccess: async () => {
+    onSuccess: async (_event, body) => {
+      // The envelope's preview no longer holds: the caller is on the roll now.
+      queryClient.removeQueries({ queryKey: eventsKeys.invitePreview(extractInvitationToken(body.invitationUrl)) });
       await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
     },
   });

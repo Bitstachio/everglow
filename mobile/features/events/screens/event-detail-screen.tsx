@@ -11,10 +11,12 @@ import { Stack } from "expo-router";
 import { Envelope } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { ArrivalNote } from "../components/arrival-note";
 import { EventCover } from "../components/event-cover";
 import { EventDetailInfo } from "../components/event-detail-info";
 import { EventMembersSheet } from "../components/event-members-sheet";
 import { EventPhotosSection } from "../components/event-photos-section";
+import { useArrivalNote } from "../hooks/use-arrival-note";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 
 const EventDetailScreen = () => {
@@ -41,6 +43,7 @@ const EventDetailScreen = () => {
     handleOpenMembers,
     handleCloseMembers,
   } = useEventDetailScreen();
+  const arrivalNote = useArrivalNote();
 
   if (isLoading || !event) {
     return (
@@ -125,6 +128,13 @@ const EventDetailScreen = () => {
           </View>
         ) : null}
       </SafeAreaView>
+
+      {arrivalNote ? (
+        // At the foot of the roll, as drawn (06.7), above its bottom button.
+        <View className="absolute bottom-32 left-4 right-4">
+          <ArrivalNote label={arrivalNote} />
+        </View>
+      ) : null}
 
       {isAdmin ? (
         <EventMembersSheet

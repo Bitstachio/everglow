@@ -5,6 +5,8 @@ export type {
   CreateEventDto,
   EventParticipantResponseDto,
   EventResponseDto,
+  InvitePreviewResponseDto,
+  InvitePreviewState,
   JoinEventDto,
   PhotoResponseDto,
   UpdateEventDto,
