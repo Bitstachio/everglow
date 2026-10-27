@@ -46,10 +46,12 @@
     "notNow": "Not now"
   },
   "arrived": {
-    "joined_ordinal_one": "You’re on the roll · {{count}}st",
-    "joined_ordinal_two": "You’re on the roll · {{count}}nd",
-    "joined_ordinal_few": "You’re on the roll · {{count}}rd",
-    "joined_ordinal_other": "You’re on the roll · {{count}}th",
+    "joined": {
+      "one": "You’re on the roll · {{place}}st",
+      "two": "You’re on the roll · {{place}}nd",
+      "few": "You’re on the roll · {{place}}rd",
+      "other": "You’re on the roll · {{place}}th"
+    },
     "joinedNoPlace": "You’re on the roll",
     "already": "You’re already on this roll"
   },

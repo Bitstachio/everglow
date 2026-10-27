@@ -1,6 +1,6 @@
 import { I18nProvider } from "@/providers/i18n-provider";
 import { act, renderHook } from "@testing-library/react-native";
-import { ARRIVAL_NOTE_MS, useArrivalNote } from "./use-arrival-note";
+import { ARRIVAL_NOTE_MS, ordinalCategory, useArrivalNote } from "./use-arrival-note";
 
 let mockParams: { arrival?: string; place?: string } = {};
 const mockSetParams = jest.fn();
@@ -57,5 +57,35 @@ test("goes after a few seconds and clears the route, so coming back doesn't repe
     expect(mockSetParams).toHaveBeenCalledWith({ arrival: undefined, place: undefined });
   } finally {
     jest.useRealTimers();
+  }
+});
+
+test.each([
+  [1, "one"],
+  [2, "two"],
+  [3, "few"],
+  [4, "other"],
+  [11, "other"],
+  [12, "other"],
+  [13, "other"],
+  [21, "one"],
+  [22, "two"],
+  [23, "few"],
+  [101, "one"],
+  [111, "other"],
+] as const)("place %i takes the %s ending", (place, category) => {
+  expect(ordinalCategory(place, "en")).toBe(category);
+});
+
+test("falls back to English's rule where the engine has no ordinal plurals, as on Hermes", () => {
+  // Hermes ignores the ordinal type and answers with cardinal rules: 2 is "other".
+  const cardinalOnly = jest
+    .spyOn(Intl, "PluralRules")
+    .mockImplementation(() => ({ select: () => "other" }) as unknown as Intl.PluralRules);
+  try {
+    expect(ordinalCategory(3, "en")).toBe("few");
+    expect(ordinalCategory(22, "en")).toBe("two");
+  } finally {
+    cardinalOnly.mockRestore();
   }
 });
