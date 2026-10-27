@@ -8,6 +8,7 @@ import { useRegenerateInviteMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import {
   closedOn,
+  ENVELOPE_KINDS,
   envelopeAccessLevel,
   envelopeState,
   envelopeUrl,
@@ -33,6 +34,8 @@ export const useEnvelopeScreen = () => {
   const regenerate = useRegenerateInviteMutation(eventId ?? "");
   const [kind, setKind] = useState<EnvelopeKind>("adds");
   const [resetVisible, setResetVisible] = useState(false);
+  // Which envelope the reset slip will reset: the one on the table unless the host picks the other.
+  const [resetKind, setResetKind] = useState<EnvelopeKind>("adds");
 
   const event = eventQuery.data;
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
@@ -96,8 +99,10 @@ export const useEnvelopeScreen = () => {
 
   const onConfirmReset = async () => {
     try {
-      await regenerate.mutateAsync(envelopeAccessLevel(kind));
+      await regenerate.mutateAsync(envelopeAccessLevel(resetKind));
       setResetVisible(false);
+      // Show the envelope that was reset, with its new code.
+      setKind(resetKind);
     } catch (error) {
       setResetVisible(false);
       Alert.alert(t("reset.failedTitle"), getErrorMessage(error));
@@ -115,14 +120,22 @@ export const useEnvelopeScreen = () => {
     isError,
     reset: {
       visible: resetVisible,
-      edge: t(`reset.edge.${kind}`),
-      body: t("reset.body", { count: event?.usage.members ?? 0, other: t(`reset.other.${kind}`) }),
-      a11y: t(`reset.a11y.${kind}`),
+      choice: resetKind,
+      choices: ENVELOPE_KINDS.map((key) => ({
+        key,
+        title: t(`reset.choice.${key}.title`),
+        description: t(`reset.choice.${key}.description`),
+      })),
+      body: t("reset.body", { count: event?.usage.members ?? 0 }),
       isResetting: regenerate.isPending,
     },
     onSelectKind: setKind,
     onShare,
-    onReset: () => setResetVisible(true),
+    onReset: () => {
+      setResetKind(kind);
+      setResetVisible(true);
+    },
+    onSelectResetKind: setResetKind,
     onCloseReset: () => {
       if (!regenerate.isPending) setResetVisible(false);
     },

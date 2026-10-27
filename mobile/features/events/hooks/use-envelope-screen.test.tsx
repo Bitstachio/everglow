@@ -144,17 +144,31 @@ test("says when the share sheet couldn't open", async () => {
   expect(alert).toHaveBeenCalledWith("Couldn’t share the link", expect.any(String));
 });
 
-test("05.5 the reset slip names the envelope and who stays", async () => {
+test("05.5 the reset slip asks which envelope, starting on the one on the table, and says who stays", async () => {
   const { result } = await render();
+  await act(() => result.current.onSelectKind("view"));
   await act(() => result.current.onReset());
 
   expect(result.current.reset).toEqual({
     visible: true,
-    edge: "Adds-photos envelope",
-    body: "The current QR and link stop working at once and you get new ones. The view-only envelope keeps working, and the 18 people already in stay.",
-    a11y: "Reset the adds-photos envelope",
+    choice: "view",
+    choices: [
+      { key: "adds", title: "Adds photos", description: "For people who add photos" },
+      { key: "view", title: "View only", description: "For people who only look" },
+    ],
+    body: "Its QR and link stop working at once and you get new ones. The other envelope keeps working, and the 18 people already in stay.",
     isResetting: false,
   });
+});
+
+test("resetting the other envelope from the slip rotates that one and shows it", async () => {
+  const { result } = await render();
+  await act(() => result.current.onReset());
+  await act(() => result.current.onSelectResetKind("view"));
+  await act(() => result.current.onConfirmReset());
+
+  expect(mockRegenerate).toHaveBeenCalledWith("VIEWER");
+  expect(result.current.kind).toBe("view");
 });
 
 test("resetting rotates only the chosen envelope and closes the slip", async () => {

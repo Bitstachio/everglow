@@ -33,21 +33,20 @@
   },
   "reset": {
     "cta": "Reset",
-    "a11y": {
-      "adds": "Reset the adds-photos envelope",
-      "view": "Reset the view-only envelope"
+    "a11y": "Reset an envelope",
+    "title": "Reset which envelope?",
+    "choice": {
+      "adds": {
+        "title": "Adds photos",
+        "description": "For people who add photos"
+      },
+      "view": {
+        "title": "View only",
+        "description": "For people who only look"
+      }
     },
-    "edge": {
-      "adds": "Adds-photos envelope",
-      "view": "View-only envelope"
-    },
-    "title": "Reset this envelope?",
-    "body_one": "The current QR and link stop working at once and you get new ones. The {{other}} envelope keeps working, and the person already in stays.",
-    "body_other": "The current QR and link stop working at once and you get new ones. The {{other}} envelope keeps working, and the {{count}} people already in stay.",
-    "other": {
-      "adds": "view-only",
-      "view": "adds-photos"
-    },
+    "body_one": "Its QR and link stop working at once and you get new ones. The other envelope keeps working, and the person already in stays.",
+    "body_other": "Its QR and link stop working at once and you get new ones. The other envelope keeps working, and the {{count}} people already in stay.",
     "confirm": "Reset it",
     "cancel": "Keep it",
     "failedTitle": "Couldn’t reset the envelope"

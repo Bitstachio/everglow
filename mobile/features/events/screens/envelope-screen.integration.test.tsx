@@ -156,14 +156,17 @@ test("05.5 resets the envelope after the slip, and the new code replaces the old
   await renderScreen();
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: "Reset the adds-photos envelope" }));
-  expect(screen.getByRole("header", { name: "Reset this envelope?" })).toBeOnTheScreen();
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
+  expect(screen.getByRole("header", { name: "Reset which envelope?" })).toBeOnTheScreen();
   expect(
     screen.getByText(
-      "The current QR and link stop working at once and you get new ones. The view-only envelope keeps working, and the 18 people already in stay.",
+      "Its QR and link stop working at once and you get new ones. The other envelope keeps working, and the 18 people already in stay.",
     ),
   ).toBeOnTheScreen();
 
+  expect(
+    screen.getByRole("radio", { name: "Adds photos. For people who add photos", checked: true }),
+  ).toBeOnTheScreen();
   await user.press(screen.getByRole("button", { name: "Reset it" }));
 
   expect(mockRegenerate).toHaveBeenCalledWith({
@@ -171,14 +174,34 @@ test("05.5 resets the envelope after the slip, and the new code replaces the old
     throwOnError: true,
   });
   expect(await screen.findByLabelText(`QR code: ${fresh}`)).toBeOnTheScreen();
-  await waitFor(() => expect(screen.queryByRole("header", { name: "Reset this envelope?" })).not.toBeOnTheScreen());
+  await waitFor(() => expect(screen.queryByRole("header", { name: "Reset which envelope?" })).not.toBeOnTheScreen());
+});
+
+test("05.5 the slip can reset the other envelope, which then shows its new code", async () => {
+  const fresh = "https://events.everglow.app/invite/fresh-viewer";
+  mockRegenerate.mockResolvedValue({
+    data: { data: { ...nadia, invites: [nadia.invites[0], { ...nadia.invites[1], invitationUrl: fresh }] } },
+  });
+  await renderScreen();
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
+  await user.press(screen.getByRole("radio", { name: "View only. For people who only look" }));
+  await user.press(screen.getByRole("button", { name: "Reset it" }));
+
+  expect(mockRegenerate).toHaveBeenCalledWith({
+    path: { eventId: "event-1", accessLevel: "VIEWER" },
+    throwOnError: true,
+  });
+  expect(await screen.findByLabelText("View-only envelope for Nadia turns 30")).toBeOnTheScreen();
+  expect(await screen.findByLabelText(`QR code: ${fresh}`)).toBeOnTheScreen();
 });
 
 test("keeping the envelope leaves the link as it was", async () => {
   await renderScreen();
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: "Reset the adds-photos envelope" }));
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
   await user.press(screen.getByRole("button", { name: "Keep it" }));
 
   expect(mockRegenerate).not.toHaveBeenCalled();
@@ -190,7 +213,7 @@ test("a reset that fails says so and keeps the old code", async () => {
   await renderScreen();
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: "Reset the adds-photos envelope" }));
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
   await user.press(screen.getByRole("button", { name: "Reset it" }));
 
   await waitFor(() => expect(alert).toHaveBeenCalledWith("Couldn’t reset the envelope", expect.any(String)));
