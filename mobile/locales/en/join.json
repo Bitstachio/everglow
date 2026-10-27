@@ -33,7 +33,7 @@
     "joinView": "Join to look",
     "note": {
       "adds": "you add photos too",
-      "view": "you can only look and save"
+      "view": "you look and save"
     },
     "stamp": "Invited",
     "stampBy": "by {{host}}",
