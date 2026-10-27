@@ -94,7 +94,7 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByRole("button", { name: "Join to look" })).toBeOnTheScreen();
-    expect(screen.getByText("you can only look and save", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText("you look and save", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(stampText("by Sam")).toBeOnTheScreen();
   });
 
