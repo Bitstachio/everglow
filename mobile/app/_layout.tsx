@@ -2,7 +2,6 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useTranslation } from "react-i18next";
-import { Auth0Provider } from "react-native-auth0";
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryProvider } from "@/providers/query-provider";
@@ -13,22 +12,17 @@ import "./global.css";
 // has painted (components/launch-screen.tsx), so the hand-off has no gap.
 void SplashScreen.preventAutoHideAsync();
 
-const AUTH0_DOMAIN = process.env.EXPO_PUBLIC_AUTH0_DOMAIN ?? "";
-const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID ?? "";
-
 const RootLayout = () => (
   <I18nProvider>
-    <Auth0Provider domain={AUTH0_DOMAIN} clientId={AUTH0_CLIENT_ID}>
-      {/* Above AuthProvider, which clears the cache whenever the account signs out. */}
-      <QueryProvider>
-        <AuthProvider>
-          <AppThemeProvider>
-            <RootNavigator />
-            <StatusBar style="light" />
-          </AppThemeProvider>
-        </AuthProvider>
-      </QueryProvider>
-    </Auth0Provider>
+    {/* Above AuthProvider, which clears the cache whenever the account signs out. */}
+    <QueryProvider>
+      <AuthProvider>
+        <AppThemeProvider>
+          <RootNavigator />
+          <StatusBar style="light" />
+        </AppThemeProvider>
+      </AuthProvider>
+    </QueryProvider>
   </I18nProvider>
 );
 
@@ -71,6 +65,8 @@ const RootNavigator = () => {
         <Stack.Screen name="join/index" options={{ headerShown: false }} />
         <Stack.Screen name="join/[token]" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/index" />
+        {/* Chapter 05: the envelope draws its own top bar. */}
+        <Stack.Screen name="events/[id]/envelope" options={{ headerShown: false }} />
         <Stack.Screen
           name="events/[id]/settings"
           options={{ title: t("screens.eventSettings"), headerBackTitle: backTitle }}

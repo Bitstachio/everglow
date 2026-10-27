@@ -5,6 +5,7 @@ import {
   eventsControllerCreateCoverUploadUrl,
   eventsControllerJoin,
   eventsControllerLeave,
+  eventsControllerRegenerateInvite,
   eventsControllerRemove,
   eventsControllerRemoveCover,
   eventsControllerRemoveParticipant,
@@ -23,6 +24,7 @@ import {
   type EventPhotoUploadProgress,
   type EventPhotoUploadResult,
 } from "./upload-event-photos";
+import type { InviteAccessLevel } from "@/lib/api/generated";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, UpdateEventDto } from "../types";
 
 const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClient>, eventId?: string) => {
@@ -230,5 +232,21 @@ export const useRemoveEventCoverMutation = (eventId: string) => {
       await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
     },
     onError: refreshEventAfterCoverError,
+  });
+};
+
+/** A new link and QR for one envelope; the old ones stop working and the other envelope keeps its own. */
+export const useRegenerateInviteMutation = (eventId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<EventResponseDto, Error, InviteAccessLevel>({
+    mutationFn: async (accessLevel) => {
+      const { data } = await eventsControllerRegenerateInvite({ path: { eventId, accessLevel }, throwOnError: true });
+      return unwrapEnvelope(data);
+    },
+    onSuccess: async (event) => {
+      queryClient.setQueryData(eventsKeys.detail(eventId), event);
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    },
   });
 };

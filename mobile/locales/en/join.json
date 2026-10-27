@@ -22,23 +22,10 @@
     "open": "Open the envelope"
   },
   "envelope": {
-    "lab": "Everglow photo lab",
-    "number": "No. 0418",
-    "name": "Name",
-    "date": "Date",
-    "onTheRoll": "On the roll",
-    "pickUpBy": "Pick up by",
-    "adds": "Adds photos",
-    "view": "View only",
-    "footerScan": "Scan with any camera",
-    "footerView": "Admits: view only",
-    "footerSealed": "Sealed until you sign in",
-    "people_one": "{{count}} person so far",
-    "people_other": "{{count}} people so far",
     "pickUp": "{{date}}, then it’s gone",
-    "unknown": "— — —",
     "label": "Envelope for {{title}}",
-    "labelLoading": "Opening the envelope"
+    "labelLoading": "Opening the envelope",
+    "pickUpNever": "It stays open"
   },
   "open": {
     "back": "Back",

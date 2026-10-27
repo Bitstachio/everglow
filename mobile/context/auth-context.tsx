@@ -10,15 +10,19 @@ import { isConnectionError } from "@/lib/api/errors";
 import { View } from "react-native";
 import {
   clearLocalCredentials,
+  getSignedInIdentity,
   hasValidSession,
   isAuth0Configured,
   isUserCancellation,
   loginWithUniversalLogin,
   logoutFromAuth0,
+  type SignedInIdentity,
 } from "@/lib/auth0";
 
 interface AuthContextType {
   user: User | null;
+  /** Who Auth0 says is signed in (subject, email, name), from sign-in until sign-out. */
+  identity: SignedInIdentity | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isOnboarded: boolean;
@@ -47,6 +51,7 @@ type SignedOutRoute = typeof LOGIN_ROUTE | "/account-deleted";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [identity, setIdentity] = useState<SignedInIdentity | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const clearAccount = useCallback(() => {
     queryClient.clear();
     setUser(null);
+    setIdentity(null);
   }, [queryClient]);
 
   const handleSessionExpired = useCallback(async () => {
@@ -133,6 +139,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loadSession = useCallback(async (): Promise<User | null> => {
     if (isAuth0Configured() && (await hasValidSession())) {
+      setIdentity(await getSignedInIdentity());
       return refreshProfile();
     }
     return null;
@@ -184,7 +191,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         setError(null);
         signedOutRef.current = false;
-        await loginWithUniversalLogin(options);
+        setIdentity(await loginWithUniversalLogin(options));
         let profile: User | null;
         try {
           profile = await refreshProfile();
@@ -252,6 +259,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value: AuthContextType = {
     user,
+    identity,
     isLoading,
     isAuthenticated: !!user,
     isOnboarded: !!user?.isOnboarded,
