@@ -121,27 +121,24 @@ const JoinEnvelopeScreen = () => {
 
       <View className="flex-1">
         <View className="mx-7.5 mt-2.5">
-          <View className={status === "ready" ? "" : "opacity-50"}>
-            <RollEnvelope
-              title={envelope?.title ?? ""}
-              startsAt={envelope?.startsAt}
-              peopleCount={envelope?.peopleCount}
-              pickUpBy={envelope?.pickUpBy}
-              admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "adds" : undefined)}
-              // What joining gets them, pencilled under the ticked box. No code: there's nothing to scan here.
-              note={status === "ready" && envelope ? t(`open.note.${envelope.admits}`) : undefined}
-              stamp={
-                refused ? (
-                  <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
-                ) : status === "ready" ? (
-                  <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { host: hostName })} />
-                ) : undefined
-              }
-              accessibilityLabel={
-                envelope ? t("envelope.label", { title: envelope.title }) : t("envelope.labelLoading")
-              }
-            />
-          </View>
+          <RollEnvelope
+            dimmed={status !== "ready"}
+            title={envelope?.title ?? ""}
+            startsAt={envelope?.startsAt}
+            peopleCount={envelope?.peopleCount}
+            pickUpBy={envelope?.pickUpBy}
+            admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "adds" : undefined)}
+            // What joining gets them, pencilled under the ticked box. No code: there's nothing to scan here.
+            note={status === "ready" && envelope ? t(`open.note.${envelope.admits}`) : undefined}
+            stamp={
+              refused ? (
+                <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
+              ) : status === "ready" ? (
+                <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { host: hostName })} />
+              ) : undefined
+            }
+            accessibilityLabel={envelope ? t("envelope.label", { title: envelope.title }) : t("envelope.labelLoading")}
+          />
         </View>
 
         {refused || status === "failed" ? (
