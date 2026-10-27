@@ -6,9 +6,10 @@ import { EventBanResponseDto } from "../dto/event-ban-response.dto";
 import { EventInviteResponseDto } from "../dto/event-invite-response.dto";
 import { EventParticipantResponseDto } from "../dto/event-participant-response.dto";
 import { EventResponseDto } from "../dto/event-response.dto";
-import { EVENT_STATUSES } from "../events.constants";
+import { InvitePreviewResponseDto } from "../dto/invite-preview-response.dto";
+import { EVENT_STATUSES, INVITE_PREVIEW_STATES } from "../events.constants";
 import { buildInvitationUrl } from "../events.invitation";
-import { EventBanWithUser, EventParticipant } from "../events.types";
+import { EventBanWithUser, EventParticipant, InvitePreview } from "../events.types";
 
 const INVITE_SORT_ORDER: Record<string, number> = {
   PARTICIPANT: 0,
@@ -54,6 +55,25 @@ export class EventMapper {
       usage: { members: usage.members, storageBytes: usage.storageBytes.toString() },
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
+    };
+  }
+
+  /** No cover, description or invites: the caller isn't a member yet. */
+  static toInvitePreviewResponseDto(preview: InvitePreview): InvitePreviewResponseDto {
+    const { event } = preview;
+    return {
+      state: preview.state,
+      eventId: preview.state === INVITE_PREVIEW_STATES.ALREADY_A_MEMBER ? event.id : null,
+      title: event.title,
+      date: event.date,
+      invitationUrl: buildInvitationUrl(preview.token),
+      accessLevel: preview.accessLevel,
+      galleryState: galleryStateOf(event),
+      galleryOpensAt: event.galleryOpensAt,
+      galleryClosesAt: event.galleryClosesAt,
+      memberCount: preview.memberCount,
+      memberLimit: preview.memberLimit,
+      host: preview.host ? { userId: preview.host.userId, name: preview.host.name } : null,
     };
   }
 

@@ -33,12 +33,10 @@ jest.mock("@/lib/api/generated", () => ({
   usersControllerRemoveMe: jest.fn(),
   usersControllerUpdateMe: jest.fn(),
 }));
-jest.mock("react-native-auth0", () => ({
-  useAuth0: () => ({ user: mockAuth0Sub ? { sub: mockAuth0Sub, email: "ada@example.com" } : null }),
-}));
 jest.mock("@/context/auth-context", () => ({
   useAuth: () => ({
     user: mockUser,
+    identity: mockAuth0Sub ? { sub: mockAuth0Sub, email: "ada@example.com" } : null,
     logout: jest.fn(),
     isLoading: false,
     updateUser: jest.fn(),

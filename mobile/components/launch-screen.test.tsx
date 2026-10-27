@@ -1,5 +1,6 @@
 import { renderWithI18n } from "@/testing/render";
-import { act, screen } from "@testing-library/react-native";
+import { act, fireEvent, screen } from "@testing-library/react-native";
+import * as SplashScreen from "expo-splash-screen";
 import { LaunchCurtain, LaunchScreen } from "./launch-screen";
 
 let mockPathname = "/";
@@ -8,15 +9,26 @@ jest.mock("expo-splash-screen", () => ({ hideAsync: jest.fn(async () => undefine
 
 beforeEach(() => {
   mockPathname = "/";
+  jest.clearAllMocks();
   jest.useFakeTimers();
 });
 afterEach(() => jest.useRealTimers());
 
-test("shows the name and says the session is loading", async () => {
+test("shows the name and says the session is loading, to screen readers only", async () => {
   await renderWithI18n(<LaunchScreen />);
   const launch = screen.getByRole("progressbar", { name: "Loading the roll" });
   expect(launch).toBeOnTheScreen();
   expect(launch).toBeBusy();
+  expect(screen.queryByText("Loading the roll")).not.toBeOnTheScreen();
+});
+
+test.each(["load", "error"])("hides the native splash once its image fires %s, never before", async (event) => {
+  await renderWithI18n(<LaunchScreen />);
+  expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+
+  fireEvent(screen.getByTestId("launch-wordmark"), event);
+
+  expect(SplashScreen.hideAsync).toHaveBeenCalledTimes(1);
 });
 
 test("the curtain covers the start route and lifts once the first screen is reached", async () => {

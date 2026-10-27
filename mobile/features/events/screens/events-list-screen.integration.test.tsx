@@ -77,7 +77,7 @@ test("opens event details from a card", async () => {
   expect(mockPush).toHaveBeenCalledWith("/events/event-1");
 });
 
-test("opens the creator invitation modal without navigating", async () => {
+test("the creator's share button opens the roll's envelope", async () => {
   const event = buildEvent();
   mockFindAll.mockResolvedValue({
     data: { data: [event, buildEvent({ id: "event-2", title: "Guest event", creatorId: "other" })] },
@@ -86,8 +86,7 @@ test("opens the creator invitation modal without navigating", async () => {
   await screen.findByText(event.title);
   expect(screen.queryByRole("button", { name: "Share Guest event" })).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: `Share ${event.title}` }));
-  expect(screen.getByText("Share Event")).toBeOnTheScreen();
-  expect(mockPush).not.toHaveBeenCalled();
+  expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
 });
 
 test("pull-to-refresh retains current events until the refreshed list arrives", async () => {

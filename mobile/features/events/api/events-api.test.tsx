@@ -1,17 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react-native";
 import type { PropsWithChildren } from "react";
-import { useEventsQuery } from "./queries";
+import { createApiError } from "@/lib/api/errors";
+import { useEventsQuery, useInvitePreviewQuery } from "./queries";
 import { useJoinEventMutation } from "./mutations";
 import { eventsKeys } from "./keys";
-import { buildEvent, deferred } from "../testing/fixtures";
+import { buildEvent, buildInvitePreview, deferred } from "../testing/fixtures";
 
 const mockFindAll = jest.fn();
 const mockJoin = jest.fn();
+const mockPreview = jest.fn();
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindAll: (...args: unknown[]) => mockFindAll(...args),
   eventsControllerJoin: (...args: unknown[]) => mockJoin(...args),
+  eventsControllerPreviewInvite: (...args: unknown[]) => mockPreview(...args),
 }));
 
 const clients: QueryClient[] = [];
@@ -33,6 +36,7 @@ const setupClient = () => {
 beforeEach(() => {
   mockFindAll.mockReset();
   mockJoin.mockReset();
+  mockPreview.mockReset();
 });
 
 afterEach(() => {
@@ -122,4 +126,55 @@ test("joining remains pending until active lists finish refreshing", async () =>
   await mutation;
   await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
   expect(result.current.query.data).toEqual([buildEvent()]);
+});
+
+describe("useInvitePreviewQuery", () => {
+  test("unwraps the envelope behind a token", async () => {
+    const preview = buildInvitePreview();
+    mockPreview.mockResolvedValue({ data: { data: preview } });
+    const { result } = await renderHook(() => useInvitePreviewQuery("k8Qm2"), { wrapper: setupClient().wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(preview);
+    expect(mockPreview).toHaveBeenCalledWith({
+      path: { token: "k8Qm2" },
+      signal: expect.any(AbortSignal),
+      throwOnError: true,
+    });
+  });
+
+  test("waits for a token", async () => {
+    await renderHook(() => useInvitePreviewQuery(undefined), { wrapper: setupClient().wrapper });
+    expect(mockPreview).not.toHaveBeenCalled();
+  });
+
+  test("never retries a refusal, which would spend join's rate limit", async () => {
+    mockPreview.mockRejectedValue(createApiError("Not found", { status: 404, code: "NOT_FOUND" }));
+    const { result } = await renderHook(() => useInvitePreviewQuery("gone"), { wrapper: setupClient().wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mockPreview).toHaveBeenCalledTimes(1);
+  });
+
+  test("retries a dropped connection", async () => {
+    jest.useFakeTimers();
+    try {
+      mockPreview
+        .mockRejectedValueOnce(createApiError("Offline"))
+        .mockResolvedValue({ data: { data: buildInvitePreview() } });
+      const { result } = await renderHook(() => useInvitePreviewQuery("k8Qm2"), { wrapper: setupClient().wrapper });
+      await jest.advanceTimersByTimeAsync(2000);
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(mockPreview).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+test("joining drops the envelope's preview, which no longer holds", async () => {
+  const { client, wrapper } = setupClient();
+  client.setQueryData(eventsKeys.invitePreview("k8Qm2"), buildInvitePreview());
+  mockJoin.mockResolvedValue({ data: { data: buildEvent() } });
+  const { result } = await renderHook(() => useJoinEventMutation(), { wrapper });
+  await result.current.mutateAsync({ invitationUrl: "https://everglow.social/join/k8Qm2" });
+  expect(client.getQueryData(eventsKeys.invitePreview("k8Qm2"))).toBeUndefined();
 });

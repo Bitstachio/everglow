@@ -9,6 +9,7 @@ import { createTestApp } from "./helpers/create-test-app";
 
 const ROOT_PATH = `/${API_GLOBAL_PREFIX}`;
 const JOIN_PATH = `/${API_GLOBAL_PREFIX}/events/join`;
+const PREVIEW_PATH = `/${API_GLOBAL_PREFIX}/events/invites/guessed-token/preview`;
 const ME_PATH = `/${API_GLOBAL_PREFIX}/users/me`;
 
 const SENSITIVE_LIMIT = 2;
@@ -85,6 +86,16 @@ describe("Rate limiting (integration)", () => {
     const response = await join(TEST_OTHER_ACCESS_TOKEN);
 
     expect(response.status).not.toBe(429);
+  });
+
+  it("limits invite previews like join, so tokens can't be probed", async () => {
+    await boot();
+    const preview = () => request(httpServer).get(PREVIEW_PATH).set(authHeader());
+    await exhaust(preview, SENSITIVE_LIMIT);
+
+    const response = await preview().expect(429);
+
+    expect((response.body as ErrorBody).code).toBe("RATE_LIMIT_EXCEEDED");
   });
 
   it("applies the default tier per IP across routes and users, before authentication", async () => {

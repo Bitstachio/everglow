@@ -78,16 +78,25 @@ validation, and React Query provider. It replaces the generated SDK calls and na
 (camera, QR rendering, clipboard/share/alerts, safe-area insets, and navigation). These tests do
 not require an API server or device and do not verify HTTP transport or native camera rendering.
 
-Coverage includes loading/empty/populated states, link and QR joining, validation and retries,
-pending-submission guards, modal reset, creator-only sharing, navigation, refresh and focus
-refetching, fetch failures, and account-specific caches. API hook tests additionally verify
+Coverage includes loading/empty/populated states, opening the scanner, creator-only sharing,
+navigation, refresh and focus refetching, fetch failures, and account-specific caches. API hook tests additionally verify
 cancellation, envelope handling, and successful/failed mutation cache invalidation.
 
 `testing/native-mocks.tsx` keeps feature components real. Its refresh-control mock preserves props
 because React Native's default Jest mock discards them; native refresh and barcode events use
 `fireEvent`, while ordinary interactions use `userEvent`.
 
-Create and detail routes are separate from this page; this suite tests navigation to those routes.
+Create, detail and join routes are separate from this page; this suite tests navigation to those routes.
+
+## Join (chapter 06)
+
+```sh
+pnpm test:integration -- features/events/screens/join-scan-screen.integration.test.tsx features/events/screens/join-envelope-screen.integration.test.tsx
+```
+
+The scanner suite fires native barcode events at the mocked camera and stubs the clipboard and
+Settings. The envelope suite renders every preview state (06.4–06.13) from the generated SDK's
+mocked responses, joins, and unblocks the host before joining.
 Device E2E coverage remains a separate follow-up.
 
 ## New roll (chapter 04)

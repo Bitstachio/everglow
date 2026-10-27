@@ -21,11 +21,9 @@ jest.mock("expo-router", () => ({
 // Pencil marks render already drawn, so no animation runs outside act().
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
-jest.mock("react-native-auth0", () => ({ useAuth0: () => ({ user: {} }) }));
-
 const mockCompleteOnboarding = jest.fn();
 jest.mock("@/context/auth-context", () => ({
-  useAuth: () => ({ completeOnboarding: mockCompleteOnboarding, isLoading: false }),
+  useAuth: () => ({ identity: null, completeOnboarding: mockCompleteOnboarding, isLoading: false }),
 }));
 
 const mockAlert = jest.fn();

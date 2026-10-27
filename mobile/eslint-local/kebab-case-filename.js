@@ -11,8 +11,9 @@ const getFileStem = (basename) => {
   return withoutJsTs.replace(PLATFORM_OR_TEST_SUFFIX, "");
 };
 
-/** Expo Router private files (`_layout`) and dynamic segments (`[id]`). */
-const isExpoRouterFilename = (stem) => stem.startsWith("_") || /^\[[^\]]+\]$/u.test(stem);
+/** Expo Router private files (`_layout`), special files (`+native-intent`) and dynamic segments (`[id]`). */
+const isExpoRouterFilename = (stem) =>
+  stem.startsWith("_") || /^\+[a-z]+(?:-[a-z]+)*$/u.test(stem) || /^\[[^\]]+\]$/u.test(stem);
 
 const toKebabSuggestion = (stem) =>
   stem

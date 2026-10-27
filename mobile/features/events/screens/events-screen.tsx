@@ -12,7 +12,6 @@ import { colorTokens } from "@/theme/tokens";
 import { QrCode } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
-import { JoinEventSheet } from "../components/join-event-sheet";
 import { RollCard } from "../components/roll-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { useRollPreview } from "../hooks/use-roll-preview";
@@ -53,16 +52,11 @@ const EventsScreen = () => {
     savedAtLabel,
     now,
     profileAvatar,
-    joinSheetVisible,
-    form,
-    onSubmit,
-    onScanViaSheet,
     onRefresh,
     onNewEvent,
     onScan,
     onOpenRoll,
     onOpenCard,
-    onCloseJoinSheet,
   } = useEventsScreen();
 
   const showFirstRun = !isLoading && !hasRolls && !isOffline;
@@ -171,16 +165,6 @@ const EventsScreen = () => {
       </View>
 
       <FilmGrain />
-
-      <JoinEventSheet
-        visible={joinSheetVisible}
-        onClose={onCloseJoinSheet}
-        control={form.control}
-        isSubmitting={form.formState.isSubmitting}
-        onSubmit={onSubmit}
-        onScan={onScanViaSheet}
-        startOnScanner
-      />
     </SafeAreaView>
   );
 };
