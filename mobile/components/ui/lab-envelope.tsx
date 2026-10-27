@@ -23,7 +23,7 @@ type LabEnvelopeProps = {
   code?: ReactNode;
   /** An action printed at the foot of the paper, under the code: a `PaperButton`. */
   action?: ReactNode;
-  /** A `Stamp` on the paper's bottom right corner. */
+  /** A `Stamp` over the paper's bottom right corner. */
   stamp?: ReactNode;
   /** Spoken summary of the filled-in envelope, since its parts are laid out visually. */
   accessibilityLabel: string;
@@ -105,7 +105,8 @@ export const LabEnvelope = ({
           <Text className="pt-6 text-center font-mono text-edge-print uppercase text-paper-ink-2">{footer}</Text>
         ) : null}
         {action ? <View className="pt-5">{action}</View> : null}
-        {stamp ? <View className="-mb-2 -mr-2 items-end pt-4">{stamp}</View> : null}
+        {/* Stamped over the bottom right corner, beside the note, so it takes no row of its own. */}
+        {stamp ? <View className="absolute bottom-2 right-2">{stamp}</View> : null}
       </Paper>
     </View>
   );
