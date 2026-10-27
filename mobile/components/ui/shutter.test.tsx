@@ -19,6 +19,6 @@ test("shows a lock while adding photos is closed", async () => {
   const shutter = screen.getByRole("button", { name: "Adding photos opens Sat 19:00" });
   expect(shutter).toBeDisabled();
   expect(screen.getByTestId("phosphor-LockSimple")).toBeTruthy();
-  fireEvent.press(shutter);
+  await fireEvent.press(shutter);
   expect(onPress).not.toHaveBeenCalled();
 });

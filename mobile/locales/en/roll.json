@@ -61,12 +61,9 @@
     "firstShot": "first shot’s yours ↓"
   },
   "opened": {
-    "notification": "The roll is open. Take the first shot.",
-    "now": "now",
     "counter": "Frames",
     "counterLabel_one": "{{count}} frame on the roll",
     "counterLabel_other": "{{count}} frames on the roll",
-    "title": "{{title}}",
     "isOpen": "is open.",
     "edge_one": "{{opens}} → {{closes}} · {{count}} person in",
     "edge_other": "{{opens}} → {{closes}} · {{count}} people in",
@@ -144,8 +141,7 @@
     "photosAccess": "Allow photo access in Settings to add photos.",
     "libraryAccess": "Allow photo access in Settings to save frames.",
     "deleted": "Frame deleted.",
-    "removed": "{{name}} is off the roll.",
-    "left": "You left {{title}}."
+    "removed": "{{name}} is off the roll."
   },
   "loadFailed": "Couldn’t load this roll"
 }
