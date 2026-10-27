@@ -116,6 +116,11 @@ describe("storagePair", () => {
   it("keeps the unit when they differ", () => {
     expect(storagePair(300 * 1024 ** 2, 3 * GB)).toEqual({ used: "300 MB", limit: "3 GB" });
   });
+
+  it("rounds the used side down, so a roll with room left never reads as full", () => {
+    expect(storagePair(3 * GB - 6 * 1024 ** 2, 3 * GB)).toEqual({ used: "2.9", limit: "3 GB" });
+    expect(storagePair(3 * GB, 3 * GB)).toEqual({ used: "3", limit: "3 GB" });
+  });
 });
 
 describe("sheetFrames", () => {
@@ -172,9 +177,4 @@ describe("hostName", () => {
     expect(hostName(buildEvent({ creatorId: null }), participants)).toBe("Maya");
     expect(hostName(buildEvent({ creatorId: null }), [])).toBeNull();
   });
-});
-
-test("storagePair rounds the used side down, and a full roll reads 3 / 3 GB", () => {
-  expect(storagePair(3 * 1024 ** 3 - 6 * 1024 ** 2, 3 * 1024 ** 3)).toEqual({ used: "2.9", limit: "3 GB" });
-  expect(storagePair(3 * 1024 ** 3, 3 * 1024 ** 3)).toEqual({ used: "3", limit: "3 GB" });
 });
