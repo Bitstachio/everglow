@@ -110,5 +110,15 @@
       "unblock": "Unblock {{host}} and join",
       "unblockFailed": "Couldn’t unblock"
     }
+  },
+  "sealed": {
+    "title": "You’ve been invited",
+    "dim": "to a roll.",
+    "body": "Sign in to open the envelope and see whose it is.",
+    "signIn": "Sign in to open it",
+    "stamp": "Sealed",
+    "stampSub": "For you",
+    "label": "A sealed envelope",
+    "signInFailed": "Couldn’t sign in"
   }
 }

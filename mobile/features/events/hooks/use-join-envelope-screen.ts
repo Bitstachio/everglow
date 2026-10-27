@@ -1,5 +1,7 @@
+import { useAuth } from "@/context/auth-context";
 import { useUnblockMutation } from "@/features/profile/api/mutations";
 import { getErrorCode, getErrorMessage, isApiError } from "@/lib/api/errors";
+import { savePendingInvite } from "@/lib/pending-invite";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,15 +35,33 @@ const backToRolls = () => router.dismissTo("/events");
  * and joins it; someone already on the roll goes straight in (06.7), and a
  * join lands on the roll with a note saying which member they are (06.6).
  * When the envelope doesn't admit them, it says why (06.8–06.13).
+ *
+ * Signed out, it stays sealed (06.3): the preview needs an account. The
+ * invite waits through sign-in and onboarding (`lib/pending-invite.ts`), and
+ * the auth context opens it again once they're in.
  */
 export const useJoinEnvelopeScreen = () => {
   const { t } = useTranslation("join");
   const params = useLocalSearchParams<{ token: string }>();
   const token = Array.isArray(params.token) ? params.token[0] : params.token;
-  const preview = useInvitePreviewQuery(token);
+  const { isAuthenticated, isOnboarded, isSuspended, isLoading: isSigningIn, login } = useAuth();
+  const canOpen = isAuthenticated && isOnboarded && !isSuspended;
+  const preview = useInvitePreviewQuery(canOpen ? token : undefined);
   const join = useJoinEventMutation();
   const unblock = useUnblockMutation();
   const data = preview.data;
+
+  // Signed in but not ready to join: finish onboarding first, with the invite
+  // waiting; a suspended account can't join anything.
+  const mustOnboard = isAuthenticated && !isOnboarded && !isSuspended;
+  useEffect(() => {
+    if (isAuthenticated && isSuspended) {
+      router.replace("/account-suspended");
+    } else if (mustOnboard && token) {
+      savePendingInvite(token);
+      router.replace("/onboarding");
+    }
+  }, [isAuthenticated, isSuspended, mustOnboard, token]);
 
   const alreadyIn = data?.state === "ALREADY_A_MEMBER" ? data.eventId : null;
   useEffect(() => {
@@ -54,7 +74,8 @@ export const useJoinEnvelopeScreen = () => {
     return data.state;
   })();
 
-  const status = ((): "loading" | "ready" | "refused" | "failed" => {
+  const status = ((): "sealed" | "loading" | "ready" | "refused" | "failed" => {
+    if (!isAuthenticated) return "sealed";
     if (refusal) return "refused";
     if (data && !alreadyIn) return "ready";
     if (preview.isError) return "failed";
@@ -120,6 +141,14 @@ export const useJoinEnvelopeScreen = () => {
         onSuccess: joinNow,
         onError: (error) => Alert.alert(t("refused.blocked.unblockFailed"), getErrorMessage(error)),
       });
+    },
+    isSigningIn,
+    // 06.3: the invite waits while they sign in; Universal Login reports its own failures.
+    onSignIn: () => {
+      if (token) savePendingInvite(token);
+      login().catch((error: unknown) =>
+        Alert.alert(t("sealed.signInFailed"), error instanceof Error ? error.message : getErrorMessage(error)),
+      );
     },
     onRetry: () => void preview.refetch(),
     onBack: () => (router.canGoBack() ? router.back() : backToRolls()),

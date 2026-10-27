@@ -1,7 +1,7 @@
 import { colorTokens } from "@/theme/tokens";
 import { useState, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
-import Svg, { Polygon } from "react-native-svg";
+import Svg, { Line, Polygon } from "react-native-svg";
 import { GreasePencil } from "./grease-pencil";
 import { Paper, PaperBox, PaperField } from "./lab-paper";
 import { PencilNote } from "./pencil-note";
@@ -17,8 +17,6 @@ type LabEnvelopeProps = {
   options?: EnvelopeOption[];
   /** Written under the boxes in pencil, with an arrow up to the ticked one: what it lets people do. */
   note?: string;
-  /** Edge print at the bottom, centred, for example "Sealed until you sign in". */
-  footer?: string;
   /** The QR code, centred at the bottom. */
   code?: ReactNode;
   /** An action printed at the foot of the paper, under the code: a `PaperButton`. */
@@ -39,7 +37,6 @@ export const LabEnvelope = ({
   fields,
   options,
   note,
-  footer,
   code,
   action,
   stamp,
@@ -111,9 +108,6 @@ export const LabEnvelope = ({
             </View>
           ) : null}
           {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
-          {footer ? (
-            <Text className="pt-6 text-center font-mono text-edge-print uppercase text-paper-ink-2">{footer}</Text>
-          ) : null}
           {action ? <View className="pt-5">{action}</View> : null}
         </Paper>
       </View>
@@ -123,3 +117,29 @@ export const LabEnvelope = ({
     </View>
   );
 };
+
+/**
+ * The back of a sealed envelope: the flap folded down to a point with the
+ * stamp sealing it, and nothing written on it. For an invite that opens only
+ * once you sign in (06.3); the filled-in `LabEnvelope` is its front.
+ */
+export const LabEnvelopeBack = ({ stamp, accessibilityLabel }: { stamp?: ReactNode; accessibilityLabel: string }) => (
+  <View
+    accessible
+    accessibilityLabel={accessibilityLabel}
+    className="-rotate-2 overflow-hidden rounded-paper bg-paper shadow-paper"
+    // An envelope's proportions, as the front's paper is about wide.
+    style={{ aspectRatio: 1.6 }}
+  >
+    <View className="absolute inset-0">
+      <Svg width="100%" height="100%" viewBox="0 0 160 100" preserveAspectRatio="none">
+        {/* The side folds under the flap, meeting where the flap's point lands. */}
+        <Line x1="0" y1="100" x2="80" y2="52" stroke={colorTokens.paperRule} strokeWidth="0.6" />
+        <Line x1="160" y1="100" x2="80" y2="52" stroke={colorTokens.paperRule} strokeWidth="0.6" />
+        <Polygon points="0,0 160,0 80,58" fill={colorTokens.paperFlap} />
+      </Svg>
+    </View>
+    {/* The stamp seals the flap's point, like wax. */}
+    {stamp ? <View className="absolute inset-0 items-center justify-center pt-6">{stamp}</View> : null}
+  </View>
+);

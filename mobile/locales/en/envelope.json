@@ -10,8 +10,7 @@
     "peopleCount_other": "{{count}} people so far",
     "pickUp": "Pick up by",
     "adds": "Adds photos",
-    "view": "View only",
-    "sealed": "Sealed until you sign in"
+    "view": "View only"
   },
   "note": {
     "adds": "they add photos too",
