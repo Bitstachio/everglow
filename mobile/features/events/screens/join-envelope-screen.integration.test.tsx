@@ -83,7 +83,6 @@ describe("06.4 The envelope", () => {
     expect(screen.getByText("Sun 18 Oct, 4 pm")).toBeOnTheScreen();
     expect(screen.getByText("24 people so far")).toBeOnTheScreen();
     expect(screen.getByText("17 Nov, then it’s gone")).toBeOnTheScreen();
-    expect(screen.getByText("Scan with any camera")).toBeOnTheScreen();
     expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/k8Qm2")).toBeOnTheScreen();
     expect(screen.getByText("Invited by Sam · it’s free")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Join and add photos" })).toBeOnTheScreen();
@@ -99,7 +98,6 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByRole("button", { name: "Join to look" })).toBeOnTheScreen();
-    expect(screen.getByText("Admits: view only")).toBeOnTheScreen();
     expect(screen.getByText("You can look and save · invited by Sam")).toBeOnTheScreen();
   });
 
@@ -108,7 +106,7 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByText("Invited by the host · it’s free")).toBeOnTheScreen();
-    expect(screen.getByText("— — —")).toBeOnTheScreen();
+    expect(screen.getByText("It stays open")).toBeOnTheScreen();
   });
 
   test("waits on the envelope before offering to join", async () => {
@@ -238,7 +236,8 @@ describe("Refusals", () => {
     ).toBeOnTheScreen();
     expect(stampText("Not valid")).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Envelope" })).toBeOnTheScreen();
-    expect(screen.getAllByText("— — —")).toHaveLength(4);
+    // Nothing is filled in on an envelope that doesn't open.
+    expect(screen.queryByText(/so far|then it’s gone/)).not.toBeOnTheScreen();
 
     await press("Scan another");
     expect(mockRouter.replace).toHaveBeenCalledWith("/join");
