@@ -2,7 +2,10 @@ import "../testing/native-mocks";
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithI18n } from "@/testing/render";
-import { screen, userEvent } from "@testing-library/react-native";
+import { screen, userEvent, waitFor } from "@testing-library/react-native";
+// The share sheet, clipboard and alerts are the native boundary.
+// eslint-disable-next-line no-restricted-imports
+import { Alert, Share } from "react-native";
 import EnvelopeScreen from "./envelope-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
 
@@ -11,6 +14,7 @@ jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
+const mockRegenerate = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 
@@ -18,6 +22,7 @@ jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => 
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
+  eventsControllerRegenerateInvite: (...args: unknown[]) => mockRegenerate(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
 jest.mock("expo-router", () => ({
@@ -46,7 +51,13 @@ const renderScreen = async (event = nadia, participants = [buildParticipant()]) 
   return client;
 };
 
-beforeEach(() => jest.clearAllMocks());
+const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+const share = jest.spyOn(Share, "share");
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  share.mockResolvedValue({ action: Share.sharedAction });
+});
 
 test("05.1 shows the adds-photos envelope with its code", async () => {
   await renderScreen();
@@ -116,4 +127,95 @@ test("closing goes back", async () => {
   await renderScreen();
   await userEvent.setup().press(await screen.findByRole("button", { name: "Close the envelope" }));
   expect(mockBack).toHaveBeenCalledTimes(1);
+});
+
+test("05.3 shares the link of the envelope on the table", async () => {
+  await renderScreen();
+  await screen.findByLabelText("Adds-photos envelope for Nadia turns 30");
+  const user = userEvent.setup();
+
+  await user.press(screen.getByRole("radio", { name: "View only" }));
+  await user.press(screen.getByRole("button", { name: "Share the link" }));
+
+  expect(share).toHaveBeenCalledWith({
+    message: "Nadia turns 30 · join the roll\nhttps://events.everglow.app/invite/weekend-viewer",
+  });
+});
+
+test("05.5 resets the envelope after the slip, and the new code replaces the old", async () => {
+  const fresh = "https://events.everglow.app/invite/fresh";
+  mockRegenerate.mockResolvedValue({
+    data: {
+      data: {
+        ...nadia,
+        invitationUrl: fresh,
+        invites: [{ ...nadia.invites[0], invitationUrl: fresh }, nadia.invites[1]],
+      },
+    },
+  });
+  await renderScreen();
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
+  expect(screen.getByRole("header", { name: "Reset which envelope?" })).toBeOnTheScreen();
+  expect(
+    screen.getByText(
+      "Its QR and link stop working at once and you get new ones. The other envelope keeps working, and the 18 people already in stay.",
+    ),
+  ).toBeOnTheScreen();
+
+  expect(
+    screen.getByRole("radio", { name: "Adds photos. For people who add photos", checked: true }),
+  ).toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Reset it" }));
+
+  expect(mockRegenerate).toHaveBeenCalledWith({
+    path: { eventId: "event-1", accessLevel: "PARTICIPANT" },
+    throwOnError: true,
+  });
+  expect(await screen.findByLabelText(`QR code: ${fresh}`)).toBeOnTheScreen();
+  await waitFor(() => expect(screen.queryByRole("header", { name: "Reset which envelope?" })).not.toBeOnTheScreen());
+});
+
+test("05.5 the slip can reset the other envelope, which then shows its new code", async () => {
+  const fresh = "https://events.everglow.app/invite/fresh-viewer";
+  mockRegenerate.mockResolvedValue({
+    data: { data: { ...nadia, invites: [nadia.invites[0], { ...nadia.invites[1], invitationUrl: fresh }] } },
+  });
+  await renderScreen();
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
+  await user.press(screen.getByRole("radio", { name: "View only. For people who only look" }));
+  await user.press(screen.getByRole("button", { name: "Reset it" }));
+
+  expect(mockRegenerate).toHaveBeenCalledWith({
+    path: { eventId: "event-1", accessLevel: "VIEWER" },
+    throwOnError: true,
+  });
+  expect(await screen.findByLabelText("View-only envelope for Nadia turns 30")).toBeOnTheScreen();
+  expect(await screen.findByLabelText(`QR code: ${fresh}`)).toBeOnTheScreen();
+});
+
+test("keeping the envelope leaves the link as it was", async () => {
+  await renderScreen();
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
+  await user.press(screen.getByRole("button", { name: "Keep it" }));
+
+  expect(mockRegenerate).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();
+});
+
+test("a reset that fails says so and keeps the old code", async () => {
+  mockRegenerate.mockRejectedValue(new Error("Too many requests"));
+  await renderScreen();
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
+  await user.press(screen.getByRole("button", { name: "Reset it" }));
+
+  await waitFor(() => expect(alert).toHaveBeenCalledWith("Couldn’t reset the envelope", expect.any(String)));
+  expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();
 });

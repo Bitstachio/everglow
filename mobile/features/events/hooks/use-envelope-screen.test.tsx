@@ -1,5 +1,6 @@
 import { I18nProvider } from "@/providers/i18n-provider";
 import { act, renderHook } from "@testing-library/react-native";
+import { Alert, Share } from "react-native";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
 import { useEnvelopeScreen } from "./use-envelope-screen";
 
@@ -19,6 +20,11 @@ jest.mock("../api/queries", () => ({
     refetch: mockParticipantsRefetch,
   }),
 }));
+const mockRegenerate = jest.fn();
+let mockRegenerating = false;
+jest.mock("../api/mutations", () => ({
+  useRegenerateInviteMutation: () => ({ mutateAsync: mockRegenerate, isPending: mockRegenerating }),
+}));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
@@ -28,11 +34,17 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "event-1" }),
 }));
 
+const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+const share = jest.spyOn(Share, "share");
+
 const render = () => renderHook(() => useEnvelopeScreen(), { wrapper: I18nProvider });
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockCanGoBack = true;
+  mockRegenerating = false;
+  mockRegenerate.mockResolvedValue({});
+  share.mockResolvedValue({ action: Share.sharedAction });
   mockEvent = {
     data: buildEvent({
       title: "Nadia turns 30",
@@ -113,4 +125,83 @@ test("closing goes back, or to the roll when there is nothing to go back to", as
   mockCanGoBack = false;
   result.current.onClose();
   expect(mockReplace).toHaveBeenCalledWith("/events/event-1");
+});
+
+test("05.3 shares the envelope's link through the share sheet", async () => {
+  const { result } = await render();
+  await act(() => result.current.onShare());
+
+  expect(share).toHaveBeenCalledWith({
+    message: "Nadia turns 30 · join the roll\nhttps://events.everglow.app/invite/weekend",
+  });
+});
+
+test("says when the share sheet couldn't open", async () => {
+  share.mockRejectedValueOnce(new Error("No share sheet"));
+  const { result } = await render();
+  await act(() => result.current.onShare());
+
+  expect(alert).toHaveBeenCalledWith("Couldn’t share the link", expect.any(String));
+});
+
+test("05.5 the reset slip asks which envelope, starting on the one on the table, and says who stays", async () => {
+  const { result } = await render();
+  await act(() => result.current.onSelectKind("view"));
+  await act(() => result.current.onReset());
+
+  expect(result.current.reset).toEqual({
+    visible: true,
+    choice: "view",
+    choices: [
+      { key: "adds", title: "Adds photos", description: "For people who add photos" },
+      { key: "view", title: "View only", description: "For people who only look" },
+    ],
+    body: "Its QR and link stop working at once and you get new ones. The other envelope keeps working, and the 18 people already in stay.",
+    isResetting: false,
+  });
+});
+
+test("resetting the other envelope from the slip rotates that one and shows it", async () => {
+  const { result } = await render();
+  await act(() => result.current.onReset());
+  await act(() => result.current.onSelectResetKind("view"));
+  await act(() => result.current.onConfirmReset());
+
+  expect(mockRegenerate).toHaveBeenCalledWith("VIEWER");
+  expect(result.current.kind).toBe("view");
+});
+
+test("resetting rotates only the chosen envelope and closes the slip", async () => {
+  const { result } = await render();
+  await act(() => result.current.onSelectKind("view"));
+  await act(() => result.current.onReset());
+  await act(() => result.current.onConfirmReset());
+
+  expect(mockRegenerate).toHaveBeenCalledWith("VIEWER");
+  expect(result.current.reset.visible).toBe(false);
+  expect(alert).not.toHaveBeenCalled();
+});
+
+test("a failed reset closes the slip and says why", async () => {
+  mockRegenerate.mockRejectedValueOnce(new Error("Too many requests"));
+  const { result } = await render();
+  await act(() => result.current.onReset());
+  await act(() => result.current.onConfirmReset());
+
+  expect(result.current.reset.visible).toBe(false);
+  expect(alert).toHaveBeenCalledWith("Couldn’t reset the envelope", expect.any(String));
+});
+
+test("the slip stays while a reset is on its way", async () => {
+  mockRegenerating = true;
+  const { result } = await render();
+  await act(() => result.current.onReset());
+  await act(() => result.current.onCloseReset());
+  expect(result.current.reset.visible).toBe(true);
+});
+
+test("one person on the roll reads in the singular", async () => {
+  mockEvent = { data: buildEvent({ usage: { members: 1, storageBytes: "0" } }) };
+  const { result } = await render();
+  expect(result.current.reset.body).toMatch(/the person already in stays\.$/);
 });

@@ -21,6 +21,8 @@ type LabEnvelopeProps = {
   footer?: string;
   /** The QR code, centred at the bottom. */
   code?: ReactNode;
+  /** An action printed at the foot of the paper, under the code: a `PaperButton`. */
+  action?: ReactNode;
   /** Spoken summary of the filled-in envelope, since its parts are laid out visually. */
   accessibilityLabel: string;
 };
@@ -29,7 +31,7 @@ type LabEnvelopeProps = {
  * The invite: a photo-lab envelope filled in by hand. Every string comes from
  * the caller, translated. Put a `Stamp` beside it to repeat the button.
  */
-export const LabEnvelope = ({ fields, options, note, footer, code, accessibilityLabel }: LabEnvelopeProps) => {
+export const LabEnvelope = ({ fields, options, note, footer, code, action, accessibilityLabel }: LabEnvelopeProps) => {
   // Where each box sits, so the note's arrow can point at whichever is ticked.
   // Measured once: ticking a box doesn't move any of them.
   const [boxX, setBoxX] = useState<Record<string, number>>({});
@@ -91,6 +93,7 @@ export const LabEnvelope = ({ fields, options, note, footer, code, accessibility
         {footer ? (
           <Text className="pt-6 text-center font-mono text-edge-print uppercase text-paper-ink-2">{footer}</Text>
         ) : null}
+        {action ? <View className="pt-5">{action}</View> : null}
       </Paper>
     </View>
   );
