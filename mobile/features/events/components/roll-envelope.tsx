@@ -25,6 +25,8 @@ type RollEnvelopeProps = {
   onSelect?: (admits: "adds" | "view") => void;
   /** A `Stamp` on the paper's bottom right corner. */
   stamp?: ReactNode;
+  /** A returned envelope: the paper dims, its stamp doesn't. */
+  dimmed?: boolean;
   accessibilityLabel: string;
 };
 
@@ -44,6 +46,7 @@ export const RollEnvelope = ({
   action,
   onSelect,
   stamp,
+  dimmed,
   accessibilityLabel,
 }: RollEnvelopeProps) => {
   const { t } = useTranslation("envelope");
@@ -78,6 +81,7 @@ export const RollEnvelope = ({
       note={sealed ? undefined : note}
       action={sealed ? undefined : action}
       stamp={stamp}
+      dimmed={dimmed}
       accessibilityLabel={accessibilityLabel}
     />
   );

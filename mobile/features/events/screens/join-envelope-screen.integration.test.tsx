@@ -263,14 +263,16 @@ describe("Refusals", () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_GALLERY_CLOSED", galleryState: "CLOSED" }));
     await renderScreen();
 
-    expect(await screen.findByText("The gallery closed on 17 Nov and its photos were removed.")).toBeOnTheScreen();
+    expect(await screen.findByText("The roll closed on 17 Nov and its photos were removed.")).toBeOnTheScreen();
+    // Past the pick-up date, the envelope says it's gone.
+    expect(screen.getByText("17 Nov, gone")).toBeOnTheScreen();
     expect(stampText("Closed")).toBeOnTheScreen();
   });
 
   test("06.11 closed without a date", async () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_GALLERY_CLOSED", galleryClosesAt: null }));
     await renderScreen();
-    expect(await screen.findByText("The gallery has closed and its photos were removed.")).toBeOnTheScreen();
+    expect(await screen.findByText("The roll has closed and its photos were removed.")).toBeOnTheScreen();
   });
 
   test("06.12 joining is on hold while Everglow reviews the roll", async () => {
