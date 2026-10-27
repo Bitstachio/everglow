@@ -130,7 +130,8 @@ const EventDetailScreen = () => {
       </SafeAreaView>
 
       {arrivalNote ? (
-        <View className="absolute left-4 right-4 top-4">
+        // At the foot of the roll, as drawn (06.7), above its bottom button.
+        <View className="absolute bottom-28 left-4 right-4">
           <ArrivalNote label={arrivalNote} />
         </View>
       ) : null}
