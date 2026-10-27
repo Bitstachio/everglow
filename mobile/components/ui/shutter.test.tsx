@@ -4,7 +4,7 @@ import { Shutter } from "./shutter";
 test("is a button that adds photos, with its label", async () => {
   const onPress = jest.fn();
   await render(<Shutter accessibilityLabel="Add photos" label="Add photos" onPress={onPress} />);
-  fireEvent.press(screen.getByRole("button", { name: "Add photos" }));
+  await fireEvent.press(screen.getByRole("button", { name: "Add photos" }));
   expect(onPress).toHaveBeenCalledTimes(1);
 });
 
