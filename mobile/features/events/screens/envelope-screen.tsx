@@ -1,6 +1,7 @@
 import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { OptionRow } from "@/components/ui/option-row";
 import { PaperButton } from "@/components/ui/lab-paper";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IconButton } from "@/components/ui/icon-button";
@@ -28,6 +29,7 @@ const EnvelopeScreen = () => {
     onSelectKind,
     onShare,
     onReset,
+    onSelectResetKind,
     onCloseReset,
     onConfirmReset,
     onRetry,
@@ -47,7 +49,7 @@ const EnvelopeScreen = () => {
           envelope && invitationUrl ? (
             <Button
               title={t("reset.cta")}
-              accessibilityLabel={reset.a11y}
+              accessibilityLabel={t("reset.a11y")}
               variant="ghost"
               fullWidth={false}
               onPress={onReset}
@@ -93,7 +95,19 @@ const EnvelopeScreen = () => {
       <FilmGrain />
 
       <BottomSheet visible={reset.visible} onClose={onCloseReset}>
-        <Slip edge={reset.edge} title={t("reset.title")} body={reset.body}>
+        <Slip title={t("reset.title")} body={reset.body}>
+          <View accessibilityRole="radiogroup">
+            {reset.choices.map((choice) => (
+              <OptionRow
+                key={choice.key}
+                title={choice.title}
+                description={choice.description}
+                selected={reset.choice === choice.key}
+                disabled={reset.isResetting}
+                onPress={() => onSelectResetKind(choice.key)}
+              />
+            ))}
+          </View>
           <Button title={t("reset.confirm")} mark="↻" isLoading={reset.isResetting} onPress={onConfirmReset} />
           <Button
             title={t("reset.cancel")}
