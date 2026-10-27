@@ -1,0 +1,29 @@
+{
+  "edge": "Envelope · {{title}}",
+  "close": "Close the envelope",
+  "paper": {
+    "name": "Name",
+    "date": "Date",
+    "people": "On the roll",
+    "peopleCount_one": "{{count}} person so far",
+    "peopleCount_other": "{{count}} people so far",
+    "pickUp": "Pick up by",
+    "adds": "Adds photos",
+    "view": "View only",
+    "sealed": "Sealed until you sign in"
+  },
+  "note": {
+    "adds": "they add photos too",
+    "view": "they can only look and save"
+  },
+  "pickUp": {
+    "until": "{{date}}, then it’s gone",
+    "never": "It stays open"
+  },
+  "label": {
+    "adds": "Adds-photos envelope for {{title}}",
+    "view": "View-only envelope for {{title}}"
+  },
+  "loadFailed": "Couldn’t load the envelope.",
+  "retry": "Try again"
+}
