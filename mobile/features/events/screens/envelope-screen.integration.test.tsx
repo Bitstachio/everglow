@@ -219,3 +219,50 @@ test("a reset that fails says so and keeps the old code", async () => {
   await waitFor(() => expect(alert).toHaveBeenCalledWith("Couldn’t reset the envelope", expect.any(String)));
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();
 });
+
+test("05.6 a closed roll says no one new can join, with nothing to share", async () => {
+  await renderScreen(
+    buildEvent({
+      title: "Lake weekend",
+      galleryState: "CLOSED",
+      galleryClosesAt: new Date(2026, 8, 21, 12, 0).toISOString(),
+      usage: { members: 11, storageBytes: "0" },
+      invites: [],
+    }),
+  );
+
+  expect(await screen.findByLabelText("Adds-photos envelope for Lake weekend")).toBeOnTheScreen();
+  expect(screen.getByText("Closed", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.getByText("No new guests", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.getByText("21 Sep, gone")).toBeOnTheScreen();
+  expect(screen.getByText(/The roll closed on/)).toHaveTextContent(
+    "The roll closed on 21 Sep and its photos were removed, so no one new can join.",
+  );
+  expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText(/QR code/)).not.toBeOnTheScreen();
+});
+
+test("05.7 a roll under review is on hold", async () => {
+  await renderScreen(buildEvent({ title: "Nadia turns 30", status: "UNDER_REVIEW" }));
+
+  expect(await screen.findByText("On hold", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.getByText("Under review", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(
+    screen.getByText(
+      "Everglow is reviewing this roll after reports. Until then the envelope doesn’t admit anyone new. People already in can still look.",
+    ),
+  ).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: /Reset/ })).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText(/QR code/)).not.toBeOnTheScreen();
+});
+
+test("a suspended roll says so plainly", async () => {
+  await renderScreen(buildEvent({ status: "SUSPENDED" }));
+
+  expect(
+    await screen.findByText("This roll was suspended for breaking our terms, so no one new can join."),
+  ).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();
+});
