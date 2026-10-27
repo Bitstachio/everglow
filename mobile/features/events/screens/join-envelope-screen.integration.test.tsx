@@ -83,7 +83,9 @@ describe("06.4 The envelope", () => {
     expect(screen.getByText("Sun 18 Oct, 4 pm")).toBeOnTheScreen();
     expect(screen.getByText("24 people so far")).toBeOnTheScreen();
     expect(screen.getByText("17 Nov, then it’s gone")).toBeOnTheScreen();
-    expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/k8Qm2")).toBeOnTheScreen();
+    // Nothing to scan on the guest's envelope; a pencil note says what joining gets them.
+    expect(screen.queryByLabelText(/^QR code/)).not.toBeOnTheScreen();
+    expect(screen.getByText("you add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
     // Stamped on the card: who invited you.
     expect(stampText("Invited")).toBeOnTheScreen();
     expect(stampText("by Sam")).toBeOnTheScreen();
@@ -100,7 +102,7 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByRole("button", { name: "Join to look" })).toBeOnTheScreen();
-    expect(screen.getByText("You can look and save")).toBeOnTheScreen();
+    expect(screen.getByText("you can only look and save", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(stampText("by Sam")).toBeOnTheScreen();
   });
 

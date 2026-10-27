@@ -1,20 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Display, Wordmark } from "@/components/ui/display";
-import { EdgePrint } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Stamp } from "@/components/ui/stamp";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
-import { colorTokens } from "@/theme/tokens";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
-import QRCode from "react-native-qrcode-svg";
 import { RollEnvelope } from "../components/roll-envelope";
 import { useJoinEnvelopeScreen, type JoinRefusal } from "../hooks/use-join-envelope-screen";
-
-/** The QR's side on the envelope, as on the host's envelope. */
-const CODE_SIZE = 150;
 
 type RefusalCopy = { stamp: string; stampSub: string; title: string; dim: string; body: string };
 
@@ -132,10 +126,12 @@ const JoinEnvelopeScreen = () => {
         </View>
         <View className="flex-1">
           <View className="mx-7.5 mt-4 scale-86">
-            <RollEnvelope title="" sealed accessibilityLabel={t("sealed.label")} />
-            <View className="absolute right-0 top-10">
-              <Stamp title={t("sealed.stamp")} subtitle={t("sealed.stampSub")} />
-            </View>
+            <RollEnvelope
+              title=""
+              sealed
+              stamp={<Stamp title={t("sealed.stamp")} subtitle={t("sealed.stampSub")} />}
+              accessibilityLabel={t("sealed.label")}
+            />
           </View>
           <View className="mt-auto px-5 pb-4">
             <Display variant="slip" dim={t("sealed.dim")}>
@@ -165,14 +161,13 @@ const JoinEnvelopeScreen = () => {
               peopleCount={envelope?.peopleCount}
               pickUpBy={envelope?.pickUpBy}
               admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "adds" : undefined)}
-              code={
-                status === "ready" && envelope ? (
-                  <QRCode
-                    value={envelope.invitationUrl}
-                    size={CODE_SIZE}
-                    color={colorTokens.paperInk}
-                    backgroundColor={colorTokens.paper}
-                  />
+              // What joining gets them, pencilled under the ticked box. No code: there's nothing to scan here.
+              note={status === "ready" && envelope ? t(`open.note.${envelope.admits}`) : undefined}
+              stamp={
+                refused ? (
+                  <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
+                ) : status === "ready" ? (
+                  <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { host: hostName })} />
                 ) : undefined
               }
               accessibilityLabel={
@@ -180,16 +175,6 @@ const JoinEnvelopeScreen = () => {
               }
             />
           </View>
-          {/* Stamped on the card's bottom right corner, beside the code. */}
-          {refused ? (
-            <View className="absolute bottom-3 right-0">
-              <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
-            </View>
-          ) : status === "ready" ? (
-            <View className="absolute bottom-3 right-0">
-              <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { host: hostName })} />
-            </View>
-          ) : null}
         </View>
 
         {refused || status === "failed" ? (
@@ -227,8 +212,6 @@ const JoinEnvelopeScreen = () => {
               onPress={onJoin}
               isLoading={isJoining || status === "loading"}
             />
-            {/* The stamp says who invited you; a view-only envelope also says what it lets you do. */}
-            <EdgePrint className="text-center">{status === "ready" && views ? t("open.viewOnly") : " "}</EdgePrint>
           </>
         )}
       </View>
