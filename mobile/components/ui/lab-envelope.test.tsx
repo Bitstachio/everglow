@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
-import { LabEnvelope } from "./lab-envelope";
+import { Text } from "react-native";
+import { LabEnvelope, LabEnvelopeBack } from "./lab-envelope";
 import { PaperButton } from "./lab-paper";
 
 // The pencil arrow renders already drawn, so no animation runs outside act().
@@ -57,4 +58,11 @@ test("a printed action at the foot of the paper is a button", async () => {
   );
   await userEvent.setup().press(screen.getByRole("button", { name: "Share the link" }));
   expect(onPress).toHaveBeenCalledTimes(1);
+});
+
+test("the back of a sealed envelope is one labelled element with its seal and nothing written on it", async () => {
+  await render(<LabEnvelopeBack stamp={<Text>Sealed</Text>} accessibilityLabel="A sealed invite" />);
+  expect(screen.getByLabelText("A sealed invite")).toBeOnTheScreen();
+  expect(screen.getByText("Sealed", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.queryByText("Name")).not.toBeOnTheScreen();
 });

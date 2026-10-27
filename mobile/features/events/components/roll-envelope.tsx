@@ -1,4 +1,4 @@
-import { LabEnvelope } from "@/components/ui/lab-envelope";
+import { LabEnvelope, LabEnvelopeBack } from "@/components/ui/lab-envelope";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,7 +13,7 @@ type RollEnvelopeProps = {
   pickUpBy?: string;
   /** Which box is ticked: the adds-photos or the view-only envelope. */
   admits?: "adds" | "view";
-  /** Sealed until the guest signs in: nothing filled in, nothing ticked, no code (06.3). */
+  /** Sealed until the guest signs in: its back, with the flap shut and nothing written on it (06.3). */
   sealed?: boolean;
   /** The QR code, at the bottom right. */
   code?: ReactNode;
@@ -50,34 +50,35 @@ export const RollEnvelope = ({
   accessibilityLabel,
 }: RollEnvelopeProps) => {
   const { t } = useTranslation("envelope");
-  const filled = (value: string | undefined) => (sealed ? undefined : value);
+
+  if (sealed) return <LabEnvelopeBack stamp={stamp} accessibilityLabel={accessibilityLabel} />;
 
   return (
     <LabEnvelope
       fields={[
-        { label: t("paper.name"), value: filled(title) },
-        { label: t("paper.date"), value: filled(startsAt) },
+        { label: t("paper.name"), value: title },
+        { label: t("paper.date"), value: startsAt },
         {
           label: t("paper.people"),
-          value: filled(peopleCount === undefined ? undefined : t("paper.peopleCount", { count: peopleCount })),
+          value: peopleCount === undefined ? undefined : t("paper.peopleCount", { count: peopleCount }),
         },
-        { label: t("paper.pickUp"), value: filled(pickUpBy) },
+        { label: t("paper.pickUp"), value: pickUpBy },
       ]}
       options={[
         {
           label: t("paper.adds"),
-          checked: !sealed && admits === "adds",
-          onPress: onSelect && !sealed ? () => onSelect("adds") : undefined,
+          checked: admits === "adds",
+          onPress: onSelect ? () => onSelect("adds") : undefined,
         },
         {
           label: t("paper.view"),
-          checked: !sealed && admits === "view",
-          onPress: onSelect && !sealed ? () => onSelect("view") : undefined,
+          checked: admits === "view",
+          onPress: onSelect ? () => onSelect("view") : undefined,
         },
       ]}
-      code={sealed ? undefined : code}
-      note={sealed ? undefined : note}
-      action={sealed ? undefined : action}
+      code={code}
+      note={note}
+      action={action}
       stamp={stamp}
       dimmed={dimmed}
       accessibilityLabel={accessibilityLabel}
