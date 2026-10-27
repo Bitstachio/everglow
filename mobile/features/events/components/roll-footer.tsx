@@ -73,10 +73,10 @@ const Row = ({ left, middle, right }: { left?: ReactNode; middle: ReactNode; rig
   </View>
 );
 
-/** The shutter, circled in pencil when it's the one thing to do. */
-// Sized from the shutter's own layout, so the ring stays centred at any scale.
+// How far the pencil ring reaches past the shutter.
 const RING_MARGIN = 12;
 
+/** The shutter, circled in pencil when it's the one thing to do. Sized from its own layout, so the ring stays centred. */
 const CircledShutter = ({ circled, children }: { circled: boolean; children: ReactNode }) => {
   const [size, setSize] = useState(0);
   const onLayout = (event: LayoutChangeEvent) => setSize(Math.round(event.nativeEvent.layout.width));

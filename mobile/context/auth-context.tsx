@@ -8,18 +8,23 @@ import { authService, OnboardingData, User } from "@/lib/auth";
 import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import { isConnectionError } from "@/lib/api/errors";
 import { runAccountCleared } from "@/lib/account-cleared";
+import { clearPendingInvite, takeLandingRoute } from "@/lib/pending-invite";
 import { View } from "react-native";
 import {
   clearLocalCredentials,
+  getSignedInIdentity,
   hasValidSession,
   isAuth0Configured,
   isUserCancellation,
   loginWithUniversalLogin,
   logoutFromAuth0,
+  type SignedInIdentity,
 } from "@/lib/auth0";
 
 interface AuthContextType {
   user: User | null;
+  /** Who Auth0 says is signed in (subject, email, name), from sign-in until sign-out. */
+  identity: SignedInIdentity | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isOnboarded: boolean;
@@ -38,7 +43,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const EVENTS_ROUTE = "/events" as const;
 const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
 const SUSPENDED_ROUTE = "/account-suspended" as const;
@@ -48,6 +52,7 @@ type SignedOutRoute = typeof LOGIN_ROUTE | "/account-deleted";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [identity, setIdentity] = useState<SignedInIdentity | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +83,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       router.replace(SUSPENDED_ROUTE);
       return;
     }
-    router.replace(profile.isOnboarded ? EVENTS_ROUTE : ONBOARDING_ROUTE);
+    // An invite opened before sign-in waits through onboarding (06.3).
+    router.replace(profile.isOnboarded ? takeLandingRoute() : ONBOARDING_ROUTE);
   }, []);
 
   const refreshProfile = useCallback(async (): Promise<User | null> => {
@@ -90,8 +96,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Nothing cached for one account may show to the next one signed in on this phone.
   const clearAccount = useCallback(() => {
     queryClient.clear();
+    clearPendingInvite();
     runAccountCleared();
     setUser(null);
+    setIdentity(null);
   }, [queryClient]);
 
   const handleSessionExpired = useCallback(async () => {
@@ -135,6 +143,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loadSession = useCallback(async (): Promise<User | null> => {
     if (isAuth0Configured() && (await hasValidSession())) {
+      setIdentity(await getSignedInIdentity());
       return refreshProfile();
     }
     return null;
@@ -186,7 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         setError(null);
         signedOutRef.current = false;
-        await loginWithUniversalLogin(options);
+        setIdentity(await loginWithUniversalLogin(options));
         let profile: User | null;
         try {
           profile = await refreshProfile();
@@ -254,6 +263,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value: AuthContextType = {
     user,
+    identity,
     isLoading,
     isAuthenticated: !!user,
     isOnboarded: !!user?.isOnboarded,

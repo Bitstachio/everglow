@@ -17,7 +17,7 @@ import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EventInvitationModal } from "../components/event-invitation-modal";
+import { ArrivalNote } from "../components/arrival-note";
 import { FrameViewer } from "../components/frame-viewer";
 import { RollBand } from "../components/roll-band";
 import { RollCover } from "../components/roll-cover";
@@ -28,23 +28,21 @@ import { RollPeopleList } from "../components/roll-people-list";
 import { RollTrayLine } from "../components/roll-tray-line";
 import { UnexposedRoll } from "../components/unexposed-roll";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
-import type { DevelopingFrame } from "../lib/upload-tray";
+import { closedOn, formatEnvelopeDay } from "../lib/envelope";
 import {
   bandStock,
   bandTime,
-  closedOn,
-  formatDayMonth,
-  formatDotDate,
-  formatOpensAt,
-  formatOpensShort,
-  formatRange,
   formatClock,
+  formatOpensAt,
+  formatRange,
   formatRollDate,
   hostName,
   storagePair,
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
+import { formatClosedOn, formatOpensOn } from "../lib/rolls";
+import type { DevelopingFrame } from "../lib/upload-tray";
 import { formatEventStorage, formatStorageBytes } from "../utils";
 
 // Room under the sheet so the last row clears the shutter.
@@ -119,7 +117,7 @@ const EventDetailScreen = () => {
     return (
       <SafeAreaView className="flex-1 bg-ground">
         <TopBar
-          title={t("closed.top", { date: formatDotDate(removedOn) })}
+          title={t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
             <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
@@ -147,8 +145,8 @@ const EventDetailScreen = () => {
               <UnexposedRoll
                 strips={3}
                 crossed
-                note={t("closed.removed", { date: formatDayMonth(removedOn) })}
-                accessibilityLabel={t("closed.removedLabel", { date: formatDayMonth(removedOn) })}
+                note={t("closed.removed", { date: formatEnvelopeDay(removedOn) })}
+                accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
               />
               <EdgePrint className="mx-5 mt-8 border-b border-outline-soft pb-2.5">
                 {t("closed.whoWasThere", { count: participants.length })}
@@ -165,6 +163,11 @@ const EventDetailScreen = () => {
           )}
           contentContainerStyle={{ paddingBottom: 32 }}
         />
+        {screen.arrivalNote ? (
+          <View pointerEvents="none" className="absolute bottom-8 left-5 right-5">
+            <ArrivalNote label={screen.arrivalNote} />
+          </View>
+        ) : null}
         <Sheets screen={screen} />
         <FilmGrain />
       </SafeAreaView>
@@ -235,7 +238,7 @@ const EventDetailScreen = () => {
   const invite: FooterAction = {
     title: t("footer.invite"),
     accessibilityLabel: t("footer.inviteLabel"),
-    onPress: screen.onOpenInvite,
+    onPress: screen.onOpenEnvelope,
   };
   const moreRoom: FooterAction = {
     title: t("footer.moreRoom"),
@@ -247,11 +250,11 @@ const EventDetailScreen = () => {
     switch (stage) {
       case "upcoming":
         return role === "host"
-          ? { kind: "leader", title: t("footer.sendEnvelope"), mark: "↗", onPress: screen.onOpenInvite }
+          ? { kind: "leader", title: t("footer.sendEnvelope"), mark: "↗", onPress: screen.onOpenEnvelope }
           : {
               kind: "locked",
-              label: t("footer.opensAt", { when: formatOpensShort(event.galleryOpensAt) }),
-              accessibilityLabel: t("footer.lockedLabel", { when: formatOpensShort(event.galleryOpensAt) }),
+              label: t("footer.opensAt", { when: formatOpensOn(event.galleryOpensAt) }),
+              accessibilityLabel: t("footer.lockedLabel", { when: formatOpensOn(event.galleryOpensAt) }),
             };
       case "underReview":
         return { kind: "locked", label: t("footer.onHold"), accessibilityLabel: t("footer.onHold"), save };
@@ -451,6 +454,17 @@ const EventDetailScreen = () => {
         </View>
       ) : null}
 
+      {screen.arrivalNote ? (
+        // At the foot of the roll, over the controls, as drawn (06.7).
+        <View
+          pointerEvents="none"
+          className="absolute left-5 right-5"
+          style={{ bottom: insets.bottom + FOOT_SPACE - 40 }}
+        >
+          <ArrivalNote label={screen.arrivalNote} />
+        </View>
+      ) : null}
+
       <FilmGrain />
       <Sheets screen={screen} />
     </View>
@@ -558,10 +572,6 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           </Slip>
         ) : null}
       </BottomSheet>
-
-      {role === "host" ? (
-        <EventInvitationModal visible={screen.inviteVisible} onClose={screen.onCloseInvite} event={event} />
-      ) : null}
 
       <FrameViewer
         frame={screen.openFrame}

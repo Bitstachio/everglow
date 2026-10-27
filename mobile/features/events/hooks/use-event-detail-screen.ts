@@ -17,7 +17,16 @@ import {
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
 import { roomShortfall, toTrayItems, type PickedFile, type RoomShortfall } from "../lib/picked-photos";
-import { isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened, type SheetFrame } from "../lib/roll-page";
+import {
+  hasOpened,
+  isRollLastDay,
+  rollRole,
+  rollStage,
+  sheetFrames,
+  shouldShowOpened,
+  type SheetFrame,
+} from "../lib/roll-page";
+import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
   addToTray,
@@ -31,6 +40,7 @@ import {
 } from "../lib/upload-tray";
 import type { EventParticipantResponseDto, PhotoResponseDto } from "../types";
 import { eventStorageLeftBytes } from "../utils";
+import { useArrivalNote } from "./use-arrival-note";
 
 // 08.1: event photos upload as picked: no crop step and no re-encode, so group
 // shots and portraits keep their original aspect ratio. Only avatars and covers
@@ -83,10 +93,18 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
   return asset.fileSize ?? 0;
 };
 
-/** Saves one frame to the phone's library. */
+/** Saves one frame to the phone's library. The library keeps its own copy, so the download goes. */
 const saveToLibrary = async (photo: PhotoResponseDto) => {
   const downloaded = await File.downloadFileAsync(photo.url, Paths.cache, { idempotent: true });
-  await MediaLibrary.createAssetAsync(downloaded.uri);
+  try {
+    await MediaLibrary.createAssetAsync(downloaded.uri);
+  } finally {
+    try {
+      downloaded.delete();
+    } catch {
+      // Already gone; the cache is the system's to clear anyway.
+    }
+  }
 };
 
 /** What the sheet over the roll shows: the menu, people, or a slip. */
@@ -119,9 +137,11 @@ export const useEventDetailScreen = () => {
   const refreshRoll = useRefreshRollAfterUpload();
   const tray = useUploadTray(eventId);
   const deletePhotoMutation = useDeleteEventPhotoMutation();
+  // After joining, or opening an envelope you're already on (06.6, 06.7).
+  const arrivalNote = useArrivalNote();
 
   // When this device last looked, read once: the ticks stay for this visit.
-  const [lastVisit] = useState(() => (eventId ? readLastVisit(eventId) : null));
+  const [lastVisit] = useState(() => (eventId && user ? readLastVisit(user.id, eventId) : null));
   const [openedDismissed, setOpenedDismissed] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
@@ -140,7 +160,6 @@ export const useEventDetailScreen = () => {
   // One sheet over the roll whose content changes, so one modal never opens
   // from another: iOS drops a modal presented while another is closing.
   const [sheet, setSheet] = useState<RollSheet | null>(null);
-  const [inviteVisible, setInviteVisible] = useState(false);
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
   const closeSheet = () => setSheet(null);
 
@@ -157,14 +176,21 @@ export const useEventDetailScreen = () => {
   const refreshing = eventQuery.isRefetching || photosQuery.isRefetching || participantsQuery.isRefetching;
 
   useEffect(() => {
-    if (eventId) writeLastVisit(eventId);
-  }, [eventId]);
+    if (eventId && user?.id) writeLastVisit(user.id, eventId);
+  }, [eventId, user?.id]);
 
   // The time left counts down while the roll is on screen.
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60 * 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // A roll that opens or closes while it's on screen is fetched again, so it moves on to its next stage.
+  const turned = event !== null && (hasOpened(event, now) || hasClosed(event, now));
+  const refetchEvent = eventQuery.refetch;
+  useEffect(() => {
+    if (turned) void refetchEvent({ cancelRefetch: false });
+  }, [turned, refetchEvent]);
 
   useEffect(
     () => () => {
@@ -399,7 +425,7 @@ export const useEventDetailScreen = () => {
     isDeletingFrame: deletePhotoMutation.isPending,
     confirmDeleteVisible,
     sheet,
-    inviteVisible,
+    arrivalNote,
     isLeaving: leaveEventMutation.isPending,
     isCutting: deactivateMutation.isPending,
     removing,
@@ -431,8 +457,10 @@ export const useEventDetailScreen = () => {
     onOpenMenu: () => setSheet("menu"),
     onCloseSheet: closeSheet,
     onOpenPeople: () => setSheet("people"),
-    onOpenInvite: () => setInviteVisible(true),
-    onCloseInvite: () => setInviteVisible(false),
+    // 05: the host's envelope screen, from Send the envelope (07.1) and Invite (07.4–07.8).
+    onOpenEnvelope: () => {
+      if (eventId) router.push(`/events/${eventId}/envelope`);
+    },
     onOpenSettings: () => {
       closeSheet();
       if (eventId) router.push(`/events/${eventId}/settings`);

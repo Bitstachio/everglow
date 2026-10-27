@@ -3,11 +3,18 @@ import {
   eventsControllerFindAll,
   eventsControllerFindOne,
   eventsControllerGetParticipants,
+  eventsControllerPreviewInvite,
   photosControllerListPhotos,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
+import { isApiError } from "@/lib/api/errors";
 import { eventsKeys } from "./keys";
-import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } from "../types";
+import type {
+  EventParticipantResponseDto,
+  EventResponseDto,
+  InvitePreviewResponseDto,
+  PhotoResponseDto,
+} from "../types";
 
 export const useEventsQuery = (userId: string | undefined) =>
   useQuery({
@@ -93,5 +100,22 @@ export const useEventParticipantsQuery = (eventId: string | undefined) =>
       });
       // OpenAPI currently types `data` as a single participant; runtime returns an array.
       return unwrapEnvelope(data) as unknown as EventParticipantResponseDto[];
+    },
+  });
+
+/**
+ * The envelope behind an invite token. Previews share join's rate limit
+ * budget, so a refusal (4xx) is never retried and a return to the app doesn't
+ * refetch; only a dropped connection or a server error is retried.
+ */
+export const useInvitePreviewQuery = (token: string | undefined) =>
+  useQuery({
+    queryKey: eventsKeys.invitePreview(token ?? ""),
+    enabled: Boolean(token),
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) => failureCount < 2 && !(isApiError(error) && (error.status ?? 500) < 500),
+    queryFn: async ({ signal }): Promise<InvitePreviewResponseDto> => {
+      const { data } = await eventsControllerPreviewInvite({ path: { token: token! }, signal, throwOnError: true });
+      return unwrapEnvelope(data);
     },
   });

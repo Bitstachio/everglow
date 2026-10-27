@@ -1,6 +1,6 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "react-native";
 import { useEventsQuery } from "../api/queries";
@@ -17,9 +17,9 @@ import {
 } from "../utils";
 
 export const useEventsListScreen = () => {
+  const router = useRouter();
   const { user } = useAuth();
   const { data: events = [], isLoading, isRefetching, error, errorUpdatedAt, refetch } = useEventsQuery(user?.id);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<EventsListFilters>(DEFAULT_EVENTS_LIST_FILTERS);
   const [draftFilters, setDraftFilters] = useState<EventsListFilters>(DEFAULT_EVENTS_LIST_FILTERS);
@@ -43,8 +43,6 @@ export const useEventsListScreen = () => {
     isLoading,
     refreshing: isRefetching,
     currentUserId: user?.id,
-    selectedEvent,
-    invitationModalVisible: selectedEvent !== null,
     filtersVisible,
     draftFilters,
     filtersActive: hasActiveEventsListFilters(appliedFilters),
@@ -52,8 +50,7 @@ export const useEventsListScreen = () => {
     onRefresh: () => {
       if (user?.id) void refetch({ cancelRefetch: false });
     },
-    handleEventShare: (event: Event) => setSelectedEvent(event),
-    handleCloseInvitationModal: () => setSelectedEvent(null),
+    handleEventShare: (event: Event) => router.push(`/events/${event.id}/envelope`),
     handleOpenFilters: () => {
       setDraftFilters(appliedFilters);
       setFiltersVisible(true);

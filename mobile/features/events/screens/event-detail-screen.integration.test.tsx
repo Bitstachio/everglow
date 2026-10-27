@@ -32,10 +32,11 @@ const mockLaunchLibrary = jest.fn();
 const mockRequestMediaPermission = jest.fn();
 const mockCreateAsset = jest.fn();
 const mockDownloadFile = jest.fn();
+const mockDeleteDownload = jest.fn();
 const mockVisits = new Map<string, string>();
 
 let mockUser: { id: string } | null = { id: "user-1" };
-let mockEventId: string | string[] = "event-1";
+let mockParams: { id: string | string[]; arrival?: string; place?: string } = { id: "event-1" };
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
@@ -49,10 +50,12 @@ jest.mock("@/lib/api/generated", () => ({
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
   photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
 }));
+jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
+  router: { setParams: jest.fn() },
   useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush, canGoBack: () => true }),
-  useLocalSearchParams: () => ({ id: mockEventId }),
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock("expo-secure-store", () => ({
   getItem: (key: string) => mockVisits.get(key) ?? null,
@@ -91,6 +94,8 @@ type DetailSeed = {
   event?: ReturnType<typeof buildEvent>;
   photos?: ReturnType<typeof buildPhoto>[];
   participants?: ReturnType<typeof buildParticipant>[];
+  /** What the roll reads as when it's fetched again. */
+  refetched?: ReturnType<typeof buildEvent>;
 };
 
 const openEvent = (overrides: Parameters<typeof buildEvent>[0] = {}) =>
@@ -113,6 +118,9 @@ const renderScreen = async (seed: DetailSeed = {}) => {
   clients.push(client);
   const event = seed.event ?? openEvent();
   mockDetailResponses({ ...seed, event });
+  if (seed.refetched) {
+    mockFindOne.mockResolvedValueOnce({ data: { data: event } }).mockResolvedValue({ data: { data: seed.refetched } });
+  }
   client.setQueryData(eventsKeys.list("user-1"), [event]);
   await render(
     <QueryClientProvider client={client}>
@@ -151,7 +159,7 @@ const oneFrame = [buildPhoto({ createdAt: fromNow(-DAY) })];
 
 beforeEach(() => {
   mockUser = { id: "user-1" };
-  mockEventId = "event-1";
+  mockParams = { id: "event-1" };
   mockVisits.clear();
   mockFindOne.mockReset();
   mockListPhotos.mockReset();
@@ -177,7 +185,8 @@ beforeEach(() => {
   });
   mockRequestMediaPermission.mockReset().mockResolvedValue({ status: "granted" });
   mockCreateAsset.mockReset().mockResolvedValue({});
-  mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg" });
+  mockDeleteDownload.mockReset();
+  mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg", delete: mockDeleteDownload });
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
     blob: async () => new Blob([IMAGE_BYTES]),
@@ -202,6 +211,21 @@ describe("upcoming (07.1, 07.2)", () => {
     expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
     expect(mockListPhotos).not.toHaveBeenCalled();
+
+    await userEvent.setup().press(screen.getByRole("button", { name: "Send the envelope" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
+  });
+
+  test("unlocks the shutter when it opens while on screen", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({
+      event: buildEvent({ galleryState: "UPCOMING", galleryOpensAt: fromNow(-1000), galleryClosesAt: null }),
+      refetched: openEvent({ galleryOpensAt: fromNow(-1000) }),
+      participants: [host, guest],
+    });
+
+    expect(await screen.findByRole("button", { name: "Add photos" })).toBeEnabled();
+    expect(mockFindOne).toHaveBeenCalledTimes(2);
   });
 
   test("a guest finds the shutter locked until it opens", async () => {
@@ -217,7 +241,7 @@ describe("upcoming (07.1, 07.2)", () => {
 
 describe("it opens (07.3)", () => {
   test("shows once to someone who looked before it opened", async () => {
-    mockVisits.set("roll-visit.event-1", fromNow(-3 * DAY));
+    mockVisits.set("roll-visit.user-1.event-1", fromNow(-3 * DAY));
     await renderScreen();
 
     expect(await screen.findByTestId("roll-opened")).toBeOnTheScreen();
@@ -226,11 +250,28 @@ describe("it opens (07.3)", () => {
 
     await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalled());
     expect(screen.queryByTestId("roll-opened")).not.toBeOnTheScreen();
-    expect(new Date(mockVisits.get("roll-visit.event-1")!).getTime()).toBeGreaterThan(Date.now() - 60_000);
+    expect(new Date(mockVisits.get("roll-visit.user-1.event-1")!).getTime()).toBeGreaterThan(Date.now() - 60_000);
+  });
+
+  test("doesn't show for another account's visit on this device", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({
+      event: buildEvent({ galleryState: "UPCOMING", galleryOpensAt: fromNow(DAY), galleryClosesAt: null }),
+      participants: [host, guest],
+    });
+    await screen.findByText("Weekend meetup");
+    await screen.unmount();
+    // That visit was before the roll opened.
+    for (const key of mockVisits.keys()) mockVisits.set(key, fromNow(-3 * DAY));
+
+    mockUser = { id: "user-1" };
+    await renderScreen({ participants: [host, guest] });
+    expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
+    expect(screen.queryByTestId("roll-opened")).not.toBeOnTheScreen();
   });
 
   test("doesn't show to someone who already looked since", async () => {
-    mockVisits.set("roll-visit.event-1", fromNow(-DAY));
+    mockVisits.set("roll-visit.user-1.event-1", fromNow(-DAY));
     await renderScreen();
     expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
     expect(screen.queryByTestId("roll-opened")).not.toBeOnTheScreen();
@@ -258,8 +299,10 @@ describe("open (07.4–07.8)", () => {
     expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen();
     expect(screen.getByText(/1\.2.*\/ 3 GB/)).toBeOnTheScreen();
     expect(screen.getByText(/23 days.*left/)).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "Invite people" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Add photos" })).toBeEnabled();
+
+    await userEvent.setup().press(screen.getByRole("button", { name: "Invite people" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
   });
 
   test("a guest gets People instead of Invite", async () => {
@@ -289,7 +332,7 @@ describe("open (07.4–07.8)", () => {
   });
 
   test("ticks other people's frames added since the last visit", async () => {
-    mockVisits.set("roll-visit.event-1", fromNow(-DAY / 2));
+    mockVisits.set("roll-visit.user-1.event-1", fromNow(-DAY / 2));
     await renderScreen({
       participants: [host, guest],
       photos: [
@@ -316,7 +359,33 @@ describe("open (07.4–07.8)", () => {
   });
 });
 
+describe("arriving from an envelope (06.6, 06.7)", () => {
+  test("says which member you are after joining", async () => {
+    mockUser = { id: "user-2" };
+    mockParams = { id: "event-1", arrival: "joined", place: "2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    expect(await screen.findByRole("alert")).toHaveTextContent("You’re on the roll · 2nd", { exact: false });
+  });
+
+  test("says you were already on it", async () => {
+    mockParams = { id: "event-1", arrival: "already" };
+    await renderScreen({ photos: oneFrame });
+    expect(await screen.findByRole("alert")).toHaveTextContent("You’re already on this roll", { exact: false });
+  });
+});
+
 describe("closed (07.9)", () => {
+  test("crosses it out when it closes while on screen", async () => {
+    await renderScreen({
+      event: openEvent({ galleryClosesAt: fromNow(-1000) }),
+      refetched: openEvent({ galleryState: "CLOSED", galleryClosesAt: "2026-09-21T10:00:00.000Z" }),
+      photos: oneFrame,
+    });
+
+    expect(await screen.findByText("Closed 21.09")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
+  });
+
   test("crosses out the frames and lists who was there", async () => {
     await renderScreen({
       event: buildEvent({
@@ -626,6 +695,8 @@ describe("saving and deleting frames", () => {
       idempotent: true,
     });
     expect(mockCreateAsset).toHaveBeenCalledTimes(2);
+    // The library keeps its own copy, so the downloads don't pile up in the cache.
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
   });
 
   test("a frame opens full size, saves, and deletes after the slip", async () => {
