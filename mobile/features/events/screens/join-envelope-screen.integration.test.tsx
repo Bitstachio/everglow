@@ -235,6 +235,9 @@ describe("Refusals", () => {
     expect(screen.getByRole("header", { name: "Envelope" })).toBeOnTheScreen();
     // Nothing is filled in on an envelope that doesn't open.
     expect(screen.queryByText(/so far|then it’s gone/)).not.toBeOnTheScreen();
+
+    await press("Scan another");
+    expect(mockRouter.replace).toHaveBeenCalledWith("/join");
   });
 
   test("06.10 removed by a host", async () => {

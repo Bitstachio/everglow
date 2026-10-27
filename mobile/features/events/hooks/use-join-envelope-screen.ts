@@ -124,5 +124,6 @@ export const useJoinEnvelopeScreen = () => {
     onRetry: () => void preview.refetch(),
     onBack: () => (router.canGoBack() ? router.back() : backToRolls()),
     onBackToRolls: backToRolls,
+    onScanAnother: () => router.replace("/join"),
   };
 };
