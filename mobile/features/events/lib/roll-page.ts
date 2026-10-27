@@ -1,4 +1,5 @@
 import { formatStorageBytes } from "../utils";
+import { isLastDay } from "./rolls";
 import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } from "../types";
 
 /**
@@ -71,15 +72,13 @@ export const bandTime = (
   return { kind: "left", duration: durationUntil(event.galleryClosesAt, now) };
 };
 
-/** 07.8: an open roll's last 24 hours. The time left and the shutter are circled. */
-export const isRollLastDay = (
-  event: Pick<EventResponseDto, "status" | "galleryState" | "galleryClosesAt">,
-  now: Date,
-): boolean => {
-  if (event.status !== "ACTIVE" || event.galleryState !== "OPEN" || !event.galleryClosesAt) return false;
-  const left = new Date(event.galleryClosesAt).getTime() - now.getTime();
-  return left > 0 && left <= DAY_MS;
-};
+/** 07.8: an open roll's last 24 hours, as on Home. The time left and the shutter are circled; not while it's held. */
+export const isRollLastDay = (event: EventResponseDto, now: Date): boolean =>
+  event.status === "ACTIVE" && isLastDay(event, now);
+
+/** An upcoming roll whose gallery has opened since it loaded. */
+export const hasOpened = (event: Pick<EventResponseDto, "galleryState" | "galleryOpensAt">, now: Date): boolean =>
+  event.galleryState === "UPCOMING" && new Date(event.galleryOpensAt) <= now;
 
 /**
  * The left of the band. Who adds photos sees the room left; view-only guests,
@@ -164,10 +163,6 @@ export const hostName = (
   return host ? firstName(host.name) : null;
 };
 
-/** When a closed roll's photos went: cut short, or the window's end. */
-export const closedOn = (event: Pick<EventResponseDto, "deactivatedAt" | "galleryClosesAt" | "updatedAt">): string =>
-  event.deactivatedAt ?? event.galleryClosesAt ?? event.updatedAt;
-
 const pad = (value: number) => String(value).padStart(2, "0");
 
 /** "Sat 07.11 · 19:00": when an upcoming roll opens. */
@@ -177,31 +172,11 @@ export const formatOpensAt = (iso: string): string => {
   return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-/** "Sat 19:00": the shutter's label while the roll is upcoming. */
-export const formatOpensShort = (iso: string): string => {
-  const date = new Date(iso);
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
-  return `${weekday} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
-
 /** "Sun 18.10": the roll's date under its name. */
 export const formatRollDate = (iso: string): string => {
   const date = new Date(iso);
   const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
   return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)}`;
-};
-
-/** "21 Sep": in pencil, when a closed roll's photos went. */
-export const formatDayMonth = (iso: string): string => {
-  // en-US for the month: en-GB spells September "Sept" in newer ICU data.
-  const date = new Date(iso);
-  return `${date.getDate()} ${date.toLocaleDateString("en-US", { month: "short" })}`;
-};
-
-/** "21.09": a closed roll's top bar. */
-export const formatDotDate = (iso: string): string => {
-  const date = new Date(iso);
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}`;
 };
 
 /** "Sep 12 – Sep 21": the life of a closed roll. */

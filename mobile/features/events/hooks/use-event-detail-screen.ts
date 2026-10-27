@@ -16,7 +16,16 @@ import {
 } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
-import { isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened, type SheetFrame } from "../lib/roll-page";
+import {
+  hasOpened,
+  isRollLastDay,
+  rollRole,
+  rollStage,
+  sheetFrames,
+  shouldShowOpened,
+  type SheetFrame,
+} from "../lib/roll-page";
+import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import { useArrivalNote } from "./use-arrival-note";
 import type { EventParticipantResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
@@ -73,10 +82,18 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
   return asset.fileSize ?? 0;
 };
 
-/** Saves one frame to the phone's library. */
+/** Saves one frame to the phone's library. The library keeps its own copy, so the download goes. */
 const saveToLibrary = async (photo: PhotoResponseDto) => {
   const downloaded = await File.downloadFileAsync(photo.url, Paths.cache, { idempotent: true });
-  await MediaLibrary.createAssetAsync(downloaded.uri);
+  try {
+    await MediaLibrary.createAssetAsync(downloaded.uri);
+  } finally {
+    try {
+      downloaded.delete();
+    } catch {
+      // Already gone; the cache is the system's to clear anyway.
+    }
+  }
 };
 
 /** What the sheet over the roll shows: the menu, people, or a slip. */
@@ -109,7 +126,7 @@ export const useEventDetailScreen = () => {
   const arrivalNote = useArrivalNote();
 
   // When this device last looked, read once: the ticks stay for this visit.
-  const [lastVisit] = useState(() => (eventId ? readLastVisit(eventId) : null));
+  const [lastVisit] = useState(() => (eventId && user ? readLastVisit(user.id, eventId) : null));
   const [openedDismissed, setOpenedDismissed] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
@@ -138,14 +155,21 @@ export const useEventDetailScreen = () => {
   const refreshing = eventQuery.isRefetching || photosQuery.isRefetching || participantsQuery.isRefetching;
 
   useEffect(() => {
-    if (eventId) writeLastVisit(eventId);
-  }, [eventId]);
+    if (eventId && user?.id) writeLastVisit(user.id, eventId);
+  }, [eventId, user?.id]);
 
   // The time left counts down while the roll is on screen.
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60 * 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // A roll that opens or closes while it's on screen is fetched again, so it moves on to its next stage.
+  const turned = event !== null && (hasOpened(event, now) || hasClosed(event, now));
+  const refetchEvent = eventQuery.refetch;
+  useEffect(() => {
+    if (turned) void refetchEvent({ cancelRefetch: false });
+  }, [turned, refetchEvent]);
 
   useEffect(
     () => () => {

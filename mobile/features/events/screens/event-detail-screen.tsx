@@ -27,14 +27,11 @@ import { RollOpened } from "../components/roll-opened";
 import { RollPeopleList } from "../components/roll-people-list";
 import { UnexposedRoll } from "../components/unexposed-roll";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
+import { closedOn, formatEnvelopeDay } from "../lib/envelope";
 import {
   bandStock,
   bandTime,
-  closedOn,
-  formatDayMonth,
-  formatDotDate,
   formatOpensAt,
-  formatOpensShort,
   formatRange,
   formatRollDate,
   hostName,
@@ -42,6 +39,7 @@ import {
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
+import { formatClosedOn, formatOpensOn } from "../lib/rolls";
 import { formatStorageBytes } from "../utils";
 
 // Room under the sheet so the last row clears the shutter.
@@ -113,7 +111,7 @@ const EventDetailScreen = () => {
     return (
       <SafeAreaView className="flex-1 bg-ground">
         <TopBar
-          title={t("closed.top", { date: formatDotDate(removedOn) })}
+          title={t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
             <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
@@ -141,8 +139,8 @@ const EventDetailScreen = () => {
               <UnexposedRoll
                 strips={3}
                 crossed
-                note={t("closed.removed", { date: formatDayMonth(removedOn) })}
-                accessibilityLabel={t("closed.removedLabel", { date: formatDayMonth(removedOn) })}
+                note={t("closed.removed", { date: formatEnvelopeDay(removedOn) })}
+                accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
               />
               <EdgePrint className="mx-5 mt-8 border-b border-outline-soft pb-2.5">
                 {t("closed.whoWasThere", { count: participants.length })}
@@ -250,8 +248,8 @@ const EventDetailScreen = () => {
           ? { kind: "leader", title: t("footer.sendEnvelope"), mark: "↗", onPress: screen.onOpenEnvelope }
           : {
               kind: "locked",
-              label: t("footer.opensAt", { when: formatOpensShort(event.galleryOpensAt) }),
-              accessibilityLabel: t("footer.lockedLabel", { when: formatOpensShort(event.galleryOpensAt) }),
+              label: t("footer.opensAt", { when: formatOpensOn(event.galleryOpensAt) }),
+              accessibilityLabel: t("footer.lockedLabel", { when: formatOpensOn(event.galleryOpensAt) }),
             };
       case "underReview":
         return { kind: "locked", label: t("footer.onHold"), accessibilityLabel: t("footer.onHold"), save };
