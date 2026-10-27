@@ -160,6 +160,8 @@ const run = async (eventId: string) => {
         running: false,
         items: tray.items.filter((item) => item.status.kind !== "developed"),
       }));
+      // Photos picked while the roll was refreshing found it still running; they go now.
+      if (getTray(eventId).items.some((item) => item.status.kind === "waiting")) void run(eventId);
     }
   }
 };
@@ -332,4 +334,20 @@ export const developingFrames = (
     develop: developedAmount(item),
     crossed: item.status.kind === "failed",
   }));
+};
+
+/** A file in the tray with the frame number it has, or will have, on the roll. */
+export type TrayEntry = { item: TrayItem; number: number | null; develop: number };
+
+/** 08.3 / 08.5: every file in the tray, numbered as on the sheet. One already on the roll keeps its number there. */
+export const trayEntries = (items: TrayItem[], photos: Pick<PhotoResponseDto, "id">[]): TrayEntry[] => {
+  const frames = new Map(developingFrames(items, photos, photos.length).map((frame) => [frame.item.key, frame]));
+  return items.map((item) => {
+    const frame = frames.get(item.key);
+    if (frame) return { item, number: frame.number, develop: frame.develop };
+    const { status } = item;
+    // The roll lists photos newest first.
+    const index = status.kind === "developed" ? photos.findIndex((photo) => photo.id === status.photoId) : -1;
+    return index === -1 ? { item, number: null, develop: 0 } : { item, number: photos.length - index, develop: 1 };
+  });
 };

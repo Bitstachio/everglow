@@ -9,7 +9,8 @@ import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
 import { TrayRow } from "../components/tray-row";
 import { TrayStrip } from "../components/tray-strip";
-import { useUploadTrayScreen, type TrayEntry } from "../hooks/use-upload-tray-screen";
+import { useUploadTrayScreen } from "../hooks/use-upload-tray-screen";
+import type { TrayEntry } from "../lib/upload-tray";
 import { formatSentOf } from "../utils";
 
 /** The tray shows its first few frames on a strip. */

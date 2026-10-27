@@ -2,8 +2,7 @@ import { renderWithI18n } from "@/testing/render";
 import { screen, userEvent } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import type { TrayEntry } from "../hooks/use-upload-tray-screen";
-import type { TrayItem } from "../lib/upload-tray";
+import type { TrayEntry, TrayItem } from "../lib/upload-tray";
 import UploadTrayScreen from "./upload-tray-screen";
 
 const mockHide = jest.fn();

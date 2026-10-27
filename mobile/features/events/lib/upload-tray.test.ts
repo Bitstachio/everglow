@@ -11,6 +11,7 @@ import {
   removeFromTray,
   retryTray,
   summarizeTray,
+  trayEntries,
   type TrayItem,
 } from "./upload-tray";
 import { runAccountCleared } from "@/lib/account-cleared";
@@ -74,6 +75,25 @@ test("sends what can go, refreshes the roll, then drops the developed frames", a
     closed: null,
     items: [item("big", { kind: "rejected", reason: "tooLarge" })],
   });
+});
+
+test("sends photos added while the roll was refreshing after the last ones", async () => {
+  let refreshed: () => void = () => undefined;
+  settle.mockImplementationOnce(() => new Promise<void>((resolve) => (refreshed = resolve)));
+  addToTray("event-1", [item("a")], settle);
+  await flush();
+  expect(settle).toHaveBeenCalledTimes(1);
+
+  // Picked again before the roll's refresh came back.
+  addToTray("event-1", [item("b")], settle);
+  refreshed();
+  await flush();
+
+  expect(mockUpload.mock.calls.map(([, files]) => files.map((file) => file.uri))).toEqual([
+    ["file://a.jpg"],
+    ["file://b.jpg"],
+  ]);
+  expect(getTray("event-1")).toEqual({ running: false, closed: null, items: [] });
 });
 
 test("keeps a frame that didn't take, and retries it", async () => {
@@ -213,4 +233,17 @@ test("remembers the local file of a developed photo, until the account is cleare
   expect(localFileFor("file://a.jpg")).toBe("file://a.jpg");
   runAccountCleared();
   expect(localFileFor("file://a.jpg")).toBeUndefined();
+});
+
+describe("trayEntries", () => {
+  it("numbers a file developing on the sheet, and one already on the roll where the roll has it", () => {
+    const entries = trayEntries(
+      [item("a", { kind: "developed", photoId: "p2" }), item("b", { kind: "sending", bytesSent: 50 })],
+      [{ id: "p2" }, { id: "p1" }],
+    );
+    expect(entries.map(({ item: { key }, number, develop }) => ({ key, number, develop }))).toEqual([
+      { key: "a", number: 2, develop: 1 },
+      { key: "b", number: 3, develop: 0.5 },
+    ]);
+  });
 });
