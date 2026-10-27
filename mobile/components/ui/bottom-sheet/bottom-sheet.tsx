@@ -11,6 +11,8 @@ import { useBottomSheetPresentation } from "./use-bottom-sheet";
 type BottomSheetProps = {
   visible: boolean;
   onClose: () => void;
+  /** After the sheet has fully gone, for something that must not open over it. */
+  onClosed?: () => void;
   children: ReactNode;
   title?: string;
   testID?: string;
@@ -21,6 +23,7 @@ type BottomSheetProps = {
 export const BottomSheet = ({
   visible,
   onClose,
+  onClosed,
   children,
   title,
   testID,
@@ -28,7 +31,7 @@ export const BottomSheet = ({
   closeAccessibilityLabel,
 }: BottomSheetProps) => {
   const insets = useSafeAreaInsets();
-  const { presented, scrimOpacity, sheetTranslateY, pointerEvents } = useBottomSheetPresentation(visible);
+  const { presented, scrimOpacity, sheetTranslateY, pointerEvents } = useBottomSheetPresentation(visible, onClosed);
   const dismissLabel = dismissAccessibilityLabel ?? i18n.t("actions.dismiss", { ns: "common" });
   const closeLabel = closeAccessibilityLabel ?? i18n.t("actions.close", { ns: "common" });
 

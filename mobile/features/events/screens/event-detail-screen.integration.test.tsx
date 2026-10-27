@@ -610,6 +610,8 @@ describe("adding photos (08)", () => {
     expect(await screen.findByText("No room for these.")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: /^Send/ })).not.toBeOnTheScreen();
     await user.press(screen.getByRole("button", { name: "Pick again" }));
+    // Not over the closing sheet: iOS would take the picker down with it.
+    expect(mockLaunchLibrary).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalledTimes(2));
     expect(mockCreateUploadUrls).not.toHaveBeenCalled();
   });
@@ -649,7 +651,9 @@ describe("adding photos (08)", () => {
     await user.press(screen.getByRole("button", { name: "Add photos" }));
 
     expect(await screen.findByText("5 photos didn’t make it.")).toBeOnTheScreen();
-    expect(screen.getByText("The roll closed while they were sending. The other 20 are on it.")).toBeOnTheScreen();
+    expect(
+      screen.getByText("The roll closed while they were sending. The other 20 got in before it did."),
+    ).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Send them again" })).not.toBeOnTheScreen();
 
     await user.press(screen.getByRole("button", { name: "Ok" }));

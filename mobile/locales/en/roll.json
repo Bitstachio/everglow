@@ -157,7 +157,6 @@
       "noRoom": "{{count}} didn’t fit · the roll is full",
       "cantAdd": "{{count}} can’t be added"
     },
-    "top": "Tray",
     "title": "In the tray",
     "progress": "{{developed}} of {{total}} developed",
     "developingRejected": "{{count}} developing,",
@@ -203,8 +202,7 @@
     "edge": "Closed at {{time}}",
     "title_one": "{{count}} photo didn’t make it.",
     "title_other": "{{count}} photos didn’t make it.",
-    "body_one": "The roll closed while they were sending. The other {{count}} is on it.",
-    "body_other": "The roll closed while they were sending. The other {{count}} are on it.",
+    "body": "The roll closed while they were sending. The other {{count}} got in before it did.",
     "bodyNone": "The roll closed before they were sent.",
     "ok": "Ok"
   }

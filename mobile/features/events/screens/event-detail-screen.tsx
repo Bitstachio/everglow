@@ -483,9 +483,9 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
   return (
     <>
-      {/* 08.8: the gallery closed while photos were sending. What landed stays; there's no Retry. */}
-      <BottomSheet visible={closed !== null && screen.sheet === null} onClose={screen.onDismissClosed}>
-        {closed ? (
+      <BottomSheet visible={screen.sheet !== null} onClose={screen.onCloseSheet} onClosed={screen.onSheetClosed}>
+        {screen.sheet === "closedSending" && closed ? (
+          // 08.8: the gallery closed while photos were sending. There's no Retry.
           <Slip
             edge={t("closedSending.edge", {
               time: formatClock(event.galleryState === "CLOSED" ? closedOn(event) : closed.at),
@@ -496,9 +496,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
             <Button title={t("closedSending.ok")} mark="✓" onPress={screen.onDismissClosed} />
           </Slip>
         ) : null}
-      </BottomSheet>
 
-      <BottomSheet visible={screen.sheet !== null} onClose={screen.onCloseSheet}>
         {screen.sheet === "menu" ? (
           <View>
             <IndexRow label={t("menuSheet.people")} onPress={screen.onOpenPeople} />

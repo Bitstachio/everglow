@@ -108,7 +108,7 @@ const saveToLibrary = async (photo: PhotoResponseDto) => {
 };
 
 /** What the sheet over the roll shows: the menu, people, or a slip. */
-export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove" | "room";
+export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove" | "room" | "closedSending";
 
 /** 08.6: picked photos that don't all fit, waiting on Send or Pick again. */
 type RoomCheck = RoomShortfall & { items: TrayItem[]; leftBytes: number };
@@ -161,6 +161,8 @@ export const useEventDetailScreen = () => {
   // from another: iOS drops a modal presented while another is closing.
   const [sheet, setSheet] = useState<RollSheet | null>(null);
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
+  // What waits for the sheet to be fully gone: the library picker can't open over it.
+  const afterSheetCloses = useRef<(() => void) | null>(null);
   const closeSheet = () => setSheet(null);
 
   const photos = hasPhotos ? (photosQuery.data ?? []) : [];
@@ -285,7 +287,13 @@ export const useEventDetailScreen = () => {
   const onPickAgain = () => {
     closeSheet();
     setRoomCheck(null);
-    void onAddPhotos();
+    afterSheetCloses.current = () => void onAddPhotos();
+  };
+
+  const onSheetClosed = () => {
+    const next = afterSheetCloses.current;
+    afterSheetCloses.current = null;
+    next?.();
   };
 
   const ensureLibraryAccess = async () => {
@@ -390,6 +398,13 @@ export const useEventDetailScreen = () => {
     });
   };
 
+  // 08.8 takes the sheet once nothing else is on it: one sheet, so iOS never drops it.
+  const closedWhileSending = tray.closed && !tray.running ? tray.closed : null;
+  const shownSheet: RollSheet | null = sheet ?? (closedWhileSending ? "closedSending" : null);
+  const onDismissClosed = () => {
+    if (eventId) dismissClosed(eventId);
+  };
+
   const openedVisible = !openedDismissed && event !== null && shouldShowOpened(event, lastVisit);
   const openFrameIsDeletable =
     openFrame !== null &&
@@ -411,7 +426,7 @@ export const useEventDetailScreen = () => {
     localFileFor,
     tray: summarizeTray(tray),
     trayRunning: tray.running,
-    closedWhileSending: tray.closed && !tray.running ? tray.closed : null,
+    closedWhileSending,
     isFull,
     leftBytes,
     roomCheck,
@@ -424,7 +439,7 @@ export const useEventDetailScreen = () => {
     isSavingFrame,
     isDeletingFrame: deletePhotoMutation.isPending,
     confirmDeleteVisible,
-    sheet,
+    sheet: shownSheet,
     arrivalNote,
     isLeaving: leaveEventMutation.isPending,
     isCutting: deactivateMutation.isPending,
@@ -444,9 +459,7 @@ export const useEventDetailScreen = () => {
     },
     onSendWhatFits,
     onPickAgain,
-    onDismissClosed: () => {
-      if (eventId) dismissClosed(eventId);
-    },
+    onDismissClosed,
     onSaveAll: () => void onSaveAll(),
     onOpenFrame: setOpenFrame,
     onCloseFrame: () => setOpenFrame(null),
@@ -455,7 +468,8 @@ export const useEventDetailScreen = () => {
     onCancelDeleteFrame: () => setConfirmDeleteVisible(false),
     onConfirmDeleteFrame,
     onOpenMenu: () => setSheet("menu"),
-    onCloseSheet: closeSheet,
+    onCloseSheet: shownSheet === "closedSending" ? onDismissClosed : closeSheet,
+    onSheetClosed,
     onOpenPeople: () => setSheet("people"),
     // 05: the host's envelope screen, from Send the envelope (07.1) and Invite (07.4–07.8).
     onOpenEnvelope: () => {
