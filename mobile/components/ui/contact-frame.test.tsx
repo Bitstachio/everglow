@@ -5,7 +5,7 @@ test("labels the frame with its number and who took it, and opens on press", asy
   const onPress = jest.fn();
   await render(<ContactFrame number={144} by="Leila" accessibilityLabel="Frame 144 by Leila" onPress={onPress} />);
   expect(screen.getByText(/· Leila/)).toBeOnTheScreen();
-  fireEvent.press(screen.getByLabelText("Frame 144 by Leila"));
+  await fireEvent.press(screen.getByLabelText("Frame 144 by Leila"));
   expect(onPress).toHaveBeenCalledTimes(1);
 });
 
