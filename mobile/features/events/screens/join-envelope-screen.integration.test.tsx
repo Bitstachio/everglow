@@ -84,7 +84,9 @@ describe("06.4 The envelope", () => {
     expect(screen.getByText("24 people so far")).toBeOnTheScreen();
     expect(screen.getByText("17 Nov, then it’s gone")).toBeOnTheScreen();
     expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/k8Qm2")).toBeOnTheScreen();
-    expect(screen.getByText("Invited by Sam · it’s free")).toBeOnTheScreen();
+    // Stamped on the card: who invited you.
+    expect(stampText("Invited")).toBeOnTheScreen();
+    expect(stampText("by Sam")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Join and add photos" })).toBeOnTheScreen();
     expect(mockPreview).toHaveBeenCalledWith({
       path: { token: "k8Qm2" },
@@ -98,14 +100,15 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByRole("button", { name: "Join to look" })).toBeOnTheScreen();
-    expect(screen.getByText("You can look and save · invited by Sam")).toBeOnTheScreen();
+    expect(screen.getByText("You can look and save")).toBeOnTheScreen();
+    expect(stampText("by Sam")).toBeOnTheScreen();
   });
 
   test("names the host plainly when their profile is gone, and leaves pick-up out on a roll that never closes", async () => {
     mockPreview.mockImplementation(() => previewed({ host: null, galleryClosesAt: null }));
     await renderScreen();
 
-    expect(await screen.findByText("Invited by the host · it’s free")).toBeOnTheScreen();
+    expect(await screen.findByText("by the host", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByText("It stays open")).toBeOnTheScreen();
   });
 

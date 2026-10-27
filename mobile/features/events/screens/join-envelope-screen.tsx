@@ -13,8 +13,8 @@ import QRCode from "react-native-qrcode-svg";
 import { RollEnvelope } from "../components/roll-envelope";
 import { useJoinEnvelopeScreen, type JoinRefusal } from "../hooks/use-join-envelope-screen";
 
-/** The QR's side on the envelope, as drawn. */
-const CODE_SIZE = 78;
+/** The QR's side on the envelope, as on the host's envelope. */
+const CODE_SIZE = 150;
 
 type RefusalCopy = { stamp: string; stampSub: string; title: string; dim: string; body: string };
 
@@ -180,21 +180,17 @@ const JoinEnvelopeScreen = () => {
               }
             />
           </View>
+          {/* Stamped on the card's bottom right corner, beside the code. */}
           {refused ? (
-            <View className="absolute -bottom-8 right-8">
+            <View className="absolute bottom-3 right-0">
               <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
+            </View>
+          ) : status === "ready" ? (
+            <View className="absolute bottom-3 right-0">
+              <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { host: hostName })} />
             </View>
           ) : null}
         </View>
-
-        {status === "ready" ? (
-          <View className="mr-1 mt-6 items-end">
-            <Stamp
-              title={views ? t("open.stampView") : t("open.stampAdds")}
-              subtitle={views ? t("open.stampViewSub") : t("open.stampAddsSub")}
-            />
-          </View>
-        ) : null}
 
         {refused || status === "failed" ? (
           <View className="mt-auto px-5 pb-4">
@@ -231,13 +227,8 @@ const JoinEnvelopeScreen = () => {
               onPress={onJoin}
               isLoading={isJoining || status === "loading"}
             />
-            <EdgePrint className="text-center">
-              {status === "ready"
-                ? views
-                  ? t("open.invitedView", { host: hostName })
-                  : t("open.invitedAdds", { host: hostName })
-                : " "}
-            </EdgePrint>
+            {/* The stamp says who invited you; a view-only envelope also says what it lets you do. */}
+            <EdgePrint className="text-center">{status === "ready" && views ? t("open.viewOnly") : " "}</EdgePrint>
           </>
         )}
       </View>
