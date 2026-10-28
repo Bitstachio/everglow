@@ -72,6 +72,32 @@
     "body": "Couldn’t get the film ready. Check your connection and try again.",
     "retry": "Try again"
   },
+  "leave": {
+    "edge": "Not loaded yet",
+    "title": "Throw this roll away?",
+    "body": "Nothing has been created. You can start again any time.",
+    "keep": "Keep editing",
+    "throwAway": "Throw it away"
+  },
+  "full": {
+    "edge": "{{plan}} · {{used}} of {{limit}} running",
+    "plans": {
+      "FREE": "Free plan"
+    },
+    "titleBoth": "Both rolls",
+    "title_one": "Your roll",
+    "title_other": "All {{count}} rolls",
+    "dim_one": "is in use.",
+    "dim_other": "are in use.",
+    "runs": {
+      "FREE_one": "A free account runs one roll at a time.",
+      "FREE_other": "A free account runs {{count}} rolls at a time."
+    },
+    "frees": "<b>{{title}}</b> closes on {{date}}, then a spot opens.",
+    "cutOne": "Cut one of them short from its settings, and a spot opens.",
+    "note": "free on {{date}} ↑",
+    "back": "Back to your rolls"
+  },
   "loaded": {
     "close": "Close",
     "stamp": "Loaded",

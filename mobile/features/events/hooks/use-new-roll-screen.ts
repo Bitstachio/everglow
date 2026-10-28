@@ -22,10 +22,12 @@ import {
   TIME_SLOTS,
   WEEKDAY_INITIALS,
 } from "../lib/new-roll";
+import { useLeaveUnsaved } from "./use-leave-unsaved";
 import { useNewRollCover } from "./use-new-roll-cover";
 import { useNewRollForm } from "./use-new-roll-form";
+import { useRollsInUse } from "./use-rolls-in-use";
 
-export type NewRollStatus = "loading" | "ready" | "notReady";
+export type NewRollStatus = "loading" | "ready" | "notReady" | "full";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
 
@@ -44,9 +46,11 @@ const useKeyboardVisible = () => {
 };
 
 /**
- * 04.1–04.5 A new roll: its name and a line for guests, when it happens, the
- * film and its first frame. The film on offer, its default and the latest date all come from
- * the API (`GET /users/me/limits`), never from the app.
+ * 04.1–04.8 A new roll: its name and a line for guests, when it happens, the
+ * film and its first frame; asking before it is thrown away, and saying so
+ * when the account can't run another. The film on offer, its default, the
+ * latest date and the roll limit all come from the API
+ * (`GET /users/me/limits`), never from the app.
  */
 export const useNewRollScreen = () => {
   const { t } = useTranslation("create");
@@ -55,6 +59,7 @@ export const useNewRollScreen = () => {
   const newEvent = limitsQuery.data?.newEvent;
   const { cover, isPreparing: isPreparingCover, onPickCover } = useNewRollCover();
   const setCoverMutation = useSetNewRollCoverMutation();
+  const [hitLimit, setHitLimit] = useState(false);
   const {
     form,
     onSubmit,
@@ -63,6 +68,7 @@ export const useNewRollScreen = () => {
     newEvent,
     // The roll is loaded either way; a cover that didn't take can be added from its settings.
     onCreated: async (event) => {
+      leave.allowLeave();
       if (cover) {
         try {
           await setCoverMutation.mutateAsync({ eventId: event.id, image: cover });
@@ -72,13 +78,25 @@ export const useNewRollScreen = () => {
       }
       router.replace(`/events/${event.id}/loaded`);
     },
+    onLimitReached: () => {
+      setHitLimit(true);
+      void limitsQuery.refetch();
+    },
   });
   const [title, description, date, pickedFilm] = useWatch({
     control: form.control,
     name: ["title", "description", "date", "galleryWindowDays"],
   });
   const galleryWindowDays = chosenFilm(pickedFilm);
-  const { errors, isSubmitting } = form.formState;
+  const { errors, isDirty, isSubmitting } = form.formState;
+  const full = useRollsInUse(limitsQuery.data, hitLimit);
+  const leave = useLeaveUnsaved((isDirty || cover !== null) && !full);
+
+  // A roll may have closed since the limits were last read.
+  const { refetch: refetchLimits } = limitsQuery;
+  useEffect(() => {
+    void refetchLimits({ cancelRefetch: false });
+  }, [refetchLimits]);
   const guestLineRef = useRef<TextInput>(null);
   const keyboardVisible = useKeyboardVisible();
 
@@ -108,6 +126,7 @@ export const useNewRollScreen = () => {
   const gallery = galleryWindow(date, galleryWindowDays, now);
   const draftWindow = galleryWindow(draft, galleryWindowDays, now);
   const shownWhen = describeWhen(whenVisible ? draft : date);
+  const slipOpen = whenVisible || leave.visible;
   const firstMonth = startOfMonth(now);
   const lastMonth = startOfMonth(latest);
 
@@ -134,7 +153,8 @@ export const useNewRollScreen = () => {
   }));
 
   return {
-    status: (limitsQuery.isPending ? "loading" : newEvent ? "ready" : "notReady") as NewRollStatus,
+    status: (limitsQuery.isPending ? "loading" : full ? "full" : newEvent ? "ready" : "notReady") as NewRollStatus,
+    full,
     onRetry: () => void limitsQuery.refetch(),
     form,
     canLoad: title.trim().length > 0 && !isPreparingCover,
@@ -143,7 +163,7 @@ export const useNewRollScreen = () => {
     onLoad: onSubmit,
     label: {
       when: shownWhen,
-      editLabel: whenVisible ? undefined : t("label.edit"),
+      editLabel: slipOpen ? undefined : t("label.edit"),
       editA11y: t("label.editA11y", { when: shownWhen }),
     },
     guestLineRef,
@@ -195,6 +215,8 @@ export const useNewRollScreen = () => {
         },
       },
     },
+    leave: { visible: leave.visible, onKeepEditing: leave.onKeepEditing, onThrowAway: leave.onThrowAway },
+    onBackToRolls: () => router.back(),
     onClose: () => router.back(),
   };
 };

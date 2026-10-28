@@ -2,8 +2,11 @@ import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
+import { FilmStrip } from "@/components/ui/film-strip";
 import { IconButton } from "@/components/ui/icon-button";
+import { PencilNote } from "@/components/ui/pencil-note";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { Slip } from "@/components/ui/slip";
 import { Spinner } from "@/components/ui/spinner";
 import { TopBar } from "@/components/ui/top-bar";
 import { colorTokens } from "@/theme/tokens";
@@ -14,11 +17,39 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-na
 import { FilmChoice } from "../components/film-choice";
 import { FirstFrame } from "../components/first-frame";
 import { GuestLine } from "../components/guest-line";
+import { buildFrames } from "../components/roll-card";
 import { RollLabel } from "../components/roll-label";
+import { RollsInUse } from "../components/rolls-in-use";
 import { WhenSlip } from "../components/when-slip";
 import { useNewRollScreen } from "../hooks/use-new-roll-screen";
+import { useRollPreview } from "../hooks/use-roll-preview";
+import type { Event } from "../types";
 
-/** 04.1–04.5 Load a roll: name it, say when, choose the film, add a first frame. Opened from New roll on Home. */
+/** A roll in use (04.8): its strip, with the frame that frees a spot circled and a note under it. */
+const RunningRoll = ({ event, note }: { event: Event; note?: string }) => {
+  const photos = useRollPreview(event);
+  const frames = buildFrames(event, photos);
+  return (
+    <View>
+      <FilmStrip
+        frames={
+          note ? frames.map((frame, i) => (i === frames.length - 1 ? { ...frame, circled: true } : frame)) : frames
+        }
+      />
+      {note ? (
+        <View className="-mt-1.5 mr-5 self-end -rotate-4">
+          <PencilNote>{note}</PencilNote>
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
+/**
+ * 04.1–04.8 Load a roll: name it, say when, choose the film, add a first
+ * frame. Asks before throwing it away, and says so when every roll the plan
+ * allows is running. Opened from New roll on Home.
+ */
 const NewRollScreen = () => {
   const { t } = useTranslation("create");
   const {
@@ -36,6 +67,9 @@ const NewRollScreen = () => {
     film,
     cover,
     when,
+    full,
+    onBackToRolls,
+    leave,
     onClose,
   } = useNewRollScreen();
 
@@ -54,6 +88,36 @@ const NewRollScreen = () => {
         <View testID="new-roll-loading" className="flex-1 items-center justify-center">
           <Spinner />
         </View>
+      ) : status === "full" && full ? (
+        <>
+          <RollsInUse
+            edge={full.edge}
+            title={full.title}
+            dim={full.dim}
+            body={
+              <>
+                {full.runs}{" "}
+                {full.next ? (
+                  <Trans
+                    t={t}
+                    i18nKey="full.frees"
+                    values={full.next}
+                    components={{ b: <Text className="font-sans-semibold text-text" /> }}
+                  />
+                ) : (
+                  t("full.cutOne")
+                )}
+              </>
+            }
+          >
+            {full.rolls.map(({ event, note }) => (
+              <RunningRoll key={event.id} event={event} note={note} />
+            ))}
+          </RollsInUse>
+          <View className="px-5 pb-1 pt-3">
+            <Button title={t("full.back")} mark="‹" onPress={onBackToRolls} />
+          </View>
+        </>
       ) : status === "notReady" ? (
         <View className="flex-1 justify-between px-5 pb-1 pt-5">
           <View className="gap-3">
@@ -156,6 +220,13 @@ const NewRollScreen = () => {
 
       <BottomSheet visible={when.visible} onClose={when.onClose}>
         <WhenSlip edge={t("when.edge")} {...when.slip} />
+      </BottomSheet>
+
+      <BottomSheet visible={leave.visible} onClose={leave.onKeepEditing}>
+        <Slip edge={t("leave.edge")} title={t("leave.title")} body={t("leave.body")}>
+          <Button title={t("leave.keep")} mark="‹" onPress={leave.onKeepEditing} />
+          <Button title={t("leave.throwAway")} variant="secondary" mark="✕" onPress={leave.onThrowAway} />
+        </Slip>
       </BottomSheet>
     </SafeAreaView>
   );
