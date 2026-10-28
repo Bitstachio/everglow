@@ -5,7 +5,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "invoke": "tsx src/invoke-local.ts",
+    "process-local": "tsx src/process-local.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/index.js && rm -f dist/function.zip && zip -j dist/function.zip dist/index.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.152",
