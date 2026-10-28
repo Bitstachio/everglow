@@ -1,4 +1,5 @@
 import common from "./common.json";
+import create from "./create.json";
 import envelope from "./envelope.json";
 import errors from "./errors/catalog";
 import home from "./home.json";
@@ -9,6 +10,7 @@ import you from "./you.json";
 
 const en = {
   common,
+  create,
   envelope,
   errors,
   home,

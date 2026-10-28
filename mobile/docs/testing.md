@@ -99,25 +99,21 @@ Settings. The envelope suite renders every preview state (06.4–06.13) from the
 mocked responses, joins, and unblocks the host before joining.
 Device E2E coverage remains a separate follow-up.
 
-## Create Event page
+## New roll (chapter 04)
 
-Run the Create Event unit/component and full-screen integration suites from `mobile/`:
+Run the new-roll unit and screen-integration suites from `mobile/`:
 
 ```sh
-pnpm test -- create-event features/events/api/mutations.test.tsx
-pnpm test:integration -- features/events/screens/create-event-screen.integration.test.tsx
+pnpm test -- features/events/lib/new-roll features/events/hooks/use-new-roll features/events/api/mutations.test.tsx
+pnpm test:integration -- features/events/screens/new-roll-screen.integration.test.tsx
 ```
 
-The integration suite renders the real screen, form, hooks, validation, and React Query mutation.
-Only the generated SDK, navigation, native services, and date/time picker are mocked. It covers
-creation with an optional description, validation, pending submission, retries, cache invalidation,
-invitation copying/sharing, share failures, creating another event, and returning with Done.
+The integration suite renders the real screen, form, hooks and React Query, with the film on offer
+from a mocked `GET /users/me/limits`. Only the generated SDK, navigation and the keyboard's show and
+hide events are replaced, and only `Date` is faked, so labels such as "Tonight · 20:00" are stable.
+It covers the default time and film, picking a day and a time in the slip, the days the API allows,
+lengths without a name, the guest line, a failed create, and limits that fail to load.
 
-Component tests exercise iOS and Android picker changes and dismissal, preservation of the date
-when changing time (and vice versa), picker visibility, disabled controls, themes, and success
-callbacks. Form-hook tests cover field limits, trimming, invalid dates, fallback errors, reset,
-and duplicate submit callbacks. Screen-hook tests also check actions before/after a created event
-exists. The mutation tests verify that creation waits for active event lists to refresh.
-
-Native picker events are simulated; these tests do not exercise a device or real HTTP transport.
-Device E2E tests remain deferred.
+The form-hook probe covers the payload (trimming, the optional line, the plan's default film, and a
+plan that never closes), validation, and retrying after a failure. Date helpers have their own unit
+tests in `features/events/lib/new-roll.test.ts`.

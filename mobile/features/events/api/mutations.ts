@@ -16,6 +16,7 @@ import { unwrapEnvelope } from "@/lib/api/envelope";
 import { isApiError } from "@/lib/api/errors";
 import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
 import type { CoverImage } from "../lib/cover-image";
+import { profileKeys } from "@/features/profile/api/keys";
 import { extractInvitationToken } from "../lib/invite";
 import { eventsKeys } from "./keys";
 import {
@@ -46,8 +47,13 @@ export const useCreateEventMutation = () => {
       const { data } = await eventsControllerCreate({ body, throwOnError: true });
       return unwrapEnvelope(data);
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    // The new roll opens from the cache, and counts toward the account's active rolls.
+    onSuccess: async (event) => {
+      queryClient.setQueryData(eventsKeys.detail(event.id), event);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.all }),
+        queryClient.invalidateQueries({ queryKey: profileKeys.limits() }),
+      ]);
     },
   });
 };

@@ -1,0 +1,55 @@
+{
+  "title": "New roll",
+  "close": "Close",
+  "label": {
+    "stock": "Everglow 400",
+    "namePlaceholder": "Name your roll",
+    "nameA11y": "Roll name",
+    "when": "{{day}} · {{time}}",
+    "edit": "edit ›",
+    "editA11y": "When it happens: {{when}}. Change",
+    "days": {
+      "tonight": "Tonight",
+      "today": "Today",
+      "tomorrow": "Tomorrow"
+    }
+  },
+  "guests": {
+    "label": "A line for guests · optional",
+    "placeholder": "Bring a jacket, we’re on the roof",
+    "a11y": "A line for guests, optional"
+  },
+  "film": {
+    "heading": "Choose your film · how long people can add photos",
+    "dayRoll": "day roll",
+    "names": {
+      "3": "Weekend",
+      "7": "A week",
+      "14": "Two weeks",
+      "30": "A month"
+    },
+    "days": "{{count}} days",
+    "a11y": "{{name}}, {{count}}-day roll",
+    "develops": "Develops {{opens}} · <value>photos removed {{closes}}</value>",
+    "developsOpen": "Develops {{opens}}"
+  },
+  "when": {
+    "edge": "When it happens",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "set": "Set {{day}}, {{time}}",
+    "unavailable": "{{day}}, can’t be picked"
+  },
+  "load": "Load the roll",
+  "validation": {
+    "nameRequired": "Give the roll a name",
+    "nameTooLong": "100 characters at most",
+    "lineTooLong": "255 characters at most"
+  },
+  "failed": "The roll didn’t load. Try again.",
+  "notReady": {
+    "edge": "No film yet",
+    "body": "Couldn’t get the film ready. Check your connection and try again.",
+    "retry": "Try again"
+  }
+}
