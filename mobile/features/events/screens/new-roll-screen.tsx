@@ -12,12 +12,13 @@ import { Controller } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { FilmChoice } from "../components/film-choice";
+import { FirstFrame } from "../components/first-frame";
 import { GuestLine } from "../components/guest-line";
 import { RollLabel } from "../components/roll-label";
 import { WhenSlip } from "../components/when-slip";
 import { useNewRollScreen } from "../hooks/use-new-roll-screen";
 
-/** 04.1–04.4 Load a roll: name it, say when, choose the film. Opened from New roll on Home. */
+/** 04.1–04.5 Load a roll: name it, say when, choose the film, add a first frame. Opened from New roll on Home. */
 const NewRollScreen = () => {
   const { t } = useTranslation("create");
   const {
@@ -33,6 +34,7 @@ const NewRollScreen = () => {
     showGuestLine,
     onNameSubmit,
     film,
+    cover,
     when,
     onClose,
   } = useNewRollScreen();
@@ -125,6 +127,16 @@ const NewRollScreen = () => {
                     t("film.developsOpen", { opens: film.opens })
                   )
                 }
+              />
+            </View>
+
+            <View className="mt-17">
+              <FirstFrame
+                heading={t("cover.heading")}
+                hint={t("cover.hint")}
+                preparingLabel={t("cover.preparing")}
+                disabled={isLoading}
+                {...cover}
               />
             </View>
           </ScrollView>

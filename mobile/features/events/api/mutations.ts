@@ -256,3 +256,19 @@ export const useRegenerateInviteMutation = (eventId: string) => {
     },
   });
 };
+
+/**
+ * 04.5 A new roll's first frame. It is picked before the roll exists, so the
+ * roll is named when the upload starts rather than when the hook is created.
+ */
+export const useSetNewRollCoverMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<EventResponseDto, Error, { eventId: string; image: CoverImage }>({
+    mutationFn: ({ eventId, image }) => uploadEventCover(eventId, image),
+    onSuccess: async (event) => {
+      queryClient.setQueryData(eventsKeys.detail(event.id), event);
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    },
+  });
+};
