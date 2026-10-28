@@ -104,8 +104,8 @@ Device E2E coverage remains a separate follow-up.
 Run the new-roll unit and screen-integration suites from `mobile/`:
 
 ```sh
-pnpm test -- features/events/lib/new-roll features/events/hooks/use-new-roll features/events/api features/events/components/roll-envelope
-pnpm test:integration -- features/events/screens/new-roll-screen.integration.test.tsx features/events/screens/roll-loaded-screen.integration.test.tsx
+pnpm test -- features/events/lib/new-roll features/events/hooks/use-new-roll features/events/api features/events/components/roll-envelope features/events/components/when-slip
+pnpm test:integration -- features/events/screens/new-roll-screen.integration.test.tsx
 ```
 
 The integration suite renders the real screen, form, hooks and React Query, with the film on offer
@@ -115,8 +115,9 @@ It covers the default time and film, picking a day and a time in the slip, the d
 lengths without a name, the guest line, a failed create, and limits that fail to load. The first
 frame goes through the photo picker, the on-device crop and the byte upload, which are mocked at
 their native boundaries; the suite checks the cover is minted and confirmed for the new roll, and
-that the roll still loads when the cover doesn't take. The Loaded suite renders the envelope from
-the cache the create fills, and checks where Send the envelope, Go to the roll and Close lead.
+that the roll still loads when the cover doesn't take, then opens on the host's envelope stamped
+Ready (`/events/[id]/envelope?ready=1`). The envelope suite checks that stamp and that closing it
+goes on to the roll.
 
 Leaving is asked about through React Navigation's `usePreventRemove`, which the suite replaces so a
 test can play the moment the screen is about to go: an empty roll goes at once, one with a name or

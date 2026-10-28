@@ -16,22 +16,22 @@ type FilmChoiceProps = {
   onSelect: (days: number) => void;
   /** Ring the chosen box in pencil, once the host has picked one (04.4). */
   circled: boolean;
-  /** "Develops Sat 07.11 · photos removed Sat 14.11". */
-  develops: ReactNode;
+  /** "Photos removed Sat 14.11", once there is a date. */
+  removed?: ReactNode;
 };
 
-// FilmBox is h-28; the boxes sit gap-2 apart.
-const BOX_HEIGHT = 112;
-const GAP = 8;
+// The boxes sit gap-2 apart; spacing renders at 7/8 (EV-165).
+const GAP = 7;
 // How far the ring reaches past the box on each side.
 const RING_X = 10;
 const RING_Y = 12;
 
-/** 04.1 and 04.4 Choose your film: how long people can add photos, and what that means. */
-export const FilmChoice = ({ heading, unit, options, selected, onSelect, circled, develops }: FilmChoiceProps) => {
-  const [rowWidth, setRowWidth] = useState(0);
+/** 04.1 and 04.4 Film: how long people can add photos, and when the photos go. */
+export const FilmChoice = ({ heading, unit, options, selected, onSelect, circled, removed }: FilmChoiceProps) => {
+  // Measured, not taken from the classes, so the ring is centred on the boxes as they render.
+  const [row, setRow] = useState({ width: 0, height: 0 });
   const index = options.findIndex((option) => option.days === selected);
-  const boxWidth = options.length ? (rowWidth - GAP * (options.length - 1)) / options.length : 0;
+  const boxWidth = options.length ? (row.width - GAP * (options.length - 1)) / options.length : 0;
 
   return (
     <View>
@@ -41,7 +41,10 @@ export const FilmChoice = ({ heading, unit, options, selected, onSelect, circled
       <View
         accessibilityRole="radiogroup"
         className="flex-row gap-2"
-        onLayout={(event) => setRowWidth(Math.round(event.nativeEvent.layout.width))}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setRow({ width: Math.round(width), height: Math.round(height) });
+        }}
       >
         {options.map((option) => (
           <FilmBox
@@ -64,14 +67,14 @@ export const FilmChoice = ({ heading, unit, options, selected, onSelect, circled
             <GreasePencil
               mark="ring"
               width={Math.round(boxWidth + 2 * RING_X)}
-              height={BOX_HEIGHT + 2 * RING_Y}
+              height={row.height + 2 * RING_Y}
               seed={index + 2}
               drawOn
             />
           </View>
         ) : null}
       </View>
-      <EdgePrint className="mt-3">{develops}</EdgePrint>
+      {removed ? <EdgePrint className="mt-3">{removed}</EdgePrint> : null}
     </View>
   );
 };

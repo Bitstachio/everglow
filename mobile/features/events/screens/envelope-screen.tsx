@@ -23,6 +23,7 @@ const EnvelopeScreen = () => {
   const {
     edge,
     envelope,
+    readyStamp,
     invitationUrl,
     shut,
     isLoading,
@@ -91,6 +92,7 @@ const EnvelopeScreen = () => {
               <RollEnvelope
                 {...envelope}
                 onSelect={onSelectKind}
+                stamp={readyStamp ? <Stamp title={readyStamp} /> : undefined}
                 action={
                   invitationUrl ? (
                     <PaperButton title={t("share.cta")} mark="↗" onPress={() => void onShare()} />

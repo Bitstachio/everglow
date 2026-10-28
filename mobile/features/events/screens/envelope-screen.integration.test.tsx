@@ -17,6 +17,7 @@ const mockGetParticipants = jest.fn();
 const mockRegenerate = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
+let mockParams: Record<string, string> = { id: "event-1" };
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
@@ -27,7 +28,7 @@ jest.mock("@/lib/api/generated", () => ({
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: () => true }),
-  useLocalSearchParams: () => ({ id: "event-1" }),
+  useLocalSearchParams: () => mockParams,
 }));
 
 const nadia = buildEvent({
@@ -127,6 +128,21 @@ test("closing goes back", async () => {
   await renderScreen();
   await userEvent.setup().press(await screen.findByRole("button", { name: "Close the envelope" }));
   expect(mockBack).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText("Ready", { includeHiddenElements: true })).not.toBeOnTheScreen();
+});
+
+test("straight after loading a roll, the envelope is stamped Ready and closing goes on to the roll", async () => {
+  mockParams = { id: "event-1", ready: "1" };
+  try {
+    await renderScreen();
+
+    expect(await screen.findByText("Ready", { includeHiddenElements: true })).toBeOnTheScreen();
+    await userEvent.setup().press(screen.getByRole("button", { name: "Close the envelope" }));
+    expect(mockReplace).toHaveBeenCalledWith("/events/event-1");
+    expect(mockBack).not.toHaveBeenCalled();
+  } finally {
+    mockParams = { id: "event-1" };
+  }
 });
 
 test("05.3 shares the link of the envelope on the table", async () => {

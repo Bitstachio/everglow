@@ -12,14 +12,19 @@ jest.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: jest.fn(),
 }));
 jest.mock("../lib/cover-image", () => ({
-  COVER_ASPECT: [16, 9],
   prepareCoverImage: (...args: unknown[]) => mockPrepare(...args),
 }));
 
 const picker = jest.mocked(ImagePicker);
 const asset = { uri: "file://picked.heic", width: 4032, height: 3024 };
 const prepared = { uri: "file://cover.jpg", contentType: "image/jpeg" as const };
+const frame = { originX: 0, originY: 378, width: 4032, height: 2268 };
 const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+/** Uses the photo in the cover crop as framed. */
+const useFrame = async (current: ReturnType<typeof useNewRollCover>) => {
+  await act(async () => current.crop.onUse(frame));
+};
 
 /** Opens the cover menu and presses one of its buttons. */
 const choose = async (onPickCover: () => void, text: string) => {
@@ -40,13 +45,19 @@ beforeEach(() => {
   mockPrepare.mockResolvedValue(prepared);
 });
 
-test("crops a photo from the library into the first frame, then can remove it", async () => {
+test("frames a photo from the library as the first frame, then can remove it", async () => {
   const { result } = await renderHook(() => useNewRollCover(), { wrapper: I18nProvider });
   expect(result.current.cover).toBeNull();
 
   await choose(result.current.onPickCover, "Choose from Photos");
-  expect(picker.launchImageLibraryAsync).toHaveBeenCalledWith(expect.objectContaining({ aspect: [16, 9] }));
-  expect(mockPrepare).toHaveBeenCalledWith(asset);
+  // iOS's editor only crops square, so the picker leaves the photo whole for the cover crop.
+  expect(picker.launchImageLibraryAsync).toHaveBeenCalledWith(expect.not.objectContaining({ allowsEditing: true }));
+  expect(result.current.crop.photo).toEqual(asset);
+  expect(mockPrepare).not.toHaveBeenCalled();
+
+  await useFrame(result.current);
+  expect(result.current.crop.photo).toBeNull();
+  expect(mockPrepare).toHaveBeenCalledWith(asset, frame);
   expect(result.current.cover).toEqual(prepared);
 
   await choose(result.current.onPickCover, "Remove it");
@@ -57,7 +68,18 @@ test("takes a photo with the camera", async () => {
   const { result } = await renderHook(() => useNewRollCover(), { wrapper: I18nProvider });
   await choose(result.current.onPickCover, "Take a photo");
   expect(picker.launchCameraAsync).toHaveBeenCalled();
+  await useFrame(result.current);
   expect(result.current.cover).toEqual(prepared);
+});
+
+test("keeps the frame as it was when the crop is cancelled", async () => {
+  const { result } = await renderHook(() => useNewRollCover(), { wrapper: I18nProvider });
+  await choose(result.current.onPickCover, "Choose from Photos");
+
+  await act(async () => result.current.crop.onCancel());
+  expect(result.current.crop.photo).toBeNull();
+  expect(mockPrepare).not.toHaveBeenCalled();
+  expect(result.current.cover).toBeNull();
 });
 
 test("says how to allow access, and leaves the frame empty when cancelled", async () => {
@@ -78,6 +100,7 @@ test("says so when the photo can't be used", async () => {
   const { result } = await renderHook(() => useNewRollCover(), { wrapper: I18nProvider });
 
   await choose(result.current.onPickCover, "Choose from Photos");
+  await useFrame(result.current);
   expect(alert).toHaveBeenLastCalledWith("Couldn’t use that photo. Try another.");
   expect(result.current.cover).toBeNull();
   expect(result.current.isPreparing).toBe(false);
