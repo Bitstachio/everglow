@@ -9,3 +9,10 @@ test("is a radio choice of gallery length", async () => {
   fireEvent.press(box);
   expect(onPress).toHaveBeenCalledTimes(1);
 });
+
+test("prints the film's name above the number", async () => {
+  await render(<FilmBox days={3} name="Weekend" label="day roll" accessibilityLabel="Weekend, 3-day roll" />);
+  expect(screen.getByText("Weekend")).toBeOnTheScreen();
+  expect(screen.getByText("3")).toBeOnTheScreen();
+  expect(screen.getByRole("radio", { name: "Weekend, 3-day roll" })).not.toBeChecked();
+});

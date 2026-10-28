@@ -172,10 +172,18 @@ const DesignKitScreen = () => {
             ))}
           </View>
           <View className="flex-row gap-2">
-            {[3, 7, 14, 30].map((days) => (
+            {(
+              [
+                [3, "Weekend"],
+                [7, "A week"],
+                [14, "Two weeks"],
+                [30, "A month"],
+              ] as const
+            ).map(([days, name]) => (
               <FilmBox
                 key={days}
                 days={days}
+                name={name}
                 label="day roll"
                 selected={days === 7}
                 accessibilityLabel={`${days}-day roll`}
@@ -195,8 +203,6 @@ const DesignKitScreen = () => {
         <Section title="Paper" only={only}>
           <View className="pb-4">
             <LabEnvelope
-              title="Everglow photo lab"
-              number="No. 0418"
               fields={[
                 { label: "Name", value: "Sam & Jo’s wedding" },
                 { label: "Date", value: "Sun 18 Oct, 4 pm" },
@@ -207,7 +213,6 @@ const DesignKitScreen = () => {
                 { label: "Adds photos", checked: true },
                 { label: "View only", checked: false },
               ]}
-              footer="Scan with any camera"
               accessibilityLabel="Invite to Sam and Jo’s wedding"
             />
             <View className="absolute -bottom-2 right-4">

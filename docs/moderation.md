@@ -446,6 +446,8 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 
 Existing memberships are not changed when a block happens later; an organizer who wants a blocked member out uses remove-member.
 
+The invite preview (`GET /events/invites/:token/preview`, [EV-77](https://linear.app/mehrshadfb/issue/EV-77)) answers the same way before anyone joins. Its `state` is the code join would refuse with, so `ORGANIZER_BLOCKED_BY_CALLER` comes with the organizer the caller blocked (`host`), for the app to offer to unblock them. An organizer's block on a non-member is the unknown-link 404, checked before anything about the event is returned.
+
 ### Removing a member and bans
 
 An organizer removes a member either with `DELETE /events/:eventId/participants/:targetUserId` or with `REMOVE_MEMBER` while resolving a report. Both run the same routine (`removeMemberInTransaction`), in one transaction:

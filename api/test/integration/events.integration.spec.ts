@@ -526,6 +526,158 @@ describe("EventsController (integration)", () => {
     });
   });
 
+  describe("GET /events/invites/:token/preview", () => {
+    const path = (token = TEST_INVITE_TOKEN) => `${EVENTS_BASE_PATH}/invites/${token}/preview`;
+
+    type InvitePreviewBody = {
+      state: string;
+      eventId: string | null;
+      title: string;
+      date: string;
+      invitationUrl: string;
+      accessLevel: string;
+      galleryState: string;
+      galleryOpensAt: string;
+      galleryClosesAt: string | null;
+      memberCount: number;
+      memberLimit: number | null;
+      host: { userId: string; name: string | null } | null;
+    };
+
+    const setupPreview = (event: Event = buildEvent(), invite = buildEventInvite({ eventId: event.id })) => {
+      prisma.eventInvite.findUnique.mockResolvedValue(invite);
+      prisma.event.findUnique.mockResolvedValue(event);
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+      prisma.eventBan.findUnique.mockResolvedValue(null);
+      prisma.userBlock.findMany.mockResolvedValue([]);
+      prisma.eventAccess.findMany.mockResolvedValue([
+        { userId: TEST_USER_ID, user: { details: { name: "Jane Doe" } } },
+      ] as never);
+      prisma.eventAccess.count.mockResolvedValue(24);
+    };
+
+    const preview = async (expected: number, token?: string) =>
+      request(httpServer).get(path(token)).set(authHeader(TEST_OTHER_ACCESS_TOKEN)).expect(expected);
+
+    it("returns 200 with the event's public details and JOINABLE", async () => {
+      const event = buildEvent({ galleryClosesAt: new Date("2099-11-17T00:00:00.000Z") });
+      setupPreview(event);
+
+      const response = await preview(200);
+
+      const body = response.body as WrappedResponse<InvitePreviewBody>;
+      expect(body.data).toEqual({
+        state: "JOINABLE",
+        eventId: null,
+        title: event.title,
+        date: event.date.toISOString(),
+        invitationUrl: buildInvitationUrl(TEST_INVITE_TOKEN),
+        accessLevel: "PARTICIPANT",
+        galleryState: expect.any(String) as string,
+        galleryOpensAt: event.galleryOpensAt.toISOString(),
+        galleryClosesAt: "2099-11-17T00:00:00.000Z",
+        memberCount: 24,
+        memberLimit: 30,
+        host: { userId: TEST_USER_ID, name: "Jane Doe" },
+      });
+      expect(body.data).not.toHaveProperty("coverUrl");
+      expect(body.data).not.toHaveProperty("description");
+      expect(body.data).not.toHaveProperty("invites");
+      expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({ where: { token: TEST_INVITE_TOKEN } });
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("says a viewer invite admits VIEWER", async () => {
+      setupPreview(buildEvent(), buildViewerEventInvite());
+
+      const response = await preview(200);
+
+      expect((response.body as WrappedResponse<InvitePreviewBody>).data.accessLevel).toBe("VIEWER");
+    });
+
+    it("returns 401 without an access token", async () => {
+      await request(httpServer).get(path()).expect(401);
+    });
+
+    it("returns 404 for an unknown token", async () => {
+      prisma.eventInvite.findUnique.mockResolvedValue(null);
+
+      const response = await preview(404, "missing-token");
+
+      expectApiError(response.body, NOT_FOUND_CODE);
+    });
+
+    it("returns the unknown-link 404 when an organizer blocked the caller", async () => {
+      setupPreview();
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: TEST_USER_ID, blockedId: TEST_OTHER_USER_ID, blocked: { details: null } },
+      ] as never);
+
+      const response = await preview(404);
+
+      expectApiError(response.body, NOT_FOUND_CODE);
+      expect(JSON.stringify(response.body)).not.toContain(buildEvent().title);
+    });
+
+    it("returns ALREADY_A_MEMBER with the event's id to a member", async () => {
+      setupPreview();
+      prisma.eventAccess.findUnique.mockResolvedValue(buildParticipantAccess({ userId: TEST_OTHER_USER_ID }));
+
+      const response = await preview(200);
+
+      expect((response.body as WrappedResponse<InvitePreviewBody>).data).toMatchObject({
+        state: "ALREADY_A_MEMBER",
+        eventId: TEST_EVENT_ID,
+      });
+    });
+
+    it.each([
+      ["EVENT_GALLERY_CLOSED", () => setupPreview(buildEvent({ galleryClosesAt: new Date(Date.now() - 60_000) }))],
+      [
+        "REMOVED_FROM_EVENT",
+        () => {
+          setupPreview();
+          prisma.eventBan.findUnique.mockResolvedValue({
+            id: "99999999-9999-4999-8999-999999999999",
+            eventId: TEST_EVENT_ID,
+            userId: TEST_OTHER_USER_ID,
+            bannedById: TEST_USER_ID,
+            createdAt: new Date(),
+          });
+        },
+      ],
+      ["EVENT_SUSPENDED", () => setupPreview(buildEvent({ suspendedAt: new Date() }))],
+      ["EVENT_UNDER_REVIEW", () => setupPreview(buildEvent({ underReviewAt: new Date() }))],
+      [
+        "EVENT_MEMBER_LIMIT_REACHED",
+        () => {
+          setupPreview();
+          prisma.eventAccess.count.mockResolvedValue(30);
+        },
+      ],
+    ])("returns 200 with state %s", async (state, setup) => {
+      setup();
+
+      const response = await preview(200);
+
+      expect((response.body as WrappedResponse<InvitePreviewBody>).data).toMatchObject({ state, eventId: null });
+    });
+
+    it("returns ORGANIZER_BLOCKED_BY_CALLER naming the organizer, so the app can unblock them", async () => {
+      setupPreview();
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: TEST_OTHER_USER_ID, blockedId: TEST_USER_ID, blocked: { details: { name: "Jane Doe" } } },
+      ] as never);
+
+      const response = await preview(200);
+
+      expect((response.body as WrappedResponse<InvitePreviewBody>).data).toMatchObject({
+        state: "ORGANIZER_BLOCKED_BY_CALLER",
+        host: { userId: TEST_USER_ID, name: "Jane Doe" },
+      });
+    });
+  });
+
   describe("GET /events/:eventId", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}`;
 

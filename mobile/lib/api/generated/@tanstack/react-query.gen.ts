@@ -26,6 +26,7 @@ import {
   eventsControllerLeave,
   eventsControllerLiftBan,
   eventsControllerListBans,
+  eventsControllerPreviewInvite,
   eventsControllerRegenerateInvitationUrl,
   eventsControllerRegenerateInvite,
   eventsControllerRemove,
@@ -114,6 +115,9 @@ import type {
   EventsControllerListBansData,
   EventsControllerListBansError,
   EventsControllerListBansResponse,
+  EventsControllerPreviewInviteData,
+  EventsControllerPreviewInviteError,
+  EventsControllerPreviewInviteResponse,
   EventsControllerRegenerateInvitationUrlData,
   EventsControllerRegenerateInvitationUrlError,
   EventsControllerRegenerateInvitationUrlResponse,
@@ -1125,6 +1129,33 @@ export const eventsControllerJoinMutation = (
   };
   return mutationOptions;
 };
+
+export const eventsControllerPreviewInviteQueryKey = (options: Options<EventsControllerPreviewInviteData>) =>
+  createQueryKey("eventsControllerPreviewInvite", options);
+
+/**
+ * Preview the event an invite leads to, before joining
+ *
+ * Whether the caller can join with this invite now, and if not, why: `state` is JOINABLE or the code POST /events/join would refuse with. No cover or photos. An unknown token, a reset one, and an organizer's block on the caller are the same 404. Rate limited like join, so tokens can't be probed.
+ */
+export const eventsControllerPreviewInviteOptions = (options: Options<EventsControllerPreviewInviteData>) =>
+  queryOptions<
+    EventsControllerPreviewInviteResponse,
+    AxiosError<EventsControllerPreviewInviteError>,
+    EventsControllerPreviewInviteResponse,
+    ReturnType<typeof eventsControllerPreviewInviteQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await eventsControllerPreviewInvite({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: eventsControllerPreviewInviteQueryKey(options),
+  });
 
 /**
  * Delete an event

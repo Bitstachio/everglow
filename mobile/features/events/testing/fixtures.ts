@@ -1,4 +1,4 @@
-import type { Event, EventParticipantResponseDto, Photo } from "../types";
+import type { Event, EventParticipantResponseDto, InvitePreviewResponseDto, Photo } from "../types";
 
 export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   id: "event-1",
@@ -62,3 +62,20 @@ export const deferred = <T>() => {
   });
   return { promise, resolve, reject };
 };
+
+/** The envelope behind an invite (06.4): Sam's wedding, joinable, adding photos. */
+export const buildInvitePreview = (overrides: Partial<InvitePreviewResponseDto> = {}): InvitePreviewResponseDto => ({
+  state: "JOINABLE",
+  eventId: null,
+  title: "Sam & Jo’s wedding",
+  date: new Date(2026, 9, 18, 16, 0).toISOString(),
+  invitationUrl: "https://events.everglow.app/invite/k8Qm2",
+  accessLevel: "PARTICIPANT",
+  galleryState: "UPCOMING",
+  galleryOpensAt: new Date(2026, 9, 18, 16, 0).toISOString(),
+  galleryClosesAt: new Date(2026, 10, 17, 16, 0).toISOString(),
+  memberCount: 24,
+  memberLimit: 30,
+  host: { userId: "user-sam", name: "Sam Rivera" },
+  ...overrides,
+});

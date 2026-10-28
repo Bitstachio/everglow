@@ -24,7 +24,12 @@ import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { lockPendingModeration } from "src/moderation/pending-moderation";
 import { escalateToPlatform, logEscalations } from "src/moderation/report-escalation";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
-import { EVENT_DATE_MAX_MONTHS_AHEAD, latestEventDate } from "./events.constants";
+import {
+  EVENT_DATE_MAX_MONTHS_AHEAD,
+  INVITE_PREVIEW_STATES,
+  latestEventDate,
+  type InvitePreviewState,
+} from "./events.constants";
 import {
   EventAccessWithUser,
   EventBanWithUser,
@@ -32,6 +37,8 @@ import {
   eventAccessWithUserInclude,
   eventBanWithUserInclude,
   eventWithCallerAccessInclude,
+  InviteHost,
+  InvitePreview,
 } from "./events.types";
 
 @Injectable()
@@ -128,15 +135,7 @@ export class EventsService {
     if (!caller) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", callerId));
     if (!caller.details) throw new ApiException("ONBOARDING_INCOMPLETE");
 
-    const invite = await this.prisma.eventInvite.findUnique({ where: { token: invitationUrl } });
-    // Organizer links no longer exist; one that slipped through reads as unknown.
-    if (!invite || !isInviteAccessLevel(invite.accessLevel)) {
-      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
-    }
-
-    const event = await this.prisma.event.findUnique({ where: { id: invite.eventId } });
-    if (!event)
-      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
+    const { invite, event } = await this.findInvite(invitationUrl);
 
     const existing = await this.prisma.eventAccess.findUnique({
       where: { userId_eventId: { userId: callerId, eventId: event.id } },
@@ -201,6 +200,26 @@ export class EventsService {
    * (docs/moderation.md).
    */
   private async assertNoBlockWithOrganizers(eventId: string, invitationUrl: string, callerId: string): Promise<void> {
+    const { byOrganizer, blockedOrganizer } = await this.findBlocksWithOrganizers(eventId, callerId);
+
+    if (byOrganizer) {
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
+    }
+
+    if (blockedOrganizer) {
+      throw new ApiException("ORGANIZER_BLOCKED_BY_CALLER", { organizerName: blockedOrganizer.name });
+    }
+  }
+
+  /**
+   * Blocks between the caller and the event's organizers, in both directions,
+   * in one query: whether an organizer blocked the caller, and the organizer
+   * the caller blocked, if any.
+   */
+  private async findBlocksWithOrganizers(
+    eventId: string,
+    callerId: string,
+  ): Promise<{ byOrganizer: boolean; blockedOrganizer: InviteHost | null }> {
     const organizerOfThisEvent = { eventAccesses: { some: { eventId, accessLevel: AccessLevel.ORGANIZER } } };
     const blocks = await this.prisma.userBlock.findMany({
       where: {
@@ -209,19 +228,91 @@ export class EventsService {
           { blockerId: callerId, blocked: organizerOfThisEvent },
         ],
       },
-      select: { blockerId: true, blocked: { select: { details: { select: { name: true } } } } },
+      select: { blockerId: true, blockedId: true, blocked: { select: { details: { select: { name: true } } } } },
     });
 
-    if (blocks.some((block) => block.blockerId !== callerId)) {
-      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
+    const ownBlock = blocks.find((block) => block.blockerId === callerId);
+    return {
+      byOrganizer: blocks.some((block) => block.blockerId !== callerId),
+      blockedOrganizer: ownBlock ? { userId: ownBlock.blockedId, name: ownBlock.blocked.details?.name ?? null } : null,
+    };
+  }
+
+  /**
+   * The invite behind a token, and its event. An unknown token, a leftover
+   * organizer link and a deleted event all read as the same 404.
+   */
+  private async findInvite(
+    token: string,
+  ): Promise<{ invite: EventInvite & { accessLevel: EventInviteAccessLevel }; event: Event }> {
+    const invite = await this.prisma.eventInvite.findUnique({ where: { token } });
+    // Organizer links no longer exist; one that slipped through reads as unknown.
+    if (!invite || !isInviteAccessLevel(invite.accessLevel)) {
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", token));
     }
 
-    const ownBlock = blocks.find((block) => block.blockerId === callerId);
-    if (ownBlock) {
-      throw new ApiException("ORGANIZER_BLOCKED_BY_CALLER", {
-        organizerName: ownBlock.blocked.details?.name ?? null,
-      });
+    const event = await this.prisma.event.findUnique({ where: { id: invite.eventId } });
+    if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", token));
+
+    return { invite: { ...invite, accessLevel: invite.accessLevel }, event };
+  }
+
+  /**
+   * What an invite leads to, and whether the caller could join with it now
+   * (EV-77). The state is the first refusal `joinByInvitationUrl` would give,
+   * checked in the same order, or JOINABLE. Two differences, both stricter:
+   * an organizer's block on a non-member is a 404 before anything about the
+   * event is returned, and onboarding is not required, so an invite can open
+   * before the last onboarding step. The member count is read without the
+   * join lock; join still enforces the limit.
+   */
+  async previewInvite(callerId: string, token: string): Promise<InvitePreview> {
+    const { invite, event } = await this.findInvite(token);
+
+    const [membership, ban, blocks, organizers, memberCount, limits] = await Promise.all([
+      this.prisma.eventAccess.findUnique({ where: { userId_eventId: { userId: callerId, eventId: event.id } } }),
+      this.prisma.eventBan.findUnique({ where: { eventId_userId: { eventId: event.id, userId: callerId } } }),
+      this.findBlocksWithOrganizers(event.id, callerId),
+      this.prisma.eventAccess.findMany({
+        where: { eventId: event.id, accessLevel: AccessLevel.ORGANIZER },
+        orderBy: { createdAt: "asc" },
+        select: { userId: true, user: { select: { details: { select: { name: true } } } } },
+      }),
+      this.prisma.eventAccess.count({ where: { eventId: event.id } }),
+      this.eventPlanService.limitsOf(event),
+    ]);
+
+    if (!membership && blocks.byOrganizer) {
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", token));
     }
+
+    // Organizers come oldest first, so the fallback is the longest-standing one.
+    const named = organizers.find((organizer) => organizer.userId === event.creatorId) ?? organizers.at(0);
+    const host =
+      blocks.blockedOrganizer ?? (named ? { userId: named.userId, name: named.user.details?.name ?? null } : null);
+
+    const state = ((): InvitePreviewState => {
+      if (membership) return INVITE_PREVIEW_STATES.ALREADY_A_MEMBER;
+      if (galleryStateOf(event) === GALLERY_STATES.CLOSED) return INVITE_PREVIEW_STATES.EVENT_GALLERY_CLOSED;
+      if (ban) return INVITE_PREVIEW_STATES.REMOVED_FROM_EVENT;
+      if (event.suspendedAt) return INVITE_PREVIEW_STATES.EVENT_SUSPENDED;
+      if (event.underReviewAt) return INVITE_PREVIEW_STATES.EVENT_UNDER_REVIEW;
+      if (blocks.blockedOrganizer) return INVITE_PREVIEW_STATES.ORGANIZER_BLOCKED_BY_CALLER;
+      if (limits.memberLimit !== null && memberCount >= limits.memberLimit) {
+        return INVITE_PREVIEW_STATES.EVENT_MEMBER_LIMIT_REACHED;
+      }
+      return INVITE_PREVIEW_STATES.JOINABLE;
+    })();
+
+    return {
+      state,
+      event,
+      token: invite.token,
+      accessLevel: invite.accessLevel,
+      memberCount,
+      memberLimit: limits.memberLimit,
+      host,
+    };
   }
 
   async findOne(eventId: string, callerId: string): Promise<Event> {

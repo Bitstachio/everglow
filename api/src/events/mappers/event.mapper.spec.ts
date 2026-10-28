@@ -1,6 +1,6 @@
 import { AccessLevel, Event } from "generated/prisma/client";
 import { EVENT_INVITATION_BASE_URL } from "../events.invitation";
-import { EventParticipant } from "../events.types";
+import { EventParticipant, InvitePreview } from "../events.types";
 import { EventMapper } from "./event.mapper";
 
 describe("EventMapper", () => {
@@ -233,6 +233,46 @@ describe("EventMapper", () => {
 
       expect(result).toHaveLength(2);
       expect(result[1].accessLevel).toBe(AccessLevel.VIEWER);
+    });
+  });
+
+  describe("toInvitePreviewResponseDto", () => {
+    const preview: InvitePreview = {
+      state: "JOINABLE",
+      event: { ...event, coverS3Key: "event-covers/x/y" },
+      token: inviteToken,
+      accessLevel: AccessLevel.VIEWER,
+      memberCount: 24,
+      memberLimit: 30,
+      host: { userId: "55555555-5555-5555-5555-555555555555", name: "Sam" },
+    };
+
+    it("maps the event's public details, the access level and the counts, with no cover, description or invites", () => {
+      const dto = EventMapper.toInvitePreviewResponseDto(preview);
+
+      expect(dto).toEqual({
+        state: "JOINABLE",
+        eventId: null,
+        title: "Summer BBQ",
+        date: event.date,
+        invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}`,
+        accessLevel: AccessLevel.VIEWER,
+        galleryState: "OPEN",
+        galleryOpensAt: event.galleryOpensAt,
+        galleryClosesAt: null,
+        memberCount: 24,
+        memberLimit: 30,
+        host: { userId: "55555555-5555-5555-5555-555555555555", name: "Sam" },
+      });
+    });
+
+    it("gives the event's id only to someone already on it", () => {
+      expect(EventMapper.toInvitePreviewResponseDto({ ...preview, state: "ALREADY_A_MEMBER" }).eventId).toBe(event.id);
+      expect(EventMapper.toInvitePreviewResponseDto({ ...preview, state: "REMOVED_FROM_EVENT" }).eventId).toBeNull();
+    });
+
+    it("keeps a null host", () => {
+      expect(EventMapper.toInvitePreviewResponseDto({ ...preview, host: null }).host).toBeNull();
     });
   });
 });

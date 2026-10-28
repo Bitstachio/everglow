@@ -35,6 +35,7 @@ import { CreateEventDto } from "./dto/create-event.dto";
 import { EventBanListResponseDto } from "./dto/event-ban-list-response.dto";
 import { EventParticipantResponseDto } from "./dto/event-participant-response.dto";
 import { EventResponseDto } from "./dto/event-response.dto";
+import { InvitePreviewResponseDto } from "./dto/invite-preview-response.dto";
 import { JoinEventDto } from "./dto/join-event.dto";
 import { LeaveEventQueryDto } from "./dto/leave-event-query.dto";
 import { RemoveParticipantQueryDto } from "./dto/remove-participant-query.dto";
@@ -100,6 +101,24 @@ export class EventsController {
   async join(@CurrentUser() user: AuthenticatedUser, @Body() dto: JoinEventDto): Promise<EventResponseDto> {
     const invitationToken = extractInvitationToken(dto.invitationUrl);
     return this.toResponseDto(await this.eventsService.joinByInvitationUrl(user.id, invitationToken), user.id);
+  }
+
+  @Get("invites/:token/preview")
+  @RateLimit("sensitive")
+  @ApiOperation({
+    summary: "Preview the event an invite leads to, before joining",
+    description:
+      "Whether the caller can join with this invite now, and if not, why: `state` is JOINABLE or the code " +
+      "POST /events/join would refuse with. No cover or photos. An unknown token, a reset one, and an " +
+      "organizer's block on the caller are the same 404. Rate limited like join, so tokens can't be probed.",
+  })
+  @ApiParam({ name: "token", description: "The invite token: the last path segment of an invitation link" })
+  @ApiWrappedResponse(InvitePreviewResponseDto, "The event the invite leads to, and whether the caller can join")
+  async previewInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("token") token: string,
+  ): Promise<InvitePreviewResponseDto> {
+    return EventMapper.toInvitePreviewResponseDto(await this.eventsService.previewInvite(user.id, token));
   }
 
   @Get(":eventId")

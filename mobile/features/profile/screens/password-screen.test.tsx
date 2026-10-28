@@ -8,7 +8,7 @@ const mockBack = jest.fn();
 jest.mock("expo-router", () => ({ router: { back: () => mockBack(), canGoBack: () => true, replace: jest.fn() } }));
 
 let mockSub = "apple|001.abc";
-jest.mock("react-native-auth0", () => ({ useAuth0: () => ({ user: { sub: mockSub } }) }));
+jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ identity: { sub: mockSub } }) }));
 
 const initialMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
