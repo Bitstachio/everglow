@@ -15,6 +15,7 @@ This document is the design we are building toward. Most of it is built. The par
 Everything lives in `api/src/moderation/`. The `events` and `photos` modules gain only read filters:
 
 - `PhotosService.listPhotos` and `PhotosService.findOne` apply `PhotoVisibilityService.whereVisibleTo` (§5)
+- `photoCount` on event responses and on the participants list counts what that filter lets through (§5)
 - the participants list carries `isBlockedByCaller` (§6)
 
 ## Built and planned
@@ -405,6 +406,7 @@ The threshold is evaluated when photos are read, not stored on the photo. Member
 - `listPhotos` ANDs it into the page query, next to `READY`, the CASL filter and the cursor.
 - `findOne` asks `isVisibleTo(photoId, …)`, which is the same filter narrowed to one id. A photo missing from the list is therefore a 404 on its own, and the two cannot drift apart. Membership is still checked first, so a non-member gets 403 as before.
 - `ReportsService.reportPhoto` uses `isVisibleTo` as well (§2).
+- `countVisibleTo(callerId, eventIds)` gives `EventResponseDto.photoCount` and `countVisibleByUploader(callerId, eventId)` gives each member's `photoCount`, built from the same filter pieces, so a count always matches the photos the caller can list. For a list of events it stays at a fixed number of queries: one event load, one grouped report query for every event's threshold, and one grouped photo count each for the events the caller hosts and the rest.
 
 Both callers load the event with `eventForPhotoVisibilityInclude(callerId)`, which brings the caller's membership and the member count along with the row they were loading anyway.
 
