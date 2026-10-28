@@ -255,6 +255,27 @@ describe("PhotoVisibilityService", () => {
       expect(JSON.stringify(memberQuery.where.AND[1])).toContain(photoId);
     });
 
+    it("applies each event's own report threshold when small and large events are counted together", async () => {
+      prisma.event.findMany.mockResolvedValue([
+        asEvent(eventId, AccessLevel.PARTICIPANT, { _count: { eventAccesses: 3 } }),
+        asEvent(hostedId, AccessLevel.VIEWER),
+      ] as never);
+      prisma.report.groupBy.mockResolvedValue([
+        { eventId, photoId: "small-hidden", _count: { _all: 2 } },
+        { eventId: hostedId, photoId: "large-visible", _count: { _all: 2 } },
+        { eventId: hostedId, photoId: "large-hidden", _count: { _all: 3 } },
+      ] as never);
+      prisma.photo.groupBy.mockResolvedValue([] as never);
+
+      await service.countVisibleTo(callerId, [eventId, hostedId]);
+
+      expect(prisma.report.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ having: { photoId: { _count: { gte: 2 } } } }),
+      );
+      const query = prisma.photo.groupBy.mock.calls[0][0] as { where: { AND: { AND?: unknown[] }[] } };
+      expect(query.where.AND[1].AND).toContainEqual({ id: { notIn: ["small-hidden", "large-hidden"] } });
+    });
+
     it("counts 0 for a closed or suspended gallery without asking for its photos", async () => {
       prisma.event.findMany.mockResolvedValue([
         asEvent(closedId, AccessLevel.ORGANIZER, { galleryClosesAt: new Date(Date.now() - 60 * 1000) }),
