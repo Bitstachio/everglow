@@ -22,7 +22,6 @@ terraform {
 
 provider "aws" {
   region  = "us-east-1"
-  profile = "mehrshad@everglow.social" # admin profile; the API never uses this
 }
 
 # --- S3: photo storage (see docs/photos-architecture.md) ----------------------
