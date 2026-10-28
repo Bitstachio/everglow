@@ -66,6 +66,7 @@ const RootNavigator = () => {
         <Stack.Screen name="events/create" options={{ headerShown: false }} />
         {/* Chapter 06, Join: the scanner. The envelope is above, open to everyone. */}
         <Stack.Screen name="join/index" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/loaded" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/index" />
         {/* Chapter 05: the envelope draws its own top bar. */}
         <Stack.Screen name="events/[id]/envelope" options={{ headerShown: false }} />
