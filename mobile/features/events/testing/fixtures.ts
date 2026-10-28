@@ -24,6 +24,7 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   deactivatedById: null,
   limits: { members: 30, storageBytes: "3221225472" },
   usage: { members: 1, storageBytes: "0" },
+  photoCount: 0,
   createdAt: "2026-09-01T12:00:00.000Z",
   updatedAt: "2026-09-01T12:00:00.000Z",
   ...overrides,
@@ -48,6 +49,7 @@ export const buildParticipant = (
   accessLevel: "ORGANIZER",
   avatarUrl: null,
   isBlockedByCaller: false,
+  photoCount: 0,
   ...overrides,
 });
 

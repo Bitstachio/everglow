@@ -172,10 +172,18 @@ const DesignKitScreen = () => {
             ))}
           </View>
           <View className="flex-row gap-2">
-            {[3, 7, 14, 30].map((days) => (
+            {(
+              [
+                [3, "Weekend"],
+                [7, "A week"],
+                [14, "Two weeks"],
+                [30, "A month"],
+              ] as const
+            ).map(([days, name]) => (
               <FilmBox
                 key={days}
                 days={days}
+                name={name}
                 label="day roll"
                 selected={days === 7}
                 accessibilityLabel={`${days}-day roll`}

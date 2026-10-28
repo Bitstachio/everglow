@@ -146,6 +146,8 @@ export const buildEventAccessWithUser = (
 export const eventWithCallerAccess = (event: Event, access: EventAccess[]) => ({
   ...event,
   eventAccesses: access,
+  // What photo visibility reads for the hide threshold (eventForPhotoVisibilityInclude).
+  _count: { eventAccesses: Math.max(access.length, 1) },
 });
 
 export const buildOtherUserWithDetails = (overrides: Partial<UserWithDetails> = {}): UserWithDetails =>
@@ -204,6 +206,7 @@ export const expectedEventResponse = (
   deactivatedById: event.deactivatedById,
   limits: { members: 30, storageBytes: "3221225472" },
   usage: { members: 0, storageBytes: "0" },
+  photoCount: 0,
   createdAt: event.createdAt.toISOString(),
   updatedAt: event.updatedAt.toISOString(),
 });

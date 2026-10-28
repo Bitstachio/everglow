@@ -460,7 +460,9 @@ describe("PhotosController (integration)", () => {
 
     it("returns 200 without the photos that reports or blocks hide from a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
-      prisma.report.groupBy.mockResolvedValue([{ photoId: TEST_OTHER_PHOTO_ID }] as never);
+      prisma.report.groupBy.mockResolvedValue([
+        { eventId: TEST_EVENT_ID, photoId: TEST_OTHER_PHOTO_ID, _count: { _all: 3 } },
+      ] as never);
       prisma.photo.findMany.mockResolvedValue([]);
 
       await request(httpServer).get(photosListPath()).set(authHeader()).expect(200);

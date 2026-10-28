@@ -17,6 +17,7 @@ import { unwrapEnvelope } from "@/lib/api/envelope";
 import { isApiError } from "@/lib/api/errors";
 import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-image";
 import type { CoverImage } from "../lib/cover-image";
+import { profileKeys } from "@/features/profile/api/keys";
 import { extractInvitationToken } from "../lib/invite";
 import { eventsKeys } from "./keys";
 import {
@@ -47,8 +48,13 @@ export const useCreateEventMutation = () => {
       const { data } = await eventsControllerCreate({ body, throwOnError: true });
       return unwrapEnvelope(data);
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    // The new roll opens from the cache, and counts toward the account's active rolls.
+    onSuccess: async (event) => {
+      queryClient.setQueryData(eventsKeys.detail(event.id), event);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.all }),
+        queryClient.invalidateQueries({ queryKey: profileKeys.limits() }),
+      ]);
     },
   });
 };
@@ -262,6 +268,22 @@ export const useRegenerateInviteMutation = (eventId: string) => {
     },
     onSuccess: async (event) => {
       queryClient.setQueryData(eventsKeys.detail(eventId), event);
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    },
+  });
+};
+
+/**
+ * 04.5 A new roll's first frame. It is picked before the roll exists, so the
+ * roll is named when the upload starts rather than when the hook is created.
+ */
+export const useSetNewRollCoverMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<EventResponseDto, Error, { eventId: string; image: CoverImage }>({
+    mutationFn: ({ eventId, image }) => uploadEventCover(eventId, image),
+    onSuccess: async (event) => {
+      queryClient.setQueryData(eventsKeys.detail(event.id), event);
       await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
     },
   });

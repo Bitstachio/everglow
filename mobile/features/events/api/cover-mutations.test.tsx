@@ -4,7 +4,7 @@ import type { PropsWithChildren } from "react";
 import { createApiError } from "@/lib/api/errors";
 import { buildEvent } from "../testing/fixtures";
 import { eventsKeys } from "./keys";
-import { useRemoveEventCoverMutation, useSetEventCoverMutation } from "./mutations";
+import { useRemoveEventCoverMutation, useSetEventCoverMutation, useSetNewRollCoverMutation } from "./mutations";
 
 const mockCreateUploadUrl = jest.fn();
 const mockConfirm = jest.fn();
@@ -130,4 +130,19 @@ test("removing clears the cover on the cached event", async () => {
 
   expect(mockRemove).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true });
   expect(client.getQueryData(eventsKeys.detail("event-1"))).toEqual({ ...event, coverUrl: null });
+});
+
+test("uploads a new roll's first frame to the roll named when it starts", async () => {
+  const { client, wrapper } = setup();
+  client.removeQueries({ queryKey: eventsKeys.detail("event-1") });
+  const { result } = await renderHook(() => useSetNewRollCoverMutation(), { wrapper });
+
+  await settle(() => result.current.mutateAsync({ eventId: "event-1", image }));
+
+  expect(mockCreateUploadUrl).toHaveBeenCalledWith(
+    expect.objectContaining({ path: { eventId: "event-1" }, body: { contentType: "image/jpeg", sizeBytes: 2048 } }),
+  );
+  expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ path: { eventId: "event-1" } }));
+  expect(client.getQueryData(eventsKeys.detail("event-1"))).toEqual(updatedEvent);
+  expect(client.getQueryState(eventsKeys.list("user-1"))?.isInvalidated).toBe(true);
 });

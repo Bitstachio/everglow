@@ -25,8 +25,10 @@ import {
 export const useEnvelopeScreen = () => {
   const { t } = useTranslation("envelope");
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ready } = useLocalSearchParams<{ id: string; ready?: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
+  // Opened straight after loading a new roll (04.5): stamped Ready, and closing goes on to the roll.
+  const justLoaded = ready === "1";
   const { user } = useAuth();
 
   const eventQuery = useEventQuery(eventId);
@@ -112,6 +114,7 @@ export const useEnvelopeScreen = () => {
   return {
     edge: event ? t("edge", { title: event.title }) : null,
     envelope,
+    readyStamp: justLoaded && state === "open" ? t("ready") : null,
     invitationUrl,
     state,
     shut,
@@ -145,7 +148,8 @@ export const useEnvelopeScreen = () => {
       void participantsQuery.refetch();
     },
     onClose: () => {
-      if (router.canGoBack()) router.back();
+      if (justLoaded && eventId) router.replace(`/events/${eventId}`);
+      else if (router.canGoBack()) router.back();
       else if (eventId) router.replace(`/events/${eventId}`);
     },
   };

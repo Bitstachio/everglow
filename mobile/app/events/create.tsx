@@ -1,1 +1,1 @@
-export { default } from "@/features/events/screens/create-event-screen";
+export { default } from "@/features/events/screens/new-roll-screen";
