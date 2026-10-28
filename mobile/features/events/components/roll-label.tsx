@@ -1,7 +1,7 @@
 import { Paper } from "@/components/ui/lab-paper";
 import { colorTokens } from "@/theme/tokens";
-import { forwardRef } from "react";
-import { Pressable, Text, TextInput, View, type TextInputProps } from "react-native";
+import { forwardRef, type ReactNode } from "react";
+import { Text, TextInput, View, type TextInputProps } from "react-native";
 
 type RollLabelProps = Pick<
   TextInputProps,
@@ -10,21 +10,15 @@ type RollLabelProps = Pick<
   /** The film stock printed on the label, "Everglow 400". */
   stock: string;
   nameA11y: string;
-  /** "Tonight · 20:00". */
-  when: string;
-  /** "edit ›" after the time; left out while the time is being picked. */
-  editLabel?: string;
-  editA11y: string;
-  onEditWhen: () => void;
+  /** The cover, on the right beside the name. */
+  cover?: ReactNode;
 };
 
-/** 04.1–04.3 The roll's label: its name written in, and when it happens. */
-export const RollLabel = forwardRef<TextInput, RollLabelProps>(
-  ({ stock, nameA11y, when, editLabel, editA11y, onEditWhen, ...input }, ref) => (
-    <Paper>
-      <View className="flex-row justify-between">
-        <Text className="font-mono-semibold text-edge-print uppercase text-paper-ink">{stock}</Text>
-      </View>
+/** 04.1–04.2 and 04.5 The roll's label: its name written in, and its cover. */
+export const RollLabel = forwardRef<TextInput, RollLabelProps>(({ stock, nameA11y, cover, ...input }, ref) => (
+  <Paper className="flex-row items-center gap-3">
+    <View className="flex-1">
+      <Text className="font-mono-semibold text-edge-print uppercase text-paper-ink">{stock}</Text>
       <TextInput
         ref={ref}
         {...input}
@@ -37,20 +31,12 @@ export const RollLabel = forwardRef<TextInput, RollLabelProps>(
         keyboardAppearance="dark"
         selectionColor={colorTokens.pencil}
         cursorColor={colorTokens.pencil}
-        className="mb-1 mt-3 h-8 p-0 font-display text-input-roll text-paper-ink"
+        className="mt-3 p-0 font-display text-input-roll text-paper-ink"
+        // In points: h-8 renders at 28 (EV-165), short of the 30px name.
+        style={{ height: 38 }}
       />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={editA11y}
-        hitSlop={12}
-        onPress={onEditWhen}
-        className="self-start active:opacity-60"
-      >
-        <Text className="font-mono text-edge-print uppercase text-paper-ink-2">
-          {editLabel ? `${when} · ${editLabel}` : when}
-        </Text>
-      </Pressable>
-    </Paper>
-  ),
-);
+    </View>
+    {cover}
+  </Paper>
+));
 RollLabel.displayName = "RollLabel";

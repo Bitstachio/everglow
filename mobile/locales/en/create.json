@@ -6,7 +6,6 @@
     "namePlaceholder": "Name your roll",
     "nameA11y": "Roll name",
     "when": "{{day}} · {{time}}",
-    "edit": "edit ›",
     "editA11y": "When it happens: {{when}}. Change",
     "days": {
       "tonight": "Tonight",
@@ -20,7 +19,7 @@
     "a11y": "A line for guests, optional"
   },
   "film": {
-    "heading": "Choose your film · how long people can add photos",
+    "heading": "Film",
     "dayRoll": "day roll",
     "names": {
       "3": "Weekend",
@@ -30,10 +29,10 @@
     },
     "days": "{{count}} days",
     "a11y": "{{name}}, {{count}}-day roll",
-    "develops": "Develops {{opens}} · <value>photos removed {{closes}}</value>",
-    "developsOpen": "Develops {{opens}}"
+    "removed": "Photos removed <value>{{closes}}</value>"
   },
   "when": {
+    "heading": "When",
     "edge": "When it happens",
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
@@ -41,10 +40,6 @@
     "unavailable": "{{day}}, can’t be picked"
   },
   "cover": {
-    "heading": "First frame · the cover",
-    "hint": "Shows on Home, the envelope and the top of the roll.",
-    "add": "Add one ›",
-    "change": "Change ›",
     "addA11y": "Add a cover",
     "changeA11y": "Change the cover",
     "preparing": "Getting the cover ready",
@@ -58,7 +53,13 @@
     "libraryDenied": "Allow access to Photos in Settings to choose a cover.",
     "failed": "Couldn’t use that photo. Try another.",
     "didntTakeTitle": "The cover didn’t take",
-    "didntTake": "The roll is loaded. Add the cover from the roll’s settings."
+    "didntTake": "The roll is loaded. Add the cover from the roll’s settings.",
+    "crop": {
+      "cancel": "Cancel",
+      "title": "Move and scale",
+      "use": "Use",
+      "hint": "Pinch to zoom · drag to frame it"
+    }
   },
   "load": "Load the roll",
   "validation": {
@@ -97,12 +98,5 @@
     "cutOne": "Cut one of them short from its settings, and a spot opens.",
     "note": "free on {{date}} ↑",
     "back": "Back to your rolls"
-  },
-  "loaded": {
-    "close": "Close",
-    "stamp": "Loaded",
-    "send": "Send the envelope",
-    "open": "Go to the roll",
-    "missing": "The roll is loaded, but its envelope didn’t open."
   }
 }

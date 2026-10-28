@@ -242,9 +242,15 @@ rather than by the presigned URL, which changes on every fetch.
 
 Organizers set, change or remove an event's cover from the Cover Photo row in
 event settings, which non-organizers never reach (the screen sends them back).
-`useChangeEventCover` mirrors the avatar flow: the picker crops to 16:9, and
-`prepareCoverImage` (`features/events/lib/cover-image.ts`) centre-crops anything still not
-16:9, downscales to 1920px wide and re-encodes as JPEG before `uploadImage`.
+`useChangeEventCover` mirrors the avatar flow, with one difference: iOS's
+picker editor only crops square, so the picker leaves the photo whole and
+`CoverCrop` (`features/events/components/cover-crop.tsx`) lets the person move
+and scale it under a 16:9 frame. `CoverCrop` is the shared `PhotoCropper`
+(`components/photo-cropper.tsx`, geometry in `lib/photo-crop.ts`) that also
+frames the avatar's circle in onboarding (02.8); the new roll's first frame
+(04.5) uses it too. `prepareCoverImage` (`features/events/lib/cover-image.ts`)
+cuts out the framed rectangle, downscales to 1920px wide and re-encodes as
+JPEG before `uploadImage`.
 
 `useSetEventCoverMutation` and `useRemoveEventCoverMutation` put the returned
 event in the detail cache and refresh the list. After a `409` that survives

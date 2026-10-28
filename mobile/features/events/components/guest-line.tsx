@@ -24,7 +24,9 @@ export const GuestLine = forwardRef<TextInput, GuestLineProps>(({ label, value, 
         keyboardAppearance="dark"
         selectionColor={colorTokens.pencil}
         cursorColor={colorTokens.pencil}
-        className="h-6 p-0 font-display text-input-line text-text"
+        className="p-0 font-display text-input-line text-text"
+        // In points: h-6 renders at 21 (EV-165), short of the 18px line with its descenders.
+        style={{ height: 24 }}
         {...props}
       />
     </View>

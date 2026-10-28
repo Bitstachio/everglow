@@ -36,6 +36,10 @@ export const startOfMonth = (date: Date): Date => new Date(date.getFullYear(), d
 export const addMonths = (month: Date, count: number): Date =>
   new Date(month.getFullYear(), month.getMonth() + count, 1);
 
+/** Whole months from one month to another: 0 for the same month, 1 for the next. */
+export const monthsBetween = (from: Date, to: Date): number =>
+  (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth();
+
 export const isSameDay = (a: Date, b: Date): boolean =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 

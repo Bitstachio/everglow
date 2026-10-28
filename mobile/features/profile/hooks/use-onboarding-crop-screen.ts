@@ -1,10 +1,10 @@
 import { getErrorMessage } from "@/lib/api/errors";
+import { cropRect, type CropTransform, type Size } from "@/lib/photo-crop";
 import { router, useLocalSearchParams } from "expo-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { useSetAvatarMutation } from "../api/mutations";
-import { avatarCropRect, type CropTransform, type Size } from "../lib/avatar-crop";
 import { prepareAvatarImage } from "../lib/avatar-image";
 
 /** The crop window's radius in points, as drawn (02.8). */
@@ -30,7 +30,7 @@ export const useOnboardingCropScreen = () => {
     try {
       const image = await prepareAvatarImage(
         { uri: params.uri, ...photo },
-        avatarCropRect(photo, area, AVATAR_CROP_RADIUS, transform),
+        cropRect(photo, area, { width: 2 * AVATAR_CROP_RADIUS, height: 2 * AVATAR_CROP_RADIUS }, transform),
       );
       await setAvatar.mutateAsync(image);
       router.replace("/onboarding/ready");

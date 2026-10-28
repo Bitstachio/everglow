@@ -35,9 +35,12 @@ jest.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: () =>
     Promise.resolve({ canceled: false, assets: [{ uri: "file://picked.heic", width: 4032, height: 3024 }] }),
 }));
+const mockPrepareCover = jest.fn((..._args: unknown[]) =>
+  Promise.resolve({ uri: "file://cover.jpg", contentType: "image/jpeg" }),
+);
 jest.mock("../lib/cover-image", () => ({
   COVER_ASPECT: [16, 9],
-  prepareCoverImage: () => Promise.resolve({ uri: "file://cover.jpg", contentType: "image/jpeg" }),
+  prepareCoverImage: (...args: unknown[]) => mockPrepareCover(...args),
 }));
 jest.mock("@/lib/api/upload-file", () => ({
   uploadFile: async ({ contentType, mint }: { contentType: string; mint: (file: unknown) => Promise<unknown> }) => {
@@ -96,7 +99,7 @@ const renderScreen = async () => {
       <NewRollScreen />
     </QueryClientProvider>,
   );
-  await screen.findByText("Choose your film · how long people can add photos");
+  await screen.findByText("Film");
 };
 
 beforeEach(() => {
@@ -147,7 +150,7 @@ test("labels a new roll for tonight with the plan's default film", async () => {
   await renderScreen();
 
   expect(screen.getByText("Everglow 400")).toBeOnTheScreen();
-  expect(screen.getByText("Tonight · 20:00 · edit ›")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "When it happens: Tonight · 20:00. Change" })).toBeOnTheScreen();
   expect(screen.getAllByRole("radio").map((box) => box.props.accessibilityLabel)).toEqual([
     "Weekend, 3-day roll",
     "A week, 7-day roll",
@@ -155,7 +158,7 @@ test("labels a new roll for tonight with the plan's default film", async () => {
     "A month, 30-day roll",
   ]);
   expect(screen.getByRole("radio", { name: "A month, 30-day roll" })).toBeChecked();
-  expect(screen.getByText(/Develops Sun 01.11 · photos removed Tue 01.12/)).toBeOnTheScreen();
+  expect(screen.getByText(/Photos removed Tue 01.12/)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Load the roll" })).toBeDisabled();
 });
 
@@ -175,11 +178,11 @@ test("names the roll, sets when it happens and the film, then opens it", async (
   expect(screen.getByText("Sat 07.11 · 19:00")).toBeOnTheScreen();
   await user.press(screen.getByRole("button", { name: "Set Sat 7 Nov, 19:00" }));
 
-  expect(await screen.findByText("Sat 07.11 · 19:00 · edit ›")).toBeOnTheScreen();
-  expect(screen.getByText(/Develops Sat 07.11 · photos removed Sat 14.11/)).toBeOnTheScreen();
+  expect(await screen.findByRole("button", { name: "When it happens: Sat 07.11 · 19:00. Change" })).toBeOnTheScreen();
+  expect(screen.getByText(/Photos removed Sat 14.11/)).toBeOnTheScreen();
 
   await user.press(screen.getByRole("button", { name: "Load the roll" }));
-  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/loaded"));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
   expect(mockCreate).toHaveBeenCalledWith({
     body: { title: "Nadia turns 30", date: new Date(2026, 10, 7, 19).toISOString(), galleryWindowDays: 7 },
     throwOnError: true,
@@ -188,8 +191,8 @@ test("names the roll, sets when it happens and the film, then opens it", async (
   await waitFor(() => expect(mockLimits).toHaveBeenCalledTimes(2));
 });
 
-/** Opens the first frame's menu and chooses from the library. */
-const chooseCover = async () => {
+/** Opens the first frame's menu and picks a photo from the library, which opens the cover crop. */
+const pickCover = async () => {
   const alert = jest.mocked(Alert.alert);
   alert.mockClear();
   await userEvent.setup().press(screen.getByRole("button", { name: "Add a cover" }));
@@ -197,20 +200,45 @@ const chooseCover = async () => {
   await act(async () => {
     buttons.find((button) => button.text === "Choose from Photos")?.onPress?.();
   });
+  expect(await screen.findByText("Move and scale")).toBeOnTheScreen();
 };
+
+/** Picks a photo and uses it as framed. */
+const chooseCover = async () => {
+  await pickCover();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Use" }));
+};
+
+test("frames the first frame at 16:9 before using it, or leaves it empty on cancel", async () => {
+  await renderScreen();
+
+  await pickCover();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByText("Move and scale")).not.toBeOnTheScreen());
+  expect(screen.getByRole("button", { name: "Add a cover" })).toBeOnTheScreen();
+  expect(mockPrepareCover).not.toHaveBeenCalled();
+
+  await chooseCover();
+  expect(await screen.findByRole("button", { name: "Change the cover" })).toBeOnTheScreen();
+  // Unmoved, the frame is the middle of the 4032 × 3024 photo at 16:9.
+  expect(mockPrepareCover).toHaveBeenCalledWith(
+    { uri: "file://picked.heic", width: 4032, height: 3024 },
+    expect.objectContaining({ width: 4032, height: 2268, originX: 0, originY: 378 }),
+  );
+});
 
 test("adds a first frame and uploads it once the roll is loaded", async () => {
   await renderScreen();
-  expect(screen.getByText("Add one ›")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Add a cover" })).toBeOnTheScreen();
 
   await chooseCover();
-  expect(await screen.findByText("Change ›")).toBeOnTheScreen();
+  expect(await screen.findByRole("button", { name: "Change the cover" })).toBeOnTheScreen();
 
   const user = userEvent.setup();
   await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
   await user.press(screen.getByRole("button", { name: "Load the roll" }));
 
-  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/loaded"));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
   expect(mockMintCover).toHaveBeenCalledWith(
     expect.objectContaining({ path: { eventId: "roll-1" }, body: { contentType: "image/jpeg", sizeBytes: 2048 } }),
   );
@@ -224,13 +252,13 @@ test("loads the roll even when its first frame didn't take", async () => {
   mockConfirmCover.mockRejectedValue(new Error("Network unavailable"));
   await renderScreen();
   await chooseCover();
-  await screen.findByText("Change ›");
+  await screen.findByRole("button", { name: "Change the cover" });
 
   const user = userEvent.setup();
   await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
   await user.press(screen.getByRole("button", { name: "Load the roll" }));
 
-  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/loaded"));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
   expect(Alert.alert).toHaveBeenCalledWith(
     "The cover didn’t take",
     "The roll is loaded. Add the cover from the roll’s settings.",
@@ -331,7 +359,7 @@ test("waits for the film, and offers to try again if it can't be had", async () 
     await screen.findByText("Couldn’t get the film ready. Check your connection and try again."),
   ).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByText("Tonight · 20:00 · edit ›")).toBeOnTheScreen();
+  expect(await screen.findByRole("button", { name: "When it happens: Tonight · 20:00. Change" })).toBeOnTheScreen();
 });
 
 const back = { type: "GO_BACK" };
@@ -375,7 +403,7 @@ test("asks before throwing away a roll with anything filled in", async () => {
 test("counts a first frame as something to lose", async () => {
   await renderScreen();
   await chooseCover();
-  await screen.findByText("Change ›");
+  await screen.findByRole("button", { name: "Change the cover" });
 
   await leaveScreen();
   expect(await screen.findByText("Throw this roll away?")).toBeOnTheScreen();
@@ -386,7 +414,7 @@ test("goes without asking once the roll is loaded", async () => {
   const user = userEvent.setup();
   await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
   await user.press(screen.getByRole("button", { name: "Load the roll" }));
-  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/loaded"));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
 
   await leaveScreen();
   expect(mockDispatch).toHaveBeenCalledWith(back);

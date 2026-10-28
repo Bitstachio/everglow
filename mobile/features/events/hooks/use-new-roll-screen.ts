@@ -7,6 +7,7 @@ import { Alert, Keyboard, type TextInput } from "react-native";
 import { useSetNewRollCoverMutation } from "../api/mutations";
 import {
   addMonths,
+  monthsBetween,
   atMinutes,
   calendarMonth,
   formatClock,
@@ -57,7 +58,7 @@ export const useNewRollScreen = () => {
   const router = useRouter();
   const limitsQuery = useMyLimitsQuery();
   const newEvent = limitsQuery.data?.newEvent;
-  const { cover, isPreparing: isPreparingCover, onPickCover } = useNewRollCover();
+  const { cover, isPreparing: isPreparingCover, onPickCover, crop: coverCrop } = useNewRollCover();
   const setCoverMutation = useSetNewRollCoverMutation();
   const [hitLimit, setHitLimit] = useState(false);
   const {
@@ -76,7 +77,7 @@ export const useNewRollScreen = () => {
           Alert.alert(t("cover.didntTakeTitle"), t("cover.didntTake"));
         }
       }
-      router.replace(`/events/${event.id}/loaded`);
+      router.replace(`/events/${event.id}/envelope?ready=1`);
     },
     onLimitReached: () => {
       setHitLimit(true);
@@ -126,23 +127,30 @@ export const useNewRollScreen = () => {
   const gallery = galleryWindow(date, galleryWindowDays, now);
   const draftWindow = galleryWindow(draft, galleryWindowDays, now);
   const shownWhen = describeWhen(whenVisible ? draft : date);
-  const slipOpen = whenVisible || leave.visible;
   const firstMonth = startOfMonth(now);
   const lastMonth = startOfMonth(latest);
 
-  const days = calendarMonth(month, { selected: draft, window: draftWindow, today: now, latest }).map(
-    ({ key, date: day, state }) => ({
-      key,
-      state,
-      label: day ? String(day.getDate()) : null,
-      accessibilityLabel: day
-        ? state === "unavailable"
-          ? t("when.unavailable", { day: formatLongDay(day) })
-          : formatLongDay(day)
-        : undefined,
-      onPress: day ? () => setDraft((current) => clamp(onDay(current, day))) : undefined,
-    }),
-  );
+  const daysOf = (shown: Date) =>
+    calendarMonth(shown, { selected: draft, window: draftWindow, today: now, latest }).map(
+      ({ key, date: day, state }) => ({
+        key,
+        state,
+        label: day ? String(day.getDate()) : null,
+        accessibilityLabel: day
+          ? state === "unavailable"
+            ? t("when.unavailable", { day: formatLongDay(day) })
+            : formatLongDay(day)
+          : undefined,
+        onPress: day ? () => setDraft((current) => clamp(onDay(current, day))) : undefined,
+      }),
+    );
+  // Every month a roll can happen in, side by side, so the slip can be swiped through continuously.
+  const monthCount = monthsBetween(firstMonth, lastMonth) + 1;
+  const months = Array.from({ length: monthCount }, (_, i) => {
+    const shown = addMonths(firstMonth, i);
+    return { key: `month-${i}`, title: formatMonth(shown), days: daysOf(shown) };
+  });
+  const monthIndex = Math.min(Math.max(monthsBetween(firstMonth, month), 0), monthCount - 1);
 
   const times = TIME_SLOTS.map((minutes) => ({
     key: `time-${minutes}`,
@@ -161,10 +169,9 @@ export const useNewRollScreen = () => {
     isLoading: isSubmitting,
     error: errors.title?.message ?? errors.description?.message ?? errors.root?.server?.message,
     onLoad: onSubmit,
-    label: {
+    whenField: {
       when: shownWhen,
-      editLabel: slipOpen ? undefined : t("label.edit"),
-      editA11y: t("label.editA11y", { when: shownWhen }),
+      accessibilityLabel: t("label.editA11y", { when: shownWhen }),
     },
     guestLineRef,
     showGuestLine: keyboardVisible || description.length > 0,
@@ -174,16 +181,18 @@ export const useNewRollScreen = () => {
       selected: galleryWindowDays,
       circled: pickedFilm !== null,
       onSelect: (days: number) => form.setValue("galleryWindowDays", days, { shouldDirty: true }),
-      opens: formatShortDay(gallery.opensAt),
       closes: gallery.closesAt ? formatShortDay(gallery.closesAt) : null,
     },
     cover: {
       uri: cover?.uri,
       isPreparing: isPreparingCover,
-      actionLabel: cover ? t("cover.change") : t("cover.add"),
       accessibilityLabel: cover ? t("cover.changeA11y") : t("cover.addA11y"),
-      onPress: onPickCover,
+      onPress: () => {
+        Keyboard.dismiss();
+        onPickCover();
+      },
     },
+    coverCrop,
     when: {
       visible: whenVisible,
       onOpen: () => {
@@ -194,19 +203,18 @@ export const useNewRollScreen = () => {
       },
       onClose: () => setWhenVisible(false),
       slip: {
-        month: formatMonth(month),
+        months,
+        monthIndex,
+        onMonthChange: (index: number) => setMonth(addMonths(firstMonth, index)),
         previous: {
           accessibilityLabel: t("when.previousMonth"),
           disabled: month <= firstMonth,
-          onPress: () => setMonth((current) => addMonths(current, -1)),
         },
         next: {
           accessibilityLabel: t("when.nextMonth"),
           disabled: month >= lastMonth,
-          onPress: () => setMonth((current) => addMonths(current, 1)),
         },
         weekdays: WEEKDAY_INITIALS,
-        days,
         times,
         setLabel: t("when.set", { day: formatLongDay(draft), time: formatClock(draft) }),
         onSet: () => {

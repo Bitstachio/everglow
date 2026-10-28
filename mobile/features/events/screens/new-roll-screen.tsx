@@ -15,11 +15,13 @@ import { Controller } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { FilmChoice } from "../components/film-choice";
-import { FirstFrame } from "../components/first-frame";
+import { CoverCrop } from "../components/cover-crop";
+import { CoverPrint } from "../components/cover-print";
 import { GuestLine } from "../components/guest-line";
 import { buildFrames } from "../components/roll-card";
 import { RollLabel } from "../components/roll-label";
 import { RollsInUse } from "../components/rolls-in-use";
+import { WhenField } from "../components/when-field";
 import { WhenSlip } from "../components/when-slip";
 import { useNewRollScreen } from "../hooks/use-new-roll-screen";
 import { useRollPreview } from "../hooks/use-roll-preview";
@@ -60,12 +62,13 @@ const NewRollScreen = () => {
     isLoading,
     error,
     onLoad,
-    label,
+    whenField,
     guestLineRef,
     showGuestLine,
     onNameSubmit,
     film,
     cover,
+    coverCrop,
     when,
     full,
     onBackToRolls,
@@ -142,10 +145,7 @@ const NewRollScreen = () => {
                   onBlur={field.onBlur}
                   onSubmitEditing={onNameSubmit}
                   editable={!isLoading}
-                  when={label.when}
-                  editLabel={label.editLabel}
-                  editA11y={label.editA11y}
-                  onEditWhen={when.onOpen}
+                  cover={<CoverPrint preparingLabel={t("cover.preparing")} disabled={isLoading} {...cover} />}
                 />
               )}
             />
@@ -171,7 +171,11 @@ const NewRollScreen = () => {
               </View>
             ) : null}
 
-            <View className="mt-15.5">
+            <View className="mt-10">
+              <WhenField heading={t("when.heading")} disabled={isLoading} onPress={when.onOpen} {...whenField} />
+            </View>
+
+            <View className="mt-10">
               <FilmChoice
                 heading={t("film.heading")}
                 unit={t("film.dayRoll")}
@@ -179,28 +183,16 @@ const NewRollScreen = () => {
                 selected={film.selected}
                 onSelect={film.onSelect}
                 circled={film.circled}
-                develops={
+                removed={
                   film.closes ? (
                     <Trans
                       t={t}
-                      i18nKey="film.develops"
-                      values={{ opens: film.opens, closes: film.closes }}
+                      i18nKey="film.removed"
+                      values={{ closes: film.closes }}
                       components={{ value: <EdgeValue>{null}</EdgeValue> }}
                     />
-                  ) : (
-                    t("film.developsOpen", { opens: film.opens })
-                  )
+                  ) : undefined
                 }
-              />
-            </View>
-
-            <View className="mt-17">
-              <FirstFrame
-                heading={t("cover.heading")}
-                hint={t("cover.hint")}
-                preparingLabel={t("cover.preparing")}
-                disabled={isLoading}
-                {...cover}
               />
             </View>
           </ScrollView>
@@ -217,6 +209,8 @@ const NewRollScreen = () => {
       )}
 
       <FilmGrain />
+
+      <CoverCrop {...coverCrop} />
 
       <BottomSheet visible={when.visible} onClose={when.onClose}>
         <WhenSlip edge={t("when.edge")} {...when.slip} />
