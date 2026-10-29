@@ -82,9 +82,15 @@ We create the row _before_ the upload happens (so we have a `photoId` to sign ag
 
 Each `url` is a freshly-signed S3 GET URL (TTL ~15min). We don't store URLs — sign them on every request. Signing is cheap (no network call, pure crypto).
 
-### Why no thumbnails in v1
+### Derivative generation (EV-5)
 
-Modern mobile image libs (RN `FastImage`, Expo `Image`) lazy-load only visible tiles and cache aggressively. A 50-photo grid loads ~10 visible photos on first paint, caches them forever after. Adding a thumbnail pipeline now is overengineering. Revisit if real usage shows it's slow.
+PR #251 added S3 → SQS → Lambda generation in `functions/image-processor`. New objects under `photos/` produce a 512 px WebP thumbnail and a 2048 px JPEG display copy at `derived/{originalKey}/thumb.webp` and `derived/{originalKey}/large.jpg`. Rotation is baked in and metadata is stripped. Generation starts on object creation, before API confirmation; the API still serves originals until derivative URL support lands. HEIC decoding, backfill and mobile usage remain EV-5 work.
+
+Original removal notifications delete both copies. Late create notifications for missing originals also clean up, and the worker checks the original again after both writes settle to handle concurrent deletion. Access denied is retried, never interpreted as absence. The role needs `s3:ListBucket` so missing originals return 404 ([S3 HeadObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html)). One queue message is delivered per invocation so ten large images do not share a 60-second budget.
+
+`PhotoDerivativeOrphanSource` also registers `derived/photos/` with the existing daily reconciler, using the same minimum age and batch cap. It removes known derivative keys with no Photo row, including leftovers from the initial deployment and interrupted workers. Originals remain subject to evidence preservation; derived display copies are not evidence. Deploy the API with its orphan reconciler enabled as well as the Lambda and removal notification to activate both cleanup paths. Notification cleanup is asynchronous, with the daily reconciler as a backstop; it is not an immediate deletion guarantee.
+
+The Lambda package uses the exact Sharp version installed from the lockfile. CI runs processor tests/build and Terraform validation before passing the aggregate check.
 
 ### Why square grid + `object-fit: cover`
 

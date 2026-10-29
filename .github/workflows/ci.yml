@@ -24,6 +24,7 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api }}
       mobile: ${{ steps.filter.outputs.mobile }}
+      functions: ${{ steps.filter.outputs.functions }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -32,6 +33,10 @@ jobs:
           filters: |
             api:
               - 'api/**'
+              - '.github/workflows/**'
+            functions:
+              - 'functions/**'
+              - 'api/infra/**'
               - '.github/workflows/**'
             mobile:
               - 'mobile/**'
@@ -170,9 +175,34 @@ jobs:
           "Unit=coverage/unit/coverage-summary.json"
           "Integration=coverage/integration/coverage-summary.json"
 
+  functions:
+    name: Functions
+    needs: changes
+    if: needs.changes.outputs.functions == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pnpm install --frozen-lockfile
+        working-directory: functions/image-processor
+      - run: pnpm typecheck && pnpm test && pnpm build
+        working-directory: functions/image-processor
+      - run: pnpm install --frozen-lockfile && pnpm typecheck
+        working-directory: functions/hello-world
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.3"
+      - run: terraform fmt -check && terraform init -backend=false && terraform validate
+        working-directory: api/infra
+
   ci-success:
     name: CI
-    needs: [changes, api, mobile]
+    needs: [changes, api, mobile, functions]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -192,6 +222,7 @@ jobs:
           check_job "Detect changes" "${{ needs.changes.result }}"
           check_job "API" "${{ needs.api.result }}"
           check_job "Mobile" "${{ needs.mobile.result }}"
+          check_job "Functions" "${{ needs.functions.result }}"
           if [ "$FAILED" = "1" ]; then
             exit 1
           fi

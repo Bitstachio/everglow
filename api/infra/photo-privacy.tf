@@ -11,11 +11,11 @@
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id  = data.aws_caller_identity.current.account_id
-  region      = "us-east-1" # the provider's region
-  trail_name  = "everglow-photos-dev-access"
-  trail_arn   = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${local.trail_name}"
-  api_user = aws_iam_user.api.arn
+  account_id = data.aws_caller_identity.current.account_id
+  region     = "us-east-1" # the provider's region
+  trail_name = "everglow-photos-dev-access"
+  trail_arn  = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${local.trail_name}"
+  api_user   = aws_iam_user.api.arn
   # CloudTrail records Lambda as the assumed-role session, not the role ARN.
   image_processor_session_arn = "arn:aws:sts::${local.account_id}:assumed-role/${aws_iam_role.image_processor.name}/${aws_lambda_function.image_processor.function_name}"
   photo_read_allowlist = [
@@ -54,16 +54,16 @@ resource "aws_kms_key" "photos" {
       {
         # S3 calls KMS as whoever made the request. App uploads/downloads use
         # URLs the API presigns; derivatives are written by the processor role.
-        Sid       = "OnlyTheApiAndProcessorUseTheKey"
-        Effect    = "Allow"
+        Sid    = "OnlyTheApiAndProcessorUseTheKey"
+        Effect = "Allow"
         Principal = {
           AWS = [
             local.api_user,
             aws_iam_role.image_processor.arn,
           ]
         }
-        Action    = ["kms:GenerateDataKey", "kms:Decrypt", "kms:DescribeKey"]
-        Resource  = "*"
+        Action   = ["kms:GenerateDataKey", "kms:Decrypt", "kms:DescribeKey"]
+        Resource = "*"
       },
     ]
   })

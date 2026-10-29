@@ -21,7 +21,7 @@ terraform {
 }
 
 provider "aws" {
-  region  = "us-east-1"
+  region = "us-east-1"
 }
 
 # --- S3: photo storage (see docs/photos-architecture.md) ----------------------

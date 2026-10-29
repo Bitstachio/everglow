@@ -60,7 +60,8 @@ const event: SQSEvent = {
 };
 
 const main = async () => {
-  await handler(event, {} as never, () => undefined);
+  const result = await handler(event, {} as never, () => undefined);
+  if (result?.batchItemFailures.length) process.exitCode = 1;
 };
 
 main().catch((error: unknown) => {
