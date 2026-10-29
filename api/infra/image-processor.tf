@@ -1,8 +1,8 @@
-# Photo uploads → SQS → image-processor Lambda (log-only for now).
+# Photo uploads → SQS → image-processor Lambda.
 #
-# S3 notifies the queue on ObjectCreated under photos/. The function does not
-# read object bytes, so it is not on the photos KMS key or the bucket's
-# "only the API reads" deny. That changes when thumbnail generation starts.
+# S3 notifies the queue on ObjectCreated under photos/. The function reads the
+# original, writes thumb.webp + large.jpg under derived/, and must be on the
+# photos KMS key and the bucket's read allowlist (see main.tf / photo-privacy.tf).
 #
 # Before plan/apply, build the zip this file deploys:
 #   cd functions/image-processor && pnpm build
@@ -22,7 +22,7 @@ resource "aws_sqs_queue" "photo_uploads_dlq" {
 resource "aws_sqs_queue" "photo_uploads" {
   name                       = "everglow-photo-uploads-dev"
   sqs_managed_sse_enabled    = true
-  visibility_timeout_seconds = 180 # 6× the function timeout; shorter and SQS redelivers mid-run
+  visibility_timeout_seconds = 360 # 6× the function timeout; shorter and SQS redelivers mid-run
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.photo_uploads_dlq.arn
@@ -116,7 +116,6 @@ resource "aws_iam_role_policy" "image_processor" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Poll and delete. No S3 permissions: the message already names the object.
         Effect = "Allow"
         Action = [
           "sqs:ReceiveMessage",
@@ -125,6 +124,27 @@ resource "aws_iam_role_policy" "image_processor" {
           "sqs:ChangeMessageVisibility",
         ]
         Resource = aws_sqs_queue.photo_uploads.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.photos.arn}/photos/*"
+      },
+      {
+        Effect = "Allow"
+        Action = ["s3:PutObject", "s3:DeleteObject"]
+        Resource = [
+          "${aws_s3_bucket.photos.arn}/derived/*",
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:DescribeKey",
+        ]
+        Resource = aws_kms_key.photos.arn
       },
       {
         Effect = "Allow"
@@ -144,8 +164,8 @@ resource "aws_lambda_function" "image_processor" {
   runtime       = "nodejs22.x"
   architectures = ["arm64"]
   handler       = "index.handler"
-  timeout       = 30
-  memory_size   = 128
+  timeout       = 60
+  memory_size   = 1536
 
   filename         = local.image_processor_zip
   source_code_hash = filebase64sha256(local.image_processor_zip)

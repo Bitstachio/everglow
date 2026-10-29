@@ -2,3 +2,4 @@ node_modules/
 dist/
 tmp/
 *.js.map
+package-lock.json
