@@ -3,7 +3,7 @@ import { test } from "node:test";
 import sharp from "sharp";
 import { createDerivatives } from "./derivatives.js";
 
-test("rotates portrait EXIF, bounds dimensions and strips metadata from both outputs", async () => {
+void test("rotates portrait EXIF, bounds dimensions and strips metadata from both outputs", async () => {
   const input = await sharp({
     create: { width: 2400, height: 1200, channels: 3, background: "blue" },
   })
@@ -25,7 +25,7 @@ test("rotates portrait EXIF, bounds dimensions and strips metadata from both out
   }
 });
 
-test("does not enlarge a small photo", async () => {
+void test("does not enlarge a small photo", async () => {
   const input = await sharp({
     create: { width: 20, height: 10, channels: 3, background: "red" },
   })

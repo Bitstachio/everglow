@@ -190,10 +190,8 @@ jobs:
           node-version: "22"
       - run: pnpm install --frozen-lockfile
         working-directory: functions/image-processor
-      - run: pnpm typecheck && pnpm test && pnpm build
+      - run: pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
         working-directory: functions/image-processor
-      - run: pnpm install --frozen-lockfile && pnpm typecheck
-        working-directory: functions/hello-world
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.13.3"

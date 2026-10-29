@@ -90,6 +90,8 @@ Original removal notifications delete both copies. Late create notifications for
 
 `PhotoDerivativeOrphanSource` also registers `derived/photos/` with the existing daily reconciler, using the same minimum age and batch cap. It removes known derivative keys with no Photo row, including leftovers from the initial deployment and interrupted workers. Originals remain subject to evidence preservation; derived display copies are not evidence. Deploy the API with its orphan reconciler enabled as well as the Lambda and removal notification to activate both cleanup paths. Notification cleanup is asynchronous, with the daily reconciler as a backstop; it is not an immediate deletion guarantee.
 
+The worker keeps SQS transport handling separate from the S3 lifecycle service and pure image processing, with injected SDK/logger dependencies. It has no Nest or Prisma dependency; HTTP rules and database ownership stay in the API. See the [worker README](../functions/image-processor/README.md) for structure, checks and deployment.
+
 The Lambda package uses the exact Sharp version installed from the lockfile. CI runs processor tests/build and Terraform validation before passing the aggregate check.
 
 ### Why square grid + `object-fit: cover`

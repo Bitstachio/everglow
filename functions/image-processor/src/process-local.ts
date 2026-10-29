@@ -3,11 +3,12 @@ import path from "node:path";
 
 import { createDerivatives } from "./derivatives.js";
 
-const DEFAULT_INPUT = path.join(process.env.HOME ?? "", "Desktop", "sample.jpeg");
 const DEFAULT_OUT_DIR = path.join(process.cwd(), "tmp", "derived");
 
 const main = async () => {
-  const inputPath = path.resolve(process.argv[2] ?? DEFAULT_INPUT);
+  const inputArgument = process.argv[2];
+  if (!inputArgument) throw new Error("Usage: pnpm process-local <input-image> [output-directory]");
+  const inputPath = path.resolve(inputArgument);
   const outDir = path.resolve(process.argv[3] ?? DEFAULT_OUT_DIR);
 
   const input = await readFile(inputPath);

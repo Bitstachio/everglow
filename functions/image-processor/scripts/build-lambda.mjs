@@ -44,15 +44,11 @@ writeFileSync(
 );
 
 // Lambda is nodejs22.x on arm64 (Amazon Linux). Install matching sharp binaries.
-execFileSync(
-  "npm",
-  ["install", "--omit=dev", "--os=linux", "--cpu=arm64", "--libc=glibc"],
-  {
-    stdio: "inherit",
-    cwd: stage,
-    env: { ...process.env, npm_config_ignore_scripts: "false" },
-  },
-);
+execFileSync("npm", ["install", "--omit=dev", "--os=linux", "--cpu=arm64", "--libc=glibc"], {
+  stdio: "inherit",
+  cwd: stage,
+  env: { ...process.env, npm_config_ignore_scripts: "false" },
+});
 
 rmSync(zipPath, { force: true });
 execFileSync("zip", ["-r", "-q", zipPath, "."], {
