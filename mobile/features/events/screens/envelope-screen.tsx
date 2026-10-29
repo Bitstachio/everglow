@@ -1,0 +1,147 @@
+import { AppIcon } from "@/components/ui/app-icon";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
+import { Button } from "@/components/ui/button";
+import { OptionRow } from "@/components/ui/option-row";
+import { PaperButton } from "@/components/ui/lab-paper";
+import { FilmGrain } from "@/components/ui/film-grain";
+import { IconButton } from "@/components/ui/icon-button";
+import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { Slip } from "@/components/ui/slip";
+import { Stamp } from "@/components/ui/stamp";
+import { TopBar } from "@/components/ui/top-bar";
+import { colorTokens } from "@/theme/tokens";
+import { X } from "phosphor-react-native";
+import { Trans, useTranslation } from "react-i18next";
+import { ScrollView, Text, View } from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import { RollEnvelope } from "../components/roll-envelope";
+import { useEnvelopeScreen } from "../hooks/use-envelope-screen";
+
+/** 05.1–05.7 The envelope: what a host sends so people can join the roll. */
+const EnvelopeScreen = () => {
+  const { t } = useTranslation("envelope");
+  const {
+    edge,
+    envelope,
+    readyStamp,
+    invitationUrl,
+    shut,
+    isLoading,
+    isError,
+    reset,
+    onSelectKind,
+    onShare,
+    onReset,
+    onSelectResetKind,
+    onCloseReset,
+    onConfirmReset,
+    onRetry,
+    onClose,
+  } = useEnvelopeScreen();
+
+  return (
+    <SafeAreaView className="flex-1 bg-ground">
+      <TopBar
+        title={edge ?? undefined}
+        left={
+          <IconButton accessibilityLabel={t("close")} onPress={onClose}>
+            <AppIcon icon={X} size="sm" color={colorTokens.text} />
+          </IconButton>
+        }
+        right={
+          envelope && invitationUrl ? (
+            <Button
+              title={t("reset.cta")}
+              accessibilityLabel={t("reset.a11y")}
+              variant="ghost"
+              fullWidth={false}
+              onPress={onReset}
+            />
+          ) : undefined
+        }
+      />
+      <ScrollView className="flex-1" contentContainerClassName="pb-6 pt-2.5">
+        {isError ? (
+          <View className="items-start gap-2 px-5 pt-4">
+            <Text className="font-sans text-body text-text-2">{t("loadFailed")}</Text>
+            <Button title={t("retry")} variant="ghost" fullWidth={false} className="-ml-2" onPress={onRetry} />
+          </View>
+        ) : isLoading || !envelope ? (
+          <View testID="envelope-loading" className="mx-7.5 mt-14 h-80 -rotate-2 rounded-paper bg-sheet" />
+        ) : shut ? (
+          <>
+            {/* No one new comes in: the envelope lies dimmed under a stamp that says why (05.6–05.7). */}
+            <View className="mx-7.5 mt-9.5 opacity-55">
+              <RollEnvelope {...envelope} />
+            </View>
+            <View className="h-26">
+              <Stamp title={shut.stamp} subtitle={shut.stampLine} className="absolute right-14.5 top-2" />
+            </View>
+            <Text className="mt-24 px-5 font-sans text-body text-text-2">
+              <Trans
+                t={t}
+                i18nKey={`${shut.state}.body`}
+                values={{ date: shut.date }}
+                components={{ value: <Text className="font-sans-semibold text-text" /> }}
+              />
+            </Text>
+          </>
+        ) : (
+          <>
+            <View className="mx-7.5 mt-5">
+              <RollEnvelope
+                {...envelope}
+                onSelect={onSelectKind}
+                stamp={readyStamp ? <Stamp title={readyStamp} /> : undefined}
+                action={
+                  invitationUrl ? (
+                    <PaperButton title={t("share.cta")} mark="↗" onPress={() => void onShare()} />
+                  ) : undefined
+                }
+                code={
+                  invitationUrl ? (
+                    <QRCode
+                      value={invitationUrl}
+                      size={150}
+                      color={colorTokens.paperInk}
+                      backgroundColor={colorTokens.paper}
+                    />
+                  ) : undefined
+                }
+              />
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      <FilmGrain />
+
+      <BottomSheet visible={reset.visible} onClose={onCloseReset}>
+        <Slip title={t("reset.title")} body={reset.body}>
+          <View accessibilityRole="radiogroup">
+            {reset.choices.map((choice) => (
+              <OptionRow
+                key={choice.key}
+                title={choice.title}
+                description={choice.description}
+                selected={reset.choice === choice.key}
+                disabled={reset.isResetting}
+                onPress={() => onSelectResetKind(choice.key)}
+              />
+            ))}
+          </View>
+          <Button title={t("reset.confirm")} mark="↻" isLoading={reset.isResetting} onPress={onConfirmReset} />
+          <Button
+            title={t("reset.cancel")}
+            variant="secondary"
+            mark="‹"
+            disabled={reset.isResetting}
+            onPress={onCloseReset}
+          />
+        </Slip>
+      </BottomSheet>
+    </SafeAreaView>
+  );
+};
+
+export default EnvelopeScreen;

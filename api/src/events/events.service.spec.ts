@@ -10,6 +10,7 @@ import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { ApiException } from "src/common/errors/api.exception";
 import { EventPlanService } from "src/plans/event-plan.service";
 import { ImageUploadService } from "src/images/image-upload.service";
+import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
@@ -43,6 +44,7 @@ describe("EventsService", () => {
   let service: EventsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoPurgeService: { purgeObjects: jest.Mock };
+  let photoVisibility: { countVisibleByUploader: jest.Mock };
   let imageUploads: { getDownloadUrl: jest.Mock };
   let logger: {
     setContext: jest.Mock;
@@ -302,6 +304,7 @@ describe("EventsService", () => {
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: null,
     isBlockedByCaller: false,
+    photoCount: 0,
   };
 
   // `blocksReceived` is what the include returns: the caller's block on that user, if any.
@@ -377,6 +380,8 @@ describe("EventsService", () => {
     };
 
     photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
+    // Nobody has added a photo unless a test says otherwise.
+    photoVisibility = { countVisibleByUploader: jest.fn().mockResolvedValue(new Map()) };
     // Mirrors the real service: a URL per key, null for a member without an avatar.
     imageUploads = {
       getDownloadUrl: jest.fn((key: string | null) => Promise.resolve(key ? `https://s3.example/${key}?sig=1` : null)),
@@ -392,6 +397,7 @@ describe("EventsService", () => {
           useValue: prisma,
         },
         { provide: PhotoPurgeService, useValue: photoPurgeService },
+        { provide: PhotoVisibilityService, useValue: photoVisibility },
         { provide: ImageUploadService, useValue: imageUploads },
         {
           provide: PinoLogger,
@@ -1231,6 +1237,265 @@ describe("EventsService", () => {
       const result = await service.findOne(eventId, callerId);
 
       expect(result).toEqual(eventCreatedByUser);
+    });
+  });
+
+  describe("previewInvite", () => {
+    const organizerRow = (userId: string, name: string | null) => ({
+      userId,
+      user: { details: name === null ? null : { name } },
+    });
+
+    const setupPreview = (event: Event = eventWithAccessOnly, invite: EventInvite = participantInvite) => {
+      prisma.eventInvite.findUnique.mockResolvedValue({ ...invite, eventId: event.id });
+      prisma.event.findUnique.mockResolvedValue(event);
+      prisma.eventAccess.findUnique.mockResolvedValue(null);
+      prisma.eventBan.findUnique.mockResolvedValue(null);
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow(otherUserId, "Sam")] as never);
+      prisma.eventAccess.count.mockResolvedValue(24);
+    };
+
+    it("previews a joinable invite with the event, its host, the member count and the plan's limit", async () => {
+      setupPreview();
+
+      const preview = await service.previewInvite(callerId, invitationUrl);
+
+      expect(preview).toEqual({
+        state: "JOINABLE",
+        event: eventWithAccessOnly,
+        token: invitationUrl,
+        accessLevel: AccessLevel.PARTICIPANT,
+        memberCount: 24,
+        memberLimit: 30,
+        host: { userId: otherUserId, name: "Sam" },
+      });
+      expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({ where: { token: invitationUrl } });
+      expect(prisma.eventAccess.count).toHaveBeenCalledWith({ where: { eventId: eventWithAccessOnly.id } });
+      expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId: eventWithAccessOnly.id, accessLevel: AccessLevel.ORGANIZER },
+          orderBy: { createdAt: "asc" },
+        }),
+      );
+    });
+
+    it("says what a viewer invite admits", async () => {
+      setupPreview(eventWithAccessOnly, viewerInvite);
+
+      await expect(service.previewInvite(callerId, viewerInvite.token)).resolves.toMatchObject({
+        state: "JOINABLE",
+        accessLevel: AccessLevel.VIEWER,
+      });
+    });
+
+    it("names the creator as host while they organize, whoever has been an organizer longer", async () => {
+      setupPreview();
+      prisma.eventAccess.findMany.mockResolvedValue([
+        organizerRow(targetUserId, "Jo"),
+        organizerRow(otherUserId, "Sam"),
+      ] as never);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        host: { userId: otherUserId, name: "Sam" },
+      });
+    });
+
+    it("names the longest-standing organizer once the creator no longer organizes", async () => {
+      setupPreview();
+      prisma.eventAccess.findMany.mockResolvedValue([
+        organizerRow(targetUserId, "Jo"),
+        organizerRow("12121212-1212-1212-1212-121212121212", "Kim"),
+      ] as never);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        host: { userId: targetUserId, name: "Jo" },
+      });
+    });
+
+    it("has no host when no organizer is left, and a null name when a profile is gone", async () => {
+      setupPreview();
+      prisma.eventAccess.findMany.mockResolvedValue([]);
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({ host: null });
+
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow(otherUserId, null)] as never);
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        host: { userId: otherUserId, name: null },
+      });
+    });
+
+    it("needs no onboarding, so an invite opens before the last step", async () => {
+      setupPreview();
+      prisma.user.findUnique.mockResolvedValue(userWithoutDetails);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({ state: "JOINABLE" });
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("answers 404 for an unknown token", async () => {
+      prisma.eventInvite.findUnique.mockResolvedValue(null);
+
+      await expect(service.previewInvite(callerId, invalidUrl)).rejects.toThrow(
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invalidUrl)),
+      );
+      expect(prisma.event.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("answers 404 for a leftover organizer link", async () => {
+      setupPreview(eventWithAccessOnly, organizerInvite);
+
+      await expect(service.previewInvite(callerId, organizerInvite.token)).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.event.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("answers 404 when the invite's event is gone", async () => {
+      setupPreview();
+      prisma.event.findUnique.mockResolvedValue(null);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("answers the unknown-link 404 when an organizer blocked the caller, before saying anything about the event", async () => {
+      setupPreview({ ...eventWithAccessOnly, galleryClosesAt: new Date(Date.now() - 60_000) });
+      prisma.eventBan.findUnique.mockResolvedValue({ id: "ban-id" } as never);
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: otherUserId, blockedId: callerId, blocked: { details: null } },
+      ] as never);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).rejects.toThrow(
+        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
+      );
+    });
+
+    it("keeps the organizer's block hidden when the two have blocked each other", async () => {
+      setupPreview();
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blockedId: otherUserId, blocked: { details: { name: "Sam" } } },
+        { blockerId: otherUserId, blockedId: callerId, blocked: { details: null } },
+      ] as never);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("tells a member they are already in, with the event's id, even if an organizer has blocked them since", async () => {
+      setupPreview();
+      prisma.eventAccess.findUnique.mockResolvedValue(participantAccess);
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: otherUserId, blockedId: callerId, blocked: { details: null } },
+      ] as never);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "ALREADY_A_MEMBER",
+      });
+    });
+
+    it("says the roll has closed before anything else that would stop a join", async () => {
+      setupPreview({
+        ...eventWithAccessOnly,
+        galleryClosesAt: new Date(Date.now() - 60_000),
+        underReviewAt: new Date(),
+      });
+      prisma.eventBan.findUnique.mockResolvedValue({ id: "ban-id" } as never);
+      prisma.eventAccess.count.mockResolvedValue(30);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "EVENT_GALLERY_CLOSED",
+      });
+    });
+
+    it("tells someone an organizer removed that they were removed, before a review or a block", async () => {
+      setupPreview({ ...eventWithAccessOnly, underReviewAt: new Date() });
+      prisma.eventBan.findUnique.mockResolvedValue({ id: "ban-id" } as never);
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blockedId: otherUserId, blocked: { details: { name: "Sam" } } },
+      ] as never);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "REMOVED_FROM_EVENT",
+      });
+      expect(prisma.eventBan.findUnique).toHaveBeenCalledWith({
+        where: { eventId_userId: { eventId: eventWithAccessOnly.id, userId: callerId } },
+      });
+    });
+
+    it("says the event is suspended, before a review", async () => {
+      setupPreview({ ...eventWithAccessOnly, suspendedAt: new Date(), underReviewAt: new Date() });
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "EVENT_SUSPENDED",
+      });
+    });
+
+    it("says joining is on hold while the event is under review", async () => {
+      setupPreview({ ...eventWithAccessOnly, underReviewAt: new Date() });
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "EVENT_UNDER_REVIEW",
+      });
+    });
+
+    it("names the organizer the caller blocked, so they can unblock them", async () => {
+      setupPreview();
+      prisma.eventAccess.findMany.mockResolvedValue([
+        organizerRow(otherUserId, "Sam"),
+        organizerRow(targetUserId, "Jo"),
+      ] as never);
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blockedId: targetUserId, blocked: { details: { name: "Jo" } } },
+      ] as never);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "ORGANIZER_BLOCKED_BY_CALLER",
+        host: { userId: targetUserId, name: "Jo" },
+      });
+    });
+
+    it("says the roll is full once it has as many members as its plan allows", async () => {
+      setupPreview();
+      prisma.eventAccess.count.mockResolvedValue(30);
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "EVENT_MEMBER_LIMIT_REACHED",
+        memberCount: 30,
+        memberLimit: 30,
+      });
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it("uses the member limit of the plan version the event is on", async () => {
+      setupPreview();
+      prisma.eventAccess.count.mockResolvedValue(40);
+      prisma.plan.findUnique.mockResolvedValue({ ...freePlan, memberLimit: 45 });
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "JOINABLE",
+        memberLimit: 45,
+      });
+    });
+
+    it("is never full on a plan without a member limit", async () => {
+      setupPreview();
+      prisma.eventAccess.count.mockResolvedValue(500);
+      prisma.plan.findUnique.mockResolvedValue({ ...freePlan, memberLimit: null });
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({
+        state: "JOINABLE",
+        memberLimit: null,
+      });
+    });
+
+    it("lets people preview an upcoming event, whose gallery hasn't opened", async () => {
+      setupPreview({ ...eventWithAccessOnly, galleryOpensAt: new Date(Date.now() + DAY_MS) });
+
+      await expect(service.previewInvite(callerId, invitationUrl)).resolves.toMatchObject({ state: "JOINABLE" });
+    });
+
+    it("changes nothing", async () => {
+      setupPreview();
+
+      await service.previewInvite(callerId, invitationUrl);
+
+      expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+      expect(prisma.event.update).not.toHaveBeenCalled();
     });
   });
 
@@ -2699,6 +2964,7 @@ describe("EventsService", () => {
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
           isBlockedByCaller: false,
+          photoCount: 0,
         },
         participantWithDetails,
       ]);
@@ -2736,6 +3002,7 @@ describe("EventsService", () => {
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
           isBlockedByCaller: false,
+          photoCount: 0,
         },
       ]);
     });
@@ -2792,6 +3059,17 @@ describe("EventsService", () => {
       const result = await service.getEventParticipants(eventId, callerId);
 
       expect(result).toEqual([]);
+    });
+
+    it("counts the frames each member added that the caller can see", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, [participantAccess]));
+      prisma.eventAccess.findMany.mockResolvedValue([organizerRow, targetRow]);
+      photoVisibility.countVisibleByUploader.mockResolvedValue(new Map([[targetUserId, 31]]));
+
+      const result = await service.getEventParticipants(eventId, callerId);
+
+      expect(photoVisibility.countVisibleByUploader).toHaveBeenCalledWith(callerId, eventId);
+      expect(result.map((member) => member.photoCount)).toEqual([0, 31]);
     });
 
     it("does not expose providerSub in the response shape", async () => {

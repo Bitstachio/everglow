@@ -8,11 +8,11 @@ import OnboardingNameScreen from "./onboarding-name-screen";
 const mockPush = jest.fn();
 jest.mock("expo-router", () => ({ router: { push: (href: unknown) => mockPush(href) } }));
 
-let mockAuth0User: { name?: string } = {};
+let mockIdentity: { name?: string } = {};
 // Pencil marks render already drawn, so no animation runs outside act().
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
-jest.mock("react-native-auth0", () => ({ useAuth0: () => ({ user: mockAuth0User }) }));
+jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ identity: mockIdentity }) }));
 
 const initialMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -27,7 +27,7 @@ const renderStep = () => renderWithI18n(<OnboardingNameScreen />, { wrapper: Pro
 
 beforeEach(() => {
   mockPush.mockReset();
-  mockAuth0User = {};
+  mockIdentity = {};
 });
 
 test("starts empty, with the sample frame waiting for a name", async () => {
@@ -39,13 +39,13 @@ test("starts empty, with the sample frame waiting for a name", async () => {
 });
 
 test("prefills the name from the sign-in, but never an email", async () => {
-  mockAuth0User = { name: "Ada Lovelace" };
+  mockIdentity = { name: "Ada Lovelace" };
   await renderStep();
   expect(screen.getByLabelText("Your name")).toHaveDisplayValue("Ada Lovelace");
 });
 
 test("does not take an email address as the name", async () => {
-  mockAuth0User = { name: "ada@example.com" };
+  mockIdentity = { name: "ada@example.com" };
   await renderStep();
   expect(screen.getByLabelText("Your name")).toHaveDisplayValue("");
 });

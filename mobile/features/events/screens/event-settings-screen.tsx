@@ -3,6 +3,7 @@ import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { SettingsRow } from "@/components/ui/settings-row";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollView, View } from "react-native";
+import { CoverCrop } from "../components/cover-crop";
 import { EventCover } from "../components/event-cover";
 import { useEventSettingsScreen } from "../hooks/use-event-settings-screen";
 
@@ -15,6 +16,7 @@ const EventSettingsScreen = () => {
     coverSummary,
     isUpdatingCover,
     handleChangeCover,
+    coverCrop,
     handleOpenTitle,
     handleOpenDescription,
     handleOpenDate,
@@ -83,6 +85,7 @@ const EventSettingsScreen = () => {
           </View>
         </View>
       </ScrollView>
+      <CoverCrop {...coverCrop} />
     </SafeAreaView>
   );
 };

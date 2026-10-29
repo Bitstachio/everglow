@@ -29,4 +29,12 @@ export class EventParticipantResponseDto {
       "Blocks the other way round are never exposed.",
   })
   isBlockedByCaller: boolean;
+
+  @ApiProperty({
+    minimum: 0,
+    example: 31,
+    description:
+      "Photos this member added that the caller can see in the gallery, by the same rules as the photo list.",
+  })
+  photoCount: number;
 }

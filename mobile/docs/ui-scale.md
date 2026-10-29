@@ -251,6 +251,8 @@ Registered in `app/global.css` as `--text-*`, with line height and letter spacin
 | `text-filled-in-card` | 25   | 24   | 0        | hand          | Details on the lab card                         |
 | `text-input-name`     | 40   | none | -1.4     | display       | The name field in onboarding                    |
 | `text-input-handle`   | 28   | none | -0.8     | display       | The username field in onboarding                |
+| `text-input-roll`     | 30   | none | -0.9     | display       | A new roll's name, on its label                 |
+| `text-input-line`     | 18   | none | -0.5     | display       | The optional line for guests on a new roll      |
 
 Text inputs use the `text-input-*` sizes, which set no line height: on iOS a line height on a `TextInput` makes the first typed letter jump. Give the input a fixed height instead.
 

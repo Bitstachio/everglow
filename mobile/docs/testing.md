@@ -78,37 +78,53 @@ validation, and React Query provider. It replaces the generated SDK calls and na
 (camera, QR rendering, clipboard/share/alerts, safe-area insets, and navigation). These tests do
 not require an API server or device and do not verify HTTP transport or native camera rendering.
 
-Coverage includes loading/empty/populated states, link and QR joining, validation and retries,
-pending-submission guards, modal reset, creator-only sharing, navigation, refresh and focus
-refetching, fetch failures, and account-specific caches. API hook tests additionally verify
+Coverage includes loading/empty/populated states, opening the scanner, creator-only sharing,
+navigation, refresh and focus refetching, fetch failures, and account-specific caches. API hook tests additionally verify
 cancellation, envelope handling, and successful/failed mutation cache invalidation.
 
 `testing/native-mocks.tsx` keeps feature components real. Its refresh-control mock preserves props
 because React Native's default Jest mock discards them; native refresh and barcode events use
 `fireEvent`, while ordinary interactions use `userEvent`.
 
-Create and detail routes are separate from this page; this suite tests navigation to those routes.
-Device E2E coverage remains a separate follow-up.
+Create, detail and join routes are separate from this page; this suite tests navigation to those routes.
 
-## Create Event page
-
-Run the Create Event unit/component and full-screen integration suites from `mobile/`:
+## Join (chapter 06)
 
 ```sh
-pnpm test -- create-event features/events/api/mutations.test.tsx
-pnpm test:integration -- features/events/screens/create-event-screen.integration.test.tsx
+pnpm test:integration -- features/events/screens/join-scan-screen.integration.test.tsx features/events/screens/join-envelope-screen.integration.test.tsx
 ```
 
-The integration suite renders the real screen, form, hooks, validation, and React Query mutation.
-Only the generated SDK, navigation, native services, and date/time picker are mocked. It covers
-creation with an optional description, validation, pending submission, retries, cache invalidation,
-invitation copying/sharing, share failures, creating another event, and returning with Done.
+The scanner suite fires native barcode events at the mocked camera and stubs the clipboard and
+Settings. The envelope suite renders every preview state (06.4–06.13) from the generated SDK's
+mocked responses, joins, and unblocks the host before joining.
+Device E2E coverage remains a separate follow-up.
 
-Component tests exercise iOS and Android picker changes and dismissal, preservation of the date
-when changing time (and vice versa), picker visibility, disabled controls, themes, and success
-callbacks. Form-hook tests cover field limits, trimming, invalid dates, fallback errors, reset,
-and duplicate submit callbacks. Screen-hook tests also check actions before/after a created event
-exists. The mutation tests verify that creation waits for active event lists to refresh.
+## New roll (chapter 04)
 
-Native picker events are simulated; these tests do not exercise a device or real HTTP transport.
-Device E2E tests remain deferred.
+Run the new-roll unit and screen-integration suites from `mobile/`:
+
+```sh
+pnpm test -- features/events/lib/new-roll features/events/hooks/use-new-roll features/events/api features/events/components/roll-envelope features/events/components/when-slip
+pnpm test:integration -- features/events/screens/new-roll-screen.integration.test.tsx
+```
+
+The integration suite renders the real screen, form, hooks and React Query, with the film on offer
+from a mocked `GET /users/me/limits`. Only the generated SDK, navigation and the keyboard's show and
+hide events are replaced, and only `Date` is faked, so labels such as "Tonight · 20:00" are stable.
+It covers the default time and film, picking a day and a time in the slip, the days the API allows,
+lengths without a name, the guest line, a failed create, and limits that fail to load. The first
+frame goes through the photo picker, the on-device crop and the byte upload, which are mocked at
+their native boundaries; the suite checks the cover is minted and confirmed for the new roll, and
+that the roll still loads when the cover doesn't take, then opens on the host's envelope stamped
+Ready (`/events/[id]/envelope?ready=1`). The envelope suite checks that stamp and that closing it
+goes on to the roll.
+
+Leaving is asked about through React Navigation's `usePreventRemove`, which the suite replaces so a
+test can play the moment the screen is about to go: an empty roll goes at once, one with a name or
+a first frame shows the "Throw this roll away?" slip, and a loaded roll goes without asking. The
+rolls-in-use screen (04.8) shows instead of the form when `GET /users/me/limits` says every roll
+the plan allows is running, and after a create refused with `ACTIVE_EVENT_LIMIT_REACHED`.
+
+The form-hook probe covers the payload (trimming, the optional line, the plan's default film, and a
+plan that never closes), validation, and retrying after a failure. Date helpers have their own unit
+tests in `features/events/lib/new-roll.test.ts`.

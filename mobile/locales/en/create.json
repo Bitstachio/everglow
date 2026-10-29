@@ -1,0 +1,102 @@
+{
+  "title": "New roll",
+  "close": "Close",
+  "label": {
+    "stock": "Everglow 400",
+    "namePlaceholder": "Name your roll",
+    "nameA11y": "Roll name",
+    "when": "{{day}} · {{time}}",
+    "editA11y": "When it happens: {{when}}. Change",
+    "days": {
+      "tonight": "Tonight",
+      "today": "Today",
+      "tomorrow": "Tomorrow"
+    }
+  },
+  "guests": {
+    "label": "A line for guests · optional",
+    "placeholder": "Bring a jacket, we’re on the roof",
+    "a11y": "A line for guests, optional"
+  },
+  "film": {
+    "heading": "Film",
+    "dayRoll": "day roll",
+    "names": {
+      "3": "Weekend",
+      "7": "A week",
+      "14": "Two weeks",
+      "30": "A month"
+    },
+    "days": "{{count}} days",
+    "a11y": "{{name}}, {{count}}-day roll",
+    "removed": "Photos removed <value>{{closes}}</value>"
+  },
+  "when": {
+    "heading": "When",
+    "edge": "When it happens",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "set": "Set {{day}}, {{time}}",
+    "unavailable": "{{day}}, can’t be picked"
+  },
+  "cover": {
+    "addA11y": "Add a cover",
+    "changeA11y": "Change the cover",
+    "preparing": "Getting the cover ready",
+    "menuTitle": "First frame",
+    "take": "Take a photo",
+    "choose": "Choose from Photos",
+    "remove": "Remove it",
+    "cancel": "Cancel",
+    "permissionTitle": "No access",
+    "cameraDenied": "Allow camera access in Settings to take a cover.",
+    "libraryDenied": "Allow access to Photos in Settings to choose a cover.",
+    "failed": "Couldn’t use that photo. Try another.",
+    "didntTakeTitle": "The cover didn’t take",
+    "didntTake": "The roll is loaded. Add the cover from the roll’s settings.",
+    "crop": {
+      "cancel": "Cancel",
+      "title": "Move and scale",
+      "use": "Use",
+      "hint": "Pinch to zoom · drag to frame it"
+    }
+  },
+  "load": "Load the roll",
+  "validation": {
+    "nameRequired": "Give the roll a name",
+    "nameTooLong": "100 characters at most",
+    "lineTooLong": "255 characters at most"
+  },
+  "failed": "The roll didn’t load. Try again.",
+  "notReady": {
+    "edge": "No film yet",
+    "body": "Couldn’t get the film ready. Check your connection and try again.",
+    "retry": "Try again"
+  },
+  "leave": {
+    "edge": "Not loaded yet",
+    "title": "Throw this roll away?",
+    "body": "Nothing has been created. You can start again any time.",
+    "keep": "Keep editing",
+    "throwAway": "Throw it away"
+  },
+  "full": {
+    "edge": "{{plan}} · {{used}} of {{limit}} running",
+    "plans": {
+      "FREE": "Free plan"
+    },
+    "titleBoth": "Both rolls",
+    "title_one": "Your roll",
+    "title_other": "All {{count}} rolls",
+    "dim_one": "is in use.",
+    "dim_other": "are in use.",
+    "runs": {
+      "FREE_one": "A free account runs one roll at a time.",
+      "FREE_other": "A free account runs {{count}} rolls at a time."
+    },
+    "frees": "<b>{{title}}</b> closes on {{date}}, then a spot opens.",
+    "cutOne": "Cut one of them short from its settings, and a spot opens.",
+    "note": "free on {{date}} ↑",
+    "back": "Back to your rolls"
+  }
+}

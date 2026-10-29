@@ -35,6 +35,7 @@ import { CreateEventDto } from "./dto/create-event.dto";
 import { EventBanListResponseDto } from "./dto/event-ban-list-response.dto";
 import { EventParticipantResponseDto } from "./dto/event-participant-response.dto";
 import { EventResponseDto } from "./dto/event-response.dto";
+import { InvitePreviewResponseDto } from "./dto/invite-preview-response.dto";
 import { JoinEventDto } from "./dto/join-event.dto";
 import { LeaveEventQueryDto } from "./dto/leave-event-query.dto";
 import { RemoveParticipantQueryDto } from "./dto/remove-participant-query.dto";
@@ -45,6 +46,7 @@ import { extractInvitationToken, INVITE_ACCESS_LEVELS, type EventInviteAccessLev
 import { EventsService } from "./events.service";
 import { EventMapper } from "./mappers/event.mapper";
 import { EventPlanService } from "src/plans/event-plan.service";
+import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 
 @ApiTags("events")
 @ApiBearerAuth("access-token")
@@ -56,6 +58,7 @@ export class EventsController {
     private readonly eventsService: EventsService,
     private readonly eventCoverService: EventCoverService,
     private readonly eventPlanService: EventPlanService,
+    private readonly photoVisibilityService: PhotoVisibilityService,
   ) {}
 
   @Post()
@@ -70,10 +73,12 @@ export class EventsController {
   @ApiWrappedResponse(EventResponseDto, "Events the user can read", 200)
   async findAll(@CurrentUser() user: AuthenticatedUser): Promise<EventResponseDto[]> {
     const events = await this.eventsService.findAllForUser(user.id);
-    const [coverUrls, limits, usage] = await Promise.all([
+    const eventIds = events.map((event) => event.id);
+    const [coverUrls, limits, usage, photoCounts] = await Promise.all([
       this.eventCoverService.getCoverUrls(events, user.id),
       this.eventPlanService.limitsForEvents(events),
-      this.eventPlanService.usageFor(events.map((event) => event.id)),
+      this.eventPlanService.usageFor(eventIds),
+      this.photoVisibilityService.countVisibleTo(user.id, eventIds),
     ]);
     return Promise.all(
       events.map(async (event) =>
@@ -82,6 +87,7 @@ export class EventsController {
           coverUrls.get(event.id) ?? null,
           limits.get(event.id)!,
           usage.get(event.id)!,
+          photoCounts.get(event.id) ?? 0,
           await this.eventsService.listInvitesForCaller(event.id, user.id),
         ),
       ),
@@ -95,6 +101,24 @@ export class EventsController {
   async join(@CurrentUser() user: AuthenticatedUser, @Body() dto: JoinEventDto): Promise<EventResponseDto> {
     const invitationToken = extractInvitationToken(dto.invitationUrl);
     return this.toResponseDto(await this.eventsService.joinByInvitationUrl(user.id, invitationToken), user.id);
+  }
+
+  @Get("invites/:token/preview")
+  @RateLimit("sensitive")
+  @ApiOperation({
+    summary: "Preview the event an invite leads to, before joining",
+    description:
+      "Whether the caller can join with this invite now, and if not, why: `state` is JOINABLE or the code " +
+      "POST /events/join would refuse with. No cover or photos. An unknown token, a reset one, and an " +
+      "organizer's block on the caller are the same 404. Rate limited like join, so tokens can't be probed.",
+  })
+  @ApiParam({ name: "token", description: "The invite token: the last path segment of an invitation link" })
+  @ApiWrappedResponse(InvitePreviewResponseDto, "The event the invite leads to, and whether the caller can join")
+  async previewInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("token") token: string,
+  ): Promise<InvitePreviewResponseDto> {
+    return EventMapper.toInvitePreviewResponseDto(await this.eventsService.previewInvite(user.id, token));
   }
 
   @Get(":eventId")
@@ -302,12 +326,20 @@ export class EventsController {
   }
 
   private async toResponseDto(event: Event, viewerId: string): Promise<EventResponseDto> {
-    const [coverUrl, invites, limits, usage] = await Promise.all([
+    const [coverUrl, invites, limits, usage, photoCounts] = await Promise.all([
       this.eventCoverService.getCoverUrl(event, viewerId),
       this.eventsService.listInvitesForCaller(event.id, viewerId),
       this.eventPlanService.limitsOf(event),
       this.eventPlanService.usageFor([event.id]),
+      this.photoVisibilityService.countVisibleTo(viewerId, [event.id]),
     ]);
-    return EventMapper.toResponseDto(event, coverUrl, limits, usage.get(event.id)!, invites);
+    return EventMapper.toResponseDto(
+      event,
+      coverUrl,
+      limits,
+      usage.get(event.id)!,
+      photoCounts.get(event.id) ?? 0,
+      invites,
+    );
   }
 }

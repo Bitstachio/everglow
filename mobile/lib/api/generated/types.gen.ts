@@ -471,6 +471,10 @@ export type EventResponseDto = {
   deactivatedById: string | null;
   limits: EventLimitsResponseDto;
   usage: EventUsageResponseDto;
+  /**
+   * Photos in the gallery that the caller can see: what GET /events/:eventId/photos lists, without reported, hidden or blocked photos. 0 once the gallery has closed or the event is suspended.
+   */
+  photoCount: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -493,6 +497,74 @@ export type JoinEventDto = {
    * Full invitation URL or invite token
    */
   invitationUrl: string;
+};
+
+/**
+ * JOINABLE when POST /events/join would succeed now. Otherwise the code it would refuse with, checked in the same order: ALREADY_A_MEMBER, EVENT_GALLERY_CLOSED, REMOVED_FROM_EVENT, EVENT_SUSPENDED, EVENT_UNDER_REVIEW, ORGANIZER_BLOCKED_BY_CALLER, EVENT_MEMBER_LIMIT_REACHED. The member count is read without the join lock, so a join can still be refused with EVENT_MEMBER_LIMIT_REACHED.
+ */
+export type InvitePreviewState =
+  | "JOINABLE"
+  | "ALREADY_A_MEMBER"
+  | "EVENT_GALLERY_CLOSED"
+  | "REMOVED_FROM_EVENT"
+  | "EVENT_SUSPENDED"
+  | "EVENT_UNDER_REVIEW"
+  | "ORGANIZER_BLOCKED_BY_CALLER"
+  | "EVENT_MEMBER_LIMIT_REACHED";
+
+/**
+ * What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.
+ */
+export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
+
+export type InviteHostResponseDto = {
+  userId: string;
+  /**
+   * Null once their profile is gone.
+   */
+  name: string | null;
+};
+
+export type InvitePreviewResponseDto = {
+  /**
+   * JOINABLE when POST /events/join would succeed now. Otherwise the code it would refuse with, checked in the same order: ALREADY_A_MEMBER, EVENT_GALLERY_CLOSED, REMOVED_FROM_EVENT, EVENT_SUSPENDED, EVENT_UNDER_REVIEW, ORGANIZER_BLOCKED_BY_CALLER, EVENT_MEMBER_LIMIT_REACHED. The member count is read without the join lock, so a join can still be refused with EVENT_MEMBER_LIMIT_REACHED.
+   */
+  state: InvitePreviewState;
+  /**
+   * The event's id, only when the caller is already a member (ALREADY_A_MEMBER); null otherwise.
+   */
+  eventId: string | null;
+  title: string;
+  date: string;
+  /**
+   * The invite's shareable link, as organizers share it: what a QR code on the envelope carries.
+   */
+  invitationUrl: string;
+  /**
+   * What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.
+   */
+  accessLevel: InviteAccessLevel;
+  galleryState: GalleryState;
+  /**
+   * When the gallery opens.
+   */
+  galleryOpensAt: string;
+  /**
+   * When the gallery closes and its photos are removed. Null on a plan that never closes.
+   */
+  galleryClosesAt: string | null;
+  /**
+   * Members of every role, organizers included.
+   */
+  memberCount: number;
+  /**
+   * How many members the event's plan allows, every role counted; null for no limit.
+   */
+  memberLimit: number | null;
+  /**
+   * Who hosts the event: the organizer the caller blocked when the state is ORGANIZER_BLOCKED_BY_CALLER, so they can be unblocked; otherwise the creator while they organize it, or the longest-standing organizer. Null when no organizer is left.
+   */
+  host: InviteHostResponseDto | null;
 };
 
 export type UpdateEventDto = {
@@ -524,6 +596,10 @@ export type EventParticipantResponseDto = {
    * Whether the caller has blocked this member, so the client can offer to unblock. Blocks the other way round are never exposed.
    */
   isBlockedByCaller: boolean;
+  /**
+   * Photos this member added that the caller can see in the gallery, by the same rules as the photo list.
+   */
+  photoCount: number;
 };
 
 export type UpdateParticipantAccessDto = {
@@ -555,8 +631,6 @@ export type EventBanListResponseDto = {
    */
   items: Array<EventBanResponseDto>;
 };
-
-export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
 
 export type ReportEscalation =
   | "SEVERE_REASON"
@@ -1693,6 +1767,45 @@ export type EventsControllerJoinResponses = {
 };
 
 export type EventsControllerJoinResponse = EventsControllerJoinResponses[keyof EventsControllerJoinResponses];
+
+export type EventsControllerPreviewInviteData = {
+  body?: never;
+  path: {
+    /**
+     * The invite token: the last path segment of an invitation link
+     */
+    token: string;
+  };
+  query?: never;
+  url: "/api/v2/events/invites/{token}/preview";
+};
+
+export type EventsControllerPreviewInviteErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type EventsControllerPreviewInviteError =
+  EventsControllerPreviewInviteErrors[keyof EventsControllerPreviewInviteErrors];
+
+export type EventsControllerPreviewInviteResponses = {
+  /**
+   * The event the invite leads to, and whether the caller can join
+   */
+  200: {
+    data: InvitePreviewResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type EventsControllerPreviewInviteResponse =
+  EventsControllerPreviewInviteResponses[keyof EventsControllerPreviewInviteResponses];
 
 export type EventsControllerRemoveData = {
   body?: never;

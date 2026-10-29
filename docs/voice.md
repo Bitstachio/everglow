@@ -41,3 +41,14 @@ If a film word could leave someone unsure what will happen, use the plain one.
 - Never imply photos survive a closed roll.
 - Don't hard-code plan limits in copy ("2 rolls", "30 people"). Read them from the API, or leave the number out, so paid plans don't need new strings.
 - No exclamation marks and no emoji.
+
+## Less on the page
+
+Screens stay light. Before adding a line, check what the screen already says.
+
+- One short label per section ("Film"), not a label plus an explanation.
+- Don't say the same thing twice: if the boxes say "A week · 7 day roll", the heading doesn't need "how long people can add photos".
+- Prefer showing over labelling: the cover is a print pinned to the roll's label, not a section with a heading.
+- No hints for what people will see for themselves ("Shows on Home, the envelope and the top of the roll").
+- Keep the one fact people need to decide: "Photos removed Sat 14.11".
+- The drawings can be wordier than this; cut to this rule and note the difference in the PR.

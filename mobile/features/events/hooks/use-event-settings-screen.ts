@@ -17,7 +17,10 @@ export const useEventSettingsScreen = () => {
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
   const deleteEventMutation = useDeleteEventMutation();
-  const { isUpdatingCover, handleChangeCover } = useChangeEventCover(eventId ?? "", Boolean(eventQuery.data?.coverUrl));
+  const { isUpdatingCover, handleChangeCover, coverCrop } = useChangeEventCover(
+    eventId ?? "",
+    Boolean(eventQuery.data?.coverUrl),
+  );
 
   const event = eventQuery.data ?? null;
   const participants = participantsQuery.data ?? [];
@@ -53,6 +56,7 @@ export const useEventSettingsScreen = () => {
     coverSummary,
     isUpdatingCover,
     handleChangeCover,
+    coverCrop,
     handleOpenTitle: () => {
       if (!eventId) return;
       router.push(`/events/${eventId}/edit-title`);

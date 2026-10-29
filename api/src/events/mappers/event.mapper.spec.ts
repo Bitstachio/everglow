@@ -1,6 +1,6 @@
 import { AccessLevel, Event } from "generated/prisma/client";
 import { EVENT_INVITATION_BASE_URL } from "../events.invitation";
-import { EventParticipant } from "../events.types";
+import { EventParticipant, InvitePreview } from "../events.types";
 import { EventMapper } from "./event.mapper";
 
 describe("EventMapper", () => {
@@ -37,6 +37,7 @@ describe("EventMapper", () => {
     accessLevel: AccessLevel.PARTICIPANT,
     avatarUrl: "https://s3.example/avatar?sig=1",
     isBlockedByCaller: true,
+    photoCount: 31,
   };
 
   describe("toResponseDto", () => {
@@ -46,7 +47,7 @@ describe("EventMapper", () => {
     const limits = { plan: "FREE" as const, memberLimit: 30, storageLimitBytes: 3221225472n, galleryWindowOptions };
 
     it("maps event fields, composes the shareable invitation URL, and carries the presigned cover URL", () => {
-      const result = EventMapper.toResponseDto(event, coverUrl, limits, usage);
+      const result = EventMapper.toResponseDto(event, coverUrl, limits, usage, 148);
 
       expect(result).toEqual({
         id: event.id,
@@ -68,6 +69,7 @@ describe("EventMapper", () => {
         deactivatedById: null,
         limits: { members: 30, storageBytes: "3221225472" },
         usage: { members: 4, storageBytes: "1288490188" },
+        photoCount: 148,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
       });
@@ -76,7 +78,7 @@ describe("EventMapper", () => {
     it("reports the limits it's given, which include storage added to this event", () => {
       const withBonus = { ...limits, storageLimitBytes: 8n * 1024n ** 3n };
 
-      expect(EventMapper.toResponseDto(event, null, withBonus, usage).limits).toEqual({
+      expect(EventMapper.toResponseDto(event, null, withBonus, usage, 0).limits).toEqual({
         members: 30,
         storageBytes: String(8 * 1024 ** 3),
       });
@@ -85,7 +87,7 @@ describe("EventMapper", () => {
     it("reports no limit as null", () => {
       const unlimited = { ...limits, memberLimit: null, storageLimitBytes: null };
 
-      expect(EventMapper.toResponseDto(event, null, unlimited, usage).limits).toEqual({
+      expect(EventMapper.toResponseDto(event, null, unlimited, usage, 0).limits).toEqual({
         members: null,
         storageBytes: null,
       });
@@ -94,14 +96,14 @@ describe("EventMapper", () => {
     it("reports a CLOSED gallery once the close time has passed, and once the close job has run", () => {
       const past = new Date(Date.now() - 60_000);
 
-      expect(EventMapper.toResponseDto({ ...event, galleryClosesAt: past }, null, limits, usage).galleryState).toBe(
+      expect(EventMapper.toResponseDto({ ...event, galleryClosesAt: past }, null, limits, usage, 0).galleryState).toBe(
         "CLOSED",
       );
-      expect(EventMapper.toResponseDto({ ...event, galleryClosedAt: past }, null, limits, usage).galleryState).toBe(
+      expect(EventMapper.toResponseDto({ ...event, galleryClosedAt: past }, null, limits, usage, 0).galleryState).toBe(
         "CLOSED",
       );
       expect(
-        EventMapper.toResponseDto({ ...event, galleryClosesAt: new Date(Date.now() + 60_000) }, null, limits, usage)
+        EventMapper.toResponseDto({ ...event, galleryClosesAt: new Date(Date.now() + 60_000) }, null, limits, usage, 0)
           .galleryState,
       ).toBe("OPEN");
     });
@@ -111,7 +113,7 @@ describe("EventMapper", () => {
       const galleryClosesAt = new Date(galleryOpensAt.getTime() + 7 * 24 * 60 * 60 * 1000);
       const upcoming = { ...event, date: galleryOpensAt, galleryOpensAt, galleryClosesAt, galleryWindowDays: 7 };
 
-      expect(EventMapper.toResponseDto(upcoming, null, limits, usage)).toMatchObject({
+      expect(EventMapper.toResponseDto(upcoming, null, limits, usage, 0)).toMatchObject({
         galleryState: "UPCOMING",
         galleryOpensAt,
         galleryClosesAt,
@@ -125,7 +127,7 @@ describe("EventMapper", () => {
       const deactivatedById = "22222222-2222-2222-2222-222222222222";
       const deactivated = { ...event, galleryClosesAt: deactivatedAt, deactivatedAt, deactivatedById };
 
-      expect(EventMapper.toResponseDto(deactivated, null, limits, usage)).toMatchObject({
+      expect(EventMapper.toResponseDto(deactivated, null, limits, usage, 0)).toMatchObject({
         galleryState: "CLOSED",
         deactivatedAt,
         deactivatedById,
@@ -140,7 +142,7 @@ describe("EventMapper", () => {
         suspendedAt: new Date("2026-09-21T12:00:00.000Z"),
       };
 
-      const dto = EventMapper.toResponseDto(suspended, coverUrl, limits, usage);
+      const dto = EventMapper.toResponseDto(suspended, coverUrl, limits, usage, 0);
       expect(dto.status).toBe("SUSPENDED");
       expect(dto.description).toBeNull();
     });
@@ -148,7 +150,7 @@ describe("EventMapper", () => {
     it("reports UNDER_REVIEW once the event is under review", () => {
       const underReview = { ...event, underReviewAt: new Date("2026-09-20T12:00:00.000Z") };
 
-      expect(EventMapper.toResponseDto(underReview, coverUrl, limits, usage).status).toBe("UNDER_REVIEW");
+      expect(EventMapper.toResponseDto(underReview, coverUrl, limits, usage, 0).status).toBe("UNDER_REVIEW");
     });
 
     it("maps organizer invites into shareable URLs in role order", () => {
@@ -179,7 +181,7 @@ describe("EventMapper", () => {
         },
       ];
 
-      expect(EventMapper.toResponseDto(event, null, limits, usage, invites).invites).toEqual([
+      expect(EventMapper.toResponseDto(event, null, limits, usage, 0, invites).invites).toEqual([
         { accessLevel: AccessLevel.PARTICIPANT, invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}` },
         { accessLevel: AccessLevel.VIEWER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/viewer-token` },
         { accessLevel: AccessLevel.ORGANIZER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/org-token` },
@@ -187,19 +189,19 @@ describe("EventMapper", () => {
     });
 
     it("reports a null coverUrl for an event without a cover", () => {
-      expect(EventMapper.toResponseDto(event, null, limits, usage).coverUrl).toBeNull();
+      expect(EventMapper.toResponseDto(event, null, limits, usage, 0).coverUrl).toBeNull();
     });
 
     it("never exposes the cover's S3 key", () => {
       const coverS3Key = `event-covers/${event.id}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
 
-      const result = EventMapper.toResponseDto({ ...event, coverS3Key }, coverUrl, limits, usage);
+      const result = EventMapper.toResponseDto({ ...event, coverS3Key }, coverUrl, limits, usage, 0);
 
       expect(JSON.stringify(result)).not.toContain(coverS3Key);
     });
 
     it("does not expose the raw invite token as the response invitationUrl", () => {
-      const result = EventMapper.toResponseDto(event, null, limits, usage);
+      const result = EventMapper.toResponseDto(event, null, limits, usage, 0);
 
       expect(result.invitationUrl).not.toBe(inviteToken);
       expect(result.invitationUrl).toContain(inviteToken);
@@ -217,6 +219,7 @@ describe("EventMapper", () => {
         accessLevel: participant.accessLevel,
         avatarUrl: participant.avatarUrl,
         isBlockedByCaller: true,
+        photoCount: 31,
       });
     });
   });
@@ -230,6 +233,46 @@ describe("EventMapper", () => {
 
       expect(result).toHaveLength(2);
       expect(result[1].accessLevel).toBe(AccessLevel.VIEWER);
+    });
+  });
+
+  describe("toInvitePreviewResponseDto", () => {
+    const preview: InvitePreview = {
+      state: "JOINABLE",
+      event: { ...event, coverS3Key: "event-covers/x/y" },
+      token: inviteToken,
+      accessLevel: AccessLevel.VIEWER,
+      memberCount: 24,
+      memberLimit: 30,
+      host: { userId: "55555555-5555-5555-5555-555555555555", name: "Sam" },
+    };
+
+    it("maps the event's public details, the access level and the counts, with no cover, description or invites", () => {
+      const dto = EventMapper.toInvitePreviewResponseDto(preview);
+
+      expect(dto).toEqual({
+        state: "JOINABLE",
+        eventId: null,
+        title: "Summer BBQ",
+        date: event.date,
+        invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}`,
+        accessLevel: AccessLevel.VIEWER,
+        galleryState: "OPEN",
+        galleryOpensAt: event.galleryOpensAt,
+        galleryClosesAt: null,
+        memberCount: 24,
+        memberLimit: 30,
+        host: { userId: "55555555-5555-5555-5555-555555555555", name: "Sam" },
+      });
+    });
+
+    it("gives the event's id only to someone already on it", () => {
+      expect(EventMapper.toInvitePreviewResponseDto({ ...preview, state: "ALREADY_A_MEMBER" }).eventId).toBe(event.id);
+      expect(EventMapper.toInvitePreviewResponseDto({ ...preview, state: "REMOVED_FROM_EVENT" }).eventId).toBeNull();
+    });
+
+    it("keeps a null host", () => {
+      expect(EventMapper.toInvitePreviewResponseDto({ ...preview, host: null }).host).toBeNull();
     });
   });
 });

@@ -1,0 +1,230 @@
+import { useMyLimitsQuery } from "@/features/profile/api/queries";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import { Alert, Keyboard, type TextInput } from "react-native";
+import { useSetNewRollCoverMutation } from "../api/mutations";
+import {
+  addMonths,
+  monthsBetween,
+  atMinutes,
+  calendarMonth,
+  formatClock,
+  formatLongDay,
+  formatMinutes,
+  formatMonth,
+  formatShortDay,
+  galleryWindow,
+  minutesOf,
+  onDay,
+  rollDay,
+  startOfMonth,
+  TIME_SLOTS,
+  WEEKDAY_INITIALS,
+} from "../lib/new-roll";
+import { useLeaveUnsaved } from "./use-leave-unsaved";
+import { useNewRollCover } from "./use-new-roll-cover";
+import { useNewRollForm } from "./use-new-roll-form";
+import { useRollsInUse } from "./use-rolls-in-use";
+
+export type NewRollStatus = "loading" | "ready" | "notReady" | "full";
+
+const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
+
+/** The guest line shows while typing; the keyboard stays up when moving between the two fields. */
+const useKeyboardVisible = () => {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const shown = Keyboard.addListener("keyboardDidShow", () => setVisible(true));
+    const hidden = Keyboard.addListener("keyboardDidHide", () => setVisible(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
+  return visible;
+};
+
+/**
+ * 04.1–04.8 A new roll: its name and a line for guests, when it happens, the
+ * film and its first frame; asking before it is thrown away, and saying so
+ * when the account can't run another. The film on offer, its default, the
+ * latest date and the roll limit all come from the API
+ * (`GET /users/me/limits`), never from the app.
+ */
+export const useNewRollScreen = () => {
+  const { t } = useTranslation("create");
+  const router = useRouter();
+  const limitsQuery = useMyLimitsQuery();
+  const newEvent = limitsQuery.data?.newEvent;
+  const { cover, isPreparing: isPreparingCover, onPickCover, crop: coverCrop } = useNewRollCover();
+  const setCoverMutation = useSetNewRollCoverMutation();
+  const [hitLimit, setHitLimit] = useState(false);
+  const {
+    form,
+    onSubmit,
+    film: chosenFilm,
+  } = useNewRollForm({
+    newEvent,
+    // The roll is loaded either way; a cover that didn't take can be added from its settings.
+    onCreated: async (event) => {
+      leave.allowLeave();
+      if (cover) {
+        try {
+          await setCoverMutation.mutateAsync({ eventId: event.id, image: cover });
+        } catch {
+          Alert.alert(t("cover.didntTakeTitle"), t("cover.didntTake"));
+        }
+      }
+      router.replace(`/events/${event.id}/envelope?ready=1`);
+    },
+    onLimitReached: () => {
+      setHitLimit(true);
+      void limitsQuery.refetch();
+    },
+  });
+  const [title, description, date, pickedFilm] = useWatch({
+    control: form.control,
+    name: ["title", "description", "date", "galleryWindowDays"],
+  });
+  const galleryWindowDays = chosenFilm(pickedFilm);
+  const { errors, isDirty, isSubmitting } = form.formState;
+  const full = useRollsInUse(limitsQuery.data, hitLimit);
+  const leave = useLeaveUnsaved((isDirty || cover !== null) && !full);
+
+  // A roll may have closed since the limits were last read.
+  const { refetch: refetchLimits } = limitsQuery;
+  useEffect(() => {
+    void refetchLimits({ cancelRefetch: false });
+  }, [refetchLimits]);
+  const guestLineRef = useRef<TextInput>(null);
+  const keyboardVisible = useKeyboardVisible();
+
+  const now = new Date();
+  const latest = new Date(newEvent?.latestDate ?? now);
+
+  // 04.3 The slip works on a draft; Set writes it to the form.
+  const [whenVisible, setWhenVisible] = useState(false);
+  const [draft, setDraft] = useState(date);
+  const [month, setMonth] = useState(() => startOfMonth(date));
+  const clamp = (next: Date) =>
+    next > latest ? atMinutes(latest, Math.floor(minutesOf(latest) / SLOT_MINUTES) * SLOT_MINUTES) : next;
+
+  const describeWhen = (when: Date) => {
+    const kind = rollDay(when, now);
+    const day = kind === "date" ? formatShortDay(when) : t(`label.days.${kind}`);
+    return t("label.when", { day, time: formatClock(when) });
+  };
+
+  // Names for the usual lengths; any other length is printed in days.
+  const names = t("film.names", { returnObjects: true }) as Record<string, string | undefined>;
+  const filmOptions = (newEvent?.galleryWindowOptions ?? []).map((days) => {
+    const name = names[String(days)] ?? t("film.days", { count: days });
+    return { days, name, accessibilityLabel: t("film.a11y", { name, count: days }) };
+  });
+
+  const gallery = galleryWindow(date, galleryWindowDays, now);
+  const draftWindow = galleryWindow(draft, galleryWindowDays, now);
+  const shownWhen = describeWhen(whenVisible ? draft : date);
+  const firstMonth = startOfMonth(now);
+  const lastMonth = startOfMonth(latest);
+
+  const daysOf = (shown: Date) =>
+    calendarMonth(shown, { selected: draft, window: draftWindow, today: now, latest }).map(
+      ({ key, date: day, state }) => ({
+        key,
+        state,
+        label: day ? String(day.getDate()) : null,
+        accessibilityLabel: day
+          ? state === "unavailable"
+            ? t("when.unavailable", { day: formatLongDay(day) })
+            : formatLongDay(day)
+          : undefined,
+        onPress: day ? () => setDraft((current) => clamp(onDay(current, day))) : undefined,
+      }),
+    );
+  // Every month a roll can happen in, side by side, so the slip can be swiped through continuously.
+  const monthCount = monthsBetween(firstMonth, lastMonth) + 1;
+  const months = Array.from({ length: monthCount }, (_, i) => {
+    const shown = addMonths(firstMonth, i);
+    return { key: `month-${i}`, title: formatMonth(shown), days: daysOf(shown) };
+  });
+  const monthIndex = Math.min(Math.max(monthsBetween(firstMonth, month), 0), monthCount - 1);
+
+  const times = TIME_SLOTS.map((minutes) => ({
+    key: `time-${minutes}`,
+    label: formatMinutes(minutes),
+    selected: minutesOf(draft) === minutes,
+    disabled: atMinutes(draft, minutes) > latest,
+    onPress: () => setDraft((current) => atMinutes(current, minutes)),
+  }));
+
+  return {
+    status: (limitsQuery.isPending ? "loading" : full ? "full" : newEvent ? "ready" : "notReady") as NewRollStatus,
+    full,
+    onRetry: () => void limitsQuery.refetch(),
+    form,
+    canLoad: title.trim().length > 0 && !isPreparingCover,
+    isLoading: isSubmitting,
+    error: errors.title?.message ?? errors.description?.message ?? errors.root?.server?.message,
+    onLoad: onSubmit,
+    whenField: {
+      when: shownWhen,
+      accessibilityLabel: t("label.editA11y", { when: shownWhen }),
+    },
+    guestLineRef,
+    showGuestLine: keyboardVisible || description.length > 0,
+    onNameSubmit: () => guestLineRef.current?.focus(),
+    film: {
+      options: filmOptions,
+      selected: galleryWindowDays,
+      circled: pickedFilm !== null,
+      onSelect: (days: number) => form.setValue("galleryWindowDays", days, { shouldDirty: true }),
+      closes: gallery.closesAt ? formatShortDay(gallery.closesAt) : null,
+    },
+    cover: {
+      uri: cover?.uri,
+      isPreparing: isPreparingCover,
+      accessibilityLabel: cover ? t("cover.changeA11y") : t("cover.addA11y"),
+      onPress: () => {
+        Keyboard.dismiss();
+        onPickCover();
+      },
+    },
+    coverCrop,
+    when: {
+      visible: whenVisible,
+      onOpen: () => {
+        Keyboard.dismiss();
+        setDraft(date);
+        setMonth(startOfMonth(date));
+        setWhenVisible(true);
+      },
+      onClose: () => setWhenVisible(false),
+      slip: {
+        months,
+        monthIndex,
+        onMonthChange: (index: number) => setMonth(addMonths(firstMonth, index)),
+        previous: {
+          accessibilityLabel: t("when.previousMonth"),
+          disabled: month <= firstMonth,
+        },
+        next: {
+          accessibilityLabel: t("when.nextMonth"),
+          disabled: month >= lastMonth,
+        },
+        weekdays: WEEKDAY_INITIALS,
+        times,
+        setLabel: t("when.set", { day: formatLongDay(draft), time: formatClock(draft) }),
+        onSet: () => {
+          form.setValue("date", draft, { shouldDirty: true });
+          setWhenVisible(false);
+        },
+      },
+    },
+    leave: { visible: leave.visible, onKeepEditing: leave.onKeepEditing, onThrowAway: leave.onThrowAway },
+    onBackToRolls: () => router.back(),
+    onClose: () => router.back(),
+  };
+};

@@ -16,7 +16,6 @@ jest.mock("../api/mutations", () => ({
   useRemoveEventCoverMutation: () => ({ mutateAsync: mockRemoveCover, isPending: false }),
 }));
 jest.mock("../lib/cover-image", () => ({
-  COVER_ASPECT: [16, 9],
   prepareCoverImage: (...args: unknown[]) => mockPrepare(...args),
 }));
 jest.mock("expo-image-picker", () => ({
@@ -30,6 +29,8 @@ const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
 const heicAsset = { uri: "file://IMG_0001.HEIC", width: 4032, height: 3024, mimeType: "image/heic" };
 const prepared = { uri: "file://cover.jpg", contentType: "image/jpeg" };
+const picked = { uri: heicAsset.uri, width: heicAsset.width, height: heicAsset.height };
+const frame = { originX: 0, originY: 378, width: 4032, height: 2268 };
 
 const menuButtons = async (hook: { current: ReturnType<typeof useChangeEventCover> }) => {
   alert.mockClear();
@@ -50,6 +51,11 @@ const choose = async (hook: { current: ReturnType<typeof useChangeEventCover> },
   });
 };
 
+/** Uses the photo in the cover crop as framed. */
+const useFrame = async (hook: { current: ReturnType<typeof useChangeEventCover> }) => {
+  await act(async () => hook.current.coverCrop.onUse(frame));
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockRequestLibrary.mockResolvedValue({ granted: true });
@@ -61,15 +67,30 @@ beforeEach(() => {
   mockRemoveCover.mockResolvedValue(undefined);
 });
 
-test("crops a library photo to 16:9, prepares it and uploads the result", async () => {
+test("frames a library photo at 16:9, prepares it and uploads the result", async () => {
   const { result } = await renderHook(() => useChangeEventCover("event-1", false));
 
   await choose(result, "Choose from Library");
+  // iOS's editor only crops square, so the picker leaves the photo whole for the cover crop.
+  expect(mockLaunchLibrary).toHaveBeenCalledWith(expect.not.objectContaining({ allowsEditing: true }));
+  expect(result.current.coverCrop.photo).toEqual(picked);
+  expect(mockSetCover).not.toHaveBeenCalled();
 
-  expect(mockLaunchLibrary).toHaveBeenCalledWith(expect.objectContaining({ allowsEditing: true, aspect: [16, 9] }));
-  expect(mockPrepare).toHaveBeenCalledWith(heicAsset);
+  await useFrame(result);
+  expect(result.current.coverCrop.photo).toBeNull();
+  expect(mockPrepare).toHaveBeenCalledWith(picked, frame);
   expect(mockSetCover).toHaveBeenCalledWith(prepared);
   expect(alert).not.toHaveBeenCalled();
+});
+
+test("uploads nothing when the crop is cancelled", async () => {
+  const { result } = await renderHook(() => useChangeEventCover("event-1", false));
+
+  await choose(result, "Choose from Library");
+  await act(async () => result.current.coverCrop.onCancel());
+
+  expect(result.current.coverCrop.photo).toBeNull();
+  expect(mockSetCover).not.toHaveBeenCalled();
 });
 
 test("offers Remove Cover only when the event has one", async () => {
@@ -101,6 +122,7 @@ test("explains a conflict with another host", async () => {
   const { result } = await renderHook(() => useChangeEventCover("event-1", false));
 
   await choose(result, "Choose from Library");
+  await useFrame(result);
 
   expect(alert).toHaveBeenCalledWith("Could not update cover", expect.stringContaining("Another host"));
 });
@@ -112,6 +134,7 @@ test("backs off for Retry-After after a 429", async () => {
   const { result } = await renderHook(() => useChangeEventCover("event-1", false));
 
   await choose(result, "Choose from Library");
+  await useFrame(result);
   expect(alert).toHaveBeenCalledWith("Too many cover changes", "Please try again in 30 seconds.");
 
   mockLaunchLibrary.mockClear();
