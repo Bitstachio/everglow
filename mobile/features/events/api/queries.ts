@@ -28,10 +28,10 @@ export const useEventsQuery = (userId: string | undefined) =>
     },
   });
 
-export const useEventQuery = (eventId: string | undefined) =>
+export const useEventQuery = (eventId: string | undefined, enabled = true) =>
   useQuery({
     queryKey: eventsKeys.detail(eventId ?? ""),
-    enabled: Boolean(eventId),
+    enabled: Boolean(eventId) && enabled,
     queryFn: async ({ signal }): Promise<EventResponseDto> => {
       const { data } = await eventsControllerFindOne({
         path: { eventId: eventId! },
@@ -88,10 +88,10 @@ export const useRollPreviewQuery = (eventId: string, limit: number, enabled: boo
     },
   });
 
-export const useEventParticipantsQuery = (eventId: string | undefined) =>
+export const useEventParticipantsQuery = (eventId: string | undefined, enabled = true) =>
   useQuery({
     queryKey: eventsKeys.participants(eventId ?? ""),
-    enabled: Boolean(eventId),
+    enabled: Boolean(eventId) && enabled,
     queryFn: async ({ signal }): Promise<EventParticipantResponseDto[]> => {
       const { data } = await eventsControllerGetParticipants({
         path: { eventId: eventId! },

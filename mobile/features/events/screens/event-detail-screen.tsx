@@ -259,7 +259,7 @@ const EventDetailScreen = () => {
       case "underReview":
         return { kind: "locked", label: t("footer.onHold"), accessibilityLabel: t("footer.onHold"), save };
       case "suspended":
-        return role === "host"
+        return role === "host" && event.galleryState !== "CLOSED"
           ? {
               kind: "text",
               action: { title: t("footer.cut"), accessibilityLabel: t("footer.cutLabel"), onPress: screen.onCut },
@@ -579,6 +579,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         isDeleting={screen.isDeletingFrame}
         confirmDeleteVisible={screen.confirmDeleteVisible}
         onClose={screen.onCloseFrame}
+        onRetry={screen.onRetryFrame}
         onSave={screen.onSaveFrame}
         onDelete={screen.onDeleteFrame}
         onCancelDelete={screen.onCancelDeleteFrame}

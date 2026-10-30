@@ -95,9 +95,18 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
 
 /** Saves one frame to the phone's library. The library keeps its own copy, so the download goes. */
 const saveToLibrary = async (photo: PhotoResponseDto) => {
-  const downloaded = await File.downloadFileAsync(photo.url, Paths.cache, { idempotent: true });
+  // Original S3 keys have no suffix. Photos detects the media type from the local filename.
+  const extensions: Record<PhotoResponseDto["contentType"], string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+  };
+  const destination = new File(Paths.cache, `everglow-${photo.id}.${extensions[photo.contentType]}`);
+  const downloaded = await File.downloadFileAsync(photo.url, destination, { idempotent: true });
   try {
-    await MediaLibrary.createAssetAsync(downloaded.uri);
+    await MediaLibrary.Asset.create(downloaded.uri);
   } finally {
     try {
       downloaded.delete();
@@ -123,13 +132,14 @@ export const useEventDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
+  const [leavingRoll, setLeavingRoll] = useState(false);
 
-  const eventQuery = useEventQuery(eventId);
+  const eventQuery = useEventQuery(eventId, !leavingRoll);
   const event = eventQuery.data ?? null;
   // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
-  const photosQuery = useEventPhotosQuery(eventId, hasPhotos);
-  const participantsQuery = useEventParticipantsQuery(eventId);
+  const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
+  const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
 
   const leaveEventMutation = useLeaveEventMutation();
   const deactivateMutation = useDeactivateEventMutation();
@@ -340,6 +350,16 @@ export const useEventDetailScreen = () => {
     }
   };
 
+  const onRetryFrame = async () => {
+    if (!openFrame || !hasPhotos) throw new Error("No visible frame to retry");
+    const photoId = openFrame.photo.id;
+    const result = await photosQuery.refetch({ throwOnError: true });
+    const photo = result.data?.find((item) => item.id === photoId);
+    if (!photo) throw new Error("Frame is no longer available");
+    // A request finishing after Close must not reopen the viewer or replace another frame.
+    setOpenFrame((current) => (current?.photo.id === photoId ? { ...current, photo } : current));
+  };
+
   const onConfirmDeleteFrame = () => {
     if (!eventId || !openFrame) return;
     deletePhotoMutation.mutate(
@@ -359,7 +379,9 @@ export const useEventDetailScreen = () => {
   };
 
   const onConfirmLeave = () => {
-    if (!eventId || !event) return;
+    if (!eventId || !event || leavingRoll) return;
+    // Stop active readers before membership is revoked and their caches are evicted.
+    setLeavingRoll(true);
     leaveEventMutation.mutate(eventId, {
       onSuccess: () => {
         closeSheet();
@@ -367,6 +389,7 @@ export const useEventDetailScreen = () => {
       },
       onError: (error) => {
         closeSheet();
+        setLeavingRoll(false);
         showNotice(getErrorMessage(error));
       },
     });
@@ -375,7 +398,10 @@ export const useEventDetailScreen = () => {
   const onConfirmCut = () => {
     if (!eventId) return;
     deactivateMutation.mutate(eventId, {
-      onSuccess: closeSheet,
+      onSuccess: () => {
+        closeSheet();
+        showNotice(t("result.cut"));
+      },
       onError: (error) => {
         closeSheet();
         showNotice(getErrorMessage(error));
@@ -463,6 +489,7 @@ export const useEventDetailScreen = () => {
     onSaveAll: () => void onSaveAll(),
     onOpenFrame: setOpenFrame,
     onCloseFrame: () => setOpenFrame(null),
+    onRetryFrame,
     onSaveFrame: () => void onSaveFrame(),
     onDeleteFrame: () => setConfirmDeleteVisible(true),
     onCancelDeleteFrame: () => setConfirmDeleteVisible(false),

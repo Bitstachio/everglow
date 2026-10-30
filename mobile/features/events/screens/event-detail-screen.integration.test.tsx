@@ -67,13 +67,20 @@ jest.mock("expo-image-picker", () => ({
 }));
 jest.mock("expo-media-library", () => ({
   requestPermissionsAsync: (...args: unknown[]) => mockRequestMediaPermission(...args),
-  createAssetAsync: (...args: unknown[]) => mockCreateAsset(...args),
+  Asset: { create: (...args: unknown[]) => mockCreateAsset(...args) },
+  // SDK 57's root export warns and throws; do not hide that incompatibility in tests.
+  createAssetAsync: () => {
+    throw new Error("Use Asset.create instead");
+  },
 }));
 jest.mock("expo-file-system", () => ({
   Paths: { cache: "file://cache" },
   // `new File(uri)` for the size of a picked photo; `File.downloadFileAsync` to save one.
   File: Object.assign(
-    jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri) })),
+    jest.fn().mockImplementation((uri: string, filename?: string) => ({
+      uri: filename ? `${uri}/${filename}` : uri,
+      size: mockFileSize(uri),
+    })),
     { downloadFileAsync: (...args: unknown[]) => mockDownloadFile(...args) },
   ),
   // The PUT of each photo to storage.
@@ -186,7 +193,10 @@ beforeEach(() => {
   mockRequestMediaPermission.mockReset().mockResolvedValue({ status: "granted" });
   mockCreateAsset.mockReset().mockResolvedValue({});
   mockDeleteDownload.mockReset();
-  mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg", delete: mockDeleteDownload });
+  mockDownloadFile.mockReset().mockImplementation(async (_url: string, destination: { uri: string }) => ({
+    uri: destination.uri,
+    delete: mockDeleteDownload,
+  }));
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
     blob: async () => new Blob([IMAGE_BYTES]),
@@ -418,6 +428,9 @@ describe("held by Everglow (07.10, 07.11)", () => {
 
   test("suspended: nothing is shown or fetched, and a host can cut the roll", async () => {
     await renderScreen({ event: openEvent({ status: "SUSPENDED" }) });
+    const cut = openEvent({ status: "SUSPENDED", galleryState: "CLOSED" });
+    mockDeactivate.mockResolvedValue({ data: { data: cut } });
+    mockFindOne.mockResolvedValue({ data: { data: cut } });
 
     expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
     expect(screen.getByText("Hidden")).toBeOnTheScreen();
@@ -429,6 +442,9 @@ describe("held by Everglow (07.10, 07.11)", () => {
     await waitFor(() =>
       expect(mockDeactivate).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }),
     );
+    expect(await screen.findByText("Roll cut.")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Cut the roll" })).not.toBeOnTheScreen();
+    expect(screen.getByText("Suspended by Everglow")).toBeOnTheScreen();
   });
 
   test("suspended: a guest can only read why", async () => {
@@ -687,6 +703,93 @@ describe("adding photos (08)", () => {
 });
 
 describe("saving and deleting frames", () => {
+  test.each([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+    ["image/heic", "heic"],
+    ["image/heif", "heif"],
+  ] as const)("saves %s originals under a local .%s filename through Asset.create", async (contentType, suffix) => {
+    await renderScreen({ photos: [buildPhoto({ contentType, url: "https://bucket/original-key-without-extension" })] });
+    const user = userEvent.setup();
+    await user.press(await screen.findByLabelText("Frame 1, by You"));
+    await user.press(screen.getByRole("button", { name: "Save to Photos" }));
+    expect(await screen.findByText("Saved to Photos.")).toBeOnTheScreen();
+    expect(mockCreateAsset).toHaveBeenCalledWith(`file://cache/everglow-photo-1.${suffix}`);
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(1);
+  });
+
+  test("Save all continues after a library write fails and cleans both temporary files", async () => {
+    await renderScreen({ photos: [buildPhoto({ id: "photo-2" }), buildPhoto()] });
+    mockCreateAsset.mockRejectedValueOnce(new Error("library write failed"));
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Save all frames to Photos" }));
+    expect(await screen.findByText("1 of 2 saved. The rest didn’t save; try again.")).toBeOnTheScreen();
+    expect(mockCreateAsset).toHaveBeenCalledTimes(2);
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
+  });
+
+  test("shows loading until the original displays, and retries a failure with a fresh signed URL", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await renderScreen({ photos: [buildPhoto()] });
+      const user = userEvent.setup();
+      await user.press(await screen.findByLabelText("Frame 1, by You"));
+      expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
+      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", {
+        nativeEvent: { error: "Failed https://private-bucket/photo?signature=secret" },
+      });
+      expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+      expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+      expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "image_error" });
+
+      const refreshed = buildPhoto({ url: "https://cdn.example.com/original?renewed" });
+      mockDetailResponses({ photos: [refreshed] });
+      await user.press(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() => expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(refreshed.url));
+      expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
+      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      await user.press(screen.getByRole("button", { name: "Save to Photos" }));
+      await waitFor(() =>
+        expect(mockDownloadFile).toHaveBeenCalledWith(
+          refreshed.url,
+          expect.objectContaining({ uri: "file://cache/everglow-photo-1.jpg" }),
+          { idempotent: true },
+        ),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test("a failed URL refresh stays recoverable, and a retry finishing after Close never reopens the viewer", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await renderScreen({ photos: [buildPhoto()] });
+      const user = userEvent.setup();
+      await user.press(await screen.findByLabelText("Frame 1, by You"));
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "network" } });
+      mockListPhotos.mockRejectedValueOnce(new Error("offline"));
+      await user.press(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled());
+      expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+      const pending = deferred<{ data: { data: { items: ReturnType<typeof buildPhoto>[]; nextCursor: null } } }>();
+      mockListPhotos.mockReturnValueOnce(pending.promise);
+      await user.press(screen.getByRole("button", { name: "Try again" }));
+      await user.press(screen.getByRole("button", { name: "Close frame" }));
+      pending.resolve({
+        data: { data: { items: [buildPhoto({ url: "https://cdn.example.com/renewed" })], nextCursor: null } },
+      });
+      await waitFor(() => expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen());
+      expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test("Save all saves every frame to Photos", async () => {
     await renderScreen({
       photos: [buildPhoto({ id: "photo-2", url: "https://cdn.example.com/2.jpg" }), buildPhoto()],
@@ -695,9 +798,11 @@ describe("saving and deleting frames", () => {
     await userEvent.setup().press(screen.getByRole("button", { name: "Save all frames to Photos" }));
 
     expect(await screen.findByText("2 frames saved to Photos.")).toBeOnTheScreen();
-    expect(mockDownloadFile).toHaveBeenCalledWith("https://cdn.example.com/2.jpg", "file://cache", {
-      idempotent: true,
-    });
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      "https://cdn.example.com/2.jpg",
+      expect.objectContaining({ uri: "file://cache/everglow-photo-2.jpg" }),
+      { idempotent: true },
+    );
     expect(mockCreateAsset).toHaveBeenCalledTimes(2);
     // The library keeps its own copy, so the downloads don't pile up in the cache.
     expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
@@ -735,7 +840,7 @@ describe("saving and deleting frames", () => {
     ]);
 
     await user.press(screen.getByRole("button", { name: "Save to Photos" }));
-    await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/photo.jpg"));
+    await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/everglow-photo-1.jpg"));
 
     mockDetailResponses({ photos: [] });
     await user.press(screen.getByRole("button", { name: "Delete frame" }));
@@ -759,14 +864,51 @@ describe("saving and deleting frames", () => {
 describe("people and the menu", () => {
   test("a guest leaves the roll from the menu", async () => {
     mockUser = { id: "user-2" };
-    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    const client = await renderScreen({ participants: [host, guest], photos: oneFrame });
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
     await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    const requests = [
+      mockFindOne.mock.calls.length,
+      mockListPhotos.mock.calls.length,
+      mockGetParticipants.mock.calls.length,
+    ];
+    mockLeave.mockImplementation(async () => {
+      const forbidden = createApiError("Membership is gone", { code: "FORBIDDEN", status: 403 });
+      mockFindOne.mockRejectedValue(forbidden);
+      mockListPhotos.mockRejectedValue(forbidden);
+      mockGetParticipants.mockRejectedValue(forbidden);
+      return {};
+    });
     await user.press(await screen.findByRole("button", { name: "Leave" }));
 
     await waitFor(() => expect(mockLeave).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
     expect(mockReplace).toHaveBeenCalledWith("/events");
+    expect([
+      mockFindOne.mock.calls.length,
+      mockListPhotos.mock.calls.length,
+      mockGetParticipants.mock.calls.length,
+    ]).toEqual(requests);
+    expect(client.getQueryData(eventsKeys.detail("event-1"))).toBeUndefined();
+    expect(client.getQueryData(eventsKeys.photos("event-1"))).toBeUndefined();
+    expect(client.getQueryData(eventsKeys.participants("event-1"))).toBeUndefined();
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  test("a failed Leave restores readers so the member can refresh and keep using the roll", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    mockLeave.mockRejectedValueOnce(createApiError("Could not leave", { status: 500 }));
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Leave" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Leave" })).not.toBeOnTheScreen());
+    expect(mockReplace).not.toHaveBeenCalled();
+    mockFindOne.mockResolvedValue({ data: { data: openEvent({ title: "Still joined" }) } });
+    await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
+    expect(await screen.findByText("Still joined")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
   });
 
   test("People from the menu swaps the same sheet to the roll call", async () => {

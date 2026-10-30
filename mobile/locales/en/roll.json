@@ -126,6 +126,9 @@
   },
   "viewer": {
     "close": "Close frame",
+    "loading": "Loading photo",
+    "loadFailed": "Couldn’t load this photo.",
+    "retry": "Try again",
     "save": "Save to Photos",
     "delete": "Delete frame",
     "deleteTitle": "Delete frame {{number}}?",
@@ -142,6 +145,7 @@
     "photosAccess": "Allow photo access in Settings to add photos.",
     "libraryAccess": "Allow photo access in Settings to save frames.",
     "deleted": "Frame deleted.",
+    "cut": "Roll cut.",
     "removed": "{{name}} is off the roll."
   },
   "loadFailed": "Couldn’t load this roll",
