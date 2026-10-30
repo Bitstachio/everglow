@@ -3,11 +3,17 @@ import { Pressable, View, type LayoutChangeEvent, type PressableProps } from "re
 import { EdgePrint, EdgeValue } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
+import { RetryingPhoto } from "./retrying-photo";
 
 type ContactFrameProps = Omit<PressableProps, "children"> & {
   /** Photo URL; omit for an empty frame. */
   uri?: string;
-  /** Shown until `uri` loads, for example the local file of a photo just added. */
+  /** Stable identity for this photo variant, independent of URL signatures. */
+  cacheKey?: string;
+  /**
+   * Shown under `uri` while it loads or retries, for example the local file of
+   * a photo just added whose thumbnail isn't written yet.
+   */
   placeholderUri?: string;
   /** The frame number on the roll. */
   number: number;
@@ -44,6 +50,7 @@ export const developLook = (amount: number) => {
  */
 export const ContactFrame = ({
   uri,
+  cacheKey,
   placeholderUri,
   number,
   by,
@@ -68,16 +75,22 @@ export const ContactFrame = ({
     >
       <View onLayout={onLayout} className={`aspect-square w-full ${selected ? "p-2" : ""}`.trim()}>
         <View className="h-full w-full overflow-hidden rounded-frame bg-frame-empty">
-          {uri ? (
+          {placeholderUri ? (
             <Photo
-              source={{ uri }}
-              placeholder={placeholderUri ? { uri: placeholderUri } : undefined}
-              placeholderContentFit="cover"
+              testID="contact-frame-placeholder"
+              source={{ uri: placeholderUri }}
               contentFit="cover"
-              blurRadius={developing ? developLook(amount).blurRadius : undefined}
-              className="h-full w-full"
+              className="absolute inset-0 h-full w-full"
             />
           ) : null}
+          <RetryingPhoto
+            testID="contact-frame-photo"
+            uri={uri}
+            cacheKey={cacheKey}
+            contentFit="cover"
+            blurRadius={developing ? developLook(amount).blurRadius : undefined}
+            className="h-full w-full"
+          />
           {developing ? (
             <View
               testID="frame-developing"

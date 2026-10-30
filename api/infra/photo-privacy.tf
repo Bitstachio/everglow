@@ -1,28 +1,34 @@
 # Keeping users' photos private from people with AWS access (docs/photo-privacy.md).
 #
-#   KMS key     only the API can encrypt and decrypt photos
+#   KMS key     only the API and image processor can encrypt and decrypt photos
 #   CloudTrail  records every read and write of a photo, and every change to
 #               the rules below, in a separate log bucket
-#   EventBridge emails an alert when anyone but the API reads a photo, or when
-#               a bucket policy, a key or the trail itself is changed
+#   EventBridge emails an alert when anyone but the API or processor reads a
+#               photo, or when a bucket policy, a key or the trail itself is changed
 #
 # The bucket policy that blocks reads is with the bucket in main.tf.
 
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id  = data.aws_caller_identity.current.account_id
-  region      = "us-east-1" # the provider's region
-  trail_name  = "everglow-photos-dev-access"
-  trail_arn   = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${local.trail_name}"
-  api_user    = aws_iam_user.api.arn
+  account_id = data.aws_caller_identity.current.account_id
+  region     = "us-east-1" # the provider's region
+  trail_name = "everglow-photos-dev-access"
+  trail_arn  = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${local.trail_name}"
+  api_user   = aws_iam_user.api.arn
+  # CloudTrail records Lambda as the assumed-role session, not the role ARN.
+  image_processor_session_arn = "arn:aws:sts::${local.account_id}:assumed-role/${aws_iam_role.image_processor.name}/${aws_lambda_function.image_processor.function_name}"
+  photo_read_allowlist = [
+    local.api_user,
+    local.image_processor_session_arn,
+  ]
   alert_rules = [aws_cloudwatch_event_rule.photo_read_by_person.arn, aws_cloudwatch_event_rule.privacy_controls_changed.arn]
 }
 
 # --- KMS: the photos key --------------------------------------------------------
 
 resource "aws_kms_key" "photos" {
-  description             = "Encrypts photos in ${aws_s3_bucket.photos.id}. Only the API may use it."
+  description             = "Encrypts photos in ${aws_s3_bucket.photos.id}. Only the API and image processor may use it."
   enable_key_rotation     = true
   deletion_window_in_days = 30
 
@@ -46,13 +52,18 @@ resource "aws_kms_key" "photos" {
         Resource = "*"
       },
       {
-        # S3 calls KMS as whoever made the request. Uploads and downloads use
-        # URLs the API presigns, so the requester is always the API.
-        Sid       = "OnlyTheApiUsesTheKey"
-        Effect    = "Allow"
-        Principal = { AWS = local.api_user }
-        Action    = ["kms:GenerateDataKey", "kms:Decrypt", "kms:DescribeKey"]
-        Resource  = "*"
+        # S3 calls KMS as whoever made the request. App uploads/downloads use
+        # URLs the API presigns; derivatives are written by the processor role.
+        Sid    = "OnlyTheApiAndProcessorUseTheKey"
+        Effect = "Allow"
+        Principal = {
+          AWS = [
+            local.api_user,
+            aws_iam_role.image_processor.arn,
+          ]
+        }
+        Action   = ["kms:GenerateDataKey", "kms:Decrypt", "kms:DescribeKey"]
+        Resource = "*"
       },
     ]
   })
@@ -214,7 +225,7 @@ resource "aws_sns_topic_subscription" "security_alerts_email" {
 # are included (errorCode AccessDenied): an attempt is worth knowing about.
 resource "aws_cloudwatch_event_rule" "photo_read_by_person" {
   name        = "everglow-photo-read-by-person-dev"
-  description = "A photo in ${aws_s3_bucket.photos.id} was read by someone other than the API"
+  description = "A photo in ${aws_s3_bucket.photos.id} was read by someone other than the API or image processor"
 
   event_pattern = jsonencode({
     source        = ["aws.s3"]
@@ -223,7 +234,7 @@ resource "aws_cloudwatch_event_rule" "photo_read_by_person" {
       eventSource       = ["s3.amazonaws.com"]
       eventName         = ["GetObject"]
       requestParameters = { bucketName = [aws_s3_bucket.photos.id] }
-      userIdentity      = { arn = [{ "anything-but" = [local.api_user] }] }
+      userIdentity      = { arn = [{ "anything-but" = local.photo_read_allowlist }] }
     }
   })
 }

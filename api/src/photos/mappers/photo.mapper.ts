@@ -2,7 +2,7 @@ import { Photo } from "generated/prisma/client";
 import { PhotoListResponseDto } from "../dto/photo-list-response.dto";
 import { PhotoResponseDto } from "../dto/photo-response.dto";
 
-export type PhotoWithUrl = Photo & { url: string };
+export type PhotoWithUrl = Photo & { url: string; thumbnailUrl: string };
 
 export class PhotoMapper {
   static toResponseDto(photo: PhotoWithUrl): PhotoResponseDto {
@@ -11,6 +11,7 @@ export class PhotoMapper {
       eventId: photo.eventId,
       addedById: photo.addedById,
       url: photo.url,
+      thumbnailUrl: photo.thumbnailUrl,
       contentType: photo.contentType,
       createdAt: photo.createdAt,
     };

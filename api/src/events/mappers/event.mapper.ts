@@ -19,13 +19,15 @@ const INVITE_SORT_ORDER: Record<string, number> = {
 export class EventMapper {
   /**
    * `coverUrl` is presigned by the caller; the mapper never sees S3, and the key is never returned.
-   * `limits` and `usage` come from EventPlanService (limitsOf, usageFor).
+   * `limits` and `usage` come from EventPlanService (limitsOf, usageFor);
+   * `photoCount` from PhotoVisibilityService.countVisibleTo, for the caller.
    */
   static toResponseDto(
     event: Event,
     coverUrl: string | null,
     limits: EventLimits,
     usage: EventUsage,
+    photoCount: number,
     invites: EventInvite[] = [],
   ): EventResponseDto {
     return {
@@ -53,6 +55,7 @@ export class EventMapper {
       deactivatedById: event.deactivatedById,
       limits: { members: limits.memberLimit, storageBytes: limits.storageLimitBytes?.toString() ?? null },
       usage: { members: usage.members, storageBytes: usage.storageBytes.toString() },
+      photoCount,
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
     };
@@ -98,6 +101,7 @@ export class EventMapper {
       accessLevel: participant.accessLevel,
       avatarUrl: participant.avatarUrl,
       isBlockedByCaller: participant.isBlockedByCaller,
+      photoCount: participant.photoCount,
     };
   }
 

@@ -242,9 +242,15 @@ rather than by the presigned URL, which changes on every fetch.
 
 Organizers set, change or remove an event's cover from the Cover Photo row in
 event settings, which non-organizers never reach (the screen sends them back).
-`useChangeEventCover` mirrors the avatar flow: the picker crops to 16:9, and
-`prepareCoverImage` (`features/events/lib/cover-image.ts`) centre-crops anything still not
-16:9, downscales to 1920px wide and re-encodes as JPEG before `uploadImage`.
+`useChangeEventCover` mirrors the avatar flow, with one difference: iOS's
+picker editor only crops square, so the picker leaves the photo whole and
+`CoverCrop` (`features/events/components/cover-crop.tsx`) lets the person move
+and scale it under a 16:9 frame. `CoverCrop` is the shared `PhotoCropper`
+(`components/photo-cropper.tsx`, geometry in `lib/photo-crop.ts`) that also
+frames the avatar's circle in onboarding (02.8); the new roll's first frame
+(04.5) uses it too. `prepareCoverImage` (`features/events/lib/cover-image.ts`)
+cuts out the framed rectangle, downscales to 1920px wide and re-encodes as
+JPEG before `uploadImage`.
 
 `useSetEventCoverMutation` and `useRemoveEventCoverMutation` put the returned
 event in the detail cache and refresh the list. After a `409` that survives
@@ -253,6 +259,12 @@ refetch the event and its members so the screen reflects the change. The
 `EventCover` component shows the cover at 16:9 at the top of event cards and
 the detail screen, renders nothing when `coverUrl` is null, and caches by
 event id and uploaded object like `Avatar`.
+
+A new roll's first frame (04.5) is picked before the roll exists:
+`useNewRollCover` crops and re-encodes it on the device, and once the create
+returns, `useSetNewRollCoverMutation` uploads it to the new roll. If that
+upload fails the roll is still loaded, and the host is told to add the cover
+from the roll's settings.
 
 ## Event photos
 

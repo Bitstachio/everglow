@@ -128,12 +128,17 @@
   --text-filled-in-card--line-height: calc(24 / 25);
   /* Text inputs take no line height: iOS re-measures the field and the first
      letter jumps when one is set. Sizes and tracking match title-event and
-     title-slip; input-card matches filled-in-card. */
+     title-slip; input-card matches filled-in-card. input-roll is the name on
+     a new roll's label, input-line the line for guests under it. */
   --text-input-name: 40px;
   --text-input-name--letter-spacing: -1.4px;
   --text-input-handle: 28px;
   --text-input-handle--letter-spacing: -0.8px;
   --text-input-card: 25px;
+  --text-input-roll: 30px;
+  --text-input-roll--letter-spacing: -0.9px;
+  --text-input-line: 18px;
+  --text-input-line--letter-spacing: -0.5px;
 
   --radius-frame: 2px;
   --radius-paper: 4px;

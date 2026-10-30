@@ -346,7 +346,8 @@ const EventDetailScreen = () => {
     <View className="w-1/3 px-0.5 pb-3.5">
       {item.kind === "photo" ? (
         <ContactFrame
-          uri={item.frame.photo.url}
+          uri={item.frame.photo.thumbnailUrl}
+          cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
           number={item.frame.number}
           by={item.frame.by ?? undefined}

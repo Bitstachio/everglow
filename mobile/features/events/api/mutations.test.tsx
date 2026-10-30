@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, renderHook, screen, userEvent, waitFor } from "@testing-library/react-native";
 import type { PropsWithChildren } from "react";
 import { Button, Text, View } from "react-native";
+import { profileKeys } from "@/features/profile/api/keys";
 import { eventsKeys } from "./keys";
 import { useEventsQuery } from "./queries";
 import { buildEvent, deferred } from "../testing/fixtures";
@@ -34,6 +35,7 @@ test.each([true, false])(
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
     const key = eventsKeys.list("user-1");
     client.setQueryData(key, []);
+    client.setQueryData(profileKeys.limits(), { usage: { activeEvents: 0 } });
     mockCreate.mockReset();
     if (success) mockCreate.mockResolvedValue({ data: { data: { id: "event-1", ...body } } });
     else mockCreate.mockRejectedValue(new Error("Network unavailable"));
@@ -46,6 +48,9 @@ test.each([true, false])(
     expect(await screen.findByText(success ? "Meetup" : "Creation failed")).toBeOnTheScreen();
     expect(mockCreate).toHaveBeenCalledWith({ body, throwOnError: true });
     await waitFor(() => expect(client.getQueryState(key)?.isInvalidated).toBe(success));
+    // The new roll opens from the cache and counts toward the account's active rolls.
+    expect(client.getQueryState(profileKeys.limits())?.isInvalidated).toBe(success);
+    expect(client.getQueryData(eventsKeys.detail("event-1"))).toEqual(success ? { id: "event-1", ...body } : undefined);
     await view.unmount();
     client.clear();
   },

@@ -2,6 +2,7 @@
   "edge": "Envelope · {{title}}",
   "open": "Send the envelope",
   "close": "Close the envelope",
+  "ready": "Ready",
   "paper": {
     "name": "Name",
     "date": "Date",

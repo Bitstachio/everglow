@@ -25,6 +25,7 @@ import {
   TEST_OTHER_PHOTO_ID,
   TEST_PHOTO_ID,
   TEST_SIGNED_GET_URL,
+  TEST_SIGNED_THUMBNAIL_URL,
   TEST_SIGNED_PUT_URL,
   buildPhoto,
   expectedPhotoResponse,
@@ -53,6 +54,7 @@ type PhotoBody = {
   eventId: string;
   addedById: string;
   url: string;
+  thumbnailUrl: string;
   contentType: string;
   createdAt: string;
 };
@@ -113,7 +115,9 @@ describe("PhotosController (integration)", () => {
 
     for (const mock of Object.values(s3Service)) mock.mockReset();
     s3Service.getPresignedUploadUrl.mockResolvedValue(TEST_SIGNED_PUT_URL);
-    s3Service.getPresignedDownloadUrl.mockResolvedValue(TEST_SIGNED_GET_URL);
+    s3Service.getPresignedDownloadUrl.mockImplementation(({ key }: { key: string }) =>
+      Promise.resolve(key.startsWith("derived/") ? TEST_SIGNED_THUMBNAIL_URL : TEST_SIGNED_GET_URL),
+    );
     s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
     s3Service.deleteObject.mockResolvedValue(undefined);
   });
@@ -460,7 +464,9 @@ describe("PhotosController (integration)", () => {
 
     it("returns 200 without the photos that reports or blocks hide from a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
-      prisma.report.groupBy.mockResolvedValue([{ photoId: TEST_OTHER_PHOTO_ID }] as never);
+      prisma.report.groupBy.mockResolvedValue([
+        { eventId: TEST_EVENT_ID, photoId: TEST_OTHER_PHOTO_ID, _count: { _all: 3 } },
+      ] as never);
       prisma.photo.findMany.mockResolvedValue([]);
 
       await request(httpServer).get(photosListPath()).set(authHeader()).expect(200);

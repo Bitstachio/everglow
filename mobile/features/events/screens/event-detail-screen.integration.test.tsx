@@ -703,14 +703,36 @@ describe("saving and deleting frames", () => {
     expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
   });
 
+  test("a missing thumbnail stays a tappable placeholder and never preloads an original", async () => {
+    await renderScreen({ photos: [buildPhoto()] });
+    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "not ready" } });
+    expect(screen.queryByTestId("contact-frame-photo")).not.toBeOnTheScreen();
+    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+    await userEvent.setup().press(screen.getByLabelText("Frame 1, by You"));
+    expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(buildPhoto().url);
+    await userEvent.setup().press(screen.getByRole("button", { name: "Close frame" }));
+    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+  });
+
   test("a frame opens full size, saves, and deletes after the slip", async () => {
     await renderScreen({
       photos: [buildPhoto()],
       event: openEvent({ usage: { members: 1, storageBytes: String(18 * 1024 ** 2) } }),
     });
     const user = userEvent.setup();
+    const preview = await screen.findByTestId("contact-frame-photo");
+    expect(preview.props.source).toEqual([{ uri: buildPhoto().thumbnailUrl, cacheKey: "photo:photo-1:thumbnail" }]);
+    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+    expect(mockDownloadFile).not.toHaveBeenCalled();
     await user.press(await screen.findByLabelText("Frame 1, by You"));
     expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
+    expect(screen.getByTestId("frame-viewer-photo").props.source).toEqual([
+      {
+        uri: buildPhoto().url,
+        cacheKey: "photo:photo-1:original",
+      },
+    ]);
 
     await user.press(screen.getByRole("button", { name: "Save to Photos" }));
     await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/photo.jpg"));

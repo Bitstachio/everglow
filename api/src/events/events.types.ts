@@ -20,6 +20,8 @@ export type EventParticipant = {
   avatarUrl: string | null;
   /** Whether the caller has blocked this member. Never the reverse (docs/moderation.md). */
   isBlockedByCaller: boolean;
+  /** Photos this member added that the caller can see (PhotoVisibilityService.countVisibleByUploader). */
+  photoCount: number;
 };
 
 /** A membership with its user's profile and, in the same query, the caller's block on that user if any. */

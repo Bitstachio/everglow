@@ -21,8 +21,7 @@ terraform {
 }
 
 provider "aws" {
-  region  = "us-east-1"
-  profile = "mehrshad@everglow.social" # admin profile; the API never uses this
+  region = "us-east-1"
 }
 
 # --- S3: photo storage (see docs/photos-architecture.md) ----------------------
@@ -58,12 +57,13 @@ resource "aws_s3_bucket_policy" "photos" {
           Condition = { Bool = { "aws:SecureTransport" = "false" } }
         },
       ],
-      # Photos are users' private data: only the API reads them. An explicit
-      # Deny beats any Allow, so this holds for admins too; opening a photo
-      # means changing this policy first, which CloudTrail records and the
-      # alerts below report. The app is unaffected: its download URLs are
-      # presigned by the API, so AWS sees the API reading. See
-      # docs/photo-privacy.md.
+      # Photos are users' private data: only the API and the image processor
+      # read them. An explicit Deny beats any Allow, so this holds for admins
+      # too; opening a photo means changing this policy first, which CloudTrail
+      # records and the alerts below report. The app is unaffected: its
+      # download URLs are presigned by the API, so AWS sees the API reading.
+      # aws:userId is the reliable allowlist key for IAM users and assumed
+      # roles (ROLEID:session). See docs/photo-privacy.md.
       var.allow_human_photo_reads ? [] : [
         {
           Sid       = "OnlyTheApiReadsPhotos"
@@ -71,7 +71,14 @@ resource "aws_s3_bucket_policy" "photos" {
           Principal = "*"
           Action    = ["s3:GetObject", "s3:GetObjectVersion"]
           Resource  = "${aws_s3_bucket.photos.arn}/*"
-          Condition = { ArnNotEquals = { "aws:PrincipalArn" = aws_iam_user.api.arn } }
+          Condition = {
+            StringNotLike = {
+              "aws:userId" = [
+                aws_iam_user.api.unique_id,
+                "${aws_iam_role.image_processor.unique_id}:*",
+              ]
+            }
+          }
         },
       ],
     )

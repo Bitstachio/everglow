@@ -78,6 +78,7 @@ type EventResponseBody = {
   galleryWindowOptions: number[];
   deactivatedAt: string | null;
   deactivatedById: string | null;
+  photoCount: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -88,6 +89,7 @@ type ParticipantResponseBody = {
   accessLevel: AccessLevel;
   avatarUrl: string | null;
   isBlockedByCaller: boolean;
+  photoCount: number;
 };
 
 describe("EventsController (integration)", () => {
@@ -124,6 +126,9 @@ describe("EventsController (integration)", () => {
     // Usage on event responses: nothing counted unless a test says so.
     prisma.eventAccess.groupBy.mockResolvedValue([] as never);
     prisma.photo.groupBy.mockResolvedValue([] as never);
+    // Photo counts on event responses: no events to count in unless a test says so.
+    prisma.event.findMany.mockResolvedValue([]);
+    prisma.report.groupBy.mockResolvedValue([] as never);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     // Plan limits: no active events and a nearly empty event, unless a test says otherwise.
@@ -275,7 +280,7 @@ describe("EventsController (integration)", () => {
     it("returns 200 and a mapped list of events", async () => {
       const events = [buildEvent(), buildOtherUserEvent({ creatorId: TEST_USER_ID })];
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.event.findMany.mockResolvedValue(events);
+      prisma.event.findMany.mockResolvedValueOnce(events);
 
       const response = await request(httpServer).get(path).set(authHeader()).expect(200);
 
@@ -283,6 +288,24 @@ describe("EventsController (integration)", () => {
       expect(body.data).toHaveLength(2);
       expect(body.data[0]).toMatchObject(expectedEventResponse(events[0]));
       expect(body.meta.path).toBe(path);
+    });
+
+    it("returns how many photos of each event the caller can see", async () => {
+      const events = [buildEvent(), buildOtherUserEvent({ creatorId: TEST_USER_ID })];
+      const asMember = (event: (typeof events)[number]) => ({
+        ...event,
+        eventAccesses: [buildParticipantAccess({ eventId: event.id })],
+        _count: { eventAccesses: 5 },
+      });
+      prisma.event.findMany.mockResolvedValueOnce(events).mockResolvedValueOnce(events.map(asMember));
+      // usageFor sums storage; the photo count groups READY photos by event.
+      prisma.photo.groupBy.mockImplementation(((args: { _count?: unknown }) =>
+        Promise.resolve(args._count ? [{ eventId: events[0].id, _count: { _all: 148 } }] : [])) as never);
+
+      const response = await request(httpServer).get(path).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<EventResponseBody[]>;
+      expect(body.data.map((event) => event.photoCount)).toEqual([148, 0]);
     });
 
     it("returns 200 and an empty list when the user is not onboarded", async () => {
@@ -1048,6 +1071,7 @@ describe("EventsController (integration)", () => {
           accessLevel: AccessLevel.ORGANIZER,
           avatarUrl: null,
           isBlockedByCaller: false,
+          photoCount: 0,
         },
         {
           userId: TEST_TARGET_USER_ID,
@@ -1056,6 +1080,7 @@ describe("EventsController (integration)", () => {
           accessLevel: AccessLevel.PARTICIPANT,
           avatarUrl: "https://s3.example/avatar?sig=1",
           isBlockedByCaller: true,
+          photoCount: 0,
         },
       ]);
       // One presign for the one member with an avatar, and the key never leaves the API.
@@ -1108,6 +1133,7 @@ describe("EventsController (integration)", () => {
         accessLevel: AccessLevel.ORGANIZER,
         avatarUrl: null,
         isBlockedByCaller: false,
+        photoCount: 0,
       });
     });
 
@@ -1437,15 +1463,16 @@ describe("EventsController (integration)", () => {
 
       it("returns a coverUrl per listed event from the one list query", async () => {
         const events = [buildEvent({ coverS3Key: COVER_S3_KEY }), buildOtherUserEvent()];
-        prisma.event.findMany.mockResolvedValue(events);
+        prisma.event.findMany.mockResolvedValueOnce(events);
 
         const response = await request(httpServer).get(EVENTS_BASE_PATH).set(authHeader()).expect(200);
 
         const body = response.body as WrappedResponse<EventResponseBody[]>;
         expect(body.data).toEqual([expectedEventResponse(events[0], COVER_URL), expectedEventResponse(events[1])]);
-        // The caller lookup for the ability, the list itself, and one report check for all covers.
+        // The caller lookup for the ability, the list itself, one load for every event's photo
+        // count, and one report check for all covers.
         expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
-        expect(prisma.event.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.event.findMany).toHaveBeenCalledTimes(2);
         expect(prisma.report.findMany).toHaveBeenCalledTimes(1);
         expect(prisma.event.findUnique).not.toHaveBeenCalled();
         expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(1);

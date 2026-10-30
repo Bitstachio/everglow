@@ -62,7 +62,8 @@ const RootNavigator = () => {
         <Stack.Screen name="password" options={{ headerShown: false }} />
         <Stack.Screen name="blocked-people" options={{ headerShown: false }} />
         <Stack.Screen name="events/list" options={{ title: t("screens.myEvents"), headerBackTitle: backTitle }} />
-        <Stack.Screen name="events/create" options={{ title: t("screens.createEvent"), headerBackTitle: backTitle }} />
+        {/* Chapter 04, load a roll: it draws its own top bar. */}
+        <Stack.Screen name="events/create" options={{ headerShown: false }} />
         {/* Chapter 06, Join: the scanner. The envelope is above, open to everyone. */}
         <Stack.Screen name="join/index" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/index" options={{ headerShown: false }} />

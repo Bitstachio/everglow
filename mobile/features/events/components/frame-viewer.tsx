@@ -53,7 +53,7 @@ export const FrameViewer = ({
             <Photo
               testID="frame-viewer-photo"
               accessibilityLabel={edge}
-              source={{ uri: frame.photo.url, cacheKey: `photo:${frame.photo.id}` }}
+              source={{ uri: frame.photo.url, cacheKey: `photo:${frame.photo.id}:original` }}
               contentFit="contain"
               className="h-full w-full"
             />
