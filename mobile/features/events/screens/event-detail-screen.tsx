@@ -463,6 +463,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         isDeleting={screen.isDeletingFrame}
         confirmDeleteVisible={screen.confirmDeleteVisible}
         onClose={screen.onCloseFrame}
+        onRetry={screen.onRetryFrame}
         onSave={screen.onSaveFrame}
         onDelete={screen.onDeleteFrame}
         onCancelDelete={screen.onCancelDeleteFrame}

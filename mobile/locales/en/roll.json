@@ -121,6 +121,9 @@
   },
   "viewer": {
     "close": "Close frame",
+    "loading": "Loading photo",
+    "loadFailed": "Couldn’t load this photo.",
+    "retry": "Try again",
     "save": "Save to Photos",
     "delete": "Delete frame",
     "deleteTitle": "Delete frame {{number}}?",

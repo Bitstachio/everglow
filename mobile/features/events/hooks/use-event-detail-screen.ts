@@ -301,6 +301,16 @@ export const useEventDetailScreen = () => {
     }
   };
 
+  const onRetryFrame = async () => {
+    if (!openFrame || !hasPhotos) throw new Error("No visible frame to retry");
+    const photoId = openFrame.photo.id;
+    const result = await photosQuery.refetch({ throwOnError: true });
+    const photo = result.data?.find((item) => item.id === photoId);
+    if (!photo) throw new Error("Frame is no longer available");
+    // A request finishing after Close must not reopen the viewer or replace another frame.
+    setOpenFrame((current) => (current?.photo.id === photoId ? { ...current, photo } : current));
+  };
+
   const onConfirmDeleteFrame = () => {
     if (!eventId || !openFrame) return;
     deletePhotoMutation.mutate(
@@ -402,6 +412,7 @@ export const useEventDetailScreen = () => {
     onSaveAll: () => void onSaveAll(),
     onOpenFrame: setOpenFrame,
     onCloseFrame: () => setOpenFrame(null),
+    onRetryFrame,
     onSaveFrame: () => void onSaveFrame(),
     onDeleteFrame: () => setConfirmDeleteVisible(true),
     onCancelDeleteFrame: () => setConfirmDeleteVisible(false),
