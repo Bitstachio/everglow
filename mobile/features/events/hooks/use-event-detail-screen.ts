@@ -84,9 +84,18 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
 
 /** Saves one frame to the phone's library. The library keeps its own copy, so the download goes. */
 const saveToLibrary = async (photo: PhotoResponseDto) => {
-  const downloaded = await File.downloadFileAsync(photo.url, Paths.cache, { idempotent: true });
+  // Original S3 keys have no suffix. Photos detects the media type from the local filename.
+  const extensions: Record<PhotoResponseDto["contentType"], string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+  };
+  const destination = new File(Paths.cache, `everglow-${photo.id}.${extensions[photo.contentType]}`);
+  const downloaded = await File.downloadFileAsync(photo.url, destination, { idempotent: true });
   try {
-    await MediaLibrary.createAssetAsync(downloaded.uri);
+    await MediaLibrary.Asset.create(downloaded.uri);
   } finally {
     try {
       downloaded.delete();

@@ -65,13 +65,20 @@ jest.mock("expo-image-picker", () => ({
 }));
 jest.mock("expo-media-library", () => ({
   requestPermissionsAsync: (...args: unknown[]) => mockRequestMediaPermission(...args),
-  createAssetAsync: (...args: unknown[]) => mockCreateAsset(...args),
+  Asset: { create: (...args: unknown[]) => mockCreateAsset(...args) },
+  // SDK 57's root export warns and throws; do not hide that incompatibility in tests.
+  createAssetAsync: () => {
+    throw new Error("Use Asset.create instead");
+  },
 }));
 jest.mock("expo-file-system", () => ({
   Paths: { cache: "file://cache" },
   // `new File(uri)` for the size of a picked photo; `File.downloadFileAsync` to save one.
   File: Object.assign(
-    jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri) })),
+    jest.fn().mockImplementation((uri: string, filename?: string) => ({
+      uri: filename ? `${uri}/${filename}` : uri,
+      size: mockFileSize(uri),
+    })),
     { downloadFileAsync: (...args: unknown[]) => mockDownloadFile(...args) },
   ),
 }));
@@ -175,7 +182,10 @@ beforeEach(() => {
   mockRequestMediaPermission.mockReset().mockResolvedValue({ status: "granted" });
   mockCreateAsset.mockReset().mockResolvedValue({});
   mockDeleteDownload.mockReset();
-  mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg", delete: mockDeleteDownload });
+  mockDownloadFile.mockReset().mockImplementation(async (_url: string, destination: { uri: string }) => ({
+    uri: destination.uri,
+    delete: mockDeleteDownload,
+  }));
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
     blob: async () => new Blob([IMAGE_BYTES]),
@@ -550,6 +560,31 @@ describe("adding photos", () => {
 });
 
 describe("saving and deleting frames", () => {
+  test.each([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+    ["image/heic", "heic"],
+    ["image/heif", "heif"],
+  ] as const)("saves %s originals under a local .%s filename through Asset.create", async (contentType, suffix) => {
+    await renderScreen({ photos: [buildPhoto({ contentType, url: "https://bucket/original-key-without-extension" })] });
+    const user = userEvent.setup();
+    await user.press(await screen.findByLabelText("Frame 1, by You"));
+    await user.press(screen.getByRole("button", { name: "Save to Photos" }));
+    expect(await screen.findByText("Saved to Photos.")).toBeOnTheScreen();
+    expect(mockCreateAsset).toHaveBeenCalledWith(`file://cache/everglow-photo-1.${suffix}`);
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(1);
+  });
+
+  test("Save all continues after a library write fails and cleans both temporary files", async () => {
+    await renderScreen({ photos: [buildPhoto({ id: "photo-2" }), buildPhoto()] });
+    mockCreateAsset.mockRejectedValueOnce(new Error("library write failed"));
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Save all frames to Photos" }));
+    expect(await screen.findByText("1 of 2 saved. The rest didn’t save; try again.")).toBeOnTheScreen();
+    expect(mockCreateAsset).toHaveBeenCalledTimes(2);
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
+  });
+
   test("shows loading until the original displays, and retries a failure with a fresh signed URL", async () => {
     const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -575,7 +610,11 @@ describe("saving and deleting frames", () => {
       expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
       await user.press(screen.getByRole("button", { name: "Save to Photos" }));
       await waitFor(() =>
-        expect(mockDownloadFile).toHaveBeenCalledWith(refreshed.url, "file://cache", { idempotent: true }),
+        expect(mockDownloadFile).toHaveBeenCalledWith(
+          refreshed.url,
+          expect.objectContaining({ uri: "file://cache/everglow-photo-1.jpg" }),
+          { idempotent: true },
+        ),
       );
     } finally {
       warn.mockRestore();
@@ -616,9 +655,11 @@ describe("saving and deleting frames", () => {
     await userEvent.setup().press(screen.getByRole("button", { name: "Save all frames to Photos" }));
 
     expect(await screen.findByText("2 frames saved to Photos.")).toBeOnTheScreen();
-    expect(mockDownloadFile).toHaveBeenCalledWith("https://cdn.example.com/2.jpg", "file://cache", {
-      idempotent: true,
-    });
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      "https://cdn.example.com/2.jpg",
+      expect.objectContaining({ uri: "file://cache/everglow-photo-2.jpg" }),
+      { idempotent: true },
+    );
     expect(mockCreateAsset).toHaveBeenCalledTimes(2);
     // The library keeps its own copy, so the downloads don't pile up in the cache.
     expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
@@ -656,7 +697,7 @@ describe("saving and deleting frames", () => {
     ]);
 
     await user.press(screen.getByRole("button", { name: "Save to Photos" }));
-    await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/photo.jpg"));
+    await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/everglow-photo-1.jpg"));
 
     mockDetailResponses({ photos: [] });
     await user.press(screen.getByRole("button", { name: "Delete frame" }));
