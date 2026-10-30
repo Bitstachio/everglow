@@ -25,6 +25,7 @@ import { PhotoStorageService } from "./photo-storage.service";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
 import {
   buildPhotoS3Key,
+  buildPhotoThumbnailS3Key,
   CONFIRM_PHOTO_STATUSES,
   ConfirmPhotoStatus,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -296,15 +297,7 @@ export class PhotosService {
 
     const page = toKeysetPage(photos, limit);
 
-    const items = await Promise.all(
-      page.items.map(async (photo) => ({
-        ...photo,
-        url: await this.s3Service.getPresignedDownloadUrl({
-          key: photo.s3Key,
-          expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS,
-        }),
-      })),
-    );
+    const items = await Promise.all(page.items.map((photo) => this.withDownloadUrls(photo)));
 
     return { items, nextCursor: page.nextCursor };
   }
@@ -329,11 +322,17 @@ export class PhotosService {
 
     const { event, ...rest } = photo;
     void event;
-    const url = await this.s3Service.getPresignedDownloadUrl({
-      key: photo.s3Key,
-      expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS,
-    });
-    return { ...rest, url };
+    return this.withDownloadUrls(rest);
+  }
+
+  /** Local signing only: availability is resolved by the image client, never N S3 HEAD requests. */
+  private async withDownloadUrls(photo: Photo): Promise<PhotoWithUrl> {
+    const [url, thumbnailUrl] = await Promise.all(
+      [photo.s3Key, buildPhotoThumbnailS3Key(photo.s3Key)].map((key) =>
+        this.s3Service.getPresignedDownloadUrl({ key, expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS }),
+      ),
+    );
+    return { ...photo, url, thumbnailUrl };
   }
 
   async deletePhoto(photoId: string, callerId: string): Promise<void> {

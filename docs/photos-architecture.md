@@ -75,16 +75,16 @@ We create the row _before_ the upload happens (so we have a `photoId` to sign ag
 
 ```json
 {
-  "items": [{ "id": "...", "url": "https://s3...", "contentType": "image/jpeg", "createdAt": "..." }],
+  "items": [{ "id": "...", "url": "https://s3...original", "thumbnailUrl": "https://s3...thumb.webp", "contentType": "image/jpeg", "createdAt": "..." }],
   "nextCursor": "..."
 }
 ```
 
-Each `url` is a freshly-signed S3 GET URL (TTL ~15min). We don't store URLs — sign them on every request. Signing is cheap (no network call, pure crypto).
+Each `url` is a freshly signed original-image URL (TTL ~15 min); `thumbnailUrl` signs the 512 px WebP copy at `derived/{originalKey}/thumb.webp`. Both use the same authorized, caller-visible photo rows. No raw keys are exposed, and signing adds no database query or S3 existence lookup per photo. URLs are not stored.
 
 ### Derivative generation (EV-5)
 
-PR #251 added S3 → SQS → Lambda generation in `functions/image-processor`. New objects under `photos/` produce a 512 px WebP thumbnail and a 2048 px JPEG display copy at `derived/{originalKey}/thumb.webp` and `derived/{originalKey}/large.jpg`. Rotation is baked in and metadata is stripped. Generation starts on object creation, before API confirmation; the API still serves originals until derivative URL support lands. HEIC decoding, backfill and mobile usage remain EV-5 work.
+PR #251 added S3 → SQS → Lambda generation in `functions/image-processor`. New objects under `photos/` produce a 512 px WebP thumbnail and a 2048 px JPEG display copy at `derived/{originalKey}/thumb.webp` and `derived/{originalKey}/large.jpg`. Rotation is baked in and metadata is stripped. Generation starts on object creation, before API confirmation; the API exposes thumbnail and original URLs, while display-copy URLs remain a follow-up. HEIC decoding and backfill remain EV-5 work.
 
 Original removal notifications delete both copies. Late create notifications for missing originals also clean up, and the worker checks the original again after both writes settle to handle concurrent deletion. Access denied is retried, never interpreted as absence. The role needs `s3:ListBucket` so missing originals return 404 ([S3 HeadObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html)). One queue message is delivered per invocation so ten large images do not share a 60-second budget.
 
@@ -93,6 +93,8 @@ Original removal notifications delete both copies. Late create notifications for
 The worker keeps SQS transport handling separate from the S3 lifecycle service and pure image processing, with injected SDK/logger dependencies. It has no Nest or Prisma dependency; HTTP rules and database ownership stay in the API. See the [worker README](../functions/image-processor/README.md) for structure, checks and deployment.
 
 The Lambda package uses the exact Sharp version installed from the lockfile. CI runs processor tests/build and Terraform validation before passing the aggregate check.
+
+Generation can finish after a new photo is listed. A signed thumbnail URL is not a guarantee that the object exists. Clients retry briefly and show a tappable placeholder if it remains missing; they never automatically download the original as a thumbnail fallback. Only opening a frame or an explicit save action retrieves `url`. Older or unsupported uploads may have only an original until HEIC decoding and backfill land.
 
 ### Why square grid + `object-fit: cover`
 
@@ -110,20 +112,13 @@ We don't store image dimensions. Apple-Photos-style uniform square grid lets the
 
 - Returns single photo metadata + presigned GET URL (TTL ~15min).
 - Applies the same moderation filter as the list: a photo that is hidden from the caller there is a **404** here ([moderation.md](./moderation.md#the-shared-filter)).
-- Same URL pattern as the grid — there's only one stored object per photo. Mobile decides display size; S3 always returns the original.
+- Returns both `url` (original) and `thumbnailUrl`, using the same filtering and signing as the list.
 
-### Why not a "download original" vs "view" distinction
+### Viewing, saving and caching
 
-Without thumbnails, there's only one file. Grid and detail view fetch the same object; the image lib downsamples in memory for the grid and uses full pixels for the detail view. One source of truth.
+Opening a frame mounts the original image; Save and Save all also download originals on explicit user action. Thumbnail and original cache keys must identify the variant separately (for example `photo:{id}:thumbnail` and `photo:{id}:original`), so a cached thumbnail can never satisfy a full-size request.
 
-### Caching
-
-Mobile image lib caches by URL — but presigned URLs change every request (signature differs), defeating the cache. Two options for later:
-
-- Cache by `photoId` instead of URL (most libs support custom cache keys).
-- Return a stable CDN URL via CloudFront, with signed cookies instead of query-string signatures.
-
-Out of scope for v1. The cold-load hit is acceptable for now.
+Presigned URLs change between API reads. Image components may use a stable per-photo, per-variant cache key rather than the changing signature. Missing thumbnails must not cause original prefetching.
 
 ---
 

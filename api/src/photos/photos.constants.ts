@@ -35,6 +35,9 @@ export const PHOTO_S3_KEY_PREFIX = "photos/";
 export const buildPhotoS3Key = (userId: string, eventId: string, photoId: string): string =>
   `${PHOTO_S3_KEY_PREFIX}${userId}/${eventId}/${photoId}`;
 
+/** Matches functions/image-processor/src/keys.ts, including legacy original keys. */
+export const buildPhotoThumbnailS3Key = (originalKey: string): string => `derived/${originalKey}/thumb.webp`;
+
 // The current photos/{userId}/{eventId}/{photoId} layout plus the pre-#38
 // photos/{eventId}/{photoId} layout, whose rows still reference their old keys.
 const PHOTO_S3_KEY_PATTERNS = [

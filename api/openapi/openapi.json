@@ -3638,6 +3638,11 @@
             "maxLength": 2048,
             "description": "Presigned S3 GET URL, valid for a short period"
           },
+          "thumbnailUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Presigned WebP thumbnail URL. May return 404 until asynchronous generation completes, or for older/unsupported uploads. Show a placeholder rather than fetching the original automatically."
+          },
           "contentType": {
             "type": "string",
             "enum": [
@@ -3659,6 +3664,7 @@
           "eventId",
           "addedById",
           "url",
+          "thumbnailUrl",
           "contentType",
           "createdAt"
         ]

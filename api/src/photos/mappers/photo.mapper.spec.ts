@@ -19,6 +19,7 @@ describe("PhotoMapper", () => {
     createdAt: now,
     updatedAt: now,
     url: "https://signed-get",
+    thumbnailUrl: "https://signed-thumb",
   };
 
   it("maps a photo to a response DTO without leaking the s3Key or status", () => {
@@ -27,6 +28,7 @@ describe("PhotoMapper", () => {
       eventId: photo.eventId,
       addedById: photo.addedById,
       url: photo.url,
+      thumbnailUrl: photo.thumbnailUrl,
       contentType: photo.contentType,
       createdAt: photo.createdAt,
     });
