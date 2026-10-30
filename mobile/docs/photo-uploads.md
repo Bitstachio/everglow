@@ -55,6 +55,11 @@ These are platform references, not claims about another app's internals.
 
 ## Failures and cancellation
 
+- Each tray row shows a small square film thumbnail with Uploaded, Uploading or
+  a failure reason on the right. Retry/Remove sit beside the matching photo.
+  Filenames remain only in accessibility labels; frame numbers and the separate
+  preview strip are omitted. Completed rows use server thumbnails when available,
+  never the remote original. Hidden galleries expose no tray thumbnails.
 - While the tray is focused, completed rows keep their position and show success
   after the queue refreshes or reconciles with the server. This visit's history
   lives only in memory and is discarded on navigation away, including a back

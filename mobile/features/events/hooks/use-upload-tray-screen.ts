@@ -1,4 +1,4 @@
-import { summarizeTray, trayEntries } from "../lib/upload-tray-view";
+import { summarizeTray } from "../lib/upload-tray-view";
 import { useCallback, useEffect } from "react";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEventPhotosQuery, useEventQuery } from "../api/queries";
@@ -22,6 +22,7 @@ export const useUploadTrayScreen = () => {
   const visible = event?.galleryState === "OPEN" && event.status !== "SUSPENDED";
   const photosQuery = useEventPhotosQuery(eventId, visible);
   const photos = visible ? (photosQuery.data ?? []) : [];
+  const thumbnails = new Map(photos.map((photo) => [photo.id, photo.thumbnailUrl]));
   useFocusEffect(useCallback(() => (eventId ? openTraySession(eventId) : undefined), [eventId]));
   const tray = useUploadTraySession(eventId);
   useEffect(() => {
@@ -30,12 +31,12 @@ export const useUploadTrayScreen = () => {
 
   return {
     title: event?.title ?? "",
-    entries: trayEntries(tray.items, photos).map((entry) => {
-      const status = entry.item.status;
-      const photo = status.kind === "developed" ? photos.find((photo) => photo.id === status.photoId) : undefined;
+    entries: tray.items.map((item) => {
+      const status = item.status;
+      const thumbnail = status.kind === "developed" ? thumbnails.get(status.photoId) : undefined;
       // The roll can release a completed local file once its thumbnail loads.
-      const uri = visible ? (photo?.thumbnailUrl ?? entry.item.uri) : "";
-      return { ...entry, item: { ...entry.item, uri } };
+      const previewable = visible && !(status.kind === "rejected" && status.reason === "video");
+      return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "" };
     }),
     summary: summarizeTray(tray),
     onHide: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),

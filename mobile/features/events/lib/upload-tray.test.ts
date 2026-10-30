@@ -1,4 +1,4 @@
-import { developedAmount, developingFrames, summarizeTray, trayEntries } from "./upload-tray-view";
+import { developedAmount, developingFrames, summarizeTray } from "./upload-tray-view";
 import type { EventPhotoFile, EventPhotoUpdate } from "../api/upload-event-photos";
 import {
   addToTray,
@@ -384,19 +384,6 @@ test("remembers the local file of a developed photo, until the account is cleare
   expect(localFileFor("file://a.jpg")).toBe("file://a.jpg");
   runAccountCleared();
   expect(localFileFor("file://a.jpg")).toBeUndefined();
-});
-
-describe("trayEntries", () => {
-  it("numbers a file developing on the sheet, and one already on the roll where the roll has it", () => {
-    const entries = trayEntries(
-      [item("a", { kind: "developed", photoId: "p2" }), item("b", { kind: "sending", bytesSent: 50 })],
-      [{ id: "p2" }, { id: "p1" }],
-    );
-    expect(entries.map(({ item: { key }, number, develop }) => ({ key, number, develop }))).toEqual([
-      { key: "a", number: 2, develop: 1 },
-      { key: "b", number: 3, develop: 0.5 },
-    ]);
-  });
 });
 
 test("late updates from a cleared account cannot change its replacement tray", async () => {

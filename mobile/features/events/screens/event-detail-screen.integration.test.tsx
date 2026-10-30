@@ -613,12 +613,12 @@ describe("adding photos (08)", () => {
     mockUploadAsync.mockReset().mockResolvedValue({ status: 200, body: "", headers: {} });
     mockConfirmUploads.mockResolvedValueOnce({ data: { data: [{ photoId: "photo-new-1", status: "MISSING" }] } });
     await user.press(await screen.findByRole("button", { name: "Retry Photo 1" }));
-    await waitFor(() => expect(screen.getByLabelText(/Photo 1, Developed/)).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByLabelText(/Photo 1, Uploaded/)).toBeOnTheScreen());
     expect(mockUploadAsync).toHaveBeenCalledTimes(1);
     expect(mockUploadAsync.mock.calls[0][0]).toBe("file://photo-0.jpg");
     expect(screen.getByRole("button", { name: "Retry Photo 2" })).toBeOnTheScreen();
     await user.press(screen.getByRole("button", { name: "Remove Photo 2 from the tray" }));
-    expect(screen.queryByText("Photo 2")).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText(/Photo 2,/)).not.toBeOnTheScreen();
     expect(mockUploadAsync).toHaveBeenCalledTimes(1);
     expect(mockRemovePhoto).not.toHaveBeenCalled();
   });
@@ -643,7 +643,7 @@ describe("adding photos (08)", () => {
         <UploadTrayScreen />
       </QueryClientProvider>,
     );
-    expect(await screen.findByLabelText("Unavailable, File unavailable · pick again")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("Unavailable, Failed · file unavailable")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Remove Unavailable from the tray" })).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Retry Unavailable" })).not.toBeOnTheScreen();
     expect(mockUploadAsync).toHaveBeenCalledWith("file://valid.jpg", expect.any(String));
@@ -1116,10 +1116,10 @@ test("the focused tray keeps uploaded rows through refresh, then navigation star
   });
   await waitFor(() => expect(mockUploadAsync).toHaveBeenCalledTimes(1));
   await act(async () => upload.resolve({ status: 200, body: "", headers: {} }));
-  await waitFor(() => expect(screen.getByLabelText("First, Developed · 1")).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByLabelText("First, Uploaded")).toBeOnTheScreen());
   expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
-  expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 1 developed");
-  expect(screen.getByTestId("tray-strip-photo", { includeHiddenElements: true }).props.source).toEqual([
+  expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 1 uploaded");
+  expect(screen.getByTestId("tray-row-photo", { includeHiddenElements: true }).props.source).toEqual([
     { uri: completed.thumbnailUrl },
   ]);
 
@@ -1133,10 +1133,10 @@ test("the focused tray keeps uploaded rows through refresh, then navigation star
   });
   mockTrayFocused = true;
   await view.rerender(content());
-  expect(screen.queryByText("First")).not.toBeOnTheScreen();
-  expect(screen.getByText("Next")).toBeOnTheScreen();
+  expect(screen.queryByLabelText(/First,/)).not.toBeOnTheScreen();
+  expect(screen.getByLabelText(/Next,/)).toBeOnTheScreen();
   await act(async () => nextUpload.resolve({ status: 200, body: "", headers: {} }));
-  await waitFor(() => expect(screen.getByText("1 of 1 developed")).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByText("1 of 1 uploaded")).toBeOnTheScreen());
 });
 
 test.each([
@@ -1169,7 +1169,7 @@ test.each([
       <UploadTrayScreen />
     </QueryClientProvider>,
   );
-  expect(await screen.findByText("Local")).toBeOnTheScreen();
+  expect(await screen.findByLabelText("Local, Failed · interrupted")).toBeOnTheScreen();
   expect(mockListPhotos).not.toHaveBeenCalled();
-  expect(screen.queryAllByTestId("tray-strip-photo", { includeHiddenElements: true })).toHaveLength(0);
+  expect(screen.queryAllByTestId("tray-row-photo", { includeHiddenElements: true })).toHaveLength(0);
 });

@@ -3,7 +3,6 @@ import { screen, userEvent } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import type { TrayItem } from "../lib/upload-tray";
-import type { TrayEntry } from "../lib/upload-tray-view";
 import UploadTrayScreen from "./upload-tray-screen";
 
 const mockHide = jest.fn();
@@ -11,7 +10,7 @@ const mockCancelRest = jest.fn();
 const mockRetry = jest.fn();
 const mockRetryOne = jest.fn();
 const mockRemove = jest.fn();
-let mockEntries: TrayEntry[] = [];
+let mockEntries: TrayItem[] = [];
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@react-native-community/netinfo", () => ({ addEventListener: () => () => undefined }));
@@ -21,7 +20,7 @@ jest.mock("../hooks/use-upload-tray-screen", () => ({
     entries: mockEntries,
     summary: jest
       .requireActual<typeof import("../lib/upload-tray-view")>("../lib/upload-tray-view")
-      .summarizeTray({ items: mockEntries.map((entry) => entry.item), running: false, closed: null }),
+      .summarizeTray({ items: mockEntries, running: false, closed: null }),
     onHide: mockHide,
     onCancelRest: mockCancelRest,
     onRetry: mockRetry,
@@ -32,10 +31,13 @@ jest.mock("../hooks/use-upload-tray-screen", () => ({
 
 const MB = 1024 * 1024;
 
-const entry = (name: string, status: TrayItem["status"], number: number | null = null): TrayEntry => ({
-  item: { key: name, name, uri: `file://${name}.jpg`, contentType: "image/jpeg", sizeBytes: 3.4 * MB, status },
-  number,
-  develop: status.kind === "developed" ? 1 : 0,
+const entry = (name: string, status: TrayItem["status"]): TrayItem => ({
+  key: name,
+  name,
+  uri: `file://${name}.jpg`,
+  contentType: "image/jpeg",
+  sizeBytes: 3.4 * MB,
+  status,
 });
 
 const renderScreen = () =>
@@ -61,15 +63,20 @@ beforeEach(() => {
 
 test("08.3: shows each file's progress, and can cancel the rest or hide", async () => {
   mockEntries = [
-    entry("IMG_2231", { kind: "developed", photoId: "p1" }, 149),
-    entry("IMG_2234", { kind: "sending", bytesSent: 2.1 * MB }, 151),
-    entry("IMG_2251", { kind: "waiting" }, 153),
+    entry("IMG_2231", { kind: "developed", photoId: "p1" }),
+    entry("IMG_2234", { kind: "sending", bytesSent: 2.1 * MB }),
+    entry("IMG_2251", { kind: "waiting" }),
   ];
   await renderScreen();
 
-  expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 3 developed");
-  expect(screen.getByLabelText("IMG_2231, Developed · 149")).toBeOnTheScreen();
-  expect(screen.getByLabelText("IMG_2234, 2.1 / 3.4 MB")).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 3 uploaded");
+  expect(screen.getByLabelText("IMG_2231, Uploaded")).toBeOnTheScreen();
+  expect(screen.queryByText("IMG_2231")).not.toBeOnTheScreen();
+  expect(screen.queryByText(/Developed ·/)).not.toBeOnTheScreen();
+  expect(screen.getAllByTestId("tray-row-photo", { includeHiddenElements: true })[0]!.props.source).toEqual([
+    { uri: "file://IMG_2231.jpg" },
+  ]);
+  expect(screen.getByLabelText("IMG_2234, Uploading · 2.1 / 3.4 MB")).toBeOnTheScreen();
   expect(screen.getByLabelText("IMG_2251, Waiting")).toBeOnTheScreen();
 
   const user = userEvent.setup();
@@ -81,25 +88,25 @@ test("08.3: shows each file's progress, and can cancel the rest or hide", async 
 
 test("08.5: says which can't be added and why, and removes them", async () => {
   mockEntries = [
-    entry("IMG_2231", { kind: "waiting" }, 150),
+    entry("IMG_2231", { kind: "waiting" }),
     entry("PANO_2251", { kind: "rejected", reason: "tooLarge" }),
     entry("IMG_2260.MOV", { kind: "rejected", reason: "video" }),
   ];
   await renderScreen();
 
   expect(title()).toHaveTextContent("1 developing,\n2 can’t be added.");
-  expect(screen.getByLabelText("PANO_2251, PANO_2251 is over 25 MB and can’t be added")).toBeOnTheScreen();
+  expect(screen.getByLabelText("PANO_2251, Too large · over 25 MB")).toBeOnTheScreen();
 
   await userEvent.setup().press(screen.getByRole("button", { name: "Remove IMG_2260.MOV from the tray" }));
   expect(mockRemove).toHaveBeenCalledWith("IMG_2260.MOV");
 });
 
 test("offers Retry for files that didn't take, not Cancel", async () => {
-  mockEntries = [entry("IMG_2231", { kind: "failed", reason: "connection" }, 150)];
+  mockEntries = [entry("IMG_2231", { kind: "failed", reason: "connection" })];
   await renderScreen();
 
   expect(title()).toHaveTextContent("1 didn’t take.\nRetry sends them again.");
-  expect(screen.getByLabelText("IMG_2231, Didn’t take · offline")).toBeOnTheScreen();
+  expect(screen.getByLabelText("IMG_2231, Failed · offline")).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Cancel the rest" })).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Retry ↻" }));
   expect(mockRetry).toHaveBeenCalled();
@@ -125,11 +132,16 @@ test("each recoverable failure can be retried or removed independently", async (
   expect(mockRemove).toHaveBeenCalledWith("Second");
 });
 
-test("completed rows show success even before a frame number is available", async () => {
+test("completed rows use a film thumbnail and Uploaded without a filename or frame number", async () => {
   mockEntries = [entry("IMG_2231", { kind: "developed", photoId: "p1" })];
   await renderScreen();
-  expect(title()).toHaveTextContent("In the tray\n1 of 1 developed");
+  expect(title()).toHaveTextContent("In the tray\n1 of 1 uploaded");
   expect(screen.getByLabelText("IMG_2231, Uploaded")).toBeOnTheScreen();
+  expect(screen.queryByText("IMG_2231")).not.toBeOnTheScreen();
+  expect(screen.queryByText(/Developed ·/)).not.toBeOnTheScreen();
+  expect(screen.getAllByTestId("tray-row-photo", { includeHiddenElements: true })[0]!.props.source).toEqual([
+    { uri: "file://IMG_2231.jpg" },
+  ]);
   expect(screen.queryByRole("button", { name: "Cancel the rest" })).not.toBeOnTheScreen();
   expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
 });
@@ -139,7 +151,7 @@ test.each(["noRoom", "closed"] as const)(
   async (reason) => {
     mockEntries = [entry("IMG_2231", { kind: "failed", reason })];
     await renderScreen();
-    expect(screen.getByText("IMG_2231")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Remove IMG_2231 from the tray" })).toBeOnTheScreen();
     expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Retry ↻" })).not.toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Remove IMG_2231 from the tray" })).toBeOnTheScreen();
