@@ -10,7 +10,7 @@ const mockCancelRest = jest.fn();
 const mockRetry = jest.fn();
 const mockRetryOne = jest.fn();
 const mockRemove = jest.fn();
-let mockEntries: TrayItem[] = [];
+let mockEntries: (TrayItem & { progress?: number })[] = [];
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@react-native-community/netinfo", () => ({ addEventListener: () => () => undefined }));
@@ -31,13 +31,14 @@ jest.mock("../hooks/use-upload-tray-screen", () => ({
 
 const MB = 1024 * 1024;
 
-const entry = (name: string, status: TrayItem["status"]): TrayItem => ({
+const entry = (name: string, status: TrayItem["status"], progress?: number): TrayItem & { progress?: number } => ({
   key: name,
   name,
   uri: `file://${name}.jpg`,
   contentType: "image/jpeg",
   sizeBytes: 3.4 * MB,
   status,
+  progress,
 });
 
 const renderScreen = () =>
@@ -64,7 +65,7 @@ beforeEach(() => {
 test("08.3: shows each file's progress, and can cancel the rest or go back", async () => {
   mockEntries = [
     entry("IMG_2231", { kind: "developed", photoId: "p1" }),
-    entry("IMG_2234", { kind: "sending", bytesSent: 2.1 * MB }),
+    entry("IMG_2234", { kind: "sending", bytesSent: 1.7 * MB }, 0.5),
     entry("IMG_2251", { kind: "waiting" }),
   ];
   await renderScreen();
@@ -76,7 +77,12 @@ test("08.3: shows each file's progress, and can cancel the rest or go back", asy
   expect(screen.getAllByTestId("tray-row-photo", { includeHiddenElements: true })[0]!.props.source).toEqual([
     { uri: "file://IMG_2231.jpg" },
   ]);
-  expect(screen.getByLabelText("IMG_2234, Uploading · 2.1 / 3.4 MB")).toBeOnTheScreen();
+  expect(screen.getByRole("progressbar", { name: "IMG_2234, Uploading" })).toHaveAccessibilityValue({
+    min: 0,
+    max: 100,
+    now: 50,
+  });
+  expect(screen.queryByText(/MB/)).not.toBeOnTheScreen();
   expect(screen.getByLabelText("IMG_2251, Waiting")).toBeOnTheScreen();
 
   const user = userEvent.setup();
@@ -108,6 +114,7 @@ test("offers Retry for files that didn't take, not Cancel", async () => {
 
   expect(title()).toHaveTextContent("1 didn’t take.\nRetry sends them again.");
   expect(screen.getByLabelText("IMG_2231, Failed · offline")).toBeOnTheScreen();
+  expect(screen.queryByRole("progressbar")).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Cancel the rest" })).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Retry ↻" }));
   expect(mockRetry).toHaveBeenCalled();

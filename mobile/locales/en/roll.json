@@ -185,7 +185,8 @@
       "removeLabel": "Remove {{name}} from the tray",
       "remove": "Remove",
       "retryLabel": "Retry {{name}}",
-      "uploading": "Uploading"
+      "uploading": "Uploading",
+      "finishing": "Finishing"
     },
     "cancelRest": "Cancel the rest",
     "retry": "Retry ↻",

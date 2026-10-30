@@ -60,6 +60,10 @@ These are platform references, not claims about another app's internals.
   Filenames remain only in accessibility labels; frame numbers and the separate
   preview strip are omitted. Completed rows use server thumbnails when available,
   never the remote original. Hidden galleries expose no tray thumbnails.
+- Active uploads show a filling bar from native byte progress instead of an MB
+  counter. A full bar reads Finishing until server confirmation changes the row
+  to Uploaded. The roll's entire tray banner opens the tray, including its status
+  text, icon, label and padding; it is one accessible button.
 - While the tray is focused, completed rows keep their position and show success
   after the queue refreshes or reconciles with the server. This visit's history
   lives only in memory and is discarded on navigation away, including a back

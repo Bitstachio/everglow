@@ -8,7 +8,6 @@ import { ScrollView, View } from "react-native";
 import { TrayRow } from "../components/tray-row";
 import { useUploadTrayScreen } from "../hooks/use-upload-tray-screen";
 import type { TrayItem } from "../lib/upload-tray";
-import { formatSentOf } from "../utils";
 
 /** 08.3 In the tray, and 08.5 Can't be added. */
 const UploadTrayScreen = () => {
@@ -37,7 +36,7 @@ const UploadTrayScreen = () => {
       case "developed":
         return t("tray.row.uploaded");
       case "sending":
-        return `${t("tray.row.uploading")} · ${formatSentOf(s.bytesSent, item.sizeBytes)}`;
+        return t(item.sizeBytes > 0 && s.bytesSent >= item.sizeBytes ? "tray.row.finishing" : "tray.row.uploading");
       case "waiting":
         return t("tray.row.waiting");
       case "failed":
@@ -84,6 +83,7 @@ const UploadTrayScreen = () => {
                 status={text}
                 accessibilityLabel={`${item.name}, ${text}`}
                 done={rowStatus.kind === "developed"}
+                progress={item.progress}
                 actions={
                   failed || rejected
                     ? [

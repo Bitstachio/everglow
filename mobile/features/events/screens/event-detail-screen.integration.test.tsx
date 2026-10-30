@@ -25,6 +25,7 @@ const mockCreateUploadUrls = jest.fn();
 const mockConfirmUploads = jest.fn();
 const mockFileSize = jest.fn();
 const mockUploadAsync = jest.fn();
+const mockUploadProgress = new Map<string, (progress: { bytesSent: number }) => void>();
 const mockRemovePhoto = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
@@ -101,9 +102,14 @@ jest.mock("expo-file-system", () => ({
     { downloadFileAsync: (...args: unknown[]) => mockDownloadFile(...args) },
   ),
   // The PUT of each photo to storage.
-  UploadTask: jest.fn().mockImplementation((file: { uri: string }, url: string) => ({
-    uploadAsync: () => mockUploadAsync(file.uri, url),
-  })),
+  UploadTask: jest
+    .fn()
+    .mockImplementation(
+      (file: { uri: string }, url: string, options: { onProgress: (progress: { bytesSent: number }) => void }) => {
+        mockUploadProgress.set(file.uri, options.onProgress);
+        return { uploadAsync: () => mockUploadAsync(file.uri, url) };
+      },
+    ),
   UploadType: { BINARY_CONTENT: 0 },
 }));
 jest.mock("@react-native-community/netinfo", () => ({ addEventListener: () => () => undefined }));
@@ -198,6 +204,7 @@ beforeEach(() => {
   mockConfirmUploads.mockReset().mockImplementation(confirmAllReady);
   mockFileSize.mockReset().mockReturnValue(IMAGE_BYTES.length);
   mockUploadAsync.mockReset().mockResolvedValue({ status: 200, body: "", headers: {} });
+  mockUploadProgress.clear();
   runAccountCleared();
   activateUploadTrays("user-1", async () => undefined);
   mockRemovePhoto.mockReset().mockResolvedValue({});
@@ -545,8 +552,10 @@ describe("adding photos (08)", () => {
     expect(screen.getByLabelText("Frame 2, developing")).toBeOnTheScreen();
     expect(screen.getByText("Developing 1 of 2")).toBeOnTheScreen();
 
-    await user.press(screen.getByRole("button", { name: "Open the tray" }));
+    await user.press(screen.getByText("Developing 1 of 2"));
     expect(mockPush).toHaveBeenCalledWith("/events/event-1/tray");
+    await user.press(screen.getByText("Tray ›"));
+    expect(mockPush).toHaveBeenCalledTimes(2);
     sent.resolve({ status: 200, body: "", headers: {} });
     await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalled());
   });
@@ -581,7 +590,7 @@ describe("adding photos (08)", () => {
     expect(await screen.findByText("1 didn’t take · offline")).toBeOnTheScreen();
     expect(screen.getByLabelText("Frame 2, didn’t take")).toBeOnTheScreen();
     expect(screen.getByTestId("tray-needs-attention", { includeHiddenElements: true })).toBeOnTheScreen();
-    await user.press(screen.getByRole("button", { name: "Open the tray, uploads need attention" }));
+    await user.press(screen.getByText("1 didn’t take · offline"));
     expect(mockPush).toHaveBeenCalledWith("/events/event-1/tray");
     await screen.rerender(
       <QueryClientProvider client={client}>
@@ -594,6 +603,35 @@ describe("adding photos (08)", () => {
     await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalledTimes(2));
     expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.queryByText(/didn’t take/)).not.toBeOnTheScreen());
+  });
+
+  test("native bytes fill the tray bar, which finishes before confirmation marks it Uploaded", async () => {
+    const uploaded = deferred<unknown>();
+    const confirmed = deferred<unknown>();
+    mockFileSize.mockReturnValue(100);
+    mockUploadAsync.mockReturnValueOnce(uploaded.promise);
+    mockConfirmUploads.mockReturnValueOnce(confirmed.promise);
+    const client = await renderScreen();
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Add photos" }));
+    await user.press(await screen.findByText("Developing 1 of 1"));
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <UploadTrayScreen />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole("progressbar", { name: "Photo 1, Uploading" })).toHaveAccessibilityValue({ now: 0 });
+    await act(async () => mockUploadProgress.get("file://photo.jpg")!({ bytesSent: 50 }));
+    expect(screen.getByRole("progressbar", { name: "Photo 1, Uploading" })).toHaveAccessibilityValue({ now: 50 });
+    await act(async () => mockUploadProgress.get("file://photo.jpg")!({ bytesSent: 100 }));
+    expect(screen.getByRole("progressbar", { name: "Photo 1, Finishing" })).toHaveAccessibilityValue({ now: 100 });
+    await act(async () => uploaded.resolve({ status: 200, body: "", headers: {} }));
+    await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalledTimes(1));
+    expect(screen.queryByLabelText("Photo 1, Uploaded")).not.toBeOnTheScreen();
+    await act(async () => confirmed.resolve({ data: { data: [{ photoId: "photo-2", status: "READY" }] } }));
+    expect(await screen.findByLabelText("Photo 1, Uploaded")).toBeOnTheScreen();
+    expect(screen.queryByRole("progressbar")).not.toBeOnTheScreen();
+    expect(screen.queryByText(/MB/)).not.toBeOnTheScreen();
   });
 
   test("one failed photo can be retried and another removed without uploading both", async () => {

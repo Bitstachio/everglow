@@ -139,17 +139,6 @@ export const formatStorageBytes = (bytes: number, { roundDown = false } = {}): s
   return `${rounded} ${STORAGE_UNITS[unit]}`;
 };
 
-/**
- * "0.6 / 3.1 MB": how much of a file has been sent, in the file's own unit
- * with one decimal, so the two sides read as one measure (08.3).
- */
-export const formatSentOf = (sentBytes: number, totalBytes: number): string => {
-  const total = formatStorageBytes(totalBytes);
-  const unit = STORAGE_UNITS.indexOf(total.split(" ")[1] ?? "B");
-  const sent = Math.max(0, Math.min(sentBytes, totalBytes)) / 1024 ** Math.max(0, unit);
-  return `${unit === 0 ? Math.round(sent) : sent.toFixed(1)} / ${total}`;
-};
-
 /** "1.2 GB of 3 GB used", or "1.2 GB used" on a plan without a storage limit. Never a photo count. */
 export const formatEventStorage = (event: Pick<Event, "limits" | "usage">): string => {
   const used = formatStorageBytes(Number(event.usage.storageBytes), { roundDown: true });

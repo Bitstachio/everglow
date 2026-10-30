@@ -18,17 +18,19 @@ type RollTrayLineProps = {
  * (08.2, 08.4): how they're doing, and the one thing to do about it.
  */
 export const RollTrayLine = ({ text, action, needsAttention = false }: RollTrayLineProps) => (
-  <View className="mx-5 min-h-11 flex-row items-center justify-between rounded-frame border border-outline-soft bg-sheet pl-3.5">
-    <EdgePrint accessibilityLiveRegion="polite" tone="text" numberOfLines={1} className="flex-1">
+  <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={action.accessibilityLabel}
+    accessibilityValue={{ text }}
+    accessibilityLiveRegion="polite"
+    onPress={action.onPress}
+    hitSlop={8}
+    className="mx-5 min-h-11 flex-row items-center justify-between rounded-frame border border-outline-soft bg-sheet px-3.5 active:opacity-60"
+  >
+    <EdgePrint tone="text" numberOfLines={1} className="flex-1">
       {text}
     </EdgePrint>
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={action.accessibilityLabel}
-      onPress={action.onPress}
-      hitSlop={8}
-      className="min-h-11 flex-row items-center justify-center gap-1.5 px-3.5 active:opacity-60"
-    >
+    <View pointerEvents="none" className="min-h-11 flex-row items-center justify-center gap-1.5 pl-3.5">
       {needsAttention ? (
         <AppIcon
           icon={WarningCircle}
@@ -40,6 +42,6 @@ export const RollTrayLine = ({ text, action, needsAttention = false }: RollTrayL
         />
       ) : null}
       <EdgePrint tone="text">{action.title}</EdgePrint>
-    </Pressable>
-  </View>
+    </View>
+  </Pressable>
 );

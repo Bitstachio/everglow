@@ -11,11 +11,13 @@ type TrayRowProps = {
   status: string;
   accessibilityLabel: string;
   done?: boolean;
+  /** Fraction of the file sent, from 0 to 1. Omit outside an active upload. */
+  progress?: number;
   actions?: { title: string; accessibilityLabel: string; onPress: () => void }[];
 };
 
 /** A small square film print beside its upload status and recovery actions. */
-export const TrayRow = ({ uri, status, accessibilityLabel, done = false, actions }: TrayRowProps) => (
+export const TrayRow = ({ uri, status, accessibilityLabel, done = false, progress, actions }: TrayRowProps) => (
   <View className="flex-row items-center gap-4 border-b border-line py-3">
     <View
       accessibilityElementsHidden
@@ -35,9 +37,26 @@ export const TrayRow = ({ uri, status, accessibilityLabel, done = false, actions
       <Sprockets edge="bottom" count={5} />
     </View>
     <View className="flex-1 items-end justify-center">
-      <EdgePrint accessibilityLabel={accessibilityLabel} tone={done ? "text" : "edge"} className="text-right">
+      <EdgePrint
+        accessibilityLabel={accessibilityLabel}
+        accessibilityElementsHidden={progress !== undefined}
+        importantForAccessibility={progress !== undefined ? "no-hide-descendants" : "auto"}
+        tone={done ? "text" : "edge"}
+        className="text-right"
+      >
         {status}
       </EdgePrint>
+      {progress !== undefined ? (
+        <View
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={accessibilityLabel}
+          accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+          className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-outline-soft"
+        >
+          <View className="h-full rounded-full bg-text" style={{ width: `${progress * 100}%` }} />
+        </View>
+      ) : null}
       {actions?.length ? (
         <View className="flex-row flex-wrap justify-end gap-x-5">
           {actions.map((action) => (

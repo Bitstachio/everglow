@@ -36,7 +36,11 @@ export const useUploadTrayScreen = () => {
       const thumbnail = status.kind === "developed" ? thumbnails.get(status.photoId) : undefined;
       // The roll can release a completed local file once its thumbnail loads.
       const previewable = visible && !(status.kind === "rejected" && status.reason === "video");
-      return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "" };
+      const progress =
+        status.kind === "sending"
+          ? Math.max(0, Math.min(1, item.sizeBytes > 0 ? status.bytesSent / item.sizeBytes : 0))
+          : undefined;
+      return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "", progress };
     }),
     summary: summarizeTray(tray),
     onBack: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),
