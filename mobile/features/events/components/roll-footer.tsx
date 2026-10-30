@@ -69,7 +69,7 @@ const Row = ({ left, middle, right }: { left?: ReactNode; middle: ReactNode; rig
   <View className="flex-row items-end justify-between px-3">
     <View className="flex-1 items-start pb-4">{left}</View>
     {middle}
-    <View className="flex-1 items-end pb-4">{right}</View>
+    <View className="flex-1 flex-row justify-end pb-4">{right}</View>
   </View>
 );
 
@@ -152,7 +152,7 @@ export const RollFooter = ({ bottomInset, ...props }: RollFooterProps & RollFoot
         ) : null}
 
         {props.kind === "text" ? (
-          <View className="items-end px-3 pb-4">
+          <View className="flex-row justify-end px-3 pb-4">
             <TextAction action={props.action} />
           </View>
         ) : null}
