@@ -327,7 +327,8 @@ const EventDetailScreen = () => {
   const renderFrame = ({ item }: { item: SheetFrame }) => (
     <View className="w-1/3 px-0.5 pb-3.5">
       <ContactFrame
-        uri={item.photo.url}
+        uri={item.photo.thumbnailUrl}
+        cacheKey={`photo:${item.photo.id}:thumbnail`}
         number={item.number}
         by={item.by ?? undefined}
         isNew={item.isNew}

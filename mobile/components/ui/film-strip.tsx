@@ -3,6 +3,7 @@ import { Text, View, type LayoutChangeEvent } from "react-native";
 import { EdgePrint } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
+import { RetryingPhoto } from "./retrying-photo";
 
 export type StripFrame = {
   key: string;
@@ -57,7 +58,15 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
       <View
         className={`h-full w-full items-center justify-center overflow-hidden rounded-frame ${frame.caption ? "bg-viewer" : "bg-frame-empty"}`}
       >
-        {source !== undefined ? (
+        {frame.uri ? (
+          <RetryingPhoto
+            testID="film-strip-photo"
+            uri={frame.uri}
+            cacheKey={frame.cacheKey}
+            contentFit="cover"
+            className={`h-full w-full ${frame.dim ? "opacity-35" : ""}`.trim()}
+          />
+        ) : source !== undefined ? (
           <Photo
             testID="film-strip-photo"
             source={source}
