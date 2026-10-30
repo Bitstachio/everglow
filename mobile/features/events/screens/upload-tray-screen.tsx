@@ -3,6 +3,7 @@ import { Display } from "@/components/ui/display";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
+import { ArrowClockwise, Trash } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
 import { ScrollView, View } from "react-native";
 import { TrayRow } from "../components/tray-row";
@@ -90,14 +91,14 @@ const UploadTrayScreen = () => {
                         ...(retryable
                           ? [
                               {
-                                title: t("tray.retry"),
+                                icon: ArrowClockwise,
                                 accessibilityLabel: t("tray.row.retryLabel", { name: item.name }),
                                 onPress: () => screen.onRetryOne(item.key),
                               },
                             ]
                           : []),
                         {
-                          title: t("tray.row.remove"),
+                          icon: Trash,
                           accessibilityLabel: t("tray.row.removeLabel", { name: item.name }),
                           onPress: () => screen.onRemove(item.key),
                         },

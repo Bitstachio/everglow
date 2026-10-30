@@ -1,5 +1,5 @@
 import { renderWithI18n } from "@/testing/render";
-import { screen, userEvent } from "@testing-library/react-native";
+import { screen, userEvent, within } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import type { TrayItem } from "../lib/upload-tray";
@@ -133,10 +133,16 @@ test("each recoverable failure can be retried or removed independently", async (
   ];
   await renderScreen();
   const user = userEvent.setup();
-  await user.press(screen.getByRole("button", { name: "Retry First" }));
+  const retry = screen.getByRole("button", { name: "Retry First" });
+  const remove = screen.getByRole("button", { name: "Remove Second from the tray" });
+  expect(within(retry).queryByText(/Retry/)).not.toBeOnTheScreen();
+  expect(within(remove).queryByText(/Remove/)).not.toBeOnTheScreen();
+  expect(within(retry).getByTestId("phosphor-ArrowClockwise", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(within(remove).getByTestId("phosphor-Trash", { includeHiddenElements: true })).toBeOnTheScreen();
+  await user.press(retry);
   expect(mockRetryOne).toHaveBeenCalledWith("First");
   expect(mockRetry).not.toHaveBeenCalled();
-  await user.press(screen.getByRole("button", { name: "Remove Second from the tray" }));
+  await user.press(remove);
   expect(mockRemove).toHaveBeenCalledWith("Second");
 });
 

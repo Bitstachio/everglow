@@ -3,7 +3,7 @@ import { EdgePrint } from "@/components/ui/edge-print";
 import { Sprockets } from "@/components/ui/film-strip";
 import { Photo } from "@/components/ui/photo";
 import { colorTokens } from "@/theme/tokens";
-import { ImageSquare } from "phosphor-react-native";
+import { ImageSquare, type Icon } from "phosphor-react-native";
 import { Pressable, View } from "react-native";
 
 type TrayRowProps = {
@@ -13,7 +13,7 @@ type TrayRowProps = {
   done?: boolean;
   /** Fraction of the file sent, from 0 to 1. Omit outside an active upload. */
   progress?: number;
-  actions?: { title: string; accessibilityLabel: string; onPress: () => void }[];
+  actions?: { icon: Icon; accessibilityLabel: string; onPress: () => void }[];
 };
 
 /** A small square film print beside its upload status and recovery actions. */
@@ -58,16 +58,18 @@ export const TrayRow = ({ uri, status, accessibilityLabel, done = false, progres
         </View>
       ) : null}
       {actions?.length ? (
-        <View className="flex-row flex-wrap justify-end gap-x-5">
+        <View className="flex-row justify-end gap-1">
           {actions.map((action) => (
             <Pressable
               key={action.accessibilityLabel}
               accessibilityRole="button"
               accessibilityLabel={action.accessibilityLabel}
               onPress={action.onPress}
-              className="min-h-11 justify-center active:opacity-60"
+              className="size-11 items-center justify-center active:opacity-60"
             >
-              <EdgePrint tone="text">{action.title}</EdgePrint>
+              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <AppIcon icon={action.icon} size="sm" color={colorTokens.text} />
+              </View>
             </Pressable>
           ))}
         </View>
