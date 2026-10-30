@@ -417,6 +417,9 @@ describe("held by Everglow (07.10, 07.11)", () => {
 
   test("suspended: nothing is shown or fetched, and a host can cut the roll", async () => {
     await renderScreen({ event: openEvent({ status: "SUSPENDED" }) });
+    const cut = openEvent({ status: "SUSPENDED", galleryState: "CLOSED" });
+    mockDeactivate.mockResolvedValue({ data: { data: cut } });
+    mockFindOne.mockResolvedValue({ data: { data: cut } });
 
     expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
     expect(screen.getByText("Hidden")).toBeOnTheScreen();
@@ -428,6 +431,9 @@ describe("held by Everglow (07.10, 07.11)", () => {
     await waitFor(() =>
       expect(mockDeactivate).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }),
     );
+    expect(await screen.findByText("Roll cut.")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Cut the roll" })).not.toBeOnTheScreen();
+    expect(screen.getByText("Suspended by Everglow")).toBeOnTheScreen();
   });
 
   test("suspended: a guest can only read why", async () => {
@@ -721,14 +727,35 @@ describe("saving and deleting frames", () => {
 describe("people and the menu", () => {
   test("a guest leaves the roll from the menu", async () => {
     mockUser = { id: "user-2" };
-    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    const client = await renderScreen({ participants: [host, guest], photos: oneFrame });
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
     await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    const requests = [
+      mockFindOne.mock.calls.length,
+      mockListPhotos.mock.calls.length,
+      mockGetParticipants.mock.calls.length,
+    ];
+    mockLeave.mockImplementation(async () => {
+      const forbidden = createApiError("Membership is gone", { code: "FORBIDDEN", status: 403 });
+      mockFindOne.mockRejectedValue(forbidden);
+      mockListPhotos.mockRejectedValue(forbidden);
+      mockGetParticipants.mockRejectedValue(forbidden);
+      return {};
+    });
     await user.press(await screen.findByRole("button", { name: "Leave" }));
 
     await waitFor(() => expect(mockLeave).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
     expect(mockReplace).toHaveBeenCalledWith("/events");
+    expect([
+      mockFindOne.mock.calls.length,
+      mockListPhotos.mock.calls.length,
+      mockGetParticipants.mock.calls.length,
+    ]).toEqual(requests);
+    expect(client.getQueryData(eventsKeys.detail("event-1"))).toBeUndefined();
+    expect(client.getQueryData(eventsKeys.photos("event-1"))).toBeUndefined();
+    expect(client.getQueryData(eventsKeys.participants("event-1"))).toBeUndefined();
+    expect(Alert.alert).not.toHaveBeenCalled();
   });
 
   test("People from the menu swaps the same sheet to the roll call", async () => {

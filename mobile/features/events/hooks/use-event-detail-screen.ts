@@ -118,13 +118,14 @@ export const useEventDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
+  const [leavingRoll, setLeavingRoll] = useState(false);
 
-  const eventQuery = useEventQuery(eventId);
+  const eventQuery = useEventQuery(eventId, !leavingRoll);
   const event = eventQuery.data ?? null;
   // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
-  const photosQuery = useEventPhotosQuery(eventId, hasPhotos);
-  const participantsQuery = useEventParticipantsQuery(eventId);
+  const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
+  const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
 
   const leaveEventMutation = useLeaveEventMutation();
   const deactivateMutation = useDeactivateEventMutation();
@@ -339,7 +340,9 @@ export const useEventDetailScreen = () => {
   };
 
   const onConfirmLeave = () => {
-    if (!eventId || !event) return;
+    if (!eventId || !event || leavingRoll) return;
+    // Stop active readers before membership is revoked and their caches are evicted.
+    setLeavingRoll(true);
     leaveEventMutation.mutate(eventId, {
       onSuccess: () => {
         closeSheet();
@@ -347,6 +350,7 @@ export const useEventDetailScreen = () => {
       },
       onError: (error) => {
         closeSheet();
+        setLeavingRoll(false);
         showNotice(getErrorMessage(error));
       },
     });
@@ -355,7 +359,10 @@ export const useEventDetailScreen = () => {
   const onConfirmCut = () => {
     if (!eventId) return;
     deactivateMutation.mutate(eventId, {
-      onSuccess: closeSheet,
+      onSuccess: () => {
+        closeSheet();
+        showNotice(t("result.cut"));
+      },
       onError: (error) => {
         closeSheet();
         showNotice(getErrorMessage(error));

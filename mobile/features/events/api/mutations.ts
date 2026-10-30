@@ -125,7 +125,12 @@ export const useLeaveEventMutation = () => {
       await eventsControllerLeave({ path: { eventId }, throwOnError: true });
     },
     onSuccess: async (_data, eventId) => {
-      await invalidateEventCaches(queryClient, eventId);
+      // Membership is gone: refetching these active queries now only returns 403.
+      // Cancel and evict them before refreshing Home and navigating away.
+      const keys = [eventsKeys.detail(eventId), eventsKeys.photos(eventId), eventsKeys.participants(eventId)];
+      await Promise.all(keys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      keys.forEach((queryKey) => queryClient.removeQueries({ queryKey }));
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
     },
   });
 };
