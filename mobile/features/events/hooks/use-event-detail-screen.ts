@@ -1,3 +1,4 @@
+import { developingFrames, summarizeTray } from "../lib/upload-tray-view";
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import * as ImagePicker from "expo-image-picker";
@@ -16,6 +17,7 @@ import {
 } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
+import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
 import { roomShortfall, toTrayItems, type PickedFile, type RoomShortfall } from "../lib/picked-photos";
 import {
   hasOpened,
@@ -30,11 +32,12 @@ import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
   addToTray,
-  developingFrames,
   dismissClosed,
   localFileFor,
+  reconcileTrayPhotos,
+  ownsUploadTrays,
+  releaseLocalFile,
   retryTray,
-  summarizeTray,
   useUploadTray,
   type TrayItem,
 } from "../lib/upload-tray";
@@ -176,6 +179,9 @@ export const useEventDetailScreen = () => {
   const closeSheet = () => setSheet(null);
 
   const photos = hasPhotos ? (photosQuery.data ?? []) : [];
+  useEffect(() => {
+    if (eventId && hasPhotos && photosQuery.data) reconcileTrayPhotos(eventId, photosQuery.data);
+  }, [eventId, hasPhotos, photosQuery.data]);
   const participants = participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
   const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("frame.you"));
@@ -239,9 +245,14 @@ export const useEventDetailScreen = () => {
   };
 
   /** Puts the photos in the tray and starts them developing. 08.5 opens the tray to say why some can't go. */
-  const sendToTray = (items: TrayItem[]) => {
-    if (!eventId || items.length === 0) return;
-    addToTray(eventId, items, () => refreshRoll(eventId));
+  const sendToTray = async (items: TrayItem[]) => {
+    if (!eventId || !user || items.length === 0) return;
+    const retained = await retainUploadFiles(user.id, items);
+    if (!ownsUploadTrays(user.id)) {
+      retained.forEach((item) => releaseUploadFile(user.id, item.uri));
+      return;
+    }
+    addToTray(eventId, retained, () => refreshRoll(eventId));
     if (items.some((item) => item.status.kind === "rejected")) openTray();
   };
 
@@ -277,7 +288,7 @@ export const useEventDetailScreen = () => {
         setSheet("room");
         return;
       }
-      sendToTray(items);
+      await sendToTray(items);
     } catch (error) {
       showNotice(getErrorMessage(error, t("result.didntTake")));
     } finally {
@@ -290,7 +301,9 @@ export const useEventDetailScreen = () => {
     if (!roomCheck) return;
     const fits = new Set(roomCheck.fits.map((item) => item.key));
     closeSheet();
-    sendToTray(roomCheck.items.filter((item) => fits.has(item.key) || item.status.kind === "rejected"));
+    void sendToTray(roomCheck.items.filter((item) => fits.has(item.key) || item.status.kind === "rejected")).catch(
+      (error) => showNotice(getErrorMessage(error, t("result.didntTake"))),
+    );
     setRoomCheck(null);
   };
 
@@ -450,6 +463,7 @@ export const useEventDetailScreen = () => {
     currentUserId: user?.id,
     developing,
     localFileFor,
+    onPreviewReady: releaseLocalFile,
     tray: summarizeTray(tray),
     trayRunning: tray.running,
     closedWhileSending,
@@ -458,7 +472,7 @@ export const useEventDetailScreen = () => {
     roomCheck,
     preparing,
     saving,
-    notice,
+    notice: tray.storageError ? t("result.localStorage") : notice,
     openedVisible,
     openFrame,
     openFrameIsDeletable,

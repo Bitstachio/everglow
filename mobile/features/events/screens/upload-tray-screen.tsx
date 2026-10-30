@@ -10,7 +10,7 @@ import { ScrollView, Text, View } from "react-native";
 import { TrayRow } from "../components/tray-row";
 import { TrayStrip } from "../components/tray-strip";
 import { useUploadTrayScreen } from "../hooks/use-upload-tray-screen";
-import type { TrayEntry } from "../lib/upload-tray";
+import type { TrayEntry } from "../lib/upload-tray-view";
 import { formatSentOf } from "../utils";
 
 /** The tray shows its first few frames on a strip. */
@@ -49,11 +49,15 @@ const UploadTrayScreen = () => {
           text: t(
             s.reason === "connection"
               ? "tray.row.offline"
-              : s.reason === "noRoom"
-                ? "tray.row.noRoom"
-                : s.reason === "closed"
-                  ? "tray.row.closed"
-                  : "tray.row.refused",
+              : s.reason === "missing"
+                ? "tray.row.missing"
+                : s.reason === "interrupted"
+                  ? "tray.row.interrupted"
+                  : s.reason === "noRoom"
+                    ? "tray.row.noRoom"
+                    : s.reason === "closed"
+                      ? "tray.row.closed"
+                      : "tray.row.refused",
           ),
         };
       case "rejected": {
@@ -67,7 +71,7 @@ const UploadTrayScreen = () => {
   };
 
   const strip = entries
-    .filter((entry) => entry.item.status.kind !== "rejected")
+    .filter((entry) => entry.item.status.kind !== "rejected" && entry.item.uri)
     .slice(0, STRIP_FRAMES)
     .map(({ item, develop }) => ({ key: item.key, uri: item.uri, develop }));
 
@@ -88,7 +92,10 @@ const UploadTrayScreen = () => {
         <View accessibilityLabel={t("tray.rows")} className="mt-6 px-5">
           {entries.map((entry) => {
             const { text, node } = status(entry);
-            const rejected = entry.item.status.kind === "rejected";
+            const rejected =
+              entry.item.status.kind === "rejected" ||
+              (entry.item.status.kind === "failed" &&
+                ["missing", "noRoom", "closed"].includes(entry.item.status.reason));
             return (
               <TrayRow
                 key={entry.item.key}

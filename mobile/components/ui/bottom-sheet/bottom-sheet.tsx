@@ -4,7 +4,7 @@ import i18n from "@/i18n/instance";
 import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { type ReactNode } from "react";
-import { Animated, Modal, Pressable, View } from "react-native";
+import { Animated, Modal, Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomSheetPresentation } from "./use-bottom-sheet";
 
@@ -31,12 +31,28 @@ export const BottomSheet = ({
   closeAccessibilityLabel,
 }: BottomSheetProps) => {
   const insets = useSafeAreaInsets();
-  const { presented, scrimOpacity, sheetTranslateY, pointerEvents } = useBottomSheetPresentation(visible, onClosed);
+  const { presented, scrimOpacity, sheetTranslateY, pointerEvents } = useBottomSheetPresentation(
+    visible,
+    Platform.OS === "ios" ? undefined : onClosed,
+  );
   const dismissLabel = dismissAccessibilityLabel ?? i18n.t("actions.dismiss", { ns: "common" });
   const closeLabel = closeAccessibilityLabel ?? i18n.t("actions.close", { ns: "common" });
 
   return (
-    <Modal testID={testID} animationType="none" visible={presented} transparent onRequestClose={onClose}>
+    <Modal
+      testID={testID}
+      animationType="none"
+      visible={presented}
+      transparent
+      onRequestClose={onClose}
+      onDismiss={
+        Platform.OS === "ios"
+          ? () => {
+              if (!visible) onClosed?.();
+            }
+          : undefined
+      }
+    >
       <View className="flex-1 justify-end" pointerEvents={pointerEvents}>
         <View className="absolute inset-0">
           <Animated.View style={{ flex: 1, opacity: scrimOpacity }}>

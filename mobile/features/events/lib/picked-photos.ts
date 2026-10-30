@@ -14,7 +14,7 @@ export const trayName = (file: Pick<PickedFile, "fileName" | "isVideo">, fallbac
   return file.isVideo ? file.fileName : file.fileName.replace(/\.[^.]+$/, "");
 };
 
-let nextKey = 0;
+let nextKey = Date.now();
 
 /**
  * 08.5: a video or a photo over 25 MB can't be added. They go in the tray as

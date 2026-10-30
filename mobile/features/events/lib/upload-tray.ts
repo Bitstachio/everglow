@@ -1,6 +1,7 @@
 import { onAccountCleared } from "@/lib/account-cleared";
 import NetInfo from "@react-native-community/netinfo";
 import { useSyncExternalStore } from "react";
+import { persistUploadTrays, restoreUploadTrays, removeUploadStorage, releaseUploadFile } from "./upload-tray-storage";
 import type { PhotoResponseDto } from "../types";
 import {
   uploadEventPhotos,
@@ -42,6 +43,8 @@ export type TrayItem = EventPhotoFile & {
 export type Tray = {
   items: TrayItem[];
   running: boolean;
+  /** Pause if durable state cannot be written; never send unrecorded jobs. */
+  storageError?: boolean;
   /** The gallery refused a batch for being closed (08.8): when, and how many had landed by then. */
   closed: { at: string; landed: number } | null;
 };
@@ -49,12 +52,24 @@ export type Tray = {
 const EMPTY_TRAY: Tray = { items: [], running: false, closed: null };
 
 const trays = new Map<string, Tray>();
+let activeUserId: string | null = null;
 const controllers = new Map<string, AbortController>();
+// Separate from Cancel the rest: sign-out also aborts API requests and confirmation.
+const requestControllers = new Map<string, AbortController>();
+const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const retryAttempts = new Map<string, number>();
+let connected = true;
+const clearRetry = (eventId: string) => {
+  clearTimeout(retryTimers.get(eventId));
+  retryTimers.delete(eventId);
+};
 /** Refreshes the roll once a run ends: its photos and storage changed. */
 const settlers = new Map<string, () => Promise<unknown>>();
 const listeners = new Set<() => void>();
 /** The local file of each photo this phone added, so its frame never blanks while the roll's copy loads. */
 const localFiles = new Map<string, string>();
+
+export const ownsUploadTrays = (userId: string) => activeUserId === userId;
 
 export const localFileFor = (photoId: string): string | undefined => localFiles.get(photoId);
 
@@ -73,8 +88,26 @@ const subscribe = (listener: () => void) => {
 export const getTray = (eventId: string): Tray => trays.get(eventId) ?? EMPTY_TRAY;
 
 const setTray = (eventId: string, update: (tray: Tray) => Tray) => {
-  const next = update(getTray(eventId));
-  if (next.items.length === 0 && !next.running && next.closed === null) trays.delete(eventId);
+  let next = update(getTray(eventId));
+  delete next.storageError;
+  const snapshot = new Map(trays);
+  snapshot.set(eventId, next);
+  try {
+    if (activeUserId) persistUploadTrays(activeUserId, snapshot);
+  } catch {
+    controllers.get(eventId)?.abort();
+    requestControllers.get(eventId)?.abort();
+    next = {
+      ...next,
+      storageError: true,
+      items: next.items.map((item) =>
+        item.status.kind === "waiting" || item.status.kind === "sending"
+          ? { ...item, status: { kind: "failed", reason: "refused" } }
+          : item,
+      ),
+    };
+  }
+  if (next.items.length === 0 && !next.running && next.closed === null && !next.storageError) trays.delete(eventId);
   else trays.set(eventId, next);
   emit();
 };
@@ -103,7 +136,10 @@ const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => 
       return { ...item, status: { kind: "developed", photoId: update.photoId } };
     }
     // A cancelled file leaves the tray: it was never on the roll.
-    if (update.reason === "cancelled") return null;
+    if (update.reason === "cancelled") {
+      if (activeUserId) releaseUploadFile(activeUserId, item.uri);
+      return null;
+    }
     return { ...item, status: { kind: "failed", reason: update.reason } };
   });
 };
@@ -113,19 +149,29 @@ const run = async (eventId: string) => {
   if (getTray(eventId).running) return;
   const controller = new AbortController();
   controllers.set(eventId, controller);
+  const requests = new AbortController();
+  requestControllers.set(eventId, requests);
+  const isCurrent = () => controllers.get(eventId) === controller;
   setTray(eventId, (tray) => ({ ...tray, running: true }));
 
   try {
     for (;;) {
-      if (controller.signal.aborted) break;
+      if (!isCurrent() || controller.signal.aborted) break;
       const waiting = getTray(eventId).items.filter((item) => item.status.kind === "waiting");
       if (waiting.length === 0) break;
       await uploadEventPhotos(
         eventId,
-        waiting.map(({ uri, contentType, sizeBytes }) => ({ uri, contentType, sizeBytes })),
+        waiting.map(({ uri, contentType, sizeBytes, minted }) => ({
+          uri,
+          contentType,
+          sizeBytes,
+          resumePhotoId: minted?.photoId,
+        })),
         {
           signal: controller.signal,
+          requestSignal: requests.signal,
           onMinted: (minted) => {
+            if (!isCurrent()) return;
             mintSeq += 1;
             const seq = mintSeq;
             const ids = new Map(
@@ -141,27 +187,51 @@ const run = async (eventId: string) => {
           },
           onFile: (index, update) => {
             const item = waiting[index];
-            if (item) applyUpdate(eventId, item.key, update);
+            if (item && isCurrent()) applyUpdate(eventId, item.key, update);
           },
         },
       );
     }
   } finally {
-    controllers.delete(eventId);
+    // A cleared account's run must never settle, restart or overwrite a later run.
+    if (!isCurrent()) return;
+    let refreshed = false;
     try {
       await settlers.get(eventId)?.();
+      refreshed = true;
     } catch {
-      // The roll refreshes on its own next time; the tray still has to settle.
+      // Keep confirmed frames visible locally until a later refresh succeeds.
     }
+    if (!isCurrent()) return;
+    controllers.delete(eventId);
+    requestControllers.delete(eventId);
     // Developed frames are on the sheet now; what's left is what needs a word.
     if (trays.has(eventId)) {
       setTray(eventId, (tray) => ({
         ...tray,
         running: false,
-        items: tray.items.filter((item) => item.status.kind !== "developed"),
+        items: refreshed ? tray.items.filter((item) => item.status.kind !== "developed") : tray.items,
       }));
       // Photos picked while the roll was refreshing found it still running; they go now.
       if (getTray(eventId).items.some((item) => item.status.kind === "waiting")) void run(eventId);
+      else if (
+        connected &&
+        getTray(eventId).items.some((item) => item.status.kind === "failed" && item.status.reason === "connection")
+      ) {
+        const attempt = retryAttempts.get(eventId) ?? 0;
+        const delay = [1000, 3000, 10000][attempt];
+        if (delay !== undefined) {
+          clearRetry(eventId);
+          retryAttempts.set(eventId, attempt + 1);
+          retryTimers.set(
+            eventId,
+            setTimeout(() => {
+              retryTimers.delete(eventId);
+              if (connected) retryTray(eventId, ["connection"], true);
+            }, delay),
+          );
+        }
+      }
     }
   }
 };
@@ -174,11 +244,12 @@ const watchConnection = () => {
   watchingConnection = true;
   let wasConnected = true;
   NetInfo.addEventListener((state) => {
-    const connected = state.isConnected !== false;
+    connected = state.isConnected !== false && state.isInternetReachable !== false;
     if (connected && !wasConnected) {
       for (const [eventId, tray] of trays) {
         if (tray.items.some((item) => item.status.kind === "failed" && item.status.reason === "connection")) {
-          retryTray(eventId, ["connection"]);
+          retryAttempts.delete(eventId);
+          retryTray(eventId, ["connection"], true);
         }
       }
     }
@@ -194,28 +265,44 @@ export const addToTray = (eventId: string, items: TrayItem[], settle: () => Prom
   void run(eventId);
 };
 
-/** Sends the files that didn't take again. Only connection and refused failures can work a second time. */
-export const retryTray = (eventId: string, reasons: TrayRetryReason[] = ["connection", "refused"]) => {
+/** Sends the files that didn't take again. Connection, refusal and interruption can work a second time. */
+export const retryTray = (
+  eventId: string,
+  reasons: TrayRetryReason[] = ["connection", "refused", "interrupted"],
+  automatic = false,
+) => {
+  clearRetry(eventId);
+  if (!automatic) retryAttempts.delete(eventId);
   mapItems(eventId, (item) =>
     item.status.kind === "failed" && (reasons as string[]).includes(item.status.reason)
-      ? // A retry mints a new slot, so it gets a new photo id.
-        { ...item, status: { kind: "waiting" }, minted: undefined }
+      ? // Reconcile the prior reservation before minting again.
+        { ...item, status: { kind: "waiting" } }
       : item,
   );
   void run(eventId);
 };
 
-export type TrayRetryReason = "connection" | "refused";
+export type TrayRetryReason = "connection" | "refused" | "interrupted";
 
 /** "Cancel the rest": stops what's sending and drops what hasn't gone. */
 export const cancelTray = (eventId: string) => {
+  clearRetry(eventId);
+  retryAttempts.delete(eventId);
   controllers.get(eventId)?.abort();
-  mapItems(eventId, (item) => (item.status.kind === "waiting" ? null : item));
+  mapItems(eventId, (item) => {
+    if (item.status.kind !== "waiting") return item;
+    if (activeUserId) releaseUploadFile(activeUserId, item.uri);
+    return null;
+  });
 };
 
 /** Takes one file off the tray: a rejected one (08.5), or one that won't go. */
 export const removeFromTray = (eventId: string, key: string) =>
-  mapItems(eventId, (item) => (item.key === key ? null : item));
+  mapItems(eventId, (item) => {
+    if (item.key !== key) return item;
+    if (activeUserId) releaseUploadFile(activeUserId, item.uri);
+    return null;
+  });
 
 /** 08.8 "Ok": the files the closed roll refused leave the tray. */
 export const dismissClosed = (eventId: string) =>
@@ -227,127 +314,61 @@ export const dismissClosed = (eventId: string) =>
 
 /** Sign-out: nothing one account picked may carry on for the next. */
 export const clearUploadTrays = () => {
+  const oldUserId = activeUserId;
+  activeUserId = null;
+  retryTimers.forEach(clearTimeout);
+  retryTimers.clear();
+  retryAttempts.clear();
   controllers.forEach((controller) => controller.abort());
   controllers.clear();
+  requestControllers.forEach((controller) => controller.abort());
+  requestControllers.clear();
   settlers.clear();
   trays.clear();
   localFiles.clear();
+  if (oldUserId) removeUploadStorage(oldUserId);
   emit();
+};
+
+/** Restore only the authenticated account; interrupted jobs wait for explicit Retry. */
+export const activateUploadTrays = (userId: string, settle: (eventId: string) => Promise<unknown>) => {
+  if (activeUserId === userId) return;
+  clearUploadTrays();
+  activeUserId = userId;
+  for (const [eventId, tray] of restoreUploadTrays(userId)) {
+    trays.set(eventId, tray);
+    mintSeq = Math.max(mintSeq, ...tray.items.map((item) => item.minted?.seq ?? 0));
+    settlers.set(eventId, () => settle(eventId));
+  }
+  watchConnection();
+  emit();
+};
+
+/** A completed server photo wins over a stale local failure after a lost response. */
+export const reconcileTrayPhotos = (eventId: string, photos: Pick<PhotoResponseDto, "id">[]) => {
+  const ready = new Set(photos.map((photo) => photo.id));
+  const tray = getTray(eventId);
+  if (!tray.items.some((entry) => entry.minted && ready.has(entry.minted.photoId))) return;
+  mapItems(eventId, (entry) => {
+    if (
+      !entry.minted ||
+      !ready.has(entry.minted.photoId) ||
+      entry.status.kind === "sending" ||
+      entry.status.kind === "waiting"
+    )
+      return entry;
+    localFiles.set(entry.minted.photoId, entry.uri);
+    return null;
+  });
+};
+
+export const releaseLocalFile = (photoId: string) => {
+  const uri = localFiles.get(photoId);
+  if (uri && activeUserId) releaseUploadFile(activeUserId, uri);
+  localFiles.delete(photoId);
 };
 
 onAccountCleared(clearUploadTrays);
 
 export const useUploadTray = (eventId: string | undefined): Tray =>
   useSyncExternalStore(subscribe, () => (eventId ? getTray(eventId) : EMPTY_TRAY));
-
-/** What the tray adds up to, for the line over the shutter and the tray's title. */
-export type TraySummary = {
-  /** Files that can go: everything but the rejected. */
-  sendable: number;
-  developed: number;
-  /** Waiting or sending. */
-  inFlight: number;
-  /** Failed for a reason retrying can fix. */
-  retryable: number;
-  /** Of those, failed because the connection dropped. */
-  offline: number;
-  noRoom: number;
-  closed: number;
-  rejected: number;
-};
-
-export const summarizeTray = (tray: Tray): TraySummary => {
-  const summary: TraySummary = {
-    sendable: 0,
-    developed: 0,
-    inFlight: 0,
-    retryable: 0,
-    offline: 0,
-    noRoom: 0,
-    closed: 0,
-    rejected: 0,
-  };
-  for (const { status } of tray.items) {
-    if (status.kind === "rejected") {
-      summary.rejected += 1;
-      continue;
-    }
-    summary.sendable += 1;
-    if (status.kind === "developed") summary.developed += 1;
-    else if (status.kind === "waiting" || status.kind === "sending") summary.inFlight += 1;
-    else if (status.reason === "noRoom") summary.noRoom += 1;
-    else if (status.reason === "closed") summary.closed += 1;
-    else {
-      summary.retryable += 1;
-      if (status.reason === "connection") summary.offline += 1;
-    }
-  }
-  return summary;
-};
-
-/** How far a file has developed, from 0 (just picked) to 1 (on the roll). */
-export const developedAmount = (item: TrayItem): number => {
-  const { status } = item;
-  if (status.kind === "developed") return 1;
-  if (status.kind === "sending") return item.sizeBytes > 0 ? Math.min(0.9, status.bytesSent / item.sizeBytes) : 0;
-  return 0;
-};
-
-/** A picked photo on the sheet before it's on the roll (08.2, 08.4, 08.8). */
-export type DevelopingFrame = {
-  item: TrayItem;
-  /** The number it takes on the roll, after the frames already there. */
-  number: number;
-  /** 0 (just picked) to 1 (developed). */
-  develop: number;
-  /** It didn't make it: crossed out where it was. */
-  crossed: boolean;
-};
-
-/**
- * The roll lists photos newest first: a later mint first, and within one mint
- * (one timestamp) by id, descending. Files not minted yet will be newer still.
- */
-const sheetOrder = (a: TrayItem, b: TrayItem): number => {
-  if (!a.minted || !b.minted) return (a.minted ? 1 : 0) - (b.minted ? 1 : 0);
-  if (a.minted.seq !== b.minted.seq) return b.minted.seq - a.minted.seq;
-  return a.minted.photoId < b.minted.photoId ? 1 : a.minted.photoId > b.minted.photoId ? -1 : 0;
-};
-
-/**
- * The tray's photos at the top of the sheet, in the order the roll will list
- * them once they land, until the roll's own photos include them. Rejected
- * files never reach the sheet.
- */
-export const developingFrames = (
-  items: TrayItem[],
-  photos: Pick<PhotoResponseDto, "id">[],
-  frameCount: number,
-): DevelopingFrame[] => {
-  const onRoll = new Set(photos.map((photo) => photo.id));
-  const pending = items
-    .filter(({ status }) => status.kind !== "rejected" && !(status.kind === "developed" && onRoll.has(status.photoId)))
-    .sort(sheetOrder);
-  return pending.map((item, index) => ({
-    item,
-    number: frameCount + pending.length - index,
-    develop: developedAmount(item),
-    crossed: item.status.kind === "failed",
-  }));
-};
-
-/** A file in the tray with the frame number it has, or will have, on the roll. */
-export type TrayEntry = { item: TrayItem; number: number | null; develop: number };
-
-/** 08.3 / 08.5: every file in the tray, numbered as on the sheet. One already on the roll keeps its number there. */
-export const trayEntries = (items: TrayItem[], photos: Pick<PhotoResponseDto, "id">[]): TrayEntry[] => {
-  const frames = new Map(developingFrames(items, photos, photos.length).map((frame) => [frame.item.key, frame]));
-  return items.map((item) => {
-    const frame = frames.get(item.key);
-    if (frame) return { item, number: frame.number, develop: frame.develop };
-    const { status } = item;
-    // The roll lists photos newest first.
-    const index = status.kind === "developed" ? photos.findIndex((photo) => photo.id === status.photoId) : -1;
-    return index === -1 ? { item, number: null, develop: 0 } : { item, number: photos.length - index, develop: 1 };
-  });
-};

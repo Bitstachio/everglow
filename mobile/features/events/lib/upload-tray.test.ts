@@ -1,17 +1,16 @@
+import { developedAmount, developingFrames, summarizeTray, trayEntries } from "./upload-tray-view";
 import type { EventPhotoFile, EventPhotoUpdate } from "../api/upload-event-photos";
 import {
   addToTray,
+  activateUploadTrays,
+  reconcileTrayPhotos,
   cancelTray,
   clearUploadTrays,
-  developedAmount,
-  developingFrames,
   dismissClosed,
   getTray,
   localFileFor,
   removeFromTray,
   retryTray,
-  summarizeTray,
-  trayEntries,
   type TrayItem,
 } from "./upload-tray";
 import { runAccountCleared } from "@/lib/account-cleared";
@@ -23,8 +22,18 @@ type Upload = (
     onFile: (index: number, update: EventPhotoUpdate) => void;
     onMinted: (minted: { index: number; photoId: string }[]) => void;
     signal: AbortSignal;
+    requestSignal: AbortSignal;
   },
 ) => Promise<unknown>;
+
+const mockRestore = jest.fn(() => new Map());
+const mockPersist = jest.fn();
+jest.mock("./upload-tray-storage", () => ({
+  restoreUploadTrays: () => mockRestore(),
+  persistUploadTrays: (...args: unknown[]) => mockPersist(...args),
+  releaseUploadFile: jest.fn(),
+  removeUploadStorage: jest.fn(),
+}));
 
 const mockUpload = jest.fn<ReturnType<Upload>, Parameters<Upload>>();
 let mockConnectionListener: ((state: { isConnected: boolean }) => void) | null = null;
@@ -60,7 +69,9 @@ const flush = () => new Promise<void>((resolve) => setImmediate(() => resolve())
 beforeEach(() => {
   clearUploadTrays();
   mockUpload.mockReset().mockImplementation(developAll);
-  settle.mockClear();
+  settle.mockReset().mockResolvedValue(undefined);
+  mockPersist.mockReset();
+  mockRestore.mockReset().mockReturnValue(new Map());
 });
 
 test("sends what can go, refreshes the roll, then drops the developed frames", async () => {
@@ -246,4 +257,94 @@ describe("trayEntries", () => {
       { key: "b", number: 3, develop: 0.5 },
     ]);
   });
+});
+
+test("late updates from a cleared account cannot change its replacement tray", async () => {
+  let finishOld: () => void = () => undefined;
+  mockUpload.mockImplementationOnce(
+    (_eventId, _files, { onFile }) =>
+      new Promise<void>((resolve) => {
+        finishOld = () => {
+          onFile(0, { kind: "failed", reason: "closed" });
+          resolve();
+        };
+      }),
+  );
+  addToTray("event-1", [item("old")], settle);
+  runAccountCleared();
+  expect(mockUpload.mock.calls[0]![2].requestSignal.aborted).toBe(true);
+  const settleNew = jest.fn().mockResolvedValue(undefined);
+  mockUpload.mockImplementationOnce(() => new Promise(() => undefined));
+  addToTray("event-1", [item("new")], settleNew);
+  finishOld();
+  await flush();
+  expect(getTray("event-1")).toEqual({ items: [item("new")], running: true, closed: null });
+  expect(settleNew).not.toHaveBeenCalled();
+  cancelTray("event-1");
+  expect(mockUpload.mock.calls[1]![2].signal.aborted).toBe(true);
+});
+
+test("retains confirmed frames if refreshing the roll fails", async () => {
+  settle.mockRejectedValueOnce(new Error("Offline"));
+  addToTray("event-1", [item("a")], settle);
+  await flush();
+  expect(getTray("event-1").items[0]?.status).toEqual({ kind: "developed", photoId: "file://a.jpg" });
+  expect(getTray("event-1").running).toBe(false);
+});
+
+test("restores interrupted photos for the signed-in account without silently starting them", async () => {
+  const interrupted = {
+    ...item("restored", { kind: "failed" as const, reason: "interrupted" as const }),
+    minted: { photoId: "previous", seq: 1 },
+  };
+  mockRestore.mockReturnValueOnce(new Map([["event-1", { items: [interrupted], running: false, closed: null }]]));
+  activateUploadTrays("account-a", settle);
+  expect(getTray("event-1").items[0]).toEqual(interrupted);
+  expect(mockUpload).not.toHaveBeenCalled();
+  retryTray("event-1");
+  await flush();
+  expect(mockUpload.mock.calls[0]![1][0]).toMatchObject({ resumePhotoId: "previous" });
+});
+
+test("a photo already on the server clears a stale recovered failure", () => {
+  const recovered = {
+    ...item("restored", { kind: "failed" as const, reason: "interrupted" as const }),
+    minted: { photoId: "ready", seq: 1 },
+  };
+  mockRestore.mockReturnValueOnce(new Map([["event-1", { items: [recovered], running: false, closed: null }]]));
+  activateUploadTrays("account-a", settle);
+  reconcileTrayPhotos("event-1", [{ id: "ready" }]);
+  expect(getTray("event-1").items).toEqual([]);
+  expect(mockUpload).not.toHaveBeenCalled();
+});
+
+test("bounds automatic connection retries and clears scheduled work on sign-out", async () => {
+  jest.useFakeTimers();
+  try {
+    mockConnectionListener?.({ isConnected: true });
+    mockUpload.mockImplementation(async (_eventId, _files, { onFile }) =>
+      onFile(0, { kind: "failed", reason: "connection" }),
+    );
+    addToTray("event-1", [item("a")], settle);
+    await jest.advanceTimersByTimeAsync(20000);
+    expect(mockUpload).toHaveBeenCalledTimes(4);
+    expect(getTray("event-1").items[0]?.status).toEqual({ kind: "failed", reason: "connection" });
+    runAccountCleared();
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(mockUpload).toHaveBeenCalledTimes(4);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test("does not send jobs when their durable state cannot be written", async () => {
+  activateUploadTrays("account-a", settle);
+  mockPersist.mockImplementation(() => {
+    throw new Error("Disk full");
+  });
+  addToTray("event-1", [item("a")], settle);
+  await flush();
+  expect(mockUpload).not.toHaveBeenCalled();
+  expect(getTray("event-1").storageError).toBe(true);
+  expect(getTray("event-1").items[0]?.status).toEqual({ kind: "failed", reason: "refused" });
 });

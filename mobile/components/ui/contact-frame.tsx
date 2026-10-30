@@ -15,6 +15,7 @@ type ContactFrameProps = Omit<PressableProps, "children"> & {
    * a photo just added whose thumbnail isn't written yet.
    */
   placeholderUri?: string;
+  onPreviewReady?: () => void;
   /** The frame number on the roll. */
   number: number;
   /** Who took it, printed after the number. */
@@ -52,6 +53,7 @@ export const ContactFrame = ({
   uri,
   cacheKey,
   placeholderUri,
+  onPreviewReady,
   number,
   by,
   selected = false,
@@ -86,6 +88,7 @@ export const ContactFrame = ({
           <RetryingPhoto
             testID="contact-frame-photo"
             uri={uri}
+            onDisplay={onPreviewReady}
             cacheKey={cacheKey}
             contentFit="cover"
             blurRadius={developing ? developLook(amount).blurRadius : undefined}
@@ -99,6 +102,15 @@ export const ContactFrame = ({
             />
           ) : null}
           {crossed ? <View testID="frame-crossed" className="absolute inset-0 bg-scrim" /> : null}
+          {crossed ? (
+            <View
+              testID="frame-upload-error"
+              accessibilityElementsHidden
+              className="absolute right-1 top-1 rounded-full bg-ground px-2 py-1"
+            >
+              <EdgePrint tone="text">!</EdgePrint>
+            </View>
+          ) : null}
         </View>
         {crossed && size > 0 ? (
           <View className="absolute inset-0">

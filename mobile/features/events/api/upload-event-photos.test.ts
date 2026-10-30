@@ -238,7 +238,7 @@ test("retries a confirm whose response was lost, and counts the batch as failed 
   await expect(uploadEventPhotos("event-1", photoFiles(2), { put })).resolves.toEqual({
     total: 2,
     uploaded: 0,
-    error: null,
+    error: expect.any(Error),
   });
 });
 
@@ -279,3 +279,79 @@ describe("putEventPhoto", () => {
     expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "refused" }]);
   });
 });
+
+test("cancelling during a rate-limit wait stops retries and reports cancellation", async () => {
+  const controller = new AbortController();
+  mockCreateUploadUrls.mockRejectedValueOnce(createApiError("Slow down", { status: 429, retryAfterSeconds: 60 }));
+  const onFile = jest.fn();
+  const sleep = jest.fn(async () => {
+    controller.abort();
+  });
+  await uploadEventPhotos("event-1", photoFiles(2), { sleep, put, onFile, signal: controller.signal });
+  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
+  expect(lastUpdates(onFile)).toEqual([
+    { kind: "failed", reason: "cancelled" },
+    { kind: "failed", reason: "cancelled" },
+  ]);
+});
+
+test("ending the owning session never confirms a late completed PUT", async () => {
+  const session = new AbortController();
+  put.mockImplementationOnce(async () => {
+    session.abort();
+  });
+  await uploadEventPhotos("event-1", photoFiles(1), { put, requestSignal: session.signal });
+  expect(mockConfirmUploads).not.toHaveBeenCalled();
+});
+
+test("Cancel interrupts the real rate-limit timer without waiting for Retry-After", async () => {
+  const controller = new AbortController();
+  const started = new Promise<void>((resolve) => {
+    mockCreateUploadUrls.mockImplementationOnce(async () => {
+      resolve();
+      throw createApiError("Slow down", { status: 429, retryAfterSeconds: 60 });
+    });
+  });
+  const run = uploadEventPhotos("event-1", photoFiles(1), { put, signal: controller.signal });
+  await started;
+  await Promise.resolve();
+  controller.abort();
+  await expect(run).resolves.toMatchObject({ uploaded: 0 });
+  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
+});
+
+test("reconciles an interrupted upload without creating a duplicate reservation", async () => {
+  const onFile = jest.fn();
+  const files = photoFiles(1).map((file) => ({ ...file, resumePhotoId: "already-ready" }));
+  await expect(uploadEventPhotos("event-1", files, { onFile, put })).resolves.toMatchObject({ uploaded: 1 });
+  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+  expect(put).not.toHaveBeenCalled();
+  expect(onFile).toHaveBeenCalledWith(0, { kind: "developed", photoId: "already-ready" });
+});
+
+test("keeps an uncertain confirmation recoverable without minting duplicates", async () => {
+  mockConfirmUploads.mockRejectedValue(new TypeError("Offline"));
+  const onFile = jest.fn();
+  await uploadEventPhotos(
+    "event-1",
+    photoFiles(1).map((file) => ({ ...file, resumePhotoId: "pending" })),
+    { put, onFile },
+  );
+  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+  expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "connection" }]);
+});
+
+test.each(["MISSING", "NOT_FOUND", "MISMATCHED"])(
+  "mints again only after an explicit %s confirmation verdict",
+  async (status) => {
+    mockConfirmUploads.mockResolvedValueOnce({ data: { data: [{ photoId: "previous", status }] } });
+    await expect(
+      uploadEventPhotos(
+        "event-1",
+        photoFiles(1).map((file) => ({ ...file, resumePhotoId: "previous" })),
+        { put },
+      ),
+    ).resolves.toMatchObject({ uploaded: 1 });
+    expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
+  },
+);

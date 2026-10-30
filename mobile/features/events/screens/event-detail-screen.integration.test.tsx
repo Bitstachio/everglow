@@ -2,7 +2,7 @@ import "../testing/native-mocks";
 // The integration harness supplies the real data provider and observes native services.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
 import EventDetailScreen from "./event-detail-screen";
@@ -11,6 +11,8 @@ import { buildEvent, buildParticipant, buildPhoto, deferred } from "../testing/f
 // eslint-disable-next-line no-restricted-imports
 import { eventsKeys } from "../api/keys";
 import { createApiError } from "@/lib/api/errors";
+import UploadTrayScreen from "./upload-tray-screen";
+import { addToTray, activateUploadTrays } from "../lib/upload-tray";
 import { runAccountCleared } from "@/lib/account-cleared";
 
 const mockFindOne = jest.fn();
@@ -72,6 +74,13 @@ jest.mock("expo-media-library", () => ({
   createAssetAsync: () => {
     throw new Error("Use Asset.create instead");
   },
+}));
+jest.mock("../lib/upload-tray-storage", () => ({
+  retainUploadFiles: async (_userId: string, items: unknown[]) => items,
+  persistUploadTrays: jest.fn(),
+  restoreUploadTrays: () => new Map(),
+  releaseUploadFile: jest.fn(),
+  removeUploadStorage: jest.fn(),
 }));
 jest.mock("expo-file-system", () => ({
   Paths: { cache: "file://cache" },
@@ -181,6 +190,7 @@ beforeEach(() => {
   mockFileSize.mockReset().mockReturnValue(IMAGE_BYTES.length);
   mockUploadAsync.mockReset().mockResolvedValue({ status: 200, body: "", headers: {} });
   runAccountCleared();
+  activateUploadTrays("user-1", async () => undefined);
   mockRemovePhoto.mockReset().mockResolvedValue({});
   mockBack.mockReset();
   mockReplace.mockReset();
@@ -469,6 +479,7 @@ describe("adding photos (08)", () => {
         path: { eventId: "event-1" },
         // The file's size on disk, not the picker's fileSize.
         body: { files: [{ contentType: "image/jpeg", sizeBytes: IMAGE_BYTES.length }] },
+        signal: expect.any(Object),
         throwOnError: true,
       }),
     );
@@ -477,6 +488,7 @@ describe("adding photos (08)", () => {
       expect(mockConfirmUploads).toHaveBeenCalledWith({
         path: { eventId: "event-1" },
         body: { photoIds: ["photo-2"] },
+        signal: expect.any(Object),
         throwOnError: true,
       }),
     );
@@ -560,8 +572,9 @@ describe("adding photos (08)", () => {
     expect(await screen.findByText("1 didn’t take · offline")).toBeOnTheScreen();
     expect(screen.getByLabelText("Frame 2, didn’t take")).toBeOnTheScreen();
 
+    mockConfirmUploads.mockResolvedValueOnce({ data: { data: [{ photoId: "photo-2", status: "MISSING" }] } });
     await user.press(screen.getByRole("button", { name: "Send them again" }));
-    await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalledTimes(2));
     expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.queryByText(/didn’t take/)).not.toBeOnTheScreen());
   });
@@ -585,6 +598,7 @@ describe("adding photos (08)", () => {
       expect(mockCreateUploadUrls).toHaveBeenCalledWith({
         path: { eventId: "event-1" },
         body: { files: [{ contentType: "image/jpeg", sizeBytes: IMAGE_BYTES.length }] },
+        signal: expect.any(Object),
         throwOnError: true,
       }),
     );
@@ -626,8 +640,11 @@ describe("adding photos (08)", () => {
     expect(await screen.findByText("No room for these.")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: /^Send/ })).not.toBeOnTheScreen();
     await user.press(screen.getByRole("button", { name: "Pick again" }));
-    // Not over the closing sheet: iOS would take the picker down with it.
+    // A finished JS animation is not proof that iOS dismissed its native modal.
+    const nativeDismiss = screen.getByTestId("roll-dialog", { includeHiddenElements: true }).props.onDismiss;
+    await waitFor(() => expect(screen.queryByTestId("roll-dialog", { includeHiddenElements: true })).toBeNull());
     expect(mockLaunchLibrary).toHaveBeenCalledTimes(1);
+    await act(async () => nativeDismiss());
     await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalledTimes(2));
     expect(mockCreateUploadUrls).not.toHaveBeenCalled();
   });
@@ -686,6 +703,7 @@ describe("adding photos (08)", () => {
       expect(mockCreateUploadUrls).toHaveBeenCalledWith({
         path: { eventId: "event-1" },
         body: { files: [{ contentType: "image/heic", sizeBytes: IMAGE_BYTES.length }] },
+        signal: expect.any(Object),
         throwOnError: true,
       }),
     );
@@ -977,4 +995,39 @@ test("pull-to-refresh reloads the roll", async () => {
   await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
   pending.resolve({ data: { data: openEvent({ title: "Refreshed meetup" }) } });
   expect(await screen.findByText("Refreshed meetup")).toBeOnTheScreen();
+});
+
+test.each([
+  ["suspended", { status: "SUSPENDED" as const }],
+  ["closed", { galleryState: "CLOSED" as const }],
+  ["upcoming", { galleryState: "UPCOMING" as const }],
+])("the %s roll's tray never requests or displays cached or local photo previews", async (_name, state) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const event = openEvent(state);
+  mockFindOne.mockResolvedValue({ data: { data: event } });
+  client.setQueryData(eventsKeys.detail("event-1"), event);
+  client.setQueryData(eventsKeys.photos("event-1"), oneFrame);
+  addToTray(
+    "event-1",
+    [
+      {
+        key: "local",
+        name: "Local",
+        uri: "file://private.jpg",
+        contentType: "image/jpeg",
+        sizeBytes: 3,
+        status: { kind: "failed", reason: "interrupted" },
+      },
+    ],
+    async () => undefined,
+  );
+  await render(
+    <QueryClientProvider client={client}>
+      <UploadTrayScreen />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("Local")).toBeOnTheScreen();
+  expect(mockListPhotos).not.toHaveBeenCalled();
+  expect(screen.queryAllByTestId("tray-strip-photo", { includeHiddenElements: true })).toHaveLength(0);
 });

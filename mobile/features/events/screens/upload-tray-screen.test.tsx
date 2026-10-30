@@ -2,7 +2,8 @@ import { renderWithI18n } from "@/testing/render";
 import { screen, userEvent } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import type { TrayEntry, TrayItem } from "../lib/upload-tray";
+import type { TrayItem } from "../lib/upload-tray";
+import type { TrayEntry } from "../lib/upload-tray-view";
 import UploadTrayScreen from "./upload-tray-screen";
 
 const mockHide = jest.fn();
@@ -18,7 +19,7 @@ jest.mock("../hooks/use-upload-tray-screen", () => ({
     title: "Sam & Jo’s wedding",
     entries: mockEntries,
     summary: jest
-      .requireActual<typeof import("../lib/upload-tray")>("../lib/upload-tray")
+      .requireActual<typeof import("../lib/upload-tray-view")>("../lib/upload-tray-view")
       .summarizeTray({ items: mockEntries.map((entry) => entry.item), running: false, closed: null }),
     onHide: mockHide,
     onCancelRest: mockCancelRest,
@@ -102,8 +103,8 @@ test("offers Retry for files that didn't take, not Cancel", async () => {
   expect(mockRetry).toHaveBeenCalled();
 });
 
-test("an empty tray says everything's on the roll", async () => {
+test("an empty tray does not claim cancelled photos were uploaded", async () => {
   mockEntries = [];
   await renderScreen();
-  expect(title()).toHaveTextContent("The tray is empty.\nEverything’s on the roll.");
+  expect(title()).toHaveTextContent("The tray is empty.\nNothing waiting here.");
 });

@@ -42,7 +42,7 @@ import {
   type SheetFrame,
 } from "../lib/roll-page";
 import { formatClosedOn, formatOpensOn } from "../lib/rolls";
-import type { DevelopingFrame } from "../lib/upload-tray";
+import type { DevelopingFrame } from "../lib/upload-tray-view";
 import { formatEventStorage, formatStorageBytes } from "../utils";
 
 // Room under the sheet so the last row clears the shutter.
@@ -349,6 +349,7 @@ const EventDetailScreen = () => {
           uri={item.frame.photo.thumbnailUrl}
           cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
+          onPreviewReady={() => screen.onPreviewReady(item.frame.photo.id)}
           number={item.frame.number}
           by={item.frame.by ?? undefined}
           isNew={item.frame.isNew}
@@ -484,7 +485,12 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
   return (
     <>
-      <BottomSheet visible={screen.sheet !== null} onClose={screen.onCloseSheet} onClosed={screen.onSheetClosed}>
+      <BottomSheet
+        testID="roll-dialog"
+        visible={screen.sheet !== null}
+        onClose={screen.onCloseSheet}
+        onClosed={screen.onSheetClosed}
+      >
         {screen.sheet === "closedSending" && closed ? (
           // 08.8: the gallery closed while photos were sending. There's no Retry.
           <Slip

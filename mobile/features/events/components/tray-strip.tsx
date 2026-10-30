@@ -19,6 +19,7 @@ export const TrayStrip = ({ frames }: { frames: TrayStripFrame[] }) => (
         return (
           <View key={frame.key} className="aspect-11/9 flex-1 overflow-hidden rounded-frame bg-frame-empty">
             <Photo
+              testID="tray-strip-photo"
               source={{ uri: frame.uri }}
               contentFit="cover"
               blurRadius={look.blurRadius || undefined}

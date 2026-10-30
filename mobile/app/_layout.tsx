@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryProvider } from "@/providers/query-provider";
+import { UploadTrayProvider } from "@/features/events/providers/upload-tray-provider";
 import { AppThemeProvider } from "@/theme/provider";
 import "./global.css";
 
@@ -17,6 +18,7 @@ const RootLayout = () => (
     {/* Above AuthProvider, which clears the cache whenever the account signs out. */}
     <QueryProvider>
       <AuthProvider>
+        <UploadTrayProvider />
         <AppThemeProvider>
           <RootNavigator />
           <StatusBar style="light" />

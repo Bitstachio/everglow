@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   eventsControllerConfirmCoverUpload,
@@ -150,11 +151,14 @@ export const useRemoveEventParticipantMutation = (eventId: string) => {
 export const useRefreshRollAfterUpload = () => {
   const queryClient = useQueryClient();
 
-  return (eventId: string) =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }),
-      queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }),
-    ]);
+  return useCallback(
+    (eventId: string) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }, { throwOnError: true }),
+        queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }, { throwOnError: true }),
+      ]),
+    [queryClient],
+  );
 };
 
 type DeleteEventPhotoInput = {

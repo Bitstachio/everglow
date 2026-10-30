@@ -24,6 +24,8 @@ export type EventPhotoFile = {
   contentType: UploadFileDto["contentType"];
   /** The exact length of the file's bytes: the upload URL is signed for it. */
   sizeBytes: number;
+  /** Check this prior reservation before minting another after interruption. */
+  resumePhotoId?: string;
 };
 
 /**
@@ -34,7 +36,14 @@ export type EventPhotoFile = {
  * - closed: the gallery closed while it was sending (EVENT_GALLERY_CLOSED)
  * - cancelled: "Cancel the rest" stopped it
  */
-export type EventPhotoFailure = "connection" | "refused" | "noRoom" | "closed" | "cancelled";
+export type EventPhotoFailure =
+  | "connection"
+  | "refused"
+  | "noRoom"
+  | "closed"
+  | "interrupted"
+  | "missing"
+  | "cancelled";
 
 /** What happened to one file, by its index in the list passed in. */
 export type EventPhotoUpdate =
@@ -67,16 +76,37 @@ type UploadEventPhotosOptions = {
   onMinted?: (minted: { index: number; photoId: string }[]) => void;
   /** Aborting stops the files in flight and leaves the rest unsent. */
   signal?: AbortSignal;
+  /** Aborts all API work when the owning session ends, including landed-file confirmation. */
+  requestSignal?: AbortSignal;
   /** Waits out a 429; replaced in tests. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** Sends one file; replaced in tests. */
   put?: PutEventPhoto;
 };
 
-const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const checkAborted = (signal?: AbortSignal) => {
+  if (signal?.aborted) throw new Error("Upload cancelled");
+};
+
+const defaultSleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    checkAborted(signal);
+    const finish = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    const abort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(new Error("Upload cancelled"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 
 /** Thrown when the PUT got an answer and it was a refusal, so it isn't a lost connection. */
 class RefusedUpload extends Error {}
+class MissingUploadFile extends Error {}
 
 /**
  * Streams the file from disk with byte progress. iOS keeps the transfer going
@@ -85,12 +115,14 @@ class RefusedUpload extends Error {}
 export const putEventPhoto: PutEventPhoto = async (file, slot, { onBytes, signal }) => {
   if (slot.expiresAt && Date.parse(slot.expiresAt) <= Date.now()) throw new RefusedUpload("Upload link expired");
   const source = new File(file.uri);
+  if (source.exists === false) throw new MissingUploadFile("Local photo is no longer available");
   // The URL is signed for an exact Content-Length: bytes that changed since
   // they were measured would be refused by storage anyway.
   if (source.size !== file.sizeBytes) throw new RefusedUpload("File changed since it was measured");
 
   const task = new UploadTask(source, slot.uploadUrl, {
     httpMethod: "PUT",
+    sessionType: "background",
     uploadType: UploadType.BINARY_CONTENT,
     headers: { "Content-Type": file.contentType },
     mimeType: file.contentType,
@@ -105,6 +137,7 @@ const failureFor = (error: unknown): EventPhotoFailure => {
   const code = getErrorCode(error);
   if (code === "EVENT_GALLERY_CLOSED") return "closed";
   if (code === "EVENT_STORAGE_LIMIT_REACHED") return "noRoom";
+  if (error instanceof MissingUploadFile) return "missing";
   if (error instanceof RefusedUpload) return "refused";
   if (isApiError(error)) return isConnectionError(error) ? "connection" : "refused";
   // A PUT or fetch that never got an answer.
@@ -123,27 +156,34 @@ const toList = <T>(raw: T | T[] | null | undefined): T[] => (Array.isArray(raw) 
 const mintSlots = async (
   eventId: string,
   files: EventPhotoFile[],
-  sleep: (ms: number) => Promise<void>,
+  sleep: (ms: number, signal?: AbortSignal) => Promise<void>,
+  signal?: AbortSignal,
+  requestSignal?: AbortSignal,
 ): Promise<UploadSlotResponseDto[]> => {
   let conflictRetried = false;
   let rateLimitWaits = 0;
 
   for (;;) {
+    checkAborted(signal);
+    checkAborted(requestSignal);
     try {
       const { data } = await photosControllerCreateUploadUrls({
         path: { eventId },
         body: { files: files.map(({ contentType, sizeBytes }) => ({ contentType, sizeBytes })) },
+        signal: requestSignal ?? signal,
         throwOnError: true,
       });
       return toList(unwrapEnvelope(data));
     } catch (error) {
+      checkAborted(signal);
+      checkAborted(requestSignal);
       if (getErrorCode(error) === "STORAGE_RESERVATION_CONFLICT" && !conflictRetried) {
         conflictRetried = true;
         continue;
       }
       if (isApiError(error) && error.status === 429 && rateLimitWaits < MAX_RATE_LIMIT_WAITS) {
         rateLimitWaits += 1;
-        await sleep((error.retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS) * 1000);
+        await sleep((error.retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS) * 1000, signal);
         continue;
       }
       throw error;
@@ -152,11 +192,17 @@ const mintSlots = async (
 };
 
 /** Confirm is idempotent, so a lost response is retried once. Ids it cannot confirm count as failed. */
-const confirmSlots = async (eventId: string, photoIds: string[]): Promise<ConfirmPhotoResultDto[]> => {
+const confirmSlots = async (
+  eventId: string,
+  photoIds: string[],
+  signal?: AbortSignal,
+): Promise<ConfirmPhotoResultDto[]> => {
   const confirm = async () => {
+    checkAborted(signal);
     const { data } = await photosControllerConfirmUploads({
       path: { eventId },
       body: { photoIds },
+      signal,
       throwOnError: true,
     });
     return toList(unwrapEnvelope(data));
@@ -165,7 +211,7 @@ const confirmSlots = async (eventId: string, photoIds: string[]): Promise<Confir
   try {
     return await confirm();
   } catch {
-    return confirm().catch(() => []);
+    return confirm();
   }
 };
 
@@ -189,10 +235,10 @@ const runPooled = async (tasks: (() => Promise<void>)[], concurrency: number) =>
  * fails after its retries stops the upload, since every later batch would be
  * refused the same way (a full or closed gallery).
  */
-export const uploadEventPhotos = async (
+const uploadFreshEventPhotos = async (
   eventId: string,
   files: EventPhotoFile[],
-  { onFile, onMinted, signal, sleep = defaultSleep, put = putEventPhoto }: UploadEventPhotosOptions = {},
+  { onFile, onMinted, signal, requestSignal, sleep = defaultSleep, put = putEventPhoto }: UploadEventPhotosOptions = {},
 ): Promise<EventPhotoUploadResult> => {
   const total = files.length;
   let uploaded = 0;
@@ -209,9 +255,9 @@ export const uploadEventPhotos = async (
 
     let slots: UploadSlotResponseDto[];
     try {
-      slots = await mintSlots(eventId, batch, sleep);
+      slots = await mintSlots(eventId, batch, sleep, signal, requestSignal);
     } catch (error) {
-      failFrom(start, failureFor(error));
+      failFrom(start, signal?.aborted || requestSignal?.aborted ? "cancelled" : failureFor(error));
       return { total, uploaded, error };
     }
     onMinted?.(slots.slice(0, batch.length).map((slot, offset) => ({ index: start + offset, photoId: slot.photoId })));
@@ -240,15 +286,68 @@ export const uploadEventPhotos = async (
       PUT_CONCURRENCY,
     );
 
-    if (landed.size > 0) {
-      const results = await confirmSlots(eventId, [...landed.keys()]);
-      const ready = new Set(results.filter((result) => result.status === "READY").map((result) => result.photoId));
-      uploaded += ready.size;
-      for (const [photoId, index] of landed) {
-        onFile?.(index, ready.has(photoId) ? { kind: "developed", photoId } : { kind: "failed", reason: "refused" });
+    if (landed.size > 0 && !requestSignal?.aborted) {
+      try {
+        const results = await confirmSlots(eventId, [...landed.keys()], requestSignal);
+        const ready = new Set(results.filter((result) => result.status === "READY").map((result) => result.photoId));
+        uploaded += ready.size;
+        for (const [photoId, index] of landed) {
+          onFile?.(index, ready.has(photoId) ? { kind: "developed", photoId } : { kind: "failed", reason: "refused" });
+        }
+      } catch (error) {
+        for (const index of landed.values()) onFile?.(index, { kind: "failed", reason: failureFor(error) });
+        failFrom(start + batch.length, failureFor(error));
+        return { total, uploaded, error };
       }
     }
   }
 
   return { total, uploaded, error: null };
+};
+
+/** Reconcile an interrupted reservation first: confirm is idempotent, mint is not. */
+export const uploadEventPhotos = async (
+  eventId: string,
+  files: EventPhotoFile[],
+  options: UploadEventPhotosOptions = {},
+): Promise<EventPhotoUploadResult> => {
+  const pending: number[] = [];
+  let uploaded = 0;
+  const resumed = files.flatMap((file, index) => (file.resumePhotoId ? [{ index, photoId: file.resumePhotoId }] : []));
+  for (let start = 0; start < resumed.length; start += PHOTO_UPLOAD_BATCH_SIZE) {
+    const batch = resumed.slice(start, start + PHOTO_UPLOAD_BATCH_SIZE);
+    try {
+      checkAborted(options.signal);
+      const results = await confirmSlots(
+        eventId,
+        batch.map((item) => item.photoId),
+        options.requestSignal ?? options.signal,
+      );
+      const verdicts = new Map(results.map((result) => [result.photoId, result.status]));
+      for (const { index, photoId } of batch) {
+        const verdict = verdicts.get(photoId);
+        if (verdict === "READY") {
+          uploaded += 1;
+          options.onFile?.(index, { kind: "developed", photoId });
+        } else if (verdict) pending.push(index);
+        else options.onFile?.(index, { kind: "failed", reason: "connection" });
+      }
+    } catch (error) {
+      const reason = options.signal?.aborted || options.requestSignal?.aborted ? "cancelled" : failureFor(error);
+      for (const { index } of batch) options.onFile?.(index, { kind: "failed", reason });
+    }
+  }
+  files.forEach((file, index) => {
+    if (!file.resumePhotoId) pending.push(index);
+  });
+  const result = await uploadFreshEventPhotos(
+    eventId,
+    pending.map((index) => files[index]!),
+    {
+      ...options,
+      onFile: (index, update) => options.onFile?.(pending[index]!, update),
+      onMinted: (slots) => options.onMinted?.(slots.map((slot) => ({ ...slot, index: pending[slot.index]! }))),
+    },
+  );
+  return { ...result, total: files.length, uploaded: uploaded + result.uploaded };
 };
