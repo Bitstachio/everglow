@@ -1,0 +1,3 @@
+# Isolated package so installs do not rewrite other workspaces' lockfiles.
+allowBuilds:
+  esbuild: true
