@@ -7,6 +7,7 @@ export const TEST_PHOTO_ID = "bbbbbbbb-1111-4222-8333-bbbbbbbbbbbb";
 export const TEST_OTHER_PHOTO_ID = "cccccccc-1111-4222-8333-cccccccccccc";
 export const TEST_SIGNED_PUT_URL = "https://s3.example.com/signed-put";
 export const TEST_SIGNED_GET_URL = "https://s3.example.com/signed-get";
+export const TEST_SIGNED_THUMBNAIL_URL = "https://s3.example.com/signed-thumb";
 
 export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
   id: TEST_PHOTO_ID,
@@ -26,6 +27,7 @@ export const expectedPhotoResponse = (photo: Photo, url: string) => ({
   eventId: photo.eventId,
   addedById: photo.addedById,
   url,
+  thumbnailUrl: TEST_SIGNED_THUMBNAIL_URL,
   contentType: photo.contentType,
   createdAt: photo.createdAt.toISOString(),
 });

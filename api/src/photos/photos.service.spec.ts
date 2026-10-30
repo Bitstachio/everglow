@@ -128,7 +128,11 @@ describe("PhotosService", () => {
     prisma = mockDeep<PrismaClient>();
     s3Service = {
       getPresignedUploadUrl: jest.fn().mockResolvedValue("https://signed-put"),
-      getPresignedDownloadUrl: jest.fn().mockResolvedValue("https://signed-get"),
+      getPresignedDownloadUrl: jest
+        .fn()
+        .mockImplementation(({ key }: { key: string }) =>
+          Promise.resolve(key.startsWith("derived/") ? "https://signed-thumb" : "https://signed-get"),
+        ),
       headObject: jest.fn(),
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
@@ -578,12 +582,32 @@ describe("PhotosService", () => {
 
       const page = await service.listPhotos(eventId, callerId, {});
 
-      expect(page.items).toEqual(photos.map((photo) => ({ ...photo, url: "https://signed-get" })));
+      expect(page.items).toEqual(
+        photos.map((photo) => ({ ...photo, url: "https://signed-get", thumbnailUrl: "https://signed-thumb" })),
+      );
       expect(page.nextCursor).toBeNull();
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
         key: photos[0].s3Key,
         expiresInSeconds: 900,
       });
+    });
+
+    it("signs both variants for a legacy key without checking S3 existence", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+      const original = `photos/${eventId}/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb`;
+      prisma.photo.findMany.mockResolvedValue([
+        buildPhoto("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", { status: "READY", s3Key: original }),
+      ]);
+      const page = await service.listPhotos(eventId, callerId, {});
+      expect(page.items[0].thumbnailUrl).toBe("https://signed-thumb");
+      expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
+        key: `derived/${original}/thumb.webp`,
+        expiresInSeconds: 900,
+      });
+      expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(2);
+      expect(s3Service.headObject).not.toHaveBeenCalled();
+      expect(prisma.photo.findMany).toHaveBeenCalledTimes(1);
     });
 
     it("queries only READY photos newest first with the default page size", async () => {
@@ -630,7 +654,7 @@ describe("PhotosService", () => {
       expect(page.items).toHaveLength(2);
       // The cursor is the keyset of the last item on the page, not its id.
       expect(page.nextCursor).toBe(encodeKeysetCursor(photos[1]));
-      expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(2);
+      expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledTimes(4);
     });
 
     it("applies the cursor as a (createdAt, id) keyset filter rather than a Prisma cursor", async () => {
@@ -740,7 +764,11 @@ describe("PhotosService", () => {
 
       const result = await service.findOne(photoId, callerId);
 
-      expect(result).toEqual({ ...buildPhoto(photoId, { status: "READY" }), url: "https://signed-get" });
+      expect(result).toEqual({
+        ...buildPhoto(photoId, { status: "READY" }),
+        url: "https://signed-get",
+        thumbnailUrl: "https://signed-thumb",
+      });
       expect(result).not.toHaveProperty("event");
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
         key: buildPhotoS3Key(callerId, eventId, photoId),
