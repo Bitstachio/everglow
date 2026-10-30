@@ -16,6 +16,7 @@ const mockFindOne = jest.fn();
 const mockListPhotos = jest.fn();
 const mockGetParticipants = jest.fn();
 const mockLeave = jest.fn();
+const mockDeactivate = jest.fn();
 const mockRemoveParticipant = jest.fn();
 const mockCreateUploadUrls = jest.fn();
 const mockConfirmUploads = jest.fn();
@@ -29,50 +30,61 @@ const mockLaunchLibrary = jest.fn();
 const mockRequestMediaPermission = jest.fn();
 const mockCreateAsset = jest.fn();
 const mockDownloadFile = jest.fn();
+const mockDeleteDownload = jest.fn();
+const mockVisits = new Map<string, string>();
 
 let mockUser: { id: string } | null = { id: "user-1" };
-let mockEventId: string | string[] = "event-1";
+let mockParams: { id: string | string[]; arrival?: string; place?: string } = { id: "event-1" };
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
   eventsControllerLeave: (...args: unknown[]) => mockLeave(...args),
+  eventsControllerDeactivate: (...args: unknown[]) => mockDeactivate(...args),
   eventsControllerRemoveParticipant: (...args: unknown[]) => mockRemoveParticipant(...args),
   photosControllerListPhotos: (...args: unknown[]) => mockListPhotos(...args),
   photosControllerCreateUploadUrls: (...args: unknown[]) => mockCreateUploadUrls(...args),
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
   photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
 }));
+jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
-jest.mock("expo-router", () => {
-  const React = jest.requireActual<typeof import("react")>("react");
-  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
-  return {
-    Stack: {
-      Screen: ({ options }: { options?: { headerRight?: () => React.ReactNode } }) =>
-        React.createElement(View, { testID: "stack-header-right" }, options?.headerRight?.() ?? null),
-    },
-    useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush }),
-    useLocalSearchParams: () => ({ id: mockEventId }),
-  };
-});
+jest.mock("expo-router", () => ({
+  router: { setParams: jest.fn() },
+  useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush, canGoBack: () => true }),
+  useLocalSearchParams: () => mockParams,
+}));
+jest.mock("expo-secure-store", () => ({
+  getItem: (key: string) => mockVisits.get(key) ?? null,
+  setItem: (key: string, value: string) => mockVisits.set(key, value),
+}));
 jest.mock("expo-image-picker", () => ({
   requestMediaLibraryPermissionsAsync: (...args: unknown[]) => mockRequestLibraryPermission(...args),
   launchImageLibraryAsync: (...args: unknown[]) => mockLaunchLibrary(...args),
 }));
 jest.mock("expo-media-library", () => ({
   requestPermissionsAsync: (...args: unknown[]) => mockRequestMediaPermission(...args),
-  createAssetAsync: (...args: unknown[]) => mockCreateAsset(...args),
+  Asset: { create: (...args: unknown[]) => mockCreateAsset(...args) },
+  // SDK 57's root export warns and throws; do not hide that incompatibility in tests.
+  createAssetAsync: () => {
+    throw new Error("Use Asset.create instead");
+  },
 }));
 jest.mock("expo-file-system", () => ({
   Paths: { cache: "file://cache" },
   // `new File(uri)` for the size of a picked photo; `File.downloadFileAsync` to save one.
   File: Object.assign(
-    jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri) })),
+    jest.fn().mockImplementation((uri: string, filename?: string) => ({
+      uri: filename ? `${uri}/${filename}` : uri,
+      size: mockFileSize(uri),
+    })),
     { downloadFileAsync: (...args: unknown[]) => mockDownloadFile(...args) },
   ),
 }));
+
+const DAY = 24 * 60 * 60 * 1000;
+const fromNow = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 const clients: QueryClient[] = [];
 
@@ -80,13 +92,18 @@ type DetailSeed = {
   event?: ReturnType<typeof buildEvent>;
   photos?: ReturnType<typeof buildPhoto>[];
   participants?: ReturnType<typeof buildParticipant>[];
+  /** What the roll reads as when it's fetched again. */
+  refetched?: ReturnType<typeof buildEvent>;
 };
 
-const mockDetailResponses = ({
-  event = buildEvent(),
-  photos = [],
-  participants = [buildParticipant()],
-}: DetailSeed = {}) => {
+const openEvent = (overrides: Parameters<typeof buildEvent>[0] = {}) =>
+  buildEvent({ galleryOpensAt: fromNow(-2 * DAY), galleryClosesAt: fromNow(23 * DAY), ...overrides });
+
+const host = buildParticipant();
+const guest = buildParticipant({ userId: "user-2", name: "Grace Hopper", accessLevel: "PARTICIPANT" });
+const viewer = buildParticipant({ userId: "user-3", name: "Kim Lee", accessLevel: "VIEWER" });
+
+const mockDetailResponses = ({ event = openEvent(), photos = [], participants = [host] }: DetailSeed = {}) => {
   mockFindOne.mockResolvedValue({ data: { data: event } });
   mockListPhotos.mockResolvedValue({ data: { data: { items: photos, nextCursor: null } } });
   mockGetParticipants.mockResolvedValue({ data: { data: participants } });
@@ -97,8 +114,11 @@ const renderScreen = async (seed: DetailSeed = {}) => {
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
   });
   clients.push(client);
-  const event = seed.event ?? buildEvent();
+  const event = seed.event ?? openEvent();
   mockDetailResponses({ ...seed, event });
+  if (seed.refetched) {
+    mockFindOne.mockResolvedValueOnce({ data: { data: event } }).mockResolvedValue({ data: { data: seed.refetched } });
+  }
   client.setQueryData(eventsKeys.list("user-1"), [event]);
   await render(
     <QueryClientProvider client={client}>
@@ -133,20 +153,17 @@ const pickPhotos = (count: number) =>
     assets: Array.from({ length: count }, (_, index) => ({ uri: `file://photo-${index}.jpg` })),
   });
 
-const confirmDestructiveAlert = () => {
-  const calls = jest.mocked(Alert.alert).mock.calls;
-  const last = calls[calls.length - 1];
-  const buttons = last?.[2] as { text?: string; style?: string; onPress?: () => void }[] | undefined;
-  buttons?.find((button) => button.style === "destructive")?.onPress?.();
-};
+const oneFrame = [buildPhoto({ createdAt: fromNow(-DAY) })];
 
 beforeEach(() => {
   mockUser = { id: "user-1" };
-  mockEventId = "event-1";
+  mockParams = { id: "event-1" };
+  mockVisits.clear();
   mockFindOne.mockReset();
   mockListPhotos.mockReset();
   mockGetParticipants.mockReset();
   mockLeave.mockReset().mockResolvedValue({});
+  mockDeactivate.mockReset().mockResolvedValue({ data: { data: openEvent({ galleryState: "CLOSED" }) } });
   mockRemoveParticipant.mockReset().mockResolvedValue({});
   mockCreateUploadUrls.mockReset().mockResolvedValue({
     data: { data: [{ photoId: "photo-2", uploadUrl: "https://upload.example.com/slot" }] },
@@ -164,7 +181,11 @@ beforeEach(() => {
   });
   mockRequestMediaPermission.mockReset().mockResolvedValue({ status: "granted" });
   mockCreateAsset.mockReset().mockResolvedValue({});
-  mockDownloadFile.mockReset().mockResolvedValue({ uri: "file://cache/photo.jpg" });
+  mockDeleteDownload.mockReset();
+  mockDownloadFile.mockReset().mockImplementation(async (_url: string, destination: { uri: string }) => ({
+    uri: destination.uri,
+    delete: mockDeleteDownload,
+  }));
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
     blob: async () => new Blob([IMAGE_BYTES]),
@@ -177,46 +198,625 @@ afterEach(() => {
   clients.splice(0).forEach((client) => client.clear());
 });
 
-test("loads event details for an organizer", async () => {
-  await renderScreen({
-    photos: [buildPhoto()],
-    participants: [
-      buildParticipant(),
-      buildParticipant({ userId: "user-2", name: "Grace Hopper", accessLevel: "PARTICIPANT" }),
-    ],
+describe("upcoming (07.1, 07.2)", () => {
+  const upcoming = () =>
+    buildEvent({ galleryState: "UPCOMING", galleryOpensAt: fromNow(4 * DAY - 60_000), galleryClosesAt: null });
+
+  test("a host sees when it opens and can send the envelope", async () => {
+    await renderScreen({ event: upcoming() });
+
+    expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
+    expect(screen.getByText(/Opens in/)).toHaveTextContent("Opens in 4 days");
+    expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
+    expect(mockListPhotos).not.toHaveBeenCalled();
+
+    await userEvent.setup().press(screen.getByRole("button", { name: "Send the envelope" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
   });
 
-  expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
-  expect(screen.getByText("An afternoon with friends")).toBeOnTheScreen();
-  expect(screen.getByLabelText("Event photo photo-1")).toBeOnTheScreen();
-  expect(screen.getByLabelText("Event settings")).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
-  expect(screen.getByLabelText("View all members, 2")).toBeOnTheScreen();
-  expect(screen.queryByText("Delete Event")).not.toBeOnTheScreen();
-  expect(screen.queryByText("Leave Event")).not.toBeOnTheScreen();
-});
+  test("unlocks the shutter when it opens while on screen", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({
+      event: buildEvent({ galleryState: "UPCOMING", galleryOpensAt: fromNow(-1000), galleryClosesAt: null }),
+      refetched: openEvent({ galleryOpensAt: fromNow(-1000) }),
+      participants: [host, guest],
+    });
 
-test("shows leave action for non-admin members without edit or members controls", async () => {
-  mockUser = { id: "user-2" };
-  await renderScreen({
-    event: buildEvent({ creatorId: "user-1" }),
-    participants: [
-      buildParticipant(),
-      buildParticipant({ userId: "user-2", name: "Guest", accessLevel: "PARTICIPANT" }),
-    ],
+    expect(await screen.findByRole("button", { name: "Add photos" })).toBeEnabled();
+    expect(mockFindOne).toHaveBeenCalledTimes(2);
   });
 
-  expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
-  expect(screen.getByText("Leave Event")).toBeOnTheScreen();
-  expect(screen.queryByLabelText("Event settings")).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Send the envelope" })).not.toBeOnTheScreen();
-  expect(screen.queryByLabelText(/View all members/)).not.toBeOnTheScreen();
-  expect(screen.queryByText("Delete Event")).not.toBeOnTheScreen();
+  test("a guest finds the shutter locked until it opens", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ event: upcoming(), participants: [host, guest] });
+
+    const shutter = await screen.findByRole("button", { name: /Adding photos opens/ });
+    expect(shutter).toBeDisabled();
+    expect(screen.getByText(/0.*frames/)).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Send the envelope" })).not.toBeOnTheScreen();
+  });
 });
 
-test("alerts and navigates back when the event fails to load", async () => {
+describe("it opens (07.3)", () => {
+  test("shows once to someone who looked before it opened", async () => {
+    mockVisits.set("roll-visit.user-1.event-1", fromNow(-3 * DAY));
+    await renderScreen();
+
+    expect(await screen.findByTestId("roll-opened")).toBeOnTheScreen();
+    expect(screen.getByText(/is open\./)).toBeOnTheScreen();
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add the first photos" }));
+
+    await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalled());
+    expect(screen.queryByTestId("roll-opened")).not.toBeOnTheScreen();
+    expect(new Date(mockVisits.get("roll-visit.user-1.event-1")!).getTime()).toBeGreaterThan(Date.now() - 60_000);
+  });
+
+  test("doesn't show for another account's visit on this device", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({
+      event: buildEvent({ galleryState: "UPCOMING", galleryOpensAt: fromNow(DAY), galleryClosesAt: null }),
+      participants: [host, guest],
+    });
+    await screen.findByText("Weekend meetup");
+    await screen.unmount();
+    // That visit was before the roll opened.
+    for (const key of mockVisits.keys()) mockVisits.set(key, fromNow(-3 * DAY));
+
+    mockUser = { id: "user-1" };
+    await renderScreen({ participants: [host, guest] });
+    expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
+    expect(screen.queryByTestId("roll-opened")).not.toBeOnTheScreen();
+  });
+
+  test("doesn't show to someone who already looked since", async () => {
+    mockVisits.set("roll-visit.user-1.event-1", fromNow(-DAY));
+    await renderScreen();
+    expect(await screen.findByText("Weekend meetup")).toBeOnTheScreen();
+    expect(screen.queryByTestId("roll-opened")).not.toBeOnTheScreen();
+  });
+});
+
+describe("open (07.4–07.8)", () => {
+  test("an empty roll points at the shutter", async () => {
+    await renderScreen();
+    expect(await screen.findByText("first shot’s yours ↓")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Save all frames to Photos" })).toBeDisabled();
+  });
+
+  test("a host sees numbered, signed frames, their room, and Invite", async () => {
+    await renderScreen({
+      event: openEvent({ usage: { members: 2, storageBytes: String(1.2 * 1024 ** 3) } }),
+      participants: [host, guest],
+      photos: [
+        buildPhoto({ id: "photo-2", addedById: "user-2", createdAt: fromNow(-DAY) }),
+        buildPhoto({ id: "photo-1", addedById: "user-1", createdAt: fromNow(-2 * DAY) }),
+      ],
+    });
+
+    expect(await screen.findByLabelText("Frame 2, by Grace")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen();
+    expect(screen.getByText(/1\.2.*\/ 3 GB/)).toBeOnTheScreen();
+    expect(screen.getByText(/23 days.*left/)).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Add photos" })).toBeEnabled();
+
+    await userEvent.setup().press(screen.getByRole("button", { name: "Invite people" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
+  });
+
+  test("a guest gets People instead of Invite", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    expect(await screen.findByRole("button", { name: "People on the roll" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Invite people" })).not.toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Add photos" })).toBeOnTheScreen();
+  });
+
+  test("a view-only guest has no shutter, but can save", async () => {
+    mockUser = { id: "user-3" };
+    await renderScreen({ participants: [host, viewer], photos: oneFrame });
+
+    expect(await screen.findByText("You can look and save")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
+    expect(screen.getByText(/1.*frame/)).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Save all frames to Photos" })).toBeEnabled();
+  });
+
+  test("on the last day, the time left counts hours and minutes", async () => {
+    await renderScreen({
+      event: openEvent({ galleryClosesAt: fromNow(5 * 60 * 60 * 1000 + 42 * 60 * 1000 + 30_000) }),
+      photos: oneFrame,
+    });
+    expect(await screen.findByText(/5h 42m.*left/)).toBeOnTheScreen();
+  });
+
+  test("ticks other people's frames added since the last visit", async () => {
+    mockVisits.set("roll-visit.user-1.event-1", fromNow(-DAY / 2));
+    await renderScreen({
+      participants: [host, guest],
+      photos: [
+        buildPhoto({ id: "photo-2", addedById: "user-2", createdAt: fromNow(-60_000) }),
+        buildPhoto({ id: "photo-1", addedById: "user-2", createdAt: fromNow(-DAY) }),
+      ],
+    });
+    expect(await screen.findByLabelText("Frame 2, by Grace, new")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by Grace")).toBeOnTheScreen();
+  });
+
+  test("loads every page of photos so frames are numbered on the whole roll", async () => {
+    await renderScreen({ photos: [] });
+    await screen.findByText("Weekend meetup");
+    mockListPhotos
+      .mockResolvedValueOnce({ data: { data: { items: [buildPhoto({ id: "photo-3" })], nextCursor: "next" } } })
+      .mockResolvedValueOnce({
+        data: { data: { items: [buildPhoto({ id: "photo-2" }), buildPhoto({ id: "photo-1" })], nextCursor: null } },
+      });
+    await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
+
+    expect(await screen.findByLabelText("Frame 3, by You")).toBeOnTheScreen();
+    expect(mockListPhotos).toHaveBeenLastCalledWith(expect.objectContaining({ query: { limit: 100, cursor: "next" } }));
+  });
+});
+
+describe("arriving from an envelope (06.6, 06.7)", () => {
+  test("says which member you are after joining", async () => {
+    mockUser = { id: "user-2" };
+    mockParams = { id: "event-1", arrival: "joined", place: "2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    expect(await screen.findByRole("alert")).toHaveTextContent("You’re on the roll · 2nd", { exact: false });
+  });
+
+  test("says you were already on it", async () => {
+    mockParams = { id: "event-1", arrival: "already" };
+    await renderScreen({ photos: oneFrame });
+    expect(await screen.findByRole("alert")).toHaveTextContent("You’re already on this roll", { exact: false });
+  });
+});
+
+describe("closed (07.9)", () => {
+  test("crosses it out when it closes while on screen", async () => {
+    await renderScreen({
+      event: openEvent({ galleryClosesAt: fromNow(-1000) }),
+      refetched: openEvent({ galleryState: "CLOSED", galleryClosesAt: "2026-09-21T10:00:00.000Z" }),
+      photos: oneFrame,
+    });
+
+    expect(await screen.findByText("Closed 21.09")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
+  });
+
+  test("crosses out the frames and lists who was there", async () => {
+    await renderScreen({
+      event: buildEvent({
+        galleryState: "CLOSED",
+        galleryOpensAt: "2026-09-12T10:00:00.000Z",
+        galleryClosesAt: "2026-09-21T10:00:00.000Z",
+      }),
+      participants: [host, guest],
+    });
+
+    expect(await screen.findByText("Closed 21.09")).toBeOnTheScreen();
+    expect(screen.getByLabelText("The photos were removed on 21 Sep.")).toBeOnTheScreen();
+    expect(screen.getByText("Who was there · 2")).toBeOnTheScreen();
+    expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
+    expect(mockListPhotos).not.toHaveBeenCalled();
+  });
+});
+
+describe("held by Everglow (07.10, 07.11)", () => {
+  test("under review: frames stay, the shutter is on hold", async () => {
+    await renderScreen({ event: openEvent({ status: "UNDER_REVIEW" }), photos: oneFrame });
+
+    expect(await screen.findByText("Under review")).toBeOnTheScreen();
+    expect(screen.getByText("On hold")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "On hold while Everglow reviews" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save all frames to Photos" })).toBeEnabled();
+  });
+
+  test("suspended: nothing is shown or fetched, and a host can cut the roll", async () => {
+    await renderScreen({ event: openEvent({ status: "SUSPENDED" }) });
+    const cut = openEvent({ status: "SUSPENDED", galleryState: "CLOSED" });
+    mockDeactivate.mockResolvedValue({ data: { data: cut } });
+    mockFindOne.mockResolvedValue({ data: { data: cut } });
+
+    expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
+    expect(screen.getByText("Hidden")).toBeOnTheScreen();
+    expect(mockListPhotos).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.press(screen.getByRole("button", { name: "Cut the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Cut it" }));
+    await waitFor(() =>
+      expect(mockDeactivate).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }),
+    );
+    expect(await screen.findByText("Roll cut.")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Cut the roll" })).not.toBeOnTheScreen();
+    expect(screen.getByText("Suspended by Everglow")).toBeOnTheScreen();
+  });
+
+  test("suspended: a guest can only read why", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ event: openEvent({ status: "SUSPENDED" }), participants: [host, guest] });
+    expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Cut the roll" })).not.toBeOnTheScreen();
+    await userEvent.setup().press(screen.getByRole("button", { name: "What this means ▸" }));
+    expect(mockPush).toHaveBeenCalledWith("/terms-of-use");
+  });
+});
+
+describe("adding photos", () => {
+  test("uploads a selected photo and refreshes the roll", async () => {
+    await renderScreen({ photos: oneFrame });
+    await screen.findByLabelText("Frame 1, by You");
+    const photoCallsBefore = mockListPhotos.mock.calls.length;
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    await waitFor(() =>
+      expect(mockCreateUploadUrls).toHaveBeenCalledWith({
+        path: { eventId: "event-1" },
+        // The file's size on disk, not the picker's fileSize.
+        body: { files: [{ contentType: "image/jpeg", sizeBytes: IMAGE_BYTES.length }] },
+        throwOnError: true,
+      }),
+    );
+    expect(mockConfirmUploads).toHaveBeenCalledWith({
+      path: { eventId: "event-1" },
+      body: { photoIds: ["photo-2"] },
+      throwOnError: true,
+    });
+    expect(await screen.findByText("Developed. It’s on the roll.")).toBeOnTheScreen();
+    await waitFor(() => expect(mockListPhotos.mock.calls.length).toBeGreaterThan(photoCallsBefore));
+  });
+
+  test("picks photos without a crop step", async () => {
+    await renderScreen();
+    await screen.findByText("Weekend meetup");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalled());
+    const options = mockLaunchLibrary.mock.calls[0][0];
+    expect(options).not.toHaveProperty("allowsEditing");
+    expect(options).not.toHaveProperty("aspect");
+    expect(options).toMatchObject({ allowsMultipleSelection: true });
+  });
+
+  test("shows developing until the picker hands the photos over, and clears it on cancel", async () => {
+    const picked = deferred<unknown>();
+    mockLaunchLibrary.mockReturnValue(picked.promise);
+    await renderScreen();
+    await screen.findByText("Weekend meetup");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    expect(await screen.findByText("Developing…")).toBeOnTheScreen();
+    picked.resolve({ canceled: true, assets: null });
+
+    expect(await screen.findByRole("button", { name: "Add photos" })).toBeEnabled();
+    expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+  });
+
+  test("uploads many photos in batches of 20 with one progress line and one result", async () => {
+    pickPhotos(25);
+    mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+    const lastConfirm = deferred<unknown>();
+    mockConfirmUploads.mockImplementationOnce(confirmAllReady).mockImplementationOnce(async (request) => {
+      await lastConfirm.promise;
+      return confirmAllReady(request);
+    });
+    await renderScreen();
+    await screen.findByText("Weekend meetup");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    expect(await screen.findByText("25 of 25 developed")).toBeOnTheScreen();
+    lastConfirm.resolve(undefined);
+
+    expect(await screen.findByText("25 developed. They’re on the roll.")).toBeOnTheScreen();
+    expect(mockCreateUploadUrls.mock.calls.map(([request]) => request.body.files.length)).toEqual([20, 5]);
+    expect(mockConfirmUploads).toHaveBeenCalledTimes(2);
+  });
+
+  test("doesn't upload a selection bigger than the room left", async () => {
+    pickPhotos(3);
+    mockFileSize.mockReturnValue(400 * 1024 * 1024);
+    await renderScreen({ event: openEvent({ usage: { members: 1, storageBytes: String(2 * 1024 ** 3) } }) });
+    await screen.findByText("Weekend meetup");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    expect(await screen.findByText("Not enough room: 1.2 GB picked, 1 GB left.")).toBeOnTheScreen();
+    expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+  });
+
+  test("says how many developed when the roll stops taking them", async () => {
+    pickPhotos(25);
+    mockCreateUploadUrls
+      .mockImplementationOnce(mintSlotPerFile())
+      .mockRejectedValueOnce(createApiError("This roll has closed.", { status: 403, code: "EVENT_GALLERY_CLOSED" }));
+    await renderScreen();
+    await screen.findByText("Weekend meetup");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    expect(await screen.findByText("20 of 25 developed. The rest didn’t take; add them again.")).toBeOnTheScreen();
+  });
+
+  test("uploads a HEIC photo as image/heic", async () => {
+    mockLaunchLibrary.mockResolvedValue({ canceled: false, assets: [{ uri: "file://IMG_0001.HEIC" }] });
+    await renderScreen();
+    await screen.findByText("Weekend meetup");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    await waitFor(() =>
+      expect(mockCreateUploadUrls).toHaveBeenCalledWith({
+        path: { eventId: "event-1" },
+        body: { files: [{ contentType: "image/heic", sizeBytes: IMAGE_BYTES.length }] },
+        throwOnError: true,
+      }),
+    );
+  });
+
+  test("asks for photo access when it's denied", async () => {
+    mockRequestLibraryPermission.mockResolvedValue({ granted: false });
+    await renderScreen();
+    await screen.findByText("Weekend meetup");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    expect(await screen.findByText("Allow photo access in Settings to add photos.")).toBeOnTheScreen();
+    expect(mockLaunchLibrary).not.toHaveBeenCalled();
+  });
+});
+
+describe("saving and deleting frames", () => {
+  test.each([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+    ["image/heic", "heic"],
+    ["image/heif", "heif"],
+  ] as const)("saves %s originals under a local .%s filename through Asset.create", async (contentType, suffix) => {
+    await renderScreen({ photos: [buildPhoto({ contentType, url: "https://bucket/original-key-without-extension" })] });
+    const user = userEvent.setup();
+    await user.press(await screen.findByLabelText("Frame 1, by You"));
+    await user.press(screen.getByRole("button", { name: "Save to Photos" }));
+    expect(await screen.findByText("Saved to Photos.")).toBeOnTheScreen();
+    expect(mockCreateAsset).toHaveBeenCalledWith(`file://cache/everglow-photo-1.${suffix}`);
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(1);
+  });
+
+  test("Save all continues after a library write fails and cleans both temporary files", async () => {
+    await renderScreen({ photos: [buildPhoto({ id: "photo-2" }), buildPhoto()] });
+    mockCreateAsset.mockRejectedValueOnce(new Error("library write failed"));
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Save all frames to Photos" }));
+    expect(await screen.findByText("1 of 2 saved. The rest didn’t save; try again.")).toBeOnTheScreen();
+    expect(mockCreateAsset).toHaveBeenCalledTimes(2);
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
+  });
+
+  test("shows loading until the original displays, and retries a failure with a fresh signed URL", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await renderScreen({ photos: [buildPhoto()] });
+      const user = userEvent.setup();
+      await user.press(await screen.findByLabelText("Frame 1, by You"));
+      expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
+      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", {
+        nativeEvent: { error: "Failed https://private-bucket/photo?signature=secret" },
+      });
+      expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+      expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+      expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "image_error" });
+
+      const refreshed = buildPhoto({ url: "https://cdn.example.com/original?renewed" });
+      mockDetailResponses({ photos: [refreshed] });
+      await user.press(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() => expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(refreshed.url));
+      expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
+      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      await user.press(screen.getByRole("button", { name: "Save to Photos" }));
+      await waitFor(() =>
+        expect(mockDownloadFile).toHaveBeenCalledWith(
+          refreshed.url,
+          expect.objectContaining({ uri: "file://cache/everglow-photo-1.jpg" }),
+          { idempotent: true },
+        ),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test("a failed URL refresh stays recoverable, and a retry finishing after Close never reopens the viewer", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await renderScreen({ photos: [buildPhoto()] });
+      const user = userEvent.setup();
+      await user.press(await screen.findByLabelText("Frame 1, by You"));
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "network" } });
+      mockListPhotos.mockRejectedValueOnce(new Error("offline"));
+      await user.press(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled());
+      expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+      const pending = deferred<{ data: { data: { items: ReturnType<typeof buildPhoto>[]; nextCursor: null } } }>();
+      mockListPhotos.mockReturnValueOnce(pending.promise);
+      await user.press(screen.getByRole("button", { name: "Try again" }));
+      await user.press(screen.getByRole("button", { name: "Close frame" }));
+      pending.resolve({
+        data: { data: { items: [buildPhoto({ url: "https://cdn.example.com/renewed" })], nextCursor: null } },
+      });
+      await waitFor(() => expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen());
+      expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test("Save all saves every frame to Photos", async () => {
+    await renderScreen({
+      photos: [buildPhoto({ id: "photo-2", url: "https://cdn.example.com/2.jpg" }), buildPhoto()],
+    });
+    await screen.findByLabelText("Frame 2, by You");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Save all frames to Photos" }));
+
+    expect(await screen.findByText("2 frames saved to Photos.")).toBeOnTheScreen();
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      "https://cdn.example.com/2.jpg",
+      expect.objectContaining({ uri: "file://cache/everglow-photo-2.jpg" }),
+      { idempotent: true },
+    );
+    expect(mockCreateAsset).toHaveBeenCalledTimes(2);
+    // The library keeps its own copy, so the downloads don't pile up in the cache.
+    expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
+  });
+
+  test("a missing thumbnail stays a tappable placeholder and never preloads an original", async () => {
+    await renderScreen({ photos: [buildPhoto()] });
+    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "not ready" } });
+    expect(screen.queryByTestId("contact-frame-photo")).not.toBeOnTheScreen();
+    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+    await userEvent.setup().press(screen.getByLabelText("Frame 1, by You"));
+    expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(buildPhoto().url);
+    await userEvent.setup().press(screen.getByRole("button", { name: "Close frame" }));
+    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+  });
+
+  test("a frame opens full size, saves, and deletes after the slip", async () => {
+    await renderScreen({
+      photos: [buildPhoto()],
+      event: openEvent({ usage: { members: 1, storageBytes: String(18 * 1024 ** 2) } }),
+    });
+    const user = userEvent.setup();
+    const preview = await screen.findByTestId("contact-frame-photo");
+    expect(preview.props.source).toEqual([{ uri: buildPhoto().thumbnailUrl, cacheKey: "photo:photo-1:thumbnail" }]);
+    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+    await user.press(await screen.findByLabelText("Frame 1, by You"));
+    expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
+    expect(screen.getByTestId("frame-viewer-photo").props.source).toEqual([
+      {
+        uri: buildPhoto().url,
+        cacheKey: "photo:photo-1:original",
+      },
+    ]);
+
+    await user.press(screen.getByRole("button", { name: "Save to Photos" }));
+    await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/everglow-photo-1.jpg"));
+
+    mockDetailResponses({ photos: [] });
+    await user.press(screen.getByRole("button", { name: "Delete frame" }));
+    await user.press(await screen.findByRole("button", { name: "Delete it" }));
+
+    await waitFor(() =>
+      expect(mockRemovePhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true }),
+    );
+    expect(await screen.findByText("Frame deleted.")).toBeOnTheScreen();
+  });
+
+  test("a guest can't delete someone else's frame", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, guest], photos: [buildPhoto({ addedById: "user-1" })] });
+    await userEvent.setup().press(await screen.findByLabelText("Frame 1, by Ada"));
+    expect(screen.getByRole("button", { name: "Save to Photos" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Delete frame" })).not.toBeOnTheScreen();
+  });
+});
+
+describe("people and the menu", () => {
+  test("a guest leaves the roll from the menu", async () => {
+    mockUser = { id: "user-2" };
+    const client = await renderScreen({ participants: [host, guest], photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    const requests = [
+      mockFindOne.mock.calls.length,
+      mockListPhotos.mock.calls.length,
+      mockGetParticipants.mock.calls.length,
+    ];
+    mockLeave.mockImplementation(async () => {
+      const forbidden = createApiError("Membership is gone", { code: "FORBIDDEN", status: 403 });
+      mockFindOne.mockRejectedValue(forbidden);
+      mockListPhotos.mockRejectedValue(forbidden);
+      mockGetParticipants.mockRejectedValue(forbidden);
+      return {};
+    });
+    await user.press(await screen.findByRole("button", { name: "Leave" }));
+
+    await waitFor(() => expect(mockLeave).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
+    expect(mockReplace).toHaveBeenCalledWith("/events");
+    expect([
+      mockFindOne.mock.calls.length,
+      mockListPhotos.mock.calls.length,
+      mockGetParticipants.mock.calls.length,
+    ]).toEqual(requests);
+    expect(client.getQueryData(eventsKeys.detail("event-1"))).toBeUndefined();
+    expect(client.getQueryData(eventsKeys.photos("event-1"))).toBeUndefined();
+    expect(client.getQueryData(eventsKeys.participants("event-1"))).toBeUndefined();
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  test("a failed Leave restores readers so the member can refresh and keep using the roll", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    mockLeave.mockRejectedValueOnce(createApiError("Could not leave", { status: 500 }));
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Leave" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Leave" })).not.toBeOnTheScreen());
+    expect(mockReplace).not.toHaveBeenCalled();
+    mockFindOne.mockResolvedValue({ data: { data: openEvent({ title: "Still joined" }) } });
+    await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
+    expect(await screen.findByText("Still joined")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
+  });
+
+  test("People from the menu swaps the same sheet to the roll call", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "People" }));
+
+    expect(await screen.findByTestId("roll-people")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Grace Hopper (you), Adds photos" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Leave the roll" })).not.toBeOnTheScreen();
+  });
+
+  test("a host opens roll settings from the menu", async () => {
+    await renderScreen({ photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Roll settings" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
+  });
+
+  test("a host removes someone from the people sheet", async () => {
+    await renderScreen({
+      event: openEvent({ usage: { members: 2, storageBytes: "0" } }),
+      participants: [host, guest],
+      photos: oneFrame,
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
+    await user.press(screen.getByRole("button", { name: "Grace Hopper, Adds photos" }));
+    await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+
+    await waitFor(() =>
+      expect(mockRemoveParticipant).toHaveBeenCalledWith({
+        path: { eventId: "event-1", targetUserId: "user-2" },
+        throwOnError: true,
+      }),
+    );
+    expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
+  });
+});
+
+test("says so and goes back when the roll fails to load", async () => {
   mockFindOne.mockRejectedValue(new Error("Event missing"));
-  mockListPhotos.mockResolvedValue({ data: { data: { items: [], nextCursor: null } } });
   mockGetParticipants.mockResolvedValue({ data: { data: [] } });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
@@ -228,296 +828,16 @@ test("alerts and navigates back when the event fails to load", async () => {
     </QueryClientProvider>,
   );
 
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Error", "Failed to load event details"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load this roll", expect.any(String)));
   expect(mockBack).toHaveBeenCalledTimes(1);
 });
 
-test("opens event settings from the header action", async () => {
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Event settings"));
-  expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
-});
-
-test("a host opens the roll's envelope from the header", async () => {
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByRole("button", { name: "Send the envelope" }));
-  expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
-});
-
-test("shows the gallery's storage, never a photo count", async () => {
-  await renderScreen({
-    event: buildEvent({ usage: { members: 1, storageBytes: String(1.2 * 1024 ** 3) } }),
-  });
-  expect(await screen.findByText("1.2 GB of 3 GB used")).toBeOnTheScreen();
-});
-
-test("uploads a selected photo and refreshes the photo list", async () => {
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  const photoCallsBefore = mockListPhotos.mock.calls.length;
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  await waitFor(() =>
-    expect(mockCreateUploadUrls).toHaveBeenCalledWith({
-      path: { eventId: "event-1" },
-      // The file's size on disk, not the picker's fileSize.
-      body: { files: [{ contentType: "image/jpeg", sizeBytes: IMAGE_BYTES.length }] },
-      throwOnError: true,
-    }),
-  );
-  expect(mockConfirmUploads).toHaveBeenCalledWith({
-    path: { eventId: "event-1" },
-    body: { photoIds: ["photo-2"] },
-    throwOnError: true,
-  });
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo uploaded successfully!");
-  await waitFor(() => expect(mockListPhotos.mock.calls.length).toBeGreaterThan(photoCallsBefore));
-});
-
-test("picks event photos without a crop step", async () => {
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  await waitFor(() => expect(mockLaunchLibrary).toHaveBeenCalled());
-  const options = mockLaunchLibrary.mock.calls[0][0];
-  expect(options).not.toHaveProperty("allowsEditing");
-  expect(options).not.toHaveProperty("aspect");
-  expect(options).toMatchObject({ allowsMultipleSelection: true });
-});
-
-test("shows the upload as preparing until the picker hands the photos over, and clears it on cancel", async () => {
-  const picked = deferred<unknown>();
-  mockLaunchLibrary.mockReturnValue(picked.promise);
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  expect(await screen.findByText("Preparing photos…")).toBeOnTheScreen();
-  picked.resolve({ canceled: true, assets: null });
-
-  expect(await screen.findByLabelText("Add photos")).toBeOnTheScreen();
-  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
-});
-
-test("uploads many photos in batches of 20 with one progress label and one result", async () => {
-  pickPhotos(25);
-  mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
-  const lastConfirm = deferred<unknown>();
-  mockConfirmUploads.mockImplementationOnce(confirmAllReady).mockImplementationOnce(async (request) => {
-    await lastConfirm.promise;
-    return confirmAllReady(request);
-  });
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  const eventCallsBefore = mockFindOne.mock.calls.length;
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  expect(await screen.findByText("Uploading 25 of 25")).toBeOnTheScreen();
-  expect(Alert.alert).not.toHaveBeenCalled();
-  lastConfirm.resolve(undefined);
-
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Success", "25 photos uploaded successfully!"));
-  expect(Alert.alert).toHaveBeenCalledTimes(1);
-  expect(mockCreateUploadUrls.mock.calls.map(([request]) => request.body.files.length)).toEqual([20, 5]);
-  expect(mockConfirmUploads).toHaveBeenCalledTimes(2);
-  expect(await screen.findByLabelText("Add photos")).toBeOnTheScreen();
-  await waitFor(() => expect(mockFindOne.mock.calls.length).toBeGreaterThan(eventCallsBefore));
-});
-
-test("does not upload a selection bigger than the storage left", async () => {
-  pickPhotos(3);
-  mockFileSize.mockReturnValue(400 * 1024 * 1024);
-  await renderScreen({
-    event: buildEvent({ usage: { members: 1, storageBytes: String(2 * 1024 ** 3) } }),
-  });
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  await waitFor(() =>
-    expect(Alert.alert).toHaveBeenCalledWith(
-      "Not Enough Storage",
-      "These 3 photos need 1.2 GB, but this gallery has 1 GB left.",
-    ),
-  );
-  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
-});
-
-test.each([
-  ["EVENT_STORAGE_LIMIT_REACHED", "There isn't enough room left on this roll for these photos."],
-  ["EVENT_GALLERY_CLOSED", "This roll has closed. No one can join or add photos anymore."],
-])("stops on %s, says how many were uploaded, and refetches the event", async (code, message) => {
-  pickPhotos(25);
-  const mint = mintSlotPerFile();
-  mockCreateUploadUrls
-    .mockImplementationOnce(mint)
-    .mockRejectedValueOnce(createApiError(message, { status: 403, code }));
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  const eventCallsBefore = mockFindOne.mock.calls.length;
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  await waitFor(() =>
-    expect(Alert.alert).toHaveBeenCalledWith("Upload Stopped", `${message} 20 of 25 photos uploaded.`),
-  );
-  expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
-  await waitFor(() => expect(mockFindOne.mock.calls.length).toBeGreaterThan(eventCallsBefore));
-});
-
-test("reports photos that failed to upload once the rest are done", async () => {
-  pickPhotos(3);
-  mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
-  mockConfirmUploads.mockImplementation(({ body }: { body: { photoIds: string[] } }) =>
-    Promise.resolve({
-      data: {
-        data: body.photoIds.map((photoId) => ({
-          photoId,
-          status: photoId === "photo-new-2" ? "MISMATCHED" : "READY",
-        })),
-      },
-    }),
-  );
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  await waitFor(() =>
-    expect(Alert.alert).toHaveBeenCalledWith(
-      "Upload Finished",
-      "2 of 3 photos uploaded. The rest couldn't be uploaded. Try adding them again.",
-    ),
-  );
-});
-
-test("says so when a single photo fails to upload", async () => {
-  mockConfirmUploads.mockResolvedValue({ data: { data: [{ photoId: "photo-2", status: "MISSING" }] } });
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  await waitFor(() =>
-    expect(Alert.alert).toHaveBeenCalledWith("Error", "Your photo couldn't be uploaded. Please try again."),
-  );
-});
-
-test.each([
-  ["the picker's mimeType", { uri: "file://IMG_0001.HEIC", mimeType: "image/heic" }],
-  ["an uppercase extension", { uri: "file://IMG_0001.HEIC" }],
-])("uploads a HEIC photo as image/heic from %s", async (_source, asset) => {
-  mockLaunchLibrary.mockResolvedValue({ canceled: false, assets: [asset] });
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  await waitFor(() =>
-    expect(mockCreateUploadUrls).toHaveBeenCalledWith({
-      path: { eventId: "event-1" },
-      body: { files: [{ contentType: "image/heic", sizeBytes: IMAGE_BYTES.length }] },
-      throwOnError: true,
-    }),
-  );
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo uploaded successfully!");
-});
-
-test("blocks upload when photo library permission is denied", async () => {
-  mockRequestLibraryPermission.mockResolvedValue({ granted: false });
-  await renderScreen();
-  await screen.findByText("Weekend meetup");
-  await userEvent.setup().press(screen.getByLabelText("Add photos"));
-
-  expect(Alert.alert).toHaveBeenCalledWith(
-    "Permission Required",
-    "Please grant photo library access to upload images.",
-  );
-  expect(mockLaunchLibrary).not.toHaveBeenCalled();
-  expect(mockCreateUploadUrls).not.toHaveBeenCalled();
-});
-
-test("deletes a photo after confirmation and refreshes the gallery's storage", async () => {
-  await renderScreen({
-    photos: [buildPhoto()],
-    event: buildEvent({ usage: { members: 1, storageBytes: String(18 * 1024 ** 2) } }),
-  });
-  await screen.findByLabelText("Event photo photo-1");
-  expect(screen.getByText("18 MB of 3 GB used")).toBeOnTheScreen();
-  mockDetailResponses({ photos: [] });
-  await userEvent.setup().press(screen.getByLabelText("Delete photo photo-1"));
-  confirmDestructiveAlert();
-
-  await waitFor(() =>
-    expect(mockRemovePhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true }),
-  );
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo deleted successfully");
-  expect(await screen.findByText("0 B of 3 GB used")).toBeOnTheScreen();
-});
-
-test("downloads a photo to the media library", async () => {
-  await renderScreen({ photos: [buildPhoto()] });
-  await screen.findByLabelText("Event photo photo-1");
-  await userEvent.setup().press(screen.getByLabelText("Download photo photo-1"));
-
-  await waitFor(() =>
-    expect(mockDownloadFile).toHaveBeenCalledWith("https://cdn.example.com/photo-1.jpg", "file://cache"),
-  );
-  expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/photo.jpg");
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Photo downloaded successfully!");
-});
-
-test("leaves the event as a non-admin member", async () => {
-  mockUser = { id: "user-2" };
-  await renderScreen({
-    participants: [
-      buildParticipant(),
-      buildParticipant({ userId: "user-2", name: "Guest", accessLevel: "PARTICIPANT" }),
-    ],
-  });
-
-  await screen.findByText("Leave Event");
-  await userEvent.setup().press(screen.getByText("Leave Event"));
-  confirmDestructiveAlert();
-
-  await waitFor(() => expect(mockLeave).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
-  expect(mockReplace).toHaveBeenCalledWith("/events");
-});
-
-test("removes a member from the members sheet", async () => {
-  await renderScreen({
-    participants: [
-      buildParticipant(),
-      buildParticipant({ userId: "user-2", name: "Grace Hopper", accessLevel: "PARTICIPANT" }),
-    ],
-  });
-
-  await screen.findByText("Weekend meetup");
-  const user = userEvent.setup();
-  await user.press(screen.getByLabelText("View all members, 2"));
-  expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
-  await user.press(screen.getByLabelText("Remove Grace Hopper"));
-  confirmDestructiveAlert();
-
-  await waitFor(() =>
-    expect(mockRemoveParticipant).toHaveBeenCalledWith({
-      path: { eventId: "event-1", targetUserId: "user-2" },
-      throwOnError: true,
-    }),
-  );
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Member removed successfully");
-});
-
-test("pull-to-refresh reloads event, photos, and participants", async () => {
+test("pull-to-refresh reloads the roll", async () => {
   await renderScreen();
   await screen.findByText("Weekend meetup");
   const pending = deferred<unknown>();
   mockFindOne.mockReturnValue(pending.promise);
   await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
-  expect(mockFindOne).toHaveBeenCalledTimes(2);
-  pending.resolve({ data: { data: buildEvent({ title: "Refreshed meetup" }) } });
+  pending.resolve({ data: { data: openEvent({ title: "Refreshed meetup" }) } });
   expect(await screen.findByText("Refreshed meetup")).toBeOnTheScreen();
-});
-
-test("shows the empty photos state when an event has no photos", async () => {
-  await renderScreen({ photos: [] });
-  expect(await screen.findByText("No photos yet")).toBeOnTheScreen();
 });

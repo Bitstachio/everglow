@@ -28,10 +28,10 @@ export const useEventsQuery = (userId: string | undefined) =>
     },
   });
 
-export const useEventQuery = (eventId: string | undefined) =>
+export const useEventQuery = (eventId: string | undefined, enabled = true) =>
   useQuery({
     queryKey: eventsKeys.detail(eventId ?? ""),
-    enabled: Boolean(eventId),
+    enabled: Boolean(eventId) && enabled,
     queryFn: async ({ signal }): Promise<EventResponseDto> => {
       const { data } = await eventsControllerFindOne({
         path: { eventId: eventId! },
@@ -42,17 +42,33 @@ export const useEventQuery = (eventId: string | undefined) =>
     },
   });
 
-export const useEventPhotosQuery = (eventId: string | undefined) =>
+/** The most the API returns in one page. */
+const PHOTO_PAGE_SIZE = 100;
+
+/**
+ * Every photo on the roll, newest first. All pages load, since the contact
+ * sheet numbers each frame by its place on the whole roll and Save all saves
+ * them all.
+ */
+export const useEventPhotosQuery = (eventId: string | undefined, enabled = true) =>
   useQuery({
     queryKey: eventsKeys.photos(eventId ?? ""),
-    enabled: Boolean(eventId),
+    enabled: Boolean(eventId) && enabled,
     queryFn: async ({ signal }): Promise<PhotoResponseDto[]> => {
-      const { data } = await photosControllerListPhotos({
-        path: { eventId: eventId! },
-        signal,
-        throwOnError: true,
-      });
-      return unwrapEnvelope(data).items;
+      const photos: PhotoResponseDto[] = [];
+      let cursor: string | undefined;
+      do {
+        const { data } = await photosControllerListPhotos({
+          path: { eventId: eventId! },
+          query: { limit: PHOTO_PAGE_SIZE, ...(cursor ? { cursor } : {}) },
+          signal,
+          throwOnError: true,
+        });
+        const page = unwrapEnvelope(data);
+        photos.push(...page.items);
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor);
+      return photos;
     },
   });
 
@@ -72,10 +88,10 @@ export const useRollPreviewQuery = (eventId: string, limit: number, enabled: boo
     },
   });
 
-export const useEventParticipantsQuery = (eventId: string | undefined) =>
+export const useEventParticipantsQuery = (eventId: string | undefined, enabled = true) =>
   useQuery({
     queryKey: eventsKeys.participants(eventId ?? ""),
-    enabled: Boolean(eventId),
+    enabled: Boolean(eventId) && enabled,
     queryFn: async ({ signal }): Promise<EventParticipantResponseDto[]> => {
       const { data } = await eventsControllerGetParticipants({
         path: { eventId: eventId! },

@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Pressable, View, type LayoutChangeEvent, type PressableProps } from "react-native";
 import { EdgePrint, EdgeValue } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
-import { Photo } from "./photo";
+import { RetryingPhoto } from "./retrying-photo";
 
 type ContactFrameProps = Omit<PressableProps, "children"> & {
   /** Photo URL; omit for an empty frame. */
   uri?: string;
+  /** Stable identity for this photo variant, independent of URL signatures. */
+  cacheKey?: string;
   /** The frame number on the roll. */
   number: number;
   /** Who took it, printed after the number. */
@@ -25,6 +27,7 @@ type ContactFrameProps = Omit<PressableProps, "children"> & {
  */
 export const ContactFrame = ({
   uri,
+  cacheKey,
   number,
   by,
   selected = false,
@@ -44,7 +47,13 @@ export const ContactFrame = ({
     >
       <View onLayout={onLayout} className={`aspect-square w-full ${selected ? "p-2" : ""}`.trim()}>
         <View className="h-full w-full overflow-hidden rounded-frame bg-frame-empty">
-          {uri ? <Photo source={{ uri }} contentFit="cover" className="h-full w-full" /> : null}
+          <RetryingPhoto
+            testID="contact-frame-photo"
+            uri={uri}
+            cacheKey={cacheKey}
+            contentFit="cover"
+            className="h-full w-full"
+          />
         </View>
         {selected && size > 0 ? (
           <View className="absolute inset-0">

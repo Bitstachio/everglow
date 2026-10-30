@@ -3,6 +3,7 @@ import { Text, View, type LayoutChangeEvent } from "react-native";
 import { EdgePrint } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
+import { RetryingPhoto } from "./retrying-photo";
 
 export type StripFrame = {
   key: string;
@@ -30,8 +31,8 @@ type FilmStripProps = {
 // Enough holes to cross the widest phone; the row clips the rest.
 const HOLES = Array.from({ length: 48 }, (_, i) => i);
 
-// A row of 9pt holes, 9pt apart, inset 3.5pt from the strip's edge.
-const Sprockets = ({ edge }: { edge: "top" | "bottom" }) => (
+/** A row of 9pt holes, 9pt apart, inset 3.5pt from the edge of a strip of film. */
+export const Sprockets = ({ edge }: { edge: "top" | "bottom" }) => (
   <View
     className={`absolute left-0 right-0 h-1.5 flex-row gap-2.25 overflow-hidden ${edge === "top" ? "top-1" : "bottom-1"}`}
   >
@@ -57,7 +58,15 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
       <View
         className={`h-full w-full items-center justify-center overflow-hidden rounded-frame ${frame.caption ? "bg-viewer" : "bg-frame-empty"}`}
       >
-        {source !== undefined ? (
+        {frame.uri ? (
+          <RetryingPhoto
+            testID="film-strip-photo"
+            uri={frame.uri}
+            cacheKey={frame.cacheKey}
+            contentFit="cover"
+            className={`h-full w-full ${frame.dim ? "opacity-35" : ""}`.trim()}
+          />
+        ) : source !== undefined ? (
           <Photo
             testID="film-strip-photo"
             source={source}

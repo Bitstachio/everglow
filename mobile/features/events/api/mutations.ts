@@ -3,6 +3,7 @@ import {
   eventsControllerConfirmCoverUpload,
   eventsControllerCreate,
   eventsControllerCreateCoverUploadUrl,
+  eventsControllerDeactivate,
   eventsControllerJoin,
   eventsControllerLeave,
   eventsControllerRegenerateInvite,
@@ -101,6 +102,21 @@ export const useDeleteEventMutation = () => {
   });
 };
 
+/** Cut the roll: closes the gallery now for everyone. Hosts only; it works on a suspended roll too. */
+export const useDeactivateEventMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<EventResponseDto, Error, string>({
+    mutationFn: async (eventId) => {
+      const { data } = await eventsControllerDeactivate({ path: { eventId }, throwOnError: true });
+      return unwrapEnvelope(data);
+    },
+    onSuccess: async (_data, eventId) => {
+      await invalidateEventCaches(queryClient, eventId);
+    },
+  });
+};
+
 export const useLeaveEventMutation = () => {
   const queryClient = useQueryClient();
 
@@ -109,7 +125,12 @@ export const useLeaveEventMutation = () => {
       await eventsControllerLeave({ path: { eventId }, throwOnError: true });
     },
     onSuccess: async (_data, eventId) => {
-      await invalidateEventCaches(queryClient, eventId);
+      // Membership is gone: refetching these active queries now only returns 403.
+      // Cancel and evict them before refreshing Home and navigating away.
+      const keys = [eventsKeys.detail(eventId), eventsKeys.photos(eventId), eventsKeys.participants(eventId)];
+      await Promise.all(keys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      keys.forEach((queryKey) => queryClient.removeQueries({ queryKey }));
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
     },
   });
 };
