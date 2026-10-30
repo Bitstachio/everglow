@@ -55,6 +55,15 @@ These are platform references, not claims about another app's internals.
 
 ## Failures and cancellation
 
+- While the tray is focused, completed rows keep their position and show success
+  after the queue refreshes or reconciles with the server. This visit's history
+  lives only in memory and is discarded on navigation away, including a back
+  gesture. The next visit shows new uploads and any remaining failed or pending
+  jobs. Leaving never cancels uploads or deletes photos from the roll.
+- Failed or rejected uploads keep a Tray button with an attention icon on the
+  roll, including while other files send. The button opens their rows; recoverable
+  failures offer Retry inside the tray. Closed/full/rejected files keep their
+  reason and removal controls instead of offering a retry that cannot succeed.
 - Connection failures stay on the sheet with Retry. While online, retry after
   1, 3 and 10 seconds, then leave the failure visible. Reconnection retries
   connection failures. Refused files and interrupted jobs require manual Retry.

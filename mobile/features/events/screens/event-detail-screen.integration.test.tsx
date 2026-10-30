@@ -39,6 +39,7 @@ const mockVisits = new Map<string, string>();
 
 let mockUser: { id: string } | null = { id: "user-1" };
 let mockParams: { id: string | string[]; arrival?: string; place?: string } = { id: "event-1" };
+let mockTrayFocused = true;
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
@@ -58,6 +59,13 @@ jest.mock("expo-router", () => ({
   router: { setParams: jest.fn() },
   useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush, canGoBack: () => true }),
   useLocalSearchParams: () => mockParams,
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const { useEffect } = jest.requireActual<typeof import("react")>("react");
+    const focused = mockTrayFocused;
+    useEffect(() => {
+      if (focused) return callback();
+    }, [callback, focused]);
+  },
 }));
 jest.mock("expo-secure-store", () => ({
   getItem: (key: string) => mockVisits.get(key) ?? null,
@@ -176,6 +184,7 @@ const oneFrame = [buildPhoto({ createdAt: fromNow(-DAY) })];
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockParams = { id: "event-1" };
+  mockTrayFocused = true;
   mockVisits.clear();
   mockFindOne.mockReset();
   mockListPhotos.mockReset();
@@ -564,19 +573,45 @@ describe("adding photos (08)", () => {
 
   test("keeps a frame that didn't take crossed out where it was, and Retry sends it again (08.4)", async () => {
     mockUploadAsync.mockRejectedValueOnce(new TypeError("Network request failed"));
-    await renderScreen({ photos: oneFrame });
+    const client = await renderScreen({ photos: oneFrame });
     await screen.findByLabelText("Frame 1, by You");
     const user = userEvent.setup();
     await user.press(screen.getByRole("button", { name: "Add photos" }));
 
     expect(await screen.findByText("1 didn’t take · offline")).toBeOnTheScreen();
     expect(screen.getByLabelText("Frame 2, didn’t take")).toBeOnTheScreen();
+    expect(screen.getByTestId("tray-needs-attention", { includeHiddenElements: true })).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Open the tray, uploads need attention" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/tray");
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <UploadTrayScreen />
+      </QueryClientProvider>,
+    );
 
     mockConfirmUploads.mockResolvedValueOnce({ data: { data: [{ photoId: "photo-2", status: "MISSING" }] } });
-    await user.press(screen.getByRole("button", { name: "Send them again" }));
+    await user.press(await screen.findByRole("button", { name: "Retry ↻" }));
     await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalledTimes(2));
     expect(mockCreateUploadUrls).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.queryByText(/didn’t take/)).not.toBeOnTheScreen());
+  });
+
+  test("the attention button stays available while another photo uploads and after it completes", async () => {
+    pickPhotos(2);
+    mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+    const pending = deferred<unknown>();
+    mockUploadAsync.mockResolvedValueOnce({ status: 503, body: "", headers: {} }).mockReturnValueOnce(pending.promise);
+    await renderScreen();
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Add photos" }));
+    expect(await screen.findByRole("button", { name: "Open the tray, uploads need attention" })).toBeOnTheScreen();
+    expect(screen.getByText("Developing 1 of 2")).toBeOnTheScreen();
+    expect(screen.getByTestId("tray-needs-attention", { includeHiddenElements: true })).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Open the tray, uploads need attention" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/tray");
+    await act(async () => pending.resolve({ status: 200, body: "", headers: {} }));
+    expect(await screen.findByText("1 didn’t take")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Open the tray, uploads need attention" })).toBeOnTheScreen();
   });
 
   test("sends what can go and opens the tray when some can't be added (08.5)", async () => {
@@ -995,6 +1030,60 @@ test("pull-to-refresh reloads the roll", async () => {
   await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
   pending.resolve({ data: { data: openEvent({ title: "Refreshed meetup" }) } });
   expect(await screen.findByText("Refreshed meetup")).toBeOnTheScreen();
+});
+
+test("the focused tray keeps uploaded rows through refresh, then navigation starts a fresh visit", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  mockDetailResponses();
+  mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+  const upload = deferred<{ status: number; body: string; headers: object }>();
+  mockUploadAsync.mockReturnValueOnce(upload.promise);
+  const content = () => (
+    <QueryClientProvider client={client}>
+      <UploadTrayScreen />
+    </QueryClientProvider>
+  );
+  const view = await render(content());
+  const picked = (key: string) => ({
+    key,
+    name: key,
+    uri: `file://${key}.jpg`,
+    contentType: "image/jpeg" as const,
+    sizeBytes: IMAGE_BYTES.length,
+    status: { kind: "waiting" as const },
+  });
+  const completed = buildPhoto({ id: "photo-new-1" });
+  const refresh = async () => {
+    mockListPhotos.mockResolvedValue({ data: { data: { items: [completed], nextCursor: null } } });
+    await client.invalidateQueries({ queryKey: eventsKeys.photos("event-1") });
+  };
+  await act(async () => {
+    addToTray("event-1", [picked("First")], refresh);
+  });
+  await waitFor(() => expect(mockUploadAsync).toHaveBeenCalledTimes(1));
+  await act(async () => upload.resolve({ status: 200, body: "", headers: {} }));
+  await waitFor(() => expect(screen.getByLabelText("First, Developed · 1")).toBeOnTheScreen());
+  expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 1 developed");
+  expect(screen.getByTestId("tray-strip-photo", { includeHiddenElements: true }).props.source).toEqual([
+    { uri: completed.thumbnailUrl },
+  ]);
+
+  // Focus cleanup also runs on a system back gesture, without requiring a button handler.
+  mockTrayFocused = false;
+  await view.rerender(content());
+  const nextUpload = deferred<{ status: number; body: string; headers: object }>();
+  mockUploadAsync.mockReturnValueOnce(nextUpload.promise);
+  await act(async () => {
+    addToTray("event-1", [picked("Next")], refresh);
+  });
+  mockTrayFocused = true;
+  await view.rerender(content());
+  expect(screen.queryByText("First")).not.toBeOnTheScreen();
+  expect(screen.getByText("Next")).toBeOnTheScreen();
+  await act(async () => nextUpload.resolve({ status: 200, body: "", headers: {} }));
+  await waitFor(() => expect(screen.getByText("1 of 1 developed")).toBeOnTheScreen());
 });
 
 test.each([

@@ -108,3 +108,24 @@ test("an empty tray does not claim cancelled photos were uploaded", async () => 
   await renderScreen();
   expect(title()).toHaveTextContent("The tray is empty.\nNothing waiting here.");
 });
+
+test("completed rows show success even before a frame number is available", async () => {
+  mockEntries = [entry("IMG_2231", { kind: "developed", photoId: "p1" })];
+  await renderScreen();
+  expect(title()).toHaveTextContent("In the tray\n1 of 1 developed");
+  expect(screen.getByLabelText("IMG_2231, Uploaded")).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Cancel the rest" })).not.toBeOnTheScreen();
+  expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
+});
+
+test.each(["noRoom", "closed"] as const)(
+  "a %s failure keeps its reason and never calls the tray empty",
+  async (reason) => {
+    mockEntries = [entry("IMG_2231", { kind: "failed", reason })];
+    await renderScreen();
+    expect(screen.getByText("IMG_2231")).toBeOnTheScreen();
+    expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Retry ↻" })).not.toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Remove IMG_2231 from the tray" })).toBeOnTheScreen();
+  },
+);

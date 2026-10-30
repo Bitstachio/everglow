@@ -8,6 +8,8 @@ import {
   clearUploadTrays,
   dismissClosed,
   getTray,
+  getTraySession,
+  openTraySession,
   localFileFor,
   removeFromTray,
   retryTray,
@@ -105,6 +107,103 @@ test("sends photos added while the roll was refreshing after the last ones", asy
     ["file://b.jpg"],
   ]);
   expect(getTray("event-1")).toEqual({ running: false, closed: null, items: [] });
+});
+
+test("an open tray keeps completed rows in place after refresh without persisting history", async () => {
+  activateUploadTrays("account-a", settle);
+  mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) => {
+    onFile(0, { kind: "developed", photoId: "p1" });
+    onFile(1, { kind: "failed", reason: "refused" });
+    onFile(2, { kind: "developed", photoId: "p3" });
+  });
+  const close = openTraySession("event-1");
+  addToTray("event-1", [item("a"), item("b"), item("c")], settle);
+  await flush();
+
+  expect(getTraySession("event-1").items.map(({ key, status }) => [key, status.kind])).toEqual([
+    ["a", "developed"],
+    ["b", "failed"],
+    ["c", "developed"],
+  ]);
+  expect(getTray("event-1").items.map(({ key }) => key)).toEqual(["b"]);
+  expect(
+    mockPersist.mock.calls
+      .at(-1)![1]
+      .get("event-1")
+      .items.map(({ key }: TrayItem) => key),
+  ).toEqual(["b"]);
+  close();
+  const closeNext = openTraySession("event-1");
+  addToTray("event-1", [item("new")], settle);
+  await flush();
+  expect(getTraySession("event-1").items.map(({ key }) => key)).toEqual(["new", "b"]);
+  closeNext();
+});
+
+test("closing the tray while uploading keeps work running and drops success history for the next visit", async () => {
+  let finish: () => void = () => undefined;
+  mockUpload.mockImplementationOnce(
+    (_eventId, _files, { onFile }) =>
+      new Promise<void>((resolve) => {
+        finish = () => {
+          onFile(0, { kind: "developed", photoId: "p1" });
+          resolve();
+        };
+      }),
+  );
+  const close = openTraySession("event-1");
+  addToTray("event-1", [item("a")], settle);
+  close();
+  expect(mockUpload.mock.calls[0]![2].signal.aborted).toBe(false);
+  expect(getTray("event-1").items.map(({ key }) => key)).toEqual(["a"]);
+  finish();
+  await flush();
+  const closeNext = openTraySession("event-1");
+  expect(getTraySession("event-1").items).toEqual([]);
+  closeNext();
+});
+
+test("server reconciliation marks a recovered row as completed for this visit only", () => {
+  const recovered = {
+    ...item("restored", { kind: "failed" as const, reason: "interrupted" as const }),
+    minted: { photoId: "ready", seq: 1 },
+  };
+  mockRestore.mockReturnValueOnce(new Map([["event-1", { items: [recovered], running: false, closed: null }]]));
+  activateUploadTrays("account-a", settle);
+  const close = openTraySession("event-1");
+  reconcileTrayPhotos("event-1", [{ id: "ready" }]);
+  expect(getTraySession("event-1").items[0]?.status).toEqual({ kind: "developed", photoId: "ready" });
+  expect(getTray("event-1").items).toEqual([]);
+  close();
+  expect(getTraySession("event-1").items).toEqual([]);
+  expect(mockUpload).not.toHaveBeenCalled();
+});
+
+test("cancelled rows disappear while completed rows remain until the tray closes", async () => {
+  const close = openTraySession("event-1");
+  mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) => {
+    onFile(0, { kind: "developed", photoId: "p1" });
+    onFile(1, { kind: "failed", reason: "cancelled" });
+  });
+  addToTray("event-1", [item("a"), item("b")], settle);
+  await flush();
+  expect(getTraySession("event-1").items.map(({ key }) => key)).toEqual(["a"]);
+  close();
+  expect(getTraySession("event-1").items).toEqual([]);
+});
+
+test("sign-out clears visible history and an old focus cleanup cannot close a new account's tray", async () => {
+  const closeOld = openTraySession("event-1");
+  addToTray("event-1", [item("old")], settle);
+  await flush();
+  runAccountCleared();
+  expect(getTraySession("event-1").items).toEqual([]);
+  const closeNew = openTraySession("event-1");
+  addToTray("event-1", [item("new")], settle);
+  await flush();
+  closeOld();
+  expect(getTraySession("event-1").items.map(({ key }) => key)).toEqual(["new"]);
+  closeNew();
 });
 
 test("keeps a frame that didn't take, and retries it", async () => {

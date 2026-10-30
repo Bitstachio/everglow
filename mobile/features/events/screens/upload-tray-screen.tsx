@@ -33,13 +33,17 @@ const UploadTrayScreen = () => {
           ? [t("tray.didntTake", { count: summary.retryable }), t("tray.didntTakeDim")]
           : summary.rejected > 0
             ? [t("tray.rejected", { count: summary.rejected }), undefined]
-            : [t("tray.emptyTitle"), t("tray.emptyDim")];
+            : summary.noRoom > 0
+              ? [t("room.noneTitle"), undefined]
+              : summary.closed > 0
+                ? [t("closedSending.title", { count: summary.closed }), t("closedSending.bodyNone")]
+                : [t("tray.emptyTitle"), t("tray.emptyDim")];
 
   const status = ({ item, number }: TrayEntry): { text: string; node?: ReactNode } => {
     const { status: s } = item;
     switch (s.kind) {
       case "developed":
-        return { text: number !== null ? t("tray.row.developed", { number }) : t("tray.row.waiting") };
+        return { text: number !== null ? t("tray.row.developed", { number }) : t("tray.row.uploaded") };
       case "sending":
         return { text: formatSentOf(s.bytesSent, item.sizeBytes) };
       case "waiting":

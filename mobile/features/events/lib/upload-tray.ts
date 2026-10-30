@@ -1,6 +1,7 @@
 import { onAccountCleared } from "@/lib/account-cleared";
 import NetInfo from "@react-native-community/netinfo";
 import { useSyncExternalStore } from "react";
+import { retainCompletedTrayRows } from "./upload-tray-session";
 import { persistUploadTrays, restoreUploadTrays, removeUploadStorage, releaseUploadFile } from "./upload-tray-storage";
 import type { PhotoResponseDto } from "../types";
 import {
@@ -52,6 +53,7 @@ export type Tray = {
 const EMPTY_TRAY: Tray = { items: [], running: false, closed: null };
 
 const trays = new Map<string, Tray>();
+const sessions = new Map<string, { snapshot: Tray }>();
 let activeUserId: string | null = null;
 const controllers = new Map<string, AbortController>();
 // Separate from Cancel the rest: sign-out also aborts API requests and confirmation.
@@ -76,7 +78,12 @@ export const localFileFor = (photoId: string): string | undefined => localFiles.
 /** Counts mints across every roll, so a later batch always sorts as newer. */
 let mintSeq = 0;
 
-const emit = () => listeners.forEach((listener) => listener());
+const emit = () => {
+  for (const [eventId, session] of sessions) {
+    session.snapshot = retainCompletedTrayRows(session.snapshot, getTray(eventId));
+  }
+  listeners.forEach((listener) => listener());
+};
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
@@ -86,6 +93,20 @@ const subscribe = (listener: () => void) => {
 };
 
 export const getTray = (eventId: string): Tray => trays.get(eventId) ?? EMPTY_TRAY;
+
+export const getTraySession = (eventId: string): Tray => sessions.get(eventId)?.snapshot ?? getTray(eventId);
+
+/** Focus owns this visit's completed rows; blur discards history without cancelling jobs. */
+export const openTraySession = (eventId: string) => {
+  const session = { snapshot: getTray(eventId) };
+  sessions.set(eventId, session);
+  emit();
+  return () => {
+    if (sessions.get(eventId) !== session) return;
+    sessions.delete(eventId);
+    emit();
+  };
+};
 
 const setTray = (eventId: string, update: (tray: Tray) => Tray, durable = true) => {
   let next = update(getTray(eventId));
@@ -340,6 +361,7 @@ export const clearUploadTrays = () => {
   requestControllers.clear();
   settlers.clear();
   trays.clear();
+  sessions.clear();
   localFiles.clear();
   if (oldUserId) removeUploadStorage(oldUserId);
   emit();
@@ -373,6 +395,16 @@ export const reconcileTrayPhotos = (eventId: string, photos: Pick<PhotoResponseD
     )
       return entry;
     localFiles.set(entry.minted.photoId, entry.uri);
+    const session = sessions.get(eventId);
+    if (session) {
+      const photoId = entry.minted.photoId;
+      session.snapshot = {
+        ...session.snapshot,
+        items: session.snapshot.items.map((item) =>
+          item.key === entry.key ? { ...entry, status: { kind: "developed", photoId } } : item,
+        ),
+      };
+    }
     return null;
   });
 };
@@ -387,3 +419,6 @@ onAccountCleared(clearUploadTrays);
 
 export const useUploadTray = (eventId: string | undefined): Tray =>
   useSyncExternalStore(subscribe, () => (eventId ? getTray(eventId) : EMPTY_TRAY));
+
+export const useUploadTraySession = (eventId: string | undefined): Tray =>
+  useSyncExternalStore(subscribe, () => (eventId ? getTraySession(eventId) : EMPTY_TRAY));

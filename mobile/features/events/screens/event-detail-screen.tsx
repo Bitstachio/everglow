@@ -382,11 +382,12 @@ const EventDetailScreen = () => {
     : [];
 
   // 08.2 / 08.4: one line over the shutter while the tray has something to say.
+  const trayNeedsAttention = screen.tray.retryable + screen.tray.noRoom + screen.tray.closed + screen.tray.rejected > 0;
   const trayLine = (() => {
     const tray = screen.tray;
     const open: FooterAction = {
       title: t("tray.line.open"),
-      accessibilityLabel: t("tray.line.openLabel"),
+      accessibilityLabel: t(trayNeedsAttention ? "tray.line.openFailedLabel" : "tray.line.openLabel"),
       onPress: screen.onOpenTray,
     };
     if (tray.inFlight > 0) {
@@ -401,10 +402,11 @@ const EventDetailScreen = () => {
           tray.offline === tray.retryable
             ? t("tray.line.offline", { count: tray.retryable })
             : t("tray.line.didntTake", { count: tray.retryable }),
-        action: { title: t("tray.line.retry"), accessibilityLabel: t("tray.line.retryLabel"), onPress: screen.onRetry },
+        action: open,
       };
     }
     if (tray.noRoom > 0) return { text: t("tray.line.noRoom", { count: tray.noRoom }), action: open };
+    if (tray.closed > 0) return { text: t("tray.line.closed", { count: tray.closed }), action: open };
     if (tray.rejected > 0) return { text: t("tray.line.cantAdd", { count: tray.rejected }), action: open };
     return null;
   })();
@@ -438,9 +440,9 @@ const EventDetailScreen = () => {
 
       <RollFooter {...footer} bottomInset={insets.bottom} />
 
-      {trayLine && !screen.notice ? (
+      {trayLine && (!screen.notice || trayNeedsAttention) ? (
         <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + FOOT_SPACE - 52 }}>
-          <RollTrayLine text={trayLine.text} action={trayLine.action} />
+          <RollTrayLine text={trayLine.text} action={trayLine.action} needsAttention={trayNeedsAttention} />
         </View>
       ) : null}
 
@@ -448,7 +450,7 @@ const EventDetailScreen = () => {
         <View
           pointerEvents="none"
           className="absolute left-5 right-5 items-center"
-          style={{ bottom: insets.bottom + FOOT_SPACE - 40 }}
+          style={{ bottom: insets.bottom + FOOT_SPACE + (trayLine && trayNeedsAttention ? 4 : -40) }}
         >
           <EdgePrint accessibilityLiveRegion="polite" tone="text" className="bg-sheet px-3 py-2 text-center">
             {screen.notice}

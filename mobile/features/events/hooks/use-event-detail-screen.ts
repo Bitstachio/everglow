@@ -37,7 +37,6 @@ import {
   reconcileTrayPhotos,
   ownsUploadTrays,
   releaseLocalFile,
-  retryTray,
   useUploadTray,
   type TrayItem,
 } from "../lib/upload-tray";
@@ -494,9 +493,6 @@ export const useEventDetailScreen = () => {
     },
     onAddPhotos: () => void onAddPhotos(),
     onOpenTray: openTray,
-    onRetry: () => {
-      if (eventId) retryTray(eventId);
-    },
     onSendWhatFits,
     onPickAgain,
     onDismissClosed,

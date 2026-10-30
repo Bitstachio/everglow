@@ -155,11 +155,11 @@
       "developing": "Developing {{current}} of {{total}}",
       "open": "Tray ›",
       "openLabel": "Open the tray",
+      "openFailedLabel": "Open the tray, uploads need attention",
       "offline": "{{count}} didn’t take · offline",
       "didntTake": "{{count}} didn’t take",
-      "retry": "Retry ↻",
-      "retryLabel": "Send them again",
       "noRoom": "{{count}} didn’t fit · the roll is full",
+      "closed": "{{count}} didn’t make it · roll closed",
       "cantAdd": "{{count}} can’t be added"
     },
     "title": "In the tray",
@@ -173,6 +173,7 @@
     "rows": "Files in the tray",
     "row": {
       "developed": "Developed · {{number}}",
+      "uploaded": "Uploaded",
       "waiting": "Waiting",
       "offline": "Didn’t take · offline",
       "interrupted": "Interrupted · retry",
