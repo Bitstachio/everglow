@@ -1,0 +1,93 @@
+import { Pressable, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
+import { Button } from "@/components/ui/button";
+import { EdgePrint } from "@/components/ui/edge-print";
+import { Slip } from "@/components/ui/slip";
+
+export const GallerySelectionBar = ({
+  count,
+  deleteCount,
+  busy,
+  onSave,
+  onShare,
+  onDelete,
+}: {
+  count: number;
+  deleteCount: number;
+  busy: boolean;
+  onSave: () => void;
+  onShare: () => void;
+  onDelete: () => void;
+}) => {
+  const { t } = useTranslation("roll");
+  return (
+    <View className="flex-row items-center justify-around border-t border-line bg-ground px-3 py-3">
+      <Button
+        title={t("gallery.saveCount", { count })}
+        variant="ghost"
+        fullWidth={false}
+        disabled={busy || !count}
+        onPress={onSave}
+      />
+      <Button
+        title={t("gallery.share")}
+        variant="ghost"
+        fullWidth={false}
+        disabled={busy || !count}
+        onPress={onShare}
+      />
+      <Button
+        title={t("gallery.deleteCount", { count: deleteCount })}
+        variant="ghost"
+        fullWidth={false}
+        disabled={busy || !deleteCount}
+        onPress={onDelete}
+      />
+    </View>
+  );
+};
+
+export const SaveRollSheet = ({
+  visible,
+  count,
+  ownCount,
+  includeMine,
+  onToggle,
+  onClose,
+  onClosed,
+  onSave,
+}: {
+  visible: boolean;
+  count: number;
+  ownCount: number;
+  includeMine: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onClosed: () => void;
+  onSave: () => void;
+}) => {
+  const { t } = useTranslation("roll");
+  return (
+    <BottomSheet testID="save-roll-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
+      <Slip edge={t("gallery.saveRoll")} title={t("gallery.saveTitle", { count })} body={t("gallery.saveBody")}>
+        {ownCount > 0 ? (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: includeMine }}
+            accessibilityLabel={t("gallery.includeMine", { count: ownCount })}
+            onPress={onToggle}
+            className="min-h-12 flex-row items-center gap-3 py-3"
+          >
+            <View className="h-6 w-6 items-center justify-center border border-text">
+              <EdgePrint>{includeMine ? "✓" : ""}</EdgePrint>
+            </View>
+            <EdgePrint tone="text">{t("gallery.includeMine", { count: ownCount })}</EdgePrint>
+          </Pressable>
+        ) : null}
+        <Button title={t("gallery.saveCount", { count })} disabled={!count} onPress={onSave} />
+        <Button title={t("gallery.cancel")} variant="secondary" onPress={onClose} />
+      </Slip>
+    </BottomSheet>
+  );
+};

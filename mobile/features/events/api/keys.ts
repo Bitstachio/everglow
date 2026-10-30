@@ -12,6 +12,7 @@ export const eventsKeys = {
   detail: (eventId: string) => eventsControllerFindOneQueryKey({ path: { eventId } }),
   participants: (eventId: string) => eventsControllerGetParticipantsQueryKey({ path: { eventId } }),
   photos: (eventId: string) => photosControllerListPhotosQueryKey({ path: { eventId } }),
+  gallery: (eventId: string) => [...eventsKeys.photos(eventId), "gallery"] as const,
   /** The envelope behind an invite token (06.4–06.13). */
   invitePreview: (token: string) => eventsControllerPreviewInviteQueryKey({ path: { token } }),
   /** A roll's first frames on Home. Nested under `photos`, so invalidating those refreshes it. */

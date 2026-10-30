@@ -115,7 +115,7 @@ export type SheetFrame = {
   /** The uploader's first name, "You", or null once they've left or deleted their account. */
   by: string | null;
   /** Only current participants can supply an uploader portrait. */
-  uploader: Pick<EventParticipantResponseDto, "userId" | "name" | "avatarUrl"> | null;
+  uploader: Pick<EventParticipantResponseDto, "userId" | "name" | "avatarUrl" | "username"> | null;
   /** Added by someone else since the caller last looked. */
   isNew: boolean;
 };
