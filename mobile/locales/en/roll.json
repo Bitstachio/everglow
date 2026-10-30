@@ -184,6 +184,8 @@
       "tooLarge": "Over 25 MB · <u>remove</u>",
       "video": "Video · <u>remove</u>",
       "removeLabel": "Remove {{name}} from the tray",
+      "remove": "Remove",
+      "retryLabel": "Retry {{name}}",
       "tooLargeLabel": "{{name}} is over 25 MB and can’t be added",
       "videoLabel": "{{name}} is a video and can’t be added"
     },

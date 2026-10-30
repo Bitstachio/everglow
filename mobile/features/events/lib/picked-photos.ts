@@ -34,7 +34,9 @@ export const toTrayItems = (files: PickedFile[], fallbackName: (index: number) =
         ? { kind: "rejected", reason: "video" }
         : sizeBytes > MAX_PHOTO_SIZE_BYTES
           ? { kind: "rejected", reason: "tooLarge" }
-          : { kind: "waiting" },
+          : sizeBytes <= 0
+            ? { kind: "failed", reason: "missing" }
+            : { kind: "waiting" },
     };
   });
 

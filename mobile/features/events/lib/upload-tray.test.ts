@@ -223,6 +223,47 @@ test("keeps a frame that didn't take, and retries it", async () => {
   expect(getTray("event-1").items).toEqual([]);
 });
 
+test("retrying one failed row preserves the other failures and its original reservation", async () => {
+  mockUpload.mockImplementationOnce(async (_eventId, _files, { onMinted, onFile }) => {
+    onMinted([
+      { index: 0, photoId: "first" },
+      { index: 1, photoId: "second" },
+    ]);
+    onFile(0, { kind: "failed", reason: "refused" });
+    onFile(1, { kind: "failed", reason: "refused" });
+  });
+  addToTray("event-1", [item("a"), item("b")], settle);
+  await flush();
+  retryTray("event-1", undefined, false, "a");
+  await flush();
+  expect(mockUpload.mock.calls[1]![1]).toEqual([
+    expect.objectContaining({ uri: "file://a.jpg", resumePhotoId: "first" }),
+  ]);
+  expect(getTray("event-1").items.map(({ key, status }) => [key, status.kind])).toEqual([["b", "failed"]]);
+  removeFromTray("event-1", "b");
+  expect(getTray("event-1").items).toEqual([]);
+  expect(mockUpload).toHaveBeenCalledTimes(2);
+});
+
+test("removing the last connection failure clears its scheduled retry", async () => {
+  jest.useFakeTimers();
+  try {
+    mockConnectionListener?.({ isConnected: true });
+    mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) => {
+      onFile(0, { kind: "failed", reason: "connection" });
+    });
+    addToTray("event-1", [item("a")], settle);
+    await jest.advanceTimersByTimeAsync(0);
+    removeFromTray("event-1", "a");
+    await jest.advanceTimersByTimeAsync(20000);
+    expect(getTray("event-1").items).toEqual([]);
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(settle).toHaveBeenCalledTimes(1);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 test("retries a frame that lost its connection once the phone is back online", async () => {
   mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) => {
     onFile(0, { kind: "failed", reason: "connection" });

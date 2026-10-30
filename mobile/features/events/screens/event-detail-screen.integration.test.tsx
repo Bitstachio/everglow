@@ -596,6 +596,59 @@ describe("adding photos (08)", () => {
     await waitFor(() => expect(screen.queryByText(/didn’t take/)).not.toBeOnTheScreen());
   });
 
+  test("one failed photo can be retried and another removed without uploading both", async () => {
+    pickPhotos(2);
+    mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+    mockUploadAsync.mockResolvedValue({ status: 403, body: "", headers: {} });
+    const client = await renderScreen();
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Add photos" }));
+    await screen.findByText("2 didn’t take");
+    await user.press(screen.getByRole("button", { name: "Open the tray, uploads need attention" }));
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <UploadTrayScreen />
+      </QueryClientProvider>,
+    );
+    mockUploadAsync.mockReset().mockResolvedValue({ status: 200, body: "", headers: {} });
+    mockConfirmUploads.mockResolvedValueOnce({ data: { data: [{ photoId: "photo-new-1", status: "MISSING" }] } });
+    await user.press(await screen.findByRole("button", { name: "Retry Photo 1" }));
+    await waitFor(() => expect(screen.getByLabelText(/Photo 1, Developed/)).toBeOnTheScreen());
+    expect(mockUploadAsync).toHaveBeenCalledTimes(1);
+    expect(mockUploadAsync.mock.calls[0][0]).toBe("file://photo-0.jpg");
+    expect(screen.getByRole("button", { name: "Retry Photo 2" })).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Remove Photo 2 from the tray" }));
+    expect(screen.queryByText("Photo 2")).not.toBeOnTheScreen();
+    expect(mockUploadAsync).toHaveBeenCalledTimes(1);
+    expect(mockRemovePhoto).not.toHaveBeenCalled();
+  });
+
+  test("an unmeasurable selection stays visible without preventing the other photo from uploading", async () => {
+    mockLaunchLibrary.mockResolvedValue({
+      canceled: false,
+      assets: [
+        { uri: "file://unavailable.jpg", fileName: "Unavailable.jpg" },
+        { uri: "file://valid.jpg", fileName: "Valid.jpg" },
+      ],
+    });
+    mockFileSize.mockImplementation((uri: string) => (uri.includes("unavailable") ? 0 : IMAGE_BYTES.length));
+    const client = await renderScreen();
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Add photos" }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/events/event-1/tray"));
+    expect(mockCreateUploadUrls).toHaveBeenCalledWith(
+      expect.objectContaining({ body: { files: [{ contentType: "image/jpeg", sizeBytes: IMAGE_BYTES.length }] } }),
+    );
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <UploadTrayScreen />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByLabelText("Unavailable, File unavailable · pick again")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Remove Unavailable from the tray" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Retry Unavailable" })).not.toBeOnTheScreen();
+    expect(mockUploadAsync).toHaveBeenCalledWith("file://valid.jpg", expect.any(String));
+  });
+
   test("the attention button stays available while another photo uploads and after it completes", async () => {
     pickPhotos(2);
     mockCreateUploadUrls.mockImplementation(mintSlotPerFile());

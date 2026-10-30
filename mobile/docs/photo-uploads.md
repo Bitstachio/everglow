@@ -64,6 +64,10 @@ These are platform references, not claims about another app's internals.
   roll, including while other files send. The button opens their rows; recoverable
   failures offer Retry inside the tray. Closed/full/rejected files keep their
   reason and removal controls instead of offering a retry that cannot succeed.
+- Each recoverable failure has its own Retry action alongside the tray's bulk
+  Retry. Every failed row can be removed without deleting a server photo.
+  A picked photo whose size cannot be read stays as an unavailable-file row,
+  including after restart; it never mints a slot or blocks other picked files.
 - Connection failures stay on the sheet with Retry. While online, retry after
   1, 3 and 10 seconds, then leave the failure visible. Reconnection retries
   connection failures. Refused files and interrupted jobs require manual Retry.

@@ -305,11 +305,14 @@ export const retryTray = (
   eventId: string,
   reasons: TrayRetryReason[] = ["connection", "refused", "interrupted"],
   automatic = false,
+  key?: string,
 ) => {
   clearRetry(eventId);
   if (!automatic) retryAttempts.delete(eventId);
   mapItems(eventId, (item) =>
-    item.status.kind === "failed" && (reasons as string[]).includes(item.status.reason)
+    (key === undefined || item.key === key) &&
+    item.status.kind === "failed" &&
+    (reasons as string[]).includes(item.status.reason)
       ? // Reconcile the prior reservation before minting again.
         { ...item, status: { kind: "waiting" } }
       : item,
@@ -333,12 +336,17 @@ export const cancelTray = (eventId: string) => {
 };
 
 /** Takes one file off the tray: a rejected one (08.5), or one that won't go. */
-export const removeFromTray = (eventId: string, key: string) =>
+export const removeFromTray = (eventId: string, key: string) => {
   mapItems(eventId, (item) => {
     if (item.key !== key) return item;
     if (activeUserId) releaseUploadFile(activeUserId, item.uri);
     return null;
   });
+  if (!getTray(eventId).items.some((item) => item.status.kind === "failed" && item.status.reason === "connection")) {
+    clearRetry(eventId);
+    retryAttempts.delete(eventId);
+  }
+};
 
 /** 08.8 "Ok": the files the closed roll refused leave the tray. */
 export const dismissClosed = (eventId: string) =>

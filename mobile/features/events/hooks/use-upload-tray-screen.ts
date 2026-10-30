@@ -45,6 +45,9 @@ export const useUploadTrayScreen = () => {
     onRetry: () => {
       if (eventId) retryTray(eventId);
     },
+    onRetryOne: (key: string) => {
+      if (eventId) retryTray(eventId, undefined, false, key);
+    },
     onRemove: (key: string) => {
       if (eventId) removeFromTray(eventId, key);
     },

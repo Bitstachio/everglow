@@ -9,6 +9,7 @@ import UploadTrayScreen from "./upload-tray-screen";
 const mockHide = jest.fn();
 const mockCancelRest = jest.fn();
 const mockRetry = jest.fn();
+const mockRetryOne = jest.fn();
 const mockRemove = jest.fn();
 let mockEntries: TrayEntry[] = [];
 
@@ -24,6 +25,7 @@ jest.mock("../hooks/use-upload-tray-screen", () => ({
     onHide: mockHide,
     onCancelRest: mockCancelRest,
     onRetry: mockRetry,
+    onRetryOne: mockRetryOne,
     onRemove: mockRemove,
   }),
 }));
@@ -107,6 +109,20 @@ test("an empty tray does not claim cancelled photos were uploaded", async () => 
   mockEntries = [];
   await renderScreen();
   expect(title()).toHaveTextContent("The tray is empty.\nNothing waiting here.");
+});
+
+test("each recoverable failure can be retried or removed independently", async () => {
+  mockEntries = [
+    entry("First", { kind: "failed", reason: "refused" }),
+    entry("Second", { kind: "failed", reason: "interrupted" }),
+  ];
+  await renderScreen();
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Retry First" }));
+  expect(mockRetryOne).toHaveBeenCalledWith("First");
+  expect(mockRetry).not.toHaveBeenCalled();
+  await user.press(screen.getByRole("button", { name: "Remove Second from the tray" }));
+  expect(mockRemove).toHaveBeenCalledWith("Second");
 });
 
 test("completed rows show success even before a frame number is available", async () => {

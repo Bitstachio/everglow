@@ -97,7 +97,9 @@ export const restoreUploadTrays = (userId: string): Map<string, Tray> => {
             items: tray.items
               .filter(
                 (entry) =>
-                  entry.status.kind === "rejected" || entry.uri.startsWith(`${directory.uri.replace(/\/+$/, "")}/`),
+                  entry.status.kind === "rejected" ||
+                  (entry.status.kind === "failed" && entry.status.reason === "missing") ||
+                  entry.uri.startsWith(`${directory.uri.replace(/\/+$/, "")}/`),
               )
               .map((entry) =>
                 entry.status.kind === "waiting" || entry.status.kind === "sending"
@@ -128,6 +130,10 @@ export const retainUploadFiles = async (userId: string, items: TrayItem[]): Prom
   try {
     const retained: TrayItem[] = [];
     for (const entry of items) {
+      if (entry.status.kind === "failed" && entry.status.reason === "missing") {
+        retained.push({ ...entry, uri: "" });
+        continue;
+      }
       if (entry.status.kind === "rejected") {
         retained.push(entry);
         continue;

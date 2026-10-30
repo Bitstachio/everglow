@@ -40,6 +40,13 @@ test("says nothing when the photos fit, or the roll has no limit", () => {
   expect(roomShortfall(items, null)).toBeNull();
 });
 
+test("an unmeasurable photo stays as a removable failure without taking upload space", () => {
+  const items = toTrayItems([picked({ sizeBytes: 0 }), picked()], String);
+  expect(items[0]?.status).toEqual({ kind: "failed", reason: "missing" });
+  expect(items[1]?.status).toEqual({ kind: "waiting" });
+  expect(roomShortfall(items, 3 * MB)).toBeNull();
+});
+
 test("offers the smallest photos that fit together when they don't all fit", () => {
   const items = toTrayItems(
     [4, 1, 3, 2, 5].map((size) => picked({ sizeBytes: size * MB })),

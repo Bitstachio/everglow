@@ -102,6 +102,21 @@ test("recovers the preceding complete snapshot when the process stops during a w
   expect(restoreUploadTrays("account-a").get("event")?.items).toHaveLength(1);
 });
 
+test("an unavailable picked file keeps its failure after restart without blocking valid files", async () => {
+  const unavailable: TrayItem = {
+    ...picked(),
+    key: "picked-2",
+    uri: "file://gone.jpg",
+    sizeBytes: 0,
+    status: { kind: "failed", reason: "missing" },
+  };
+  const files = await retainUploadFiles("account-a", [unavailable, picked()]);
+  persistUploadTrays("account-a", new Map([["event", tray(files)]]));
+  const restored = restoreUploadTrays("account-a").get("event")!;
+  expect(restored.items[0]).toMatchObject({ key: "picked-2", uri: "", status: { kind: "failed", reason: "missing" } });
+  expect(mockFiles.get(restored.items[1]!.uri)).toBe("jpg");
+});
+
 test("does not serialize signed URLs, skips byte-only writes and deletes only the signed-out account", async () => {
   const files = await retainUploadFiles("account-a", [picked()]);
   persistUploadTrays(

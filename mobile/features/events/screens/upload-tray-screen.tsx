@@ -96,10 +96,10 @@ const UploadTrayScreen = () => {
         <View accessibilityLabel={t("tray.rows")} className="mt-6 px-5">
           {entries.map((entry) => {
             const { text, node } = status(entry);
-            const rejected =
-              entry.item.status.kind === "rejected" ||
-              (entry.item.status.kind === "failed" &&
-                ["missing", "noRoom", "closed"].includes(entry.item.status.reason));
+            const rowStatus = entry.item.status;
+            const rejected = rowStatus.kind === "rejected";
+            const failed = rowStatus.kind === "failed";
+            const retryable = failed && ["connection", "refused", "interrupted"].includes(rowStatus.reason);
             return (
               <TrayRow
                 key={entry.item.key}
@@ -107,8 +107,29 @@ const UploadTrayScreen = () => {
                 status={node ?? text}
                 statusLabel={text}
                 done={entry.item.status.kind === "developed"}
+                crossed={failed}
                 onRemove={rejected ? () => screen.onRemove(entry.item.key) : undefined}
                 removeLabel={rejected ? t("tray.row.removeLabel", { name: entry.item.name }) : undefined}
+                actions={
+                  failed
+                    ? [
+                        ...(retryable
+                          ? [
+                              {
+                                title: t("tray.retry"),
+                                accessibilityLabel: t("tray.row.retryLabel", { name: entry.item.name }),
+                                onPress: () => screen.onRetryOne(entry.item.key),
+                              },
+                            ]
+                          : []),
+                        {
+                          title: t("tray.row.remove"),
+                          accessibilityLabel: t("tray.row.removeLabel", { name: entry.item.name }),
+                          onPress: () => screen.onRemove(entry.item.key),
+                        },
+                      ]
+                    : undefined
+                }
               />
             );
           })}

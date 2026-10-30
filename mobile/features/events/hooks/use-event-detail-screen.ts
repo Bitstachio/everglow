@@ -252,7 +252,7 @@ export const useEventDetailScreen = () => {
       return;
     }
     addToTray(eventId, retained, () => refreshRoll(eventId));
-    if (items.some((item) => item.status.kind === "rejected")) openTray();
+    if (items.some((item) => item.status.kind === "rejected" || item.status.kind === "failed")) openTray();
   };
 
   const onAddPhotos = async () => {
@@ -269,16 +269,13 @@ export const useEventDetailScreen = () => {
       const result = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
       if (result.canceled || !result.assets?.length) return;
 
-      const picked: PickedFile[] = result.assets
-        .map((asset) => ({
-          uri: asset.uri,
-          contentType: photoContentType(asset),
-          sizeBytes: photoSizeBytes(asset),
-          fileName: asset.fileName ?? null,
-          isVideo: asset.type === "video",
-        }))
-        // A file that can't be measured can't be signed for, so it's left out.
-        .filter((file) => file.sizeBytes > 0);
+      const picked: PickedFile[] = result.assets.map((asset) => ({
+        uri: asset.uri,
+        contentType: photoContentType(asset),
+        sizeBytes: photoSizeBytes(asset),
+        fileName: asset.fileName ?? null,
+        isVideo: asset.type === "video",
+      }));
       const items = toTrayItems(picked, (index) => t("tray.fallbackName", { number: index + 1 }));
 
       const shortfall = roomShortfall(items, leftBytes);
