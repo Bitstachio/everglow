@@ -7,6 +7,7 @@ import { router } from "expo-router";
 import { authService, OnboardingData, User } from "@/lib/auth";
 import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import { isConnectionError } from "@/lib/api/errors";
+import { runAccountCleared } from "@/lib/account-cleared";
 import { clearPendingInvite, takeLandingRoute } from "@/lib/pending-invite";
 import { View } from "react-native";
 import {
@@ -96,6 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const clearAccount = useCallback(() => {
     queryClient.clear();
     clearPendingInvite();
+    runAccountCleared();
     setUser(null);
     setIdentity(null);
   }, [queryClient]);

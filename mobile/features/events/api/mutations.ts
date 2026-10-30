@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   eventsControllerConfirmCoverUpload,
@@ -20,12 +21,6 @@ import type { CoverImage } from "../lib/cover-image";
 import { profileKeys } from "@/features/profile/api/keys";
 import { extractInvitationToken } from "../lib/invite";
 import { eventsKeys } from "./keys";
-import {
-  uploadEventPhotos,
-  type EventPhotoFile,
-  type EventPhotoUploadProgress,
-  type EventPhotoUploadResult,
-} from "./upload-event-photos";
 import type { InviteAccessLevel } from "@/lib/api/generated";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, UpdateEventDto } from "../types";
 
@@ -148,26 +143,22 @@ export const useRemoveEventParticipantMutation = (eventId: string) => {
   });
 };
 
-type UploadEventPhotosInput = {
-  eventId: string;
-  files: EventPhotoFile[];
-  onProgress?: (progress: EventPhotoUploadProgress) => void;
-};
-
-export const useUploadEventPhotosMutation = () => {
+/**
+ * Refreshes a roll after photos were added: its photos, and the event too,
+ * since its storage usage changed and a gallery that closed mid-upload has a
+ * new galleryState. The upload itself runs in the tray (`lib/upload-tray.ts`).
+ */
+export const useRefreshRollAfterUpload = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<EventPhotoUploadResult, Error, UploadEventPhotosInput>({
-    mutationFn: ({ eventId, files, onProgress }) => uploadEventPhotos(eventId, files, { onProgress }),
-    // Refetch the event too: its storage usage changed, and a gallery that
-    // closed mid-upload has a new galleryState.
-    onSettled: async (_data, _error, { eventId }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }),
-        queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }),
-      ]);
-    },
-  });
+  return useCallback(
+    (eventId: string) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }, { throwOnError: true }),
+        queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }, { throwOnError: true }),
+      ]),
+    [queryClient],
+  );
 };
 
 type DeleteEventPhotoInput = {

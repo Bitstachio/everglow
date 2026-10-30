@@ -131,3 +131,12 @@ test("works out the storage left, never below zero, and null without a limit", (
   expect(eventStorageLeftBytes(buildEvent({ limits, usage: { members: 1, storageBytes: "1200" } }))).toBe(0);
   expect(eventStorageLeftBytes(buildEvent({ limits: { members: null, storageBytes: null } }))).toBeNull();
 });
+
+test("rounds space used down, so a nearly full roll never reads as full", () => {
+  const used = 3 * 1024 ** 3 - 6 * 1024 ** 2;
+  expect(formatStorageBytes(used)).toBe("3 GB");
+  expect(formatStorageBytes(used, { roundDown: true })).toBe("2.9 GB");
+  expect(formatEventStorage(buildEvent({ usage: { members: 1, storageBytes: String(used) } }))).toBe(
+    "2.9 GB of 3 GB used",
+  );
+});

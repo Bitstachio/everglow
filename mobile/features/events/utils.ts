@@ -124,22 +124,24 @@ const STORAGE_UNITS = ["B", "KB", "MB", "GB", "TB"];
 
 /**
  * Binary units, so a plan's 3 GiB reads "3 GB". One decimal below 10, as in
- * "1.2 GB"; whole numbers above, as in "300 MB".
+ * "1.2 GB"; whole numbers above, as in "300 MB". `roundDown` is for space
+ * used: 2.99 GB of 3 GB reads "2.9 GB", never "3 GB" while there's room left.
  */
-export const formatStorageBytes = (bytes: number): string => {
+export const formatStorageBytes = (bytes: number, { roundDown = false } = {}): string => {
   let value = Math.max(0, bytes);
   let unit = 0;
   while (value >= 1024 && unit < STORAGE_UNITS.length - 1) {
     value /= 1024;
     unit += 1;
   }
-  const rounded = unit === 0 || value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  const round = roundDown ? Math.floor : Math.round;
+  const rounded = unit === 0 || value >= 10 ? round(value) : round(value * 10) / 10;
   return `${rounded} ${STORAGE_UNITS[unit]}`;
 };
 
 /** "1.2 GB of 3 GB used", or "1.2 GB used" on a plan without a storage limit. Never a photo count. */
 export const formatEventStorage = (event: Pick<Event, "limits" | "usage">): string => {
-  const used = formatStorageBytes(Number(event.usage.storageBytes));
+  const used = formatStorageBytes(Number(event.usage.storageBytes), { roundDown: true });
   if (event.limits.storageBytes === null) return `${used} used`;
   return `${used} of ${formatStorageBytes(Number(event.limits.storageBytes))} used`;
 };

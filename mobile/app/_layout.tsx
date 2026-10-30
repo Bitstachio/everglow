@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryProvider } from "@/providers/query-provider";
+import { UploadTrayProvider } from "@/features/events/providers/upload-tray-provider";
 import { AppThemeProvider } from "@/theme/provider";
 import "./global.css";
 
@@ -17,6 +18,7 @@ const RootLayout = () => (
     {/* Above AuthProvider, which clears the cache whenever the account signs out. */}
     <QueryProvider>
       <AuthProvider>
+        <UploadTrayProvider />
         <AppThemeProvider>
           <RootNavigator />
           <StatusBar style="light" />
@@ -69,6 +71,8 @@ const RootNavigator = () => {
         <Stack.Screen name="events/[id]/index" options={{ headerShown: false }} />
         {/* Chapter 05: the envelope draws its own top bar. */}
         <Stack.Screen name="events/[id]/envelope" options={{ headerShown: false }} />
+        {/* 08.3: the tray draws its own top bar. */}
+        <Stack.Screen name="events/[id]/tray" options={{ headerShown: false }} />
         <Stack.Screen
           name="events/[id]/settings"
           options={{ title: t("screens.eventSettings"), headerBackTitle: backTitle }}
