@@ -39,16 +39,17 @@ type RollFooterOwnProps = { bottomInset: number };
 
 export type FooterAction = { title: string; accessibilityLabel: string; onPress: () => void; disabled?: boolean };
 
-const FOOT_HEIGHT = 190;
+const FADE_HEIGHT = 64;
 
-// The sheet fades out under the controls, as on a lightbox.
+// Fade the sheet into the opaque control area so photos never sit behind the actions.
 const BottomFade = () => (
   <View
     pointerEvents="none"
-    className="absolute bottom-0 left-0 right-0"
+    className="absolute left-0 right-0"
     style={{
-      height: FOOT_HEIGHT,
-      experimental_backgroundImage: "linear-gradient(to bottom, rgba(14,14,14,0) 0%, rgba(14,14,14,0.94) 55%)",
+      bottom: "100%",
+      height: FADE_HEIGHT,
+      experimental_backgroundImage: "linear-gradient(to bottom, rgba(14,14,14,0) 0%, rgba(14,14,14,1) 100%)",
     }}
   />
 );
@@ -66,10 +67,10 @@ const TextAction = ({ action }: { action: FooterAction }) => (
 
 /** Save all on the left, something on the right, and what's between them. */
 const Row = ({ left, middle, right }: { left?: ReactNode; middle: ReactNode; right?: ReactNode }) => (
-  <View className="flex-row items-end justify-between px-3">
-    <View className="flex-1 items-start pb-4">{left}</View>
+  <View className="flex-row items-center justify-between px-3">
+    <View className="flex-1 items-start">{left}</View>
     {middle}
-    <View className="flex-1 flex-row justify-end pb-4">{right}</View>
+    <View className="flex-1 flex-row justify-end">{right}</View>
   </View>
 );
 
@@ -97,7 +98,7 @@ export const RollFooter = ({ bottomInset, ...props }: RollFooterProps & RollFoot
   if (props.kind === "none") return null;
 
   return (
-    <View pointerEvents="box-none" className="absolute bottom-0 left-0 right-0">
+    <View pointerEvents="box-none" className="absolute bottom-0 left-0 right-0 bg-ground pt-3">
       <BottomFade />
       <View style={{ paddingBottom: bottomInset + 8 }}>
         {props.kind === "leader" ? (
@@ -116,17 +117,15 @@ export const RollFooter = ({ bottomInset, ...props }: RollFooterProps & RollFoot
             <Row
               left={<TextAction action={props.save} />}
               middle={
-                <View className="items-center gap-2">
-                  <CircledShutter circled={props.circled ?? false}>
-                    <Shutter accessibilityLabel={props.shutterLabel} disabled={props.busy} onPress={props.onShutter} />
-                  </CircledShutter>
-                  <EdgePrint tone="text" className="h-4">
-                    {props.progress ?? ""}
-                  </EdgePrint>
-                </View>
+                <CircledShutter circled={props.circled ?? false}>
+                  <Shutter accessibilityLabel={props.shutterLabel} disabled={props.busy} onPress={props.onShutter} />
+                </CircledShutter>
               }
               right={<TextAction action={props.right} />}
             />
+            <EdgePrint tone="text" className="mt-2 h-4 text-center">
+              {props.progress ?? ""}
+            </EdgePrint>
           </>
         ) : null}
 
