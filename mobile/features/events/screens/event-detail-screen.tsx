@@ -1,4 +1,5 @@
 import { AppIcon } from "@/components/ui/app-icon";
+import { Avatar } from "@/components/ui/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { ContactFrame } from "@/components/ui/contact-frame";
@@ -53,6 +54,9 @@ type SheetItem = { kind: "photo"; frame: SheetFrame } | { kind: "developing"; fr
 
 const value = <EdgeValue>{null}</EdgeValue>;
 
+const uploaderAvatar = (uploader: SheetFrame["uploader"]) =>
+  uploader ? <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" /> : null;
+
 /** A round button over the cover, darkened so it reads on any photo. */
 const CoverButton = ({ children }: { children: ReactNode }) => (
   <View className="rounded-full bg-scrim">{children}</View>
@@ -73,6 +77,7 @@ const EventDetailScreen = () => {
   }
 
   const host = hostName(event, participants);
+  const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
   const count = frames.length;
 
   if (screen.openedVisible) {
@@ -352,6 +357,7 @@ const EventDetailScreen = () => {
           onPreviewReady={() => screen.onPreviewReady(item.frame.photo.id)}
           number={item.frame.number}
           by={item.frame.by ?? undefined}
+          avatar={uploaderAvatar(item.frame.uploader)}
           isNew={item.frame.isNew}
           accessibilityLabel={frameLabel(item.frame)}
           onPress={() => screen.onOpenFrame(item.frame)}
@@ -361,6 +367,7 @@ const EventDetailScreen = () => {
           uri={item.frame.item.uri}
           number={item.frame.number}
           by={t("frame.you")}
+          avatar={uploaderAvatar(currentUploader)}
           develop={item.frame.develop}
           crossed={item.frame.crossed}
           accessibilityLabel={

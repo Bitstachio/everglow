@@ -2,7 +2,7 @@ import "../testing/native-mocks";
 // The integration harness supplies the real data provider and observes native services.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
 import EventDetailScreen from "./event-detail-screen";
@@ -321,10 +321,13 @@ describe("open (07.4–07.8)", () => {
     expect(screen.getByRole("button", { name: "Save all frames to Photos" })).toBeDisabled();
   });
 
-  test("a host sees numbered, signed frames, their room, and Invite", async () => {
+  test("a host sees uploader portraits and names without frame numbers, their room, and Invite", async () => {
     await renderScreen({
       event: openEvent({ usage: { members: 2, storageBytes: String(1.2 * 1024 ** 3) } }),
-      participants: [host, guest],
+      participants: [
+        { ...host, avatarUrl: "https://img/ada" },
+        { ...guest, avatarUrl: "https://img/grace" },
+      ],
       photos: [
         buildPhoto({ id: "photo-2", addedById: "user-2", createdAt: fromNow(-DAY) }),
         buildPhoto({ id: "photo-1", addedById: "user-1", createdAt: fromNow(-2 * DAY) }),
@@ -333,6 +336,18 @@ describe("open (07.4–07.8)", () => {
 
     expect(await screen.findByLabelText("Frame 2, by Grace")).toBeOnTheScreen();
     expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen();
+    for (const [label, name, uri] of [
+      ["Frame 2, by Grace", "Grace", "https://img/grace"],
+      ["Frame 1, by You", "You", "https://img/ada"],
+    ]) {
+      const frame = within(screen.getByLabelText(label));
+      expect(frame.getByText(name)).toBeOnTheScreen();
+      expect(frame.queryByText(/^\d+$/)).toBeNull();
+      expect(frame.getByTestId("avatar-image", { includeHiddenElements: true })).toHaveProp(
+        "source",
+        expect.arrayContaining([expect.objectContaining({ uri })]),
+      );
+    }
     expect(screen.getByText(/1\.2.*\/ 3 GB/)).toBeOnTheScreen();
     expect(screen.getByText(/23 days.*left/)).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Add photos" })).toBeEnabled();

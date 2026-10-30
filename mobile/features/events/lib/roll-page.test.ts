@@ -126,7 +126,7 @@ describe("storagePair", () => {
 describe("sheetFrames", () => {
   const participants = [
     buildParticipant({ userId: "user-1", name: "Ada Lovelace" }),
-    buildParticipant({ userId: "maya", name: "Maya Chen", accessLevel: "PARTICIPANT" }),
+    buildParticipant({ userId: "maya", name: "Maya Chen", accessLevel: "PARTICIPANT", avatarUrl: "https://img/maya" }),
   ];
   const photos = [
     buildPhoto({ id: "c", addedById: "maya", createdAt: "2026-10-10T11:00:00.000Z" }),
@@ -142,6 +142,21 @@ describe("sheetFrames", () => {
       [1, null],
     ]);
     expect(frames.every((frame) => !frame.isNew)).toBe(true);
+    expect(frames.map((frame) => frame.uploader?.avatarUrl ?? null)).toEqual(["https://img/maya", null, null]);
+  });
+
+  it("does not attribute a departed or deleted uploader to another participant", () => {
+    const frames = sheetFrames(
+      [buildPhoto({ addedById: "departed" }), buildPhoto({ addedById: null })],
+      participants,
+      "user-1",
+      null,
+      "You",
+    );
+    expect(frames.map((frame) => [frame.by, frame.uploader])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
   });
 
   it("ticks other people's frames added since the last visit", () => {

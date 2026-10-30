@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Pressable, View, type LayoutChangeEvent, type PressableProps } from "react-native";
-import { EdgePrint, EdgeValue } from "./edge-print";
+import { EdgePrint } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
 import { RetryingPhoto } from "./retrying-photo";
@@ -16,10 +16,12 @@ type ContactFrameProps = Omit<PressableProps, "children"> & {
    */
   placeholderUri?: string;
   onPreviewReady?: () => void;
-  /** The frame number on the roll. */
+  /** Internal position on the roll, used to seed the pencil marks. */
   number: number;
-  /** Who took it, printed after the number. */
+  /** Who uploaded it. */
   by?: string;
+  /** Small decorative portrait beside the uploader's name. */
+  avatar?: ReactNode;
   /** Circled in pencil while selecting. */
   selected?: boolean;
   /** Ticked in pencil: added since the person last looked. */
@@ -45,9 +47,8 @@ export const developLook = (amount: number) => {
 };
 
 /**
- * One frame on the contact sheet: a square photo with its number and who took
- * it in edge print underneath. Lay frames out three to a row, 4pt apart, with
- * 14pt between rows (room for the label).
+ * One frame on the contact sheet: a square photo with its uploader underneath.
+ * Lay frames out three to a row, 4pt apart, with 14pt between rows.
  */
 export const ContactFrame = ({
   uri,
@@ -56,6 +57,7 @@ export const ContactFrame = ({
   onPreviewReady,
   number,
   by,
+  avatar,
   selected = false,
   isNew = false,
   develop,
@@ -128,10 +130,16 @@ export const ContactFrame = ({
           </View>
         ) : null}
       </View>
-      <EdgePrint size="frame-label" className="pl-0.5" numberOfLines={1}>
-        <EdgeValue>{number}</EdgeValue>
-        {by ? ` · ${by}` : ""}
-      </EdgePrint>
+      <View className="min-h-4 flex-row items-center gap-1 pl-0.5">
+        {by ? (
+          <>
+            {avatar}
+            <EdgePrint size="frame-label" className="flex-shrink" numberOfLines={1}>
+              {by}
+            </EdgePrint>
+          </>
+        ) : null}
+      </View>
     </Pressable>
   );
 };
