@@ -3,6 +3,8 @@
 How to log in this API: nestjs-pino, redaction, levels, structured `event` fields, and where a line belongs.
 The `users` domain (`src/users`) is the reference implementation: copy its patterns into new domains.
 
+The independently deployed photo Lambda uses Pino without Nest's HTTP middleware. Its configuration lives in [`functions/image-processor/src/logging.ts`](../../functions/image-processor/src/logging.ts); see the [worker README](../../functions/image-processor/README.md#logging). It follows the same structured event, redaction and audit conventions, with `awsRequestId` and `messageId` as its correlation fields. The sections below describe the Nest API runtime.
+
 ---
 
 ## 1. The stack
