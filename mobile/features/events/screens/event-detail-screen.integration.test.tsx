@@ -758,6 +758,22 @@ describe("people and the menu", () => {
     expect(Alert.alert).not.toHaveBeenCalled();
   });
 
+  test("a failed Leave restores readers so the member can refresh and keep using the roll", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    mockLeave.mockRejectedValueOnce(createApiError("Could not leave", { status: 500 }));
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Leave" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Leave" })).not.toBeOnTheScreen());
+    expect(mockReplace).not.toHaveBeenCalled();
+    mockFindOne.mockResolvedValue({ data: { data: openEvent({ title: "Still joined" }) } });
+    await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
+    expect(await screen.findByText("Still joined")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
+  });
+
   test("People from the menu swaps the same sheet to the roll call", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ participants: [host, guest], photos: oneFrame });
