@@ -361,3 +361,27 @@ test("native byte progress does not serialize the durable queue for every callba
   addToTray("event-1", [item("a")], settle);
   expect(getTray("event-1").items[0]?.status).toEqual({ kind: "sending", bytesSent: 100 });
 });
+
+test("Cancel removes pending connection retries so reconnecting cannot resume cancelled work", async () => {
+  let finish: () => void = () => undefined;
+  mockUpload.mockImplementationOnce(
+    (_eventId, _files, { onFile }) =>
+      new Promise<void>((resolve) => {
+        onFile(0, { kind: "failed", reason: "connection" });
+        onFile(1, { kind: "sending", bytesSent: 1 });
+        finish = () => {
+          onFile(1, { kind: "failed", reason: "cancelled" });
+          resolve();
+        };
+      }),
+  );
+  addToTray("event-1", [item("offline"), item("sending")], settle);
+  cancelTray("event-1");
+  finish();
+  await flush();
+  mockConnectionListener?.({ isConnected: false });
+  mockConnectionListener?.({ isConnected: true });
+  await flush();
+  expect(mockUpload).toHaveBeenCalledTimes(1);
+  expect(getTray("event-1").items).toEqual([]);
+});

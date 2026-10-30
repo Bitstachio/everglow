@@ -62,7 +62,8 @@ These are platform references, not claims about another app's internals.
   timer. A reservation conflict retries once. Confirm retries its same IDs once.
 - Closed and full galleries have distinct outcomes; never retry a closed roll.
   Rejected videos/oversize files and unavailable local files can be removed.
-- Cancel stops native PUTs and drops waiting files. Landed files can still be
+- Cancel stops native PUTs, drops waiting files and removes pending connection
+  retries so reconnecting cannot restart cancelled work. Landed files can still be
   confirmed. Pending reservations not confirmed rely on the API cleanup window
   described in the shared protocol; a lost mint response has the same limit.
 - Sign-out aborts upload and API work, removes private local queue storage and

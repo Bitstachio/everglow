@@ -304,7 +304,8 @@ export const cancelTray = (eventId: string) => {
   retryAttempts.delete(eventId);
   controllers.get(eventId)?.abort();
   mapItems(eventId, (item) => {
-    if (item.status.kind !== "waiting") return item;
+    if (item.status.kind !== "waiting" && !(item.status.kind === "failed" && item.status.reason === "connection"))
+      return item;
     if (activeUserId) releaseUploadFile(activeUserId, item.uri);
     return null;
   });
