@@ -348,3 +348,16 @@ test("does not send jobs when their durable state cannot be written", async () =
   expect(getTray("event-1").storageError).toBe(true);
   expect(getTray("event-1").items[0]?.status).toEqual({ kind: "failed", reason: "refused" });
 });
+
+test("native byte progress does not serialize the durable queue for every callback", () => {
+  activateUploadTrays("account-a", settle);
+  mockUpload.mockImplementationOnce((_eventId, _files, { onFile }) => {
+    onFile(0, { kind: "sending", bytesSent: 0 });
+    const writes = mockPersist.mock.calls.length;
+    for (let bytesSent = 1; bytesSent <= 100; bytesSent += 1) onFile(0, { kind: "sending", bytesSent });
+    expect(mockPersist).toHaveBeenCalledTimes(writes);
+    return new Promise(() => undefined);
+  });
+  addToTray("event-1", [item("a")], settle);
+  expect(getTray("event-1").items[0]?.status).toEqual({ kind: "sending", bytesSent: 100 });
+});

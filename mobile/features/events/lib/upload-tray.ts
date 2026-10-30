@@ -87,13 +87,15 @@ const subscribe = (listener: () => void) => {
 
 export const getTray = (eventId: string): Tray => trays.get(eventId) ?? EMPTY_TRAY;
 
-const setTray = (eventId: string, update: (tray: Tray) => Tray) => {
+const setTray = (eventId: string, update: (tray: Tray) => Tray, durable = true) => {
   let next = update(getTray(eventId));
-  delete next.storageError;
-  const snapshot = new Map(trays);
-  snapshot.set(eventId, next);
+  if (durable) delete next.storageError;
   try {
-    if (activeUserId) persistUploadTrays(activeUserId, snapshot);
+    if (durable && activeUserId) {
+      const snapshot = new Map(trays);
+      snapshot.set(eventId, next);
+      persistUploadTrays(activeUserId, snapshot);
+    }
   } catch {
     controllers.get(eventId)?.abort();
     requestControllers.get(eventId)?.abort();
@@ -112,13 +114,21 @@ const setTray = (eventId: string, update: (tray: Tray) => Tray) => {
   emit();
 };
 
-const mapItems = (eventId: string, map: (item: TrayItem) => TrayItem | null) =>
-  setTray(eventId, (tray) => ({
-    ...tray,
-    items: tray.items.map(map).filter((item): item is TrayItem => item !== null),
-  }));
+const mapItems = (eventId: string, map: (item: TrayItem) => TrayItem | null, durable = true) =>
+  setTray(
+    eventId,
+    (tray) => ({
+      ...tray,
+      items: tray.items.map(map).filter((item): item is TrayItem => item !== null),
+    }),
+    durable,
+  );
 
 const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => {
+  if (getTray(eventId).storageError) return;
+  const previous = getTray(eventId).items.find((item) => item.key === key);
+  // Native byte callbacks update the UI without serializing the entire queue.
+  const durable = update.kind !== "sending" || previous?.status.kind !== "sending";
   if (update.kind === "failed" && update.reason === "closed") {
     setTray(eventId, (tray) => ({
       ...tray,
@@ -128,20 +138,24 @@ const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => 
       },
     }));
   }
-  mapItems(eventId, (item) => {
-    if (item.key !== key) return item;
-    if (update.kind === "sending") return { ...item, status: { kind: "sending", bytesSent: update.bytesSent } };
-    if (update.kind === "developed") {
-      localFiles.set(update.photoId, item.uri);
-      return { ...item, status: { kind: "developed", photoId: update.photoId } };
-    }
-    // A cancelled file leaves the tray: it was never on the roll.
-    if (update.reason === "cancelled") {
-      if (activeUserId) releaseUploadFile(activeUserId, item.uri);
-      return null;
-    }
-    return { ...item, status: { kind: "failed", reason: update.reason } };
-  });
+  mapItems(
+    eventId,
+    (item) => {
+      if (item.key !== key) return item;
+      if (update.kind === "sending") return { ...item, status: { kind: "sending", bytesSent: update.bytesSent } };
+      if (update.kind === "developed") {
+        localFiles.set(update.photoId, item.uri);
+        return { ...item, status: { kind: "developed", photoId: update.photoId } };
+      }
+      // A cancelled file leaves the tray: it was never on the roll.
+      if (update.reason === "cancelled") {
+        if (activeUserId) releaseUploadFile(activeUserId, item.uri);
+        return null;
+      }
+      return { ...item, status: { kind: "failed", reason: update.reason } };
+    },
+    durable,
+  );
 };
 
 /** Sends whatever is waiting, until nothing is, then refreshes the roll. */

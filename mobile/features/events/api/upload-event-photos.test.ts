@@ -15,7 +15,9 @@ const mockFileSize = jest.fn();
 const mockUploadAsync = jest.fn();
 const mockUploadTask = jest.fn();
 jest.mock("expo-file-system", () => ({
-  File: jest.fn().mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri) })),
+  File: jest
+    .fn()
+    .mockImplementation((uri: string) => ({ uri, size: mockFileSize(uri), exists: mockFileSize(uri) >= 0 })),
   UploadTask: jest.fn().mockImplementation((...args: unknown[]) => {
     mockUploadTask(...args);
     return { uploadAsync: () => mockUploadAsync() };
@@ -258,7 +260,11 @@ describe("putEventPhoto", () => {
 
     const [, url, options] = mockUploadTask.mock.calls[0];
     expect(url).toBe(slot.uploadUrl);
-    expect(options).toMatchObject({ httpMethod: "PUT", headers: { "Content-Type": "image/jpeg" } });
+    expect(options).toMatchObject({
+      sessionType: "background",
+      httpMethod: "PUT",
+      headers: { "Content-Type": "image/jpeg" },
+    });
     options.onProgress({ bytesSent: 2, totalBytes: 3 });
     expect(onBytes).toHaveBeenCalledWith(2);
   });
@@ -267,6 +273,15 @@ describe("putEventPhoto", () => {
     mockFileSize.mockReturnValue(99);
     await expect(putEventPhoto(file, slot, { onBytes: jest.fn() })).rejects.toThrow("changed");
     expect(mockUploadTask).not.toHaveBeenCalled();
+  });
+
+  test("keeps an unavailable local photo removable instead of starting a native transfer", async () => {
+    mockFileSize.mockReturnValue(-1);
+    const onFile = jest.fn();
+    await uploadEventPhotos("event-1", [file], { onFile });
+    expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "missing" }]);
+    expect(mockUploadTask).not.toHaveBeenCalled();
+    expect(mockConfirmUploads).not.toHaveBeenCalled();
   });
 
   test("rejects when storage refuses the bytes, which the upload reports as refused", async () => {
