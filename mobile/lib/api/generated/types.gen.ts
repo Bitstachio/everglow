@@ -220,6 +220,10 @@ export type PhotoResponseDto = {
    * Presigned S3 GET URL, valid for a short period
    */
   url: string;
+  /**
+   * Presigned WebP thumbnail URL. May return 404 until asynchronous generation completes, or for older/unsupported uploads. Show a placeholder rather than fetching the original automatically.
+   */
+  thumbnailUrl: string;
   contentType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
   createdAt: string;
 };

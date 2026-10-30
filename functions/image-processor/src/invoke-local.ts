@@ -2,8 +2,11 @@ import type { S3Event, SQSEvent } from "aws-lambda";
 
 import { handler } from "./index.js";
 
-const bucket = "everglow-photos-dev";
-const key = "photos/user-id/event-id/photo-id";
+const bucket = process.env.AWS_S3_BUCKET;
+const key = process.env.PHOTO_S3_KEY;
+if (!bucket || !key) {
+  throw new Error("Set AWS_S3_BUCKET and PHOTO_S3_KEY explicitly; invoke reads and writes real S3 objects");
+}
 
 const s3Event: S3Event = {
   Records: [
@@ -60,7 +63,8 @@ const event: SQSEvent = {
 };
 
 const main = async () => {
-  await handler(event, {} as never, () => undefined);
+  const result = await handler(event, {} as never, () => undefined);
+  if (result?.batchItemFailures.length) process.exitCode = 1;
 };
 
 main().catch((error: unknown) => {

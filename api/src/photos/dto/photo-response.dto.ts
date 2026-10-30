@@ -21,6 +21,13 @@ export class PhotoResponseDto {
   @ApiProperty({ maxLength: STRING_LIMITS.LONG, description: "Presigned S3 GET URL, valid for a short period" })
   url: string;
 
+  @ApiProperty({
+    maxLength: STRING_LIMITS.LONG,
+    description:
+      "Presigned WebP thumbnail URL. May return 404 until asynchronous generation completes, or for older/unsupported uploads. Show a placeholder rather than fetching the original automatically.",
+  })
+  thumbnailUrl: string;
+
   @ApiProperty({ enum: ALLOWED_PHOTO_CONTENT_TYPES, example: "image/jpeg" })
   contentType: string;
 

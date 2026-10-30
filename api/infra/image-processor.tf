@@ -1,6 +1,6 @@
 # Photo uploads → SQS → image-processor Lambda.
 #
-# S3 notifies the queue on ObjectCreated under photos/. The function reads the
+# S3 notifies the queue on ObjectCreated and ObjectRemoved under photos/. The function reads the
 # original, writes thumb.webp + large.jpg under derived/, and must be on the
 # photos KMS key and the bucket's read allowlist (see main.tf / photo-privacy.tf).
 #
@@ -131,6 +131,12 @@ resource "aws_iam_role_policy" "image_processor" {
         Resource = "${aws_s3_bucket.photos.arn}/photos/*"
       },
       {
+        # Required to distinguish a missing original (404) from denied access.
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.photos.arn
+      },
+      {
         Effect = "Allow"
         Action = ["s3:PutObject", "s3:DeleteObject"]
         Resource = [
@@ -186,7 +192,7 @@ resource "aws_lambda_function" "image_processor" {
 resource "aws_lambda_event_source_mapping" "photo_uploads" {
   event_source_arn        = aws_sqs_queue.photo_uploads.arn
   function_name           = aws_lambda_function.image_processor.arn
-  batch_size              = 10
+  batch_size              = 1
   function_response_types = ["ReportBatchItemFailures"]
 }
 
@@ -197,7 +203,7 @@ resource "aws_s3_bucket_notification" "photo_uploads" {
 
   queue {
     queue_arn     = aws_sqs_queue.photo_uploads.arn
-    events        = ["s3:ObjectCreated:*"]
+    events        = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
     filter_prefix = "photos/"
   }
 

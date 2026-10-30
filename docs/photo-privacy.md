@@ -8,12 +8,12 @@ The Terraform is in `api/infra/`: the bucket policy in `main.tf`, the rest in `p
 
 | Layer         | What it does                                                                                                                      | Where                          |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Bucket policy | Denies `s3:GetObject` to everyone except the API's identity, admins included. An explicit Deny beats any Allow.                   | `aws_s3_bucket_policy.photos`  |
-| KMS key       | New photos are encrypted with a key only the API may use. Admins can manage the key but not decrypt with it.                      | `aws_kms_key.photos`           |
+| Bucket policy | Denies `s3:GetObject` to everyone except the API and image processor identities, admins included. An explicit Deny beats any Allow.                   | `aws_s3_bucket_policy.photos`  |
+| KMS key       | New photos are encrypted with a key only the API and image processor may use. Admins can manage the key but not decrypt with it.                      | `aws_kms_key.photos`           |
 | CloudTrail    | Records every read and write of a photo, and every write to the account's configuration, in `everglow-audit-logs-dev` for a year. | `aws_cloudtrail.photos_access` |
-| Alerts        | Emails when anyone but the API reads or tries to read a photo, or when a bucket policy, a key or the trail changes.               | `aws_cloudwatch_event_rule.*`  |
+| Alerts        | Emails when anyone but the API or image processor reads or tries to read a photo, or when a bucket policy, a key or the trail changes.               | `aws_cloudwatch_event_rule.*`  |
 
-**The app is unaffected.** Phones upload and download through URLs the API presigns with its own credentials. To AWS, every one of those requests is the API. That is also why S3 asks KMS on the API's behalf, and why the key only needs to trust the API.
+**The app is unaffected.** Phones upload and download through URLs the API presigns with its own credentials. To AWS, every one of those requests is the API. That is also why S3 asks KMS on the API's behalf, and why the key trusts the API. The image processor role also reads originals and writes derivatives; its normal reads are excluded from the person-read alert. It cannot read derivatives or moderation evidence through its IAM policy.
 
 **Getting past the controls is visible.** Reading a photo as a person means one of three things:
 
@@ -28,7 +28,7 @@ Each one is itself alerted.
 In dev:
 
 - **The API's key is shared with the mobile developers** ([local-setup.md](../api/docs/local-setup.md)). Anyone with it can read photos, and to AWS they look like the API, so no alert fires. This is acceptable for test photos. In production the API's credentials never leave the server.
-- **`allow_human_photo_reads = true`** in `terraform.tfvars` lifts the read block for debugging. Applying it changes the bucket policy, which raises an alert. It only opens photos from before the KMS key: newer ones stay unreadable to people, because only the API may decrypt them. To see one of your own test photos, open it in the app.
+- **`allow_human_photo_reads = true`** in `terraform.tfvars` lifts the read block for debugging. Applying it changes the bucket policy, which raises an alert. It only opens photos from before the KMS key: newer ones stay unreadable to people, because only the API and image processor may decrypt them. To see one of your own test photos, open it in the app.
 - **Files can still be listed, and the bucket policy is not locked,** so Terraform can keep changing it.
 - **Photos uploaded before the KMS key existed** keep S3-managed encryption. The bucket policy still blocks reading them.
 
@@ -45,8 +45,13 @@ Production, before launch (EV-37):
 ```sh
 cd api/infra
 cp terraform.tfvars.example terraform.tfvars   # set alert_emails; the repo is public, keep it out of git
+# Build the image-processor artifact first from the repository root:
+# (cd functions/image-processor && pnpm install --frozen-lockfile && pnpm build)
+# Use your own admin AWS profile; Terraform no longer selects one.
 terraform plan
 terraform apply
 ```
 
 AWS then emails a confirmation link to each address in `alert_emails`. Alerts arrive only after it is clicked. CloudTrail delivers events a few minutes after they happen, so an alert can take up to about 15 minutes.
+
+The state is local and gitignored. Before planning, obtain the latest shared dev state from whoever last applied. Back up the existing state and verify that the incoming file has the same lineage and a newer serial. Replacing this file updates local bookkeeping only; it does not deploy code or change AWS resources.
