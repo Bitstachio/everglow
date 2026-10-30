@@ -39,7 +39,7 @@ export const useUploadTrayScreen = () => {
       return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "" };
     }),
     summary: summarizeTray(tray),
-    onHide: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),
+    onBack: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),
     onCancelRest: () => {
       if (eventId) cancelTray(eventId);
     },

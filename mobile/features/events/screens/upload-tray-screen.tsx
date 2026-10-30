@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Display } from "@/components/ui/display";
-import { EdgePrint } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
@@ -62,7 +61,10 @@ const UploadTrayScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
-      <TopBar title={screen.title} left={<BackButton accessibilityLabel={t("tray.hide")} onPress={screen.onHide} />} />
+      <TopBar
+        title={screen.title}
+        left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
+      />
       <ScrollView className="flex-1" contentContainerClassName="pb-8 pt-4">
         <Display className="px-5" dim={dim}>
           {title}
@@ -108,22 +110,21 @@ const UploadTrayScreen = () => {
         </View>
       </ScrollView>
 
-      <View className="flex-row items-center justify-between px-3 pb-2">
-        {summary.inFlight > 0 ? (
-          <Button
-            variant="ghost"
-            fullWidth={false}
-            title={t("tray.cancelRest")}
-            className="opacity-70"
-            onPress={screen.onCancelRest}
-          />
-        ) : summary.retryable > 0 ? (
-          <Button variant="ghost" fullWidth={false} title={t("tray.retry")} onPress={screen.onRetry} />
-        ) : (
-          <EdgePrint> </EdgePrint>
-        )}
-        <Button variant="ghost" fullWidth={false} title={t("tray.hide")} onPress={screen.onHide} />
-      </View>
+      {summary.inFlight > 0 || summary.retryable > 0 ? (
+        <View className="flex-row items-center px-3 pb-2">
+          {summary.inFlight > 0 ? (
+            <Button
+              variant="ghost"
+              fullWidth={false}
+              title={t("tray.cancelRest")}
+              className="opacity-70"
+              onPress={screen.onCancelRest}
+            />
+          ) : (
+            <Button variant="ghost" fullWidth={false} title={t("tray.retry")} onPress={screen.onRetry} />
+          )}
+        </View>
+      ) : null}
       <FilmGrain />
     </SafeAreaView>
   );

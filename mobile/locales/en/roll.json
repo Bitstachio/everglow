@@ -188,7 +188,6 @@
       "uploading": "Uploading"
     },
     "cancelRest": "Cancel the rest",
-    "hide": "Hide ›",
     "retry": "Retry ↻",
     "frameDeveloping": "Frame {{number}}, developing",
     "frameFailed": "Frame {{number}}, didn’t take",

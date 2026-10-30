@@ -5,7 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import type { TrayItem } from "../lib/upload-tray";
 import UploadTrayScreen from "./upload-tray-screen";
 
-const mockHide = jest.fn();
+const mockBack = jest.fn();
 const mockCancelRest = jest.fn();
 const mockRetry = jest.fn();
 const mockRetryOne = jest.fn();
@@ -21,7 +21,7 @@ jest.mock("../hooks/use-upload-tray-screen", () => ({
     summary: jest
       .requireActual<typeof import("../lib/upload-tray-view")>("../lib/upload-tray-view")
       .summarizeTray({ items: mockEntries, running: false, closed: null }),
-    onHide: mockHide,
+    onBack: mockBack,
     onCancelRest: mockCancelRest,
     onRetry: mockRetry,
     onRetryOne: mockRetryOne,
@@ -61,7 +61,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-test("08.3: shows each file's progress, and can cancel the rest or hide", async () => {
+test("08.3: shows each file's progress, and can cancel the rest or go back", async () => {
   mockEntries = [
     entry("IMG_2231", { kind: "developed", photoId: "p1" }),
     entry("IMG_2234", { kind: "sending", bytesSent: 2.1 * MB }),
@@ -82,8 +82,9 @@ test("08.3: shows each file's progress, and can cancel the rest or hide", async 
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "Cancel the rest" }));
   expect(mockCancelRest).toHaveBeenCalled();
-  await user.press(screen.getAllByRole("button", { name: "Hide ›" })[0]!);
-  expect(mockHide).toHaveBeenCalled();
+  expect(screen.queryByRole("button", { name: /Hide/ })).not.toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Back" }));
+  expect(mockBack).toHaveBeenCalled();
 });
 
 test("08.5: says which can't be added and why, and removes them", async () => {
