@@ -20,3 +20,9 @@ test("caches a photo by its key, since a presigned URL changes on every fetch", 
   const photo = screen.getByTestId("film-strip-photo", { includeHiddenElements: true });
   expect(JSON.stringify(photo.props.source)).toContain('"cacheKey":"photo:a"');
 });
+
+test("shows a bundled photo as it is", async () => {
+  await render(<FilmStrip frames={[{ key: "a", image: 7 }]} />);
+  const photo = screen.getByTestId("film-strip-photo", { includeHiddenElements: true });
+  expect(photo.props.source).toEqual([expect.objectContaining({ __packager_asset: true })]);
+});

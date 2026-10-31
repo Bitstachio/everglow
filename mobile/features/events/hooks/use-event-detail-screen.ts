@@ -16,7 +16,7 @@ import {
 } from "../api/mutations";
 import { requestLibraryAddAccess, saveEventPhoto } from "../api/save-event-photos";
 import type { EventPhotoFile } from "../api/upload-event-photos";
-import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
+import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery, useRenewEventPhoto } from "../api/queries";
 import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
 import { roomShortfall, toTrayItems, type PickedFile, type RoomShortfall } from "../lib/picked-photos";
 import {
@@ -40,9 +40,16 @@ import {
   useUploadTray,
   type TrayItem,
 } from "../lib/upload-tray";
-import type { EventParticipantResponseDto } from "../types";
+import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } from "../types";
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
+
+/** What the roll's page shows, read from its three queries. */
+type RollOnScreen = {
+  event: EventResponseDto;
+  photos: PhotoResponseDto[];
+  participants: EventParticipantResponseDto[];
+};
 
 // 08.1: event photos upload as picked: no crop step and no re-encode, so group
 // shots and portraits keep their original aspect ratio. Only avatars and covers
@@ -111,14 +118,19 @@ export const useEventDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
-  const [leavingRoll, setLeavingRoll] = useState(false);
+  // The roll as it was when Leave was confirmed. Leaving evicts its caches
+  // before the screen is replaced, so it keeps showing this until then
+  // instead of falling back to the loading spinner.
+  const [leftRoll, setLeftRoll] = useState<RollOnScreen | null>(null);
+  const leavingRoll = leftRoll !== null;
 
   const eventQuery = useEventQuery(eventId, !leavingRoll);
-  const event = eventQuery.data ?? null;
+  const event = leftRoll?.event ?? eventQuery.data ?? null;
   // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
   const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
   const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
+  const renewPhoto = useRenewEventPhoto(eventId);
 
   const leaveEventMutation = useLeaveEventMutation();
   const deactivateMutation = useDeactivateEventMutation();
@@ -158,11 +170,11 @@ export const useEventDetailScreen = () => {
   const afterSheetCloses = useRef<(() => void) | null>(null);
   const closeSheet = () => setSheet(null);
 
-  const photos = hasPhotos ? (photosQuery.data ?? []) : [];
+  const photos = leftRoll?.photos ?? (hasPhotos ? (photosQuery.data ?? []) : []);
   useEffect(() => {
     if (eventId && hasPhotos && photosQuery.data) reconcileTrayPhotos(eventId, photosQuery.data);
   }, [eventId, hasPhotos, photosQuery.data]);
-  const participants = participantsQuery.data ?? [];
+  const participants = leftRoll?.participants ?? participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
   const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("frame.you"));
   const developing = hasPhotos ? developingFrames(tray.items, photos, frames.length) : [];
@@ -170,7 +182,8 @@ export const useEventDetailScreen = () => {
   const leftBytes = event ? eventStorageLeftBytes(event) : null;
   const isFull = leftBytes !== null && leftBytes <= 0 && (stage === "open" || stage === "empty");
 
-  const isLoading = eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading);
+  const isLoading =
+    !leavingRoll && (eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading));
   const refreshing = eventQuery.isRefetching || photosQuery.isRefetching || participantsQuery.isRefetching;
 
   useEffect(() => {
@@ -364,9 +377,8 @@ export const useEventDetailScreen = () => {
   const onRetryFrame = async () => {
     if (!openFrame || !hasPhotos) throw new Error("No visible frame to retry");
     const photoId = openFrame.photo.id;
-    const result = await photosQuery.refetch({ throwOnError: true });
-    const photo = result.data?.find((item) => item.id === photoId);
-    if (!photo) throw new Error("Frame is no longer available");
+    // Only this frame's link: a long roll's pages aren't all fetched again. A frame that's gone answers 404.
+    const photo = await renewPhoto(photoId);
     // A request finishing after Close must not reopen the viewer or replace another frame.
     setOpenFrame((current) => (current?.photo.id === photoId ? { ...current, photo } : current));
   };
@@ -391,8 +403,9 @@ export const useEventDetailScreen = () => {
 
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
-    // Stop active readers before membership is revoked and their caches are evicted.
-    setLeavingRoll(true);
+    // Stop active readers before membership is revoked and their caches are
+    // evicted, and keep the roll on screen until Home replaces it.
+    setLeftRoll({ event, photos, participants });
     leaveEventMutation.mutate(eventId, {
       onSuccess: () => {
         closeSheet();
@@ -400,7 +413,7 @@ export const useEventDetailScreen = () => {
       },
       onError: (error) => {
         closeSheet();
-        setLeavingRoll(false);
+        setLeftRoll(null);
         showNotice(getErrorMessage(error));
       },
     });

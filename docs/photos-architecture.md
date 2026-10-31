@@ -124,6 +124,8 @@ Opening a frame mounts the original image; Save and Save all also download origi
 
 Presigned URLs change between API reads. Image components may use a stable per-photo, per-variant cache key rather than the changing signature. Missing thumbnails must not cause original prefetching.
 
+On mobile, a missing thumbnail is tried four times in all (`RetryingPhoto`), counted per cache key for the session, so a re-signed URL or a remounted frame doesn't start over. The frame viewer gives up on an original only after 30 seconds without a byte arriving, and its Try again renews that one photo's links with this endpoint instead of refetching the roll's pages.
+
 Saving on mobile (`features/events/api/save-event-photos.ts`) asks only to add to Photos (`requestPermissionsAsync(true, ["photo"])`: iOS's add-only prompt, no media read permission on Android 13+). A link from a list fetched more than 10 minutes earlier is renewed with this endpoint before downloading, and a download that fails on a younger link is tried once more with a new one. Each download goes to its own temporary file, and only one save runs at a time. Trying Save all again after it partly failed saves only the frames it missed.
 
 ---

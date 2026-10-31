@@ -101,12 +101,13 @@
   "leave": {
     "title": "Leave {{title}}?",
     "body": "Your frames stay on the roll until it closes. You can come back with the envelope.",
+    "bodyClosed": "It has closed, so you can’t join it again.",
     "confirm": "Leave",
     "cancel": "Stay"
   },
   "cut": {
     "title": "Cut the roll?",
-    "body": "It closes for everyone now and stops counting toward your rolls. This can’t be undone.",
+    "body": "Its frames are removed for everyone now, and it stops counting toward your rolls. This can’t be undone.",
     "confirm": "Cut it",
     "cancel": "Keep it"
   },
@@ -126,8 +127,8 @@
   },
   "viewer": {
     "close": "Close frame",
-    "loading": "Loading photo",
-    "loadFailed": "Couldn’t load this photo.",
+    "loading": "Loading frame",
+    "loadFailed": "Couldn’t load this frame.",
     "retry": "Try again",
     "save": "Save to Photos",
     "delete": "Delete frame",
