@@ -1,5 +1,7 @@
 import { PrismaClient } from "generated/prisma/client";
 import { mockDeep } from "jest-mock-extended";
+import { buildEvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { OrphanSourceRegistry } from "src/storage/orphan-source.registry";
 import { PhotoDerivativeOrphanSource } from "./photo-derivative-orphan-source";
@@ -12,9 +14,17 @@ const large = `derived/${original}/large.jpg`;
 describe("PhotoDerivativeOrphanSource", () => {
   const prisma = mockDeep<PrismaClient>();
   const registry = new OrphanSourceRegistry();
-  const source = new PhotoDerivativeOrphanSource(prisma as unknown as PrismaService, registry);
+  const evidence = buildEvidenceServiceMock();
+  const source = new PhotoDerivativeOrphanSource(
+    prisma as unknown as PrismaService,
+    registry,
+    evidence as unknown as EvidenceService,
+  );
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    evidence.findKeysAwaitingQuarantine.mockResolvedValue([]);
+  });
 
   it("registers a separate prefix for derivative cleanup", () => {
     source.onModuleInit();
@@ -49,10 +59,18 @@ describe("PhotoDerivativeOrphanSource", () => {
   it("releases both copies after the photo row is removed", async () => {
     prisma.photo.findMany.mockResolvedValue([]);
     await expect(source.findReferencedKeys([thumb, large])).resolves.toEqual([]);
+    expect(evidence.findKeysAwaitingQuarantine).toHaveBeenCalledWith([original]);
+  });
+
+  it("keeps the copies of an original a report still needs as evidence", async () => {
+    prisma.photo.findMany.mockResolvedValue([]);
+    evidence.findKeysAwaitingQuarantine.mockResolvedValue([original]);
+    await expect(source.findReferencedKeys([thumb, large])).resolves.toEqual([thumb, large]);
   });
 
   it("ignores unrecognized keys without a database query", async () => {
     await expect(source.findReferencedKeys(["derived/README.txt"])).resolves.toEqual([]);
     expect(prisma.photo.findMany).not.toHaveBeenCalled();
+    expect(evidence.findKeysAwaitingQuarantine).not.toHaveBeenCalled();
   });
 });

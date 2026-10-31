@@ -23,7 +23,7 @@ describe("EvidenceService", () => {
     s3Service = {
       copyObject: jest.fn().mockResolvedValue({ sha256: "ab".repeat(32) }),
       deleteObject: jest.fn().mockResolvedValue(undefined),
-      deleteObjects: jest.fn(),
+      deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })),
     };
     logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
     const config = {
@@ -239,17 +239,42 @@ describe("EvidenceService", () => {
       const result = await service.runEvidenceJob(now);
 
       expect(s3Service.copyObject).toHaveBeenCalledWith(photoKey, `evidence/${reportId}/${photoKey}`);
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(photoKey);
+      // The delete that retained it kept its derived copies; they go with it in one batch.
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith([
+        photoKey,
+        `derived/${photoKey}/thumb.webp`,
+        `derived/${photoKey}/large.jpg`,
+      ]);
       expect(result).toMatchObject({ retried: 1, quarantined: 1 });
     });
 
-    it("leaves the original alone after a successful retry while a photo still points at it", async () => {
+    it("deletes a retried cover without derived keys", async () => {
+      const coverKey = "event-covers/e/c";
+      prisma.reportEvidence.findMany.mockResolvedValueOnce([{ id: "ev-1", reportId, objectS3Key: coverKey }] as never);
+
+      await service.runEvidenceJob(now);
+
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith([coverKey]);
+    });
+
+    it("leaves the original and its derived copies alone after a successful retry while a photo still points at it", async () => {
       prisma.reportEvidence.findMany.mockResolvedValueOnce([{ id: "ev-1", reportId, objectS3Key: photoKey }] as never);
       prisma.photo.count.mockResolvedValue(1);
 
       await service.runEvidenceJob(now);
 
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
+
+    it("leaves the original and its derived copies alone when the retry fails again", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValueOnce([{ id: "ev-1", reportId, objectS3Key: photoKey }] as never);
+      s3Service.copyObject.mockRejectedValue(new Error("s3 down"));
+
+      const result = await service.runEvidenceJob(now);
+
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ retried: 1, quarantined: 0 });
     });
 
     it("purges closed reports past the retention window that aren't held, objects first", async () => {

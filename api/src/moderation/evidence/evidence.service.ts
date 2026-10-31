@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { Prisma, ReportReason, ReportStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { deleteObjectWithDerivatives } from "src/photos/photo-object-deletion";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { buildEvidenceS3Key } from "./evidence.constants";
@@ -207,7 +208,8 @@ export class EvidenceService {
       const key = candidate.objectS3Key!;
       if (await this.isStillReferenced(key)) continue;
       try {
-        await this.s3Service.deleteObject(key);
+        // A photo original kept its derived copies while it was retained; they go with it now.
+        await deleteObjectWithDerivatives(this.s3Service, key);
       } catch {
         // An orphan for the reconciler now: its copy exists, so nothing protects it any more.
       }
