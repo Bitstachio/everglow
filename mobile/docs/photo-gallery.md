@@ -11,8 +11,8 @@ whole visible collection; if a later page fails, they keep the previous
 selection and show an error instead of silently acting on an incomplete roll.
 Counts in the event header use the server's visible photo count.
 
-Opening a photo requests its original. Swiping, the next/previous controls,
-and the thumbnail strip move the same viewer; only its active frame renders
+Opening a photo requests its original. Swiping, the thumbnail strip, and the header’s screen-reader adjustment
+actions move the same viewer; only its active frame renders
 an original. The strip and grid use stable thumbnail cache keys. Attribution
 comes from the participant list, with a fallback for a departed/deleted uploader.
 A suspended/closed gallery or revoked access closes the viewer. An original
@@ -58,3 +58,10 @@ URL endpoint remain EV-74. Uploads retain their independent durable tray.
 Chapter 10 report/block entry points and forms remain part of EV-133. They
 are not rendered as inactive actions in this chapter. The latest design
 reference is the chapter 09 flow in the linked Everglow design artifact.
+
+The chapter 09 viewer uses a compact mono attribution line with a caption-sized
+avatar, a five-frame contact strip with sprockets contained around it, and
+Save / Share / More text actions. Landscape originals stay uncropped with
+letterboxing. The frame menu uses a thumbnail summary and trailing action
+icons; its delete label distinguishes the caller’s own frame from a host
+removing somebody else’s. Visible frame numbers remain omitted.

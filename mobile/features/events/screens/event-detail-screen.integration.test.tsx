@@ -1020,7 +1020,7 @@ describe("saving and deleting frames", () => {
 
     mockDetailResponses({ photos: [] });
     await user.press(screen.getAllByRole("button", { name: "More" })[0]);
-    await user.press(screen.getByRole("button", { name: "Delete frame" }));
+    await user.press(screen.getByRole("button", { name: "Delete for everyone" }));
     await act(async () => screen.getByTestId("frame-menu-dialog", { includeHiddenElements: true }).props.onDismiss());
     await user.press(await screen.findByRole("button", { name: "Delete it" }));
 
@@ -1037,7 +1037,7 @@ describe("saving and deleting frames", () => {
     await renderScreen({ participants: [host, guest], photos: [buildPhoto({ addedById: "user-1" })] });
     await userEvent.setup().press(await screen.findByLabelText("Frame 1, by Ada"));
     expect(screen.getByRole("button", { name: "Save to Photos" })).toBeOnTheScreen();
-    expect(screen.queryByRole("button", { name: "Delete frame" })).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Delete for everyone" })).not.toBeOnTheScreen();
   });
 });
 
@@ -1319,7 +1319,9 @@ describe("chapter 09 gallery", () => {
     await user.press(await screen.findByLabelText("Frame 2, by Grace"));
     expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
     expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:mine:original");
-    await user.press(screen.getByRole("button", { name: "Next photo" }));
+    await user.press(
+      within(screen.getByTestId("viewer-film-strip")).getByRole("imagebutton", { name: "Frame 1, by You" }),
+    );
     expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
     expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:theirs:original");
     expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);

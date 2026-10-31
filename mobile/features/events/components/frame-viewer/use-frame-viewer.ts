@@ -2,11 +2,11 @@ import type { SheetFrame } from "../../lib/roll-page";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, PanResponder } from "react-native";
 
-export const useFrameViewer = (previous: () => void, next: () => void, index: number) => {
+export const useFrameViewer = (previous: () => void, next: () => void, index: number, stripStep: number) => {
   const stripRef = useRef<FlatList<SheetFrame>>(null);
   useEffect(() => {
-    if (index >= 0) stripRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
-  }, [index]);
+    if (index >= 0) stripRef.current?.scrollToOffset({ offset: Math.max(0, index - 2) * stripStep, animated: false });
+  }, [index, stripStep]);
   const [menuVisible, setMenuVisible] = useState(false);
   const deferred = useRef<(() => void) | null>(null);
   const gesture = useMemo(

@@ -1,21 +1,21 @@
-import { Modal, View, Text, FlatList, Pressable } from "react-native";
+import { Modal, View, FlatList, Pressable, useWindowDimensions } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Spinner } from "@/components/ui/spinner";
 import { Avatar } from "@/components/ui/avatar";
 import { AppIcon } from "@/components/ui/app-icon";
 import { IconButton } from "@/components/ui/icon-button";
-import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { EdgePrint } from "@/components/ui/edge-print";
-import { IndexRow } from "@/components/ui/index-row";
+import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
 import { Sprockets } from "@/components/ui/film-strip";
-import { X, DotsThree, CaretLeft, CaretRight } from "phosphor-react-native";
+import { X, DotsThree } from "phosphor-react-native";
 import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
 import { FramePhoto } from "../frame-photo/frame-photo";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
+import { FilmGrain } from "@/components/ui/film-grain";
+import { GalleryProgress } from "../gallery-controls";
+import { FrameMenu } from "./frame-menu";
 import { useFrameViewer } from "./use-frame-viewer";
 import type { PhotoResponseDto } from "../../types";
 
@@ -23,6 +23,7 @@ type Props = {
   frame: SheetFrame | null;
   frames: SheetFrame[];
   canDelete: boolean;
+  isOwn: boolean;
   busy: boolean;
   notice: string | null;
   progressLabel?: string;
@@ -47,6 +48,8 @@ export const FrameViewer = (props: Props) => {
   const { frame, frames, busy } = props;
   const { t, i18n } = useTranslation("roll");
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const stripStep = Math.floor(width / 5);
   const index = frames.findIndex((item) => item.photo.id === frame?.photo.id);
   const move = (offset: number) => {
     const target = frames[index + offset];
@@ -57,6 +60,7 @@ export const FrameViewer = (props: Props) => {
     () => move(-1),
     () => move(1),
     index,
+    stripStep,
   );
   const uploader = frame?.uploader;
   const name = uploader?.name ?? frame?.by ?? t("gallery.unknownUploader");
@@ -65,24 +69,42 @@ export const FrameViewer = (props: Props) => {
         weekday: "short",
         hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
       })
     : "";
   return (
     <Modal visible={frame !== null} animationType="fade" onRequestClose={props.onClose} presentationStyle="fullScreen">
       <View className="flex-1 bg-viewer" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
-        <View className="flex-row items-center gap-3 px-4 py-3">
+        <View className="absolute inset-0">
+          <FilmGrain />
+        </View>
+        <View className="min-h-14 flex-row items-center gap-3 px-5 py-2">
           <IconButton accessibilityLabel={t("viewer.close")} onPress={props.onClose}>
             <AppIcon icon={X} size="sm" color={colorTokens.text} />
           </IconButton>
-          {uploader ? (
-            <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="header" />
-          ) : null}
-          <View className="flex-1 gap-1">
-            <Text className="font-sans-medium text-name text-text" numberOfLines={1}>
-              {name}
-            </Text>
-            <EdgePrint size="frame-label" numberOfLines={1}>
-              {[uploader?.username ? `@${uploader.username}` : null, time].filter(Boolean).join(" · ")}
+          <View
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel={[name, uploader?.username ? `@${uploader.username}` : null, time]
+              .filter(Boolean)
+              .join(" · ")}
+            accessibilityActions={[
+              { name: "decrement", label: t("gallery.previous") },
+              { name: "increment", label: t("gallery.next") },
+            ]}
+            onAccessibilityAction={({ nativeEvent }) => {
+              if (nativeEvent.actionName === "increment") move(1);
+              if (nativeEvent.actionName === "decrement") move(-1);
+            }}
+            className="min-h-11 flex-1 flex-row items-center gap-2"
+          >
+            {uploader ? (
+              <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" />
+            ) : null}
+            <EdgePrint size="frame-label" numberOfLines={2} className="flex-1">
+              <EdgeValue>{name}</EdgeValue>
+              {" · "}
+              {time}
             </EdgePrint>
           </View>
           <IconButton accessibilityLabel={t("gallery.more")} disabled={busy} onPress={openMenu}>
@@ -99,27 +121,13 @@ export const FrameViewer = (props: Props) => {
             />
           ) : null}
         </View>
-        <View className="flex-row items-center justify-between px-4 py-1">
-          <IconButton accessibilityLabel={t("gallery.previous")} disabled={index <= 0} onPress={() => move(-1)}>
-            <AppIcon icon={CaretLeft} size="sm" color={colorTokens.text} />
-          </IconButton>
-          <View className="flex-1 items-center">
-            {busy ? (
-              <Spinner label={props.progressLabel ?? t("gallery.preparing")} />
-            ) : (
-              <EdgePrint accessibilityLiveRegion="polite" className="text-center">
-                {props.notice}
-              </EdgePrint>
-            )}
-          </View>
-          <IconButton
-            accessibilityLabel={t("gallery.next")}
-            disabled={index >= frames.length - 1 && !props.hasMore}
-            onPress={() => move(1)}
-          >
-            <AppIcon icon={CaretRight} size="sm" color={colorTokens.text} />
-          </IconButton>
-        </View>
+        {busy ? (
+          <GalleryProgress label={props.progressLabel ?? t("gallery.preparing")} />
+        ) : props.notice ? (
+          <EdgePrint accessibilityLiveRegion="polite" className="px-5 py-3 text-center">
+            {props.notice}
+          </EdgePrint>
+        ) : null}
         {props.failedSaveCount > 0 ? (
           <Button
             title={t("gallery.retrySave", { count: props.failedSaveCount })}
@@ -129,94 +137,83 @@ export const FrameViewer = (props: Props) => {
             onPress={props.onRetrySave}
           />
         ) : null}
-        <Sprockets edge="top" count={24} />
-        <FlatList
-          ref={stripRef}
-          horizontal
-          data={frames}
-          keyExtractor={(item) => item.photo.id}
-          extraData={frame?.photo.id}
-          style={{ flexGrow: 0 }}
-          initialScrollIndex={Math.max(0, index)}
-          getItemLayout={(_, itemIndex) => ({ length: 68, offset: 68 * itemIndex, index: itemIndex })}
-          onEndReached={props.onLoadMore}
-          onEndReachedThreshold={0.5}
-          renderItem={({ item }) => (
-            <Pressable
-              accessibilityRole="imagebutton"
-              accessibilityLabel={t("frame.labelBy", {
-                number: item.number,
-                name: item.by ?? t("gallery.unknownUploader"),
-              })}
-              accessibilityState={{ selected: item.photo.id === frame?.photo.id }}
-              onPress={() => props.onMove(item.photo.id)}
-              style={{ width: 64, height: 64, marginHorizontal: 2 }}
-              className={item.photo.id === frame?.photo.id ? "border-2 border-text" : "opacity-50"}
-            >
-              <RetryingPhoto
-                uri={item.photo.thumbnailUrl}
-                cacheKey={`photo:${item.photo.id}:thumbnail`}
-                className="h-full w-full"
-                contentFit="cover"
-              />
-            </Pressable>
-          )}
-        />
-        <Sprockets edge="bottom" count={24} />
-        <View className="flex-row items-center justify-around px-4 py-2">
+        <View testID="viewer-film-strip" className="bg-rebate py-3.25">
+          <Sprockets edge="top" />
+          <FlatList
+            ref={stripRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={frames}
+            keyExtractor={(item) => item.photo.id}
+            extraData={frame?.photo.id}
+            style={{ flexGrow: 0 }}
+            initialScrollIndex={Math.max(0, index - 2)}
+            getItemLayout={(_, itemIndex) => ({ length: stripStep, offset: stripStep * itemIndex, index: itemIndex })}
+            onEndReached={props.onLoadMore}
+            onEndReachedThreshold={0.5}
+            renderItem={({ item }) => (
+              <Pressable
+                accessibilityRole="imagebutton"
+                accessibilityLabel={t("frame.labelBy", {
+                  number: item.number,
+                  name: item.by ?? t("gallery.unknownUploader"),
+                })}
+                accessibilityState={{ selected: item.photo.id === frame?.photo.id }}
+                onPress={() => props.onMove(item.photo.id)}
+                style={{ width: stripStep - 4, height: Math.round(((stripStep - 4) * 9) / 11), marginHorizontal: 2 }}
+                className={item.photo.id === frame?.photo.id ? "border-2 border-text" : "opacity-50"}
+              >
+                <RetryingPhoto
+                  uri={item.photo.thumbnailUrl}
+                  cacheKey={`photo:${item.photo.id}:thumbnail`}
+                  className="h-full w-full"
+                  contentFit="cover"
+                />
+              </Pressable>
+            )}
+          />
+          <Sprockets edge="bottom" />
+        </View>
+        <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
           <Button
-            title={t("viewer.save")}
+            title={t("viewer.saveAction")}
+            accessibilityLabel={t("viewer.save")}
             variant="ghost"
             fullWidth={false}
-            mark="↓"
             onPress={props.onSave}
             disabled={busy}
           />
           <Button
-            title={t("gallery.share")}
+            title={t("viewer.shareAction")}
+            accessibilityLabel={t("gallery.share")}
             variant="ghost"
             fullWidth={false}
-            mark="↗"
             onPress={props.onShare}
             disabled={busy}
           />
           <Button
-            title={t("gallery.more")}
+            title={t("viewer.moreAction")}
+            accessibilityLabel={t("gallery.more")}
             variant="ghost"
             fullWidth={false}
-            mark="⋯"
             onPress={openMenu}
             disabled={busy}
           />
         </View>
       </View>
-      <BottomSheet
-        testID="frame-menu-dialog"
+      <FrameMenu
+        frame={frame}
+        name={name}
+        time={time}
+        isOwn={props.isOwn}
+        canDelete={props.canDelete}
         visible={menuVisible && !!frame}
         onClose={closeMenu}
         onClosed={onMenuClosed}
-      >
-        <View className="px-5 pb-5">
-          <View className="flex-row items-center gap-4 pb-4">
-            <View className="h-16 w-16">
-              <RetryingPhoto
-                uri={frame?.photo.thumbnailUrl}
-                cacheKey={frame ? `photo:${frame.photo.id}:thumbnail` : undefined}
-                className="h-full w-full"
-              />
-            </View>
-            <View className="flex-1">
-              <Text className="font-sans-medium text-name text-text">{name}</Text>
-              <EdgePrint>{time}</EdgePrint>
-            </View>
-          </View>
-          <IndexRow label={t("viewer.save")} onPress={() => fromMenu(props.onSave)} />
-          <IndexRow label={t("gallery.share")} onPress={() => fromMenu(props.onShare)} />
-          {props.canDelete ? (
-            <IndexRow label={t("viewer.delete")} muted onPress={() => fromMenu(props.onDelete)} />
-          ) : null}
-        </View>
-      </BottomSheet>
+        onSave={() => fromMenu(props.onSave)}
+        onShare={() => fromMenu(props.onShare)}
+        onDelete={() => fromMenu(props.onDelete)}
+      />
       <GalleryDeleteSheet
         targets={props.deleteTargets}
         busy={props.isDeleting}

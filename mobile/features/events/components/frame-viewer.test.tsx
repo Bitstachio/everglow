@@ -7,6 +7,7 @@ import { FrameViewer } from "./frame-viewer/frame-viewer";
 const props = (): ComponentProps<typeof FrameViewer> => ({
   frame: { photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false },
   canDelete: false,
+  isOwn: true,
   frames: [],
   busy: false,
   notice: null,
@@ -60,5 +61,28 @@ test("displaying an original cancels the loading timeout", async () => {
   } finally {
     await view.unmount();
     jest.useRealTimers();
+  }
+});
+
+test("the compact attribution retains accessible next/previous navigation", async () => {
+  const input = props();
+  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
+  input.frames = [input.frame!, second];
+  const view = await render(<FrameViewer {...input} />);
+  try {
+    await fireEvent(screen.getByRole("adjustable"), "accessibilityAction", {
+      nativeEvent: { actionName: "increment" },
+    });
+    expect(input.onMove).toHaveBeenCalledWith("photo-2");
+    input.onMove = jest.fn();
+    await view.rerender(<FrameViewer {...input} frame={second} />);
+    await fireEvent(screen.getByRole("adjustable"), "accessibilityAction", {
+      nativeEvent: { actionName: "decrement" },
+    });
+    expect(input.onMove).toHaveBeenCalledWith("photo-1");
+    expect(screen.queryByRole("button", { name: "Next photo" })).not.toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Save to Photos" })).toHaveTextContent("Save ↓");
+  } finally {
+    await view.unmount();
   }
 });

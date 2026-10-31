@@ -683,6 +683,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         frame={screen.openFrame}
         frames={screen.frames}
         canDelete={screen.openFrameIsDeletable}
+        isOwn={!!screen.currentUserId && screen.openFrame?.photo.addedById === screen.currentUserId}
         busy={!!screen.busy}
         progressLabel={screen.saving ? t("footer.saving", screen.saving) : undefined}
         notice={screen.notice}
