@@ -17,6 +17,9 @@ describe("PhotoPurgeService", () => {
     callerId: "11111111-1111-1111-1111-111111111111",
   };
   const keys = ["photos/u/e/a", "photos/u/e/b", "photos/u/e/c"];
+  const derived = (key: string) => [`derived/${key}/thumb.webp`, `derived/${key}/large.jpg`];
+  // What one DeleteObjects batch holds for these originals: each with its two copies.
+  const batchFor = (originals: string[]) => originals.flatMap((key) => [key, ...derived(key)]);
 
   beforeEach(async () => {
     s3Service = { deleteObjects: jest.fn() };
@@ -37,12 +40,13 @@ describe("PhotoPurgeService", () => {
   });
 
   it("deletes the objects and logs an audit summary", async () => {
-    s3Service.deleteObjects.mockResolvedValue({ deleted: keys, failed: [] });
+    s3Service.deleteObjects.mockResolvedValue({ deleted: batchFor(keys), failed: [] });
 
     const result = await service.purgeObjects(keys, context);
 
-    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0 });
-    expect(s3Service.deleteObjects).toHaveBeenCalledWith(keys);
+    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0, derivativesFailed: 0 });
+    expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
+    expect(s3Service.deleteObjects).toHaveBeenCalledWith(batchFor(keys));
     expect(logger.info).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
     expect(logger.error).not.toHaveBeenCalled();
   });
@@ -55,7 +59,7 @@ describe("PhotoPurgeService", () => {
 
     const result = await service.purgeObjects(keys, context);
 
-    expect(result).toEqual({ requested: 3, deleted: 2, failed: 1, retained: 0 });
+    expect(result).toEqual({ requested: 3, deleted: 2, failed: 1, retained: 0, derivativesFailed: 0 });
     expect(logger.error).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
     expect(logger.info).not.toHaveBeenCalled();
   });
@@ -68,6 +72,7 @@ describe("PhotoPurgeService", () => {
       deleted: 0,
       failed: 3,
       retained: 0,
+      derivativesFailed: 0,
     });
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ ...context, failed: 3, audit: true }),
@@ -81,6 +86,7 @@ describe("PhotoPurgeService", () => {
       deleted: 0,
       failed: 0,
       retained: 0,
+      derivativesFailed: 0,
     });
 
     expect(s3Service.deleteObjects).not.toHaveBeenCalled();
@@ -94,8 +100,10 @@ describe("PhotoPurgeService", () => {
     const result = await service.purgeObjects(keys, context);
 
     expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith(keys);
-    expect(s3Service.deleteObjects).toHaveBeenCalledWith(keys.slice(0, 2));
-    expect(result).toEqual({ requested: 3, deleted: 2, failed: 0, retained: 1 });
+    // The retained original keeps its copies: they go when the evidence job deletes it.
+    expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
+    expect(s3Service.deleteObjects).toHaveBeenCalledWith(batchFor(keys.slice(0, 2)));
+    expect(result).toEqual({ requested: 3, deleted: 2, failed: 0, retained: 1, derivativesFailed: 0 });
   });
 
   it("deletes nothing when every key is kept for evidence", async () => {
@@ -106,7 +114,31 @@ describe("PhotoPurgeService", () => {
       deleted: 0,
       failed: 0,
       retained: 3,
+      derivativesFailed: 0,
     });
     expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+  });
+
+  it("deletes a cover purged with the photos without derived keys", async () => {
+    const cover = "event-covers/e/c";
+    s3Service.deleteObjects.mockResolvedValue({ deleted: [...batchFor([keys[0]]), cover], failed: [] });
+
+    const result = await service.purgeObjects([keys[0], cover], context);
+
+    expect(s3Service.deleteObjects).toHaveBeenCalledWith([...batchFor([keys[0]]), cover]);
+    expect(result).toEqual({ requested: 2, deleted: 2, failed: 0, retained: 0, derivativesFailed: 0 });
+  });
+
+  it("counts derived keys that fail apart from the originals and logs them at error level", async () => {
+    const [thumb] = derived(keys[0]);
+    s3Service.deleteObjects.mockResolvedValue({
+      deleted: batchFor(keys).filter((key) => key !== thumb),
+      failed: [{ key: thumb, code: "InternalError" }],
+    });
+
+    const result = await service.purgeObjects(keys, context);
+
+    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0, derivativesFailed: 1 });
+    expect(logger.error).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
   });
 });

@@ -26,7 +26,7 @@ import {
   buildReport,
   expectedReportResponse,
 } from "./helpers/moderation.fixtures";
-import { TEST_PHOTO_ID, buildPhoto } from "./helpers/photos.fixtures";
+import { TEST_PHOTO_ID, buildPhoto, withPhotoDerivatives } from "./helpers/photos.fixtures";
 import { TEST_NOW, TEST_USER_ID, buildUserWithDetails, buildUserWithoutDetails } from "./helpers/users.fixtures";
 
 const photoReportsPath = (photoId = TEST_PHOTO_ID) => `/${API_GLOBAL_PREFIX}/photos/${photoId}/reports`;
@@ -469,7 +469,8 @@ describe("Moderation (integration)", () => {
         },
       });
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
-      expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
+      expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(buildPhoto().s3Key));
       expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
     });
 
@@ -504,7 +505,7 @@ describe("Moderation (integration)", () => {
       await patch({ action: "REMOVE_MEMBER", photos: "DELETE" }).expect(200);
 
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_PHOTO_ID] } } });
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/p"]);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives("photos/u/e/p"));
     });
 
     it("returns 400 for photos with any action other than REMOVE_MEMBER", async () => {
@@ -525,6 +526,7 @@ describe("Moderation (integration)", () => {
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     });
 
     it.each([{ action: "DELETE" }, { status: "DISMISSED" }, {}, { action: "REMOVE_MEMBER", photos: "SOME" }])(
@@ -597,6 +599,7 @@ describe("Moderation (integration)", () => {
       expectApiError(body, "REPORT_ALREADY_RESOLVED", { reportId: TEST_REPORT_ID });
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     });
   });
 
