@@ -16,6 +16,8 @@ type FrameViewerProps = {
   frame: SheetFrame | null;
   canDelete: boolean;
   isSaving: boolean;
+  /** False while another save runs, such as Save all. */
+  canSave: boolean;
   isDeleting: boolean;
   confirmDeleteVisible: boolean;
   onClose: () => void;
@@ -96,6 +98,7 @@ export const FrameViewer = ({
   frame,
   canDelete,
   isSaving,
+  canSave,
   isDeleting,
   confirmDeleteVisible,
   onClose,
@@ -124,7 +127,14 @@ export const FrameViewer = ({
           ) : null}
         </View>
         <View className="gap-2.5 px-5 pb-2 pt-4">
-          <Button title={t("viewer.save")} variant="secondary" mark="↓" onPress={onSave} isLoading={isSaving} />
+          <Button
+            title={t("viewer.save")}
+            variant="secondary"
+            mark="↓"
+            onPress={onSave}
+            isLoading={isSaving}
+            disabled={!canSave}
+          />
           {canDelete ? <Button title={t("viewer.delete")} variant="ghost" onPress={onDelete} /> : null}
         </View>
       </View>

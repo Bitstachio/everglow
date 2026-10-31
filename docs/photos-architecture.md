@@ -124,6 +124,8 @@ Opening a frame mounts the original image; Save and Save all also download origi
 
 Presigned URLs change between API reads. Image components may use a stable per-photo, per-variant cache key rather than the changing signature. Missing thumbnails must not cause original prefetching.
 
+Saving on mobile (`features/events/api/save-event-photos.ts`) asks only to add to Photos (`requestPermissionsAsync(true, ["photo"])`: iOS's add-only prompt, no media read permission on Android 13+). A link from a list fetched more than 10 minutes earlier is renewed with this endpoint before downloading, and a download that fails on a younger link is tried once more with a new one. Each download goes to its own temporary file, and only one save runs at a time. Trying Save all again after it partly failed saves only the frames it missed.
+
 ---
 
 ## 4. Schema (Prisma)

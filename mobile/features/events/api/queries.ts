@@ -4,6 +4,7 @@ import {
   eventsControllerFindOne,
   eventsControllerGetParticipants,
   eventsControllerPreviewInvite,
+  photosControllerFindOne,
   photosControllerListPhotos,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
@@ -71,6 +72,12 @@ export const useEventPhotosQuery = (eventId: string | undefined, enabled = true)
       return photos;
     },
   });
+
+/** One photo with newly signed links, without refetching every page of the roll. */
+export const fetchEventPhoto = async (photoId: string): Promise<PhotoResponseDto> => {
+  const { data } = await photosControllerFindOne({ path: { photoId }, throwOnError: true });
+  return unwrapEnvelope(data);
+};
 
 /** The latest `limit` photos of an open roll, for its strip on Home. */
 export const useRollPreviewQuery = (eventId: string, limit: number, enabled: boolean) =>
