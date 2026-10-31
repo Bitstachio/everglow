@@ -1,7 +1,6 @@
 import { Modal, View, FlatList, Pressable, useWindowDimensions } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Avatar } from "@/components/ui/avatar";
 import { AppIcon } from "@/components/ui/app-icon";
 import { IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
@@ -98,9 +97,6 @@ export const FrameViewer = (props: Props) => {
             }}
             className="min-h-11 flex-1 flex-row items-center gap-2"
           >
-            {uploader ? (
-              <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" />
-            ) : null}
             <EdgePrint size="frame-label" numberOfLines={2} className="flex-1">
               <EdgeValue>{name}</EdgeValue>
               {" · "}

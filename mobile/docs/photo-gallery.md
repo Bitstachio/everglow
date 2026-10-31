@@ -59,8 +59,8 @@ Chapter 10 report/block entry points and forms remain part of EV-133. They
 are not rendered as inactive actions in this chapter. The latest design
 reference is the chapter 09 flow in the linked Everglow design artifact.
 
-The chapter 09 viewer uses a compact mono attribution line with a caption-sized
-avatar, a five-frame contact strip with sprockets contained around it, and
+The chapter 09 viewer uses a compact mono name and timestamp without an avatar,
+a five-frame contact strip with sprockets contained around it, and
 Save / Share / More text actions. Landscape originals stay uncropped with
 letterboxing. The frame menu uses a thumbnail summary and trailing action
 icons; its delete label distinguishes the caller’s own frame from a host
