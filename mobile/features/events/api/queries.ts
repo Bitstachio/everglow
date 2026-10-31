@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   eventsControllerFindAll,
   eventsControllerFindOne,
   eventsControllerGetParticipants,
   eventsControllerPreviewInvite,
+  photosControllerFindOne,
   photosControllerListPhotos,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
@@ -71,6 +72,34 @@ export const useEventPhotosQuery = (eventId: string | undefined, enabled = true)
       return photos;
     },
   });
+
+/** One photo with newly signed links, without refetching every page of the roll. */
+export const fetchEventPhoto = async (photoId: string): Promise<PhotoResponseDto> => {
+  const { data } = await photosControllerFindOne({ path: { photoId }, throwOnError: true });
+  return unwrapEnvelope(data);
+};
+
+/**
+ * Renews one photo's links and puts it in the roll's list in its place, so
+ * opening that frame again uses them too. The list keeps the time it was
+ * fetched: every other link in it is as old as it was.
+ */
+export const useRenewEventPhoto = (eventId: string | undefined) => {
+  const queryClient = useQueryClient();
+
+  return async (photoId: string): Promise<PhotoResponseDto> => {
+    const photo = await fetchEventPhoto(photoId);
+    if (eventId) {
+      const queryKey = eventsKeys.photos(eventId);
+      queryClient.setQueryData<PhotoResponseDto[]>(
+        queryKey,
+        (photos) => photos?.map((item) => (item.id === photoId ? photo : item)),
+        { updatedAt: queryClient.getQueryState(queryKey)?.dataUpdatedAt },
+      );
+    }
+    return photo;
+  };
+};
 
 /** The latest `limit` photos of an open roll, for its strip on Home. */
 export const useRollPreviewQuery = (eventId: string, limit: number, enabled: boolean) =>

@@ -5,17 +5,19 @@ import { Photo } from "@/components/ui/photo";
 import { Slip } from "@/components/ui/slip";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { SheetFrame } from "../lib/roll-page";
+import type { SheetFrame } from "../../lib/roll-page";
+import { useFramePhoto } from "./use-frame-photo";
 
 type FrameViewerProps = {
   /** Null while no frame is open. */
   frame: SheetFrame | null;
   canDelete: boolean;
   isSaving: boolean;
+  /** False while another save runs, such as Save all. */
+  canSave: boolean;
   isDeleting: boolean;
   confirmDeleteVisible: boolean;
   onClose: () => void;
@@ -29,38 +31,7 @@ type FrameViewerProps = {
 /** Keep an original request visible and recoverable, including a request that stalls. */
 const FramePhoto = ({ frame, label, onRetry }: { frame: SheetFrame; label: string; onRetry: () => Promise<void> }) => {
   const { t } = useTranslation("roll");
-  const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
-  const [attempt, setAttempt] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fail = (reason: "image_error" | "timeout") => {
-    setStatus("failed");
-    // Native image errors may contain signed URLs. Log identifiers and a safe reason only.
-    if (__DEV__) console.warn("photo.viewer.load_failed", { photoId: frame.photo.id, reason });
-  };
-
-  useEffect(() => {
-    if (status !== "loading") return;
-    const timer = setTimeout(() => {
-      setStatus("failed");
-      if (__DEV__) console.warn("photo.viewer.load_failed", { photoId: frame.photo.id, reason: "timeout" });
-    }, 30_000);
-    return () => clearTimeout(timer);
-  }, [status, attempt, frame.photo.id]);
-
-  const retry = async () => {
-    setRefreshing(true);
-    try {
-      // Renew the signature as well as remounting the image; the old URL may have expired.
-      await onRetry();
-      setAttempt((current) => current + 1);
-      setStatus("loading");
-    } catch {
-      setStatus("failed");
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  const { status, attempt, refreshing, retry, onProgress, onDisplay, onError } = useFramePhoto(frame.photo.id, onRetry);
 
   return (
     <View className="flex-1">
@@ -72,8 +43,9 @@ const FramePhoto = ({ frame, label, onRetry }: { frame: SheetFrame; label: strin
           source={{ uri: frame.photo.url, cacheKey: `photo:${frame.photo.id}:original` }}
           contentFit="contain"
           className="h-full w-full"
-          onDisplay={() => setStatus("loaded")}
-          onError={() => fail("image_error")}
+          onProgress={onProgress}
+          onDisplay={onDisplay}
+          onError={onError}
         />
       ) : null}
       {status === "loading" ? (
@@ -96,6 +68,7 @@ export const FrameViewer = ({
   frame,
   canDelete,
   isSaving,
+  canSave,
   isDeleting,
   confirmDeleteVisible,
   onClose,
@@ -124,7 +97,14 @@ export const FrameViewer = ({
           ) : null}
         </View>
         <View className="gap-2.5 px-5 pb-2 pt-4">
-          <Button title={t("viewer.save")} variant="secondary" mark="↓" onPress={onSave} isLoading={isSaving} />
+          <Button
+            title={t("viewer.save")}
+            variant="secondary"
+            mark="↓"
+            onPress={onSave}
+            isLoading={isSaving}
+            disabled={!canSave}
+          />
           {canDelete ? <Button title={t("viewer.delete")} variant="ghost" onPress={onDelete} /> : null}
         </View>
       </View>

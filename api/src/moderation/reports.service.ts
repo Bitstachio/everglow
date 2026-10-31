@@ -26,6 +26,7 @@ import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { MEMBER_PHOTOS, type MemberPhotos, removeMemberInTransaction } from "src/events/event-membership";
 import { eventWithCallerAccessInclude } from "src/events/events.types";
+import { deleteObjectWithDerivatives } from "src/photos/photo-object-deletion";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { GALLERY_STATES, galleryStateOf } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -739,9 +740,10 @@ export class ReportsService {
   // at stake is storage cost, which the S3 orphan reconciler also covers.
   private async deletePhotoObject(photo: { id: string; s3Key: string }, reportId: string): Promise<void> {
     try {
-      // Copied to evidence first; a failed copy keeps the original for the evidence job.
+      // Copied to evidence first; a failed copy keeps the original, and its
+      // derived copies, for the evidence job.
       const { deletable } = await this.evidenceService.preserveBeforeDelete([photo.s3Key]);
-      if (deletable.length > 0) await this.s3Service.deleteObject(photo.s3Key);
+      if (deletable.length > 0) await deleteObjectWithDerivatives(this.s3Service, photo.s3Key);
     } catch (error) {
       this.logger.warn(
         { err: error as Error, event: "report.photo_object_retained", reportId, photoId: photo.id },

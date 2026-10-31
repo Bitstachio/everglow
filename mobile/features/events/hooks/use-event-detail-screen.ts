@@ -1,8 +1,7 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import * as ImagePicker from "expo-image-picker";
-import { File, Paths } from "expo-file-system";
-import * as MediaLibrary from "expo-media-library";
+import { File } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,8 +13,9 @@ import {
   useRemoveEventParticipantMutation,
   useUploadEventPhotosMutation,
 } from "../api/mutations";
+import { requestLibraryAddAccess, saveEventPhoto } from "../api/save-event-photos";
 import type { EventPhotoFile } from "../api/upload-event-photos";
-import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
+import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery, useRenewEventPhoto } from "../api/queries";
 import {
   hasOpened,
   isRollLastDay,
@@ -28,8 +28,15 @@ import {
 import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import { useArrivalNote } from "./use-arrival-note";
-import type { EventParticipantResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
+import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
 import { eventStorageLeftBytes, formatStorageBytes } from "../utils";
+
+/** What the roll's page shows, read from its three queries. */
+type RollOnScreen = {
+  event: EventResponseDto;
+  photos: PhotoResponseDto[];
+  participants: EventParticipantResponseDto[];
+};
 
 // Event photos upload as picked: no crop step and no re-encode, so group shots
 // and portraits keep their original aspect ratio. Only avatars and covers crop.
@@ -82,29 +89,6 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
   return asset.fileSize ?? 0;
 };
 
-/** Saves one frame to the phone's library. The library keeps its own copy, so the download goes. */
-const saveToLibrary = async (photo: PhotoResponseDto) => {
-  // Original S3 keys have no suffix. Photos detects the media type from the local filename.
-  const extensions: Record<PhotoResponseDto["contentType"], string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/heic": "heic",
-    "image/heif": "heif",
-  };
-  const destination = new File(Paths.cache, `everglow-${photo.id}.${extensions[photo.contentType]}`);
-  const downloaded = await File.downloadFileAsync(photo.url, destination, { idempotent: true });
-  try {
-    await MediaLibrary.Asset.create(downloaded.uri);
-  } finally {
-    try {
-      downloaded.delete();
-    } catch {
-      // Already gone; the cache is the system's to clear anyway.
-    }
-  }
-};
-
 /** What the sheet over the roll shows: the menu, people, or a slip. */
 export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove";
 
@@ -118,14 +102,19 @@ export const useEventDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
-  const [leavingRoll, setLeavingRoll] = useState(false);
+  // The roll as it was when Leave was confirmed. Leaving evicts its caches
+  // before the screen is replaced, so it keeps showing this until then
+  // instead of falling back to the loading spinner.
+  const [leftRoll, setLeftRoll] = useState<RollOnScreen | null>(null);
+  const leavingRoll = leftRoll !== null;
 
   const eventQuery = useEventQuery(eventId, !leavingRoll);
-  const event = eventQuery.data ?? null;
+  const event = leftRoll?.event ?? eventQuery.data ?? null;
   // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
   const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
   const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
+  const renewPhoto = useRenewEventPhoto(eventId);
 
   const leaveEventMutation = useLeaveEventMutation();
   const deactivateMutation = useDeactivateEventMutation();
@@ -142,6 +131,10 @@ export const useEventDetailScreen = () => {
 
   const [uploadStatus, setUploadStatus] = useState<PhotoUploadStatus | null>(null);
   const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
+  // One save at a time, Save all or the viewer's, so the two never work on the same frame at once.
+  const saveRunning = useRef(false);
+  // Frames a Save all that didn't finish did save. The next Save all skips them, so nothing lands twice.
+  const savedByLastSaveAll = useRef(new Set<string>());
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -155,13 +148,14 @@ export const useEventDetailScreen = () => {
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
   const closeSheet = () => setSheet(null);
 
-  const photos = hasPhotos ? (photosQuery.data ?? []) : [];
-  const participants = participantsQuery.data ?? [];
+  const photos = leftRoll?.photos ?? (hasPhotos ? (photosQuery.data ?? []) : []);
+  const participants = leftRoll?.participants ?? participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
   const stage = event ? rollStage(event, photos.length) : "open";
   const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("frame.you"));
 
-  const isLoading = eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading);
+  const isLoading =
+    !leavingRoll && (eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading));
   const refreshing = eventQuery.isRefetching || photosQuery.isRefetching || participantsQuery.isRefetching;
 
   useEffect(() => {
@@ -268,55 +262,75 @@ export const useEventDetailScreen = () => {
   };
 
   const ensureLibraryAccess = async () => {
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status === "granted") return true;
+    if (await requestLibraryAddAccess()) return true;
     showNotice(t("result.libraryAccess"));
     return false;
   };
 
   const onSaveAll = async () => {
-    if (photos.length === 0 || saving) return;
-    if (!(await ensureLibraryAccess())) return;
+    if (photos.length === 0 || saveRunning.current) return;
+    saveRunning.current = true;
+    try {
+      if (!(await ensureLibraryAccess())) return;
 
-    const total = photos.length;
-    let saved = 0;
-    setSaving({ done: 0, total });
-    for (const photo of photos) {
-      try {
-        await saveToLibrary(photo);
-        saved += 1;
-      } catch {
-        // Keep going: one frame that won't save shouldn't stop the rest.
+      // Trying again after a Save all that didn't finish saves only what it missed.
+      const saved = savedByLastSaveAll.current;
+      const missed = photos.filter((photo) => !saved.has(photo.id));
+      const pending = missed.length > 0 ? missed : photos;
+      const signedAt = photosQuery.dataUpdatedAt;
+      const total = pending.length;
+      let done = 0;
+      setSaving({ done: 0, total });
+      for (const photo of pending) {
+        try {
+          await saveEventPhoto(photo, signedAt);
+          saved.add(photo.id);
+          done += 1;
+        } catch {
+          // Keep going: one frame that won't save shouldn't stop the rest.
+        }
+        setSaving({ done, total });
       }
-      setSaving({ done: saved, total });
-    }
-    setSaving(null);
 
-    if (saved === total) showNotice(t("result.saved", { count: total }));
-    else if (saved === 0) showNotice(t("result.saveFailed"));
-    else showNotice(t("result.savedSome", { saved, total }));
+      if (done === total) {
+        // Everything is in Photos, so a later Save all starts over.
+        saved.clear();
+        showNotice(t("result.saved", { count: total }));
+      } else if (done === 0) {
+        showNotice(t("result.saveFailed"));
+      } else {
+        showNotice(t("result.savedSome", { saved: done, total }));
+      }
+    } finally {
+      setSaving(null);
+      saveRunning.current = false;
+    }
   };
 
   const onSaveFrame = async () => {
-    if (!openFrame) return;
-    if (!(await ensureLibraryAccess())) return;
-    setIsSavingFrame(true);
+    if (!openFrame || saveRunning.current) return;
+    const { photo } = openFrame;
+    saveRunning.current = true;
     try {
-      await saveToLibrary(openFrame.photo);
+      if (!(await ensureLibraryAccess())) return;
+      setIsSavingFrame(true);
+      await saveEventPhoto(photo, photosQuery.dataUpdatedAt);
+      // Saved now, so trying a Save all that didn't finish again leaves it out.
+      if (savedByLastSaveAll.current.size > 0) savedByLastSaveAll.current.add(photo.id);
       showNotice(t("result.saved", { count: 1 }));
     } catch {
       showNotice(t("result.saveFailed"));
     } finally {
       setIsSavingFrame(false);
+      saveRunning.current = false;
     }
   };
 
   const onRetryFrame = async () => {
     if (!openFrame || !hasPhotos) throw new Error("No visible frame to retry");
     const photoId = openFrame.photo.id;
-    const result = await photosQuery.refetch({ throwOnError: true });
-    const photo = result.data?.find((item) => item.id === photoId);
-    if (!photo) throw new Error("Frame is no longer available");
+    // Only this frame's link: a long roll's pages aren't all fetched again. A frame that's gone answers 404.
+    const photo = await renewPhoto(photoId);
     // A request finishing after Close must not reopen the viewer or replace another frame.
     setOpenFrame((current) => (current?.photo.id === photoId ? { ...current, photo } : current));
   };
@@ -341,8 +355,9 @@ export const useEventDetailScreen = () => {
 
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
-    // Stop active readers before membership is revoked and their caches are evicted.
-    setLeavingRoll(true);
+    // Stop active readers before membership is revoked and their caches are
+    // evicted, and keep the roll on screen until Home replaces it.
+    setLeftRoll({ event, photos, participants });
     leaveEventMutation.mutate(eventId, {
       onSuccess: () => {
         closeSheet();
@@ -350,7 +365,7 @@ export const useEventDetailScreen = () => {
       },
       onError: (error) => {
         closeSheet();
-        setLeavingRoll(false);
+        setLeftRoll(null);
         showNotice(getErrorMessage(error));
       },
     });
@@ -409,6 +424,9 @@ export const useEventDetailScreen = () => {
     openFrame,
     openFrameIsDeletable,
     isSavingFrame,
+    // The viewer's Save waits while Save all runs, and Save all while the viewer saves.
+    canSaveFrame: saving === null,
+    canSaveAll: frames.length > 0 && !isSavingFrame && saving === null,
     isDeletingFrame: deletePhotoMutation.isPending,
     confirmDeleteVisible,
     sheet,

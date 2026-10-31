@@ -33,6 +33,8 @@ jobs:
           filters: |
             api:
               - 'api/**'
+              # api/src/photos/photos.constants.spec.ts pins the API's derived keys to this file.
+              - 'functions/image-processor/src/keys.ts'
               - '.github/workflows/**'
             functions:
               - 'functions/**'
