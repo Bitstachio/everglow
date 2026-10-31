@@ -1,5 +1,6 @@
 import { MAX_PHOTO_SIZE_BYTES, type EventPhotoFile } from "../api/upload-event-photos";
 import type { TrayItem } from "./upload-tray";
+import type { PhotoResponseDto } from "../types";
 
 /** What the app knows about one picked file once it has been measured. */
 export type PickedFile = EventPhotoFile & {
@@ -39,6 +40,22 @@ export const toTrayItems = (files: PickedFile[], fallbackName: (index: number) =
             : { kind: "waiting" },
     };
   });
+
+/**
+ * Bytes already in the tray that the roll's storage numbers don't show yet:
+ * photos waiting or sending, and ones that developed before the roll was
+ * fetched again. A new pick has to fit in what's left after them.
+ */
+export const trayPendingBytes = (items: TrayItem[], photos: Pick<PhotoResponseDto, "id">[]): number => {
+  const onRoll = new Set(photos.map((photo) => photo.id));
+  return items.reduce((sum, { status, sizeBytes }) => {
+    const pending =
+      status.kind === "waiting" ||
+      status.kind === "sending" ||
+      (status.kind === "developed" && !onRoll.has(status.photoId));
+    return pending ? sum + sizeBytes : sum;
+  }, 0);
+};
 
 /** 08.6: the room left can't take every waiting photo. */
 export type RoomShortfall = {

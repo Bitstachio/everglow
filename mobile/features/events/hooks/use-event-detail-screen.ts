@@ -18,7 +18,13 @@ import { requestLibraryAddAccess, saveEventPhoto } from "../api/save-event-photo
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery, useRenewEventPhoto } from "../api/queries";
 import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
-import { roomShortfall, toTrayItems, type PickedFile, type RoomShortfall } from "../lib/picked-photos";
+import {
+  roomShortfall,
+  toTrayItems,
+  trayPendingBytes,
+  type PickedFile,
+  type RoomShortfall,
+} from "../lib/picked-photos";
 import {
   hasOpened,
   isRollLastDay,
@@ -33,6 +39,7 @@ import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
   addToTray,
   dismissClosed,
+  getTray,
   localFileFor,
   reconcileTrayPhotos,
   ownsUploadTrays,
@@ -272,9 +279,13 @@ export const useEventDetailScreen = () => {
       }));
       const items = toTrayItems(picked, (index) => t("tray.fallbackName", { number: index + 1 }));
 
-      const shortfall = roomShortfall(items, leftBytes);
-      if (shortfall && leftBytes !== null) {
-        setRoomCheck({ ...shortfall, items, leftBytes });
+      // The tray as it is now that the picker has closed: photos still sending
+      // take room the roll's numbers don't show yet.
+      const roomLeft =
+        leftBytes === null ? null : Math.max(0, leftBytes - trayPendingBytes(getTray(eventId).items, photos));
+      const shortfall = roomShortfall(items, roomLeft);
+      if (shortfall && roomLeft !== null) {
+        setRoomCheck({ ...shortfall, items, leftBytes: roomLeft });
         setSheet("room");
         return;
       }
