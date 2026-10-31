@@ -1,5 +1,12 @@
 import { buildPhoto } from "../testing/fixtures";
-import { LINK_FRESH_MS, requestLibraryAddAccess, saveEventPhoto } from "./save-event-photos";
+import { createApiError } from "@/lib/api/errors";
+import {
+  LINK_FRESH_MS,
+  isGonePhotoError,
+  prepareSharedPhotos,
+  requestLibraryAddAccess,
+  saveEventPhoto,
+} from "./save-event-photos";
 
 const mockFindPhoto = jest.fn();
 const mockDownloadFile = jest.fn();
@@ -97,4 +104,62 @@ test("gives every download of the same frame its own temporary file", async () =
   expect(first).toMatch(/^file:\/\/cache\/everglow-photo-1-\d+\.jpg$/);
   expect(second).toMatch(/^file:\/\/cache\/everglow-photo-1-\d+\.jpg$/);
   expect(first).not.toBe(second);
+});
+
+test("a frame that's gone doesn't get a second try", async () => {
+  mockDownloadFile.mockRejectedValue(new Error("UnableToDownload: response has status 403"));
+  mockFindPhoto.mockRejectedValue(createApiError("Photo not found", { status: 404 }));
+
+  const error = await saveEventPhoto(listed, 0).catch((caught: unknown) => caught);
+  expect(isGonePhotoError(error)).toBe(true);
+  expect(mockFindPhoto).toHaveBeenCalledTimes(1);
+  expect(mockDownloadFile).not.toHaveBeenCalled();
+});
+
+test("a save stopped while downloading never reaches the library, and its file goes", async () => {
+  const controller = new AbortController();
+  mockDownloadFile.mockImplementationOnce(async (_url: string, destination: { uri: string }) => {
+    controller.abort();
+    return { uri: destination.uri, delete: mockDeleteDownload };
+  });
+
+  await expect(saveEventPhoto(listed, Date.now(), controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+  expect(mockCreateAsset).not.toHaveBeenCalled();
+  expect(mockDeleteDownload).toHaveBeenCalledTimes(1);
+});
+
+test("downloads for sharing stay until the next share starts", async () => {
+  const photos = [
+    { photo: buildPhoto(), signedAt: Date.now() },
+    { photo: buildPhoto({ id: "photo-2" }), signedAt: Date.now() },
+  ];
+  const first = await prepareSharedPhotos(photos);
+  expect(first.map((file) => file.uri)).toEqual([
+    expect.stringMatching(/^file:\/\/cache\/everglow-share-photo-1-\d+\.jpg$/),
+    expect.stringMatching(/^file:\/\/cache\/everglow-share-photo-2-\d+\.jpg$/),
+  ]);
+  expect(mockDeleteDownload).not.toHaveBeenCalled();
+
+  await prepareSharedPhotos(photos.slice(0, 1));
+  expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
+});
+
+test("a share that fails partway removes what it downloaded", async () => {
+  mockDownloadFile
+    .mockImplementationOnce(async (_url: string, destination: { uri: string }) => ({
+      uri: destination.uri,
+      delete: mockDeleteDownload,
+    }))
+    .mockRejectedValue(new Error("offline"));
+  mockFindPhoto.mockRejectedValue(new Error("offline"));
+  const photos = [
+    { photo: buildPhoto(), signedAt: Date.now() },
+    { photo: buildPhoto({ id: "photo-2" }), signedAt: Date.now() },
+  ];
+  // Clear anything an earlier test left for the next share.
+  await prepareSharedPhotos([]);
+  mockDeleteDownload.mockClear();
+
+  await expect(prepareSharedPhotos(photos)).rejects.toThrow("offline");
+  expect(mockDeleteDownload).toHaveBeenCalledTimes(1);
 });

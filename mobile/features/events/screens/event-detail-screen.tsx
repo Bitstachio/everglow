@@ -1,3 +1,5 @@
+import { GalleryProgress, GallerySelectionBar, GalleryUnsaved, SaveRollSheet } from "../components/gallery-controls";
+import { GalleryDeleteSheet } from "../components/gallery-delete-sheet";
 import { AppIcon } from "@/components/ui/app-icon";
 import { Avatar } from "@/components/ui/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
@@ -36,6 +38,7 @@ import {
   formatClock,
   formatOpensAt,
   formatRange,
+  frameSeed,
   formatRollDate,
   hostName,
   storagePair,
@@ -87,7 +90,7 @@ const EventDetailScreen = () => {
 
   const host = hostName(event, participants);
   const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
-  const count = frames.length;
+  const count = Math.max(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
     const opens = formatRollDate(event.galleryOpensAt);
@@ -239,12 +242,13 @@ const EventDetailScreen = () => {
           : t("sub.openNoHost", { date: formatRollDate(event.date), count });
 
   const save: FooterAction = {
-    title: screen.saving
-      ? t("footer.saving", { done: screen.saving.done, total: screen.saving.total })
-      : t("footer.saveAll"),
+    title:
+      screen.progress?.kind === "save"
+        ? t("footer.saving", { done: screen.progress.done, total: screen.progress.total })
+        : t("footer.saveAll"),
     accessibilityLabel: t("footer.saveAllLabel"),
     onPress: screen.onSaveAll,
-    disabled: !screen.canSaveAll,
+    disabled: count === 0 || screen.busy !== null,
   };
   const people: FooterAction = {
     title: t("footer.people"),
@@ -332,7 +336,7 @@ const EventDetailScreen = () => {
           )
         }
         peopleLabel={viewOnlyBand ? t("band.viewOnly") : t("band.peopleLabel", { count: event.usage.members })}
-        onPeople={viewOnlyBand ? undefined : screen.onOpenPeople}
+        onPeople={viewOnlyBand || screen.selecting ? undefined : screen.onOpenPeople}
         circleTime={(stage === "upcoming" && role === "host") || lastDay}
         circleStock={screen.isFull}
       />
@@ -370,7 +374,21 @@ const EventDetailScreen = () => {
           by={item.frame.by ?? undefined}
           avatar={uploaderAvatar(item.frame.uploader)}
           isNew={item.frame.isNew}
+          ringSeed={frameSeed(item.frame.photo.id)}
+          selected={screen.selectedIds.has(item.frame.photo.id)}
+          onLongPress={() => screen.onSelectFrame(item.frame)}
           accessibilityLabel={frameLabel(item.frame)}
+          // Marking without a long press: an action for screen readers and switch control.
+          accessibilityHint={screen.selecting ? undefined : t("gallery.markHint")}
+          accessibilityActions={[
+            {
+              name: "mark",
+              label: screen.selectedIds.has(item.frame.photo.id) ? t("gallery.unmark") : t("gallery.mark"),
+            },
+          ]}
+          onAccessibilityAction={({ nativeEvent }) => {
+            if (nativeEvent.actionName === "mark") screen.onSelectFrame(item.frame);
+          }}
           onPress={() => screen.onOpenFrame(item.frame)}
         />
       ) : (
@@ -431,6 +449,16 @@ const EventDetailScreen = () => {
     return null;
   })();
 
+  // Over the footer: a save or share under way, or what the last save didn't save.
+  const galleryStatus = screen.openFrame ? null : screen.busy ? (
+    <GalleryProgress
+      label={progressLabel(t, screen.progress)}
+      onStop={screen.progress ? screen.onStopExport : undefined}
+    />
+  ) : screen.unsavedCount > 0 ? (
+    <GalleryUnsaved count={screen.unsavedCount} onRetry={screen.onRetrySave} onDismiss={screen.onDismissUnsaved} />
+  ) : null;
+
   return (
     <View className="flex-1 bg-ground">
       <FlatList
@@ -439,7 +467,17 @@ const EventDetailScreen = () => {
         keyExtractor={(item) => (item.kind === "photo" ? item.frame.photo.id : item.frame.item.key)}
         numColumns={3}
         renderItem={renderFrame}
+        // Selection only swaps overlay controls; keep the content height and scroll position unchanged.
         ListHeaderComponent={header}
+        onEndReached={screen.loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          screen.loadingMore ? (
+            <Spinner label={t("common:actions.loading")} />
+          ) : screen.galleryError ? (
+            <Button title={t("viewer.retry")} onPress={screen.onRefresh} />
+          ) : null
+        }
         columnWrapperClassName="px-0.5"
         contentContainerStyle={{ paddingBottom: FOOT_SPACE + insets.bottom }}
         refreshControl={
@@ -447,26 +485,72 @@ const EventDetailScreen = () => {
         }
       />
 
-      <View className="absolute left-0 right-0 flex-row justify-between px-5" style={{ top: insets.top + 8 }}>
-        <CoverButton>
-          <BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />
-        </CoverButton>
-        <CoverButton>
-          <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
-            <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
-          </IconButton>
-        </CoverButton>
-      </View>
+      {screen.selecting ? (
+        <View
+          className="absolute left-0 right-0 top-0 border-b border-line bg-ground"
+          style={{ paddingTop: insets.top }}
+        >
+          <TopBar
+            title={t(role === "host" ? "gallery.markedHost" : "gallery.marked", {
+              count: screen.selectedCount,
+              mine: screen.selectedMineCount,
+            })}
+            left={
+              <Button
+                title={t("gallery.cancel")}
+                fullWidth={false}
+                variant="ghost"
+                onPress={screen.onCancelSelection}
+                disabled={!!screen.busy}
+              />
+            }
+            right={
+              <Button
+                title={t("gallery.all")}
+                fullWidth={false}
+                variant="ghost"
+                onPress={screen.onSelectAll}
+                disabled={!!screen.busy}
+              />
+            }
+          />
+        </View>
+      ) : (
+        <View className="absolute left-0 right-0 flex-row justify-between px-5" style={{ top: insets.top + 8 }}>
+          <CoverButton>
+            <BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />
+          </CoverButton>
+          <CoverButton>
+            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+              <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
+            </IconButton>
+          </CoverButton>
+        </View>
+      )}
 
-      <RollFooter {...footer} bottomInset={insets.bottom} />
+      {screen.selecting ? (
+        <View className="absolute bottom-0 left-0 right-0 bg-ground" style={{ paddingBottom: insets.bottom }}>
+          {galleryStatus}
+          <GallerySelectionBar
+            count={screen.selectedCount}
+            deleteCount={screen.selectedDeletableCount}
+            busy={!!screen.busy}
+            onSave={screen.onSaveSelection}
+            onShare={screen.onShareSelection}
+            onDelete={screen.onDeleteSelection}
+          />
+        </View>
+      ) : (
+        <RollFooter {...footer} bottomInset={insets.bottom} status={galleryStatus} />
+      )}
 
-      {trayLine && (!screen.notice || trayNeedsAttention) ? (
+      {!screen.selecting && trayLine && (!screen.notice || trayNeedsAttention) ? (
         <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + FOOT_SPACE - 52 }}>
           <RollTrayLine text={trayLine.text} action={trayLine.action} needsAttention={trayNeedsAttention} />
         </View>
       ) : null}
 
-      {screen.notice ? (
+      {screen.notice && !screen.openFrame ? (
         <Notice
           message={screen.notice}
           style={{ bottom: insets.bottom + FOOT_SPACE + (trayLine && trayNeedsAttention ? 4 : -40) }}
@@ -598,23 +682,63 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         ) : null}
       </BottomSheet>
 
+      <SaveRollSheet
+        visible={screen.saveAllPhotos !== null}
+        count={screen.saveCount}
+        ownCount={screen.ownPhotoCount}
+        includeMine={screen.includeMine}
+        onToggle={screen.onToggleIncludeMine}
+        onClose={screen.onCloseSaveAll}
+        onClosed={screen.onSaveSheetClosed}
+        onSave={screen.onConfirmSaveAll}
+      />
+      {!screen.openFrame ? (
+        <GalleryDeleteSheet
+          targets={screen.deleteTargets}
+          busy={screen.busy === "delete"}
+          onClose={screen.onCancelDelete}
+          onConfirm={screen.onConfirmDelete}
+        />
+      ) : null}
       <FrameViewer
         frame={screen.openFrame}
+        frames={screen.frames}
         canDelete={screen.openFrameIsDeletable}
-        isSaving={screen.isSavingFrame}
-        canSave={screen.canSaveFrame}
-        isDeleting={screen.isDeletingFrame}
-        confirmDeleteVisible={screen.confirmDeleteVisible}
+        isOwn={!!screen.currentUserId && screen.openFrame?.photo.addedById === screen.currentUserId}
+        busy={!!screen.busy}
+        progressLabel={progressLabel(t, screen.progress)}
+        onStop={screen.progress ? screen.onStopExport : undefined}
+        notice={screen.notice}
+        unsavedCount={screen.unsavedCount}
+        onRetrySave={screen.onRetrySave}
+        onDismissUnsaved={screen.onDismissUnsaved}
         onClose={screen.onCloseFrame}
         onRetry={screen.onRetryFrame}
         onSave={screen.onSaveFrame}
+        onShare={screen.onShareFrame}
         onDelete={screen.onDeleteFrame}
-        onCancelDelete={screen.onCancelDeleteFrame}
-        onConfirmDelete={screen.onConfirmDeleteFrame}
+        onMove={screen.onMoveFrame}
+        onLoadMore={screen.loadMore}
+        hasMore={screen.hasMore}
+        deleteTargets={screen.openFrame ? screen.deleteTargets : null}
+        isDeleting={screen.busy === "delete"}
+        onCancelDelete={screen.onCancelDelete}
+        onConfirmDelete={screen.onConfirmDelete}
       />
     </>
   );
 };
+
+/** A save or share under way: how far it has got. */
+const progressLabel = (
+  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  progress: ReturnType<typeof useEventDetailScreen>["progress"],
+) =>
+  progress === null
+    ? t("gallery.preparing")
+    : progress.kind === "save"
+      ? t("footer.saving", { done: progress.done, total: progress.total })
+      : t("gallery.sharing", { done: progress.done, total: progress.total });
 
 /** 08.6's body: who can make room depends on who's asking. */
 const roomBody = (

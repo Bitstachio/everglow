@@ -21,6 +21,8 @@ type ContactFrameProps = Omit<PressableProps, "children"> & {
   onPreviewReady?: () => void;
   /** Internal position on the roll, used to seed the pencil marks. */
   number: number;
+  /** Seeds the selection ring, so each photo keeps its own ring however often it's marked. Defaults to `number`. */
+  ringSeed?: number;
   /** Who uploaded it. */
   by?: string;
   /** Small decorative portrait beside the uploader's name. */
@@ -59,6 +61,7 @@ export const ContactFrame = ({
   placeholderUri,
   onPreviewReady,
   number,
+  ringSeed,
   by,
   avatar,
   selected = false,
@@ -125,7 +128,7 @@ export const ContactFrame = ({
         ) : null}
         {selected && size > 0 ? (
           <View className="absolute inset-0">
-            <GreasePencil mark="ring" width={size} height={size} seed={number} drawOn />
+            <GreasePencil mark="ring" width={size} height={size} seed={ringSeed ?? number} drawOn />
           </View>
         ) : null}
         {isNew && !selected && !crossed ? (

@@ -1,120 +1,274 @@
-import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
-import { Button } from "@/components/ui/button";
-import { EdgePrint } from "@/components/ui/edge-print";
-import { Photo } from "@/components/ui/photo";
-import { Slip } from "@/components/ui/slip";
-import { Spinner } from "@/components/ui/spinner";
-import { BackButton, TopBar } from "@/components/ui/top-bar";
+import { Modal, View, FlatList, Pressable, useWindowDimensions } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Modal, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppIcon } from "@/components/ui/app-icon";
+import { IconButton } from "@/components/ui/icon-button";
+import { Button } from "@/components/ui/button";
+import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
+import { RetryingPhoto } from "@/components/ui/retrying-photo";
+import { Sprockets } from "@/components/ui/film-strip";
+import { X, DotsThree } from "phosphor-react-native";
+import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
-import { useFramePhoto } from "./use-frame-photo";
+import { FramePhoto } from "./frame-photo";
+import { GalleryDeleteSheet } from "../gallery-delete-sheet";
+import { FilmGrain } from "@/components/ui/film-grain";
+import { GalleryProgress, GalleryUnsaved } from "../gallery-controls";
+import { FrameMenu } from "./frame-menu";
+import { useFrameViewer } from "./use-frame-viewer";
+import type { PhotoResponseDto } from "../../types";
 
-type FrameViewerProps = {
-  /** Null while no frame is open. */
+type Props = {
   frame: SheetFrame | null;
+  frames: SheetFrame[];
   canDelete: boolean;
-  isSaving: boolean;
-  /** False while another save runs, such as Save all. */
-  canSave: boolean;
-  isDeleting: boolean;
-  confirmDeleteVisible: boolean;
+  isOwn: boolean;
+  busy: boolean;
+  notice: string | null;
+  progressLabel: string;
+  /** Stops a running save or share. */
+  onStop?: () => void;
+  unsavedCount: number;
+  onRetrySave: () => void;
+  onDismissUnsaved: () => void;
   onClose: () => void;
   onRetry: () => Promise<void>;
   onSave: () => void;
+  onShare: () => void;
   onDelete: () => void;
+  onMove: (id: string) => void;
+  onLoadMore: () => void;
+  hasMore: boolean;
+  deleteTargets: PhotoResponseDto[] | null;
+  isDeleting: boolean;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
 };
 
-/** Keep an original request visible and recoverable, including a request that stalls. */
-const FramePhoto = ({ frame, label, onRetry }: { frame: SheetFrame; label: string; onRetry: () => Promise<void> }) => {
-  const { t } = useTranslation("roll");
-  const { status, attempt, refreshing, retry, onProgress, onDisplay, onError } = useFramePhoto(frame.photo.id, onRetry);
-
-  return (
-    <View className="flex-1">
-      {status !== "failed" ? (
-        <Photo
-          key={attempt}
-          testID="frame-viewer-photo"
-          accessibilityLabel={label}
-          source={{ uri: frame.photo.url, cacheKey: `photo:${frame.photo.id}:original` }}
-          contentFit="contain"
-          className="h-full w-full"
-          onProgress={onProgress}
-          onDisplay={onDisplay}
-          onError={onError}
-        />
-      ) : null}
-      {status === "loading" ? (
-        <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
-          <Spinner tone="foreground" label={t("viewer.loading")} />
-        </View>
-      ) : null}
-      {status === "failed" ? (
-        <View className="flex-1 items-center justify-center gap-4 px-5">
-          <EdgePrint tone="text">{t("viewer.loadFailed")}</EdgePrint>
-          <Button title={t("viewer.retry")} variant="ghost" isLoading={refreshing} onPress={() => void retry()} />
-        </View>
-      ) : null}
-    </View>
-  );
-};
-
-/** One frame full size, on black: save it, or delete it if it's yours or you host. */
-export const FrameViewer = ({
-  frame,
-  canDelete,
-  isSaving,
-  canSave,
-  isDeleting,
-  confirmDeleteVisible,
-  onClose,
-  onRetry,
-  onSave,
-  onDelete,
-  onCancelDelete,
-  onConfirmDelete,
-}: FrameViewerProps) => {
-  const { t } = useTranslation("roll");
-  // A full-screen modal gets no inset from SafeAreaView, so pad from the root insets.
+/** Only the active frame requests its original; navigation and the film strip use thumbnails. */
+export const FrameViewer = (props: Props) => {
+  const { frame, frames, busy } = props;
+  const { t, i18n } = useTranslation("roll");
   const insets = useSafeAreaInsets();
-  const edge = frame
-    ? frame.by
-      ? t("frame.edgeBy", { number: frame.number, name: frame.by })
-      : t("frame.edge", { number: frame.number })
+  const { width } = useWindowDimensions();
+  const stripStep = Math.floor(width / 5);
+  const index = frames.findIndex((item) => item.photo.id === frame?.photo.id);
+  const move = (offset: number) => {
+    const target = frames[index + offset];
+    if (target) props.onMove(target.photo.id);
+    if (index + offset >= frames.length - 3 && props.hasMore) props.onLoadMore();
+  };
+  const {
+    stripRef,
+    pagerRef,
+    onPageSettled,
+    menuVisible,
+    openMenu,
+    closeMenu,
+    fromMenu,
+    onMenuClosed,
+    closing,
+    requestClose,
+    onDismiss,
+  } = useFrameViewer({
+    index,
+    stripStep,
+    pageWidth: width,
+    onSelectPage: (page) => move(page - index),
+    frameId: frame?.photo.id ?? null,
+    onClose: props.onClose,
+  });
+  const uploader = frame?.uploader;
+  const name = uploader?.name ?? frame?.by ?? t("gallery.unknownUploader");
+  const time = frame
+    ? new Date(frame.photo.createdAt).toLocaleString(i18n.language, {
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        // 24-hour, and never "24:05" after midnight as `hour12: false` can print.
+        hourCycle: "h23",
+      })
     : "";
-
+  // Access changes clear the viewer immediately; ordinary closes retain its
+  // contents until the native fade completes and invokes onDismiss.
+  if (!frame) return null;
   return (
-    <Modal visible={frame !== null} animationType="fade" onRequestClose={onClose} presentationStyle="fullScreen">
+    <Modal
+      testID="frame-viewer-dialog"
+      visible={!closing}
+      animationType="fade"
+      onRequestClose={requestClose}
+      onDismiss={onDismiss}
+      presentationStyle="fullScreen"
+    >
       <View className="flex-1 bg-viewer" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
-        <TopBar title={edge} left={<BackButton accessibilityLabel={t("viewer.close")} onPress={onClose} />} />
-        <View className="flex-1">
-          {frame ? (
-            <FramePhoto key={`${frame.photo.id}:${frame.photo.url}`} frame={frame} label={edge} onRetry={onRetry} />
-          ) : null}
+        <View className="absolute inset-0">
+          <FilmGrain />
         </View>
-        <View className="gap-2.5 px-5 pb-2 pt-4">
-          <Button
-            title={t("viewer.save")}
-            variant="secondary"
-            mark="↓"
-            onPress={onSave}
-            isLoading={isSaving}
-            disabled={!canSave}
+        <View className="min-h-14 flex-row items-center gap-3 px-5 py-2">
+          <IconButton accessibilityLabel={t("viewer.close")} onPress={requestClose}>
+            <AppIcon icon={X} size="sm" color={colorTokens.text} />
+          </IconButton>
+          <View
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel={[name, uploader?.username ? `@${uploader.username}` : null, time]
+              .filter(Boolean)
+              .join(" · ")}
+            accessibilityActions={[
+              { name: "decrement", label: t("gallery.previous") },
+              { name: "increment", label: t("gallery.next") },
+            ]}
+            onAccessibilityAction={({ nativeEvent }) => {
+              if (nativeEvent.actionName === "increment") move(1);
+              if (nativeEvent.actionName === "decrement") move(-1);
+            }}
+            className="min-h-11 flex-1 flex-row items-center gap-2"
+          >
+            <EdgePrint size="frame-label" numberOfLines={2} className="flex-1">
+              <EdgeValue>{name}</EdgeValue>
+              {" · "}
+              {time}
+            </EdgePrint>
+          </View>
+          <IconButton accessibilityLabel={t("gallery.more")} disabled={busy} onPress={openMenu}>
+            <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
+          </IconButton>
+        </View>
+        <FlatList
+          ref={pagerRef}
+          testID="frame-viewer-pager"
+          className="flex-1"
+          horizontal
+          pagingEnabled
+          directionalLockEnabled
+          showsHorizontalScrollIndicator={false}
+          data={frames}
+          extraData={frame}
+          keyExtractor={(item) => item.photo.id}
+          initialScrollIndex={Math.max(0, index)}
+          initialNumToRender={3}
+          maxToRenderPerBatch={3}
+          windowSize={3}
+          getItemLayout={(_, page) => ({ length: width, offset: width * page, index: page })}
+          onMomentumScrollEnd={onPageSettled}
+          renderItem={({ item }) => (
+            <View style={{ width }} className="flex-1">
+              {item.photo.id === frame.photo.id ? (
+                <FramePhoto frame={frame} label={t("gallery.photoBy", { name })} onRetry={props.onRetry} />
+              ) : (
+                <View
+                  pointerEvents="none"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  className="flex-1"
+                >
+                  <RetryingPhoto
+                    testID={`frame-preview-${item.photo.id}`}
+                    uri={item.photo.thumbnailUrl}
+                    cacheKey={`photo:${item.photo.id}:thumbnail`}
+                    contentFit="contain"
+                    className="h-full w-full"
+                  />
+                </View>
+              )}
+            </View>
+          )}
+        />
+        {busy ? (
+          <GalleryProgress label={props.progressLabel} onStop={props.onStop} />
+        ) : props.notice ? (
+          <EdgePrint accessibilityLiveRegion="polite" className="px-5 py-3 text-center">
+            {props.notice}
+          </EdgePrint>
+        ) : null}
+        {props.unsavedCount > 0 && !busy ? (
+          <GalleryUnsaved count={props.unsavedCount} onRetry={props.onRetrySave} onDismiss={props.onDismissUnsaved} />
+        ) : null}
+        {/* Not the shared FilmStrip: that is a fixed, decorative row; this one scrolls the whole roll and each frame is a control. */}
+        <View testID="viewer-film-strip" className="bg-rebate py-3">
+          <Sprockets edge="top" />
+          <FlatList
+            ref={stripRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={frames}
+            keyExtractor={(item) => item.photo.id}
+            extraData={frame?.photo.id}
+            style={{ flexGrow: 0 }}
+            initialScrollIndex={Math.max(0, index - 2)}
+            getItemLayout={(_, itemIndex) => ({ length: stripStep, offset: stripStep * itemIndex, index: itemIndex })}
+            onEndReached={props.onLoadMore}
+            onEndReachedThreshold={0.5}
+            renderItem={({ item }) => (
+              <Pressable
+                accessibilityRole="imagebutton"
+                accessibilityLabel={t("frame.labelBy", {
+                  number: item.number,
+                  name: item.by ?? t("gallery.unknownUploader"),
+                })}
+                accessibilityState={{ selected: item.photo.id === frame?.photo.id }}
+                onPress={() => props.onMove(item.photo.id)}
+                style={{ width: stripStep - 4, height: Math.round(((stripStep - 4) * 9) / 11), marginHorizontal: 2 }}
+                className={item.photo.id === frame?.photo.id ? "border-2 border-text" : "opacity-50"}
+              >
+                <RetryingPhoto
+                  uri={item.photo.thumbnailUrl}
+                  cacheKey={`photo:${item.photo.id}:thumbnail`}
+                  className="h-full w-full"
+                  contentFit="cover"
+                />
+              </Pressable>
+            )}
           />
-          {canDelete ? <Button title={t("viewer.delete")} variant="ghost" onPress={onDelete} /> : null}
+          <Sprockets edge="bottom" />
+        </View>
+        <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
+          <Button
+            title={t("viewer.saveAction")}
+            accessibilityLabel={t("viewer.save")}
+            variant="ghost"
+            fullWidth={false}
+            onPress={props.onSave}
+            disabled={busy}
+          />
+          <Button
+            title={t("viewer.shareAction")}
+            accessibilityLabel={t("gallery.share")}
+            variant="ghost"
+            fullWidth={false}
+            onPress={props.onShare}
+            disabled={busy}
+          />
+          <Button
+            title={t("viewer.moreAction")}
+            accessibilityLabel={t("gallery.more")}
+            variant="ghost"
+            fullWidth={false}
+            onPress={openMenu}
+            disabled={busy}
+          />
         </View>
       </View>
-
-      <BottomSheet visible={confirmDeleteVisible} onClose={onCancelDelete}>
-        <Slip edge={edge} title={t("viewer.deleteTitle", { number: frame?.number ?? 0 })} body={t("viewer.deleteBody")}>
-          <Button title={t("viewer.deleteConfirm")} variant="danger" onPress={onConfirmDelete} isLoading={isDeleting} />
-          <Button title={t("viewer.deleteCancel")} variant="secondary" mark="‹" onPress={onCancelDelete} />
-        </Slip>
-      </BottomSheet>
+      <FrameMenu
+        frame={frame}
+        name={name}
+        time={time}
+        isOwn={props.isOwn}
+        canDelete={props.canDelete}
+        visible={menuVisible && !!frame}
+        onClose={closeMenu}
+        onClosed={onMenuClosed}
+        onSave={() => fromMenu(props.onSave)}
+        onShare={() => fromMenu(props.onShare)}
+        onDelete={() => fromMenu(props.onDelete)}
+      />
+      <GalleryDeleteSheet
+        targets={props.deleteTargets}
+        busy={props.isDeleting}
+        onClose={props.onCancelDelete}
+        onConfirm={props.onConfirmDelete}
+      />
     </Modal>
   );
 };

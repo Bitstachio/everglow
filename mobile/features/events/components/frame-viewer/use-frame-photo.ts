@@ -5,19 +5,35 @@ export const STALL_MS = 30_000;
 
 type FramePhotoStatus = "loading" | "loaded" | "failed";
 
+type FailReason = "image_error" | "timeout" | "refresh_error";
+
 /**
  * Loads one original and keeps it recoverable. A slow download carries on as
  * long as bytes keep arriving; only one that stalls for `STALL_MS` gives up,
  * since giving up unmounts the image and cancels what has arrived so far.
+ *
+ * A cached contact sheet can outlive its signed links, so the first image
+ * error renews the link once by itself, with the spinner still up. A second
+ * error, a failed renewal or a stall offers Try again.
  */
 export const useFramePhoto = (photoId: string, onRetry: () => Promise<void>) => {
   const [status, setStatus] = useState<FramePhotoStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renewed = useRef(false);
+  const pending = useRef(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const fail = useCallback(
-    (reason: "image_error" | "timeout") => {
+    (reason: FailReason) => {
       setStatus("failed");
       // Native image errors may contain signed URLs. Log identifiers and a safe reason only.
       if (__DEV__) console.warn("photo.viewer.load_failed", { photoId, reason });
@@ -36,23 +52,38 @@ export const useFramePhoto = (photoId: string, onRetry: () => Promise<void>) => 
   }, [fail, stopStallTimer]);
 
   useEffect(() => {
-    if (status !== "loading") return;
+    if (status !== "loading" || refreshing) return;
     startStallTimer();
     return stopStallTimer;
-  }, [status, attempt, startStallTimer, stopStallTimer]);
+  }, [status, attempt, refreshing, startStallTimer, stopStallTimer]);
 
   const retry = async () => {
+    if (pending.current || !mounted.current) return;
+    pending.current = true;
+    renewed.current = true;
     setRefreshing(true);
     try {
       // Renew the signature as well as remounting the image; the old URL may have expired.
       await onRetry();
+      if (!mounted.current) return;
       setAttempt((current) => current + 1);
       setStatus("loading");
     } catch {
-      setStatus("failed");
+      if (mounted.current) fail("refresh_error");
     } finally {
-      setRefreshing(false);
+      pending.current = false;
+      if (mounted.current) setRefreshing(false);
     }
+  };
+
+  const onError = () => {
+    if (pending.current || !mounted.current) return;
+    if (renewed.current) {
+      fail("image_error");
+      return;
+    }
+    setStatus("loading");
+    void retry();
   };
 
   return {
@@ -62,9 +93,9 @@ export const useFramePhoto = (photoId: string, onRetry: () => Promise<void>) => 
     retry,
     // Each chunk that arrives restarts the stall timer.
     onProgress: () => {
-      if (status === "loading") startStallTimer();
+      if (status === "loading" && !refreshing) startStallTimer();
     },
     onDisplay: () => setStatus("loaded"),
-    onError: () => fail("image_error"),
+    onError,
   };
 };

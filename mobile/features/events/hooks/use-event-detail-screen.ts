@@ -1,6 +1,8 @@
+import { useRollGallery } from "./use-roll-gallery";
+import { useGalleryQuery, type SignedPhoto } from "../api/gallery";
 import { developingFrames, summarizeTray } from "../lib/upload-tray-view";
 import { useAuth } from "@/context/auth-context";
-import { getErrorMessage } from "@/lib/api/errors";
+import { getErrorMessage, isApiError } from "@/lib/api/errors";
 import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -9,14 +11,12 @@ import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import {
   useDeactivateEventMutation,
-  useDeleteEventPhotoMutation,
   useLeaveEventMutation,
   useRefreshRollAfterUpload,
   useRemoveEventParticipantMutation,
 } from "../api/mutations";
-import { requestLibraryAddAccess, saveEventPhoto } from "../api/save-event-photos";
 import type { EventPhotoFile } from "../api/upload-event-photos";
-import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery, useRenewEventPhoto } from "../api/queries";
+import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
 import {
   roomShortfall,
@@ -25,15 +25,7 @@ import {
   type PickedFile,
   type RoomShortfall,
 } from "../lib/picked-photos";
-import {
-  hasOpened,
-  isRollLastDay,
-  rollRole,
-  rollStage,
-  sheetFrames,
-  shouldShowOpened,
-  type SheetFrame,
-} from "../lib/roll-page";
+import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
 import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
@@ -135,16 +127,14 @@ export const useEventDetailScreen = () => {
   const event = leftRoll?.event ?? eventQuery.data ?? null;
   // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
-  const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
+  const photosQuery = useGalleryQuery(eventId ?? "", hasPhotos && !leavingRoll);
   const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
-  const renewPhoto = useRenewEventPhoto(eventId);
 
   const leaveEventMutation = useLeaveEventMutation();
   const deactivateMutation = useDeactivateEventMutation();
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
   const refreshRoll = useRefreshRollAfterUpload();
   const tray = useUploadTray(eventId);
-  const deletePhotoMutation = useDeleteEventPhotoMutation();
   // After joining, or opening an envelope you're already on (06.6, 06.7).
   const arrivalNote = useArrivalNote();
 
@@ -157,17 +147,8 @@ export const useEventDetailScreen = () => {
   // copies every selected photo into the app first, which takes a while.
   const [preparing, setPreparing] = useState(false);
   const [roomCheck, setRoomCheck] = useState<RoomCheck | null>(null);
-  const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
-  // One save at a time, Save all or the viewer's, so the two never work on the same frame at once.
-  const saveRunning = useRef(false);
-  // Frames a Save all that didn't finish did save. The next Save all skips them, so nothing lands twice.
-  const savedByLastSaveAll = useRef(new Set<string>());
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [openFrame, setOpenFrame] = useState<SheetFrame | null>(null);
-  const [isSavingFrame, setIsSavingFrame] = useState(false);
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
 
   // One sheet over the roll whose content changes, so one modal never opens
   // from another: iOS drops a modal presented while another is closing.
@@ -177,9 +158,21 @@ export const useEventDetailScreen = () => {
   const afterSheetCloses = useRef<(() => void) | null>(null);
   const closeSheet = () => setSheet(null);
 
-  const photos = leftRoll?.photos ?? (hasPhotos ? (photosQuery.data ?? []) : []);
+  // Access taken away (403) or the roll gone (404): its frames go too.
+  const photosRevoked = isApiError(photosQuery.error) && [403, 404].includes(photosQuery.error.status ?? 0);
+  const pages = hasPhotos && !photosRevoked ? (photosQuery.data?.pages ?? []) : [];
+  // Each frame once, with when its page's links were signed. Pages can shift
+  // as frames are added, so the same frame can be listed twice.
+  const listed = new Map<string, SignedPhoto>(
+    pages.flatMap((page) => page.items.map((photo) => [photo.id, { photo, signedAt: page.signedAt }] as const)),
+  );
+  const photos = leftRoll?.photos ?? [...listed.values()].map((item) => item.photo);
   useEffect(() => {
-    if (eventId && hasPhotos && photosQuery.data) reconcileTrayPhotos(eventId, photosQuery.data);
+    if (eventId && hasPhotos && photosQuery.data)
+      reconcileTrayPhotos(
+        eventId,
+        photosQuery.data.pages.flatMap((page) => page.items),
+      );
   }, [eventId, hasPhotos, photosQuery.data]);
   const participants = leftRoll?.participants ?? participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
@@ -320,98 +313,6 @@ export const useEventDetailScreen = () => {
     next?.();
   };
 
-  const ensureLibraryAccess = async () => {
-    if (await requestLibraryAddAccess()) return true;
-    showNotice(t("result.libraryAccess"));
-    return false;
-  };
-
-  const onSaveAll = async () => {
-    if (photos.length === 0 || saveRunning.current) return;
-    saveRunning.current = true;
-    try {
-      if (!(await ensureLibraryAccess())) return;
-
-      // Trying again after a Save all that didn't finish saves only what it missed.
-      const saved = savedByLastSaveAll.current;
-      const missed = photos.filter((photo) => !saved.has(photo.id));
-      const pending = missed.length > 0 ? missed : photos;
-      const signedAt = photosQuery.dataUpdatedAt;
-      const total = pending.length;
-      let done = 0;
-      setSaving({ done: 0, total });
-      for (const photo of pending) {
-        try {
-          await saveEventPhoto(photo, signedAt);
-          saved.add(photo.id);
-          done += 1;
-        } catch {
-          // Keep going: one frame that won't save shouldn't stop the rest.
-        }
-        setSaving({ done, total });
-      }
-
-      if (done === total) {
-        // Everything is in Photos, so a later Save all starts over.
-        saved.clear();
-        showNotice(t("result.saved", { count: total }));
-      } else if (done === 0) {
-        showNotice(t("result.saveFailed"));
-      } else {
-        showNotice(t("result.savedSome", { saved: done, total }));
-      }
-    } finally {
-      setSaving(null);
-      saveRunning.current = false;
-    }
-  };
-
-  const onSaveFrame = async () => {
-    if (!openFrame || saveRunning.current) return;
-    const { photo } = openFrame;
-    saveRunning.current = true;
-    try {
-      if (!(await ensureLibraryAccess())) return;
-      setIsSavingFrame(true);
-      await saveEventPhoto(photo, photosQuery.dataUpdatedAt);
-      // Saved now, so trying a Save all that didn't finish again leaves it out.
-      if (savedByLastSaveAll.current.size > 0) savedByLastSaveAll.current.add(photo.id);
-      showNotice(t("result.saved", { count: 1 }));
-    } catch {
-      showNotice(t("result.saveFailed"));
-    } finally {
-      setIsSavingFrame(false);
-      saveRunning.current = false;
-    }
-  };
-
-  const onRetryFrame = async () => {
-    if (!openFrame || !hasPhotos) throw new Error("No visible frame to retry");
-    const photoId = openFrame.photo.id;
-    // Only this frame's link: a long roll's pages aren't all fetched again. A frame that's gone answers 404.
-    const photo = await renewPhoto(photoId);
-    // A request finishing after Close must not reopen the viewer or replace another frame.
-    setOpenFrame((current) => (current?.photo.id === photoId ? { ...current, photo } : current));
-  };
-
-  const onConfirmDeleteFrame = () => {
-    if (!eventId || !openFrame) return;
-    deletePhotoMutation.mutate(
-      { eventId, photoId: openFrame.photo.id },
-      {
-        onSuccess: () => {
-          setConfirmDeleteVisible(false);
-          setOpenFrame(null);
-          showNotice(t("result.deleted"));
-        },
-        onError: (error) => {
-          setConfirmDeleteVisible(false);
-          showNotice(getErrorMessage(error));
-        },
-      },
-    );
-  };
-
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
     // Stop active readers before membership is revoked and their caches are
@@ -467,15 +368,29 @@ export const useEventDetailScreen = () => {
   };
 
   const openedVisible = !openedDismissed && event !== null && shouldShowOpened(event, lastVisit);
-  const openFrameIsDeletable =
-    openFrame !== null &&
-    stage !== "underReview" &&
-    (role === "host" || (openFrame.photo.addedById !== null && openFrame.photo.addedById === user?.id));
+  const gallery = useRollGallery({
+    eventId: eventId ?? "",
+    userId: user?.id,
+    // Leaving keeps the frames on screen until Home replaces the roll, but nothing can act on them.
+    enabled: hasPhotos && !leavingRoll && !eventQuery.isError && !photosRevoked,
+    canDeleteOthers: role === "host",
+    canDelete: stage !== "underReview",
+    frames,
+    listed,
+    showNotice,
+  });
 
   return {
+    ...gallery,
+    loadMore: () => {
+      if (photosQuery.hasNextPage && !photosQuery.isFetching) void photosQuery.fetchNextPage();
+    },
+    hasMore: photosQuery.hasNextPage,
+    loadingMore: photosQuery.isFetchingNextPage,
+    galleryError: photosQuery.isError,
     event,
     participants,
-    frames,
+    frames: gallery.visibleFrames,
     role,
     stage,
     now,
@@ -493,17 +408,8 @@ export const useEventDetailScreen = () => {
     leftBytes,
     roomCheck,
     preparing,
-    saving,
     notice: tray.storageError ? t("result.localStorage") : notice,
     openedVisible,
-    openFrame,
-    openFrameIsDeletable,
-    isSavingFrame,
-    // The viewer's Save waits while Save all runs, and Save all while the viewer saves.
-    canSaveFrame: saving === null,
-    canSaveAll: frames.length > 0 && !isSavingFrame && saving === null,
-    isDeletingFrame: deletePhotoMutation.isPending,
-    confirmDeleteVisible,
     sheet: shownSheet,
     arrivalNote,
     isLeaving: leaveEventMutation.isPending,
@@ -522,14 +428,6 @@ export const useEventDetailScreen = () => {
     onSendWhatFits,
     onPickAgain,
     onDismissClosed,
-    onSaveAll: () => void onSaveAll(),
-    onOpenFrame: setOpenFrame,
-    onCloseFrame: () => setOpenFrame(null),
-    onRetryFrame,
-    onSaveFrame: () => void onSaveFrame(),
-    onDeleteFrame: () => setConfirmDeleteVisible(true),
-    onCancelDeleteFrame: () => setConfirmDeleteVisible(false),
-    onConfirmDeleteFrame,
     onOpenMenu: () => setSheet("menu"),
     onCloseSheet: shownSheet === "closedSending" ? onDismissClosed : closeSheet,
     onSheetClosed,

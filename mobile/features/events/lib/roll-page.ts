@@ -115,7 +115,7 @@ export type SheetFrame = {
   /** The uploader's first name, "You", or null once they've left or deleted their account. */
   by: string | null;
   /** Only current participants can supply an uploader portrait. */
-  uploader: Pick<EventParticipantResponseDto, "userId" | "name" | "avatarUrl"> | null;
+  uploader: Pick<EventParticipantResponseDto, "userId" | "name" | "avatarUrl" | "username"> | null;
   /** Added by someone else since the caller last looked. */
   isNew: boolean;
 };
@@ -192,4 +192,14 @@ export const formatRollDate = (iso: string): string => {
 export const formatRange = (fromIso: string, toIso: string): string => {
   const format = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${format(fromIso)} – ${format(toIso)}`;
+};
+
+/** A stable seed from a photo's id (FNV-1a), so its pencil ring is the same each time it's marked. */
+export const frameSeed = (photoId: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < photoId.length; index += 1) {
+    hash ^= photoId.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 };

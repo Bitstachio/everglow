@@ -20,7 +20,7 @@ type GreasePencilProps = {
   /** Pencil on the ground; ink-blue on paper. Default: pencil. */
   tone?: "pencil" | "ink";
   strokeWidth?: number;
-  /** Varies the hand-drawn wobble between marks on one screen. */
+  /** Repeat a particular gesture. Rings without a seed get a fresh one on mount. */
   seed?: number;
   /** Draw the mark on (250 ms). Reduce Motion shows it already drawn. */
   drawOn?: boolean;
@@ -84,16 +84,22 @@ export const GreasePencil = ({
   height,
   tone = "pencil",
   strokeWidth = 3,
-  seed = 1,
+  seed,
   drawOn = false,
   from = [0, height],
   to = [width, 0],
   bend = 0.25,
 }: GreasePencilProps) => {
   const reduceMotion = useReduceMotion();
+  // Pick once per drawn ring, not during each render. Selection mounts a new
+  // ring when marked again, while unrelated updates cannot make it flicker.
+  const [ringSeed] = useState(() => Math.floor(Math.random() * 4294967296));
+  const gestureSeed = seed ?? (mark === "ring" ? ringSeed : 1);
   const color = tone === "pencil" ? colorTokens.pencil : colorTokens.inkBlue;
   const strokes =
-    mark === "arrow" ? pencilArrow(from, to, bend, seed) : pencilStrokes(mark, width, height, strokeWidth, seed);
+    mark === "arrow"
+      ? pencilArrow(from, to, bend, gestureSeed)
+      : pencilStrokes(mark, width, height, strokeWidth, gestureSeed);
 
   return (
     <Svg

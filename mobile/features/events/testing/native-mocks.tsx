@@ -51,3 +51,9 @@ jest.mock("@/components/photo-cropper", () => {
     },
   };
 });
+
+export const mockSharePhotos = jest.fn().mockResolvedValue({ success: true });
+jest.mock("react-native-share", () => ({
+  __esModule: true,
+  default: { open: (...args: unknown[]) => mockSharePhotos(...args) },
+}));

@@ -1,5 +1,6 @@
 import { File, Paths } from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
+import { isApiError } from "@/lib/api/errors";
 import { fetchEventPhoto } from "./queries";
 import type { PhotoResponseDto } from "../types";
 
@@ -22,13 +23,11 @@ const EXTENSIONS: Record<PhotoResponseDto["contentType"], string> = {
 let downloads = 0;
 
 /** A temporary file of its own for every download, so two saves of one frame never share or delete each other's. */
-const temporaryFile = (photo: PhotoResponseDto) => {
+const temporaryFile = (photo: PhotoResponseDto, purpose: "photo" | "share") => {
   downloads += 1;
-  return new File(Paths.cache, `everglow-${photo.id}-${downloads}.${EXTENSIONS[photo.contentType]}`);
+  const prefix = purpose === "share" ? "everglow-share" : "everglow";
+  return new File(Paths.cache, `${prefix}-${photo.id}-${downloads}.${EXTENSIONS[photo.contentType]}`);
 };
-
-const download = (photo: PhotoResponseDto) =>
-  File.downloadFileAsync(photo.url, temporaryFile(photo), { idempotent: true });
 
 const removeQuietly = (file: File) => {
   try {
@@ -37,6 +36,15 @@ const removeQuietly = (file: File) => {
     // Already gone; the cache is the system's to clear anyway.
   }
 };
+
+const abortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+
+const throwIfAborted = (signal?: AbortSignal) => {
+  if (signal?.aborted) throw abortError();
+};
+
+/** The frame was deleted, or the caller can no longer see it: the API answers 404. */
+export const isGonePhotoError = (error: unknown) => isApiError(error) && error.status === 404;
 
 /**
  * Asks to add to the phone's library without reading it: iOS's add-only
@@ -47,24 +55,83 @@ export const requestLibraryAddAccess = async () => {
   return status === "granted";
 };
 
+type DownloadOptions = { signal?: AbortSignal; purpose?: "photo" | "share" };
+
 /**
- * Saves one frame to the phone's library. `signedAt` is when the photo's links
- * were fetched: an older link is renewed first, and a download that fails on a
- * link that looked fresh (an expired or refused link answers 403) is tried once
- * more with a new one. The library keeps its own copy, so the download goes.
+ * Downloads one frame's original to a temporary file of its own. `signedAt` is
+ * when the photo's links were fetched: an older link is renewed first, and a
+ * download that fails on a link that looked fresh (an expired or refused link
+ * answers 403) is tried once more with a new one. The caller owns the file.
  */
-export const saveEventPhoto = async (photo: PhotoResponseDto, signedAt: number) => {
+export const downloadEventPhoto = async (
+  photo: PhotoResponseDto,
+  signedAt: number,
+  { signal, purpose = "photo" }: DownloadOptions = {},
+): Promise<File> => {
+  const download = async (source: PhotoResponseDto) => {
+    throwIfAborted(signal);
+    const destination = temporaryFile(source, purpose);
+    try {
+      return await File.downloadFileAsync(source.url, destination, { idempotent: true });
+    } catch (error) {
+      removeQuietly(destination);
+      throw error;
+    }
+  };
   const linkIsFresh = Date.now() - signedAt < LINK_FRESH_MS;
   let downloaded: File;
   try {
-    downloaded = await download(linkIsFresh ? photo : await fetchEventPhoto(photo.id));
+    downloaded = await download(linkIsFresh ? photo : await fetchEventPhoto(photo.id, signal));
   } catch (error) {
-    if (!linkIsFresh) throw error;
-    downloaded = await download(await fetchEventPhoto(photo.id));
+    if (!linkIsFresh || signal?.aborted || isGonePhotoError(error)) throw error;
+    downloaded = await download(await fetchEventPhoto(photo.id, signal));
   }
+  if (signal?.aborted) {
+    // Stopped while the bytes arrived: nothing gets to use them.
+    removeQuietly(downloaded);
+    throw abortError();
+  }
+  return downloaded;
+};
+
+/**
+ * Saves one frame to the phone's library. A save stopped through `signal`
+ * never reaches the library. The library keeps its own copy, so the download goes.
+ */
+export const saveEventPhoto = async (photo: PhotoResponseDto, signedAt: number, signal?: AbortSignal) => {
+  const downloaded = await downloadEventPhoto(photo, signedAt, { signal });
   try {
+    throwIfAborted(signal);
     await MediaLibrary.Asset.create(downloaded.uri);
   } finally {
     removeQuietly(downloaded);
   }
+};
+
+/**
+ * Files handed to the share sheet. Android's receiving app can read them after
+ * `Share.open` resolves, so they stay until the next share starts.
+ */
+let sharedFiles: File[] = [];
+
+/** Downloads frames for the share sheet, after removing what the previous share left behind. */
+export const prepareSharedPhotos = async (
+  photos: { photo: PhotoResponseDto; signedAt: number }[],
+  { signal, onProgress }: { signal?: AbortSignal; onProgress?: (done: number) => void } = {},
+): Promise<File[]> => {
+  sharedFiles.forEach(removeQuietly);
+  sharedFiles = [];
+  const files: File[] = [];
+  try {
+    for (const { photo, signedAt } of photos) {
+      files.push(await downloadEventPhoto(photo, signedAt, { signal, purpose: "share" }));
+      onProgress?.(files.length);
+    }
+  } catch (error) {
+    // No share sheet saw these, so they go now.
+    files.forEach(removeQuietly);
+    throw error;
+  }
+  sharedFiles = files;
+  return files;
 };
