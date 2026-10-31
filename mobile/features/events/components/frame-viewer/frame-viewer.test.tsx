@@ -1,7 +1,7 @@
-import "../testing/native-mocks";
+import "../../testing/native-mocks";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import type { ComponentProps } from "react";
-import { buildPhoto } from "../testing/fixtures";
+import { buildPhoto } from "../../testing/fixtures";
 import { FrameViewer } from "./frame-viewer";
 
 const props = (): ComponentProps<typeof FrameViewer> => ({
@@ -34,6 +34,52 @@ test("a stalled original exposes retry after 30 seconds and resets when reopened
     await view.rerender(<FrameViewer {...input} frame={null} />);
     await view.rerender(<FrameViewer {...input} />);
     expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+  } finally {
+    await view.unmount();
+    warn.mockRestore();
+    jest.useRealTimers();
+  }
+});
+
+test("a slow original keeps loading while bytes arrive, and gives up only once they stop", async () => {
+  jest.useFakeTimers();
+  const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+  const view = await render(<FrameViewer {...props()} />);
+  try {
+    // Two minutes of a slow download, a chunk every 20 seconds.
+    for (let loaded = 1; loaded <= 6; loaded += 1) {
+      await act(async () => jest.advanceTimersByTime(20_000));
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "progress", {
+        nativeEvent: { loaded: loaded * 1024, total: 10 * 1024 },
+      });
+    }
+    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+    expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
+
+    await act(async () => jest.advanceTimersByTime(29_000));
+    expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
+    await act(async () => jest.advanceTimersByTime(1_000));
+    expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+    expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "timeout" });
+  } finally {
+    await view.unmount();
+    warn.mockRestore();
+    jest.useRealTimers();
+  }
+});
+
+test("Try again renews the link and starts a new stall timer", async () => {
+  jest.useFakeTimers();
+  const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+  const input = props();
+  const view = await render(<FrameViewer {...input} />);
+  try {
+    await act(async () => jest.advanceTimersByTime(30_000));
+    await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(input.onRetry).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+    await act(async () => jest.advanceTimersByTime(29_000));
+    expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
   } finally {
     await view.unmount();
     warn.mockRestore();
