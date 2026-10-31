@@ -57,7 +57,8 @@ export const FrameViewer = (props: Props) => {
   };
   const {
     stripRef,
-    gesture,
+    pagerRef,
+    onPageSettled,
     menuVisible,
     openMenu,
     closeMenu,
@@ -67,10 +68,10 @@ export const FrameViewer = (props: Props) => {
     requestClose,
     onDismiss,
   } = useFrameViewer({
-    previous: () => move(-1),
-    next: () => move(1),
     index,
     stripStep,
+    pageWidth: width,
+    onSelectPage: (page) => move(page - index),
     frameId: frame?.photo.id ?? null,
     onClose: props.onClose,
   });
@@ -130,16 +131,46 @@ export const FrameViewer = (props: Props) => {
             <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
           </IconButton>
         </View>
-        <View testID="frame-viewer-viewport" className="flex-1" {...gesture}>
-          {frame ? (
-            <FramePhoto
-              key={frame.photo.id}
-              frame={frame}
-              label={t("gallery.photoBy", { name })}
-              onRetry={props.onRetry}
-            />
-          ) : null}
-        </View>
+        <FlatList
+          ref={pagerRef}
+          testID="frame-viewer-pager"
+          className="flex-1"
+          horizontal
+          pagingEnabled
+          directionalLockEnabled
+          showsHorizontalScrollIndicator={false}
+          data={frames}
+          extraData={frame}
+          keyExtractor={(item) => item.photo.id}
+          initialScrollIndex={Math.max(0, index)}
+          initialNumToRender={3}
+          maxToRenderPerBatch={3}
+          windowSize={3}
+          getItemLayout={(_, page) => ({ length: width, offset: width * page, index: page })}
+          onMomentumScrollEnd={onPageSettled}
+          renderItem={({ item }) => (
+            <View style={{ width }} className="flex-1">
+              {item.photo.id === frame.photo.id ? (
+                <FramePhoto frame={frame} label={t("gallery.photoBy", { name })} onRetry={props.onRetry} />
+              ) : (
+                <View
+                  pointerEvents="none"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  className="flex-1"
+                >
+                  <RetryingPhoto
+                    testID={`frame-preview-${item.photo.id}`}
+                    uri={item.photo.thumbnailUrl}
+                    cacheKey={`photo:${item.photo.id}:thumbnail`}
+                    contentFit="contain"
+                    className="h-full w-full"
+                  />
+                </View>
+              )}
+            </View>
+          )}
+        />
         {busy ? (
           <GalleryProgress label={props.progressLabel ?? t("gallery.preparing")} />
         ) : props.notice ? (
