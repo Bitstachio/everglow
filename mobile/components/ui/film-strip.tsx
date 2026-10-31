@@ -32,11 +32,11 @@ type FilmStripProps = {
 const HOLES = Array.from({ length: 48 }, (_, i) => i);
 
 /** A row of 9pt holes, 9pt apart, inset 3.5pt from the edge of a strip of film. */
-export const Sprockets = ({ edge }: { edge: "top" | "bottom" }) => (
+export const Sprockets = ({ edge, count = HOLES.length }: { edge: "top" | "bottom"; count?: number }) => (
   <View
     className={`absolute left-0 right-0 h-1.5 flex-row gap-2.25 overflow-hidden ${edge === "top" ? "top-1" : "bottom-1"}`}
   >
-    {HOLES.map((hole) => (
+    {HOLES.slice(0, count).map((hole) => (
       <View key={hole} className="h-1.5 w-2.25 rounded-xs bg-sprocket" />
     ))}
   </View>

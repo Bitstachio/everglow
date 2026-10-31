@@ -116,12 +116,17 @@ describe("storagePair", () => {
   it("keeps the unit when they differ", () => {
     expect(storagePair(300 * 1024 ** 2, 3 * GB)).toEqual({ used: "300 MB", limit: "3 GB" });
   });
+
+  it("rounds the used side down, so a roll with room left never reads as full", () => {
+    expect(storagePair(3 * GB - 6 * 1024 ** 2, 3 * GB)).toEqual({ used: "2.9", limit: "3 GB" });
+    expect(storagePair(3 * GB, 3 * GB)).toEqual({ used: "3", limit: "3 GB" });
+  });
 });
 
 describe("sheetFrames", () => {
   const participants = [
     buildParticipant({ userId: "user-1", name: "Ada Lovelace" }),
-    buildParticipant({ userId: "maya", name: "Maya Chen", accessLevel: "PARTICIPANT" }),
+    buildParticipant({ userId: "maya", name: "Maya Chen", accessLevel: "PARTICIPANT", avatarUrl: "https://img/maya" }),
   ];
   const photos = [
     buildPhoto({ id: "c", addedById: "maya", createdAt: "2026-10-10T11:00:00.000Z" }),
@@ -137,6 +142,21 @@ describe("sheetFrames", () => {
       [1, null],
     ]);
     expect(frames.every((frame) => !frame.isNew)).toBe(true);
+    expect(frames.map((frame) => frame.uploader?.avatarUrl ?? null)).toEqual(["https://img/maya", null, null]);
+  });
+
+  it("does not attribute a departed or deleted uploader to another participant", () => {
+    const frames = sheetFrames(
+      [buildPhoto({ addedById: "departed" }), buildPhoto({ addedById: null })],
+      participants,
+      "user-1",
+      null,
+      "You",
+    );
+    expect(frames.map((frame) => [frame.by, frame.uploader])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
   });
 
   it("ticks other people's frames added since the last visit", () => {

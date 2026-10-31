@@ -5,7 +5,7 @@ import { buildPhoto } from "../../testing/fixtures";
 import { FrameViewer } from "./frame-viewer";
 
 const props = (): ComponentProps<typeof FrameViewer> => ({
-  frame: { photo: buildPhoto(), number: 1, by: "You", isNew: false },
+  frame: { photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false },
   canDelete: false,
   isSaving: false,
   canSave: true,

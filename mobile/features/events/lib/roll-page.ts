@@ -99,7 +99,7 @@ export const bandStock = (stage: RollStage, role: RollRole): BandStock => {
 export const storagePair = (usedBytes: number, limitBytes: number): { used: string; limit: string } => {
   // Nothing used reads "0 / 3 GB", not "0 B / 3 GB".
   if (usedBytes <= 0) return { used: "0", limit: formatStorageBytes(limitBytes) };
-  const used = formatStorageBytes(usedBytes);
+  const used = formatStorageBytes(usedBytes, { roundDown: true });
   const limit = formatStorageBytes(limitBytes);
   const [usedValue, usedUnit] = used.split(" ");
   return { used: usedUnit === limit.split(" ")[1] ? (usedValue ?? used) : used, limit };
@@ -114,6 +114,8 @@ export type SheetFrame = {
   number: number;
   /** The uploader's first name, "You", or null once they've left or deleted their account. */
   by: string | null;
+  /** Only current participants can supply an uploader portrait. */
+  uploader: Pick<EventParticipantResponseDto, "userId" | "name" | "avatarUrl"> | null;
   /** Added by someone else since the caller last looked. */
   isNew: boolean;
 };
@@ -125,15 +127,16 @@ export const sheetFrames = (
   lastVisit: string | null,
   you: string,
 ): SheetFrame[] => {
-  const names = new Map(participants.map((participant) => [participant.userId, participant.name]));
+  const uploaders = new Map(participants.map((participant) => [participant.userId, participant]));
   const since = lastVisit ? new Date(lastVisit).getTime() : null;
   return photos.map((photo, index) => {
     const mine = photo.addedById !== null && photo.addedById === userId;
-    const name = photo.addedById ? names.get(photo.addedById) : undefined;
+    const uploader = photo.addedById ? uploaders.get(photo.addedById) : undefined;
     return {
       photo,
       number: photos.length - index,
-      by: mine ? you : name ? firstName(name) : null,
+      by: mine ? you : uploader?.name ? firstName(uploader.name) : null,
+      uploader: uploader ?? null,
       isNew: since !== null && !mine && new Date(photo.createdAt).getTime() > since,
     };
   });
@@ -170,6 +173,12 @@ export const formatOpensAt = (iso: string): string => {
   const date = new Date(iso);
   const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
   return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+/** "16:00": when a roll closed while photos were sending (08.8). */
+export const formatClock = (iso: string): string => {
+  const date = new Date(iso);
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 /** "Sun 18.10": the roll's date under its name. */

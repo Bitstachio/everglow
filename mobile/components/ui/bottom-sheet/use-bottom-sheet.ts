@@ -5,7 +5,8 @@ const SHEET_SLIDE_DISTANCE = Dimensions.get("window").height * 0.4;
 const OPEN_DURATION_MS = { scrim: 200, sheet: 280 };
 const CLOSE_DURATION_MS = { scrim: 200, sheet: 250 };
 
-export const useBottomSheetPresentation = (visible: boolean) => {
+/** `onClosed` runs once the sheet has fully gone, so whatever opens next (a picker) isn't dropped by iOS. */
+export const useBottomSheetPresentation = (visible: boolean, onClosed?: () => void) => {
   const [presented, setPresented] = useState(visible);
   const presentedRef = useRef(visible);
   const visibleRef = useRef(visible);
@@ -63,6 +64,12 @@ export const useBottomSheetPresentation = (visible: boolean) => {
 
     return () => animation.current?.stop();
   }, [visible, scrimOpacity, sheetTranslateY]);
+
+  const wasPresented = useRef(presented);
+  useEffect(() => {
+    if (wasPresented.current && !presented) onClosed?.();
+    wasPresented.current = presented;
+  }, [presented, onClosed]);
 
   return {
     presented,

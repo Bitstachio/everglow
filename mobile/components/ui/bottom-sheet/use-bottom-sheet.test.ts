@@ -54,6 +54,24 @@ test("keeps presented through close until the exit animation finishes", async ()
   expect(result.current.presented).toBe(false);
 });
 
+test("says when it has closed, once the exit animation finishes", async () => {
+  const onClosed = jest.fn();
+  const { rerender } = await renderHook(
+    ({ visible }: { visible: boolean }) => useBottomSheetPresentation(visible, onClosed),
+    { initialProps: { visible: true } },
+  );
+
+  await act(async () => {
+    rerender({ visible: false });
+  });
+  expect(onClosed).not.toHaveBeenCalled();
+
+  await act(async () => {
+    lastStartCallback?.({ finished: true });
+  });
+  expect(onClosed).toHaveBeenCalledTimes(1);
+});
+
 test("does not unpresent when reopened before close finishes", async () => {
   const { result, rerender } = await renderHook(
     ({ visible }: { visible: boolean }) => useBottomSheetPresentation(visible),

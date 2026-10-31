@@ -1,4 +1,5 @@
 import { AppIcon } from "@/components/ui/app-icon";
+import { Avatar } from "@/components/ui/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { ContactFrame } from "@/components/ui/contact-frame";
@@ -25,12 +26,14 @@ import { RollFooter, type FooterAction, type RollFooterProps } from "../componen
 import { RollNotice } from "../components/roll-notice";
 import { RollOpened } from "../components/roll-opened";
 import { RollPeopleList } from "../components/roll-people-list";
+import { RollTrayLine } from "../components/roll-tray-line";
 import { UnexposedRoll } from "../components/unexposed-roll";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
 import { closedOn, formatEnvelopeDay } from "../lib/envelope";
 import {
   bandStock,
   bandTime,
+  formatClock,
   formatOpensAt,
   formatRange,
   formatRollDate,
@@ -40,12 +43,19 @@ import {
   type SheetFrame,
 } from "../lib/roll-page";
 import { formatClosedOn, formatOpensOn } from "../lib/rolls";
-import { formatStorageBytes } from "../utils";
+import type { DevelopingFrame } from "../lib/upload-tray-view";
+import { formatEventStorage, formatStorageBytes } from "../utils";
 
 // Room under the sheet so the last row clears the shutter.
 const FOOT_SPACE = 190;
 
+/** A frame on the sheet: one on the roll, or one still developing from the tray. */
+type SheetItem = { kind: "photo"; frame: SheetFrame } | { kind: "developing"; frame: DevelopingFrame };
+
 const value = <EdgeValue>{null}</EdgeValue>;
+
+const uploaderAvatar = (uploader: SheetFrame["uploader"]) =>
+  uploader ? <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" /> : null;
 
 /** The result of an action, for a few seconds over the foot of the roll. */
 const Notice = ({ message, className = "", style }: { message: string; className?: string; style?: ViewStyle }) => (
@@ -76,6 +86,7 @@ const EventDetailScreen = () => {
   }
 
   const host = hostName(event, participants);
+  const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
   const count = frames.length;
 
   if (screen.openedVisible) {
@@ -245,12 +256,11 @@ const EventDetailScreen = () => {
     accessibilityLabel: t("footer.inviteLabel"),
     onPress: screen.onOpenEnvelope,
   };
-  const upload = screen.uploadStatus;
-  const progress = !upload
-    ? undefined
-    : upload.phase === "preparing"
-      ? t("footer.preparing")
-      : t("footer.developing", { done: upload.done, total: upload.total });
+  const moreRoom: FooterAction = {
+    title: t("footer.moreRoom"),
+    accessibilityLabel: t("footer.moreRoomLabel"),
+    onPress: screen.onOpenSettings,
+  };
 
   const footer: RollFooterProps = (() => {
     switch (stage) {
@@ -273,16 +283,28 @@ const EventDetailScreen = () => {
           : { kind: "none" };
       default:
         if (role === "viewer") return { kind: "viewOnly", note: t("footer.viewOnly"), save, right: people };
+        // 08.7: at the limit the shutter locks for everyone. Hosts can make room; guests are told who to ask.
+        if (screen.isFull) {
+          const label =
+            role === "host" ? t("footer.full") : host ? t("footer.fullGuest", { host }) : t("footer.fullGuestNoHost");
+          return {
+            kind: "locked",
+            label,
+            accessibilityLabel: t("footer.fullLabel"),
+            save,
+            right: role === "host" ? moreRoom : people,
+          };
+        }
         return {
           kind: "shutter",
-          shutterLabel: progress ?? t("footer.addPhotos"),
-          progress,
-          busy: upload !== null,
+          shutterLabel: screen.preparing ? t("footer.preparing") : t("footer.addPhotos"),
+          progress: screen.preparing ? t("footer.preparing") : undefined,
+          busy: screen.preparing,
           onShutter: screen.onAddPhotos,
           save,
           right: role === "host" ? invite : people,
-          circled: (stage === "empty" || lastDay) && upload === null,
-          note: stage === "empty" && upload === null ? t("footer.firstShot") : undefined,
+          circled: (stage === "empty" || lastDay) && !screen.preparing,
+          note: stage === "empty" && !screen.preparing ? t("footer.firstShot") : undefined,
         };
     }
   })();
@@ -312,6 +334,7 @@ const EventDetailScreen = () => {
         peopleLabel={viewOnlyBand ? t("band.viewOnly") : t("band.peopleLabel", { count: event.usage.members })}
         onPeople={viewOnlyBand ? undefined : screen.onOpenPeople}
         circleTime={(stage === "upcoming" && role === "host") || lastDay}
+        circleStock={screen.isFull}
       />
       {stage === "underReview" ? <RollNotice edge={t("notice.reviewEdge")} body={t("notice.reviewBody")} /> : null}
       {stage === "suspended" ? (
@@ -335,26 +358,85 @@ const EventDetailScreen = () => {
     return frame.isNew ? t("frame.new", { label }) : label;
   };
 
-  const renderFrame = ({ item }: { item: SheetFrame }) => (
+  const renderFrame = ({ item }: { item: SheetItem }) => (
     <View className="w-1/3 px-0.5 pb-3.5">
-      <ContactFrame
-        uri={item.photo.thumbnailUrl}
-        cacheKey={`photo:${item.photo.id}:thumbnail`}
-        number={item.number}
-        by={item.by ?? undefined}
-        isNew={item.isNew}
-        accessibilityLabel={frameLabel(item)}
-        onPress={() => screen.onOpenFrame(item)}
-      />
+      {item.kind === "photo" ? (
+        <ContactFrame
+          uri={item.frame.photo.thumbnailUrl}
+          cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
+          placeholderUri={screen.localFileFor(item.frame.photo.id)}
+          onPreviewReady={() => screen.onPreviewReady(item.frame.photo.id)}
+          number={item.frame.number}
+          by={item.frame.by ?? undefined}
+          avatar={uploaderAvatar(item.frame.uploader)}
+          isNew={item.frame.isNew}
+          accessibilityLabel={frameLabel(item.frame)}
+          onPress={() => screen.onOpenFrame(item.frame)}
+        />
+      ) : (
+        <ContactFrame
+          uri={item.frame.item.uri}
+          number={item.frame.number}
+          by={t("frame.you")}
+          avatar={uploaderAvatar(currentUploader)}
+          develop={item.frame.develop}
+          crossed={item.frame.crossed}
+          accessibilityLabel={
+            item.frame.crossed
+              ? t("tray.frameFailed", { number: item.frame.number })
+              : t("tray.frameDeveloping", { number: item.frame.number })
+          }
+          onPress={screen.onOpenTray}
+        />
+      )}
     </View>
   );
+
+  const sheetItems: SheetItem[] = showsSheet
+    ? [
+        ...screen.developing.map((frame) => ({ kind: "developing" as const, frame })),
+        ...frames.map((frame) => ({ kind: "photo" as const, frame })),
+      ]
+    : [];
+
+  // 08.2 / 08.4: one line over the shutter while the tray has something to say.
+  const trayNeedsAttention = screen.tray.retryable + screen.tray.noRoom + screen.tray.closed + screen.tray.rejected > 0;
+  const trayLine = (() => {
+    const tray = screen.tray;
+    const open: FooterAction = {
+      title: t("tray.line.open"),
+      accessibilityLabel: t(trayNeedsAttention ? "tray.line.openFailedLabel" : "tray.line.openLabel"),
+      onPress: screen.onOpenTray,
+    };
+    if (tray.inFlight > 0) {
+      // Files that didn't take aren't developing: they count in their own line once these finish.
+      const total = tray.inFlight + tray.developed;
+      return {
+        text: t("tray.line.developing", { current: Math.min(tray.developed + 1, total), total }),
+        action: open,
+      };
+    }
+    if (tray.retryable > 0) {
+      return {
+        text:
+          tray.offline === tray.retryable
+            ? t("tray.line.offline", { count: tray.retryable })
+            : t("tray.line.didntTake", { count: tray.retryable }),
+        action: open,
+      };
+    }
+    if (tray.noRoom > 0) return { text: t("tray.line.noRoom", { count: tray.noRoom }), action: open };
+    if (tray.closed > 0) return { text: t("tray.line.closed", { count: tray.closed }), action: open };
+    if (tray.rejected > 0) return { text: t("tray.line.cantAdd", { count: tray.rejected }), action: open };
+    return null;
+  })();
 
   return (
     <View className="flex-1 bg-ground">
       <FlatList
         testID="roll-sheet"
-        data={showsSheet ? frames : []}
-        keyExtractor={(frame) => frame.photo.id}
+        data={sheetItems}
+        keyExtractor={(item) => (item.kind === "photo" ? item.frame.photo.id : item.frame.item.key)}
         numColumns={3}
         renderItem={renderFrame}
         ListHeaderComponent={header}
@@ -378,7 +460,18 @@ const EventDetailScreen = () => {
 
       <RollFooter {...footer} bottomInset={insets.bottom} />
 
-      {screen.notice ? <Notice message={screen.notice} style={{ bottom: insets.bottom + FOOT_SPACE - 40 }} /> : null}
+      {trayLine && (!screen.notice || trayNeedsAttention) ? (
+        <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + FOOT_SPACE - 52 }}>
+          <RollTrayLine text={trayLine.text} action={trayLine.action} needsAttention={trayNeedsAttention} />
+        </View>
+      ) : null}
+
+      {screen.notice ? (
+        <Notice
+          message={screen.notice}
+          style={{ bottom: insets.bottom + FOOT_SPACE + (trayLine && trayNeedsAttention ? 4 : -40) }}
+        />
+      ) : null}
 
       {screen.arrivalNote ? (
         // At the foot of the roll, over the controls, as drawn (06.7).
@@ -403,9 +496,31 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
   const { event, role } = screen;
   if (!event) return null;
 
+  const host = hostName(event, screen.participants);
+  const closed = screen.closedWhileSending;
+  const room = screen.roomCheck;
+
   return (
     <>
-      <BottomSheet visible={screen.sheet !== null} onClose={screen.onCloseSheet}>
+      <BottomSheet
+        testID="roll-dialog"
+        visible={screen.sheet !== null}
+        onClose={screen.onCloseSheet}
+        onClosed={screen.onSheetClosed}
+      >
+        {screen.sheet === "closedSending" && closed ? (
+          // 08.8: the gallery closed while photos were sending. There's no Retry.
+          <Slip
+            edge={t("closedSending.edge", {
+              time: formatClock(event.galleryState === "CLOSED" ? closedOn(event) : closed.at),
+            })}
+            title={t("closedSending.title", { count: screen.tray.closed })}
+            body={closed.landed > 0 ? t("closedSending.body", { count: closed.landed }) : t("closedSending.bodyNone")}
+          >
+            <Button title={t("closedSending.ok")} mark="✓" onPress={screen.onDismissClosed} />
+          </Slip>
+        ) : null}
+
         {screen.sheet === "menu" ? (
           <View>
             <IndexRow label={t("menuSheet.people")} onPress={screen.onOpenPeople} />
@@ -447,6 +562,29 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           </Slip>
         ) : null}
 
+        {screen.sheet === "room" && room ? (
+          // 08.6: not enough room for everything picked.
+          <Slip
+            edge={formatEventStorage(event)}
+            title={
+              room.fits.length > 0
+                ? t("room.title", { fits: room.fits.length, wanted: room.wanted })
+                : t("room.noneTitle")
+            }
+            body={roomBody(t, room.fits.length, formatStorageBytes(room.leftBytes), role, host)}
+          >
+            {room.fits.length > 0 ? (
+              <Button title={t("room.send", { count: room.fits.length })} mark="▸" onPress={screen.onSendWhatFits} />
+            ) : null}
+            <Button
+              title={t("room.pickAgain")}
+              variant={room.fits.length > 0 ? "secondary" : "primary"}
+              mark="‹"
+              onPress={screen.onPickAgain}
+            />
+          </Slip>
+        ) : null}
+
         {screen.sheet === "remove" ? (
           <Slip title={t("remove.title", { name: screen.removing?.name ?? "" })} body={t("remove.body")}>
             <Button
@@ -476,6 +614,20 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
       />
     </>
   );
+};
+
+/** 08.6's body: who can make room depends on who's asking. */
+const roomBody = (
+  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  fits: number,
+  left: string,
+  role: string,
+  host: string | null,
+) => {
+  const none = fits === 0;
+  if (role === "host") return none ? t("room.noneBodyHost", { left }) : t("room.bodyHost", { left, fits });
+  if (host) return none ? t("room.noneBodyGuest", { left, host }) : t("room.bodyGuest", { left, fits, host });
+  return none ? t("room.noneBodyGuestNoHost", { left }) : t("room.bodyGuestNoHost", { left, fits });
 };
 
 export default EventDetailScreen;

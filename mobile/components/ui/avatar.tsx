@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { useState } from "react";
 import { View } from "react-native";
 
-type AvatarSize = "md" | "header" | "lg";
+type AvatarSize = "caption" | "md" | "header" | "lg";
 
 type AvatarProps = {
   userId: string;
@@ -13,9 +13,9 @@ type AvatarProps = {
   size?: AvatarSize;
 };
 
-// Photos of people are paper prints; the header's is round, matching the
-// scanner button beside it.
+// Caption portraits and the header are round; larger portraits are paper prints.
 const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string }> = {
+  caption: { container: "size-4 rounded-full border border-edge", text: "text-frame-label" },
   md: { container: "h-10 w-10 rounded-paper", text: "text-base" },
   header: { container: "size-10 rounded-full", text: "text-lg" },
   lg: { container: "h-20 w-20 rounded-paper", text: "text-3xl" },

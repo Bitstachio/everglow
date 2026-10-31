@@ -1,3 +1,4 @@
+import { onAccountCleared } from "@/lib/account-cleared";
 import { toApiError } from "@/lib/api/errors";
 import { clearPendingInvite, savePendingInvite, takePendingInvite } from "@/lib/pending-invite";
 import { renderWithI18n } from "@/testing/render";
@@ -151,6 +152,34 @@ test("a 401 drops everything cached for the account", async () => {
   await act(async () => mockUnauthorized?.());
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: "/login", params: { signedOut: "1" } }));
   expect(queryClient.getQueryData(["blocks"])).toBeUndefined();
+});
+
+test("a 401 clears the account but tells local stores the session expired, so they keep its data", async () => {
+  const reasons: string[] = [];
+  const stop = onAccountCleared((reason) => reasons.push(reason));
+  try {
+    mockGetUserProfile.mockResolvedValue(profile);
+    await renderProvider();
+    await screen.findByText("App");
+    await act(async () => mockUnauthorized?.());
+    await waitFor(() => expect(reasons).toEqual(["sessionExpired"]));
+  } finally {
+    stop();
+  }
+});
+
+test("a deliberate sign-out clears the account for good", async () => {
+  const reasons: string[] = [];
+  const stop = onAccountCleared((reason) => reasons.push(reason));
+  try {
+    mockGetUserProfile.mockResolvedValue(profile);
+    await renderProvider();
+    await screen.findByText("App");
+    fireEvent.press(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(reasons).toEqual(["signedOut"]));
+  } finally {
+    stop();
+  }
 });
 
 test("a suspended account is routed to its own screen once it loads", async () => {
