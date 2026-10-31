@@ -1,4 +1,4 @@
-import { onAccountCleared } from "@/lib/account-cleared";
+import { onAccountCleared, type AccountClearedReason } from "@/lib/account-cleared";
 import NetInfo from "@react-native-community/netinfo";
 import { useSyncExternalStore } from "react";
 import { retainCompletedTrayRows } from "./upload-tray-session";
@@ -145,10 +145,20 @@ const mapItems = (eventId: string, map: (item: TrayItem) => TrayItem | null, dur
     durable,
   );
 
+const wholePercent = (bytesSent: number, sizeBytes: number) =>
+  sizeBytes > 0 ? Math.floor((Math.min(bytesSent, sizeBytes) / sizeBytes) * 100) : 0;
+
 const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => {
   if (getTray(eventId).storageError) return;
   const previous = getTray(eventId).items.find((item) => item.key === key);
-  // Native byte callbacks update the UI without serializing the entire queue.
+  // Native byte callbacks arrive many times a second. Only a new whole percent
+  // reaches the screen, and none of them rewrites the durable queue.
+  if (
+    update.kind === "sending" &&
+    previous?.status.kind === "sending" &&
+    wholePercent(update.bytesSent, previous.sizeBytes) === wholePercent(previous.status.bytesSent, previous.sizeBytes)
+  )
+    return;
   const durable = update.kind !== "sending" || previous?.status.kind !== "sending";
   if (update.kind === "failed" && update.reason === "closed") {
     setTray(eventId, (tray) => ({
@@ -356,8 +366,13 @@ export const dismissClosed = (eventId: string) =>
     items: tray.items.filter((item) => !(item.status.kind === "failed" && item.status.reason === "closed")),
   }));
 
-/** Sign-out: nothing one account picked may carry on for the next. */
-export const clearUploadTrays = () => {
+/**
+ * Nothing one account picked may carry on for the next. Every clear stops the
+ * work in memory; only a deliberate sign-out (or a deleted account) removes the
+ * account's files and queue on disk. After an expired session they wait, scoped
+ * to that account, and come back as interrupted with Retry when it signs in.
+ */
+export const clearUploadTrays = (reason: AccountClearedReason = "signedOut") => {
   const oldUserId = activeUserId;
   activeUserId = null;
   retryTimers.forEach(clearTimeout);
@@ -371,14 +386,15 @@ export const clearUploadTrays = () => {
   trays.clear();
   sessions.clear();
   localFiles.clear();
-  if (oldUserId) removeUploadStorage(oldUserId);
+  if (oldUserId && reason === "signedOut") removeUploadStorage(oldUserId);
   emit();
 };
 
 /** Restore only the authenticated account; interrupted jobs wait for explicit Retry. */
 export const activateUploadTrays = (userId: string, settle: (eventId: string) => Promise<unknown>) => {
   if (activeUserId === userId) return;
-  clearUploadTrays();
+  // Not a sign-out: another account's queue stays on disk, scoped to it.
+  clearUploadTrays("sessionExpired");
   activeUserId = userId;
   for (const [eventId, tray] of restoreUploadTrays(userId)) {
     trays.set(eventId, tray);
