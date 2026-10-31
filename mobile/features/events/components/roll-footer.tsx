@@ -35,7 +35,7 @@ export type RollFooterProps =
   | { kind: "text"; action: FooterAction }
   | { kind: "none" };
 
-type RollFooterOwnProps = { bottomInset: number };
+type RollFooterOwnProps = { bottomInset: number; status?: ReactNode };
 
 export type FooterAction = { title: string; accessibilityLabel: string; onPress: () => void; disabled?: boolean };
 
@@ -94,13 +94,14 @@ const CircledShutter = ({ circled, children }: { circled: boolean; children: Rea
   );
 };
 
-export const RollFooter = ({ bottomInset, ...props }: RollFooterProps & RollFooterOwnProps) => {
+export const RollFooter = ({ bottomInset, status, ...props }: RollFooterProps & RollFooterOwnProps) => {
   if (props.kind === "none") return null;
 
   return (
     <View pointerEvents="box-none" className="absolute bottom-0 left-0 right-0 bg-ground pt-3">
       <BottomFade />
       <View style={{ paddingBottom: bottomInset + 8 }}>
+        {status}
         {props.kind === "leader" ? (
           <View className="px-5 pb-4">
             <Button title={props.title} mark={props.mark} onPress={props.onPress} />

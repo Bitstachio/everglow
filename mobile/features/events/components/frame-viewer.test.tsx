@@ -2,14 +2,22 @@ import "../testing/native-mocks";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import type { ComponentProps } from "react";
 import { buildPhoto } from "../testing/fixtures";
-import { FrameViewer } from "./frame-viewer";
+import { FrameViewer } from "./frame-viewer/frame-viewer";
 
 const props = (): ComponentProps<typeof FrameViewer> => ({
   frame: { photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false },
   canDelete: false,
-  isSaving: false,
+  frames: [],
+  busy: false,
+  notice: null,
+  failedSaveCount: 0,
+  onRetrySave: jest.fn(),
+  onShare: jest.fn(),
+  onMove: jest.fn(),
+  onLoadMore: jest.fn(),
+  hasMore: false,
   isDeleting: false,
-  confirmDeleteVisible: false,
+  deleteTargets: null,
   onClose: jest.fn(),
   onRetry: jest.fn().mockResolvedValue(undefined),
   onSave: jest.fn(),

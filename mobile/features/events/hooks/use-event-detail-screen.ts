@@ -1,33 +1,25 @@
+import { useRollGallery } from "./use-roll-gallery";
+import { useGalleryQuery } from "../api/gallery";
 import { developingFrames, summarizeTray } from "../lib/upload-tray-view";
 import { useAuth } from "@/context/auth-context";
-import { getErrorMessage } from "@/lib/api/errors";
+import { getErrorMessage, isApiError } from "@/lib/api/errors";
 import * as ImagePicker from "expo-image-picker";
-import { File, Paths } from "expo-file-system";
-import * as MediaLibrary from "expo-media-library";
+import { File } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import {
   useDeactivateEventMutation,
-  useDeleteEventPhotoMutation,
   useLeaveEventMutation,
   useRefreshRollAfterUpload,
   useRemoveEventParticipantMutation,
 } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
-import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
+import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
 import { roomShortfall, toTrayItems, type PickedFile, type RoomShortfall } from "../lib/picked-photos";
-import {
-  hasOpened,
-  isRollLastDay,
-  rollRole,
-  rollStage,
-  sheetFrames,
-  shouldShowOpened,
-  type SheetFrame,
-} from "../lib/roll-page";
+import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
 import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
@@ -40,7 +32,7 @@ import {
   useUploadTray,
   type TrayItem,
 } from "../lib/upload-tray";
-import type { EventParticipantResponseDto, PhotoResponseDto } from "../types";
+import type { EventParticipantResponseDto } from "../types";
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
 
@@ -95,29 +87,6 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
   return asset.fileSize ?? 0;
 };
 
-/** Saves one frame to the phone's library. The library keeps its own copy, so the download goes. */
-const saveToLibrary = async (photo: PhotoResponseDto) => {
-  // Original S3 keys have no suffix. Photos detects the media type from the local filename.
-  const extensions: Record<PhotoResponseDto["contentType"], string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/heic": "heic",
-    "image/heif": "heif",
-  };
-  const destination = new File(Paths.cache, `everglow-${photo.id}.${extensions[photo.contentType]}`);
-  const downloaded = await File.downloadFileAsync(photo.url, destination, { idempotent: true });
-  try {
-    await MediaLibrary.Asset.create(downloaded.uri);
-  } finally {
-    try {
-      downloaded.delete();
-    } catch {
-      // Already gone; the cache is the system's to clear anyway.
-    }
-  }
-};
-
 /** What the sheet over the roll shows: the menu, people, or a slip. */
 export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove" | "room" | "closedSending";
 
@@ -140,7 +109,7 @@ export const useEventDetailScreen = () => {
   const event = eventQuery.data ?? null;
   // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
-  const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
+  const photosQuery = useGalleryQuery(eventId ?? "", hasPhotos && !leavingRoll);
   const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
 
   const leaveEventMutation = useLeaveEventMutation();
@@ -148,7 +117,6 @@ export const useEventDetailScreen = () => {
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
   const refreshRoll = useRefreshRollAfterUpload();
   const tray = useUploadTray(eventId);
-  const deletePhotoMutation = useDeleteEventPhotoMutation();
   // After joining, or opening an envelope you're already on (06.6, 06.7).
   const arrivalNote = useArrivalNote();
 
@@ -161,13 +129,8 @@ export const useEventDetailScreen = () => {
   // copies every selected photo into the app first, which takes a while.
   const [preparing, setPreparing] = useState(false);
   const [roomCheck, setRoomCheck] = useState<RoomCheck | null>(null);
-  const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [openFrame, setOpenFrame] = useState<SheetFrame | null>(null);
-  const [isSavingFrame, setIsSavingFrame] = useState(false);
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
 
   // One sheet over the roll whose content changes, so one modal never opens
   // from another: iOS drops a modal presented while another is closing.
@@ -177,9 +140,19 @@ export const useEventDetailScreen = () => {
   const afterSheetCloses = useRef<(() => void) | null>(null);
   const closeSheet = () => setSheet(null);
 
-  const photos = hasPhotos ? (photosQuery.data ?? []) : [];
+  const photos = hasPhotos
+    ? [
+        ...new Map(
+          (photosQuery.data?.pages.flatMap((page) => page.items) ?? []).map((photo) => [photo.id, photo]),
+        ).values(),
+      ]
+    : [];
   useEffect(() => {
-    if (eventId && hasPhotos && photosQuery.data) reconcileTrayPhotos(eventId, photosQuery.data);
+    if (eventId && hasPhotos && photosQuery.data)
+      reconcileTrayPhotos(
+        eventId,
+        photosQuery.data.pages.flatMap((page) => page.items),
+      );
   }, [eventId, hasPhotos, photosQuery.data]);
   const participants = participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
@@ -315,78 +288,6 @@ export const useEventDetailScreen = () => {
     next?.();
   };
 
-  const ensureLibraryAccess = async () => {
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status === "granted") return true;
-    showNotice(t("result.libraryAccess"));
-    return false;
-  };
-
-  const onSaveAll = async () => {
-    if (photos.length === 0 || saving) return;
-    if (!(await ensureLibraryAccess())) return;
-
-    const total = photos.length;
-    let saved = 0;
-    setSaving({ done: 0, total });
-    for (const photo of photos) {
-      try {
-        await saveToLibrary(photo);
-        saved += 1;
-      } catch {
-        // Keep going: one frame that won't save shouldn't stop the rest.
-      }
-      setSaving({ done: saved, total });
-    }
-    setSaving(null);
-
-    if (saved === total) showNotice(t("result.saved", { count: total }));
-    else if (saved === 0) showNotice(t("result.saveFailed"));
-    else showNotice(t("result.savedSome", { saved, total }));
-  };
-
-  const onSaveFrame = async () => {
-    if (!openFrame) return;
-    if (!(await ensureLibraryAccess())) return;
-    setIsSavingFrame(true);
-    try {
-      await saveToLibrary(openFrame.photo);
-      showNotice(t("result.saved", { count: 1 }));
-    } catch {
-      showNotice(t("result.saveFailed"));
-    } finally {
-      setIsSavingFrame(false);
-    }
-  };
-
-  const onRetryFrame = async () => {
-    if (!openFrame || !hasPhotos) throw new Error("No visible frame to retry");
-    const photoId = openFrame.photo.id;
-    const result = await photosQuery.refetch({ throwOnError: true });
-    const photo = result.data?.find((item) => item.id === photoId);
-    if (!photo) throw new Error("Frame is no longer available");
-    // A request finishing after Close must not reopen the viewer or replace another frame.
-    setOpenFrame((current) => (current?.photo.id === photoId ? { ...current, photo } : current));
-  };
-
-  const onConfirmDeleteFrame = () => {
-    if (!eventId || !openFrame) return;
-    deletePhotoMutation.mutate(
-      { eventId, photoId: openFrame.photo.id },
-      {
-        onSuccess: () => {
-          setConfirmDeleteVisible(false);
-          setOpenFrame(null);
-          showNotice(t("result.deleted"));
-        },
-        onError: (error) => {
-          setConfirmDeleteVisible(false);
-          showNotice(getErrorMessage(error));
-        },
-      },
-    );
-  };
-
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
     // Stop active readers before membership is revoked and their caches are evicted.
@@ -441,15 +342,31 @@ export const useEventDetailScreen = () => {
   };
 
   const openedVisible = !openedDismissed && event !== null && shouldShowOpened(event, lastVisit);
-  const openFrameIsDeletable =
-    openFrame !== null &&
-    stage !== "underReview" &&
-    (role === "host" || (openFrame.photo.addedById !== null && openFrame.photo.addedById === user?.id));
+  const gallery = useRollGallery({
+    eventId: eventId ?? "",
+    userId: user?.id,
+    enabled:
+      hasPhotos &&
+      !leavingRoll &&
+      !eventQuery.isError &&
+      !(isApiError(photosQuery.error) && [403, 404].includes(photosQuery.error.status ?? 0)),
+    canDeleteOthers: role === "host",
+    canDelete: stage !== "underReview",
+    frames,
+    showNotice,
+  });
 
   return {
+    ...gallery,
+    loadMore: () => {
+      if (photosQuery.hasNextPage && !photosQuery.isFetching) void photosQuery.fetchNextPage();
+    },
+    hasMore: photosQuery.hasNextPage,
+    loadingMore: photosQuery.isFetchingNextPage,
+    galleryError: photosQuery.isError,
     event,
     participants,
-    frames,
+    frames: gallery.visibleFrames,
     role,
     stage,
     now,
@@ -467,14 +384,8 @@ export const useEventDetailScreen = () => {
     leftBytes,
     roomCheck,
     preparing,
-    saving,
     notice: tray.storageError ? t("result.localStorage") : notice,
     openedVisible,
-    openFrame,
-    openFrameIsDeletable,
-    isSavingFrame,
-    isDeletingFrame: deletePhotoMutation.isPending,
-    confirmDeleteVisible,
     sheet: shownSheet,
     arrivalNote,
     isLeaving: leaveEventMutation.isPending,
@@ -493,14 +404,6 @@ export const useEventDetailScreen = () => {
     onSendWhatFits,
     onPickAgain,
     onDismissClosed,
-    onSaveAll: () => void onSaveAll(),
-    onOpenFrame: setOpenFrame,
-    onCloseFrame: () => setOpenFrame(null),
-    onRetryFrame,
-    onSaveFrame: () => void onSaveFrame(),
-    onDeleteFrame: () => setConfirmDeleteVisible(true),
-    onCancelDeleteFrame: () => setConfirmDeleteVisible(false),
-    onConfirmDeleteFrame,
     onOpenMenu: () => setSheet("menu"),
     onCloseSheet: shownSheet === "closedSending" ? onDismissClosed : closeSheet,
     onSheetClosed,
