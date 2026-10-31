@@ -212,6 +212,16 @@ resource "aws_sns_topic_policy" "security_alerts" {
         Resource  = aws_sns_topic.security_alerts.arn
         Condition = { ArnEquals = { "aws:SourceArn" = local.alert_rules } }
       },
+      {
+        # The image processor's DLQ alarm (image-processor.tf) publishes as
+        # CloudWatch, not EventBridge.
+        Sid       = "CloudWatchPublishesDlqAlarm"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "sns:Publish"
+        Resource  = aws_sns_topic.security_alerts.arn
+        Condition = { ArnEquals = { "aws:SourceArn" = aws_cloudwatch_metric_alarm.photo_uploads_dlq.arn } }
+      },
     ]
   })
 }

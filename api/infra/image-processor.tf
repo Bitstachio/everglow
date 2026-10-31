@@ -11,7 +11,7 @@ locals {
   image_processor_zip = "${path.module}/../../functions/image-processor/dist/function.zip"
 }
 
-# --- Queue: S3 notifications, with a DLQ for poison messages -------------------
+# --- Queue: S3 notifications, with an alarmed DLQ for repeated failures -------
 
 resource "aws_sqs_queue" "photo_uploads_dlq" {
   name                      = "everglow-photo-uploads-dlq-dev"
@@ -28,6 +28,28 @@ resource "aws_sqs_queue" "photo_uploads" {
     deadLetterTargetArn = aws_sqs_queue.photo_uploads_dlq.arn
     maxReceiveCount     = 5
   })
+}
+
+# Anything in the DLQ is a photo that failed 5 times with an error that looked
+# temporary. Undecodable photos (HEIC until EV-5, corrupt, too large) are
+# acknowledged and logged as photo.derivatives.undecodable instead, so they do
+# not land here. The photo.derivatives.failed log names the bucket and key.
+#
+# CloudWatch publishes as cloudwatch.amazonaws.com, so the topic policy in
+# photo-privacy.tf has to allow that principal for this alarm's ARN.
+resource "aws_cloudwatch_metric_alarm" "photo_uploads_dlq" {
+  alarm_name          = "everglow-photo-uploads-dlq-dev"
+  alarm_description   = "Photo derivative messages are in ${aws_sqs_queue.photo_uploads_dlq.name} after 5 failed attempts. Search the image processor's logs for photo.derivatives.failed."
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions          = { QueueName = aws_sqs_queue.photo_uploads_dlq.name }
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.security_alerts.arn]
 }
 
 resource "aws_sqs_queue_policy" "photo_uploads_dlq" {
@@ -173,8 +195,19 @@ resource "aws_lambda_function" "image_processor" {
   timeout       = 60
   memory_size   = 1536
 
+  # The build is reproducible, so this only changes when the code or lockfile does.
   filename         = local.image_processor_zip
   source_code_hash = filebase64sha256(local.image_processor_zip)
+
+  # A deployed build: info-level logs tagged env "production", like the API
+  # under compose (functions/image-processor/src/logging.ts). Set LOG_LEVEL to
+  # debug to see ignored notifications.
+  environment {
+    variables = {
+      NODE_ENV  = "production"
+      LOG_LEVEL = "info"
+    }
+  }
 
   depends_on = [
     aws_iam_role_policy.image_processor,
