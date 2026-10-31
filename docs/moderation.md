@@ -504,7 +504,7 @@ Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-
   - the close job;
   - a verdict.
 
-  The copy never blocks the user's delete. If it fails, the original object is kept, `report.evidence.copy_failed` fires, the orphan reconciler leaves the object alone, and the daily evidence job retries the copy, then deletes the original.
+  The copy never blocks the user's delete. If it fails, the original object is kept (a photo with its thumbnail and display copy), `report.evidence.copy_failed` fires, the orphan reconciler leaves the object and its copies alone, and the daily evidence job retries the copy, then deletes the original and its copies.
 
 - **Evidence counts toward nobody's gallery storage**, and the orphan reconciler treats `evidence/` as owned by the snapshots (`EvidenceOrphanSource`).
 - **Evidence is locked away.** The `evidence/` prefix gets the protections in [photo-privacy.md](./photo-privacy.md): no human reads except through the platform's logged review (§8), and every read is logged and alerted. The bucket policy, the KMS key and the CloudTrail rules cover the whole bucket, so they cover `evidence/` with no Terraform change; the API's `s3:GetObject` and `s3:PutObject` are what `CopyObject` needs.

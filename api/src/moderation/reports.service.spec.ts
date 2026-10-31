@@ -30,12 +30,15 @@ import { ReportsService } from "./reports.service";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 
+// An original and the image processor's two renditions of it, deleted in one batch.
+const withDerivatives = (key: string): string[] => [key, `derived/${key}/thumb.webp`, `derived/${key}/large.jpg`];
+
 describe("ReportsService", () => {
   let evidenceService: EvidenceServiceMock;
   let service: ReportsService;
   let prisma: DeepMockProxy<PrismaClient>;
   let photoVisibilityService: { isVisibleTo: jest.Mock };
-  let s3Service: { deleteObject: jest.Mock };
+  let s3Service: { deleteObjects: jest.Mock };
   let photoPurgeService: { purgeObjects: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
@@ -162,7 +165,7 @@ describe("ReportsService", () => {
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
     photoVisibilityService = { isVisibleTo: jest.fn().mockResolvedValue(true) };
-    s3Service = { deleteObject: jest.fn().mockResolvedValue(undefined) };
+    s3Service = { deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })) };
     photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
@@ -1173,15 +1176,25 @@ describe("ReportsService", () => {
 
         await service.resolveReport(reportId, callerId, "REMOVE_PHOTO");
 
-        expect(s3Service.deleteObject).toHaveBeenCalledWith(s3Key);
-        expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeGreaterThan(
+        expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives(s3Key));
+        expect(s3Service.deleteObjects.mock.invocationCallOrder[0]).toBeGreaterThan(
           prisma.photo.deleteMany.mock.invocationCallOrder[0],
         );
       });
 
+      it("keeps the photo's object and its derived copies when its evidence copy fails", async () => {
+        setup();
+        evidenceService.preserveBeforeDelete.mockResolvedValue({ deletable: [], retained: [s3Key] });
+
+        await service.resolveReport(reportId, callerId, "REMOVE_PHOTO");
+
+        expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([s3Key]);
+        expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+      });
+
       it("still succeeds when S3 fails, leaving the object to the orphan reconciler", async () => {
         setup();
-        s3Service.deleteObject.mockRejectedValue(new Error("s3 down"));
+        s3Service.deleteObjects.mockRejectedValue(new Error("s3 down"));
 
         await expect(service.resolveReport(reportId, callerId, "REMOVE_PHOTO")).resolves.toBeDefined();
         expect(logger.warn).toHaveBeenCalledWith(
@@ -1256,7 +1269,7 @@ describe("ReportsService", () => {
 
         expect(prisma.eventAccess.deleteMany).toHaveBeenCalledWith({ where: { eventId, userId: uploaderId } });
         expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId } });
-        expect(s3Service.deleteObject).toHaveBeenCalledWith(s3Key);
+        expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives(s3Key));
       });
 
       it("removes the member even when the reported photo is already gone", async () => {
@@ -1368,7 +1381,7 @@ describe("ReportsService", () => {
         });
         expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
         expect(prisma.eventAccess.deleteMany).not.toHaveBeenCalled();
-        expect(s3Service.deleteObject).not.toHaveBeenCalled();
+        expect(s3Service.deleteObjects).not.toHaveBeenCalled();
       });
 
       it("closes only the member reports about that member, not reports on their photos", async () => {
@@ -1469,7 +1482,7 @@ describe("ReportsService", () => {
         response: { code: "REPORT_ALREADY_RESOLVED" },
       });
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
-      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalled();
     });
   });
@@ -1513,6 +1526,7 @@ describe("ReportsService", () => {
       });
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId } });
       expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith(["photos/k"]);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives("photos/k"));
       // Every report it closed is offered; only actioned, unheld intimate-image ones lose their copy.
       expect(evidenceService.discardImages).toHaveBeenCalledWith([reportId, "other"]);
     });

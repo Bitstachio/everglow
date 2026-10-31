@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { deleteObjectsWithDerivatives } from "./photo-object-deletion";
 
 export interface PhotoPurgeResult {
   requested: number;
@@ -9,6 +10,8 @@ export interface PhotoPurgeResult {
   failed: number;
   /** Reported objects kept because their evidence copy failed (docs/moderation.md §7). */
   retained: number;
+  /** Thumbnails and display copies S3 refused to delete; not counted in `failed`. */
+  derivativesFailed: number;
 }
 
 export interface PhotoPurgeContext {
@@ -33,6 +36,10 @@ export interface PhotoPurgeContext {
  *
  * A reported object is copied to evidence first (EvidenceService). One whose
  * copy fails is not deleted: the evidence job retries the copy.
+ *
+ * Each photo original goes with its derived copies in the same batch
+ * (deleteObjectsWithDerivatives); a retained original keeps them. The counts
+ * are about the keys the caller passed.
  */
 @Injectable()
 export class PhotoPurgeService {
@@ -45,7 +52,13 @@ export class PhotoPurgeService {
   }
 
   async purgeObjects(keys: string[], context: PhotoPurgeContext): Promise<PhotoPurgeResult> {
-    const result: PhotoPurgeResult = { requested: keys.length, deleted: 0, failed: 0, retained: 0 };
+    const result: PhotoPurgeResult = {
+      requested: keys.length,
+      deleted: 0,
+      failed: 0,
+      retained: 0,
+      derivativesFailed: 0,
+    };
     if (keys.length === 0) return result;
 
     const { deletable, retained } = await this.evidenceService.preserveBeforeDelete(keys);
@@ -53,9 +66,10 @@ export class PhotoPurgeService {
 
     if (deletable.length > 0) {
       try {
-        const outcome = await this.s3Service.deleteObjects(deletable);
+        const outcome = await deleteObjectsWithDerivatives(this.s3Service, deletable);
         result.deleted = outcome.deleted.length;
         result.failed = outcome.failed.length;
+        result.derivativesFailed = outcome.derivativesFailed.length;
       } catch {
         // S3Service has logged the transport failure; nothing in this batch was deleted.
         result.failed = deletable.length;
@@ -63,7 +77,7 @@ export class PhotoPurgeService {
     }
 
     const summary = { ...context, ...result, audit: true };
-    if (result.failed > 0) {
+    if (result.failed > 0 || result.derivativesFailed > 0) {
       this.logger.error(summary, "Some photo objects could not be purged; the orphan reconciler will retry them");
     } else {
       this.logger.info(summary, "Photo objects purged");

@@ -36,7 +36,7 @@ import {
   expectedEventResponse,
   updateEventPayload,
 } from "./helpers/events.fixtures";
-import { TEST_PHOTO_ID } from "./helpers/photos.fixtures";
+import { TEST_PHOTO_ID, withPhotoDerivatives } from "./helpers/photos.fixtures";
 import { TEST_USER_ID, buildUserWithDetails, buildUserWithoutDetails } from "./helpers/users.fixtures";
 
 const EVENTS_BASE_PATH = `/${API_GLOBAL_PREFIX}/events`;
@@ -933,7 +933,7 @@ describe("EventsController (integration)", () => {
         where: { eventId: TEST_EVENT_ID },
         select: { s3Key: true },
       });
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith(s3Keys);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(...s3Keys));
       expect(prisma.event.delete.mock.invocationCallOrder[0]).toBeLessThan(
         s3Service.deleteObjects.mock.invocationCallOrder[0],
       );
@@ -948,7 +948,7 @@ describe("EventsController (integration)", () => {
       await request(httpServer).delete(path()).set(authHeader()).expect(204);
 
       expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith([photoKey, COVER_S3_KEY]);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(photoKey, COVER_S3_KEY));
     });
 
     it("returns 204 even when the S3 purge fails, leaving the objects to the reconciler", async () => {
@@ -990,7 +990,7 @@ describe("EventsController (integration)", () => {
       await request(httpServer).post(path()).query({ photos: "DELETE" }).set(authHeader()).expect(204);
 
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_PHOTO_ID] } } });
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/p"]);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives("photos/u/e/p"));
       expect(prisma.eventBan.upsert).not.toHaveBeenCalled();
     });
 
@@ -1201,7 +1201,7 @@ describe("EventsController (integration)", () => {
       await request(httpServer).delete(path()).query({ photos: "DELETE" }).set(authHeader()).expect(204);
 
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_PHOTO_ID] } } });
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/p"]);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives("photos/u/e/p"));
     });
 
     it("returns 400 for an unknown photos value", async () => {
