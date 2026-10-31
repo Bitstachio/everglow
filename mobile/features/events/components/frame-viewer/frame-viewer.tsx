@@ -110,7 +110,7 @@ export const FrameViewer = (props: Props) => {
         <View className="flex-1" {...gesture}>
           {frame ? (
             <FramePhoto
-              key={`${frame.photo.id}:${frame.photo.url}`}
+              key={frame.photo.id}
               frame={frame}
               label={t("gallery.photoBy", { name })}
               onRetry={props.onRetry}

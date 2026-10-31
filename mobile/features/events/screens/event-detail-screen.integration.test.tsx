@@ -899,7 +899,7 @@ describe("saving and deleting frames", () => {
     expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
   });
 
-  test("shows loading until the original displays, and retries a failure with a fresh signed URL", async () => {
+  test("renews a failed original automatically once, then offers manual retry if the new URL also fails", async () => {
     const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     try {
       await renderScreen({ photos: [buildPhoto()] });
@@ -908,15 +908,22 @@ describe("saving and deleting frames", () => {
       expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
       expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      const refreshed = buildPhoto({ url: "https://cdn.example.com/original?renewed" });
+      mockDetailResponses({ photos: [refreshed] });
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", {
         nativeEvent: { error: "Failed https://private-bucket/photo?signature=secret" },
       });
+      await waitFor(() => expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(refreshed.url));
+      expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
+      expect(warn).not.toHaveBeenCalled();
+      const readsAfterRenewal = mockReadPhoto.mock.calls.length;
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "network" } });
       expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
       expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
       expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "image_error" });
+      expect(mockReadPhoto).toHaveBeenCalledTimes(readsAfterRenewal);
 
-      const refreshed = buildPhoto({ url: "https://cdn.example.com/original?renewed" });
-      mockDetailResponses({ photos: [refreshed] });
       await user.press(screen.getByRole("button", { name: "Try again" }));
       await waitFor(() => expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(refreshed.url));
       expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
@@ -941,7 +948,9 @@ describe("saving and deleting frames", () => {
       await renderScreen({ photos: [buildPhoto()] });
       const user = userEvent.setup();
       await user.press(await screen.findByLabelText("Frame 1, by You"));
+      mockReadPhoto.mockRejectedValueOnce(new Error("offline"));
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "network" } });
+      expect(await screen.findByText("Couldn’t load this photo.")).toBeOnTheScreen();
       mockReadPhoto.mockRejectedValueOnce(new Error("offline"));
       await user.press(screen.getByRole("button", { name: "Try again" }));
       await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled());

@@ -64,6 +64,25 @@ test("displaying an original cancels the loading timeout", async () => {
   }
 });
 
+test("automatic renewal keeps loading visible and cannot replace a different photo opened while it waits", async () => {
+  const input = props();
+  let completeRenewal!: () => void;
+  input.onRetry = jest.fn(() => new Promise<void>((resolve) => (completeRenewal = resolve)));
+  const view = await render(<FrameViewer {...input} />);
+  await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "HTTP 403" } });
+  expect(input.onRetry).toHaveBeenCalledTimes(1);
+  expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+  expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
+  expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+
+  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2", url: "https://cdn.example.com/second" }) };
+  await view.rerender(<FrameViewer {...input} frame={second} />);
+  await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
+  await act(async () => completeRenewal());
+  expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(second.photo.url);
+  expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+});
+
 test("the compact attribution retains accessible next/previous navigation", async () => {
   const input = props();
   const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };

@@ -65,3 +65,9 @@ Save / Share / More text actions. Landscape originals stay uncropped with
 letterboxing. The frame menu uses a thumbnail summary and trailing action
 icons; its delete label distinguishes the caller’s own frame from a host
 removing somebody else’s. Visible frame numbers remain omitted.
+
+An original-image failure automatically renews its signed URL once while the
+loading indicator stays visible. Cached gallery URLs can expire before a photo
+is opened even when its thumbnail is still cached. A second failure, failed
+renewal, or 30-second image stall offers explicit retry; navigation resets the
+retry budget for the next photo. Original cache keys stay stable across renewal.

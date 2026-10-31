@@ -21,7 +21,7 @@ export const FramePhoto = ({
 
   return (
     <View className="flex-1">
-      {status !== "failed" ? (
+      {status !== "failed" && !refreshing ? (
         <Photo
           key={attempt}
           testID="frame-viewer-photo"
@@ -30,7 +30,7 @@ export const FramePhoto = ({
           contentFit="contain"
           className="h-full w-full"
           onDisplay={onDisplay}
-          onError={() => fail("image_error")}
+          onError={fail}
         />
       ) : null}
       {status === "loading" ? (
