@@ -1,8 +1,23 @@
 import "../testing/native-mocks";
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
+import { Platform } from "react-native";
 import type { ComponentProps } from "react";
 import { buildPhoto } from "../testing/fixtures";
 import { FrameViewer } from "./frame-viewer/frame-viewer";
+
+// iOS keeps the closing modal's contents mounted until its native fade ends.
+// The default Jest mock removes them as soon as visible becomes false.
+jest.mock("react-native/Libraries/Modal/Modal", () => {
+  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    __esModule: true,
+    default: ({ visible, children, ...rest }: import("react-native").ModalProps) => (
+      <View {...rest} {...{ visible }} accessibilityElementsHidden={!visible}>
+        {children}
+      </View>
+    ),
+  };
+});
 
 const props = (): ComponentProps<typeof FrameViewer> => ({
   frame: { photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false },
@@ -104,4 +119,49 @@ test("the compact attribution retains accessible next/previous navigation", asyn
   } finally {
     await view.unmount();
   }
+});
+
+test("iOS close preserves the photo and attribution until the native fade finishes", async () => {
+  const input = props();
+  input.frame = { ...input.frame!, by: "Leila" };
+  const view = await render(<FrameViewer {...input} />);
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close frame" }));
+  const closing = screen.getByTestId("frame-viewer-dialog", { includeHiddenElements: true });
+  expect(closing.props.visible).toBe(false);
+  expect(input.onClose).not.toHaveBeenCalled();
+  expect(screen.getByTestId("frame-viewer-photo", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.getByRole("adjustable", { includeHiddenElements: true }).props.accessibilityLabel).toContain("Leila");
+  expect(screen.queryByText("Unknown photographer", { includeHiddenElements: true })).not.toBeOnTheScreen();
+  await act(async () => closing.props.onDismiss());
+  expect(input.onClose).toHaveBeenCalledTimes(1);
+  await view.rerender(<FrameViewer {...input} frame={null} />);
+  expect(screen.queryByTestId("frame-viewer-dialog", { includeHiddenElements: true })).not.toBeOnTheScreen();
+  await view.rerender(<FrameViewer {...input} />);
+  expect(screen.getByRole("adjustable").props.accessibilityLabel).toContain("Leila");
+});
+
+test("Android close does not wait for the iOS-only dismissal event", async () => {
+  const platform = jest.replaceProperty(Platform, "OS", "android");
+  try {
+    const input = props();
+    await render(<FrameViewer {...input} />);
+    await userEvent.setup().press(screen.getByRole("button", { name: "Close frame" }));
+    expect(input.onClose).toHaveBeenCalledTimes(1);
+  } finally {
+    platform.restore();
+  }
+});
+
+test("changing photos clears a closing menu's deferred action", async () => {
+  const input = props();
+  const view = await render(<FrameViewer {...input} />);
+  const user = userEvent.setup();
+  await user.press(screen.getAllByRole("button", { name: "More" })[0]);
+  await user.press(within(screen.getByTestId("frame-menu-dialog")).getByRole("button", { name: "Save to Photos" }));
+  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), by: "Leila" };
+  await view.rerender(<FrameViewer {...input} frame={second} isOwn={false} />);
+  await act(async () => screen.getByTestId("frame-menu-dialog", { includeHiddenElements: true }).props.onDismiss());
+  expect(input.onSave).not.toHaveBeenCalled();
+  await user.press(screen.getAllByRole("button", { name: "More" })[0]);
+  expect(screen.getByText("Leila’s frame")).toBeOnTheScreen();
 });

@@ -958,7 +958,9 @@ describe("saving and deleting frames", () => {
       const pending = deferred<{ data: { data: ReturnType<typeof buildPhoto> } }>();
       mockReadPhoto.mockReturnValueOnce(pending.promise);
       await user.press(screen.getByRole("button", { name: "Try again" }));
+      const dismissViewer = screen.getByTestId("frame-viewer-dialog").props.onDismiss;
       await user.press(screen.getByRole("button", { name: "Close frame" }));
+      await act(async () => dismissViewer());
       pending.resolve({
         data: { data: buildPhoto({ url: "https://cdn.example.com/renewed" }) },
       });
@@ -999,8 +1001,13 @@ describe("saving and deleting frames", () => {
     expect(mockDownloadFile).not.toHaveBeenCalled();
     await userEvent.setup().press(screen.getByLabelText("Frame 1, by You"));
     expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(buildPhoto().url);
+    const dismissViewer = screen.getByTestId("frame-viewer-dialog").props.onDismiss;
     await userEvent.setup().press(screen.getByRole("button", { name: "Close frame" }));
     expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+    await act(async () => dismissViewer());
+    expect(screen.queryByTestId("frame-viewer-dialog", { includeHiddenElements: true })).not.toBeOnTheScreen();
+    await userEvent.setup().press(screen.getByLabelText("Frame 1, by You"));
+    expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(buildPhoto().url);
   });
 
   test("a frame opens full size, saves, and deletes after the slip", async () => {

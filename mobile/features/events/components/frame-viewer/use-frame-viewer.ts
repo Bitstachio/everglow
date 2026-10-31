@@ -1,14 +1,40 @@
 import type { SheetFrame } from "../../lib/roll-page";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, PanResponder } from "react-native";
+import { FlatList, PanResponder, Platform } from "react-native";
 
-export const useFrameViewer = (previous: () => void, next: () => void, index: number, stripStep: number) => {
+export const useFrameViewer = ({
+  previous,
+  next,
+  index,
+  stripStep,
+  frameId,
+  onClose,
+}: {
+  previous: () => void;
+  next: () => void;
+  index: number;
+  stripStep: number;
+  frameId: string | null;
+  onClose: () => void;
+}) => {
   const stripRef = useRef<FlatList<SheetFrame>>(null);
   useEffect(() => {
     if (index >= 0) stripRef.current?.scrollToOffset({ offset: Math.max(0, index - 2) * stripStep, animated: false });
   }, [index, stripStep]);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [presentedFrameId, setPresentedFrameId] = useState(frameId);
+  const closingFrameId = useRef<string | null>(null);
   const deferred = useRef<(() => void) | null>(null);
+  if (presentedFrameId !== frameId) {
+    setPresentedFrameId(frameId);
+    setClosing(false);
+    setMenuVisible(false);
+  }
+  useEffect(() => {
+    closingFrameId.current = null;
+    deferred.current = null;
+  }, [frameId]);
   const gesture = useMemo(
     () =>
       PanResponder.create({
@@ -22,6 +48,24 @@ export const useFrameViewer = (previous: () => void, next: () => void, index: nu
   );
   return {
     stripRef,
+    closing,
+    requestClose: () => {
+      if (closing) return;
+      deferred.current = null;
+      setMenuVisible(false);
+      // iOS keeps rendering children during its native fade. Clear the
+      // selected photo only after dismissal, so attribution cannot flicker.
+      if (Platform.OS === "ios") {
+        closingFrameId.current = frameId;
+        setClosing(true);
+      } else onClose();
+    },
+    onDismiss: () => {
+      if (frameId && closingFrameId.current === frameId) {
+        closingFrameId.current = null;
+        onClose();
+      }
+    },
     gesture: gesture.panHandlers,
     menuVisible,
     openMenu: () => setMenuVisible(true),

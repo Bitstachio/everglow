@@ -55,12 +55,25 @@ export const FrameViewer = (props: Props) => {
     if (target) props.onMove(target.photo.id);
     if (index + offset >= frames.length - 3 && props.hasMore) props.onLoadMore();
   };
-  const { stripRef, gesture, menuVisible, openMenu, closeMenu, fromMenu, onMenuClosed } = useFrameViewer(
-    () => move(-1),
-    () => move(1),
+  const {
+    stripRef,
+    gesture,
+    menuVisible,
+    openMenu,
+    closeMenu,
+    fromMenu,
+    onMenuClosed,
+    closing,
+    requestClose,
+    onDismiss,
+  } = useFrameViewer({
+    previous: () => move(-1),
+    next: () => move(1),
     index,
     stripStep,
-  );
+    frameId: frame?.photo.id ?? null,
+    onClose: props.onClose,
+  });
   const uploader = frame?.uploader;
   const name = uploader?.name ?? frame?.by ?? t("gallery.unknownUploader");
   const time = frame
@@ -71,14 +84,24 @@ export const FrameViewer = (props: Props) => {
         hour12: false,
       })
     : "";
+  // Access changes clear the viewer immediately; ordinary closes retain its
+  // contents until the native fade completes and invokes onDismiss.
+  if (!frame) return null;
   return (
-    <Modal visible={frame !== null} animationType="fade" onRequestClose={props.onClose} presentationStyle="fullScreen">
+    <Modal
+      testID="frame-viewer-dialog"
+      visible={!closing}
+      animationType="fade"
+      onRequestClose={requestClose}
+      onDismiss={onDismiss}
+      presentationStyle="fullScreen"
+    >
       <View className="flex-1 bg-viewer" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <View className="absolute inset-0">
           <FilmGrain />
         </View>
         <View className="min-h-14 flex-row items-center gap-3 px-5 py-2">
-          <IconButton accessibilityLabel={t("viewer.close")} onPress={props.onClose}>
+          <IconButton accessibilityLabel={t("viewer.close")} onPress={requestClose}>
             <AppIcon icon={X} size="sm" color={colorTokens.text} />
           </IconButton>
           <View

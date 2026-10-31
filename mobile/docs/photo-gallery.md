@@ -71,3 +71,8 @@ loading indicator stays visible. Cached gallery URLs can expire before a photo
 is opened even when its thumbnail is still cached. A second failure, failed
 renewal, or 30-second image stall offers explicit retry; navigation resets the
 retry budget for the next photo. Original cache keys stay stable across renewal.
+
+On iOS, ordinary viewer dismissal keeps the selected photo, attribution and
+filmstrip intact until the native fade finishes. Revoked access still clears
+the viewer immediately. Changing photos or closing the viewer clears its menu
+and any deferred menu action, so the next photo starts with fresh controls.
