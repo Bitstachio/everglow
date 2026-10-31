@@ -64,6 +64,13 @@ resource "aws_s3_bucket_policy" "photos" {
       # download URLs are presigned by the API, so AWS sees the API reading.
       # aws:userId is the reliable allowlist key for IAM users and assumed
       # roles (ROLEID:session). See docs/photo-privacy.md.
+      #
+      # Lambda names the processor's session after the function, so only that
+      # session is exempt, not any session of the role. A bucket policy cannot
+      # tell Lambda from a person who assumes the role with the same session
+      # name (lambda:SourceFunctionArn is not allowed in resource policies).
+      # That takes a trust policy change first, which is alerted, and the read
+      # alert checks where the credentials were issued (photo-privacy.tf).
       var.allow_human_photo_reads ? [] : [
         {
           Sid       = "OnlyTheApiReadsPhotos"
@@ -72,10 +79,10 @@ resource "aws_s3_bucket_policy" "photos" {
           Action    = ["s3:GetObject", "s3:GetObjectVersion"]
           Resource  = "${aws_s3_bucket.photos.arn}/*"
           Condition = {
-            StringNotLike = {
+            StringNotEquals = {
               "aws:userId" = [
                 aws_iam_user.api.unique_id,
-                "${aws_iam_role.image_processor.unique_id}:*",
+                "${aws_iam_role.image_processor.unique_id}:${aws_lambda_function.image_processor.function_name}",
               ]
             }
           }
