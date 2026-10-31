@@ -7,11 +7,12 @@ import {
 } from "@aws-sdk/client-s3";
 import type { Logger } from "pino";
 import { createDerivatives } from "./derivatives.js";
+import { PhotoProcessingError, UndecodablePhotoError } from "./errors.js";
 import { derivedKeysForOriginal } from "./keys.js";
 
 const bodyToBuffer = async (body: unknown): Promise<Buffer> => {
   if (body === undefined || body === null) {
-    throw new Error("S3 GetObject returned an empty body");
+    throw new PhotoProcessingError("S3 GetObject returned no body");
   }
   // Prefer the SDK v3 stream helper; Buffer/Uint8Array checks can mis-handle stream objects.
   if (typeof body === "object" && body !== null && "transformToByteArray" in body) {
@@ -27,7 +28,7 @@ const bodyToBuffer = async (body: unknown): Promise<Buffer> => {
   if (typeof body === "string") {
     return Buffer.from(body);
   }
-  throw new Error("unsupported S3 body type");
+  throw new PhotoProcessingError("Unsupported S3 body type");
 };
 
 // ListBucket permission makes a missing original a 404; a 403 is never absence.
@@ -83,12 +84,14 @@ export class PhotoDerivativeService {
       await this.removeDerivatives(bucket, key);
       return;
     }
+    // An empty object stays empty; only a new upload (a new notification) changes it.
     if (got.ContentLength === 0) {
-      throw new Error(`S3 object is empty (0 bytes): s3://${bucket}/${key}`);
+      throw new UndecodablePhotoError("empty", "S3 object is empty (0 bytes)");
     }
     const original = await bodyToBuffer(got.Body);
     if (original.byteLength === 0) {
-      throw new Error(`S3 GetObject decoded to 0 bytes: s3://${bucket}/${key}`);
+      // A non-empty object that arrives empty is a transport fault: retry it.
+      throw new PhotoProcessingError("S3 GetObject decoded to 0 bytes");
     }
     const { thumbWebp, largeJpeg } = await createDerivatives(original);
 
