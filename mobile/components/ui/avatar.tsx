@@ -6,7 +6,7 @@ import { Ghost } from "phosphor-react-native";
 import { useState } from "react";
 import { View } from "react-native";
 
-type AvatarSize = "caption" | "md" | "header" | "lg";
+type AvatarSize = "caption" | "md" | "header" | "lg" | "fill";
 
 type AvatarProps = {
   userId: string;
@@ -22,6 +22,8 @@ const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string }> = {
   md: { container: "h-10 w-10 rounded-paper", text: "text-base" },
   header: { container: "size-10 rounded-full", text: "text-lg" },
   lg: { container: "h-20 w-20 rounded-paper", text: "text-3xl" },
+  /** As large as its parent, square-cornered: a print such as a report's subject. */
+  fill: { container: "h-full w-full", text: "text-5xl" },
 };
 
 const FILL = { width: "100%", height: "100%" } as const;
