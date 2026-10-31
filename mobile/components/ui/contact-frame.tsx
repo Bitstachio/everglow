@@ -121,7 +121,7 @@ export const ContactFrame = ({
         ) : null}
         {selected && size > 0 ? (
           <View className="absolute inset-0">
-            <GreasePencil mark="ring" width={size} height={size} seed={number} drawOn />
+            <GreasePencil mark="ring" width={size} height={size} drawOn />
           </View>
         ) : null}
         {isNew && !selected && !crossed ? (

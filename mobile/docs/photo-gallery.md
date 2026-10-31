@@ -22,6 +22,11 @@ photo endpoint before reloading it.
 Long-press starts selection in place: the cover, event details and contact
 sheet keep their layout and scroll position while the top and bottom controls
 switch to selection actions. The people link is inactive during selection.
+Each newly selected photo gets a fresh handwritten pencil ring. A seed varies
+the starting point, direction, lean, contour and overlap; it stays fixed while
+that ring is mounted, so other selections and re-renders cannot redraw it.
+The shared ring generator fits the entire stroke inside its bounds, including
+wide text rings. Geometry tests exercise 10,000 variants across eight sizes.
 Guests can delete only their own selected photos; hosts can delete any.
 Under-review rolls cannot delete. Confirmation
 names the number that will actually be removed for everyone. Each deletion
