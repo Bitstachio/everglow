@@ -15,7 +15,7 @@ type AvatarProps = {
 
 // Caption portraits and the header are round; larger portraits are paper prints.
 const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string }> = {
-  caption: { container: "size-4 rounded-full border border-edge", text: "text-[10px] leading-none" },
+  caption: { container: "size-4 rounded-full border border-edge", text: "text-frame-label" },
   md: { container: "h-10 w-10 rounded-paper", text: "text-base" },
   header: { container: "size-10 rounded-full", text: "text-lg" },
   lg: { container: "h-20 w-20 rounded-paper", text: "text-3xl" },

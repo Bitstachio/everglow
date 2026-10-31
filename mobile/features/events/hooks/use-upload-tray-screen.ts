@@ -40,7 +40,11 @@ export const useUploadTrayScreen = () => {
         status.kind === "sending"
           ? Math.max(0, Math.min(1, item.sizeBytes > 0 ? status.bytesSent / item.sizeBytes : 0))
           : undefined;
-      return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "", progress };
+      // The roll's thumbnail under the same stable key the sheet caches it by;
+      // otherwise the local file, which the row decodes at its own small size.
+      const photoId = status.kind === "developed" ? status.photoId : undefined;
+      const cacheKey = previewable && thumbnail && photoId ? `photo:${photoId}:thumbnail` : undefined;
+      return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "", cacheKey, progress };
     }),
     summary: summarizeTray(tray),
     onBack: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),
