@@ -1,35 +1,11 @@
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { DownloadSimple, ShareNetwork, Trash } from "phosphor-react-native";
-import type { ComponentProps } from "react";
-import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { EdgePrint } from "@/components/ui/edge-print";
+import { SheetAction } from "@/components/ui/sheet-action";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
-import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
-
-const FrameAction = ({
-  label,
-  icon,
-  onPress,
-}: {
-  label: string;
-  icon: ComponentProps<typeof AppIcon>["icon"];
-  onPress: () => void;
-}) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={label}
-    onPress={onPress}
-    className="min-h-12 flex-row items-center justify-between gap-4 border-t border-line py-4 active:opacity-60"
-  >
-    <EdgePrint tone="text" className="flex-1">
-      {label}
-    </EdgePrint>
-    <AppIcon icon={icon} size="sm" color={colorTokens.text} />
-  </Pressable>
-);
 
 /** Chapter 09's frame summary and action index, without the removed frame numbers. */
 export const FrameMenu = ({
@@ -61,7 +37,7 @@ export const FrameMenu = ({
   return (
     <BottomSheet testID="frame-menu-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
       <View>
-        <View className="flex-row items-center gap-3 pb-4">
+        <View className="flex-row items-center gap-3 border-b border-line pb-4">
           <View className="size-12 overflow-hidden rounded-frame">
             <RetryingPhoto
               uri={frame?.photo.thumbnailUrl}
@@ -80,10 +56,10 @@ export const FrameMenu = ({
             {frame?.uploader?.username ? <EdgePrint size="frame-label">@{frame.uploader.username}</EdgePrint> : null}
           </View>
         </View>
-        <FrameAction label={t("viewer.save")} icon={DownloadSimple} onPress={onSave} />
-        <FrameAction label={t("gallery.share")} icon={ShareNetwork} onPress={onShare} />
+        <SheetAction label={t("viewer.save")} icon={DownloadSimple} onPress={onSave} />
+        <SheetAction label={t("gallery.share")} icon={ShareNetwork} onPress={onShare} />
         {canDelete ? (
-          <FrameAction
+          <SheetAction
             label={isOwn ? t("viewer.deleteOwn") : t("viewer.deleteOther", { name })}
             icon={Trash}
             onPress={onDelete}

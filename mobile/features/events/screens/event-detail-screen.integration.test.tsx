@@ -1107,12 +1107,12 @@ describe("people and the menu", () => {
     expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
   });
 
-  test("People from the menu swaps the same sheet to the roll call", async () => {
+  test("Roll call from the menu swaps the same sheet to the roll call", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ participants: [host, guest], photos: oneFrame });
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
-    await user.press(screen.getByRole("button", { name: "People" }));
+    await user.press(screen.getByRole("button", { name: "Roll call" }));
 
     expect(await screen.findByTestId("roll-people")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Grace Hopper (you), Adds photos" })).toBeOnTheScreen();
@@ -1125,6 +1125,26 @@ describe("people and the menu", () => {
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
     await user.press(screen.getByRole("button", { name: "Roll settings" }));
     expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
+  });
+
+  test("12.1 the host menu lists envelope, roll call, settings, cut and leave", async () => {
+    await renderScreen({ photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+
+    expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Roll call" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Roll settings" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Cut the roll now" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Leave the roll" })).toBeOnTheScreen();
+  });
+
+  test("a host sends the envelope from the menu", async () => {
+    await renderScreen({ photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Send the envelope" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
   });
 
   test("a host removes someone from the people sheet", async () => {

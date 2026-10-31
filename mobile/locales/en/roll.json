@@ -94,8 +94,10 @@
     "whatThisMeans": "What this means ▸"
   },
   "menuSheet": {
-    "people": "People",
+    "sendEnvelope": "Send the envelope",
+    "rollCall": "Roll call",
     "settings": "Roll settings",
+    "cut": "Cut the roll now",
     "leave": "Leave the roll"
   },
   "leave": {
