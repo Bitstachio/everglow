@@ -28,8 +28,15 @@ import {
 import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import { useArrivalNote } from "./use-arrival-note";
-import type { EventParticipantResponseDto, PhotoUploadStatus } from "../types";
+import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
 import { eventStorageLeftBytes, formatStorageBytes } from "../utils";
+
+/** What the roll's page shows, read from its three queries. */
+type RollOnScreen = {
+  event: EventResponseDto;
+  photos: PhotoResponseDto[];
+  participants: EventParticipantResponseDto[];
+};
 
 // Event photos upload as picked: no crop step and no re-encode, so group shots
 // and portraits keep their original aspect ratio. Only avatars and covers crop.
@@ -95,10 +102,14 @@ export const useEventDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
-  const [leavingRoll, setLeavingRoll] = useState(false);
+  // The roll as it was when Leave was confirmed. Leaving evicts its caches
+  // before the screen is replaced, so it keeps showing this until then
+  // instead of falling back to the loading spinner.
+  const [leftRoll, setLeftRoll] = useState<RollOnScreen | null>(null);
+  const leavingRoll = leftRoll !== null;
 
   const eventQuery = useEventQuery(eventId, !leavingRoll);
-  const event = eventQuery.data ?? null;
+  const event = leftRoll?.event ?? eventQuery.data ?? null;
   // A suspended roll's photos are hidden, and upcoming or closed rolls have none.
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
   const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
@@ -137,13 +148,14 @@ export const useEventDetailScreen = () => {
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
   const closeSheet = () => setSheet(null);
 
-  const photos = hasPhotos ? (photosQuery.data ?? []) : [];
-  const participants = participantsQuery.data ?? [];
+  const photos = leftRoll?.photos ?? (hasPhotos ? (photosQuery.data ?? []) : []);
+  const participants = leftRoll?.participants ?? participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
   const stage = event ? rollStage(event, photos.length) : "open";
   const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("frame.you"));
 
-  const isLoading = eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading);
+  const isLoading =
+    !leavingRoll && (eventQuery.isLoading || participantsQuery.isLoading || (hasPhotos && photosQuery.isLoading));
   const refreshing = eventQuery.isRefetching || photosQuery.isRefetching || participantsQuery.isRefetching;
 
   useEffect(() => {
@@ -343,8 +355,9 @@ export const useEventDetailScreen = () => {
 
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
-    // Stop active readers before membership is revoked and their caches are evicted.
-    setLeavingRoll(true);
+    // Stop active readers before membership is revoked and their caches are
+    // evicted, and keep the roll on screen until Home replaces it.
+    setLeftRoll({ event, photos, participants });
     leaveEventMutation.mutate(eventId, {
       onSuccess: () => {
         closeSheet();
@@ -352,7 +365,7 @@ export const useEventDetailScreen = () => {
       },
       onError: (error) => {
         closeSheet();
-        setLeavingRoll(false);
+        setLeftRoll(null);
         showNotice(getErrorMessage(error));
       },
     });

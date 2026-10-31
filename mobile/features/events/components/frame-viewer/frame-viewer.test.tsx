@@ -25,15 +25,15 @@ test("a stalled original exposes retry after 30 seconds and resets when reopened
   const input = props();
   const view = await render(<FrameViewer {...input} />);
   try {
-    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
     await act(async () => jest.advanceTimersByTime(30_000));
-    expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+    expect(screen.getByText("Couldn’t load this frame.")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Try again" })).toBeOnTheScreen();
-    expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
     expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "timeout" });
     await view.rerender(<FrameViewer {...input} frame={null} />);
     await view.rerender(<FrameViewer {...input} />);
-    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
   } finally {
     await view.unmount();
     warn.mockRestore();
@@ -53,13 +53,13 @@ test("a slow original keeps loading while bytes arrive, and gives up only once t
         nativeEvent: { loaded: loaded * 1024, total: 10 * 1024 },
       });
     }
-    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
-    expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
+    expect(screen.queryByText("Couldn’t load this frame.")).not.toBeOnTheScreen();
 
     await act(async () => jest.advanceTimersByTime(29_000));
     expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
     await act(async () => jest.advanceTimersByTime(1_000));
-    expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+    expect(screen.getByText("Couldn’t load this frame.")).toBeOnTheScreen();
     expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "timeout" });
   } finally {
     await view.unmount();
@@ -77,7 +77,7 @@ test("Try again renews the link and starts a new stall timer", async () => {
     await act(async () => jest.advanceTimersByTime(30_000));
     await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
     expect(input.onRetry).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
     await act(async () => jest.advanceTimersByTime(29_000));
     expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
   } finally {
@@ -93,8 +93,8 @@ test("displaying an original cancels the loading timeout", async () => {
   try {
     await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
     await act(async () => jest.advanceTimersByTime(30_000));
-    expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
-    expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
+    expect(screen.queryByText("Couldn’t load this frame.")).not.toBeOnTheScreen();
     expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
   } finally {
     await view.unmount();
