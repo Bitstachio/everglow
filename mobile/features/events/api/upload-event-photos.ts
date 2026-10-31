@@ -34,6 +34,9 @@ export type EventPhotoFile = {
  * - refused: storage or the API turned the file down; retrying can work
  * - noRoom: the roll ran out of room (EVENT_STORAGE_LIMIT_REACHED)
  * - closed: the gallery closed while it was sending (EVENT_GALLERY_CLOSED)
+ * - interrupted: the app stopped mid-upload; set when the tray is restored, and
+ *   Retry reconciles its reservation before minting again
+ * - missing: the local file can no longer be read; it can only be removed
  * - cancelled: "Cancel the rest" stopped it
  */
 export type EventPhotoFailure =
@@ -51,7 +54,7 @@ export type EventPhotoUpdate =
   | { kind: "developed"; photoId: string }
   | { kind: "failed"; reason: EventPhotoFailure };
 
-export type EventPhotoUploadResult = {
+type EventPhotoUploadResult = {
   total: number;
   /** Photos confirmed READY and now in the gallery. */
   uploaded: number;

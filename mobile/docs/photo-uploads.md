@@ -8,7 +8,8 @@ bytes, format and aspect ratio. The server protocol is
 ## Responsibilities
 
 - `features/events/hooks/use-event-detail-screen.ts`: picker, exact file sizes,
-  storage preflight and smallest-files-that-fit prompt.
+  storage preflight (room left minus photos still in the tray) and
+  smallest-files-that-fit prompt.
 - `features/events/api/upload-event-photos.ts`: batches of 20, four concurrent
   file PUTs, mint conflicts/rate limits, confirmation and reconciliation.
 - `features/events/lib/upload-tray.ts`: one queue per event, subscriptions,
@@ -20,7 +21,8 @@ bytes, format and aspect ratio. The server protocol is
   interrupted. Byte progress does not rewrite snapshots.
 - `features/events/providers/upload-tray-provider.tsx`: authenticated-account
   restoration independent of any event screen. Auth clears the queue through
-  the shared account-cleared registry, without importing feature code.
+  the shared account-cleared registry, without importing feature code, and
+  says why: a sign-out or an expired session.
 
 ## App lifecycle
 
@@ -42,6 +44,11 @@ MISMATCHED or NOT_FOUND permits a new reservation. A missing confirmation
 response remains recoverable and never authorizes another mint. Photos
 already in a fresh server list clear stale local failures.
 
+Known gap ([EV-195](https://linear.app/mehrshadfb/issue/EV-195)): if iOS is
+still finishing the earlier background PUT when Retry confirms, the API
+answers MISSING and releases the slot, so the file is sent again and the late
+object is left as an orphan. The roll still shows the photo once.
+
 Apple cancels background transfers after a user force-quits and does not
 relaunch the app for them. Resume recovery after the user opens the app.
 The simulator pass checks backgrounding and process termination; it does not
@@ -55,14 +62,18 @@ These are platform references, not claims about another app's internals.
 
 ## Failures and cancellation
 
-- Each tray row shows a small square film thumbnail with Uploaded, Uploading or
-  a failure reason on the right. Retry/Remove sit beside the matching photo.
+- Each tray row shows a small square film thumbnail with Developed, Developing
+  or why it didn't take on the right (`docs/voice.md`). The tray is a
+  `FlatList`, so only rows on screen mount; a local file is decoded at the
+  row's size, and a completed row uses the roll's thumbnail through
+  `RetryingPhoto` under the same `photo:<id>:thumbnail` cache key as the sheet. Retry/Remove sit beside the matching photo.
   Filenames remain only in accessibility labels; frame numbers and the separate
   preview strip are omitted. Completed rows use server thumbnails when available,
   never the remote original. Hidden galleries expose no tray thumbnails.
 - Active uploads show a filling bar from native byte progress instead of an MB
-  counter. A full bar reads Finishing until server confirmation changes the row
-  to Uploaded. The roll's entire tray banner opens the tray, including its status
+  counter. Only a new whole percent updates the tray, and byte progress never
+  rewrites the snapshot. A full bar reads Finishing until server confirmation
+  changes the row to Developed. The roll's entire tray banner opens the tray, including its status
   text, icon, label and padding; it is one accessible button.
 - While the tray is focused, completed rows keep their position and show success
   after the queue refreshes or reconciles with the server. This visit's history
@@ -88,8 +99,12 @@ These are platform references, not claims about another app's internals.
   retries so reconnecting cannot restart cancelled work. Landed files can still be
   confirmed. Pending reservations not confirmed rely on the API cleanup window
   described in the shared protocol; a lost mint response has the same limit.
-- Sign-out aborts upload and API work, removes private local queue storage and
-  rejects callbacks from the previous run. The next account cannot inherit it.
+- Sign-out and account deletion abort upload and API work, remove private local
+  queue storage and reject callbacks from the previous run. The next account
+  cannot inherit it.
+- An expired session aborts the same work in memory but keeps the account's
+  queue and files on disk, scoped to it. When the same account signs back in,
+  its unfinished photos return as interrupted with Retry.
 - A failed gallery refresh retains confirmed local frames. A displayed remote
   thumbnail releases its local copy; cancellation/removal also releases copies.
   Restoration reclaims unreferenced files. Closed/suspended/upcoming galleries
