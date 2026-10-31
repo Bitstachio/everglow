@@ -15,7 +15,7 @@ import {
 } from "../api/mutations";
 import { requestLibraryAddAccess, saveEventPhoto } from "../api/save-event-photos";
 import type { EventPhotoFile } from "../api/upload-event-photos";
-import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
+import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery, useRenewEventPhoto } from "../api/queries";
 import {
   hasOpened,
   isRollLastDay,
@@ -103,6 +103,7 @@ export const useEventDetailScreen = () => {
   const hasPhotos = event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
   const photosQuery = useEventPhotosQuery(eventId, hasPhotos && !leavingRoll);
   const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
+  const renewPhoto = useRenewEventPhoto(eventId);
 
   const leaveEventMutation = useLeaveEventMutation();
   const deactivateMutation = useDeactivateEventMutation();
@@ -316,9 +317,8 @@ export const useEventDetailScreen = () => {
   const onRetryFrame = async () => {
     if (!openFrame || !hasPhotos) throw new Error("No visible frame to retry");
     const photoId = openFrame.photo.id;
-    const result = await photosQuery.refetch({ throwOnError: true });
-    const photo = result.data?.find((item) => item.id === photoId);
-    if (!photo) throw new Error("Frame is no longer available");
+    // Only this frame's link: a long roll's pages aren't all fetched again. A frame that's gone answers 404.
+    const photo = await renewPhoto(photoId);
     // A request finishing after Close must not reopen the viewer or replace another frame.
     setOpenFrame((current) => (current?.photo.id === photoId ? { ...current, photo } : current));
   };

@@ -617,10 +617,14 @@ describe("saving and deleting frames", () => {
       expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "image_error" });
 
       const refreshed = buildPhoto({ url: "https://cdn.example.com/original?renewed" });
-      mockDetailResponses({ photos: [refreshed] });
+      mockFindPhoto.mockResolvedValueOnce({ data: { data: refreshed } });
+      const listFetches = mockListPhotos.mock.calls.length;
       await user.press(screen.getByRole("button", { name: "Try again" }));
       await waitFor(() => expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(refreshed.url));
       expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      // Only the open frame's link is renewed; the roll's pages aren't fetched again.
+      expect(mockFindPhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true });
+      expect(mockListPhotos).toHaveBeenCalledTimes(listFetches);
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
       expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
       await user.press(screen.getByRole("button", { name: "Save to Photos" }));
@@ -631,6 +635,11 @@ describe("saving and deleting frames", () => {
           { idempotent: true },
         ),
       );
+
+      // The renewed link replaced the old one on the roll, so the frame opens with it next time.
+      await user.press(screen.getByRole("button", { name: "Close frame" }));
+      await user.press(screen.getByLabelText("Frame 1, by You"));
+      expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(refreshed.url);
     } finally {
       warn.mockRestore();
     }
@@ -643,17 +652,15 @@ describe("saving and deleting frames", () => {
       const user = userEvent.setup();
       await user.press(await screen.findByLabelText("Frame 1, by You"));
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "network" } });
-      mockListPhotos.mockRejectedValueOnce(new Error("offline"));
+      mockFindPhoto.mockRejectedValueOnce(new Error("offline"));
       await user.press(screen.getByRole("button", { name: "Try again" }));
       await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled());
       expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
-      const pending = deferred<{ data: { data: { items: ReturnType<typeof buildPhoto>[]; nextCursor: null } } }>();
-      mockListPhotos.mockReturnValueOnce(pending.promise);
+      const pending = deferred<{ data: { data: ReturnType<typeof buildPhoto> } }>();
+      mockFindPhoto.mockReturnValueOnce(pending.promise);
       await user.press(screen.getByRole("button", { name: "Try again" }));
       await user.press(screen.getByRole("button", { name: "Close frame" }));
-      pending.resolve({
-        data: { data: { items: [buildPhoto({ url: "https://cdn.example.com/renewed" })], nextCursor: null } },
-      });
+      pending.resolve({ data: { data: buildPhoto({ url: "https://cdn.example.com/renewed" }) } });
       await waitFor(() => expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen());
       expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
       expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
