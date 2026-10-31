@@ -8,20 +8,24 @@ The Terraform is in `api/infra/`: the bucket policy in `main.tf`, the rest in `p
 
 | Layer         | What it does                                                                                                                      | Where                          |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Bucket policy | Denies `s3:GetObject` to everyone except the API and image processor identities, admins included. An explicit Deny beats any Allow.                   | `aws_s3_bucket_policy.photos`  |
+| Bucket policy | Denies `s3:GetObject` to everyone except the API and the image processor's Lambda session, admins included. An explicit Deny beats any Allow.                   | `aws_s3_bucket_policy.photos`  |
 | KMS key       | New photos are encrypted with a key only the API and image processor may use. Admins can manage the key but not decrypt with it.                      | `aws_kms_key.photos`           |
 | CloudTrail    | Records every read and write of a photo, and every write to the account's configuration, in `everglow-audit-logs-dev` for a year. | `aws_cloudtrail.photos_access` |
-| Alerts        | Emails when anyone but the API or image processor reads or tries to read a photo, or when a bucket policy, a key or the trail changes.               | `aws_cloudwatch_event_rule.*`  |
+| Alerts        | Emails when anyone but the API or image processor reads or tries to read a photo, or when a bucket policy, a key, the trail, the image processor function or its role changes.               | `aws_cloudwatch_event_rule.*`  |
 
 **The app is unaffected.** Phones upload and download through URLs the API presigns with its own credentials. To AWS, every one of those requests is the API. That is also why S3 asks KMS on the API's behalf, and why the key trusts the API. The image processor role also reads originals and writes derivatives; its normal reads are excluded from the person-read alert. It cannot read derivatives or moderation evidence through its IAM policy.
 
-**Getting past the controls is visible.** Reading a photo as a person means one of three things:
+**The image processor counts as the processor only when Lambda runs it.** The bucket policy exempts only the session Lambda opens for the function (`<role id>:everglow-image-processor-dev`), not every session of the role. A bucket policy cannot tell Lambda from a person who assumes the role under the same session name: `lambda:SourceFunctionArn` is only allowed in identity policies. So the read alert also checks `userIdentity.inScopeOf.credentialsIssuedTo` in CloudTrail, which Lambda sets to the function it gave the credentials to and `AssumeRole` does not. A read in the processor's name without it alerts like any other person's read.
+
+**Getting past the controls is visible.** Reading a photo as a person means one of these:
 
 - rewriting the bucket policy,
-- rewriting the key policy, or
-- turning off the trail.
+- rewriting the key policy,
+- turning off the trail,
+- changing the image processor's code or configuration (`CreateFunction`, `UpdateFunctionCode`, `UpdateFunctionConfiguration`, which covers layers, environment and role), or
+- changing who can assume its role or what the role may do (`UpdateAssumeRolePolicy`, `PutRolePolicy`, `DeleteRolePolicy`, `AttachRolePolicy`, `DetachRolePolicy`, and the permissions boundary calls).
 
-Each one is itself alerted.
+Each one is itself alerted. Applying Terraform that redeploys the image processor calls `UpdateFunctionCode`, so a deploy raises the same alert as a bucket policy change.
 
 ## Dev versus production
 
