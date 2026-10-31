@@ -2,8 +2,11 @@ import "../testing/native-mocks";
 import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
 import { Dimensions, Platform } from "react-native";
 import type { ComponentProps } from "react";
+import { State } from "react-native-gesture-handler";
+import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import { buildPhoto } from "../testing/fixtures";
 import { FrameViewer } from "./frame-viewer/frame-viewer";
+import { PAGE_GAP } from "./frame-viewer/paging";
 
 // iOS keeps the closing modal's contents mounted until its native fade ends.
 // The default Jest mock removes them as soon as visible becomes false.
@@ -45,71 +48,207 @@ const props = (): ComponentProps<typeof FrameViewer> => {
   };
 };
 
-const pageWidth = Dimensions.get("window").width;
-const pageScroll = (x: number) => ({
-  nativeEvent: {
-    contentOffset: { x, y: 0 },
-    contentSize: { width: pageWidth * 2, height: 600 },
-    layoutMeasurement: { width: pageWidth, height: 600 },
-  },
-});
+const stride = Dimensions.get("window").width + PAGE_GAP;
+const roll = (count: number) =>
+  Array.from({ length: count }, (_, page) => ({
+    photo: buildPhoto({
+      id: `photo-${page + 1}`,
+      url: `https://cdn.example.com/photo-${page + 1}.jpg`,
+      thumbnailUrl: `https://cdn.example.com/photo-${page + 1}-thumb.webp`,
+    }),
+    number: page + 1,
+    by: "You",
+    uploader: null,
+    isNew: false,
+  }));
 
-test("paging reveals thumbnail previews and selects an original only when the page settles", async () => {
-  const input = props();
-  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
-  input.frames = [input.frame!, second];
+/** Renders the viewer with fake timers and lets the pager's UI-thread reactions start. */
+const renderPager = async (input: ComponentProps<typeof FrameViewer>) => {
+  jest.useFakeTimers();
   const view = await render(<FrameViewer {...input} />);
-  const pager = screen.getByTestId("frame-viewer-pager");
-  expect(pager.props.pagingEnabled).toBe(true);
-  expect(screen.getByTestId("frame-preview-photo-2", { includeHiddenElements: true }).props.source[0].cacheKey).toBe(
-    "photo:photo-2:thumbnail",
-  );
-  await fireEvent.scroll(pager, pageScroll(pageWidth / 2));
-  expect(input.onMove).not.toHaveBeenCalled();
-  expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
-  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-1:original");
-  await userEvent.setup().scrollTo(pager, {
-    x: pageWidth * 0.7,
-    momentumX: pageWidth,
-    contentSize: { width: pageWidth * 2, height: 600 },
-    layoutMeasurement: { width: pageWidth, height: 600 },
+  await act(async () => jest.advanceTimersByTime(50));
+  return view;
+};
+
+type PanEvent = { translationX?: number; translationY?: number; velocityX?: number; velocityY?: number };
+/** A one-finger drag through the given points, released with the last one's velocity. */
+const drag = async (...points: PanEvent[]) => {
+  const last = points[points.length - 1];
+  await act(async () => {
+    fireGestureHandler(getByGestureTestId("frame-viewer-pan"), [
+      { state: State.BEGAN, translationX: 0, translationY: 0 },
+      {
+        state: State.ACTIVE,
+        translationX: Math.sign(points[0].translationX ?? 0) * 10,
+        translationY: Math.sign(points[0].translationY ?? 0) * 10,
+      },
+      ...points.map((point) => ({ translationX: 0, translationY: 0, ...point })),
+      { state: State.END, translationX: 0, translationY: 0, velocityX: 0, velocityY: 0, ...last },
+    ]);
+    jest.advanceTimersByTime(1000);
   });
-  expect(input.onMove).toHaveBeenCalledTimes(1);
-  expect(input.onMove).toHaveBeenCalledWith("photo-2");
-  await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} />);
-  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-2:original");
-  expect(screen.getByTestId("frame-viewer-photo").props.placeholder[0].cacheKey).toBe("photo:photo-2:thumbnail");
-  expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
-  await fireEvent(screen.getByTestId("frame-viewer-pager"), "momentumScrollEnd", pageScroll(0));
-  expect(input.onMove).toHaveBeenLastCalledWith("photo-1");
+};
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
-test("a cancelled drag returns to the same photo without loading another original", async () => {
+test("only a window of frames is mounted: originals one either side, thumbnails two either side", async () => {
   const input = props();
-  input.frames = [input.frame!, { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 }];
+  input.frames = roll(1000);
+  input.frame = input.frames[500];
   await render(<FrameViewer {...input} />);
-  await userEvent.setup().scrollTo(screen.getByTestId("frame-viewer-pager"), {
-    x: pageWidth / 4,
-    momentumX: 0,
-    contentSize: { width: pageWidth * 2, height: 600 },
-    layoutMeasurement: { width: pageWidth, height: 600 },
+  const mounted = (id: string) => screen.queryByTestId(`frame-page-${id}`, { includeHiddenElements: true });
+  expect(mounted("photo-498")).not.toBeOnTheScreen();
+  expect(mounted("photo-504")).not.toBeOnTheScreen();
+  for (const page of [499, 500, 501, 502, 503]) expect(mounted(`photo-${page}`)).toBeOnTheScreen();
+  expect(
+    screen.getAllByTestId(/^frame-original-/, { includeHiddenElements: true }).map((node) => node.props.testID),
+  ).toEqual(["frame-original-photo-500", "frame-original-photo-502"]);
+  expect(screen.getByTestId("frame-viewer-photo").props.source[0]).toEqual({
+    uri: "https://cdn.example.com/photo-501.jpg",
+    cacheKey: "photo:photo-501:original",
   });
-  expect(input.onMove).not.toHaveBeenCalled();
-  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-1:original");
+  expect(screen.getByTestId("frame-viewer-thumbnail").props.source[0].cacheKey).toBe("photo:photo-501:thumbnail");
+  expect(screen.getByTestId("frame-preview-photo-499", { includeHiddenElements: true }).props.source[0].cacheKey).toBe(
+    "photo:photo-499:thumbnail",
+  );
 });
 
-test("a parent refresh during paging uses the latest selection callback and prefetches at the loaded end", async () => {
+test("a swipe selects the next frame as it passes halfway, before the finger lifts", async () => {
   const input = props();
-  input.frames = [input.frame!, { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 }];
-  const view = await render(<FrameViewer {...input} hasMore />);
-  await fireEvent.scroll(screen.getByTestId("frame-viewer-pager"), pageScroll(pageWidth / 2));
-  const refreshedMove = jest.fn();
-  await view.rerender(<FrameViewer {...input} hasMore onMove={refreshedMove} notice="Saved" />);
-  await fireEvent(screen.getByTestId("frame-viewer-pager"), "momentumScrollEnd", pageScroll(pageWidth));
-  expect(refreshedMove).toHaveBeenCalledTimes(1);
-  expect(refreshedMove).toHaveBeenCalledWith("photo-2");
+  input.frames = roll(3);
+  input.frame = input.frames[1];
+  await renderPager(input);
+  await drag({ translationX: -stride * 0.3 }, { translationX: -stride * 0.6 }, { translationX: -stride * 0.3 });
+  // Past halfway it moved on; dragging back and releasing slowly returned to the frame it left.
+  expect(input.onMove).toHaveBeenCalledTimes(1);
+  expect(input.onMove).toHaveBeenCalledWith("photo-3");
+});
+
+test("a flick moves on after a short drag; a slow short drag springs back", async () => {
+  const input = props();
+  input.frames = roll(3);
+  input.frame = input.frames[1];
+  await renderPager(input);
+  await drag({ translationX: -stride * 0.3, velocityX: -100 });
   expect(input.onMove).not.toHaveBeenCalled();
+  await drag({ translationX: stride * 0.1, velocityX: 1200 });
+  expect(input.onMove).toHaveBeenCalledTimes(1);
+  expect(input.onMove).toHaveBeenCalledWith("photo-1");
+});
+
+test("the first and last frames rubber-band instead of moving on", async () => {
+  const input = props();
+  input.frames = roll(2);
+  const view = await renderPager(input);
+  await drag({ translationX: stride * 0.8, velocityX: 2000 });
+  expect(input.onMove).not.toHaveBeenCalled();
+  await view.rerender(<FrameViewer {...input} frame={input.frames[1]} />);
+  await drag({ translationX: -stride * 0.8, velocityX: -2000 });
+  expect(input.onMove).not.toHaveBeenCalled();
+});
+
+test("a preloaded neighbour is already sharp when it becomes current", async () => {
+  const input = props();
+  input.frames = roll(3);
+  input.frame = input.frames[0];
+  const view = await render(<FrameViewer {...input} />);
+  await fireEvent(screen.getByTestId("frame-original-photo-2", { includeHiddenElements: true }), "display");
+  await view.rerender(<FrameViewer {...input} frame={input.frames[1]} />);
+  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-2:original");
+  expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+  // The neighbour that is now one away starts loading its original too.
+  expect(screen.getByTestId("frame-original-photo-3", { includeHiddenElements: true })).toBeOnTheScreen();
+});
+
+test("zooming disables paging until the frame is back at rest", async () => {
+  const input = props();
+  input.frames = roll(3);
+  input.frame = input.frames[1];
+  await renderPager(input);
+  const doubleTap = async () =>
+    act(async () => {
+      fireGestureHandler(getByGestureTestId("frame-viewer-double-tap"), [
+        { state: State.BEGAN, x: 100, y: 100 },
+        { state: State.ACTIVE, x: 100, y: 100 },
+        { state: State.END, x: 100, y: 100 },
+      ]);
+      jest.advanceTimersByTime(1000);
+    });
+  await doubleTap();
+  await drag({ translationX: -stride * 0.8, velocityX: -2000 });
+  expect(input.onMove).not.toHaveBeenCalled();
+  await doubleTap();
+  await drag({ translationX: -stride * 0.8, velocityX: -2000 });
+  expect(input.onMove).toHaveBeenCalledWith("photo-3");
+});
+
+test("a pinch zooms the current frame and disables paging", async () => {
+  const input = props();
+  input.frames = roll(3);
+  input.frame = input.frames[1];
+  await renderPager(input);
+  await act(async () => {
+    fireGestureHandler(getByGestureTestId("frame-viewer-pinch"), [
+      { state: State.BEGAN, scale: 1, focalX: 100, focalY: 100 },
+      { state: State.ACTIVE, scale: 1, focalX: 100, focalY: 100 },
+      { scale: 2, focalX: 100, focalY: 100 },
+      { state: State.END, scale: 2, focalX: 100, focalY: 100 },
+    ]);
+    jest.advanceTimersByTime(1000);
+  });
+  await drag({ translationX: -stride * 0.8, velocityX: -2000 });
+  expect(input.onMove).not.toHaveBeenCalled();
+});
+
+test("dragging the photo down closes the viewer; a short drag springs back", async () => {
+  const input = props();
+  await renderPager(input);
+  await drag({ translationY: 60, velocityY: 100 });
+  expect(screen.getByTestId("frame-viewer-dialog").props.visible).toBe(true);
+  await drag({ translationY: 220, velocityY: 300 });
+  expect(screen.getByTestId("frame-viewer-dialog", { includeHiddenElements: true }).props.visible).toBe(false);
+});
+
+test("tapping a strip frame moves the viewer there", async () => {
+  const input = props();
+  input.frames = roll(6);
+  const view = await renderPager(input);
+  await userEvent
+    .setup({ advanceTimers: jest.advanceTimersByTime })
+    .press(screen.getByRole("imagebutton", { name: "Frame 5, by You" }));
+  expect(input.onMove).toHaveBeenCalledWith("photo-5");
+  await view.rerender(<FrameViewer {...input} frame={input.frames[4]} />);
+  await act(async () => jest.advanceTimersByTime(1000));
+  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-5:original");
+  expect(screen.queryByTestId("frame-page-photo-1", { includeHiddenElements: true })).not.toBeOnTheScreen();
+});
+
+test("reaching the loaded end asks for more frames once", async () => {
+  const input = props();
+  input.frames = roll(10);
+  input.frame = input.frames[2];
+  const view = await render(<FrameViewer {...input} hasMore />);
+  expect(input.onLoadMore).not.toHaveBeenCalled();
+  await view.rerender(<FrameViewer {...input} hasMore frame={input.frames[7]} notice="Saved" />);
   expect(input.onLoadMore).toHaveBeenCalledTimes(1);
+  await view.rerender(<FrameViewer {...input} hasMore frame={input.frames[7]} notice={null} />);
+  expect(input.onLoadMore).toHaveBeenCalledTimes(1);
+});
+
+test("save progress and results sit over the photo and keep it on screen", async () => {
+  const input = props();
+  const view = await render(<FrameViewer {...input} />);
+  await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
+  await view.rerender(<FrameViewer {...input} busy progressLabel="Saving 1 of 1" />);
+  expect(screen.getByTestId("frame-viewer-status")).toHaveStyle({ position: "absolute", bottom: 0 });
+  expect(within(screen.getByTestId("frame-viewer-status")).getByText("Saving 1 of 1")).toBeOnTheScreen();
+  await view.rerender(<FrameViewer {...input} notice="Saved to Photos." failedSaveCount={0} />);
+  expect(within(screen.getByTestId("frame-viewer-status")).getByText("Saved to Photos.")).toBeOnTheScreen();
+  expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
+  expect(screen.getByTestId("frame-viewer-thumbnail")).toBeOnTheScreen();
+  expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
 });
 
 test("a stalled original exposes retry after 30 seconds and resets when reopened", async () => {

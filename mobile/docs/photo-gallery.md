@@ -12,13 +12,38 @@ selection and show an error instead of silently acting on an incomplete roll.
 Counts in the event header use the server's visible photo count.
 
 Opening a photo requests its original. Swiping, the thumbnail strip, and the header’s screen-reader adjustment
-actions move the same viewer; only its active frame renders
-an original. The strip and grid use stable thumbnail cache keys. Attribution
-comes from the participant list, with a fallback for a departed/deleted uploader.
-The original viewport uses native horizontal paging: photos track the finger,
-with cached thumbnail previews on adjacent pages. Selection and attribution
-change only after the page settles. The selected page keeps its thumbnail as
-a placeholder while its original loads; dragging back loads no other original.
+actions move the same viewer. The strip and grid use stable thumbnail cache
+keys. Attribution comes from the participant list, with a fallback for a
+departed/deleted uploader.
+
+The viewer's pager (`frame-viewer/use-frame-pager.ts`) runs on the UI thread
+with Gesture Handler and Reanimated. Frames sit on one strip with a 16pt gap;
+the current frame follows the finger 1:1 and neighbours slide in from the
+edges. Release settles with a spring: a flick moves one frame even after a
+short drag, a slow drag moves on past halfway, and the first and last frames
+rubber-band. The current index is derived from the strip's offset, so
+attribution and the film strip change as the swipe passes halfway. A strip
+tap or a screen-reader step glides there from the adjacent frame. The geometry
+(snap target, rubber band, window, zoom limits) is pure and unit-tested in
+`frame-viewer/paging.ts`.
+
+Only the current frame and two on each side are mounted, so a 1,000-frame roll
+renders five pages. The current frame and one on each side load originals;
+the outer two show thumbnails. Every page keeps its thumbnail mounted under
+the original, which fades in over it, so a frame is never blank while its
+original loads or reloads. `expo-image` prefetching keys its cache by URL and
+our signed URLs change on every read, so neighbours preload by mounting with
+the stable cache keys instead. A page keeps the URLs it started loading with;
+a gallery refetch (for example, after the Photos permission prompt) does not
+reload an open original. Only a renewal replaces the URL.
+
+Pinch and double tap zoom the current frame; paging is off until it is back
+at 1×. Dragging the photo down shrinks it and fades the chrome, then closes
+the viewer through the normal close path; a short drag springs back. Reduce
+Motion uses a stiff spring with no overshoot and shorter fades. Save progress,
+results and the retry button sit over the bottom of the photo rather than
+resizing it.
+
 A suspended/closed gallery or revoked access closes the viewer. An original
 that fails or stalls exposes Retry, which renews its URL through the single
 photo endpoint before reloading it.
