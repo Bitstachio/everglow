@@ -1,4 +1,4 @@
-import { GalleryProgress, GallerySelectionBar, SaveRollSheet } from "../components/gallery-controls";
+import { GalleryProgress, GallerySelectionBar, GalleryUnsaved, SaveRollSheet } from "../components/gallery-controls";
 import { GalleryDeleteSheet } from "../components/gallery-delete-sheet";
 import { AppIcon } from "@/components/ui/app-icon";
 import { Avatar } from "@/components/ui/avatar";
@@ -18,7 +18,7 @@ import { colorTokens } from "@/theme/tokens";
 import { DotsThree } from "phosphor-react-native";
 import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { FlatList, RefreshControl, Text, View } from "react-native";
+import { FlatList, RefreshControl, Text, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrivalNote } from "../components/arrival-note";
 import { FrameViewer } from "../components/frame-viewer/frame-viewer";
@@ -38,6 +38,7 @@ import {
   formatClock,
   formatOpensAt,
   formatRange,
+  frameSeed,
   formatRollDate,
   hostName,
   storagePair,
@@ -58,6 +59,15 @@ const value = <EdgeValue>{null}</EdgeValue>;
 
 const uploaderAvatar = (uploader: SheetFrame["uploader"]) =>
   uploader ? <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" /> : null;
+
+/** The result of an action, for a few seconds over the foot of the roll. */
+const Notice = ({ message, className = "", style }: { message: string; className?: string; style?: ViewStyle }) => (
+  <View pointerEvents="none" className={`absolute left-5 right-5 items-center ${className}`.trim()} style={style}>
+    <EdgePrint accessibilityLiveRegion="polite" tone="text" className="bg-sheet px-3 py-2 text-center">
+      {message}
+    </EdgePrint>
+  </View>
+);
 
 /** A round button over the cover, darkened so it reads on any photo. */
 const CoverButton = ({ children }: { children: ReactNode }) => (
@@ -175,6 +185,8 @@ const EventDetailScreen = () => {
             <ArrivalNote label={screen.arrivalNote} />
           </View>
         ) : null}
+        {/* A failed Leave, or someone a host took off the roll. */}
+        {screen.notice ? <Notice message={screen.notice} className="bottom-8" /> : null}
         <Sheets screen={screen} />
         <FilmGrain />
       </SafeAreaView>
@@ -230,9 +242,10 @@ const EventDetailScreen = () => {
           : t("sub.openNoHost", { date: formatRollDate(event.date), count });
 
   const save: FooterAction = {
-    title: screen.saving
-      ? t("footer.saving", { done: screen.saving.done, total: screen.saving.total })
-      : t("footer.saveAll"),
+    title:
+      screen.progress?.kind === "save"
+        ? t("footer.saving", { done: screen.progress.done, total: screen.progress.total })
+        : t("footer.saveAll"),
     accessibilityLabel: t("footer.saveAllLabel"),
     onPress: screen.onSaveAll,
     disabled: count === 0 || screen.busy !== null,
@@ -361,9 +374,21 @@ const EventDetailScreen = () => {
           by={item.frame.by ?? undefined}
           avatar={uploaderAvatar(item.frame.uploader)}
           isNew={item.frame.isNew}
+          ringSeed={frameSeed(item.frame.photo.id)}
           selected={screen.selectedIds.has(item.frame.photo.id)}
           onLongPress={() => screen.onSelectFrame(item.frame)}
           accessibilityLabel={frameLabel(item.frame)}
+          // Marking without a long press: an action for screen readers and switch control.
+          accessibilityHint={screen.selecting ? undefined : t("gallery.markHint")}
+          accessibilityActions={[
+            {
+              name: "mark",
+              label: screen.selectedIds.has(item.frame.photo.id) ? t("gallery.unmark") : t("gallery.mark"),
+            },
+          ]}
+          onAccessibilityAction={({ nativeEvent }) => {
+            if (nativeEvent.actionName === "mark") screen.onSelectFrame(item.frame);
+          }}
           onPress={() => screen.onOpenFrame(item.frame)}
         />
       ) : (
@@ -422,10 +447,15 @@ const EventDetailScreen = () => {
     return null;
   })();
 
-  const galleryProgress =
-    screen.busy && !screen.openFrame ? (
-      <GalleryProgress label={screen.saving ? t("footer.saving", screen.saving) : t("gallery.preparing")} />
-    ) : null;
+  // Over the footer: a save or share under way, or what the last save didn't save.
+  const galleryStatus = screen.openFrame ? null : screen.busy ? (
+    <GalleryProgress
+      label={progressLabel(t, screen.progress)}
+      onStop={screen.progress ? screen.onStopExport : undefined}
+    />
+  ) : screen.unsavedCount > 0 ? (
+    <GalleryUnsaved count={screen.unsavedCount} onRetry={screen.onRetrySave} onDismiss={screen.onDismissUnsaved} />
+  ) : null;
 
   return (
     <View className="flex-1 bg-ground">
@@ -498,7 +528,7 @@ const EventDetailScreen = () => {
 
       {screen.selecting ? (
         <View className="absolute bottom-0 left-0 right-0 bg-ground" style={{ paddingBottom: insets.bottom }}>
-          {galleryProgress}
+          {galleryStatus}
           <GallerySelectionBar
             count={screen.selectedCount}
             deleteCount={screen.selectedDeletableCount}
@@ -509,7 +539,7 @@ const EventDetailScreen = () => {
           />
         </View>
       ) : (
-        <RollFooter {...footer} bottomInset={insets.bottom} status={galleryProgress} />
+        <RollFooter {...footer} bottomInset={insets.bottom} status={galleryStatus} />
       )}
 
       {!screen.selecting && trayLine && (!screen.notice || trayNeedsAttention) ? (
@@ -519,15 +549,10 @@ const EventDetailScreen = () => {
       ) : null}
 
       {screen.notice && !screen.openFrame ? (
-        <View
-          pointerEvents="none"
-          className="absolute left-5 right-5 items-center"
+        <Notice
+          message={screen.notice}
           style={{ bottom: insets.bottom + FOOT_SPACE + (trayLine && trayNeedsAttention ? 4 : -40) }}
-        >
-          <EdgePrint accessibilityLiveRegion="polite" tone="text" className="bg-sheet px-3 py-2 text-center">
-            {screen.notice}
-          </EdgePrint>
-        </View>
+        />
       ) : null}
 
       {screen.arrivalNote ? (
@@ -541,15 +566,6 @@ const EventDetailScreen = () => {
         </View>
       ) : null}
 
-      {screen.failedSaves.length > 0 && !screen.busy && !screen.openFrame ? (
-        <View className="absolute left-5 right-5 bg-ground" style={{ bottom: insets.bottom + 100 }}>
-          <Button
-            title={t("gallery.retrySave", { count: screen.failedSaves.length })}
-            variant="ghost"
-            onPress={screen.onRetrySave}
-          />
-        </View>
-      ) : null}
       <FilmGrain />
       <Sheets screen={screen} />
     </View>
@@ -606,7 +622,10 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         ) : null}
 
         {screen.sheet === "leave" ? (
-          <Slip title={t("leave.title", { title: event.title })} body={t("leave.body")}>
+          <Slip
+            title={t("leave.title", { title: event.title })}
+            body={screen.stage === "closed" ? t("leave.bodyClosed") : t("leave.body")}
+          >
             <Button title={t("leave.confirm")} mark="⇥" onPress={screen.onConfirmLeave} isLoading={screen.isLeaving} />
             <Button title={t("leave.cancel")} variant="secondary" mark="‹" onPress={screen.onCloseSheet} />
           </Slip>
@@ -685,10 +704,12 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         canDelete={screen.openFrameIsDeletable}
         isOwn={!!screen.currentUserId && screen.openFrame?.photo.addedById === screen.currentUserId}
         busy={!!screen.busy}
-        progressLabel={screen.saving ? t("footer.saving", screen.saving) : undefined}
+        progressLabel={progressLabel(t, screen.progress)}
+        onStop={screen.progress ? screen.onStopExport : undefined}
         notice={screen.notice}
-        failedSaveCount={screen.failedSaves.length}
+        unsavedCount={screen.unsavedCount}
         onRetrySave={screen.onRetrySave}
+        onDismissUnsaved={screen.onDismissUnsaved}
         onClose={screen.onCloseFrame}
         onRetry={screen.onRetryFrame}
         onSave={screen.onSaveFrame}
@@ -705,6 +726,17 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
     </>
   );
 };
+
+/** A save or share under way: how far it has got. */
+const progressLabel = (
+  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  progress: ReturnType<typeof useEventDetailScreen>["progress"],
+) =>
+  progress === null
+    ? t("gallery.preparing")
+    : progress.kind === "save"
+      ? t("footer.saving", { done: progress.done, total: progress.total })
+      : t("gallery.sharing", { done: progress.done, total: progress.total });
 
 /** 08.6's body: who can make room depends on who's asking. */
 const roomBody = (

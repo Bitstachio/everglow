@@ -1,9 +1,9 @@
-import "../testing/native-mocks";
+import "../../testing/native-mocks";
 import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
 import { Dimensions, Platform } from "react-native";
 import type { ComponentProps } from "react";
-import { buildPhoto } from "../testing/fixtures";
-import { FrameViewer } from "./frame-viewer/frame-viewer";
+import { buildPhoto } from "../../testing/fixtures";
+import { FrameViewer } from "./frame-viewer";
 
 // iOS keeps the closing modal's contents mounted until its native fade ends.
 // The default Jest mock removes them as soon as visible becomes false.
@@ -28,8 +28,10 @@ const props = (): ComponentProps<typeof FrameViewer> => {
     frames: [frame],
     busy: false,
     notice: null,
-    failedSaveCount: 0,
+    progressLabel: "Preparing frames",
+    unsavedCount: 0,
     onRetrySave: jest.fn(),
+    onDismissUnsaved: jest.fn(),
     onShare: jest.fn(),
     onMove: jest.fn(),
     onLoadMore: jest.fn(),
@@ -118,15 +120,15 @@ test("a stalled original exposes retry after 30 seconds and resets when reopened
   const input = props();
   const view = await render(<FrameViewer {...input} />);
   try {
-    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
     await act(async () => jest.advanceTimersByTime(30_000));
-    expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+    expect(screen.getByText("Couldn’t load this frame.")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Try again" })).toBeOnTheScreen();
-    expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
     expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "timeout" });
     await view.rerender(<FrameViewer {...input} frame={null} />);
     await view.rerender(<FrameViewer {...input} />);
-    expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
   } finally {
     await view.unmount();
     warn.mockRestore();
@@ -140,13 +142,105 @@ test("displaying an original cancels the loading timeout", async () => {
   try {
     await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
     await act(async () => jest.advanceTimersByTime(30_000));
-    expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
-    expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
+    expect(screen.queryByText("Couldn’t load this frame.")).not.toBeOnTheScreen();
     expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
   } finally {
     await view.unmount();
     jest.useRealTimers();
   }
+});
+
+test("a slow original keeps loading while bytes arrive, and gives up only once they stop", async () => {
+  jest.useFakeTimers();
+  const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+  const view = await render(<FrameViewer {...props()} />);
+  try {
+    // Two minutes of a slow download, a chunk every 20 seconds.
+    for (let loaded = 1; loaded <= 6; loaded += 1) {
+      await act(async () => jest.advanceTimersByTime(20_000));
+      await fireEvent(screen.getByTestId("frame-viewer-photo"), "progress", {
+        nativeEvent: { loaded: loaded * 1024, total: 10 * 1024 },
+      });
+    }
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
+    expect(screen.queryByText("Couldn’t load this frame.")).not.toBeOnTheScreen();
+
+    await act(async () => jest.advanceTimersByTime(29_000));
+    expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
+    await act(async () => jest.advanceTimersByTime(1_000));
+    expect(screen.getByText("Couldn’t load this frame.")).toBeOnTheScreen();
+    expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "timeout" });
+  } finally {
+    await view.unmount();
+    warn.mockRestore();
+    jest.useRealTimers();
+  }
+});
+
+test("Try again renews the link and starts a new stall timer", async () => {
+  jest.useFakeTimers();
+  const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+  const input = props();
+  const view = await render(<FrameViewer {...input} />);
+  try {
+    await act(async () => jest.advanceTimersByTime(30_000));
+    await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(input.onRetry).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
+    await act(async () => jest.advanceTimersByTime(29_000));
+    expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
+    await act(async () => jest.advanceTimersByTime(1_000));
+    expect(screen.getByText("Couldn’t load this frame.")).toBeOnTheScreen();
+  } finally {
+    await view.unmount();
+    warn.mockRestore();
+    jest.useRealTimers();
+  }
+});
+
+test("a renewal shows the thumbnail and doesn't count toward the stall timer", async () => {
+  jest.useFakeTimers();
+  const input = props();
+  let completeRenewal!: () => void;
+  input.onRetry = jest.fn(() => new Promise<void>((resolve) => (completeRenewal = resolve)));
+  const view = await render(<FrameViewer {...input} />);
+  try {
+    await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "HTTP 403" } });
+    expect(screen.getByTestId("frame-viewer-placeholder").props.source[0].cacheKey).toBe("photo:photo-1:thumbnail");
+    await act(async () => jest.advanceTimersByTime(60_000));
+    expect(screen.queryByText("Couldn’t load this frame.")).not.toBeOnTheScreen();
+    await act(async () => completeRenewal());
+    expect(screen.getByTestId("frame-viewer-photo")).toBeOnTheScreen();
+    expect(screen.queryByTestId("frame-viewer-placeholder")).not.toBeOnTheScreen();
+  } finally {
+    await view.unmount();
+    jest.useRealTimers();
+  }
+});
+
+test("the time reads on a 24-hour clock that starts at 00", async () => {
+  const input = props();
+  const midnight = new Date(2026, 9, 31, 0, 5).toISOString();
+  input.frame = { ...input.frame!, photo: buildPhoto({ createdAt: midnight }) };
+  await render(<FrameViewer {...input} />);
+  expect(screen.getByRole("adjustable").props.accessibilityLabel).toMatch(/00:05$/);
+});
+
+test("a save under way can be stopped, and what didn't save can be retried or let go", async () => {
+  const input = props();
+  const onStop = jest.fn();
+  const view = await render(<FrameViewer {...input} busy progressLabel="Saving 1 of 3" onStop={onStop} />);
+  const user = userEvent.setup();
+  expect(screen.getByText("Saving 1 of 3")).toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Stop saving or sharing" }));
+  expect(onStop).toHaveBeenCalledTimes(1);
+
+  await view.rerender(<FrameViewer {...input} unsavedCount={2} />);
+  await user.press(screen.getByRole("button", { name: "Retry 2 unsaved" }));
+  expect(input.onRetrySave).toHaveBeenCalledTimes(1);
+  await user.press(screen.getByRole("button", { name: "Dismiss unsaved frames" }));
+  expect(input.onDismissUnsaved).toHaveBeenCalledTimes(1);
 });
 
 test("automatic renewal keeps loading visible and cannot replace a different photo opened while it waits", async () => {
@@ -158,15 +252,15 @@ test("automatic renewal keeps loading visible and cannot replace a different pho
   const view = await render(<FrameViewer {...input} />);
   await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", { nativeEvent: { error: "HTTP 403" } });
   expect(input.onRetry).toHaveBeenCalledTimes(1);
-  expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
-  expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
+  expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
+  expect(screen.queryByText("Couldn’t load this frame.")).not.toBeOnTheScreen();
   expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
 
   await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} />);
   await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
   await act(async () => completeRenewal());
   expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(second.photo.url);
-  expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
 });
 
 test("the compact attribution retains accessible next/previous navigation", async () => {
@@ -185,7 +279,7 @@ test("the compact attribution retains accessible next/previous navigation", asyn
       nativeEvent: { actionName: "decrement" },
     });
     expect(input.onMove).toHaveBeenCalledWith("photo-1");
-    expect(screen.queryByRole("button", { name: "Next photo" })).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Next frame" })).not.toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Save to Photos" })).toHaveTextContent("Save ↓");
   } finally {
     await view.unmount();

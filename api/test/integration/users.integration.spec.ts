@@ -17,7 +17,7 @@ import request from "supertest";
 import { expectApiError } from "./helpers/expect-api-error";
 import { NOT_FOUND_CODE } from "src/common/errors/http.errors";
 import { TEST_EVENT_ID } from "./helpers/events.fixtures";
-import { TEST_PHOTO_ID } from "./helpers/photos.fixtures";
+import { TEST_PHOTO_ID, withPhotoDerivatives } from "./helpers/photos.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
 import { authHeader, TEST_APPLE_ACCESS_TOKEN } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
@@ -992,7 +992,9 @@ describe("UsersController (integration)", () => {
         }),
       );
       // Objects go only once the rows are gone.
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith(["photos/u/e/pending", "photos/u/e/ready"]);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(
+        withPhotoDerivatives("photos/u/e/pending", "photos/u/e/ready"),
+      );
       expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
         s3Service.deleteObjects.mock.invocationCallOrder[0],
       );

@@ -21,6 +21,7 @@ import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
+import { deleteObjectWithDerivatives } from "./photo-object-deletion";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
 import {
@@ -243,7 +244,10 @@ export class PhotosService {
 
     // A mismatched object exists in S3: remove it before its row, as a manual
     // delete does, so a failed S3 delete leaves the row for the sweeper to retry.
-    const objectDeletes = await Promise.allSettled(mismatched.map((photo) => this.s3Service.deleteObject(photo.s3Key)));
+    // Its derived copies go with it: the image processor renders whatever lands.
+    const objectDeletes = await Promise.allSettled(
+      mismatched.map((photo) => deleteObjectWithDerivatives(this.s3Service, photo.s3Key)),
+    );
     const releasable = [...missingIds];
     objectDeletes.forEach((outcome, index) => {
       const photo = mismatched[index];
@@ -351,9 +355,10 @@ export class PhotosService {
 
     // S3 first: if it fails the row survives and the delete can be retried. A
     // reported photo is copied to evidence before it goes; if that copy fails
-    // the original stays for the evidence job, and the row goes all the same.
+    // the original stays for the evidence job, with its derived copies, and
+    // the row goes all the same.
     const { deletable } = await this.evidenceService.preserveBeforeDelete([photo.s3Key]);
-    if (deletable.length > 0) await this.s3Service.deleteObject(photo.s3Key);
+    if (deletable.length > 0) await deleteObjectWithDerivatives(this.s3Service, photo.s3Key);
     // The photo's OPEN reports are settled with it: closed, or moved to the
     // platform when this delete isn't a verdict on them (closeReportsOnDeletedPhotos).
     const reports = await this.prisma.$transaction(async (tx) => {

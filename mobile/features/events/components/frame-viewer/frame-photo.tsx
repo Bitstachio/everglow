@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { SheetFrame } from "../../lib/roll-page";
 import { useFramePhoto } from "./use-frame-photo";
-/** Keep an original request visible and recoverable, including a request that stalls. */
+
+/** The open frame's original over its thumbnail, kept visible and recoverable, including a request that stalls. */
 export const FramePhoto = ({
   frame,
   label,
@@ -17,7 +18,8 @@ export const FramePhoto = ({
   onRetry: () => Promise<void>;
 }) => {
   const { t } = useTranslation("roll");
-  const { status, attempt, refreshing, retry, fail, onDisplay } = useFramePhoto(frame.photo.id, onRetry);
+  const { status, attempt, refreshing, retry, onProgress, onDisplay, onError } = useFramePhoto(frame.photo.id, onRetry);
+  const thumbnail = { uri: frame.photo.thumbnailUrl, cacheKey: `photo:${frame.photo.id}:thumbnail` };
 
   return (
     <View className="flex-1">
@@ -27,13 +29,18 @@ export const FramePhoto = ({
           testID="frame-viewer-photo"
           accessibilityLabel={label}
           source={{ uri: frame.photo.url, cacheKey: `photo:${frame.photo.id}:original` }}
-          placeholder={{ uri: frame.photo.thumbnailUrl, cacheKey: `photo:${frame.photo.id}:thumbnail` }}
+          placeholder={thumbnail}
           placeholderContentFit="contain"
           contentFit="contain"
           className="h-full w-full"
+          onProgress={onProgress}
           onDisplay={onDisplay}
-          onError={fail}
+          onError={onError}
         />
+      ) : null}
+      {status === "loading" && refreshing ? (
+        // The thumbnail holds the place while the link is renewed.
+        <Photo testID="frame-viewer-placeholder" source={thumbnail} contentFit="contain" className="h-full w-full" />
       ) : null}
       {status === "loading" ? (
         <View pointerEvents="none" className="absolute inset-0 items-center justify-center">

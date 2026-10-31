@@ -171,14 +171,18 @@ export const useDeleteEventPhotoMutation = () => {
 
   return useMutation<void, Error, DeleteEventPhotoInput>({
     mutationFn: async ({ photoId }) => {
-      await photosControllerRemove({ path: { photoId }, throwOnError: true });
+      try {
+        await photosControllerRemove({ path: { photoId }, throwOnError: true });
+      } catch (error) {
+        // Another device may already have removed it. That is the requested outcome.
+        if (!isApiError(error) || error.status !== 404) throw error;
+      }
     },
-    // Refetch the event too: deleting a photo frees its storage.
-    onSuccess: async (_data, { eventId }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }),
-        queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }),
-      ]);
+    // Refetch the event too: deleting a photo frees its storage. In the
+    // background, so deleting several frames doesn't reload the roll between each.
+    onSuccess: (_data, { eventId }) => {
+      void queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
+      void queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
     },
   });
 };

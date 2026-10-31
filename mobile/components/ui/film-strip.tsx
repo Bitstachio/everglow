@@ -48,7 +48,6 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
     const { width, height } = event.nativeEvent.layout;
     setSize({ width: Math.round(width), height: Math.round(height) });
   };
-  const source = frame.uri ? { uri: frame.uri, cacheKey: frame.cacheKey } : frame.image;
 
   return (
     <View
@@ -66,10 +65,10 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
             contentFit="cover"
             className={`h-full w-full ${frame.dim ? "opacity-35" : ""}`.trim()}
           />
-        ) : source !== undefined ? (
+        ) : frame.image !== undefined ? (
           <Photo
             testID="film-strip-photo"
-            source={source}
+            source={frame.image}
             contentFit="cover"
             className={`h-full w-full ${frame.dim ? "opacity-35" : ""}`.trim()}
           />

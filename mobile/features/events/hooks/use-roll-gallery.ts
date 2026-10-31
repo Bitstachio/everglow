@@ -1,171 +1,244 @@
 import { onAccountCleared } from "@/lib/account-cleared";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import * as MediaLibrary from "expo-media-library";
 import Share from "react-native-share";
-import type { File } from "expo-file-system";
 import { getErrorMessage } from "@/lib/api/errors";
-import { readAllGalleryPhotos, readGalleryPhoto, removeGalleryPhoto, useRefreshGallery } from "../api/gallery";
-import { discardExportFile, downloadExportPhoto } from "../lib/export-photo";
+import { readAllGalleryPhotos, type SignedPhoto } from "../api/gallery";
+import { useDeleteEventPhotoMutation, useRefreshRollAfterUpload } from "../api/mutations";
+import { useRenewEventPhoto } from "../api/queries";
+import {
+  isGonePhotoError,
+  prepareSharedPhotos,
+  requestLibraryAddAccess,
+  saveEventPhoto,
+} from "../api/save-event-photos";
 import type { SheetFrame } from "../lib/roll-page";
 import type { PhotoResponseDto } from "../types";
 
 type Props = {
   eventId: string;
   userId?: string;
+  /** Whether actions may run. Frames stay visible without it, for example while leaving. */
   enabled: boolean;
   canDeleteOthers: boolean;
   canDelete: boolean;
   frames: SheetFrame[];
+  /** The contact sheet's frames by id, with when their links were signed. */
+  listed: Map<string, SignedPhoto>;
   showNotice: (message: string) => void;
 };
-type Progress = { done: number; total: number };
+
+type Busy = "prepare" | "save" | "share" | "delete";
+type Progress = { kind: "save" | "share"; done: number; total: number };
+
+const isAbort = (error: unknown) => error instanceof Error && error.name === "AbortError";
 
 /** Chapter 09 actions share one lock and are cancelled when the visible roll/account changes. */
-export const useRollGallery = ({ eventId, userId, enabled, canDeleteOthers, canDelete, frames, showNotice }: Props) => {
+export const useRollGallery = ({
+  eventId,
+  userId,
+  enabled,
+  canDeleteOthers,
+  canDelete,
+  frames,
+  listed,
+  showNotice,
+}: Props) => {
   const { t } = useTranslation("roll");
-  const refresh = useRefreshGallery(eventId);
+  const renewPhoto = useRenewEventPhoto(eventId);
+  const deletePhoto = useDeleteEventPhotoMutation();
+  const refreshRoll = useRefreshRollAfterUpload();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [renewed, setRenewed] = useState<PhotoResponseDto | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<PhotoResponseDto[]>([]);
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
   const [deleteTargets, setDeleteTargets] = useState<PhotoResponseDto[] | null>(null);
   const [saveAllPhotos, setSaveAllPhotos] = useState<PhotoResponseDto[] | null>(null);
   const [includeMine, setIncludeMine] = useState(false);
-  const [failedSaves, setFailedSaves] = useState<string[]>([]);
-  const [busy, setBusy] = useState<"prepare" | "save" | "share" | "delete" | null>(null);
-  const [saving, setSaving] = useState<Progress | null>(null);
+  // What the last save of several frames didn't save, for "Retry N unsaved".
+  const [unsaved, setUnsaved] = useState<string[]>([]);
+  const [busy, setBusy] = useState<Busy | null>(null);
+  const [progress, setProgress] = useState<Progress | null>(null);
+  // Frames that save of several did save, so trying again saves only the rest.
+  const saved = useRef(new Set<string>());
+  // Frames read for Select all or Save all that the contact sheet hasn't paged in.
+  const bulk = useRef(new Map<string, SignedPhoto>());
   const pendingSave = useRef<string[] | null>(null);
   const job = useRef<AbortController | null>(null);
+  const scopeRef = useRef<AbortController | null>(null);
   const scope = `${eventId}:${userId ?? ""}:${enabled}`;
-  const session = useMemo(() => ({ scope, controller: new AbortController() }), [scope]);
-  const scopeAbort = session.controller;
   const [stateScope, setStateScope] = useState(scope);
   if (stateScope !== scope) {
     setStateScope(scope);
     setOpenId(null);
-    setRenewed(null);
     setSelecting(false);
     setSelected([]);
     setDeleted(new Set());
     setDeleteTargets(null);
     setSaveAllPhotos(null);
-    setFailedSaves([]);
+    setUnsaved([]);
     setBusy(null);
-    setSaving(null);
+    setProgress(null);
   }
   useEffect(() => {
+    const controller = new AbortController();
+    scopeRef.current = controller;
+    saved.current = new Set();
+    bulk.current = new Map();
     pendingSave.current = null;
-    const unsubscribe = onAccountCleared(() => {
-      scopeAbort.abort();
-      job.current?.abort();
-    });
+    const unsubscribe = onAccountCleared(() => controller.abort());
     return () => {
       unsubscribe();
-      scopeAbort.abort();
-      job.current?.abort();
-      job.current = null;
+      controller.abort();
+      if (scopeRef.current === controller) scopeRef.current = null;
     };
-  }, [scopeAbort]);
+  }, [scope]);
 
-  const visibleFrames = enabled ? frames.filter((frame) => !deleted.has(frame.photo.id)) : [];
-  const current = visibleFrames.find((frame) => frame.photo.id === openId) ?? null;
-  const openFrame = current && renewed?.id === current.photo.id ? { ...current, photo: renewed } : current;
+  const visibleFrames = frames.filter((frame) => !deleted.has(frame.photo.id));
+  const openFrame = (enabled && visibleFrames.find((frame) => frame.photo.id === openId)) || null;
   const selectedPhotos = enabled ? selected.filter((photo) => !deleted.has(photo.id)) : [];
   const deletable = (photo: PhotoResponseDto) =>
     canDelete && (canDeleteOthers || (!!userId && photo.addedById === userId));
   const selectedDeletable = selectedPhotos.filter(deletable);
+  const shownUnsaved = enabled ? unsaved.filter((id) => !deleted.has(id)) : [];
 
-  const start = (kind: NonNullable<typeof busy>) => {
-    if (!enabled || !userId || job.current || scopeAbort.signal.aborted) return null;
+  /** The newest copy of a frame's links: the contact sheet's, or a bulk read's if that's newer. */
+  const signed = (photo: PhotoResponseDto): SignedPhoto => {
+    const copies = [listed.get(photo.id), bulk.current.get(photo.id)].filter((copy) => copy !== undefined);
+    // A frame known only from an older render has links of unknown age: renew them.
+    return copies.sort((a, b) => b.signedAt - a.signedAt)[0] ?? { photo, signedAt: 0 };
+  };
+  const byId = (ids: string[]) => {
+    const known = new Map(
+      [...frames.map((frame) => frame.photo), ...selected, ...(saveAllPhotos ?? [])].map((photo) => [photo.id, photo]),
+    );
+    return ids.flatMap((id) => {
+      const photo = known.get(id) ?? bulk.current.get(id)?.photo;
+      return photo ? [signed(photo)] : [];
+    });
+  };
+
+  const markGone = (ids: string[]) => {
+    if (!ids.length) return;
+    setDeleted((previous) => new Set([...previous, ...ids]));
+    void refreshRoll(eventId).catch(() => undefined);
+  };
+
+  const start = (kind: Busy) => {
+    const scopeAbort = scopeRef.current;
+    if (!enabled || !userId || job.current || !scopeAbort || scopeAbort.signal.aborted) return null;
     const controller = new AbortController();
+    const stop = () => controller.abort();
+    scopeAbort.signal.addEventListener("abort", stop);
     job.current = controller;
     setBusy(kind);
     return {
       signal: controller.signal,
-      active: () => !controller.signal.aborted && !scopeAbort.signal.aborted,
+      active: () => !controller.signal.aborted,
+      /** The roll or account changed: leave state alone, it was reset already. */
+      scopeGone: () => scopeAbort.signal.aborted,
       finish: () => {
-        if (job.current !== controller) return;
-        job.current = null;
-        if (!controller.signal.aborted && !scopeAbort.signal.aborted) {
+        scopeAbort.signal.removeEventListener("abort", stop);
+        if (job.current === controller) job.current = null;
+        if (!scopeAbort.signal.aborted) {
           setBusy(null);
-          setSaving(null);
+          setProgress(null);
         }
       },
     };
   };
 
-  const save = async (ids: string[]) => {
+  /**
+   * Saves frames to Photos, one at a time. A save of several remembers what it
+   * saved, so Retry or another Save all saves only the rest; a frame saved on
+   * its own counts toward that but never clears what's still unsaved.
+   */
+  const save = async (ids: string[], kind: "frame" | "batch") => {
     if (!ids.length) return;
     const task = start("save");
     if (!task) return;
+    const rest = kind === "batch" ? ids.filter((id) => !saved.current.has(id)) : ids;
+    if (kind === "batch" && rest.length === 0) saved.current.clear();
+    const pending = rest.length ? rest : ids;
     const failed: string[] = [];
-    let saved = 0;
+    const gone: string[] = [];
+    let done = 0;
     try {
-      // Add-only access suffices; a save must not ask to read the person's library.
-      const permission = await MediaLibrary.requestPermissionsAsync(true);
-      if (!task.active()) return;
-      if (!permission.granted && permission.status !== "granted") {
-        setFailedSaves(ids);
-        showNotice(t("result.libraryAccess"));
+      if (!(await requestLibraryAddAccess())) {
+        if (task.active()) showNotice(t("result.libraryAccess"));
         return;
       }
-      setFailedSaves([]);
-      setSaving({ done: 0, total: ids.length });
-      for (const id of ids) {
-        if (!task.active()) return;
-        let file: File | undefined;
-        try {
-          const photo = await readGalleryPhoto(id, task.signal);
-          if (!task.active()) return;
-          file = await downloadExportPhoto(photo);
-          if (!task.active()) return;
-          await MediaLibrary.Asset.create(file.uri);
-          saved++;
-        } catch {
-          failed.push(id);
-        } finally {
-          if (file) discardExportFile(file);
+      const photos = byId(pending);
+      setProgress({ kind: "save", done: 0, total: photos.length });
+      for (const [index, { photo, signedAt }] of photos.entries()) {
+        if (!task.active()) {
+          // Stopped: what wasn't tried stays unsaved.
+          failed.push(...photos.slice(index).map((item) => item.photo.id));
+          break;
         }
-        if (!task.active()) return;
-        setSaving({ done: saved + failed.length, total: ids.length });
+        try {
+          await saveEventPhoto(photo, signedAt, task.signal);
+          done += 1;
+          // A frame saved on its own counts only while a save of several is unfinished.
+          if (kind === "batch" || unsaved.length > 0) saved.current.add(photo.id);
+        } catch (error) {
+          if (isGonePhotoError(error)) gone.push(photo.id);
+          else failed.push(photo.id);
+        }
+        if (task.active()) setProgress({ kind: "save", done: index + 1, total: photos.length });
       }
-      setFailedSaves(failed);
-      showNotice(
-        saved === ids.length
-          ? t("result.saved", { count: saved })
-          : saved
-            ? t("result.savedSome", { saved, total: ids.length })
-            : t("result.saveFailed"),
-      );
+      if (task.scopeGone()) return;
+      const stopped = !task.active();
+      markGone(gone);
+
+      if (kind === "batch") {
+        setUnsaved(failed);
+        if (!failed.length) saved.current.clear();
+      } else {
+        // On its own, a frame only leaves the list once it's saved or gone.
+        const left = unsaved.filter((id) => !(done && id === ids[0]) && !gone.includes(id));
+        setUnsaved(left);
+        if (!left.length) saved.current.clear();
+      }
+
+      const total = photos.length - gone.length;
+      if (total === 0) showNotice(t("result.gone", { count: gone.length }));
+      else if (done === total) showNotice(t("result.saved", { count: done }));
+      else if (done === 0) {
+        if (!stopped) showNotice(t("result.saveFailed"));
+      } else showNotice(t("result.savedSome", { saved: done, total }));
     } catch (error) {
-      if (task.active()) {
-        setFailedSaves(ids);
-        showNotice(getErrorMessage(error, t("result.saveFailed")));
-      }
+      if (!task.scopeGone()) showNotice(getErrorMessage(error, t("result.saveFailed")));
     } finally {
       task.finish();
     }
   };
 
+  /**
+   * Shares local copies, never signed links. The files outlive the share sheet
+   * (Android's receiving app may still be reading them) until the next share.
+   */
   const share = async (ids: string[]) => {
     if (!ids.length) return;
     const task = start("share");
     if (!task) return;
-    const files: File[] = [];
     try {
-      for (const id of ids) {
-        const photo = await readGalleryPhoto(id, task.signal);
-        if (!task.active()) return;
-        files.push(await downloadExportPhoto(photo));
-        if (!task.active()) return;
-      }
+      const photos = byId(ids);
+      setProgress({ kind: "share", done: 0, total: photos.length });
+      const files = await prepareSharedPhotos(photos, {
+        signal: task.signal,
+        onProgress: (done) => {
+          if (task.active()) setProgress({ kind: "share", done, total: photos.length });
+        },
+      });
+      if (!task.active()) return;
       await Share.open({ urls: files.map((file) => file.uri), type: "image/*", failOnCancel: false });
     } catch (error) {
-      if (task.active()) showNotice(getErrorMessage(error, t("gallery.shareFailed")));
+      if (task.scopeGone() || isAbort(error)) return;
+      // Someone deleted one of them: reload the roll so another try leaves it out.
+      if (isGonePhotoError(error)) void refreshRoll(eventId).catch(() => undefined);
+      showNotice(t("gallery.shareFailed"));
     } finally {
-      files.forEach(discardExportFile);
       task.finish();
     }
   };
@@ -176,10 +249,12 @@ export const useRollGallery = ({ eventId, userId, enabled, canDeleteOthers, canD
     try {
       const photos = await readAllGalleryPhotos(eventId, task.signal);
       if (!task.active()) return;
-      if (action === "select") setSelected(photos);
+      photos.forEach((item) => bulk.current.set(item.photo.id, item));
+      const all = photos.map((item) => item.photo);
+      if (action === "select") setSelected(all);
       else {
         setIncludeMine(false);
-        setSaveAllPhotos(photos);
+        setSaveAllPhotos(all);
       }
     } catch (error) {
       if (task.active()) showNotice(getErrorMessage(error, t("gallery.loadFailed")));
@@ -198,7 +273,8 @@ export const useRollGallery = ({ eventId, userId, enabled, canDeleteOthers, canD
       for (const photo of targets) {
         if (!task.active()) return;
         try {
-          await removeGalleryPhoto(photo.id, task.signal);
+          // The server still enforces ownership and moderation; an already-removed frame counts as removed.
+          await deletePhoto.mutateAsync({ eventId, photoId: photo.id });
           removed.add(photo.id);
         } catch {
           /* Keep unsuccessful frames selected and offer the action again. */
@@ -214,17 +290,17 @@ export const useRollGallery = ({ eventId, userId, enabled, canDeleteOthers, canD
           ? t("gallery.deleted", { count: removed.size })
           : t("gallery.deleteFailed", { count: targets.length - removed.size }),
       );
-      await refresh();
     } finally {
       task.finish();
     }
   };
 
   const onRetryFrame = async () => {
-    if (!openFrame || !enabled) throw new Error("No visible frame");
-    const id = openFrame.photo.id;
-    const photo = await readGalleryPhoto(id, scopeAbort.signal);
-    if (!scopeAbort.signal.aborted) setRenewed(photo);
+    const signal = scopeRef.current?.signal;
+    if (!openFrame || !enabled || !signal) throw new Error("No visible frame");
+    // Only this frame's link, written into the contact sheet so it opens with it next time.
+    // A frame that's gone answers 404.
+    await renewPhoto(openFrame.photo.id, signal);
   };
 
   const toggle = (frame: SheetFrame) => {
@@ -246,8 +322,8 @@ export const useRollGallery = ({ eventId, userId, enabled, canDeleteOthers, canD
     selectedDeletableCount: selectedDeletable.length,
     selectedMineCount: selectedPhotos.filter((photo) => photo.addedById === userId).length,
     busy,
-    saving,
-    failedSaves,
+    progress,
+    unsavedCount: shownUnsaved.length,
     saveAllPhotos,
     includeMine,
     saveCount: saveCandidates.length,
@@ -256,19 +332,13 @@ export const useRollGallery = ({ eventId, userId, enabled, canDeleteOthers, canD
     openFrameIsDeletable: !!openFrame && deletable(openFrame.photo),
     onOpenFrame: (frame: SheetFrame) => {
       if (selecting) toggle(frame);
-      else {
-        setRenewed(null);
-        setOpenId(frame.photo.id);
-      }
+      else setOpenId(frame.photo.id);
     },
     onCloseFrame: () => {
       setOpenId(null);
       setDeleteTargets(null);
     },
-    onMoveFrame: (id: string) => {
-      setRenewed(null);
-      setOpenId(id);
-    },
+    onMoveFrame: (id: string) => setOpenId(id),
     onRetryFrame,
     onSelectFrame: toggle,
     onCancelSelection: () => {
@@ -288,13 +358,26 @@ export const useRollGallery = ({ eventId, userId, enabled, canDeleteOthers, canD
     onSaveSheetClosed: () => {
       const ids = pendingSave.current;
       pendingSave.current = null;
-      if (ids) void save(ids);
+      if (ids) void save(ids, "batch");
     },
     onSaveFrame: () => {
-      if (openFrame) void save([openFrame.photo.id]);
+      if (openFrame) void save([openFrame.photo.id], "frame");
     },
-    onSaveSelection: () => void save(selectedPhotos.map((photo) => photo.id)),
-    onRetrySave: () => void save(failedSaves),
+    onSaveSelection: () =>
+      void save(
+        selectedPhotos.map((photo) => photo.id),
+        "batch",
+      ),
+    onRetrySave: () => void save(shownUnsaved, "batch"),
+    onDismissUnsaved: () => {
+      if (busy) return;
+      setUnsaved([]);
+      saved.current.clear();
+    },
+    /** Stops the running save or share; what it hadn't done yet is left undone. */
+    onStopExport: () => {
+      if (busy === "save" || busy === "share") job.current?.abort();
+    },
     onShareFrame: () => {
       if (openFrame) void share([openFrame.photo.id]);
     },

@@ -10,10 +10,10 @@ import { Sprockets } from "@/components/ui/film-strip";
 import { X, DotsThree } from "phosphor-react-native";
 import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
-import { FramePhoto } from "../frame-photo/frame-photo";
+import { FramePhoto } from "./frame-photo";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
 import { FilmGrain } from "@/components/ui/film-grain";
-import { GalleryProgress } from "../gallery-controls";
+import { GalleryProgress, GalleryUnsaved } from "../gallery-controls";
 import { FrameMenu } from "./frame-menu";
 import { useFrameViewer } from "./use-frame-viewer";
 import type { PhotoResponseDto } from "../../types";
@@ -25,9 +25,12 @@ type Props = {
   isOwn: boolean;
   busy: boolean;
   notice: string | null;
-  progressLabel?: string;
-  failedSaveCount: number;
+  progressLabel: string;
+  /** Stops a running save or share. */
+  onStop?: () => void;
+  unsavedCount: number;
   onRetrySave: () => void;
+  onDismissUnsaved: () => void;
   onClose: () => void;
   onRetry: () => Promise<void>;
   onSave: () => void;
@@ -82,7 +85,8 @@ export const FrameViewer = (props: Props) => {
         weekday: "short",
         hour: "2-digit",
         minute: "2-digit",
-        hour12: false,
+        // 24-hour, and never "24:05" after midnight as `hour12: false` can print.
+        hourCycle: "h23",
       })
     : "";
   // Access changes clear the viewer immediately; ordinary closes retain its
@@ -172,22 +176,17 @@ export const FrameViewer = (props: Props) => {
           )}
         />
         {busy ? (
-          <GalleryProgress label={props.progressLabel ?? t("gallery.preparing")} />
+          <GalleryProgress label={props.progressLabel} onStop={props.onStop} />
         ) : props.notice ? (
           <EdgePrint accessibilityLiveRegion="polite" className="px-5 py-3 text-center">
             {props.notice}
           </EdgePrint>
         ) : null}
-        {props.failedSaveCount > 0 ? (
-          <Button
-            title={t("gallery.retrySave", { count: props.failedSaveCount })}
-            variant="ghost"
-            fullWidth={false}
-            disabled={busy}
-            onPress={props.onRetrySave}
-          />
+        {props.unsavedCount > 0 && !busy ? (
+          <GalleryUnsaved count={props.unsavedCount} onRetry={props.onRetrySave} onDismiss={props.onDismissUnsaved} />
         ) : null}
-        <View testID="viewer-film-strip" className="bg-rebate py-3.25">
+        {/* Not the shared FilmStrip: that is a fixed, decorative row; this one scrolls the whole roll and each frame is a control. */}
+        <View testID="viewer-film-strip" className="bg-rebate py-3">
           <Sprockets edge="top" />
           <FlatList
             ref={stripRef}

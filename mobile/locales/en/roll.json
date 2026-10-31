@@ -101,12 +101,13 @@
   "leave": {
     "title": "Leave {{title}}?",
     "body": "Your frames stay on the roll until it closes. You can come back with the envelope.",
+    "bodyClosed": "It has closed, so you can’t join it again.",
     "confirm": "Leave",
     "cancel": "Stay"
   },
   "cut": {
     "title": "Cut the roll?",
-    "body": "It closes for everyone now and stops counting toward your rolls. This can’t be undone.",
+    "body": "Its frames are removed for everyone now, and it stops counting toward your rolls. This can’t be undone.",
     "confirm": "Cut it",
     "cancel": "Keep it"
   },
@@ -134,8 +135,8 @@
     "byline": "By {{name}} · {{time}}",
     "deleteOwn": "Delete for everyone",
     "deleteOther": "Delete {{name}}’s frame",
-    "loading": "Loading photo",
-    "loadFailed": "Couldn’t load this photo.",
+    "loading": "Loading frame",
+    "loadFailed": "Couldn’t load this frame.",
     "retry": "Try again",
     "save": "Save to Photos",
     "delete": "Delete frame",
@@ -154,6 +155,8 @@
     "photosAccess": "Allow photo access in Settings to add photos.",
     "libraryAccess": "Allow photo access in Settings to save frames.",
     "deleted": "Frame deleted.",
+    "gone_one": "That frame was deleted.",
+    "gone_other": "Those frames were deleted.",
     "cut": "Roll cut.",
     "removed": "{{name}} is off the roll."
   },
@@ -224,12 +227,12 @@
   "gallery": {
     "more": "More",
     "share": "Share",
-    "previous": "Previous photo",
-    "next": "Next photo",
-    "photoBy": "Photo by {{name}}",
+    "previous": "Previous frame",
+    "next": "Next frame",
+    "photoBy": "Frame by {{name}}",
     "unknownUploader": "Unknown photographer",
     "shareFailed": "Couldn’t share. Try again.",
-    "loadFailed": "Couldn’t load the photos. Try again.",
+    "loadFailed": "Couldn’t load the frames. Try again.",
     "cancel": "Cancel",
     "all": "All",
     "marked": "{{count}} marked · {{mine}} yours",
@@ -247,7 +250,14 @@
     "saveBody": "They go to Photos. Keep Everglow open until it’s done.",
     "includeMine": "Include {{count}} you added",
     "retrySave": "Retry {{count}} unsaved",
-    "preparing": "Preparing photos",
+    "preparing": "Preparing frames",
+    "sharing": "Preparing {{done}} of {{total}}",
+    "stop": "Stop",
+    "stopLabel": "Stop saving or sharing",
+    "dismissUnsaved": "Dismiss unsaved frames",
+    "mark": "Mark",
+    "unmark": "Unmark",
+    "markHint": "Use actions to mark it.",
     "saveTitle_one": "Save this frame?",
     "saveTitle_other": "Save {{count}} frames?"
   }
