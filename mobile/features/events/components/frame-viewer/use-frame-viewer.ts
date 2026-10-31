@@ -1,6 +1,12 @@
 import type { SheetFrame } from "../../lib/roll-page";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, PanResponder, Platform } from "react-native";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  FlatList,
+  PanResponder,
+  Platform,
+  type GestureResponderEvent,
+  type PanResponderGestureState,
+} from "react-native";
 
 export const useFrameViewer = ({
   previous,
@@ -35,16 +41,33 @@ export const useFrameViewer = ({
     closingFrameId.current = null;
     deferred.current = null;
   }, [frameId]);
+  const navigation = useRef({ previous, next, frameId });
+  useLayoutEffect(() => {
+    navigation.current = { previous, next, frameId };
+  }, [previous, next, frameId]);
+  const swipingFrameId = useRef<string | null>(null);
+  const onSwipeStart = useCallback(() => {
+    swipingFrameId.current = navigation.current.frameId;
+  }, []);
+  const onSwipeEnd = useCallback((_: GestureResponderEvent, { dx, dy }: PanResponderGestureState) => {
+    if (swipingFrameId.current !== navigation.current.frameId || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
+    if (dx > 50) navigation.current.previous();
+    else if (dx < -50) navigation.current.next();
+  }, []);
+  // Keep gesture state across parent refreshes; PanResponder invokes these
+  // callbacks only for touch events, never while creating the responder.
   const gesture = useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs -- the callbacks read refs only during native touch events
       PanResponder.create({
+        // Claim the photo touch immediately: iOS may not deliver movement
+        // when no view accepted its start. Child retry buttons still win.
+        onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: (_, { dx, dy }) => Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(dy) * 1.5,
-        onPanResponderRelease: (_, { dx }) => {
-          if (dx > 50) previous();
-          else if (dx < -50) next();
-        },
+        onPanResponderGrant: onSwipeStart,
+        onPanResponderRelease: onSwipeEnd,
       }),
-    [previous, next],
+    [onSwipeStart, onSwipeEnd],
   );
   return {
     stripRef,

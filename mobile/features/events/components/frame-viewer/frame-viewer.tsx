@@ -130,7 +130,7 @@ export const FrameViewer = (props: Props) => {
             <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
           </IconButton>
         </View>
-        <View className="flex-1" {...gesture}>
+        <View testID="frame-viewer-viewport" className="flex-1" {...gesture}>
           {frame ? (
             <FramePhoto
               key={frame.photo.id}

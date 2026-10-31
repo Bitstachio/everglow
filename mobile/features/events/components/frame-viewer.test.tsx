@@ -42,6 +42,106 @@ const props = (): ComponentProps<typeof FrameViewer> => ({
   onConfirmDelete: jest.fn(),
 });
 
+// Exercise the real PanResponder with native touch history; RNTL has no swipe API.
+const touchEvent = (dx = 0, dy = 0) => ({
+  nativeEvent: { touches: [{ pageX: 200 + dx, pageY: 200 + dy }] },
+  touchHistory: {
+    numberActiveTouches: 1,
+    indexOfSingleActiveTouch: 0,
+    mostRecentTimeStamp: dx || dy ? 200 : 100,
+    touchBank: [
+      {
+        touchActive: true,
+        startPageX: 200,
+        startPageY: 200,
+        startTimeStamp: 100,
+        previousPageX: 200,
+        previousPageY: 200,
+        previousTimeStamp: 100,
+        currentPageX: 200 + dx,
+        currentPageY: 200 + dy,
+        currentTimeStamp: dx || dy ? 200 : 100,
+      },
+    ],
+  },
+});
+
+const startSwipe = async (dx: number, dy = 0) => {
+  const viewport = screen.getByTestId("frame-viewer-viewport");
+  const start = touchEvent();
+  await fireEvent(viewport, "startShouldSetResponderCapture", start);
+  // iOS needs a responder at touch start to deliver the photo's movement.
+  expect(viewport.props.onStartShouldSetResponder(start)).toBe(true);
+  await fireEvent(viewport, "responderGrant", start);
+  await fireEvent(viewport, "responderMove", touchEvent(dx, dy));
+};
+
+const finishSwipe = async () => {
+  await fireEvent(screen.getByTestId("frame-viewer-viewport"), "responderRelease", touchEvent());
+};
+
+test("photo swipes navigate both ways and survive a parent refresh during the gesture", async () => {
+  const input = props();
+  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
+  input.frames = [input.frame!, second];
+  const view = await render(<FrameViewer {...input} />);
+  await startSwipe(-120);
+  const refreshedMove = jest.fn();
+  await view.rerender(<FrameViewer {...input} onMove={refreshedMove} notice="Saved" />);
+  await finishSwipe();
+  expect(refreshedMove).toHaveBeenCalledTimes(1);
+  expect(refreshedMove).toHaveBeenCalledWith("photo-2");
+  expect(input.onMove).not.toHaveBeenCalled();
+
+  await view.rerender(<FrameViewer {...input} frame={second} />);
+  await startSwipe(120);
+  await finishSwipe();
+  expect(input.onMove).toHaveBeenCalledTimes(1);
+  expect(input.onMove).toHaveBeenCalledWith("photo-1");
+});
+
+test.each([
+  [0, 0],
+  [30, 0],
+  [15, 120],
+  [-90, 100],
+])("a tap, short drag or vertical gesture does not change photos (%s, %s)", async (dx, dy) => {
+  const input = props();
+  input.frames = [input.frame!, { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 }];
+  await render(<FrameViewer {...input} />);
+  await startSwipe(dx, dy);
+  await finishSwipe();
+  expect(input.onMove).not.toHaveBeenCalled();
+});
+
+test("swipes stop at the ends of the roll and request the next page at its loaded end", async () => {
+  const input = props();
+  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
+  input.frames = [input.frame!, second];
+  const view = await render(<FrameViewer {...input} />);
+  await startSwipe(120);
+  await finishSwipe();
+  await view.rerender(<FrameViewer {...input} frame={second} hasMore />);
+  await startSwipe(-120);
+  await finishSwipe();
+  expect(input.onMove).not.toHaveBeenCalled();
+  expect(input.onLoadMore).toHaveBeenCalledTimes(1);
+});
+
+test("an interrupted gesture or a photo change during a swipe does not navigate", async () => {
+  const input = props();
+  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
+  input.frames = [input.frame!, second];
+  const view = await render(<FrameViewer {...input} />);
+  await startSwipe(-120);
+  await fireEvent(screen.getByTestId("frame-viewer-viewport"), "responderTerminate", touchEvent());
+  expect(input.onMove).not.toHaveBeenCalled();
+  await startSwipe(120);
+  await view.rerender(<FrameViewer {...input} frame={second} />);
+  await finishSwipe();
+  expect(input.onMove).not.toHaveBeenCalled();
+});
+
 test("a stalled original exposes retry after 30 seconds and resets when reopened", async () => {
   jest.useFakeTimers();
   const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
