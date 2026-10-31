@@ -4,7 +4,7 @@ import { mockSharePhotos } from "../testing/native-mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
-import { Alert } from "react-native";
+import { Alert, Dimensions } from "react-native";
 import EventDetailScreen from "./event-detail-screen";
 import { buildEvent, buildParticipant, buildPhoto, deferred } from "../testing/fixtures";
 // Seed and inspect caches at the integration boundary.
@@ -1341,6 +1341,35 @@ describe("chapter 09 gallery", () => {
     expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
     expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:theirs:original");
     expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+  });
+
+  test("native paging updates attribution and the strip only after settling, with one original mounted", async () => {
+    await renderScreen({ photos: mixed, participants: [host, guest] });
+    const user = userEvent.setup();
+    await user.press(await screen.findByLabelText("Frame 2, by Grace"));
+    const width = Dimensions.get("window").width;
+    const pager = screen.getByTestId("frame-viewer-pager");
+    const size = { width: width * 2, height: 600 };
+    const layout = { width, height: 600 };
+    await fireEvent.scroll(pager, {
+      nativeEvent: { contentOffset: { x: width / 2, y: 0 }, contentSize: size, layoutMeasurement: layout },
+    });
+    expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
+    expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
+    expect(screen.getByTestId("frame-preview-theirs", { includeHiddenElements: true }).props.source[0].cacheKey).toBe(
+      "photo:theirs:thumbnail",
+    );
+    await user.scrollTo(pager, { x: width * 0.7, momentumX: width, contentSize: size, layoutMeasurement: layout });
+    expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
+    expect(
+      within(screen.getByTestId("viewer-film-strip")).getByRole("imagebutton", { name: "Frame 1, by You" }),
+    ).toBeSelected();
+    expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
+    expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:theirs:original");
+    await user.scrollTo(pager, { x: width / 3, momentumX: 0, contentSize: size, layoutMeasurement: layout });
+    expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
+    expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:mine:original");
     expect(mockDownloadFile).not.toHaveBeenCalled();
   });
 

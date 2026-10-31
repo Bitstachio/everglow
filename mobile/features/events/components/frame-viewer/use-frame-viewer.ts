@@ -1,32 +1,32 @@
 import type { SheetFrame } from "../../lib/roll-page";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  FlatList,
-  PanResponder,
-  Platform,
-  type GestureResponderEvent,
-  type PanResponderGestureState,
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { FlatList, Platform, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 
 export const useFrameViewer = ({
-  previous,
-  next,
   index,
   stripStep,
+  pageWidth,
+  onSelectPage,
   frameId,
   onClose,
 }: {
-  previous: () => void;
-  next: () => void;
   index: number;
   stripStep: number;
+  pageWidth: number;
+  onSelectPage: (index: number) => void;
   frameId: string | null;
   onClose: () => void;
 }) => {
   const stripRef = useRef<FlatList<SheetFrame>>(null);
+  const pagerRef = useRef<FlatList<SheetFrame>>(null);
   useEffect(() => {
     if (index >= 0) stripRef.current?.scrollToOffset({ offset: Math.max(0, index - 2) * stripStep, animated: false });
   }, [index, stripStep]);
+  // Thumbnail taps, accessible navigation and rotation keep the native pager
+  // aligned. A swipe already rests at this offset when its selection commits.
+  useEffect(() => {
+    if (index >= 0) pagerRef.current?.scrollToOffset({ offset: index * pageWidth, animated: false });
+  }, [index, pageWidth]);
   const [menuVisible, setMenuVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const [presentedFrameId, setPresentedFrameId] = useState(frameId);
@@ -41,36 +41,14 @@ export const useFrameViewer = ({
     closingFrameId.current = null;
     deferred.current = null;
   }, [frameId]);
-  const navigation = useRef({ previous, next, frameId });
-  useLayoutEffect(() => {
-    navigation.current = { previous, next, frameId };
-  }, [previous, next, frameId]);
-  const swipingFrameId = useRef<string | null>(null);
-  const onSwipeStart = useCallback(() => {
-    swipingFrameId.current = navigation.current.frameId;
-  }, []);
-  const onSwipeEnd = useCallback((_: GestureResponderEvent, { dx, dy }: PanResponderGestureState) => {
-    if (swipingFrameId.current !== navigation.current.frameId || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
-    if (dx > 50) navigation.current.previous();
-    else if (dx < -50) navigation.current.next();
-  }, []);
-  // Keep gesture state across parent refreshes; PanResponder invokes these
-  // callbacks only for touch events, never while creating the responder.
-  const gesture = useMemo(
-    () =>
-      // eslint-disable-next-line react-hooks/refs -- the callbacks read refs only during native touch events
-      PanResponder.create({
-        // Claim the photo touch immediately: iOS may not deliver movement
-        // when no view accepted its start. Child retry buttons still win.
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, { dx, dy }) => Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(dy) * 1.5,
-        onPanResponderGrant: onSwipeStart,
-        onPanResponderRelease: onSwipeEnd,
-      }),
-    [onSwipeStart, onSwipeEnd],
-  );
   return {
     stripRef,
+    pagerRef,
+    onPageSettled: ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (closing || pageWidth <= 0) return;
+      const page = Math.round(nativeEvent.contentOffset.x / pageWidth);
+      if (page !== index) onSelectPage(page);
+    },
     closing,
     requestClose: () => {
       if (closing) return;
@@ -89,7 +67,6 @@ export const useFrameViewer = ({
         onClose();
       }
     },
-    gesture: gesture.panHandlers,
     menuVisible,
     openMenu: () => setMenuVisible(true),
     closeMenu: () => setMenuVisible(false),

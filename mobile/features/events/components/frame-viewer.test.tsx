@@ -1,6 +1,6 @@
 import "../testing/native-mocks";
 import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { Dimensions, Platform } from "react-native";
 import type { ComponentProps } from "react";
 import { buildPhoto } from "../testing/fixtures";
 import { FrameViewer } from "./frame-viewer/frame-viewer";
@@ -19,127 +19,97 @@ jest.mock("react-native/Libraries/Modal/Modal", () => {
   };
 });
 
-const props = (): ComponentProps<typeof FrameViewer> => ({
-  frame: { photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false },
-  canDelete: false,
-  isOwn: true,
-  frames: [],
-  busy: false,
-  notice: null,
-  failedSaveCount: 0,
-  onRetrySave: jest.fn(),
-  onShare: jest.fn(),
-  onMove: jest.fn(),
-  onLoadMore: jest.fn(),
-  hasMore: false,
-  isDeleting: false,
-  deleteTargets: null,
-  onClose: jest.fn(),
-  onRetry: jest.fn().mockResolvedValue(undefined),
-  onSave: jest.fn(),
-  onDelete: jest.fn(),
-  onCancelDelete: jest.fn(),
-  onConfirmDelete: jest.fn(),
-});
+const props = (): ComponentProps<typeof FrameViewer> => {
+  const frame = { photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false };
+  return {
+    frame,
+    canDelete: false,
+    isOwn: true,
+    frames: [frame],
+    busy: false,
+    notice: null,
+    failedSaveCount: 0,
+    onRetrySave: jest.fn(),
+    onShare: jest.fn(),
+    onMove: jest.fn(),
+    onLoadMore: jest.fn(),
+    hasMore: false,
+    isDeleting: false,
+    deleteTargets: null,
+    onClose: jest.fn(),
+    onRetry: jest.fn().mockResolvedValue(undefined),
+    onSave: jest.fn(),
+    onDelete: jest.fn(),
+    onCancelDelete: jest.fn(),
+    onConfirmDelete: jest.fn(),
+  };
+};
 
-// Exercise the real PanResponder with native touch history; RNTL has no swipe API.
-const touchEvent = (dx = 0, dy = 0) => ({
-  nativeEvent: { touches: [{ pageX: 200 + dx, pageY: 200 + dy }] },
-  touchHistory: {
-    numberActiveTouches: 1,
-    indexOfSingleActiveTouch: 0,
-    mostRecentTimeStamp: dx || dy ? 200 : 100,
-    touchBank: [
-      {
-        touchActive: true,
-        startPageX: 200,
-        startPageY: 200,
-        startTimeStamp: 100,
-        previousPageX: 200,
-        previousPageY: 200,
-        previousTimeStamp: 100,
-        currentPageX: 200 + dx,
-        currentPageY: 200 + dy,
-        currentTimeStamp: dx || dy ? 200 : 100,
-      },
-    ],
+const pageWidth = Dimensions.get("window").width;
+const pageScroll = (x: number) => ({
+  nativeEvent: {
+    contentOffset: { x, y: 0 },
+    contentSize: { width: pageWidth * 2, height: 600 },
+    layoutMeasurement: { width: pageWidth, height: 600 },
   },
 });
 
-const startSwipe = async (dx: number, dy = 0) => {
-  const viewport = screen.getByTestId("frame-viewer-viewport");
-  const start = touchEvent();
-  await fireEvent(viewport, "startShouldSetResponderCapture", start);
-  // iOS needs a responder at touch start to deliver the photo's movement.
-  expect(viewport.props.onStartShouldSetResponder(start)).toBe(true);
-  await fireEvent(viewport, "responderGrant", start);
-  await fireEvent(viewport, "responderMove", touchEvent(dx, dy));
-};
-
-const finishSwipe = async () => {
-  await fireEvent(screen.getByTestId("frame-viewer-viewport"), "responderRelease", touchEvent());
-};
-
-test("photo swipes navigate both ways and survive a parent refresh during the gesture", async () => {
+test("paging reveals thumbnail previews and selects an original only when the page settles", async () => {
   const input = props();
   const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
   input.frames = [input.frame!, second];
   const view = await render(<FrameViewer {...input} />);
-  await startSwipe(-120);
-  const refreshedMove = jest.fn();
-  await view.rerender(<FrameViewer {...input} onMove={refreshedMove} notice="Saved" />);
-  await finishSwipe();
-  expect(refreshedMove).toHaveBeenCalledTimes(1);
-  expect(refreshedMove).toHaveBeenCalledWith("photo-2");
+  const pager = screen.getByTestId("frame-viewer-pager");
+  expect(pager.props.pagingEnabled).toBe(true);
+  expect(screen.getByTestId("frame-preview-photo-2", { includeHiddenElements: true }).props.source[0].cacheKey).toBe(
+    "photo:photo-2:thumbnail",
+  );
+  await fireEvent.scroll(pager, pageScroll(pageWidth / 2));
   expect(input.onMove).not.toHaveBeenCalled();
-
-  await view.rerender(<FrameViewer {...input} frame={second} />);
-  await startSwipe(120);
-  await finishSwipe();
+  expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
+  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-1:original");
+  await userEvent.setup().scrollTo(pager, {
+    x: pageWidth * 0.7,
+    momentumX: pageWidth,
+    contentSize: { width: pageWidth * 2, height: 600 },
+    layoutMeasurement: { width: pageWidth, height: 600 },
+  });
   expect(input.onMove).toHaveBeenCalledTimes(1);
-  expect(input.onMove).toHaveBeenCalledWith("photo-1");
+  expect(input.onMove).toHaveBeenCalledWith("photo-2");
+  await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} />);
+  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-2:original");
+  expect(screen.getByTestId("frame-viewer-photo").props.placeholder[0].cacheKey).toBe("photo:photo-2:thumbnail");
+  expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
+  await fireEvent(screen.getByTestId("frame-viewer-pager"), "momentumScrollEnd", pageScroll(0));
+  expect(input.onMove).toHaveBeenLastCalledWith("photo-1");
 });
 
-test.each([
-  [0, 0],
-  [30, 0],
-  [15, 120],
-  [-90, 100],
-])("a tap, short drag or vertical gesture does not change photos (%s, %s)", async (dx, dy) => {
+test("a cancelled drag returns to the same photo without loading another original", async () => {
   const input = props();
   input.frames = [input.frame!, { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 }];
   await render(<FrameViewer {...input} />);
-  await startSwipe(dx, dy);
-  await finishSwipe();
+  await userEvent.setup().scrollTo(screen.getByTestId("frame-viewer-pager"), {
+    x: pageWidth / 4,
+    momentumX: 0,
+    contentSize: { width: pageWidth * 2, height: 600 },
+    layoutMeasurement: { width: pageWidth, height: 600 },
+  });
   expect(input.onMove).not.toHaveBeenCalled();
+  expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:photo-1:original");
 });
 
-test("swipes stop at the ends of the roll and request the next page at its loaded end", async () => {
+test("a parent refresh during paging uses the latest selection callback and prefetches at the loaded end", async () => {
   const input = props();
-  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
-  input.frames = [input.frame!, second];
-  const view = await render(<FrameViewer {...input} />);
-  await startSwipe(120);
-  await finishSwipe();
-  await view.rerender(<FrameViewer {...input} frame={second} hasMore />);
-  await startSwipe(-120);
-  await finishSwipe();
+  input.frames = [input.frame!, { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 }];
+  const view = await render(<FrameViewer {...input} hasMore />);
+  await fireEvent.scroll(screen.getByTestId("frame-viewer-pager"), pageScroll(pageWidth / 2));
+  const refreshedMove = jest.fn();
+  await view.rerender(<FrameViewer {...input} hasMore onMove={refreshedMove} notice="Saved" />);
+  await fireEvent(screen.getByTestId("frame-viewer-pager"), "momentumScrollEnd", pageScroll(pageWidth));
+  expect(refreshedMove).toHaveBeenCalledTimes(1);
+  expect(refreshedMove).toHaveBeenCalledWith("photo-2");
   expect(input.onMove).not.toHaveBeenCalled();
   expect(input.onLoadMore).toHaveBeenCalledTimes(1);
-});
-
-test("an interrupted gesture or a photo change during a swipe does not navigate", async () => {
-  const input = props();
-  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), number: 2 };
-  input.frames = [input.frame!, second];
-  const view = await render(<FrameViewer {...input} />);
-  await startSwipe(-120);
-  await fireEvent(screen.getByTestId("frame-viewer-viewport"), "responderTerminate", touchEvent());
-  expect(input.onMove).not.toHaveBeenCalled();
-  await startSwipe(120);
-  await view.rerender(<FrameViewer {...input} frame={second} />);
-  await finishSwipe();
-  expect(input.onMove).not.toHaveBeenCalled();
 });
 
 test("a stalled original exposes retry after 30 seconds and resets when reopened", async () => {
@@ -181,6 +151,8 @@ test("displaying an original cancels the loading timeout", async () => {
 
 test("automatic renewal keeps loading visible and cannot replace a different photo opened while it waits", async () => {
   const input = props();
+  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2", url: "https://cdn.example.com/second" }) };
+  input.frames = [input.frame!, second];
   let completeRenewal!: () => void;
   input.onRetry = jest.fn(() => new Promise<void>((resolve) => (completeRenewal = resolve)));
   const view = await render(<FrameViewer {...input} />);
@@ -190,8 +162,7 @@ test("automatic renewal keeps loading visible and cannot replace a different pho
   expect(screen.queryByText("Couldn’t load this photo.")).not.toBeOnTheScreen();
   expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
 
-  const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2", url: "https://cdn.example.com/second" }) };
-  await view.rerender(<FrameViewer {...input} frame={second} />);
+  await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} />);
   await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
   await act(async () => completeRenewal());
   expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(second.photo.url);
@@ -209,7 +180,7 @@ test("the compact attribution retains accessible next/previous navigation", asyn
     });
     expect(input.onMove).toHaveBeenCalledWith("photo-2");
     input.onMove = jest.fn();
-    await view.rerender(<FrameViewer {...input} frame={second} />);
+    await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} />);
     await fireEvent(screen.getByRole("adjustable"), "accessibilityAction", {
       nativeEvent: { actionName: "decrement" },
     });
@@ -259,7 +230,7 @@ test("changing photos clears a closing menu's deferred action", async () => {
   await user.press(screen.getAllByRole("button", { name: "More" })[0]);
   await user.press(within(screen.getByTestId("frame-menu-dialog")).getByRole("button", { name: "Save to Photos" }));
   const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), by: "Leila" };
-  await view.rerender(<FrameViewer {...input} frame={second} isOwn={false} />);
+  await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} isOwn={false} />);
   await act(async () => screen.getByTestId("frame-menu-dialog", { includeHiddenElements: true }).props.onDismiss());
   expect(input.onSave).not.toHaveBeenCalled();
   await user.press(screen.getAllByRole("button", { name: "More" })[0]);

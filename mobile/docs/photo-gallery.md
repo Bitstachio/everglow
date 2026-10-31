@@ -15,6 +15,10 @@ Opening a photo requests its original. Swiping, the thumbnail strip, and the hea
 actions move the same viewer; only its active frame renders
 an original. The strip and grid use stable thumbnail cache keys. Attribution
 comes from the participant list, with a fallback for a departed/deleted uploader.
+The original viewport uses native horizontal paging: photos track the finger,
+with cached thumbnail previews on adjacent pages. Selection and attribution
+change only after the page settles. The selected page keeps its thumbnail as
+a placeholder while its original loads; dragging back loads no other original.
 A suspended/closed gallery or revoked access closes the viewer. An original
 that fails or stalls exposes Retry, which renews its URL through the single
 photo endpoint before reloading it.
