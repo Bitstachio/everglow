@@ -1,8 +1,7 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import * as ImagePicker from "expo-image-picker";
-import { File, Paths } from "expo-file-system";
-import * as MediaLibrary from "expo-media-library";
+import { File } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +13,7 @@ import {
   useRemoveEventParticipantMutation,
   useUploadEventPhotosMutation,
 } from "../api/mutations";
+import { requestLibraryAddAccess, saveEventPhoto } from "../api/save-event-photos";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "../api/queries";
 import {
@@ -28,7 +28,7 @@ import {
 import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import { useArrivalNote } from "./use-arrival-note";
-import type { EventParticipantResponseDto, PhotoResponseDto, PhotoUploadStatus } from "../types";
+import type { EventParticipantResponseDto, PhotoUploadStatus } from "../types";
 import { eventStorageLeftBytes, formatStorageBytes } from "../utils";
 
 // Event photos upload as picked: no crop step and no re-encode, so group shots
@@ -82,29 +82,6 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
   return asset.fileSize ?? 0;
 };
 
-/** Saves one frame to the phone's library. The library keeps its own copy, so the download goes. */
-const saveToLibrary = async (photo: PhotoResponseDto) => {
-  // Original S3 keys have no suffix. Photos detects the media type from the local filename.
-  const extensions: Record<PhotoResponseDto["contentType"], string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/heic": "heic",
-    "image/heif": "heif",
-  };
-  const destination = new File(Paths.cache, `everglow-${photo.id}.${extensions[photo.contentType]}`);
-  const downloaded = await File.downloadFileAsync(photo.url, destination, { idempotent: true });
-  try {
-    await MediaLibrary.Asset.create(downloaded.uri);
-  } finally {
-    try {
-      downloaded.delete();
-    } catch {
-      // Already gone; the cache is the system's to clear anyway.
-    }
-  }
-};
-
 /** What the sheet over the roll shows: the menu, people, or a slip. */
 export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove";
 
@@ -142,6 +119,10 @@ export const useEventDetailScreen = () => {
 
   const [uploadStatus, setUploadStatus] = useState<PhotoUploadStatus | null>(null);
   const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
+  // One save at a time, Save all or the viewer's, so the two never work on the same frame at once.
+  const saveRunning = useRef(false);
+  // Frames a Save all that didn't finish did save. The next Save all skips them, so nothing lands twice.
+  const savedByLastSaveAll = useRef(new Set<string>());
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -268,46 +249,67 @@ export const useEventDetailScreen = () => {
   };
 
   const ensureLibraryAccess = async () => {
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status === "granted") return true;
+    if (await requestLibraryAddAccess()) return true;
     showNotice(t("result.libraryAccess"));
     return false;
   };
 
   const onSaveAll = async () => {
-    if (photos.length === 0 || saving) return;
-    if (!(await ensureLibraryAccess())) return;
+    if (photos.length === 0 || saveRunning.current) return;
+    saveRunning.current = true;
+    try {
+      if (!(await ensureLibraryAccess())) return;
 
-    const total = photos.length;
-    let saved = 0;
-    setSaving({ done: 0, total });
-    for (const photo of photos) {
-      try {
-        await saveToLibrary(photo);
-        saved += 1;
-      } catch {
-        // Keep going: one frame that won't save shouldn't stop the rest.
+      // Trying again after a Save all that didn't finish saves only what it missed.
+      const saved = savedByLastSaveAll.current;
+      const missed = photos.filter((photo) => !saved.has(photo.id));
+      const pending = missed.length > 0 ? missed : photos;
+      const signedAt = photosQuery.dataUpdatedAt;
+      const total = pending.length;
+      let done = 0;
+      setSaving({ done: 0, total });
+      for (const photo of pending) {
+        try {
+          await saveEventPhoto(photo, signedAt);
+          saved.add(photo.id);
+          done += 1;
+        } catch {
+          // Keep going: one frame that won't save shouldn't stop the rest.
+        }
+        setSaving({ done, total });
       }
-      setSaving({ done: saved, total });
-    }
-    setSaving(null);
 
-    if (saved === total) showNotice(t("result.saved", { count: total }));
-    else if (saved === 0) showNotice(t("result.saveFailed"));
-    else showNotice(t("result.savedSome", { saved, total }));
+      if (done === total) {
+        // Everything is in Photos, so a later Save all starts over.
+        saved.clear();
+        showNotice(t("result.saved", { count: total }));
+      } else if (done === 0) {
+        showNotice(t("result.saveFailed"));
+      } else {
+        showNotice(t("result.savedSome", { saved: done, total }));
+      }
+    } finally {
+      setSaving(null);
+      saveRunning.current = false;
+    }
   };
 
   const onSaveFrame = async () => {
-    if (!openFrame) return;
-    if (!(await ensureLibraryAccess())) return;
-    setIsSavingFrame(true);
+    if (!openFrame || saveRunning.current) return;
+    const { photo } = openFrame;
+    saveRunning.current = true;
     try {
-      await saveToLibrary(openFrame.photo);
+      if (!(await ensureLibraryAccess())) return;
+      setIsSavingFrame(true);
+      await saveEventPhoto(photo, photosQuery.dataUpdatedAt);
+      // Saved now, so trying a Save all that didn't finish again leaves it out.
+      if (savedByLastSaveAll.current.size > 0) savedByLastSaveAll.current.add(photo.id);
       showNotice(t("result.saved", { count: 1 }));
     } catch {
       showNotice(t("result.saveFailed"));
     } finally {
       setIsSavingFrame(false);
+      saveRunning.current = false;
     }
   };
 
@@ -409,6 +411,9 @@ export const useEventDetailScreen = () => {
     openFrame,
     openFrameIsDeletable,
     isSavingFrame,
+    // The viewer's Save waits while Save all runs, and Save all while the viewer saves.
+    canSaveFrame: saving === null,
+    canSaveAll: frames.length > 0 && !isSavingFrame && saving === null,
     isDeletingFrame: deletePhotoMutation.isPending,
     confirmDeleteVisible,
     sheet,

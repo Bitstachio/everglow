@@ -8,6 +8,7 @@ const props = (): ComponentProps<typeof FrameViewer> => ({
   frame: { photo: buildPhoto(), number: 1, by: "You", isNew: false },
   canDelete: false,
   isSaving: false,
+  canSave: true,
   isDeleting: false,
   confirmDeleteVisible: false,
   onClose: jest.fn(),

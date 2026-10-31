@@ -22,6 +22,7 @@ const mockCreateUploadUrls = jest.fn();
 const mockConfirmUploads = jest.fn();
 const mockFileSize = jest.fn();
 const mockRemovePhoto = jest.fn();
+const mockFindPhoto = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -47,6 +48,7 @@ jest.mock("@/lib/api/generated", () => ({
   photosControllerCreateUploadUrls: (...args: unknown[]) => mockCreateUploadUrls(...args),
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
   photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
+  photosControllerFindOne: (...args: unknown[]) => mockFindPhoto(...args),
 }));
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -130,6 +132,10 @@ const renderScreen = async (seed: DetailSeed = {}) => {
 
 const IMAGE_BYTES = "image-bytes";
 
+/** Each save downloads to a temporary file of its own, numbered after the frame's id. */
+const temporaryFile = (photoId: string, suffix = "jpg") =>
+  expect.stringMatching(new RegExp(`^file://cache/everglow-${photoId}-\\d+\\.${suffix}$`));
+
 const confirmAllReady = ({ body }: { body: { photoIds: string[] } }) =>
   Promise.resolve({ data: { data: body.photoIds.map((photoId) => ({ photoId, status: "READY" })) } });
 
@@ -171,6 +177,9 @@ beforeEach(() => {
   mockConfirmUploads.mockReset().mockImplementation(confirmAllReady);
   mockFileSize.mockReset().mockReturnValue(IMAGE_BYTES.length);
   mockRemovePhoto.mockReset().mockResolvedValue({});
+  mockFindPhoto.mockReset().mockImplementation(async ({ path }: { path: { photoId: string } }) => ({
+    data: { data: buildPhoto({ id: path.photoId, url: `https://cdn.example.com/${path.photoId}?renewed` }) },
+  }));
   mockBack.mockReset();
   mockReplace.mockReset();
   mockPush.mockReset();
@@ -578,7 +587,7 @@ describe("saving and deleting frames", () => {
     await user.press(await screen.findByLabelText("Frame 1, by You"));
     await user.press(screen.getByRole("button", { name: "Save to Photos" }));
     expect(await screen.findByText("Saved to Photos.")).toBeOnTheScreen();
-    expect(mockCreateAsset).toHaveBeenCalledWith(`file://cache/everglow-photo-1.${suffix}`);
+    expect(mockCreateAsset).toHaveBeenCalledWith(temporaryFile("photo-1", suffix));
     expect(mockDeleteDownload).toHaveBeenCalledTimes(1);
   });
 
@@ -618,7 +627,7 @@ describe("saving and deleting frames", () => {
       await waitFor(() =>
         expect(mockDownloadFile).toHaveBeenCalledWith(
           refreshed.url,
-          expect.objectContaining({ uri: "file://cache/everglow-photo-1.jpg" }),
+          expect.objectContaining({ uri: temporaryFile("photo-1") }),
           { idempotent: true },
         ),
       );
@@ -663,12 +672,87 @@ describe("saving and deleting frames", () => {
     expect(await screen.findByText("2 frames saved to Photos.")).toBeOnTheScreen();
     expect(mockDownloadFile).toHaveBeenCalledWith(
       "https://cdn.example.com/2.jpg",
-      expect.objectContaining({ uri: "file://cache/everglow-photo-2.jpg" }),
+      expect.objectContaining({ uri: temporaryFile("photo-2") }),
       { idempotent: true },
     );
     expect(mockCreateAsset).toHaveBeenCalledTimes(2);
     // The library keeps its own copy, so the downloads don't pile up in the cache.
     expect(mockDeleteDownload).toHaveBeenCalledTimes(2);
+  });
+
+  test("saving asks only to add to Photos, and says so when that's refused", async () => {
+    await renderScreen({ photos: oneFrame });
+    mockRequestMediaPermission.mockResolvedValue({ status: "denied" });
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Save all frames to Photos" }));
+
+    expect(await screen.findByText("Allow photo access in Settings to save frames.")).toBeOnTheScreen();
+    expect(mockRequestMediaPermission).toHaveBeenCalledWith(true, ["photo"]);
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+  });
+
+  test("Save all still saves once the listed links have expired, with a new link for each frame", async () => {
+    await renderScreen({
+      photos: [
+        buildPhoto({ id: "photo-2", url: "https://cdn.example.com/photo-2?expired" }),
+        buildPhoto({ url: "https://cdn.example.com/photo-1?expired" }),
+      ],
+    });
+    // S3 refuses an expired link with a 403.
+    mockDownloadFile.mockImplementation(async (url: string, destination: { uri: string }) => {
+      if (url.endsWith("?expired")) throw new Error("UnableToDownload: response has status 403");
+      return { uri: destination.uri, delete: mockDeleteDownload };
+    });
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Save all frames to Photos" }));
+
+    expect(await screen.findByText("2 frames saved to Photos.")).toBeOnTheScreen();
+    expect(mockFindPhoto).toHaveBeenCalledWith({ path: { photoId: "photo-2" }, throwOnError: true });
+    expect(mockFindPhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true });
+    expect(mockCreateAsset).toHaveBeenCalledTimes(2);
+    // One frame's link is renewed on its own: the roll's pages aren't fetched again.
+    expect(mockListPhotos).toHaveBeenCalledTimes(1);
+  });
+
+  test("trying Save all again saves only the frames that didn't save, then starts over", async () => {
+    await renderScreen({ photos: [buildPhoto({ id: "photo-3" }), buildPhoto({ id: "photo-2" }), buildPhoto()] });
+    mockCreateAsset.mockRejectedValueOnce(new Error("library write failed"));
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Save all frames to Photos" }));
+    expect(await screen.findByText("2 of 3 saved. The rest didn’t save; try again.")).toBeOnTheScreen();
+    expect(mockCreateAsset).toHaveBeenCalledTimes(3);
+
+    mockDownloadFile.mockClear();
+    await user.press(screen.getByRole("button", { name: "Save all frames to Photos" }));
+    expect(await screen.findByText("Saved to Photos.")).toBeOnTheScreen();
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      buildPhoto().url,
+      expect.objectContaining({ uri: temporaryFile("photo-3") }),
+      { idempotent: true },
+    );
+
+    mockDownloadFile.mockClear();
+    await user.press(screen.getByRole("button", { name: "Save all frames to Photos" }));
+    expect(await screen.findByText("3 frames saved to Photos.")).toBeOnTheScreen();
+    expect(mockDownloadFile).toHaveBeenCalledTimes(3);
+  });
+
+  test("the viewer's Save waits while Save all runs", async () => {
+    await renderScreen({ photos: [buildPhoto({ id: "photo-2" }), buildPhoto()] });
+    const firstDownload = deferred<void>();
+    mockDownloadFile.mockImplementationOnce(async (_url: string, destination: { uri: string }) => {
+      await firstDownload.promise;
+      return { uri: destination.uri, delete: mockDeleteDownload };
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Save all frames to Photos" }));
+    expect(await screen.findByText("Saving 0 of 2")).toBeOnTheScreen();
+
+    await user.press(screen.getByLabelText("Frame 2, by You"));
+    expect(screen.getByRole("button", { name: "Save to Photos" })).toBeDisabled();
+
+    firstDownload.resolve();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save to Photos" })).toBeEnabled());
+    expect(mockDownloadFile).toHaveBeenCalledTimes(2);
   });
 
   test("a missing thumbnail stays a tappable placeholder and never preloads an original", async () => {
@@ -703,7 +787,7 @@ describe("saving and deleting frames", () => {
     ]);
 
     await user.press(screen.getByRole("button", { name: "Save to Photos" }));
-    await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith("file://cache/everglow-photo-1.jpg"));
+    await waitFor(() => expect(mockCreateAsset).toHaveBeenCalledWith(temporaryFile("photo-1")));
 
     mockDetailResponses({ photos: [] });
     await user.press(screen.getByRole("button", { name: "Delete frame" }));
