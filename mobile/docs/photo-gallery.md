@@ -19,8 +19,11 @@ A suspended/closed gallery or revoked access closes the viewer. An original
 that fails or stalls exposes Retry, which renews its URL through the single
 photo endpoint before reloading it.
 
-Long-press starts selection. Guests can delete only their own selected
-photos; hosts can delete any. Under-review rolls cannot delete. Confirmation
+Long-press starts selection in place: the cover, event details and contact
+sheet keep their layout and scroll position while the top and bottom controls
+switch to selection actions. The people link is inactive during selection.
+Guests can delete only their own selected photos; hosts can delete any.
+Under-review rolls cannot delete. Confirmation
 names the number that will actually be removed for everyone. Each deletion
 uses the existing endpoint, so the server still enforces ownership and
 moderation rules. Successful and already-removed photos leave selection;

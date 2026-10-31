@@ -323,7 +323,7 @@ const EventDetailScreen = () => {
           )
         }
         peopleLabel={viewOnlyBand ? t("band.viewOnly") : t("band.peopleLabel", { count: event.usage.members })}
-        onPeople={viewOnlyBand ? undefined : screen.onOpenPeople}
+        onPeople={viewOnlyBand || screen.selecting ? undefined : screen.onOpenPeople}
         circleTime={(stage === "upcoming" && role === "host") || lastDay}
         circleStock={screen.isFull}
       />
@@ -430,7 +430,8 @@ const EventDetailScreen = () => {
         keyExtractor={(item) => (item.kind === "photo" ? item.frame.photo.id : item.frame.item.key)}
         numColumns={3}
         renderItem={renderFrame}
-        ListHeaderComponent={screen.selecting ? <View style={{ height: insets.top + 72 }} /> : header}
+        // Selection only swaps overlay controls; keep the content height and scroll position unchanged.
+        ListHeaderComponent={header}
         onEndReached={screen.loadMore}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
