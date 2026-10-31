@@ -18,6 +18,8 @@ import { GalleryProgress, GalleryUnsaved } from "../gallery-controls";
 import { FrameMenu } from "./frame-menu";
 import { FramePager } from "./frame-pager";
 import { useFrameViewer } from "./use-frame-viewer";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
+import { BlockSlip } from "@/features/moderation/components/block-slip";
 import type { RenewFrame } from "./use-frame-photo";
 import type { PhotoResponseDto } from "../../types";
 
@@ -47,6 +49,14 @@ type Props = {
   isDeleting: boolean;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
+  /** Report this frame (10.1). Runs once the viewer has closed, since the report opens over the roll. */
+  onReport?: () => void;
+  /** Ask to block the frame's owner (10.11). */
+  onBlock?: () => void;
+  /** Whose block is being confirmed over the viewer, if anyone's. */
+  blocking: { name: string; busy: boolean; error: string | null } | null;
+  onCancelBlock: () => void;
+  onConfirmBlock: () => void;
 };
 
 /**
@@ -54,7 +64,7 @@ type Props = {
  * one on each side load their originals, two on each side keep thumbnails.
  */
 export const FrameViewer = (props: Props) => {
-  const { frame, frames, busy } = props;
+  const { frame, frames, busy, onReport, onBlock } = props;
   const { t, i18n } = useTranslation("roll");
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -75,6 +85,7 @@ export const FrameViewer = (props: Props) => {
     onMenuClosed,
     closing,
     requestClose,
+    closeThen,
     onDismiss,
   } = useFrameViewer({
     index,
@@ -274,6 +285,8 @@ export const FrameViewer = (props: Props) => {
         onSave={() => fromMenu(props.onSave)}
         onShare={() => fromMenu(props.onShare)}
         onDelete={() => fromMenu(props.onDelete)}
+        onReport={onReport ? () => fromMenu(() => closeThen(onReport)) : undefined}
+        onBlock={onBlock ? () => fromMenu(onBlock) : undefined}
       />
       <GalleryDeleteSheet
         targets={props.deleteTargets}
@@ -281,6 +294,17 @@ export const FrameViewer = (props: Props) => {
         onClose={props.onCancelDelete}
         onConfirm={props.onConfirmDelete}
       />
+      <BottomSheet testID="viewer-block-dialog" visible={props.blocking !== null} onClose={props.onCancelBlock}>
+        {props.blocking ? (
+          <BlockSlip
+            name={props.blocking.name}
+            busy={props.blocking.busy}
+            error={props.blocking.error}
+            onConfirm={props.onConfirmBlock}
+            onCancel={props.onCancelBlock}
+          />
+        ) : null}
+      </BottomSheet>
     </Modal>
   );
 };

@@ -35,3 +35,49 @@ test.each([
     expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeOnTheScreen();
   }
 });
+
+test("someone else's frame can be reported and its owner blocked (09.3)", async () => {
+  const onReport = jest.fn();
+  const onBlock = jest.fn();
+  await renderWithI18n(
+    <FrameMenu
+      frame={{ photo: buildPhoto(), number: 1, by: "Leila", uploader: null, isNew: false }}
+      name="Leila"
+      time="Sun 21:42"
+      isOwn={false}
+      canDelete={false}
+      visible
+      onClose={jest.fn()}
+      onClosed={jest.fn()}
+      onSave={jest.fn()}
+      onShare={jest.fn()}
+      onDelete={jest.fn()}
+      onReport={onReport}
+      onBlock={onBlock}
+    />,
+  );
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Report this frame" }));
+  await user.press(screen.getByRole("button", { name: "Block Leila" }));
+  expect(onReport).toHaveBeenCalledTimes(1);
+  expect(onBlock).toHaveBeenCalledTimes(1);
+});
+
+test("your own frame offers neither report nor block", async () => {
+  await renderWithI18n(
+    <FrameMenu
+      frame={{ photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false }}
+      name="You"
+      time="Sun 21:42"
+      isOwn
+      canDelete
+      visible
+      onClose={jest.fn()}
+      onClosed={jest.fn()}
+      onSave={jest.fn()}
+      onShare={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: /Report|Block/ })).not.toBeOnTheScreen();
+});

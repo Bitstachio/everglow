@@ -1,0 +1,95 @@
+{
+  "close": "Close",
+  "top": {
+    "frame": "Report frame {{number}}",
+    "frameNoNumber": "Report this frame",
+    "person": "Report {{name}}",
+    "roll": "Report {{title}}"
+  },
+  "subject": {
+    "frame": "{{number}} · {{name}}",
+    "frameNoName": "Frame {{number}}",
+    "person": "{{name}} · @{{username}}",
+    "roll": "The whole roll"
+  },
+  "ticket": {
+    "frame": "What’s wrong with this frame",
+    "person": "What’s wrong with {{name}}",
+    "roll": "What’s wrong with this roll",
+    "anonymous": "Anonymous",
+    "everglow": "Goes straight to Everglow",
+    "footer": {
+      "frame": "The hosts see what was reported, never who reported it. You stop seeing this photo right away.",
+      "person": "The hosts see what was reported, never who reported it.",
+      "roll": "Reports about a roll go to Everglow. The hosts are not told who reported it.",
+      "serious": "This goes only to Everglow’s safety team, not the hosts. If someone is in danger now, call 911."
+    },
+    "note": "A short note",
+    "notePlaceholder": "What happened",
+    "noteLabel": "A short note about what’s wrong, optional"
+  },
+  "reasons": {
+    "frame": {
+      "SPAM": "Spam",
+      "NUDITY_OR_SEXUAL": "Nudity or sexual",
+      "HARASSMENT": "Harassment",
+      "VIOLENCE": "Violence",
+      "OTHER": "Something else",
+      "CHILD_SAFETY": "A child is at risk",
+      "NON_CONSENSUAL_INTIMATE_IMAGE": "Intimate image shared without consent"
+    },
+    "person": {
+      "SPAM": "Spam",
+      "HARASSMENT": "Harassing people",
+      "VIOLENCE": "Violence or threats",
+      "OTHER": "Something else",
+      "CHILD_SAFETY": "Putting a child at risk"
+    },
+    "roll": {
+      "SPAM": "Spam or a scam",
+      "NUDITY_OR_SEXUAL": "Nudity or sexual",
+      "HARASSMENT": "Hate or harassment",
+      "VIOLENCE": "Violence",
+      "OTHER": "Something else",
+      "CHILD_SAFETY": "A child is at risk",
+      "NON_CONSENSUAL_INTIMATE_IMAGE": "Intimate images"
+    }
+  },
+  "send": "Send report",
+  "sendEverglow": "Send to Everglow",
+  "failed": "Didn’t send. Try again.",
+  "gone": {
+    "frame": "This frame isn’t on the roll anymore.",
+    "person": "{{name}} isn’t on this roll anymore.",
+    "roll": "This roll isn’t there anymore."
+  },
+  "sent": {
+    "frame": "Report sent · frame hidden for you",
+    "person": "Report sent",
+    "roll": "Report sent to Everglow"
+  },
+  "block": {
+    "edge": "Block {{name}}",
+    "title": "You won’t see each other.",
+    "body": "{{name}}’s photos disappear for you on every roll, and yours for them. They aren’t told. Inside rolls {{name}} hosts, you’ll still see each other.",
+    "confirm": "Block {{name}}",
+    "cancel": "Cancel",
+    "done": "{{name}} is blocked",
+    "failed": "Didn’t block. Try again."
+  },
+  "menu": {
+    "reportFrame": "Report this frame",
+    "block": "Block {{name}}",
+    "unblock": "Unblock {{name}}",
+    "unblocked": "{{name}} is unblocked",
+    "reportPerson": "Report {{name}}",
+    "reportRoll": "Report this roll",
+    "remove": "Remove {{name}} from the roll",
+    "reports": "Reports",
+    "reportsToCheck": "Reports · {{count}} to check"
+  },
+  "person": {
+    "edge": "{{role}} · @{{username}}",
+    "edgeNoUsername": "{{role}}"
+  }
+}

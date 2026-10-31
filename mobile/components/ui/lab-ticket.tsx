@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { GreasePencil } from "./grease-pencil";
 import { Paper, PaperHead } from "./lab-paper";
@@ -18,13 +19,15 @@ type LabTicketProps = {
   divider?: { afterKey: string; label: string };
   /** Small print at the bottom, for example "Anonymous to hosts". */
   footer?: string;
+  /** Written on the ticket after an option, such as a short note under "Something else". */
+  writeIn?: { afterKey: string; content: ReactNode };
 };
 
 /**
  * A lab ticket: printed options ticked in pencil. Reporting uses it. Each
  * option is a checkbox for assistive tech.
  */
-export const LabTicket = ({ title, number, options, divider, footer }: LabTicketProps) => (
+export const LabTicket = ({ title, number, options, divider, footer, writeIn }: LabTicketProps) => (
   <Paper tilt="right">
     <PaperHead title={title} number={number} />
     {options.map((option) => (
@@ -45,6 +48,7 @@ export const LabTicket = ({ title, number, options, divider, footer }: LabTicket
           </View>
           <Text className="flex-1 font-mono text-edge-print uppercase text-paper-ink">{option.label}</Text>
         </Pressable>
+        {writeIn?.afterKey === option.key ? writeIn.content : null}
         {divider?.afterKey === option.key ? (
           <Text className="pb-0.5 pt-3 font-mono-semibold text-edge-print uppercase text-stamp">{divider.label}</Text>
         ) : null}
