@@ -8,10 +8,13 @@ import { PinoLogger } from "nestjs-pino";
 import { PhotoPendingCleanupService } from "./photo-pending-cleanup.service";
 import { EXPIRED_UPLOAD_SLOT_AGE_SECONDS, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
 
+// An original and the image processor's two renditions of it, deleted in one batch.
+const withDerivatives = (key: string): string[] => [key, `derived/${key}/thumb.webp`, `derived/${key}/large.jpg`];
+
 describe("PhotoPendingCleanupService", () => {
   let service: PhotoPendingCleanupService;
   let prisma: DeepMockProxy<PrismaClient>;
-  let s3Service: { deleteObject: jest.Mock; headObject: jest.Mock };
+  let s3Service: { deleteObjects: jest.Mock; headObject: jest.Mock };
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const photoId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
@@ -30,7 +33,7 @@ describe("PhotoPendingCleanupService", () => {
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
     s3Service = {
-      deleteObject: jest.fn().mockResolvedValue(undefined),
+      deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })),
       headObject: jest.fn().mockResolvedValue({ exists: false }),
     };
 
@@ -70,9 +73,9 @@ describe("PhotoPendingCleanupService", () => {
         take: 100,
         select: { id: true, s3Key: true, eventId: true },
       });
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(s3Key);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives(s3Key));
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
-      expect(s3Service.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(s3Service.deleteObjects.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.delete.mock.invocationCallOrder[0],
       );
     });
@@ -83,7 +86,7 @@ describe("PhotoPendingCleanupService", () => {
       const result = await service.cleanupStalePendingPhotos();
 
       expect(result).toEqual({ scanned: 0, deleted: 0, failed: 0, expired: noExpired });
-      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
       expect(s3Service.headObject).not.toHaveBeenCalled();
       expect(prisma.photo.delete).not.toHaveBeenCalled();
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
@@ -94,7 +97,7 @@ describe("PhotoPendingCleanupService", () => {
         { id: photoId, s3Key, eventId },
         { id: otherPhotoId, s3Key: otherS3Key, eventId },
       ]);
-      s3Service.deleteObject.mockRejectedValueOnce(new Error("s3 down"));
+      s3Service.deleteObjects.mockRejectedValueOnce(new Error("s3 down"));
       prisma.photo.delete.mockResolvedValue({} as never);
 
       const result = await service.cleanupStalePendingPhotos();
@@ -145,7 +148,7 @@ describe("PhotoPendingCleanupService", () => {
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
         where: { id: photoId, status: PhotoStatus.PENDING },
       });
-      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
       expect(prisma.photo.delete).not.toHaveBeenCalled();
     });
 
@@ -157,7 +160,7 @@ describe("PhotoPendingCleanupService", () => {
 
       expect(result.expired).toEqual({ scanned: 1, released: 0, retained: 1, failed: 0 });
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
-      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     });
 
     it("does not count a row that a concurrent confirm flipped to READY", async () => {

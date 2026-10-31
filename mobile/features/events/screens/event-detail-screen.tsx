@@ -233,7 +233,7 @@ const EventDetailScreen = () => {
       : t("footer.saveAll"),
     accessibilityLabel: t("footer.saveAllLabel"),
     onPress: screen.onSaveAll,
-    disabled: count === 0 || screen.saving !== null,
+    disabled: !screen.canSaveAll,
   };
   const people: FooterAction = {
     title: t("footer.people"),
@@ -591,6 +591,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         frame={screen.openFrame}
         canDelete={screen.openFrameIsDeletable}
         isSaving={screen.isSavingFrame}
+        canSave={screen.canSaveFrame}
         isDeleting={screen.isDeletingFrame}
         confirmDeleteVisible={screen.confirmDeleteVisible}
         onClose={screen.onCloseFrame}

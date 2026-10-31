@@ -9,6 +9,12 @@ export const TEST_SIGNED_PUT_URL = "https://s3.example.com/signed-put";
 export const TEST_SIGNED_GET_URL = "https://s3.example.com/signed-get";
 export const TEST_SIGNED_THUMBNAIL_URL = "https://s3.example.com/signed-thumb";
 
+/** What one DeleteObjects batch holds: each photo original followed by its two renditions. */
+export const withPhotoDerivatives = (...keys: string[]): string[] =>
+  keys.flatMap((key) =>
+    key.startsWith("photos/") ? [key, `derived/${key}/thumb.webp`, `derived/${key}/large.jpg`] : [key],
+  );
+
 export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
   id: TEST_PHOTO_ID,
   eventId: TEST_EVENT_ID,

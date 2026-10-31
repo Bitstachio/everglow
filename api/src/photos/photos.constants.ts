@@ -35,8 +35,42 @@ export const PHOTO_S3_KEY_PREFIX = "photos/";
 export const buildPhotoS3Key = (userId: string, eventId: string, photoId: string): string =>
   `${PHOTO_S3_KEY_PREFIX}${userId}/${eventId}/${photoId}`;
 
-/** Matches functions/image-processor/src/keys.ts, including legacy original keys. */
-export const buildPhotoThumbnailS3Key = (originalKey: string): string => `derived/${originalKey}/thumb.webp`;
+// The image processor's renditions of an original (functions/image-processor/src/keys.ts):
+// derived/{originalKey}/thumb.webp and derived/{originalKey}/large.jpg.
+export const PHOTO_DERIVED_S3_KEY_PREFIX = "derived/";
+export const PHOTO_THUMBNAIL_OBJECT_NAME = "thumb.webp";
+export const PHOTO_LARGE_OBJECT_NAME = "large.jpg";
+
+export interface PhotoDerivativeS3Keys {
+  thumb: string;
+  large: string;
+}
+
+/**
+ * The one place the API builds derived keys. Matches derivedKeysForOriginal in
+ * functions/image-processor/src/keys.ts, legacy original keys included; the
+ * spec pins the two against each other.
+ */
+export const buildPhotoDerivativeS3Keys = (originalKey: string): PhotoDerivativeS3Keys => {
+  const base = `${PHOTO_DERIVED_S3_KEY_PREFIX}${originalKey}`;
+  return { thumb: `${base}/${PHOTO_THUMBNAIL_OBJECT_NAME}`, large: `${base}/${PHOTO_LARGE_OBJECT_NAME}` };
+};
+
+export const buildPhotoThumbnailS3Key = (originalKey: string): string => buildPhotoDerivativeS3Keys(originalKey).thumb;
+
+/** True for keys the image processor renders: everything under photos/, like its ObjectCreated filter. */
+export const hasPhotoDerivatives = (key: string): boolean => key.startsWith(PHOTO_S3_KEY_PREFIX);
+
+/**
+ * Each key followed by its derived keys when it is a photo original, for one
+ * DeleteObjects batch. Other keys (event covers, avatars) pass through alone.
+ */
+export const withPhotoDerivativeS3Keys = (keys: string[]): string[] =>
+  keys.flatMap((key) => {
+    if (!hasPhotoDerivatives(key)) return [key];
+    const { thumb, large } = buildPhotoDerivativeS3Keys(key);
+    return [key, thumb, large];
+  });
 
 // The current photos/{userId}/{eventId}/{photoId} layout plus the pre-#38
 // photos/{eventId}/{photoId} layout, whose rows still reference their old keys.
