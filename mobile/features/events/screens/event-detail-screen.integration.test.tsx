@@ -411,6 +411,40 @@ describe("closed (07.9)", () => {
     expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
     expect(mockListPhotos).not.toHaveBeenCalled();
   });
+
+  const closedEvent = () =>
+    buildEvent({
+      galleryState: "CLOSED",
+      galleryOpensAt: "2026-09-12T10:00:00.000Z",
+      galleryClosesAt: "2026-09-21T10:00:00.000Z",
+    });
+
+  test("a guest who can't leave is told why", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ event: closedEvent(), participants: [host, guest] });
+    mockLeave.mockRejectedValueOnce(createApiError("Couldn’t leave this roll.", { status: 400 }));
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    // A closed roll can't be joined again, so the slip doesn't offer the envelope.
+    expect(await screen.findByText("It has closed, so you can’t join it again.")).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Leave" }));
+
+    expect(await screen.findByText("Couldn’t leave this roll.")).toBeOnTheScreen();
+    expect(screen.getByText("Closed 21.09")).toBeOnTheScreen();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  test("a host who takes someone off says so", async () => {
+    await renderScreen({ event: closedEvent(), participants: [host, guest] });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "People" }));
+    await user.press(await screen.findByRole("button", { name: "Grace Hopper, Adds photos" }));
+    await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+
+    expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
+  });
 });
 
 describe("held by Everglow (07.10, 07.11)", () => {
@@ -436,7 +470,13 @@ describe("held by Everglow (07.10, 07.11)", () => {
 
     const user = userEvent.setup();
     await user.press(screen.getByRole("button", { name: "Cut the roll" }));
-    await user.press(await screen.findByRole("button", { name: "Cut it" }));
+    // Deletion copy says what goes and for whom (docs/voice.md).
+    expect(
+      await screen.findByText(
+        "Its frames are removed for everyone now, and it stops counting toward your rolls. This can’t be undone.",
+      ),
+    ).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Cut it" }));
     await waitFor(() =>
       expect(mockDeactivate).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }),
     );
@@ -606,13 +646,13 @@ describe("saving and deleting frames", () => {
       await renderScreen({ photos: [buildPhoto()] });
       const user = userEvent.setup();
       await user.press(await screen.findByLabelText("Frame 1, by You"));
-      expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
-      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "error", {
         nativeEvent: { error: "Failed https://private-bucket/photo?signature=secret" },
       });
-      expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+      expect(screen.getByText("Couldn’t load this frame.")).toBeOnTheScreen();
       expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
       expect(warn).toHaveBeenCalledWith("photo.viewer.load_failed", { photoId: "photo-1", reason: "image_error" });
 
@@ -621,12 +661,12 @@ describe("saving and deleting frames", () => {
       const listFetches = mockListPhotos.mock.calls.length;
       await user.press(screen.getByRole("button", { name: "Try again" }));
       await waitFor(() => expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(refreshed.url));
-      expect(screen.getByLabelText("Loading photo")).toBeOnTheScreen();
+      expect(screen.getByLabelText("Loading frame")).toBeOnTheScreen();
       // Only the open frame's link is renewed; the roll's pages aren't fetched again.
       expect(mockFindPhoto).toHaveBeenCalledWith({ path: { photoId: "photo-1" }, throwOnError: true });
       expect(mockListPhotos).toHaveBeenCalledTimes(listFetches);
       await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
-      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
       await user.press(screen.getByRole("button", { name: "Save to Photos" }));
       await waitFor(() =>
         expect(mockDownloadFile).toHaveBeenCalledWith(
@@ -655,7 +695,7 @@ describe("saving and deleting frames", () => {
       mockFindPhoto.mockRejectedValueOnce(new Error("offline"));
       await user.press(screen.getByRole("button", { name: "Try again" }));
       await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled());
-      expect(screen.getByText("Couldn’t load this photo.")).toBeOnTheScreen();
+      expect(screen.getByText("Couldn’t load this frame.")).toBeOnTheScreen();
       const pending = deferred<{ data: { data: ReturnType<typeof buildPhoto> } }>();
       mockFindPhoto.mockReturnValueOnce(pending.promise);
       await user.press(screen.getByRole("button", { name: "Try again" }));
@@ -663,7 +703,7 @@ describe("saving and deleting frames", () => {
       pending.resolve({ data: { data: buildPhoto({ url: "https://cdn.example.com/renewed" }) } });
       await waitFor(() => expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen());
       expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
-      expect(screen.queryByLabelText("Loading photo")).not.toBeOnTheScreen();
+      expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
     } finally {
       warn.mockRestore();
     }
@@ -847,6 +887,10 @@ describe("people and the menu", () => {
     expect(client.getQueryData(eventsKeys.photos("event-1"))).toBeUndefined();
     expect(client.getQueryData(eventsKeys.participants("event-1"))).toBeUndefined();
     expect(Alert.alert).not.toHaveBeenCalled();
+    // The evicted roll stays on screen until Home replaces it: no loading spinner in between.
+    expect(screen.queryByLabelText("Loading")).not.toBeOnTheScreen();
+    expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
   });
 
   test("a failed Leave restores readers so the member can refresh and keep using the roll", async () => {

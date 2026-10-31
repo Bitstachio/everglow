@@ -15,7 +15,7 @@ import { colorTokens } from "@/theme/tokens";
 import { DotsThree } from "phosphor-react-native";
 import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { FlatList, RefreshControl, Text, View } from "react-native";
+import { FlatList, RefreshControl, Text, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrivalNote } from "../components/arrival-note";
 import { FrameViewer } from "../components/frame-viewer/frame-viewer";
@@ -46,6 +46,15 @@ import { formatStorageBytes } from "../utils";
 const FOOT_SPACE = 190;
 
 const value = <EdgeValue>{null}</EdgeValue>;
+
+/** The result of an action, for a few seconds over the foot of the roll. */
+const Notice = ({ message, className = "", style }: { message: string; className?: string; style?: ViewStyle }) => (
+  <View pointerEvents="none" className={`absolute left-5 right-5 items-center ${className}`.trim()} style={style}>
+    <EdgePrint accessibilityLiveRegion="polite" tone="text" className="bg-sheet px-3 py-2 text-center">
+      {message}
+    </EdgePrint>
+  </View>
+);
 
 /** A round button over the cover, darkened so it reads on any photo. */
 const CoverButton = ({ children }: { children: ReactNode }) => (
@@ -162,6 +171,8 @@ const EventDetailScreen = () => {
             <ArrivalNote label={screen.arrivalNote} />
           </View>
         ) : null}
+        {/* A failed Leave, or someone a host took off the roll. */}
+        {screen.notice ? <Notice message={screen.notice} className="bottom-8" /> : null}
         <Sheets screen={screen} />
         <FilmGrain />
       </SafeAreaView>
@@ -367,17 +378,7 @@ const EventDetailScreen = () => {
 
       <RollFooter {...footer} bottomInset={insets.bottom} />
 
-      {screen.notice ? (
-        <View
-          pointerEvents="none"
-          className="absolute left-5 right-5 items-center"
-          style={{ bottom: insets.bottom + FOOT_SPACE - 40 }}
-        >
-          <EdgePrint accessibilityLiveRegion="polite" tone="text" className="bg-sheet px-3 py-2 text-center">
-            {screen.notice}
-          </EdgePrint>
-        </View>
-      ) : null}
+      {screen.notice ? <Notice message={screen.notice} style={{ bottom: insets.bottom + FOOT_SPACE - 40 }} /> : null}
 
       {screen.arrivalNote ? (
         // At the foot of the roll, over the controls, as drawn (06.7).
@@ -424,7 +425,10 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         ) : null}
 
         {screen.sheet === "leave" ? (
-          <Slip title={t("leave.title", { title: event.title })} body={t("leave.body")}>
+          <Slip
+            title={t("leave.title", { title: event.title })}
+            body={screen.stage === "closed" ? t("leave.bodyClosed") : t("leave.body")}
+          >
             <Button title={t("leave.confirm")} mark="⇥" onPress={screen.onConfirmLeave} isLoading={screen.isLeaving} />
             <Button title={t("leave.cancel")} variant="secondary" mark="‹" onPress={screen.onCloseSheet} />
           </Slip>
