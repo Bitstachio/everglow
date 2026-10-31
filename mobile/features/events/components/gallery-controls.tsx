@@ -4,6 +4,17 @@ import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { Slip } from "@/components/ui/slip";
+import { Spinner } from "@/components/ui/spinner";
+
+/** In-flow feedback inside the footer, never a strip floating over the photos. */
+export const GalleryProgress = ({ label }: { label: string }) => (
+  <View className="min-h-12 flex-row items-center justify-center gap-3 px-5 py-3">
+    <Spinner label={label} />
+    <EdgePrint tone="text" className="flex-shrink">
+      {label}
+    </EdgePrint>
+  </View>
+);
 
 export const GallerySelectionBar = ({
   count,

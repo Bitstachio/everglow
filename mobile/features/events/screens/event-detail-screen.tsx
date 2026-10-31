@@ -1,4 +1,4 @@
-import { GallerySelectionBar, SaveRollSheet } from "../components/gallery-controls";
+import { GalleryProgress, GallerySelectionBar, SaveRollSheet } from "../components/gallery-controls";
 import { GalleryDeleteSheet } from "../components/gallery-delete-sheet";
 import { AppIcon } from "@/components/ui/app-icon";
 import { Avatar } from "@/components/ui/avatar";
@@ -422,6 +422,11 @@ const EventDetailScreen = () => {
     return null;
   })();
 
+  const galleryProgress =
+    screen.busy && !screen.openFrame ? (
+      <GalleryProgress label={screen.saving ? t("footer.saving", screen.saving) : t("gallery.preparing")} />
+    ) : null;
+
   return (
     <View className="flex-1 bg-ground">
       <FlatList
@@ -450,28 +455,32 @@ const EventDetailScreen = () => {
 
       {screen.selecting ? (
         <View
-          className="absolute left-0 right-0 flex-row items-center justify-between bg-ground px-3"
-          style={{ top: insets.top }}
+          className="absolute left-0 right-0 top-0 border-b border-line bg-ground"
+          style={{ paddingTop: insets.top }}
         >
-          <Button
-            title={t("gallery.cancel")}
-            fullWidth={false}
-            variant="ghost"
-            onPress={screen.onCancelSelection}
-            disabled={!!screen.busy}
-          />
-          <EdgePrint>
-            {t(role === "host" ? "gallery.markedHost" : "gallery.marked", {
+          <TopBar
+            title={t(role === "host" ? "gallery.markedHost" : "gallery.marked", {
               count: screen.selectedCount,
               mine: screen.selectedMineCount,
             })}
-          </EdgePrint>
-          <Button
-            title={t("gallery.all")}
-            fullWidth={false}
-            variant="ghost"
-            onPress={screen.onSelectAll}
-            disabled={!!screen.busy}
+            left={
+              <Button
+                title={t("gallery.cancel")}
+                fullWidth={false}
+                variant="ghost"
+                onPress={screen.onCancelSelection}
+                disabled={!!screen.busy}
+              />
+            }
+            right={
+              <Button
+                title={t("gallery.all")}
+                fullWidth={false}
+                variant="ghost"
+                onPress={screen.onSelectAll}
+                disabled={!!screen.busy}
+              />
+            }
           />
         </View>
       ) : (
@@ -489,6 +498,7 @@ const EventDetailScreen = () => {
 
       {screen.selecting ? (
         <View className="absolute bottom-0 left-0 right-0 bg-ground" style={{ paddingBottom: insets.bottom }}>
+          {galleryProgress}
           <GallerySelectionBar
             count={screen.selectedCount}
             deleteCount={screen.selectedDeletableCount}
@@ -499,7 +509,7 @@ const EventDetailScreen = () => {
           />
         </View>
       ) : (
-        <RollFooter {...footer} bottomInset={insets.bottom} />
+        <RollFooter {...footer} bottomInset={insets.bottom} status={galleryProgress} />
       )}
 
       {!screen.selecting && trayLine && (!screen.notice || trayNeedsAttention) ? (
@@ -531,15 +541,6 @@ const EventDetailScreen = () => {
         </View>
       ) : null}
 
-      {screen.busy ? (
-        <View
-          pointerEvents="none"
-          className="absolute left-5 right-5 items-center bg-ground py-2"
-          style={{ bottom: insets.bottom + 110 }}
-        >
-          <Spinner label={screen.saving ? t("footer.saving", screen.saving) : t("common:actions.loading")} />
-        </View>
-      ) : null}
       {screen.failedSaves.length > 0 && !screen.busy && !screen.openFrame ? (
         <View className="absolute left-5 right-5 bg-ground" style={{ bottom: insets.bottom + 100 }}>
           <Button
