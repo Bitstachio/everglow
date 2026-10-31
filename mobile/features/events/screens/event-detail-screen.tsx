@@ -9,7 +9,6 @@ import { Display } from "@/components/ui/display";
 import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IconButton } from "@/components/ui/icon-button";
-import { IndexRow } from "@/components/ui/index-row";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Slip } from "@/components/ui/slip";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,6 +24,7 @@ import { FrameViewer } from "../components/frame-viewer/frame-viewer";
 import { RollBand } from "../components/roll-band";
 import { RollCover } from "../components/roll-cover";
 import { RollFooter, type FooterAction, type RollFooterProps } from "../components/roll-footer";
+import { RollMenu } from "../components/roll-menu";
 import { RollNotice } from "../components/roll-notice";
 import { RollOpened } from "../components/roll-opened";
 import { ROLE_KEY, RollPeopleList } from "../components/roll-people-list";
@@ -615,24 +615,20 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         ) : null}
 
         {screen.sheet === "menu" ? (
-          <View>
-            {screen.canReviewReports ? (
-              <IndexRow
-                label={
-                  screen.reportsToCheck
-                    ? t("report:menu.reportsToCheck", { count: screen.reportsToCheck })
-                    : t("report:menu.reports")
-                }
-                onPress={screen.onOpenReports}
-              />
-            ) : null}
-            <IndexRow label={t("menuSheet.people")} onPress={screen.onOpenPeople} />
-            {role === "host" && event.status !== "SUSPENDED" ? (
-              <IndexRow label={t("menuSheet.settings")} onPress={screen.onOpenSettings} />
-            ) : null}
-            {role !== "host" ? <IndexRow label={t("report:menu.reportRoll")} onPress={screen.onReportRoll} /> : null}
-            {role !== "host" ? <IndexRow action muted label={t("menuSheet.leave")} onPress={screen.onLeave} /> : null}
-          </View>
+          <RollMenu
+            role={role}
+            canOpenSettings={role === "host" && event.status !== "SUSPENDED"}
+            canCut={role === "host" && event.galleryState !== "CLOSED"}
+            reports={
+              screen.canReviewReports ? { toCheck: screen.reportsToCheck, onOpen: screen.onOpenReports } : undefined
+            }
+            onSendEnvelope={screen.onOpenEnvelope}
+            onOpenRollCall={screen.onOpenPeople}
+            onOpenSettings={screen.onOpenSettings}
+            onCut={screen.onCut}
+            onReportRoll={screen.onReportRoll}
+            onLeave={screen.onLeave}
+          />
         ) : null}
 
         {screen.sheet === "people" ? (
