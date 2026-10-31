@@ -427,8 +427,10 @@ const EventDetailScreen = () => {
       onPress: screen.onOpenTray,
     };
     if (tray.inFlight > 0) {
+      // Files that didn't take aren't developing: they count in their own line once these finish.
+      const total = tray.inFlight + tray.developed;
       return {
-        text: t("tray.line.developing", { current: Math.min(tray.developed + 1, tray.sendable), total: tray.sendable }),
+        text: t("tray.line.developing", { current: Math.min(tray.developed + 1, total), total }),
         action: open,
       };
     }

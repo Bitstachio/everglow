@@ -1,5 +1,8 @@
+import { colorTokens } from "@/theme/tokens";
+import { WarningCircle } from "phosphor-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, View, type LayoutChangeEvent, type PressableProps } from "react-native";
+import { AppIcon } from "./app-icon";
 import { EdgePrint } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
@@ -111,9 +114,10 @@ export const ContactFrame = ({
             <View
               testID="frame-upload-error"
               accessibilityElementsHidden
-              className="absolute right-1 top-1 rounded-full bg-ground px-2 py-1"
+              importantForAccessibility="no-hide-descendants"
+              className="absolute right-1 top-1 rounded-full bg-ground p-1"
             >
-              <EdgePrint tone="text">!</EdgePrint>
+              <AppIcon icon={WarningCircle} size="xs" color={colorTokens.text} />
             </View>
           ) : null}
         </View>
@@ -133,7 +137,12 @@ export const ContactFrame = ({
           </View>
         ) : null}
       </View>
-      <View className="min-h-4 flex-row items-center gap-1 pl-0.5">
+      {/* The frame's label already names the uploader; the portrait and caption aren't read again. */}
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        className="min-h-4 flex-row items-center gap-1 pl-0.5"
+      >
         {by ? (
           <>
             {avatar}

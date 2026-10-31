@@ -1,4 +1,5 @@
-import { roomShortfall, toTrayItems, trayName, type PickedFile } from "./picked-photos";
+import { roomShortfall, toTrayItems, trayName, trayPendingBytes, type PickedFile } from "./picked-photos";
+import type { TrayItem } from "./upload-tray";
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@react-native-community/netinfo", () => ({ addEventListener: () => () => undefined }));
@@ -62,4 +63,25 @@ test("offers the smallest photos that fit together when they don't all fit", () 
 test("ignores rejected files when counting the room needed", () => {
   const items = toTrayItems([picked(), picked({ sizeBytes: 30 * MB })], String);
   expect(roomShortfall(items, 3 * MB)).toBeNull();
+});
+
+test("counts the tray photos the roll's storage doesn't show yet", () => {
+  const inTray = (key: string, sizeMb: number, status: TrayItem["status"]): TrayItem => ({
+    key,
+    name: key,
+    uri: `file://${key}`,
+    contentType: "image/jpeg",
+    sizeBytes: sizeMb * MB,
+    status,
+  });
+  const items = [
+    inTray("waiting", 1, { kind: "waiting" }),
+    inTray("sending", 2, { kind: "sending", bytesSent: 10 }),
+    inTray("landed", 4, { kind: "developed", photoId: "not-fetched-yet" }),
+    inTray("onRoll", 8, { kind: "developed", photoId: "on-roll" }),
+    inTray("failed", 16, { kind: "failed", reason: "connection" }),
+    inTray("video", 32, { kind: "rejected", reason: "video" }),
+  ];
+
+  expect(trayPendingBytes(items, [{ id: "on-roll" }]) / MB).toBe(7);
 });
