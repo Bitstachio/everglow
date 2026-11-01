@@ -5,10 +5,12 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  NoSuchKey,
   NotFound,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { Readable } from "node:stream";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Injectable, InternalServerErrorException, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -48,6 +50,12 @@ export interface ListObjectsResult {
   objects: S3ObjectSummary[];
   /** Present when the listing is truncated; pass it back to fetch the next page. */
   nextContinuationToken?: string;
+}
+
+export interface ObjectStream {
+  body: Readable;
+  contentType?: string;
+  contentLength?: number;
 }
 
 export interface DeleteObjectsResult {
@@ -201,6 +209,23 @@ export class S3Service implements OnModuleDestroy {
       if (error instanceof NotFound) return { exists: false };
       this.logger.error({ err: error as Error, key }, "s3 headObject failed");
       throw new InternalServerErrorException(S3_SERVICE_ERRORS.HEAD_FAILED(key));
+    }
+  }
+
+  /**
+   * Opens an object for reading through the API, for the few reads that must
+   * be attributable to a person rather than handed out as a URL (moderators
+   * reviewing evidence). Null when the object does not exist.
+   */
+  async getObjectStream(key: string): Promise<ObjectStream | null> {
+    try {
+      const response = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      if (!(response.Body instanceof Readable)) throw new Error("S3 returned a body that isn't a Node stream");
+      return { body: response.Body, contentType: response.ContentType, contentLength: response.ContentLength };
+    } catch (error) {
+      if (error instanceof NoSuchKey) return null;
+      this.logger.error({ err: error as Error, key }, "s3 getObject failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.GET_FAILED(key));
     }
   }
 
