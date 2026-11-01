@@ -1,6 +1,11 @@
-import { Prisma, ReportEscalation, ReportReason, ReportTargetType } from "generated/prisma/client";
+import { Prisma, ReportEscalation, ReportQueue, ReportReason, ReportTargetType } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
-import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import {
+  ALERT_EVENTS,
+  ALERT_SEVERITY,
+  AlertSeverity,
+  PAGING_ESCALATION_REASONS,
+} from "src/common/logging/alert-events.constants";
 
 /** A report that just moved to the platform's queue, as `report.escalated` logs it. */
 export interface EscalatedReport {
@@ -31,6 +36,32 @@ export const PLATFORM_ESCALATIONS: readonly ReportEscalation[] = [
 /** The name a reason is logged under: the `escalationReasons` values alert rules match (docs/alerting.md). */
 export const escalationLogName = (reason: ReportEscalation): string => reason.toLowerCase();
 
+/** A `report.escalated` line pages for child safety and intimate images, and raises a ticket otherwise. */
+export const escalationSeverity = (escalationReasons: readonly string[]): AlertSeverity =>
+  escalationReasons.some((reason) => PAGING_ESCALATION_REASONS.includes(reason))
+    ? ALERT_SEVERITY.PAGE
+    : ALERT_SEVERITY.TICKET;
+
+/**
+ * The whole `report.escalated` line. Alert lines are copied into whatever
+ * ticketing or paging system consumes them, outside the log platform's access
+ * control, so they name the report and never a person: who filed it and whom
+ * it is about stay on the audit lines (`report.created`,
+ * `report.moved_to_platform`), found by `reportId` (docs/alerting.md §3).
+ */
+export const escalationAlertFields = (
+  report: { id: string; eventId: string | null; reason: ReportReason; queue: ReportQueue },
+  escalationReasons: string[],
+) => ({
+  event: ALERT_EVENTS.REPORT_ESCALATED,
+  reportId: report.id,
+  eventId: report.eventId,
+  reason: report.reason,
+  queue: report.queue,
+  escalationReasons,
+  severity: escalationSeverity(escalationReasons),
+});
+
 /**
  * Moves OPEN reports from the organizers' queue to the platform's, recording
  * why and when. Reports already with the platform, or no longer OPEN, are left
@@ -55,28 +86,37 @@ export const escalateToPlatform = async (
     RETURNING "id", "eventId", "targetType", "photoId", "reportedUserId", "reason"`;
 };
 
-/** One `report.escalated` line per moved report: the platform's alert (docs/moderation.md §9). */
+/**
+ * Per moved report, the audit line with who moved it and whom it is about
+ * (`report.moved_to_platform`), then the platform's alert (`report.escalated`,
+ * docs/moderation.md §9), which carries neither.
+ */
 export const logEscalations = (
   logger: PinoLogger,
   reports: EscalatedReport[],
   reason: ReportEscalation,
   context: Record<string, unknown> = {},
 ): void => {
+  const escalationReasons = [escalationLogName(reason)];
   for (const report of reports) {
-    logger.warn(
+    logger.info(
       {
-        event: ALERT_EVENTS.REPORT_ESCALATED,
+        event: "report.moved_to_platform",
         reportId: report.id,
         eventId: report.eventId,
         targetType: report.targetType,
         photoId: report.photoId,
         reportedUserId: report.reportedUserId,
         reason: report.reason,
-        escalationReasons: [escalationLogName(reason)],
+        escalationReasons,
         ...context,
         audit: true,
       },
       "Report moved to the platform",
+    );
+    logger.warn(
+      escalationAlertFields({ ...report, queue: ReportQueue.PLATFORM }, escalationReasons),
+      "Report needs platform attention",
     );
   }
 };
