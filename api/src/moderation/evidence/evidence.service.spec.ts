@@ -278,10 +278,14 @@ describe("EvidenceService", () => {
     });
 
     it("purges closed reports past the retention window that aren't held, objects first", async () => {
-      prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
-        { id: reportId, evidence: { evidenceS3Key: `evidence/${reportId}/${photoKey}` } },
-        { id: otherReportId, evidence: null },
-      ] as never);
+      // The lapsed-holds and ceiling lookups run first; they find nothing here.
+      prisma.report.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { id: reportId, evidence: { evidenceS3Key: `evidence/${reportId}/${photoKey}` } },
+          { id: otherReportId, evidence: null },
+        ] as never);
       s3Service.deleteObjects.mockResolvedValue({ deleted: [`evidence/${reportId}/${photoKey}`], failed: [] });
       prisma.report.deleteMany.mockResolvedValue({ count: 2 });
 
@@ -307,10 +311,14 @@ describe("EvidenceService", () => {
 
     it("keeps a report whose evidence object couldn't be deleted, for the next run", async () => {
       const key = `evidence/${reportId}/${photoKey}`;
-      prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
-        { id: reportId, evidence: { evidenceS3Key: key } },
-        { id: otherReportId, evidence: null },
-      ] as never);
+      // The lapsed-holds and ceiling lookups run first; they find nothing here.
+      prisma.report.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { id: reportId, evidence: { evidenceS3Key: key } },
+          { id: otherReportId, evidence: null },
+        ] as never);
       s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [{ key, code: "InternalError" }] });
       prisma.report.deleteMany.mockResolvedValue({ count: 1 });
 
@@ -335,6 +343,63 @@ describe("EvidenceService", () => {
         purgeFailed: 0,
         openOlderThanDays: 0,
         holdsLapsed: 0,
+        closedTargetGone: 0,
+      });
+    });
+
+    describe("the ceiling on OPEN reports", () => {
+      const cutoff = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+      it("closes OPEN reports past the retention window whose target is gone and that aren't held", async () => {
+        prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+          { id: reportId, targetType: "PHOTO" },
+          { id: otherReportId, targetType: "MEMBER" },
+        ] as never);
+        prisma.report.updateMany.mockResolvedValue({ count: 1 });
+
+        const result = await service.runEvidenceJob(now);
+
+        expect(prisma.report.findMany).toHaveBeenCalledWith({
+          where: {
+            status: "OPEN",
+            createdAt: { lt: cutoff },
+            AND: [
+              { OR: [{ holdUntil: null }, { holdUntil: { lt: now } }] },
+              {
+                OR: [
+                  { targetType: "PHOTO", photoId: null },
+                  { targetType: "MEMBER", reportedUserId: null },
+                  { targetType: "EVENT", eventId: null },
+                ],
+              },
+            ],
+          },
+          orderBy: { createdAt: "asc" },
+          take: 50,
+          select: { id: true, targetType: true },
+        });
+        expect(prisma.report.updateMany).toHaveBeenCalledWith({
+          where: { id: { in: [reportId] }, status: "OPEN" },
+          data: { status: "TARGET_GONE", closedReason: "PHOTO_DELETED", closedByRole: "SYSTEM", resolvedAt: now },
+        });
+        expect(prisma.report.updateMany).toHaveBeenCalledWith({
+          where: { id: { in: [otherReportId] }, status: "OPEN" },
+          data: { status: "TARGET_GONE", closedReason: "ACCOUNT_DELETED", closedByRole: "SYSTEM", resolvedAt: now },
+        });
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "report.retention.open_closed", closed: 2, audit: true }),
+          expect.any(String),
+        );
+        // Closed today, so the retention window for its evidence starts today: nothing is purged yet.
+        expect(prisma.report.deleteMany).not.toHaveBeenCalled();
+        expect(result.closedTargetGone).toBe(2);
+      });
+
+      it("closes nothing when no abandoned report is found", async () => {
+        const result = await service.runEvidenceJob(now);
+
+        expect(prisma.report.updateMany).not.toHaveBeenCalled();
+        expect(result.closedTargetGone).toBe(0);
       });
     });
 
