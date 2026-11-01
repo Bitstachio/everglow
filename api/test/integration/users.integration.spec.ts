@@ -906,6 +906,7 @@ describe("UsersController (integration)", () => {
         providerSubHash: hashProviderSub(TEST_PROVIDER_SUB),
         formerUserId: TEST_USER_ID,
         deletedAt: TEST_NOW,
+        suspendedAt: null,
       });
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
@@ -916,11 +917,42 @@ describe("UsersController (integration)", () => {
       expect(prisma.$transaction).toHaveBeenCalledTimes(2);
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledWith({
         where: { providerSubHash: hashProviderSub(TEST_PROVIDER_SUB) },
-        create: { providerSubHash: hashProviderSub(TEST_PROVIDER_SUB), formerUserId: TEST_USER_ID },
-        update: { formerUserId: TEST_USER_ID, deletedAt: expect.any(Date) as Date },
+        create: { providerSubHash: hashProviderSub(TEST_PROVIDER_SUB), formerUserId: TEST_USER_ID, suspendedAt: null },
+        update: { formerUserId: TEST_USER_ID, deletedAt: expect.any(Date) as Date, suspendedAt: null },
       });
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: TEST_USER_ID } });
       expect(prisma.deletedProviderSub.upsert.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.user.delete.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("carries a suspended, banned account's suspension and bans onto the tombstone", async () => {
+      const suspendedAt = new Date("2026-06-01T09:00:00.000Z");
+      const bannedAt = new Date("2026-05-20T09:00:00.000Z");
+      const providerSubHash = hashProviderSub(TEST_PROVIDER_SUB);
+      // The controller's load, then the saga's locked read of what to carry.
+      prisma.user.findUnique
+        .mockResolvedValueOnce(buildUserWithDetails({ suspendedAt }))
+        .mockResolvedValueOnce({ suspendedAt, eventBans: [{ eventId: TEST_EVENT_ID, createdAt: bannedAt }] } as never);
+      prisma.user.update
+        .mockResolvedValueOnce({ deletionStartedAt: TEST_NOW } as never)
+        .mockResolvedValueOnce({ auth0DeletedAt: TEST_NOW } as never);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(buildUserWithDetails());
+
+      // Suspended accounts may still delete themselves.
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+
+      expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledWith({
+        where: { providerSubHash },
+        create: { providerSubHash, formerUserId: TEST_USER_ID, suspendedAt },
+        update: { formerUserId: TEST_USER_ID, deletedAt: expect.any(Date) as Date, suspendedAt },
+      });
+      expect(prisma.carriedBan.createMany).toHaveBeenCalledWith({
+        data: [{ providerSubHash, eventId: TEST_EVENT_ID, bannedAt }],
+        skipDuplicates: true,
+      });
+      expect(prisma.carriedBan.createMany.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.user.delete.mock.invocationCallOrder[0],
       );
     });
@@ -1199,6 +1231,7 @@ describe("UsersController (integration)", () => {
         providerSubHash: hashProviderSub(TEST_PROVIDER_SUB),
         formerUserId: TEST_USER_ID,
         deletedAt: TEST_NOW,
+        suspendedAt: null,
       });
 
       await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB)).rejects.toThrow(
@@ -1221,6 +1254,61 @@ describe("UsersController (integration)", () => {
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+
+    describe("signing in again after deleting a sanctioned account", () => {
+      const suspendedAt = new Date("2026-06-01T09:00:00.000Z");
+      const bannedAt = new Date("2026-05-20T09:00:00.000Z");
+      const newUserId = "55555555-5555-5555-5555-555555555555";
+      const afterDeletion = TEST_NOW.getTime() / 1000 + 60;
+      const providerSubHash = hashProviderSub(TEST_PROVIDER_SUB);
+      const sanctionedTombstone = (overrides: Record<string, unknown>) =>
+        ({
+          providerSubHash,
+          formerUserId: TEST_USER_ID,
+          deletedAt: TEST_NOW,
+          suspendedAt: null,
+          bans: [],
+          ...overrides,
+        }) as never;
+
+      beforeEach(() => {
+        prisma.user.findUnique.mockResolvedValue(null);
+      });
+
+      it("creates the new account already suspended, and moves the suspension off the tombstone", async () => {
+        prisma.deletedProviderSub.findUnique.mockResolvedValue(sanctionedTombstone({ suspendedAt }));
+        prisma.user.create.mockResolvedValue(buildUserWithoutDetails({ id: newUserId, suspendedAt }));
+
+        const user = await usersService.resolveByProviderSub(TEST_PROVIDER_SUB, afterDeletion);
+
+        // JwtStrategy turns this into `suspended`, so every route but reading
+        // and deleting the account answers 403 ACCOUNT_SUSPENDED.
+        expect(user.suspendedAt).toEqual(suspendedAt);
+        expect(prisma.user.create).toHaveBeenCalledWith({
+          data: { providerSub: TEST_PROVIDER_SUB, suspendedAt },
+          include: userWithDetailsInclude,
+        });
+        expect(prisma.deletedProviderSub.update).toHaveBeenCalledWith({
+          where: { providerSubHash },
+          data: { suspendedAt: null },
+        });
+      });
+
+      it("re-creates the event bans of events that still exist for the new account", async () => {
+        prisma.deletedProviderSub.findUnique.mockResolvedValue(
+          sanctionedTombstone({ bans: [{ eventId: TEST_EVENT_ID, bannedAt }] }),
+        );
+        prisma.user.create.mockResolvedValue(buildUserWithoutDetails({ id: newUserId }));
+
+        await usersService.resolveByProviderSub(TEST_PROVIDER_SUB, afterDeletion);
+
+        expect(prisma.eventBan.createMany).toHaveBeenCalledWith({
+          data: [{ eventId: TEST_EVENT_ID, userId: newUserId, createdAt: bannedAt }],
+          skipDuplicates: true,
+        });
+        expect(prisma.carriedBan.deleteMany).toHaveBeenCalledWith({ where: { providerSubHash } });
+      });
     });
 
     it("still resolves an active user after an unrelated providerSub was tombstoned", async () => {
