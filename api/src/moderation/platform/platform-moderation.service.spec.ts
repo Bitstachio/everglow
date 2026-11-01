@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
@@ -142,6 +142,7 @@ describe("PlatformModerationService", () => {
         where: { id: reportId },
         data: {
           authorityReference: "CT-123",
+          authorityReportedAt: submittedAt,
           holdUntil: new Date(submittedAt.getTime() + 365 * DAY_MS),
           holdReason: "CHILD_SAFETY",
         },
@@ -159,9 +160,37 @@ describe("PlatformModerationService", () => {
 
       expect(prisma.report.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { authorityReference: "PD-9", holdUntil: later, holdReason: "LAW_ENFORCEMENT" },
+          data: {
+            authorityReference: "PD-9",
+            authorityReportedAt: submittedAt,
+            holdUntil: later,
+            holdReason: "LAW_ENFORCEMENT",
+          },
         }),
       );
+    });
+
+    it("extends a shorter hold to a year from the submission: max(existing, submission + 365 days)", async () => {
+      const shorter = new Date(submittedAt.getTime() + 30 * DAY_MS);
+      prisma.report.findUnique.mockResolvedValue(report({ reason: "CHILD_SAFETY", holdUntil: shorter }) as never);
+      prisma.report.update.mockResolvedValue(report() as never);
+
+      await service.recordAuthorityReport(reportId, moderatorId, "CT-7", submittedAt);
+
+      expect(prisma.report.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ holdUntil: new Date(submittedAt.getTime() + 365 * DAY_MS) }) as unknown,
+        }),
+      );
+    });
+
+    it("refuses a submission date in the future with 400, changing nothing", async () => {
+      const tomorrow = new Date(Date.now() + DAY_MS);
+
+      await expect(service.recordAuthorityReport(reportId, moderatorId, "CT-8", tomorrow)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(prisma.report.update).not.toHaveBeenCalled();
     });
   });
 

@@ -26,6 +26,10 @@ describe("ReportMapper", () => {
     holdUntil: null,
     holdReason: null,
     authorityReference: null,
+    authorityReportedAt: null,
+    removalDueAt: null,
+    removalDueSoonAlertedAt: null,
+    removalOverdueAlertedAt: null,
     createdAt: now,
     updatedAt: now,
   };

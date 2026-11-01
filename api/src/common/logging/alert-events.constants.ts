@@ -28,6 +28,8 @@ export const ALERT_EVENTS = {
 
   REPORT_ESCALATED: "report.escalated",
   REPORT_STALE: "report.stale",
+  REPORT_REMOVAL_DUE_SOON: "report.removal_due_soon",
+  REPORT_REMOVAL_OVERDUE: "report.removal_overdue",
   REPORT_EVIDENCE_COPY_FAILED: "report.evidence.copy_failed",
   REPORT_EVIDENCE_JOB_DISABLED: "report.evidence_job.disabled",
 
@@ -47,3 +49,22 @@ export const ALERT_EVENTS = {
 } as const;
 
 export type AlertEvent = (typeof ALERT_EVENTS)[keyof typeof ALERT_EVENTS];
+
+/**
+ * How urgently an alert needs a person (docs/alerting.md §2). An event whose
+ * urgency depends on what it is about carries it in a `severity` field, so a
+ * rule can route on `severity = page` without knowing the business rule.
+ */
+export const ALERT_SEVERITY = {
+  PAGE: "page",
+  TICKET: "ticket",
+} as const;
+
+export type AlertSeverity = (typeof ALERT_SEVERITY)[keyof typeof ALERT_SEVERITY];
+
+/**
+ * The `escalationReasons` values that make a `report.escalated` line page
+ * instead of raising a ticket: child safety and intimate images, which carry
+ * legal deadlines (docs/moderation.md §7, §9).
+ */
+export const PAGING_ESCALATION_REASONS: readonly string[] = ["child_safety", "intimate_image"];

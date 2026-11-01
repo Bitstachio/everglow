@@ -531,7 +531,7 @@ A `CHILD_SAFETY` report is handled only by the platform, by the runbook in [EV-6
 
 1. It **pages**, and a 1-year hold starts at once.
 2. The reviewer looks only as far as needed to judge it, through the logged review (§8), and never copies or forwards it.
-3. Apparent child sexual abuse material is reported to the **NCMEC CyberTipline** "as soon as reasonably possible" (18 U.S.C. §2258A), and to **Cybertip.ca and the police** for Canada (S.C. 2011, c. 4). The reference number goes in `authorityReference`, and `holdUntil` becomes the submission date plus 1 year.
+3. Apparent child sexual abuse material is reported to the **NCMEC CyberTipline** "as soon as reasonably possible" (18 U.S.C. §2258A), and to **Cybertip.ca and the police** for Canada (S.C. 2011, c. 4). The reference number goes in `authorityReference` and the submission date in `authorityReportedAt` (it can't be in the future). `holdUntil` becomes the later of the current hold and the submission date plus 1 year, so recording a report never shortens a hold.
 4. The photo is removed and the account suspended (§8). Nothing tells the account why, so nothing prejudices an investigation.
 
 Google Play also expects a public child-safety standards page and a named child-safety contact in Play Console. Both are part of [EV-62](https://linear.app/mehrshadfb/issue/EV-62).
@@ -540,7 +540,7 @@ Google Play also expects a public child-safety standards page and a named child-
 
 From May 19, 2026, a platform that hosts user content must remove a non-consensual intimate image **within 48 hours** of a valid request from the person shown, and make reasonable efforts to remove identical copies (47 U.S.C. §223a).
 
-- **In the app**, the request is a `NON_CONSENSUAL_INTIMATE_IMAGE` report. It hides the image from everyone at once (§5), pages, and starts the 48-hour clock from `createdAt`.
+- **In the app**, the request is a `NON_CONSENSUAL_INTIMATE_IMAGE` report. It hides the image from everyone at once (§5), pages, and starts the 48-hour clock: `removalDueAt` is set to the filing time plus 48 hours. While the report is OPEN, the hourly check pages once at 36 hours (`report.removal_due_soon`) and once at 48 hours (`report.removal_overdue`), §9.
 - **Outside the app**, the person may not be a member, or may not have an account. A public request form on the website collects what the Act asks for: a signature, enough to find the image, a statement that it was shared without consent, and contact details. The platform files it as a report on their behalf.
 - **Identical copies** are found by SHA-256 across all events and removed with it. Planned: photos don't record their hash at upload yet, only evidence copies do.
 - The privacy policy and the website describe the process in plain language.
@@ -567,7 +567,7 @@ What they can do:
   - A fix changes the title or the description, or removes the cover (its evidence copy is made first).
   - A deleted event goes whatever its state, with its OPEN reports closed first as `EVENT_DELETED`.
 - **Lift a review** (`POST /admin/events/:eventId/lift-review`) and close event reports with `DISMISS`.
-- **Set and release holds** (`PUT`/`DELETE /admin/reports/:reportId/hold`), and record a CyberTipline or police reference (`PUT /admin/reports/:reportId/authority-report`), which holds the report a year from the submission.
+- **Set and release holds** (`PUT`/`DELETE /admin/reports/:reportId/hold`), and record a CyberTipline or police reference (`PUT /admin/reports/:reportId/authority-report`). That stores `authorityReportedAt` and holds the report at least a year from the submission (§7). `GET /admin/reports/:reportId` shows both, and an intimate-image report's `removalDueAt`.
 
 **The target: act within 24 hours of a report reaching the platform**, and within 48 hours of an intimate-image request. Apple's reviewers expect the 24 hours, and the TAKE IT DOWN Act requires the 48. The overdue alert (§9) is the safety net.
 
@@ -580,16 +580,20 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 | Event                                      | Level   | When                                                              | Fields                                                                                                                                                                                |
 | ------------------------------------------ | ------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `report.created`                           | `info`  | every new report                                                  | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `reason`, `queue`, `audit`                                                                              |
-| `report.escalated`                         | `warn`  | a report that needs the platform, at filing or when it moves (§3) | the same, plus `escalationReasons`                                                                                                                                                    |
+| `report.escalated`                         | `warn`  | a report that needs the platform, at filing or when it moves (§3) | `reportId`, `eventId`, `reason`, `queue`, `escalationReasons`, `severity` (`page` for `child_safety` and `intimate_image`, otherwise `ticket`). No identities: they stay on `report.created` and `report.moved_to_platform` |
+| `report.moved_to_platform`                 | `info`  | a report moved to the platform's queue after filing (§3)          | `reportId`, `eventId`, `targetType`, `photoId`, `reportedUserId`, `reason`, `escalationReasons`, who caused it (`callerId` or `userId`), `audit`                                       |
+| `report.removal_due_soon`                  | `warn`  | hourly, once, when an OPEN intimate-image report is 36 hours old  | `reportId`, `eventId`, `reason`, `queue`, `removalDueAt`, `hoursLeft`, `severity: page`                                                                                               |
+| `report.removal_overdue`                   | `warn`  | hourly, once, when it is past its 48-hour `removalDueAt`          | the same, with `hoursOverdue`                                                                                                                                                          |
 | `report.resolved`                          | `info`  | a verdict                                                         | `reportId`, `eventId`, `callerId`, `targetType`, `photoId`, `reportedUserId`, `action`, `closedReason`, `closedByRole`, `closedReports`, `removedPhotoId`, `removedMemberId`, `audit` |
-| `report.stale`                             | `warn`  | hourly, once per report that has been in `PLATFORM` over 24 hours | `stale` (the count), `reportIds` and `eventIds` of the 20 oldest, `oldestEscalatedAt`, `audit`                                                                                        |
+| `report.stale`                             | `warn`  | hourly, once per report that has been in `PLATFORM` over 24 hours, then weekly while it stays OPEN past 7 days (`reminder: true`) | `stale` (the count), `reportIds` and `eventIds` of the 20 oldest, `oldestEscalatedAt`, `ageDays` of the oldest since filing, `severity: ticket`, `audit`                                       |
 | `report.evidence.copy_failed`              | `error` | a quarantine copy failed and the original was kept (§7)           | `reportId`, `err`                                                                                                                                                                     |
 | `user.block.created`, `user.block.removed` | `info`  | the block list changed                                            | `callerId`, `blockedUserId`, `audit`                                                                                                                                                  |
 
-**`report.escalated` and `report.stale` are the alerts** (tickets, see [alerting.md §3](../api/docs/alerting.md#3-events-to-alert-on)); the rest are audit records.
+**`report.escalated`, `report.stale`, `report.removal_due_soon` and `report.removal_overdue` are the alerts** ([alerting.md §3](../api/docs/alerting.md#3-events-to-alert-on)); the rest are audit records. Alert lines name the report, never the reporter or the person reported, since alerts are copied out of the log platform.
 
-- **Paging.** `child_safety` and `intimate_image` page; every other reason raises a ticket. The rule lives in the log platform ([alerting.md](../api/docs/alerting.md)).
-- **The stale check.** It now runs on the platform queue only, and each report is reported once (`overdueAlertedAt`), so it no longer repeats every hour. `StaleReportCheckScheduler` runs every hour with the usual `report.stale_check.run_completed` / `run_failed` heartbeat (built).
+- **Paging.** A `report.escalated` line with `child_safety` or `intimate_image` carries `severity: page` and pages; every other reason raises a ticket. Both removal-deadline alerts page. The routing lives in the log platform ([alerting.md](../api/docs/alerting.md)); the grading is in code (`escalationSeverity`).
+- **The stale check.** It runs on the platform queue, and each report is announced once at 24 hours (`overdueAlertedAt`), so it does not repeat every hour. A report still OPEN 7 days after filing is announced again every 7 days, with `reminder: true` and the oldest one's `ageDays`, so a missed alert is not the last word. `StaleReportCheckScheduler` runs every hour with the usual `report.stale_check.run_completed` / `run_failed` heartbeat; its counts are `stale`, `movedToPlatform`, `removalDueSoon`, `removalOverdue` and `reminded`.
+- **The removal deadline.** The same hourly run checks `removalDueAt` on OPEN reports (§7). The daily evidence job reports `openOlderThanDays`, the OPEN reports filed more than 7 days ago.
 - **Moving reports.** The same hourly run moves `ORGANIZERS` reports past 24 hours to the platform (`organizer_timeout`, §3).
 
 `escalationReasons` holds one or more of:

@@ -14,6 +14,8 @@ export class PlatformReportMapper {
       resolvedById: report.resolvedById,
       escalationReasons: report.escalationReasons,
       escalatedAt: report.escalatedAt,
+      removalDueAt: report.removalDueAt,
+      authorityReportedAt: report.authorityReportedAt,
       holdUntil: report.holdUntil,
       holdReason: report.holdReason,
       authorityReference: report.authorityReference,

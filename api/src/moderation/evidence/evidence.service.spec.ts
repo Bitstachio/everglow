@@ -321,11 +321,32 @@ describe("EvidenceService", () => {
     });
 
     it("deletes nothing when nothing is past the window", async () => {
+      prisma.report.count.mockResolvedValue(0);
+
       const result = await service.runEvidenceJob(now);
 
       expect(s3Service.deleteObjects).not.toHaveBeenCalled();
       expect(prisma.report.deleteMany).not.toHaveBeenCalled();
-      expect(result).toEqual({ retried: 0, quarantined: 0, purgedReports: 0, purgedObjects: 0, purgeFailed: 0 });
+      expect(result).toEqual({
+        retried: 0,
+        quarantined: 0,
+        purgedReports: 0,
+        purgedObjects: 0,
+        purgeFailed: 0,
+        openOlderThanDays: 0,
+      });
+    });
+
+    it("reports how many OPEN reports are over a week old, and never purges them", async () => {
+      prisma.report.count.mockResolvedValue(4);
+
+      const result = await service.runEvidenceJob(now);
+
+      expect(prisma.report.count).toHaveBeenCalledWith({
+        where: { status: "OPEN", createdAt: { lt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } },
+      });
+      expect(result.openOlderThanDays).toBe(4);
+      expect(prisma.report.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

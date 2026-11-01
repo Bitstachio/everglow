@@ -39,6 +39,20 @@ export class PlatformReportResponseDto extends ReportResponseDto {
   @ApiProperty({ type: Date, nullable: true, description: "When it reached the platform's queue." })
   escalatedAt: Date | null;
 
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description: "The legal removal deadline: 48 hours from filing for an intimate image, null otherwise.",
+  })
+  removalDueAt: Date | null;
+
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description: "When it was reported to NCMEC or the police. It is held at least a year from then.",
+  })
+  authorityReportedAt: Date | null;
+
   @ApiProperty({ type: Date, nullable: true, description: "The retention purge skips the report until then." })
   holdUntil: Date | null;
 

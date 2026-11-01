@@ -4709,6 +4709,18 @@
             "nullable": true,
             "description": "When it reached the platform's queue."
           },
+          "removalDueAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "The legal removal deadline: 48 hours from filing for an intimate image, null otherwise."
+          },
+          "authorityReportedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When it was reported to NCMEC or the police. It is held at least a year from then."
+          },
           "holdUntil": {
             "format": "date-time",
             "type": "string",
@@ -4756,6 +4768,8 @@
           "reporterId",
           "escalationReasons",
           "escalatedAt",
+          "removalDueAt",
+          "authorityReportedAt",
           "holdUntil",
           "holdReason",
           "authorityReference",
