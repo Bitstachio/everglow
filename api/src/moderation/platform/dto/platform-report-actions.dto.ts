@@ -13,7 +13,11 @@ import { ResolveReportDto } from "../../dto/resolve-report.dto";
 export class ResolvePlatformReportDto extends ResolveReportDto {}
 
 export class SetReportHoldDto {
-  @ApiProperty({ description: "The retention purge keeps the report and its evidence until then." })
+  @ApiProperty({
+    description:
+      "The retention purge keeps the report and its evidence until then. In the future, at most 3 years away " +
+      "(400 otherwise). A report sent to the authorities stays held at least a year from the submission.",
+  })
   @Type(() => Date)
   @IsDate()
   until: Date;

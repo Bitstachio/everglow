@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { ReportHoldReason, ReportQueue, ReportReason, ReportStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { Readable } from "node:stream";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
+import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import {
   KEYSET_ORDER_BY_OLDEST,
@@ -11,13 +13,21 @@ import {
   toKeysetPage,
 } from "src/common/pagination/keyset-cursor";
 import { PrismaService } from "src/prisma/prisma.service";
-import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
+import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { EvidenceService } from "../evidence/evidence.service";
 import { CHILD_SAFETY_HOLD_DAYS } from "../moderation.constants";
 import { ListPlatformReportsQueryDto } from "./dto/list-platform-reports-query.dto";
 import { ReportWithEvidence } from "./platform-report.mapper";
 
-/** How long a moderator's link to reported content works (docs/moderation.md §8). */
-export const EVIDENCE_URL_TTL_SECONDS = 300;
+/** The furthest ahead a moderator may set a hold (docs/moderation.md §7). */
+export const MAX_HOLD_YEARS = 3;
+
+/** Reported content on its way to a moderator (openEvidence). */
+export interface EvidenceStream {
+  body: Readable;
+  contentType: string;
+  contentLength: number | null;
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -32,6 +42,10 @@ export const authorityPreservedUntil = (authorityReportedAt: Date): Date =>
 /** max() of two optional dates: a hold only ever grows by this rule. */
 const laterOf = (current: Date | null, floor: Date): Date => (current && current > floor ? current : floor);
 
+/** Whether the retention purge would skip the report now. */
+const isHeld = (report: { holdUntil: Date | null }, now: Date): boolean =>
+  report.holdUntil !== null && report.holdUntil > now;
+
 /**
  * What platform moderators do besides giving verdicts, which ReportsService
  * owns so that both queues close reports the same way (docs/moderation.md §8).
@@ -42,6 +56,7 @@ export class PlatformModerationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
+    private readonly evidenceService: EvidenceService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -76,60 +91,108 @@ export class PlatformModerationService {
   }
 
   /**
-   * A short-lived link to what the report is about: its evidence copy once
-   * there is one, the live object before that. Every link is logged, so each
-   * look at reported content leaves a trace (docs/photo-privacy.md).
+   * Opens what the report is about for a moderator to look at: its evidence
+   * copy once there is one, the live object before that. The bytes go through
+   * the API instead of a URL that could be forwarded, so each look is one
+   * request by one moderator, logged as `report.evidence.viewed`, which pages
+   * for a child-safety report (docs/photo-privacy.md, docs/moderation.md §8).
+   * A closed report's evidence opens only while it is held: once decided,
+   * there is nothing left to judge.
    */
-  async evidenceUrl(reportId: string, moderatorId: string): Promise<{ url: string; expiresAt: Date }> {
+  async openEvidence(reportId: string, moderatorId: string, now: Date = new Date()): Promise<EvidenceStream> {
     const report = await this.getReport(reportId);
+    if (report.status !== ReportStatus.OPEN && !isHeld(report, now)) {
+      throw new ApiException("EVIDENCE_REPORT_CLOSED", { reportId });
+    }
     const key = report.evidence?.evidenceS3Key ?? report.evidence?.objectS3Key;
     if (!key) throw new ApiException("EVIDENCE_NOT_AVAILABLE", { reportId });
 
-    const expiresAt = presignedUrlExpiresAt(EVIDENCE_URL_TTL_SECONDS);
-    const url = await this.s3Service.getPresignedDownloadUrl({ key, expiresInSeconds: EVIDENCE_URL_TTL_SECONDS });
+    const object = await this.s3Service.getObjectStream(key);
+    if (!object) throw new ApiException("EVIDENCE_NOT_AVAILABLE", { reportId });
+
     this.logger.warn(
       {
-        event: "report.evidence.viewed",
+        event: ALERT_EVENTS.REPORT_EVIDENCE_VIEWED,
         reportId,
+        eventId: report.eventId,
         moderatorId,
-        quarantined: report.evidence?.evidenceS3Key != null,
         reason: report.reason,
+        status: report.status,
+        quarantined: report.evidence?.evidenceS3Key != null,
+        severity: report.reason === ReportReason.CHILD_SAFETY ? ALERT_SEVERITY.PAGE : ALERT_SEVERITY.TICKET,
         audit: true,
       },
       "A moderator opened reported content",
     );
-    return { url, expiresAt };
+    return {
+      body: object.body,
+      contentType: object.contentType ?? report.evidence?.contentType ?? "application/octet-stream",
+      contentLength: object.contentLength ?? null,
+    };
   }
 
-  /** Keeps a report and its evidence past the retention window, until `until`. */
+  /**
+   * Keeps a report and its evidence past the retention window, until `until`:
+   * a time in the future, at most MAX_HOLD_YEARS away. A report sent to the
+   * authorities is never held for less than a year from the submission.
+   */
   async setHold(
     reportId: string,
     moderatorId: string,
     until: Date,
     reason: ReportHoldReason,
+    now: Date = new Date(),
   ): Promise<ReportWithEvidence> {
-    await this.getReport(reportId);
+    const latest = new Date(now);
+    latest.setUTCFullYear(latest.getUTCFullYear() + MAX_HOLD_YEARS);
+    if (until <= now || until > latest) {
+      throw new BadRequestException(
+        RESPONSE_TEMPLATES.INVALID_VALUE(
+          "until",
+          until.toISOString(),
+          `in the future, at most ${MAX_HOLD_YEARS} years away`,
+        ),
+      );
+    }
+    const current = await this.getReport(reportId);
+    const holdUntil = current.authorityReportedAt
+      ? laterOf(until, authorityPreservedUntil(current.authorityReportedAt))
+      : until;
+
     const report = await this.prisma.report.update({
       where: { id: reportId },
-      data: { holdUntil: until, holdReason: reason },
+      data: { holdUntil, holdReason: reason },
       include: { evidence: true },
     });
     this.logger.info(
-      { event: "report.hold.set", reportId, moderatorId, holdUntil: until, holdReason: reason, audit: true },
+      { event: "report.hold.set", reportId, moderatorId, holdUntil, holdReason: reason, audit: true },
       "Report held",
     );
     return report;
   }
 
-  async releaseHold(reportId: string, moderatorId: string): Promise<ReportWithEvidence> {
-    await this.getReport(reportId);
-    const report = await this.prisma.report.update({
+  /**
+   * Ends a hold. A report sent to the authorities stays held until a year
+   * after the submission, which no release shortens. An actioned
+   * intimate-image report loses its evidence copy at once, as it would have
+   * at the verdict without the hold (docs/moderation.md §7).
+   */
+  async releaseHold(reportId: string, moderatorId: string, now: Date = new Date()): Promise<ReportWithEvidence> {
+    const current = await this.getReport(reportId);
+    const preservedUntil = current.authorityReportedAt ? authorityPreservedUntil(current.authorityReportedAt) : null;
+    const kept = preservedUntil && preservedUntil > now ? preservedUntil : null;
+
+    await this.prisma.report.update({
       where: { id: reportId },
-      data: { holdUntil: null, holdReason: null },
-      include: { evidence: true },
+      data: kept ? { holdUntil: kept } : { holdUntil: null, holdReason: null },
     });
-    this.logger.info({ event: "report.hold.released", reportId, moderatorId, audit: true }, "Report hold released");
-    return report;
+    this.logger.info(
+      { event: "report.hold.released", reportId, moderatorId, keptUntil: kept, audit: true },
+      kept ? "Report hold released down to the authorities' preservation date" : "Report hold released",
+    );
+    if (!kept) await this.evidenceService.discardImages([reportId], now);
+
+    return this.getReport(reportId);
   }
 
   /**
