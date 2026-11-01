@@ -153,6 +153,10 @@ describe("ReportsService", () => {
     holdUntil: null,
     holdReason: null,
     authorityReference: null,
+    authorityReportedAt: null,
+    removalDueAt: null,
+    removalDueSoonAlertedAt: null,
+    removalOverdueAlertedAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -222,6 +226,7 @@ describe("ReportsService", () => {
               queue: "ORGANIZERS",
               escalatedAt: null,
               escalationReasons: [],
+              removalDueAt: null,
             },
           ],
           skipDuplicates: true,
@@ -488,14 +493,18 @@ describe("ReportsService", () => {
           await service.reportPhoto(photoId, callerId, { reason });
 
           expect(loggedEvents("info")).toEqual(["report.created"]);
+          // The alert line names the report, never a person: the identities
+          // stay on report.created.
           expect(logger.warn).toHaveBeenCalledWith(
-            expect.objectContaining({
+            {
               event: "report.escalated",
               reportId,
+              eventId,
               reason,
+              queue: "ORGANIZERS",
               escalationReasons: ["severe_reason"],
-              audit: true,
-            }),
+              severity: "ticket",
+            },
             expect.any(String),
           );
         },
@@ -628,6 +637,7 @@ describe("ReportsService", () => {
             queue: "PLATFORM",
             escalatedAt: expect.any(Date) as unknown,
             escalationReasons: ["TARGET_IS_EVENT"],
+            removalDueAt: null,
           },
         ],
         skipDuplicates: true,
@@ -643,7 +653,7 @@ describe("ReportsService", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "report.escalated",
-          targetType: "EVENT",
+          reportId,
           escalationReasons: ["target_is_event"],
         }),
         expect.any(String),
@@ -846,6 +856,7 @@ describe("ReportsService", () => {
             queue: "ORGANIZERS",
             escalatedAt: null,
             escalationReasons: [],
+            removalDueAt: null,
           },
         ],
         skipDuplicates: true,
@@ -915,8 +926,7 @@ describe("ReportsService", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "report.escalated",
-          targetType: "MEMBER",
-          reportedUserId: targetUserId,
+          reportId,
           escalationReasons: ["target_is_organizer"],
         }),
         expect.any(String),
@@ -1818,7 +1828,13 @@ describe("ReportsService", () => {
         { id: "r-1", eventId, targetType: "PHOTO", photoId, reportedUserId: uploaderId, reason: "SPAM" },
       ]);
 
-      await expect(service.reportStaleReports(now)).resolves.toEqual({ stale: 0, movedToPlatform: 1 });
+      await expect(service.reportStaleReports(now)).resolves.toEqual({
+        stale: 0,
+        movedToPlatform: 1,
+        removalDueSoon: 0,
+        removalOverdue: 0,
+        reminded: 0,
+      });
 
       expect(prisma.report.findMany).toHaveBeenCalledWith({
         where: { status: "OPEN", queue: "ORGANIZERS", createdAt: { lt: cutoff } },
@@ -1836,13 +1852,29 @@ describe("ReportsService", () => {
 
     it("announces platform reports overdue since they got there once, with the exact count, and marks them", async () => {
       const stale = [
-        { id: "r-1", eventId, escalatedAt: new Date("2026-06-10T09:00:00.000Z") },
-        { id: "r-2", eventId: null, escalatedAt: new Date("2026-06-11T08:00:00.000Z") },
+        {
+          id: "r-1",
+          eventId,
+          escalatedAt: new Date("2026-06-10T09:00:00.000Z"),
+          createdAt: new Date("2026-06-09T09:00:00.000Z"),
+        },
+        {
+          id: "r-2",
+          eventId: null,
+          escalatedAt: new Date("2026-06-11T08:00:00.000Z"),
+          createdAt: new Date("2026-06-11T08:00:00.000Z"),
+        },
       ];
-      prisma.report.count.mockResolvedValue(7);
+      prisma.report.count.mockResolvedValueOnce(7);
       prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce(stale as never);
 
-      await expect(service.reportStaleReports(now)).resolves.toEqual({ stale: 7, movedToPlatform: 0 });
+      await expect(service.reportStaleReports(now)).resolves.toEqual({
+        stale: 7,
+        movedToPlatform: 0,
+        removalDueSoon: 0,
+        removalOverdue: 0,
+        reminded: 0,
+      });
 
       expect(prisma.report.count).toHaveBeenCalledWith({ where: overdue });
       expect(prisma.report.findMany).toHaveBeenCalledWith(
@@ -1855,6 +1887,8 @@ describe("ReportsService", () => {
           reportIds: ["r-1", "r-2"],
           eventIds: [eventId],
           oldestEscalatedAt: stale[0].escalatedAt,
+          ageDays: 3,
+          severity: "ticket",
           audit: true,
         }),
         expect.any(String),
@@ -1863,9 +1897,37 @@ describe("ReportsService", () => {
     });
 
     it("logs nothing, and marks nothing, when no report is overdue", async () => {
-      await expect(service.reportStaleReports(now)).resolves.toEqual({ stale: 0, movedToPlatform: 0 });
+      await expect(service.reportStaleReports(now)).resolves.toEqual({
+        stale: 0,
+        movedToPlatform: 0,
+        removalDueSoon: 0,
+        removalOverdue: 0,
+        reminded: 0,
+      });
       expect(logger.warn).not.toHaveBeenCalled();
       expect(prisma.report.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("runs the removal-deadline check and the weekly reminder in the same run", async () => {
+      const dueAt = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+      prisma.report.findMany
+        .mockResolvedValueOnce([]) // organizer timeouts
+        .mockResolvedValueOnce([]) // newly overdue sample
+        .mockResolvedValueOnce([
+          { id: "r-ncii", eventId, reason: "NON_CONSENSUAL_INTIMATE_IMAGE", queue: "PLATFORM", removalDueAt: dueAt },
+        ] as never)
+        .mockResolvedValueOnce([]) // past the deadline
+        .mockResolvedValueOnce([{ id: "r-old", eventId, createdAt: new Date("2026-06-01T12:00:00.000Z") }] as never);
+      prisma.report.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+
+      await expect(service.reportStaleReports(now)).resolves.toEqual({
+        stale: 0,
+        movedToPlatform: 0,
+        removalDueSoon: 1,
+        removalOverdue: 0,
+        reminded: 1,
+      });
+      expect(loggedEvents("warn")).toEqual(["report.removal_due_soon", "report.stale"]);
     });
   });
 });
