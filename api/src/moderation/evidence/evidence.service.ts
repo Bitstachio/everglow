@@ -7,6 +7,7 @@ import { deleteObjectWithDerivatives } from "src/photos/photo-object-deletion";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { buildEvidenceS3Key } from "./evidence.constants";
+import { SUBJECT_USERNAME_HOLD_REASONS } from "./subject-username";
 
 /** What a new report was about, as written to its ReportEvidence row. */
 export interface EvidenceSnapshot {
@@ -183,8 +184,38 @@ export class EvidenceService {
 
     await this.retryFailedCopies(batchSize, result);
     await this.purgeExpired(now, batchSize, result);
+    await this.scrubDeletedSubjectUsernames(now);
 
     return result;
+  }
+
+  /**
+   * Nulls the subject's username on evidence about accounts that no longer
+   * exist (EV-200). Account deletion does this itself, except on reports
+   * under a child-safety or law-enforcement hold; this catches those once
+   * the hold has ended, and anything deleted before the rule existed.
+   * Returns how many rows it scrubbed.
+   */
+  async scrubDeletedSubjectUsernames(now: Date = new Date()): Promise<number> {
+    const scrubbed = await this.prisma.$executeRaw`
+      UPDATE "ReportEvidence" AS e
+      SET "subjectUsername" = NULL
+      FROM "Report" AS r
+      WHERE r."id" = e."reportId"
+        AND e."subjectUsername" IS NOT NULL
+        AND e."subjectUserId" IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM "User" AS u WHERE u."id" = e."subjectUserId")
+        AND NOT (
+          COALESCE(r."holdReason"::text = ANY(${SUBJECT_USERNAME_HOLD_REASONS}::text[]), false)
+          AND COALESCE(r."holdUntil" > ${now}, false)
+        )`;
+    if (scrubbed > 0) {
+      this.logger.info(
+        { event: "report.evidence.subject_username_scrubbed", scrubbed, audit: true },
+        "Usernames of deleted accounts removed from report evidence",
+      );
+    }
+    return scrubbed;
   }
 
   /**

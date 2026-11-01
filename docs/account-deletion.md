@@ -124,7 +124,10 @@ This is a small **saga / state machine** for dual-store delete. Durable intent l
    (idempotent: Apple answers 200 for an already-revoked token)
 5. Delete Auth0 user (idempotent: already-gone / 404 counts as success)
 6. Set auth0DeletedAt
-7. In one transaction: upsert DeletedProviderSub tombstone, then delete the User row
+7. In one transaction: lock the row, upsert the DeletedProviderSub tombstone with
+   the account's suspension and event bans, null its username on report
+   evidence (except under a child-safety or law-enforcement hold), then delete
+   the User row (§6a)
 8. Best-effort S3 / other side cleanup (same spirit as event photo purge)
 ```
 
@@ -155,7 +158,7 @@ Retries (client or reconciler) call Auth0 again; `404` is treated as success so 
 
 Leave the row **with the deletion flag set** (and `auth0DeletedAt` if you have it). Return a server error: deletion is not fully complete.
 
-A **reconciler** periodically finds users with deletion intent still set, re-runs prep + `user.delete`, and alerts if a row stays stuck.
+A **reconciler** periodically finds users with deletion intent still set, re-runs prep + `user.delete`, and alerts if a row stays stuck. Each pass then purges tombstones past their retention (§6a).
 
 It is **opt-in** (`ACCOUNT_DELETION_RECONCILER_ENABLED=true`): it decides which identities to delete from the tenant in `AUTH0_DOMAIN` using rows in `DATABASE_URL`, and those two are not paired outside a deployed environment. Same rule, and the same reason, as the photo orphan reconciler. After `ACCOUNT_DELETION_MAX_ATTEMPTS` failed passes a row stops being picked up and is reported once as `user.account.deletion_abandoned`: a failure that is not transient is not fixed by retrying it hourly, and an alert that fires forever is one nobody reads.
 
@@ -226,7 +229,7 @@ Two things fix it, and both are needed.
 | `Event.creatorId`                                                   | `SetNull` | Attribution only. Who may manage an event is `EventAccess`, never this column.                                                                                           |
 | `Photo.addedById`                                                   | `SetNull` | A photo may outlive its uploader; it still counts toward its event's gallery storage until the gallery closes.                                                           |
 | `Report.reporterId`, `Report.reportedUserId`, `Report.resolvedById` | `SetNull` | A report is evidence that belongs to the event; it outlives whoever filed it, was named in it, or resolved it ([moderation.md](./moderation.md#what-happens-on-delete)). |
-| `EventBan.userId`                                                   | `Cascade` | A ban from an event means nothing once the account is gone. `EventBan.bannedById` is `SetNull`: the ban outlives the organizer who issued it.                            |
+| `EventBan.userId`                                                   | `Cascade` | The row goes with the account, but the ban does not: the saga copies it onto the tombstone first (§6a). `EventBan.bannedById` is `SetNull`: the ban outlives the organizer who issued it. |
 | `Event.coverUpdatedById`                                            | `SetNull` | Attribution of the current cover only; the cover stays.                                                                                                                  |
 | `Event.deactivatedById`                                             | `SetNull` | Attribution of who deactivated the event only; it stays closed, and `deactivatedAt` stays set.                                                                           |
 | `UsernameChange.userId`                                             | `Cascade` | The change history only enforces this account's limit. (Holding released usernames for a cool-down, EV-30, may want to keep it.)                                         |
@@ -251,17 +254,38 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 
 | Data                                          | On deletion                                                                    |
 | --------------------------------------------- | ------------------------------------------------------------------------------ |
-| Identity, profile (`UserDetails`)             | Deleted. No name or username survives.                                         |
+| Identity, profile (`UserDetails`)             | Deleted. The username survives only as a report's evidence while a child-safety or law-enforcement hold runs (below). |
 | Avatar                                        | Always deleted, whatever `?photos=` says: row by cascade, object purged.       |
 | Memberships (`EventAccess`)                   | Deleted by cascade, after the organizer rules below.                           |
 | Events organised alone, nobody else in them   | Deleted, with every photo still in them and the cover image. One under review or with an open report is kept instead, without members, for the platform ([moderation.md §7](./moderation.md#7-evidence-deletes-and-retention)). |
 | Events organised alone, other members present | Handed over: the longest-standing member becomes an organizer.                 |
 | Events with another organizer                 | Untouched; only the membership goes.                                           |
 | `Event.creatorId` on surviving events         | Null.                                                                          |
-| Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader. `?photos=DELETE`: removed everywhere.   |
+| Uploaded photos in surviving events           | `?photos=KEEP`: kept with no uploader until the gallery closes. `?photos=DELETE`: removed from every event; a reported one keeps its evidence copy (below). |
 | Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                              |
-| Reports filed, received or resolved           | Kept in their event with the account's id nulled; they go when the event does. |
+| Reports filed, received or resolved           | Kept with the account's id nulled, for the report retention window, not tied to the event (below). |
 | Blocks, in either direction                   | Deleted by cascade.                                                            |
+| A suspension, event bans                      | Carried on the tombstone: a later sign-in with the same identity gets them back (below). |
+
+### What outlives the account
+
+Deletion removes the person from the product. A few records stay because they are the only proof that something happened, or the only thing still enforcing a decision about the account. Each has a fixed maximum, as PIPEDA principle 4.5 and Quebec's Law 25 ask.
+
+| What stays                                                          | For how long                                                                                                                                                         | Why (legal basis)                                                                                                                                                  |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reports filed, received or resolved, with the reporter's `note`     | `REPORT_RETENTION_DAYS` (1 year) after the report closes, longer under a hold. `reporterId`, `reportedUserId` and `resolvedById` are nulled at once; `Report.eventId` is nulled when the event goes, the report is not | Safety records and repeat-offender history; a CyberTipline report must be preserved a year (18 U.S.C. §2258A(h)). The note can name third parties, so it is never logged |
+| Evidence: the copy of a reported photo or cover, its hash and metadata, the subject's id | As its report. Survives `?photos=DELETE`: the reported object was copied to `evidence/` before the delete                                                            | Nobody can erase what a report is about before it is judged ([moderation.md §7](./moderation.md#7-evidence-deletes-and-retention)); same preservation duty          |
+| The subject's username on that evidence                             | Nulled at deletion. Kept only while a `CHILD_SAFETY` or `LAW_ENFORCEMENT` hold runs; the daily evidence job nulls it once the hold ends                                | A preservation request may need to name the account (18 U.S.C. §2258A(h), §2703(f)); otherwise a name has no purpose once the account is gone                    |
+| The account id inside object keys (`photos/{userId}/…`)             | KEEP'd photos until their gallery closes; evidence copies as their report; CloudTrail records a year ([photo-privacy.md](./photo-privacy.md))                         | An opaque internal id, not an identifier anyone outside can resolve; renaming objects would break the evidence chain and the audit trail                         |
+| The tombstone: SHA-256 of the provider subject, former user id, `deletedAt` | 30 days (`TOMBSTONE_RETENTION_DAYS`). With a suspension or a ban: at least `REPORT_RETENTION_DAYS` after the deletion, and while any report about the account is kept: OPEN, or until its retention or hold ends | Security safeguard (PIPEDA 4.7): stops access tokens the deleted account left behind from recreating it; past that, only what a carried sanction needs               |
+| A suspension (`DeletedProviderSub.suspendedAt`)                     | As the tombstone, until a sign-in moves it onto the new account or the platform lifts it                                                                            | Enforcing the platform's decision, often a child-safety one, which two taps would otherwise undo; tied to the reports that justify it                            |
+| Event bans (`CarriedBan`: subject hash, event, `bannedAt`)          | As the tombstone, until a sign-in turns them back into `EventBan` rows; each goes with its event                                                                    | Enforcing the organizer's decision; same reasoning                                                                                                                 |
+
+**Suspension and bans carry over.** `completeAccountDeletion` reads the account's `suspendedAt` and its `EventBan` rows under a row lock (so a suspension or ban landing mid-deletion waits and then fails rather than vanishing), and writes them onto the tombstone in the transaction that deletes the row. A later sign-in with the same identity (the `iat` rule in [authentication.md §6](./authentication.md#6-tombstones)) creates the new account already suspended, with its original `suspendedAt`, and re-creates the bans for events that still exist, logged as `user.account.suspension_carried_over` and `user.account.bans_carried_over`. Both move off the tombstone in the same transaction, so each is lifted in one place: `POST /admin/users/:userId/unsuspend` on the new account, or on the deleted account's former id while nobody has signed in; organizers lift bans as usual. A database identity (email and password) gets a new `sub` on re-signup and so carries nothing over; that gap is the same as signing up with a new email, and is left to reports.
+
+`user.account.suspension_carried_over` is an audit record (`info`, `audit: true`), not an alert: the platform already decided, the account can only read and delete itself, and nobody has anything to do.
+
+**The tombstone purge** runs at the end of every account-deletion reconciler pass (`purgeExpiredTombstones`). Tombstones that carry nothing go in one statement. Those that carry a sanction are judged against the reports about the account, found through `ReportEvidence.subjectUserId` (the only place the former id survives on a report), and deleted only when they match the `deletedAt` that was judged, so a newer deletion of the same identity is never taken with it. The floor of a full retention period after the deletion matters because suspending an account closes its member reports: measured from those alone, an account suspended months before it was deleted would come back clean soon after.
 
 ### The photo choice is required, and KEEP is the one to offer
 
@@ -301,7 +325,10 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Database delete fails after Auth0              | Row kept and flagged; reconciler finishes it                                                                           |
 | S3 purge fails                                 | Logged with counts; S3 orphan reconciler reclaims; request still 204                                                   |
 | Any request with a pre-deletion token          | Generic 401; client signs out                                                                                          |
-| Same person signs in again later               | New account, new id, free tier (see authentication.md §6)                                                              |
+| Same person signs in again later               | New account, new id, free tier (see authentication.md §6); suspended again and banned again if the deleted one was (§6a) |
+| Suspended account deletes itself               | Allowed (`@AllowSuspended()`); the suspension waits on the tombstone for a sign-in or for the platform to lift it      |
+| Suspended or banned mid-deletion               | The suspend or ban waits on the row lock, then fails because the row is gone, or lands first and is carried            |
+| Event of a carried ban is deleted              | The carried ban goes with it by cascade                                                                                |
 | Deletion abandoned after the attempt budget    | Reported once as `user.account.deletion_abandoned`; the row awaits a person (§4 runbook)                               |
 | Two members of one event deleting at once      | Neither counts the other as cover; the event is handed to a member who is staying, or deleted if none is               |
 | Two co-organizers deleting at once             | The first to run prep hands over to a staying member; the second then sees real cover and skips                        |

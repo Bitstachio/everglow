@@ -11,6 +11,11 @@ import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import { hashProviderSub } from "src/users/deleted-provider-sub";
 import { USER_AVATAR_S3_KEY_PREFIX } from "src/users/users.constants";
 import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { ConfigService } from "@nestjs/config";
+import { PinoLogger } from "nestjs-pino";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { PrismaService } from "src/prisma/prisma.service";
+import { AccountDeletionReconcilerService } from "src/users/account-deletion-reconciler.service";
 import { UsersService } from "src/users/users.service";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
@@ -105,6 +110,8 @@ describe("UsersController (integration)", () => {
     prisma.photo.findMany.mockResolvedValue([]);
     // Prep also closes member reports about the account; none by default.
     prisma.report.updateMany.mockResolvedValue({ count: 0 });
+    // Account deletion scrubs the subject username off evidence about it.
+    prisma.reportEvidence.updateMany.mockResolvedValue({ count: 0 });
     prisma.report.findMany.mockResolvedValue([]);
     prisma.photo.deleteMany.mockResolvedValue({ count: 0 });
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
@@ -1203,6 +1210,93 @@ describe("UsersController (integration)", () => {
       expect(body.meta.path).toBe(keepPath);
       expect(auth0Management.deleteUser).not.toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("what outlives a deleted account (wired services)", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const daysAgo = (n: number) => new Date(Date.now() - n * DAY_MS);
+
+    it("DELETE /users/me scrubs the account's username off evidence, keeping it only under a running child-safety or law-enforcement hold", async () => {
+      prisma.user.findUnique.mockResolvedValue(
+        buildUserWithDetails({ deletionStartedAt: TEST_NOW, auth0DeletedAt: TEST_NOW }),
+      );
+      prisma.user.delete.mockResolvedValue(buildUserWithDetails());
+
+      await request(httpServer).delete(`${USERS_BASE_PATH}/me?photos=KEEP`).set(authHeader()).expect(204);
+
+      const [args] = prisma.reportEvidence.updateMany.mock.calls[0];
+      expect(args.where).toMatchObject({ subjectUserId: TEST_USER_ID, subjectUsername: { not: null } });
+      expect(args.where?.report).toEqual({
+        OR: [
+          { holdReason: null },
+          { holdReason: { notIn: ["CHILD_SAFETY", "LAW_ENFORCEMENT"] } },
+          { holdUntil: null },
+          { holdUntil: { lte: expect.any(Date) as Date } },
+        ],
+      });
+      expect(args.data).toEqual({ subjectUsername: null });
+    });
+
+    it("the evidence job scrubs what a hold kept once the hold has ended", async () => {
+      prisma.reportEvidence.findMany.mockResolvedValue([]);
+      prisma.report.findMany.mockResolvedValue([]);
+      prisma.$executeRaw.mockResolvedValue(1);
+
+      // The app wires a stand-in EvidenceService; this one is real, on the same Prisma mock and config.
+      const evidenceService = new EvidenceService(
+        prisma as unknown as PrismaService,
+        s3Service as unknown as S3Service,
+        app.get(ConfigService),
+        { setContext: jest.fn(), info: jest.fn(), error: jest.fn() } as unknown as PinoLogger,
+      );
+      await evidenceService.runEvidenceJob();
+
+      const [strings, reasons] = prisma.$executeRaw.mock.calls[0] as unknown as [TemplateStringsArray, unknown];
+      expect(strings.join("?")).toContain(`SET "subjectUsername" = NULL`);
+      expect(reasons).toEqual(["CHILD_SAFETY", "LAW_ENFORCEMENT"]);
+    });
+
+    describe("the reconciler's tombstone purge", () => {
+      const reconciler = () => app.get(AccountDeletionReconcilerService);
+
+      beforeEach(() => {
+        prisma.deletedProviderSub.deleteMany.mockResolvedValue({ count: 0 });
+        prisma.deletedProviderSub.findMany.mockResolvedValue([]);
+      });
+
+      it("drops tombstones that carry nothing 30 days after the deletion", async () => {
+        prisma.deletedProviderSub.deleteMany.mockResolvedValueOnce({ count: 4 });
+
+        await expect(reconciler().purgeExpiredTombstones()).resolves.toEqual({ purged: 4, sanctionedKept: 0 });
+
+        const [args] = prisma.deletedProviderSub.deleteMany.mock.calls[0];
+        expect(args?.where).toMatchObject({ suspendedAt: null, bans: { none: {} } });
+        const cutoff = (args?.where?.deletedAt as { lt: Date }).lt;
+        expect(Math.abs(cutoff.getTime() - daysAgo(30).getTime())).toBeLessThan(60_000);
+      });
+
+      it("keeps a suspended or banned tombstone a year after the deletion and while a report about the account is kept", async () => {
+        prisma.deletedProviderSub.findMany.mockResolvedValueOnce([
+          { providerSubHash: "no-reports-old", formerUserId: "u1", deletedAt: daysAgo(366) },
+          { providerSubHash: "no-reports-new", formerUserId: "u2", deletedAt: daysAgo(200) },
+          { providerSubHash: "open-report", formerUserId: "u3", deletedAt: daysAgo(500) },
+          { providerSubHash: "held-report", formerUserId: "u4", deletedAt: daysAgo(500) },
+          { providerSubHash: "closed-long-ago", formerUserId: "u5", deletedAt: daysAgo(500) },
+        ] as never);
+        prisma.report.findMany.mockResolvedValueOnce([
+          { resolvedAt: null, holdUntil: null, evidence: { subjectUserId: "u3" } },
+          { resolvedAt: daysAgo(400), holdUntil: daysAgo(-30), evidence: { subjectUserId: "u4" } },
+          { resolvedAt: daysAgo(370), holdUntil: null, evidence: { subjectUserId: "u5" } },
+        ] as never);
+        prisma.deletedProviderSub.deleteMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 2 });
+
+        await expect(reconciler().purgeExpiredTombstones()).resolves.toEqual({ purged: 2, sanctionedKept: 3 });
+
+        const [args] = prisma.deletedProviderSub.deleteMany.mock.calls[1];
+        const purged = (args?.where?.OR as { providerSubHash: string }[]).map((row) => row.providerSubHash);
+        expect(purged).toEqual(["no-reports-old", "closed-long-ago"]);
+      });
     });
   });
 

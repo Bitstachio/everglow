@@ -119,6 +119,7 @@ describe("UsersService", () => {
     appleRevocation = { revokeBeforeAuth0Delete: jest.fn().mockResolvedValue("not_apple") };
     photoPurge = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    prisma.reportEvidence.updateMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -915,6 +916,33 @@ describe("UsersService", () => {
 
       const [args] = prisma.deletedProviderSub.upsert.mock.calls[0];
       expect(JSON.stringify(args)).not.toContain(providerSub);
+    });
+
+    it("scrubs the account's username off report evidence, except under a child-safety or law-enforcement hold", async () => {
+      prisma.user.delete.mockResolvedValue(userWithDetails);
+      prisma.reportEvidence.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.completeAccountDeletion({ ...freshDeletionUser(), deletionStartedAt, auth0DeletedAt });
+
+      expect(prisma.reportEvidence.updateMany).toHaveBeenCalledWith({
+        where: {
+          subjectUserId: userId,
+          subjectUsername: { not: null },
+          report: {
+            OR: [
+              { holdReason: null },
+              { holdReason: { notIn: ["CHILD_SAFETY", "LAW_ENFORCEMENT"] } },
+              { holdUntil: null },
+              { holdUntil: { lte: expect.any(Date) as Date } },
+            ],
+          },
+        },
+        data: { subjectUsername: null },
+      });
+      // In the transaction that deletes the row, so the two can't come apart.
+      expect(prisma.reportEvidence.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.user.delete.mock.invocationCallOrder[0],
+      );
     });
 
     it("does not call Auth0 or delete the user when stamping deletionStartedAt fails", async () => {
