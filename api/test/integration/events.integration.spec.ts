@@ -1172,6 +1172,9 @@ describe("EventsController (integration)", () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
       prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+      // No reports filed by the removed member.
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      prisma.$queryRaw.mockResolvedValue([]);
     };
 
     it("returns 204, removes the participant, bans them, and keeps their photos by default", async () => {

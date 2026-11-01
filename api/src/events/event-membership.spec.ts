@@ -18,7 +18,9 @@ describe("removeMemberInTransaction", () => {
     prisma.photo.findMany.mockResolvedValue(uploaded as never);
     prisma.photo.deleteMany.mockResolvedValue({ count: uploaded.length });
     prisma.report.updateMany.mockResolvedValue({ count: 3 });
-    prisma.report.findMany.mockResolvedValue([
+    prisma.$queryRaw.mockResolvedValue([]);
+    // The first lookup is the severe reports the member filed: none, unless a test says so.
+    prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValue([
       {
         id: "r-1",
         photoId: uploaded[0].id,
@@ -55,10 +57,78 @@ describe("removeMemberInTransaction", () => {
       photosDeleted: 0,
       reportsClosed: 0,
       reportsEscalated: [],
+      filedReportsClosed: 3,
+      filedReportsEscalated: [],
     });
 
     expect(prisma.photo.findMany).not.toHaveBeenCalled();
     expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+  });
+
+  describe("the reports they filed in the event", () => {
+    const filed = { eventId, reporterId: userId, status: "OPEN", queue: "ORGANIZERS" };
+    const severe = ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"];
+
+    it.each(["ORGANIZER", "PLATFORM"] as const)(
+      "close as DISMISSED, REPORTER_REMOVED by the %s removing them, so they stop counting",
+      async (removedByRole) => {
+        await removeMemberInTransaction(prisma, { eventId, userId, removedById, removedByRole, photos: "KEEP" });
+
+        expect(prisma.report.updateMany).toHaveBeenCalledWith({
+          where: { ...filed, reason: { notIn: severe } },
+          data: {
+            status: "DISMISSED",
+            closedReason: "REPORTER_REMOVED",
+            closedByRole: removedByRole,
+            resolvedById: removedById,
+            resolvedAt: expect.any(Date) as unknown,
+          },
+        });
+      },
+    );
+
+    it("move to the platform instead when severe, still hiding what they report", async () => {
+      const moved = {
+        id: "r-severe",
+        eventId,
+        targetType: "PHOTO",
+        photoId: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        reportedUserId: removedById,
+        reason: "VIOLENCE",
+      };
+      prisma.report.findMany.mockReset().mockResolvedValue([{ id: moved.id }] as never);
+      prisma.$queryRaw.mockResolvedValue([moved]);
+
+      const result = await removeMemberInTransaction(prisma, {
+        eventId,
+        userId,
+        removedById,
+        removedByRole: "ORGANIZER",
+        photos: "KEEP",
+      });
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { ...filed, reason: { in: severe } },
+        select: { id: true },
+      });
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(result.filedReportsEscalated).toEqual([moved]);
+    });
+
+    it("leave reports already with the platform alone", async () => {
+      await removeMemberInTransaction(prisma, {
+        eventId,
+        userId,
+        removedById,
+        removedByRole: "ORGANIZER",
+        photos: "KEEP",
+      });
+
+      for (const [args] of prisma.report.updateMany.mock.calls) {
+        expect(args.where).toMatchObject({ queue: "ORGANIZERS", status: "OPEN" });
+      }
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
   });
 
   it("with DELETE, deletes every photo they uploaded to the event after closing its OPEN reports", async () => {
@@ -79,7 +149,7 @@ describe("removeMemberInTransaction", () => {
     expect(prisma.report.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { photoId: { in: ids }, status: "OPEN" } }),
     );
-    expect(prisma.report.updateMany).toHaveBeenCalledWith({
+    expect(prisma.report.updateMany).toHaveBeenLastCalledWith({
       where: { id: { in: ["r-1"] }, status: "OPEN" },
       data: {
         status: "ACTIONED",
@@ -98,6 +168,8 @@ describe("removeMemberInTransaction", () => {
       photosDeleted: 2,
       reportsClosed: 3,
       reportsEscalated: [],
+      filedReportsClosed: 3,
+      filedReportsEscalated: [],
     });
   });
 });

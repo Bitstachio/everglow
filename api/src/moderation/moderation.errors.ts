@@ -35,6 +35,15 @@ export const MODERATION_API_ERRORS = {
     status: HttpStatus.CONFLICT,
     message: "The caller's open report on this target was resolved while a new one was being filed",
   },
+  REPORT_RECENTLY_DISMISSED: {
+    status: HttpStatus.CONFLICT,
+    message: ({ days }: { days: number }) =>
+      `The caller's report on this target was dismissed in the last ${days} days; it can be reported again after that`,
+  },
+  CANNOT_SUSPEND_MODERATOR: {
+    status: HttpStatus.FORBIDDEN,
+    message: "Platform moderators, the caller included, cannot be suspended",
+  },
   REPORTED_MEMBER_GONE: {
     status: HttpStatus.UNPROCESSABLE_ENTITY,
     message: ({ reportId }: { reportId: string }) => `The member reported in report "${reportId}" no longer exists`,

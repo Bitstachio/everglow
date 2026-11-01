@@ -41,6 +41,7 @@ import {
   ReportResolutionAction,
   CHILD_SAFETY_HOLD_DAYS,
   PLATFORM_ONLY_REPORT_REASONS,
+  REPORT_DISMISSAL_COOLDOWN_DAYS,
   SEVERE_REPORT_REASONS,
   STALE_REPORT_AFTER_HOURS,
   STALE_REPORT_SAMPLE_SIZE,
@@ -330,7 +331,7 @@ export class ReportsService {
       resolvedById: callerId,
       resolvedAt: new Date(),
     };
-    const sameTarget = this.sameTargetWhere(loaded, action);
+    const sameTarget = this.sameTargetWhere(loaded, action, memberPhotos);
     const dismissing = action === REPORT_RESOLUTION_ACTIONS.DISMISS;
 
     // Only what this organizer may close: reports still with the organizers,
@@ -405,6 +406,9 @@ export class ReportsService {
     });
     logEscalations(this.logger, severeMoved, ReportEscalation.SEVERE_DISMISSED, { callerId });
     logEscalations(this.logger, removedMember?.reportsEscalated ?? [], ReportEscalation.TARGET_DELETED, { callerId });
+    logEscalations(this.logger, removedMember?.filedReportsEscalated ?? [], ReportEscalation.SEVERE_DISMISSED, {
+      callerId,
+    });
 
     if (photo) await this.deletePhotoObject(photo, reportId);
     if (removedMember) {
@@ -613,13 +617,14 @@ export class ReportsService {
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER && (!removedMemberId || !loaded.eventId)) {
       throw new ApiException("REPORTED_MEMBER_GONE", { reportId });
     }
+    if (removedMemberId) await this.assertNotLastOrganizer(loaded.eventId!, removedMemberId);
 
     // Reports on a photo that is gone have lost their photoId; their snapshots
     // still name the object, which is how they are found together.
     const sameTarget =
       loaded.targetType === ReportTargetType.PHOTO && !loaded.photoId && loaded.evidence?.objectS3Key
         ? { evidence: { is: { objectS3Key: loaded.evidence.objectS3Key } } }
-        : this.sameTargetWhere(loaded, action);
+        : this.sameTargetWhere(loaded, action, memberPhotos);
     const resolution = {
       status: RESOLUTION_STATUS[action],
       closedReason: RESOLUTION_CLOSED_REASON[action],
@@ -656,6 +661,13 @@ export class ReportsService {
         : null;
 
       return { resolved: acted, closedIds: [reportId, ...others.map((other) => other.id)], removedMember: member };
+    });
+
+    logEscalations(this.logger, removedMember?.reportsEscalated ?? [], ReportEscalation.TARGET_DELETED, {
+      moderatorId,
+    });
+    logEscalations(this.logger, removedMember?.filedReportsEscalated ?? [], ReportEscalation.SEVERE_DISMISSED, {
+      moderatorId,
     });
 
     if (photo) await this.deletePhotoObject(photo, reportId);
@@ -721,12 +733,30 @@ export class ReportsService {
 
   /**
    * The other OPEN reports one decision settles: every report on the same
-   * photo, or for REMOVE_MEMBER every report about that member in the event.
+   * photo, or for REMOVE_MEMBER the reports about that member in the event.
    * Null when the target is gone and only the report acted on can close.
+   *
+   * REMOVE_MEMBER with DELETE settles everything about the member, photos
+   * included, since the photos go too. With KEEP (the default) their photos
+   * stay, so only member reports close, plus the reported photo's when the
+   * report is about a photo, since the verdict deletes that one: closing the
+   * reports on a photo that stays would show it again to everyone it was
+   * hidden from (docs/moderation.md §3, §5).
    */
-  private sameTargetWhere(report: Report, action: ReportResolutionAction): Prisma.ReportWhereInput | null {
+  private sameTargetWhere(
+    report: Report,
+    action: ReportResolutionAction,
+    memberPhotos: MemberPhotos = MEMBER_PHOTOS.KEEP,
+  ): Prisma.ReportWhereInput | null {
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER) {
-      return report.reportedUserId ? { eventId: report.eventId, reportedUserId: report.reportedUserId } : null;
+      if (!report.reportedUserId) return null;
+      const aboutMember = { eventId: report.eventId, reportedUserId: report.reportedUserId };
+      if (memberPhotos === MEMBER_PHOTOS.DELETE) return aboutMember;
+      const deletedPhoto = report.targetType === ReportTargetType.PHOTO && report.photoId ? report.photoId : null;
+      return {
+        ...aboutMember,
+        OR: [{ targetType: ReportTargetType.MEMBER }, ...(deletedPhoto ? [{ photoId: deletedPhoto }] : [])],
+      };
     }
     if (report.targetType === ReportTargetType.PHOTO) {
       return report.photoId ? { photoId: report.photoId } : null;
@@ -734,6 +764,14 @@ export class ReportsService {
     return report.reportedUserId
       ? { eventId: report.eventId, targetType: ReportTargetType.MEMBER, reportedUserId: report.reportedUserId }
       : null;
+  }
+
+  /** The organizer path's rule for the platform's REMOVE_MEMBER: an event always keeps one organizer. */
+  private async assertNotLastOrganizer(eventId: string, userId: string): Promise<void> {
+    const access = await this.prisma.eventAccess.findUnique({ where: { userId_eventId: { userId, eventId } } });
+    if (access?.accessLevel !== AccessLevel.ORGANIZER) return;
+    const organizers = await this.prisma.eventAccess.count({ where: { eventId, accessLevel: AccessLevel.ORGANIZER } });
+    if (organizers <= 1) throw new ApiException("LAST_ORGANIZER", { eventId });
   }
 
   // Best effort, like the event delete purge: the row is gone, so what is left
@@ -763,18 +801,44 @@ export class ReportsService {
     authorize(ability, REPORT_ACTIONS.CREATE, prospectiveReport);
   }
 
+  /** The caller's reports on the target, of any status. */
+  private callersReportsOn(callerId: string, target: ReportTarget): Prisma.ReportWhereInput {
+    return {
+      reporterId: callerId,
+      eventId: target.eventId,
+      targetType: target.targetType,
+      // A photo is identified by its id alone; its uploader may have changed to null since.
+      ...(target.photoId ? { photoId: target.photoId } : { reportedUserId: target.reportedUserId }),
+    };
+  }
+
   /** The caller's OPEN report on the target, if any: the row the partial unique indexes protect. */
   private findOpenReport(callerId: string, target: ReportTarget): Promise<Report | null> {
     return this.prisma.report.findFirst({
-      where: {
-        reporterId: callerId,
-        status: ReportStatus.OPEN,
-        eventId: target.eventId,
-        targetType: target.targetType,
-        // A photo is identified by its id alone; its uploader may have changed to null since.
-        ...(target.photoId ? { photoId: target.photoId } : { reportedUserId: target.reportedUserId }),
-      },
+      where: { ...this.callersReportsOn(callerId, target), status: ReportStatus.OPEN },
     });
+  }
+
+  /**
+   * Refuses a report on a target the caller's earlier report on was dismissed
+   * less than REPORT_DISMISSAL_COOLDOWN_DAYS ago (docs/moderation.md §2), by
+   * an organizer or the platform, or by removing the caller from the event.
+   * Otherwise a dismissed report could come straight back, hide the photo
+   * again, and wait out the organizers' 24 hours to reach the platform.
+   * Child-safety and intimate-image reports are never refused: they go to
+   * the platform, which is the one judging them anyway.
+   */
+  private async assertNotRecentlyDismissed(callerId: string, target: ReportTarget, reason: ReportReason) {
+    if (PLATFORM_ONLY_REPORT_REASONS.includes(reason)) return;
+
+    const since = new Date(Date.now() - REPORT_DISMISSAL_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+    const dismissed = await this.prisma.report.findFirst({
+      where: { ...this.callersReportsOn(callerId, target), status: ReportStatus.DISMISSED, resolvedAt: { gte: since } },
+      select: { id: true, status: true },
+    });
+    if (dismissed?.status === ReportStatus.DISMISSED) {
+      throw new ApiException("REPORT_RECENTLY_DISMISSED", { days: REPORT_DISMISSAL_COOLDOWN_DAYS });
+    }
   }
 
   /**
@@ -790,6 +854,8 @@ export class ReportsService {
     context: EscalationContext,
     snapshot: EvidenceSnapshot,
   ): Promise<Report> {
+    await this.assertNotRecentlyDismissed(callerId, target, dto.reason);
+
     // Where it starts is decided before the insert, from facts known now: a
     // report about the event, about an organizer, or in a closed gallery is the
     // platform's from the start (docs/moderation.md §3).
