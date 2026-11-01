@@ -14,10 +14,11 @@ import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
 import { FilmGrain } from "@/components/ui/film-grain";
-import { GalleryProgress } from "../gallery-controls";
+import { GalleryProgress, GalleryUnsaved } from "../gallery-controls";
 import { FrameMenu } from "./frame-menu";
 import { FramePager } from "./frame-pager";
 import { useFrameViewer } from "./use-frame-viewer";
+import type { RenewFrame } from "./use-frame-photo";
 import type { PhotoResponseDto } from "../../types";
 
 type Props = {
@@ -27,11 +28,15 @@ type Props = {
   isOwn: boolean;
   busy: boolean;
   notice: string | null;
-  progressLabel?: string;
-  failedSaveCount: number;
+  progressLabel: string;
+  /** Stops a running save or share. */
+  onStop?: () => void;
+  unsavedCount: number;
   onRetrySave: () => void;
+  onDismissUnsaved: () => void;
   onClose: () => void;
-  onRetry: () => Promise<void>;
+  /** Renews the open frame's links. */
+  onRetry: RenewFrame;
   onSave: () => void;
   onShare: () => void;
   onDelete: () => void;
@@ -89,19 +94,21 @@ export const FrameViewer = (props: Props) => {
         weekday: "short",
         hour: "2-digit",
         minute: "2-digit",
-        hour12: false,
+        // 24-hour, and never "24:05" after midnight as `hour12: false` can print.
+        hourCycle: "h23",
       })
     : "";
   // Access changes clear the viewer immediately; ordinary closes retain its
   // contents until the native fade completes and invokes onDismiss.
   if (!frame) return null;
   const status = busy ? (
-    <GalleryProgress label={props.progressLabel ?? t("gallery.preparing")} />
+    <GalleryProgress label={props.progressLabel} onStop={props.onStop} />
   ) : props.notice ? (
     <EdgePrint accessibilityLiveRegion="polite" className="px-5 py-3 text-center">
       {props.notice}
     </EdgePrint>
   ) : null;
+  const unsaved = props.unsavedCount > 0 && !busy;
   return (
     <Modal
       testID="frame-viewer-dialog"
@@ -162,27 +169,26 @@ export const FrameViewer = (props: Props) => {
             />
             {/* Progress and results sit over the photo instead of pushing it
                 up: resizing the photo mid-save reloaded the original. */}
-            {status || props.failedSaveCount > 0 ? (
+            {status || unsaved ? (
               <View
                 testID="frame-viewer-status"
                 className="bg-scrim"
                 style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
               >
                 {status}
-                {props.failedSaveCount > 0 ? (
-                  <Button
-                    title={t("gallery.retrySave", { count: props.failedSaveCount })}
-                    variant="ghost"
-                    fullWidth={false}
-                    disabled={busy}
-                    onPress={props.onRetrySave}
+                {unsaved ? (
+                  <GalleryUnsaved
+                    count={props.unsavedCount}
+                    onRetry={props.onRetrySave}
+                    onDismiss={props.onDismissUnsaved}
                   />
                 ) : null}
               </View>
             ) : null}
           </View>
           <Animated.View style={pager.chromeStyle}>
-            <View testID="viewer-film-strip" className="bg-rebate py-3.25">
+            {/* Not the shared FilmStrip: that is a fixed, decorative row; this one scrolls the whole roll and each frame is a control. */}
+            <View testID="viewer-film-strip" className="bg-rebate py-3">
               <Sprockets edge="top" />
               <FlatList
                 ref={stripRef}

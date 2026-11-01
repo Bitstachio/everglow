@@ -7,7 +7,7 @@ import { router } from "expo-router";
 import { authService, OnboardingData, User } from "@/lib/auth";
 import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import { isConnectionError } from "@/lib/api/errors";
-import { runAccountCleared } from "@/lib/account-cleared";
+import { runAccountCleared, type AccountClearedReason } from "@/lib/account-cleared";
 import { clearPendingInvite, takeLandingRoute } from "@/lib/pending-invite";
 import { View } from "react-native";
 import {
@@ -93,19 +93,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return profile;
   }, []);
 
-  // Nothing cached for one account may show to the next one signed in on this phone.
-  const clearAccount = useCallback(() => {
-    queryClient.clear();
-    clearPendingInvite();
-    runAccountCleared();
-    setUser(null);
-    setIdentity(null);
-  }, [queryClient]);
+  // Nothing cached for one account may show to the next one signed in on this
+  // phone. An expired session keeps the account's unfinished uploads on disk
+  // for when the same person signs back in; sign-out and deletion remove them.
+  const clearAccount = useCallback(
+    (reason: AccountClearedReason) => {
+      queryClient.clear();
+      clearPendingInvite();
+      runAccountCleared(reason);
+      setUser(null);
+      setIdentity(null);
+    },
+    [queryClient],
+  );
 
   const handleSessionExpired = useCallback(async () => {
     if (signedOutRef.current) return;
     await clearLocalCredentials();
-    clearAccount();
+    clearAccount("sessionExpired");
     // The welcome shows the signed-out slip (01.8) instead of a blank start.
     router.replace({ pathname: LOGIN_ROUTE, params: { signedOut: "1" } });
   }, [clearAccount]);
@@ -250,7 +255,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (err) {
         console.error("Logout error:", err);
       } finally {
-        clearAccount();
+        clearAccount("signedOut");
         setIsLoading(false);
         router.replace(to);
       }

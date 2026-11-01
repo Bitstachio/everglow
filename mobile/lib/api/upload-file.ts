@@ -26,7 +26,7 @@ type UploadFileOptions<TContentType extends string, TSlot extends UploadSlot> = 
  * picker's fileSize can describe the original photo rather than the cropped,
  * re-encoded file, which S3 rejects with 403.
  */
-export const readFileBlob = async (uri: string): Promise<Blob> => {
+const readFileBlob = async (uri: string): Promise<Blob> => {
   const fileResponse = await fetch(uri);
   const blob = await fileResponse.blob();
   if (blob.size <= 0) {
@@ -36,7 +36,7 @@ export const readFileBlob = async (uri: string): Promise<Blob> => {
 };
 
 /** Step 2 of the shared upload protocol: PUT the bytes to the slot's presigned URL. */
-export const putFile = async (blob: Blob, contentType: string, slot: UploadSlot): Promise<void> => {
+const putFile = async (blob: Blob, contentType: string, slot: UploadSlot): Promise<void> => {
   if (slot.expiresAt && Date.parse(slot.expiresAt) <= Date.now()) {
     throw createApiError("The upload link expired before the upload started. Please try again.");
   }

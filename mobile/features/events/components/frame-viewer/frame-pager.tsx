@@ -2,8 +2,9 @@ import { View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import type { SheetFrame } from "../../lib/roll-page";
-import { FramePhoto } from "../frame-photo/frame-photo";
+import { FramePhoto } from "./frame-photo";
 import { loadsOriginal, pageWindow } from "./paging";
+import type { RenewFrame } from "./use-frame-photo";
 import { useFramePageStyle, type useFramePager } from "./use-frame-pager";
 
 type Pager = ReturnType<typeof useFramePager>;
@@ -25,7 +26,7 @@ const FramePage = ({
   label: string;
   fadeMs: number;
   pager: Pager;
-  onRetry: () => Promise<void>;
+  onRetry: RenewFrame;
 }) => {
   const active = page === index;
   const style = useFramePageStyle(pager.zoom, active);
@@ -72,7 +73,7 @@ export const FramePager = ({
   label: string;
   fadeMs: number;
   pager: Pager;
-  onRetry: () => Promise<void>;
+  onRetry: RenewFrame;
 }) => {
   const { first, last } = pageWindow(index, frames.length);
   return (

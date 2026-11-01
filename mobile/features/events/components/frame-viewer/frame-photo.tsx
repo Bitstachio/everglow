@@ -6,13 +6,14 @@ import { EdgePrint } from "@/components/ui/edge-print";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { SheetFrame } from "../../lib/roll-page";
-import { useFramePhoto } from "./use-frame-photo";
+import { useFramePhoto, type RenewFrame } from "./use-frame-photo";
 
 /**
  * One frame in the viewer: its thumbnail underneath, and its original on top
  * when the pager asks for it. The thumbnail stays mounted the whole time, so
- * the frame is never blank while the original loads, reloads or renews. Only
- * the current frame shows loading and failure, and can be retried.
+ * the frame is never blank while the original loads, reloads, stalls or
+ * renews. Only the current frame shows loading and failure, and can be
+ * retried.
  */
 export const FramePhoto = ({
   frame,
@@ -30,14 +31,11 @@ export const FramePhoto = ({
   original: boolean;
   /** How long the original takes to fade in over the thumbnail. */
   fadeMs: number;
-  onRetry: () => Promise<void>;
+  onRetry: RenewFrame;
 }) => {
   const { t } = useTranslation("roll");
-  const { status, attempt, refreshing, retry, fail, onDisplay, originalUri, thumbnailUri } = useFramePhoto({
-    photo: frame.photo,
-    active,
-    onRetry,
-  });
+  const { status, attempt, refreshing, retry, onProgress, onDisplay, onError, originalUri, thumbnailUri } =
+    useFramePhoto({ photo: frame.photo, active, onRetry });
 
   return (
     <View className="flex-1">
@@ -59,8 +57,9 @@ export const FramePhoto = ({
           transition={{ duration: fadeMs, effect: "cross-dissolve" }}
           contentFit="contain"
           className="h-full w-full"
+          onProgress={onProgress}
           onDisplay={onDisplay}
-          onError={fail}
+          onError={onError}
         />
       ) : null}
       {active && status === "loading" ? (

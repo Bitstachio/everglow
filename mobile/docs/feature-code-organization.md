@@ -226,7 +226,8 @@ downscales to 1024px and re-encodes as JPEG. Re-encoding is what makes HEIC
 from the camera roll work, since the API only accepts JPEG, PNG and WebP up to
 5 MB. The upload goes through `uploadImage` (`lib/api/upload-image.ts`), which
 the event cover uses too; it wraps the `uploadFile` helper
-(`lib/api/upload-file.ts`), whose read and PUT steps event photos also use. The protocol is in
+(`lib/api/upload-file.ts`). Event photos stream from disk with their own
+`UploadTask` instead (see [Event photos](#event-photos)). The protocol is in
 `docs/uploads.md`.
 
 `uploadImage` starts over with a new upload URL once on

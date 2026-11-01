@@ -12,7 +12,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: config.slug ?? "everglow-mobile",
   plugins: [
     ...(config.plugins ?? []),
-    ["react-native-share", {}],
     [
       "react-native-auth0",
       {

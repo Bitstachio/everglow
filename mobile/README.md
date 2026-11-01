@@ -16,6 +16,12 @@ pnpm start
 
 Point the app at an API with `EXPO_PUBLIC_API_URL` in `mobile/.env`. Local API setup is in [api/docs/local-setup.md](../api/docs/local-setup.md).
 
+## Native builds
+
+Run `pnpm ios` or `pnpm android` to refresh the generated native project before building and installing the app. This keeps splash images, fonts and config plugins in sync when `ios/` or `android/` already exists. Extra run options still work, for example `pnpm ios --device`.
+
+Changes to native splash artwork require a new native build; restarting Metro or reloading JavaScript does not update the installed splash. The launch screen shows only the Everglow wordmark. “Loading the roll” is an accessibility label, not visible copy.
+
 ## Tests
 
 ```bash
