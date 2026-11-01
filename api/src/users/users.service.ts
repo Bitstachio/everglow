@@ -28,6 +28,17 @@ export type AccountDeletionUser = Pick<
   "id" | "providerSub" | "deletionStartedAt" | "auth0DeletedAt" | "deletionPhotoPolicy"
 >;
 
+type TombstoneWithBans = Prisma.DeletedProviderSubGetPayload<{
+  include: { bans: { select: { eventId: true; bannedAt: true } } };
+}>;
+
+/** What a sign-in took over from the tombstone of the identity's deleted account. */
+interface CarriedSanctions {
+  formerUserId: string;
+  suspendedAt: Date | null;
+  eventIds: string[];
+}
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -259,13 +270,24 @@ export class UsersService {
     // recreate this providerSub. Upsert keeps reconciler retries idempotent.
     // Username frees immediately with the cascaded UserDetails row (EV-30 cool-down later).
     const providerSubHash = hashProviderSub(providerSub);
-    await this.prisma.$transaction(async (tx) => {
+    const carried = await this.prisma.$transaction(async (tx) => {
+      const sanctions = await this.lockSanctions(tx, id);
       await tx.deletedProviderSub.upsert({
         where: { providerSubHash },
-        create: { providerSubHash, formerUserId: id },
-        update: { formerUserId: id, deletedAt: new Date() },
+        create: { providerSubHash, formerUserId: id, suspendedAt: sanctions.suspendedAt },
+        update: { formerUserId: id, deletedAt: new Date(), suspendedAt: sanctions.suspendedAt },
       });
+      // The tombstone carries the bans the account has now, not those of an
+      // earlier deletion of the same identity.
+      await tx.carriedBan.deleteMany({ where: { providerSubHash } });
+      if (sanctions.bans.length > 0) {
+        await tx.carriedBan.createMany({
+          data: sanctions.bans.map((ban) => ({ providerSubHash, eventId: ban.eventId, bannedAt: ban.createdAt })),
+          skipDuplicates: true,
+        });
+      }
       await tx.user.delete({ where: { id } });
+      return { suspended: sanctions.suspendedAt !== null, bans: sanctions.bans.length };
     });
 
     this.logger.info(
@@ -275,6 +297,8 @@ export class UsersService {
         deletionStartedAt,
         auth0DeletedAt,
         photoPolicy: policy,
+        suspensionCarried: carried.suspended,
+        bansCarried: carried.bans,
         audit: true,
       },
       "User account deleted",
@@ -284,6 +308,27 @@ export class UsersService {
     // already gone, so what is left at stake is storage cost, which the S3
     // orphan reconciler also covers.
     await this.photoPurge.purgeObjects(s3Keys, { event: ALERT_EVENTS.ACCOUNT_PHOTOS_PURGED, userId: id });
+  }
+
+  /**
+   * The suspension and event bans the tombstone has to carry, read under a
+   * lock on the user's row. The lock makes a suspension, or a ban (whose
+   * foreign key check needs the row too), that lands while the account is
+   * being deleted wait for the delete and then fail, instead of committing
+   * just after this read and vanishing with the row.
+   */
+  private async lockSanctions(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ): Promise<{ suspendedAt: Date | null; bans: { eventId: string; createdAt: Date }[] }> {
+    await tx.$queryRaw`SELECT 1 FROM "User" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { suspendedAt: true, eventBans: { select: { eventId: true, createdAt: true } } },
+    });
+    // No row: a concurrent pass already deleted it, and the user.delete that
+    // follows fails and rolls this transaction back, tombstone included.
+    return { suspendedAt: user?.suspendedAt ?? null, bans: user?.eventBans ?? [] };
   }
 
   /**
@@ -346,25 +391,56 @@ export class UsersService {
    *
    * A token with no `iat` cannot be placed in time and is refused. Auth0 always
    * sets it.
+   *
+   * The fresh account is not a clean slate for the platform's and organizers'
+   * decisions: a suspension and the event bans the deleted account had come
+   * back with it (docs/account-deletion.md §6a), and move off the tombstone in
+   * the same transaction, so there is one place each is lifted from.
    */
   private async provisionUnlessTombstoned(sub: string, issuedAt?: number): Promise<UserWithDetails> {
     const providerSubHash = hashProviderSub(sub);
     try {
-      const created = await this.prisma.$transaction(async (tx) => {
+      const { created, carried } = await this.prisma.$transaction(async (tx) => {
         const tombstone = await tx.deletedProviderSub.findUnique({
           where: { providerSubHash },
+          include: { bans: { select: { eventId: true, bannedAt: true } } },
         });
         if (tombstone && !isIssuedAfterDeletion(issuedAt, tombstone.deletedAt)) {
           this.rejectTombstoned(tombstone.formerUserId);
         }
 
-        return tx.user.create({
-          data: { providerSub: sub },
+        const user = await tx.user.create({
+          data: { providerSub: sub, ...(tombstone?.suspendedAt && { suspendedAt: tombstone.suspendedAt }) },
           include: userWithDetailsInclude,
         });
+        return { created: user, carried: tombstone ? await this.carrySanctionsOver(tx, tombstone, user.id) : null };
       });
 
       this.logger.info({ event: "user.provisioned", userId: created.id }, "Provisioned new user on first login");
+      if (carried?.suspendedAt) {
+        this.logger.info(
+          {
+            event: "user.account.suspension_carried_over",
+            userId: created.id,
+            formerUserId: carried.formerUserId,
+            suspendedAt: carried.suspendedAt,
+            audit: true,
+          },
+          "Suspension of a deleted account carried over to its new account",
+        );
+      }
+      if (carried && carried.eventIds.length > 0) {
+        this.logger.info(
+          {
+            event: "user.account.bans_carried_over",
+            userId: created.id,
+            formerUserId: carried.formerUserId,
+            eventIds: carried.eventIds,
+            audit: true,
+          },
+          "Event bans of a deleted account carried over to its new account",
+        );
+      }
       return created;
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
@@ -376,6 +452,33 @@ export class UsersService {
 
       throw error;
     }
+  }
+
+  /**
+   * Moves a deleted account's suspension and event bans onto the account just
+   * created for the same identity, in the caller's transaction. Bans only
+   * exist here for events that still exist: they cascade with the event.
+   */
+  private async carrySanctionsOver(
+    tx: Prisma.TransactionClient,
+    tombstone: TombstoneWithBans,
+    userId: string,
+  ): Promise<CarriedSanctions> {
+    const { providerSubHash, formerUserId, suspendedAt, bans } = tombstone;
+    if (!suspendedAt && bans.length === 0) return { formerUserId, suspendedAt: null, eventIds: [] };
+
+    if (bans.length > 0) {
+      await tx.eventBan.createMany({
+        data: bans.map((ban) => ({ eventId: ban.eventId, userId, createdAt: ban.bannedAt })),
+        skipDuplicates: true,
+      });
+      await tx.carriedBan.deleteMany({ where: { providerSubHash } });
+    }
+    if (suspendedAt) {
+      await tx.deletedProviderSub.update({ where: { providerSubHash }, data: { suspendedAt: null } });
+    }
+
+    return { formerUserId, suspendedAt, eventIds: bans.map((ban) => ban.eventId) };
   }
 
   private async resolveAfterProvisionRace(sub: string, issuedAt?: number): Promise<UserWithDetails> {
