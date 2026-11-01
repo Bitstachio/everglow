@@ -5,6 +5,7 @@ import { PinoLogger } from "nestjs-pino";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { hashProviderSub } from "src/users/deleted-provider-sub";
 import { EvidenceService } from "../evidence/evidence.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "../evidence/testing/evidence-service.mock";
 import { PlatformEnforcementService } from "./platform-enforcement.service";
@@ -196,12 +197,76 @@ describe("PlatformEnforcementService", () => {
     });
   });
 
-  it("lifts an account's suspension, leaving its events to be restored one by one", async () => {
-    prisma.user.findUnique.mockResolvedValue({ suspendedAt: new Date() } as never);
+  describe("unsuspendUser", () => {
+    const providerSub = "google-oauth2|1234";
 
-    await service.unsuspendUser(userId, moderatorId);
+    it("lifts an account's suspension, leaving its events to be restored one by one", async () => {
+      prisma.user.findUnique.mockResolvedValue({ suspendedAt: new Date(), providerSub } as never);
 
-    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: userId }, data: { suspendedAt: null } });
-    expect(prisma.event.updateMany).not.toHaveBeenCalled();
+      await service.unsuspendUser(userId, moderatorId);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: userId }, data: { suspendedAt: null } });
+      expect(prisma.event.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("clears a suspension its identity's tombstone still carries, with the account's", async () => {
+      prisma.user.findUnique.mockResolvedValue({ suspendedAt: new Date(), providerSub } as never);
+
+      await service.unsuspendUser(userId, moderatorId);
+
+      expect(prisma.deletedProviderSub.updateMany).toHaveBeenCalledWith({
+        where: { providerSubHash: hashProviderSub(providerSub), suspendedAt: { not: null } },
+        data: { suspendedAt: null },
+      });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("is idempotent for an account that isn't suspended", async () => {
+      prisma.user.findUnique.mockResolvedValue({ suspendedAt: null, providerSub } as never);
+
+      await service.unsuspendUser(userId, moderatorId);
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.deletedProviderSub.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("lifts the suspension a deleted account left on its tombstone, so the next sign-in starts unsuspended", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedProviderSub.findFirst.mockResolvedValue({
+        providerSubHash: "hash",
+        suspendedAt: new Date(),
+      } as never);
+
+      await service.unsuspendUser(userId, moderatorId);
+
+      expect(prisma.deletedProviderSub.findFirst).toHaveBeenCalledWith({
+        where: { formerUserId: userId },
+        select: { providerSubHash: true, suspendedAt: true },
+      });
+      expect(prisma.deletedProviderSub.update).toHaveBeenCalledWith({
+        where: { providerSubHash: "hash" },
+        data: { suspendedAt: null },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "user.unsuspended", userId, accountDeleted: true }),
+        expect.any(String),
+      );
+    });
+
+    it("does nothing for a deleted account whose tombstone carries no suspension", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedProviderSub.findFirst.mockResolvedValue({ providerSubHash: "hash", suspendedAt: null } as never);
+
+      await service.unsuspendUser(userId, moderatorId);
+
+      expect(prisma.deletedProviderSub.update).not.toHaveBeenCalled();
+    });
+
+    it("answers 404 for an id that is neither an account nor a deleted one", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedProviderSub.findFirst.mockResolvedValue(null);
+
+      await expect(service.unsuspendUser(userId, moderatorId)).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 });

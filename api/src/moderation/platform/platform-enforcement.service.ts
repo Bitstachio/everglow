@@ -12,6 +12,7 @@ import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { hashProviderSub } from "src/users/deleted-provider-sub";
 import { EvidenceService } from "../evidence/evidence.service";
 
 /**
@@ -202,14 +203,50 @@ export class PlatformEnforcementService {
     );
   }
 
-  /** Lifts an account's suspension. Events suspended with it stay suspended until restored one by one. */
+  /**
+   * Lifts an account's suspension. Events suspended with it stay suspended
+   * until restored one by one.
+   *
+   * A suspension outlives the account's deletion on its tombstone
+   * (docs/account-deletion.md §6a), so lifting clears that too: for a live
+   * account, whatever its identity's tombstone still holds; for an account
+   * that has since been deleted, the tombstone it left, so the next sign-in
+   * starts unsuspended.
+   */
   async unsuspendUser(userId: string, moderatorId: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { suspendedAt: true } });
-    if (!user) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", userId));
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { suspendedAt: true, providerSub: true },
+    });
+    if (!user) return this.unsuspendDeletedAccount(userId, moderatorId);
     if (!user.suspendedAt) return;
 
-    await this.prisma.user.update({ where: { id: userId }, data: { suspendedAt: null } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { suspendedAt: null } });
+      await tx.deletedProviderSub.updateMany({
+        where: { providerSubHash: hashProviderSub(user.providerSub), suspendedAt: { not: null } },
+        data: { suspendedAt: null },
+      });
+    });
     this.logger.info({ event: "user.unsuspended", userId, moderatorId, audit: true }, "Account suspension lifted");
+  }
+
+  private async unsuspendDeletedAccount(formerUserId: string, moderatorId: string): Promise<void> {
+    const tombstone = await this.prisma.deletedProviderSub.findFirst({
+      where: { formerUserId },
+      select: { providerSubHash: true, suspendedAt: true },
+    });
+    if (!tombstone) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", formerUserId));
+    if (!tombstone.suspendedAt) return;
+
+    await this.prisma.deletedProviderSub.update({
+      where: { providerSubHash: tombstone.providerSubHash },
+      data: { suspendedAt: null },
+    });
+    this.logger.info(
+      { event: "user.unsuspended", userId: formerUserId, moderatorId, accountDeleted: true, audit: true },
+      "Suspension of a deleted account lifted",
+    );
   }
 
   private async findEvent(eventId: string) {
