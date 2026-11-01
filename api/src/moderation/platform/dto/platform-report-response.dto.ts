@@ -28,8 +28,12 @@ export class ReportEvidenceSummaryDto {
   subjectUsername: string | null;
 }
 
-/** A report as the platform sees it: everything organizers see, plus who filed it and why it is here. */
-export class PlatformReportResponseDto extends ReportResponseDto {
+/**
+ * A report on the platform's queue page: everything organizers see, plus who
+ * filed it and why it is here. The authority reference is left to the
+ * report's own page (PlatformReportResponseDto).
+ */
+export class PlatformReportListItemDto extends ReportResponseDto {
   @ApiProperty({ format: "uuid", type: String, nullable: true, description: "Null once that account is deleted." })
   reporterId: string | null;
 
@@ -45,16 +49,23 @@ export class PlatformReportResponseDto extends ReportResponseDto {
   @ApiProperty({ enum: ReportHoldReason, enumName: "ReportHoldReason", nullable: true })
   holdReason: ReportHoldReason | null;
 
-  @ApiProperty({ type: String, nullable: true, description: "CyberTipline or police reference." })
-  authorityReference: string | null;
-
   @ApiProperty({ type: ReportEvidenceSummaryDto, nullable: true })
   evidence: ReportEvidenceSummaryDto | null;
 }
 
+/** A single report as the platform sees it: the queue page's fields plus the authority reference. */
+export class PlatformReportResponseDto extends PlatformReportListItemDto {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "CyberTipline or police reference. Only on the single report, never on the queue pages.",
+  })
+  authorityReference: string | null;
+}
+
 export class PlatformReportListResponseDto {
-  @ApiProperty({ type: [PlatformReportResponseDto] })
-  items: PlatformReportResponseDto[];
+  @ApiProperty({ type: [PlatformReportListItemDto] })
+  items: PlatformReportListItemDto[];
 
   @ApiProperty({ type: String, nullable: true, description: "Opaque cursor for the next page; null on the last." })
   nextCursor: string | null;

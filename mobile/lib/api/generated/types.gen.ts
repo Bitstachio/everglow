@@ -248,9 +248,29 @@ export type ReportReason =
   | "NON_CONSENSUAL_INTIMATE_IMAGE";
 
 /**
- * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
+ * OPEN on a new report, and on a repeat, which returns the caller's open report.
  */
 export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED" | "TARGET_GONE";
+
+export type ReportReceiptResponseDto = {
+  id: string;
+  targetType: ReportTargetType;
+  reason: ReportReason;
+  note: string | null;
+  /**
+   * OPEN on a new report, and on a repeat, which returns the caller's open report.
+   */
+  status: ReportStatus;
+  createdAt: string;
+};
+
+export type CreateReportDto = {
+  reason: ReportReason;
+  /**
+   * Optional context for the organizers, in the reporter's own words.
+   */
+  note?: string;
+};
 
 /**
  * Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).
@@ -318,14 +338,6 @@ export type ReportResponseDto = {
   resolvedById: string | null;
   resolvedAt: string | null;
   createdAt: string;
-};
-
-export type CreateReportDto = {
-  reason: ReportReason;
-  /**
-   * Optional context for the organizers, in the reporter's own words.
-   */
-  note?: string;
 };
 
 export type ReportListResponseDto = {
@@ -673,6 +685,74 @@ export type ReportEvidenceSummaryDto = {
   subjectUsername: string | null;
 };
 
+export type PlatformReportListItemDto = {
+  id: string;
+  /**
+   * Null once the event has been deleted; only closed reports outlive their event.
+   */
+  eventId: string | null;
+  /**
+   * The event's title when the report was filed.
+   */
+  eventTitle: string;
+  targetType: ReportTargetType;
+  /**
+   * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
+   */
+  photoId: string | null;
+  /**
+   * The reported member, or the uploader of the reported photo. Null once that account has been deleted, or when the photo had no uploader left.
+   */
+  reportedUserId: string | null;
+  reason: ReportReason;
+  note: string | null;
+  /**
+   * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
+   */
+  status: ReportStatus;
+  /**
+   * Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).
+   */
+  queue: ReportQueue;
+  /**
+   * Why the report closed. Null while OPEN, and on reports closed before it was recorded.
+   */
+  closedReason: ReportClosedReason | null;
+  /**
+   * In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.
+   */
+  closedByRole: ReportActorRole | null;
+  /**
+   * Who closed the report, in the role closedByRole says. Null while OPEN, when nobody acted (SYSTEM), when the platform closed it, and once that account has been deleted.
+   */
+  resolvedById: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  /**
+   * Null once that account is deleted.
+   */
+  reporterId: string | null;
+  escalationReasons: Array<ReportEscalation>;
+  /**
+   * When it reached the platform's queue.
+   */
+  escalatedAt: string | null;
+  /**
+   * The retention purge skips the report until then.
+   */
+  holdUntil: string | null;
+  holdReason: ReportHoldReason | null;
+  evidence: ReportEvidenceSummaryDto | null;
+};
+
+export type PlatformReportListResponseDto = {
+  items: Array<PlatformReportListItemDto>;
+  /**
+   * Opaque cursor for the next page; null on the last.
+   */
+  nextCursor: string | null;
+};
+
 export type PlatformReportResponseDto = {
   id: string;
   /**
@@ -730,19 +810,11 @@ export type PlatformReportResponseDto = {
    */
   holdUntil: string | null;
   holdReason: ReportHoldReason | null;
+  evidence: ReportEvidenceSummaryDto | null;
   /**
-   * CyberTipline or police reference.
+   * CyberTipline or police reference. Only on the single report, never on the queue pages.
    */
   authorityReference: string | null;
-  evidence: ReportEvidenceSummaryDto | null;
-};
-
-export type PlatformReportListResponseDto = {
-  items: Array<PlatformReportResponseDto>;
-  /**
-   * Opaque cursor for the next page; null on the last.
-   */
-  nextCursor: string | null;
 };
 
 export type EvidenceUrlResponseDto = {
@@ -1416,7 +1488,7 @@ export type ReportsControllerReportPhotoResponses = {
    * The caller's open report on the photo
    */
   201: {
-    data: ReportResponseDto;
+    data: ReportReceiptResponseDto;
     meta: ResponseMetaDto;
   };
 };
@@ -1453,7 +1525,7 @@ export type ReportsControllerReportMemberResponses = {
    * The caller's open report on the member
    */
   201: {
-    data: ReportResponseDto;
+    data: ReportReceiptResponseDto;
     meta: ResponseMetaDto;
   };
 };
@@ -1535,7 +1607,7 @@ export type ReportsControllerReportEventResponses = {
    * The caller's open report on the event
    */
   201: {
-    data: ReportResponseDto;
+    data: ReportReceiptResponseDto;
     meta: ResponseMetaDto;
   };
 };

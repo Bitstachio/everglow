@@ -93,6 +93,36 @@ describe("defineReportAbilities", () => {
       expect(ability.can(action, reportWithAccess("VIEWER"))).toBe(false);
     });
 
+    it("denies an organizer a report about themselves or their own photo", () => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+      const aboutCaller = (targetType: "PHOTO" | "MEMBER") =>
+        subject(REPORT_SUBJECT, {
+          eventId,
+          reporterId: otherUserId,
+          reportedUserId: userId,
+          targetType,
+          event: { id: eventId, eventAccesses: [{ userId, accessLevel: "ORGANIZER" }] },
+        } as never);
+
+      expect(ability.can(action, aboutCaller("MEMBER"))).toBe(false);
+      expect(ability.can(action, aboutCaller("PHOTO"))).toBe(false);
+    });
+
+    it("allows an organizer a report about someone else, or whose subject is gone", () => {
+      const ability = createAbilityForUser({ id: userId, isOnboarded: true });
+      const about = (reportedUserId: string | null) =>
+        subject(REPORT_SUBJECT, {
+          eventId,
+          reporterId: otherUserId,
+          reportedUserId,
+          targetType: "MEMBER",
+          event: { id: eventId, eventAccesses: [{ userId, accessLevel: "ORGANIZER" }] },
+        } as never);
+
+      expect(ability.can(action, about(otherUserId))).toBe(true);
+      expect(ability.can(action, about(null))).toBe(true);
+    });
+
     it("denies an organizer of a different event", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 

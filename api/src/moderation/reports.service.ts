@@ -238,7 +238,8 @@ export class ReportsService {
     const ability = await this.abilityFactory.createForCaller(callerId);
     // Listing is reading reports of the event; authorize against a prospective
     // row of a kind organizers review. The query below narrows to those kinds,
-    // so reports about the event itself never appear here.
+    // so reports about the event itself never appear here, and neither do
+    // reports about the caller or their own photos.
     const prospectiveReport = subject(REPORT_SUBJECT, {
       eventId,
       event,
