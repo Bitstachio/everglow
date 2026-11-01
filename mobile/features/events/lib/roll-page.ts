@@ -105,7 +105,7 @@ export const storagePair = (usedBytes: number, limitBytes: number): { used: stri
   return { used: usedUnit === limit.split(" ")[1] ? (usedValue ?? used) : used, limit };
 };
 
-/** "Maya" from "Maya Chen". */
+/** First token of a display name. e.g. "Maya" from "Maya Chen". */
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
 
 /** A frame on the contact sheet: newest first, numbered in the order it was added. */
@@ -168,31 +168,31 @@ export const hostName = (
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
-/** "Sat 07.11 · 19:00": when an upcoming roll opens. */
+/** When an upcoming roll opens. e.g. "Sat 07.11 · 19:00". */
 export const formatOpensAt = (iso: string): string => {
   const date = new Date(iso);
   const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
   return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-/** "16:00": when a roll closed while photos were sending (08.8). */
+/** Clock time when a roll closed while photos were still sending. e.g. "16:00". */
 export const formatClock = (iso: string): string => {
   const date = new Date(iso);
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-/** "Sun 18.10": the roll's date under its name. */
+/** The roll's date under its name. e.g. "Sun 18.10". */
 export const formatRollDate = (iso: string): string => {
   const date = new Date(iso);
   const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
   return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)}`;
 };
 
-/** "17 Nov": the day an open roll's gallery ends (settings subtitle). */
+/** The day an open roll's gallery ends, for the settings subtitle. e.g. "17 Nov". */
 export const formatClosesUntil = (iso: string): string =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-/** "Sep 12 – Sep 21": the life of a closed roll. */
+/** The life of a closed roll as a date range. e.g. "Sep 12 – Sep 21". */
 export const formatRange = (fromIso: string, toIso: string): string => {
   const format = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${format(fromIso)} – ${format(toIso)}`;

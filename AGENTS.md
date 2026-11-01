@@ -10,7 +10,7 @@ Shared process docs live in [`.context/`](.context/). Read the matching file in 
 | Write a PR title/body or run `gh pr create` / `gh stack submit` (title = subject)  | [`.context/pr-description-generator.md`](.context/pr-description-generator.md)         |
 | Write the squash-merge commit **body** (under the PR title; no new subject line)   | [`.context/commit-description-generator.md`](.context/commit-description-generator.md) |
 | Look up product or architecture that spans packages                                | [`docs/`](docs/)                                                                           |
-| Build or compare a screen against the contact-sheet drawings                       | `design/` (local copy, gitignored): `design/flow-NN.html` is chapter NN; open `design/index.html` for the canvas. If it is missing, ask for the "Everglow Design" folder. |
+| Build or compare a screen against the contact-sheet drawings                       | `design/` (local copy, gitignored): `design/flow-NN.html` is chapter NN; open `design/index.html` for the canvas. If it is missing, ask for the "Everglow Design" folder. Use drawings to build and review UI; do **not** put chapter or frame numbers (`12.2`, `07.1`, …) in source comments, JSDoc, or test names — they drift when the design set changes. Describe behavior in plain language instead (see [mobile/docs/code-conventions.md](mobile/docs/code-conventions.md)). |
 
 ## Non-negotiables
 
