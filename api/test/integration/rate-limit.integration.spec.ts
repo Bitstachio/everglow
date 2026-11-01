@@ -6,6 +6,8 @@ import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { TEST_OTHER_ACCESS_TOKEN, authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
+import { TEST_REPORT_ID } from "./helpers/moderation.fixtures";
+import { buildUserWithDetails } from "./helpers/users.fixtures";
 
 const ROOT_PATH = `/${API_GLOBAL_PREFIX}`;
 const JOIN_PATH = `/${API_GLOBAL_PREFIX}/events/join`;
@@ -94,6 +96,23 @@ describe("Rate limiting (integration)", () => {
     await exhaust(preview, SENSITIVE_LIMIT);
 
     const response = await preview().expect(429);
+
+    expect((response.body as ErrorBody).code).toBe("RATE_LIMIT_EXCEEDED");
+  });
+
+  it("limits a moderator's evidence reads on the sensitive tier", async () => {
+    const context = await createTestApp((builder) =>
+      builder.overrideProvider(rateLimitConfig.KEY).useValue(buildConfig()),
+    );
+    app = context.app;
+    httpServer = app.getHttpServer() as Server;
+    context.prisma.user.findUnique.mockResolvedValue({ ...buildUserWithDetails(), platformRole: "MODERATOR" } as never);
+    context.prisma.report.findUnique.mockResolvedValue(null);
+    const look = () =>
+      request(httpServer).get(`/${API_GLOBAL_PREFIX}/admin/reports/${TEST_REPORT_ID}/evidence`).set(authHeader());
+    await exhaust(look, SENSITIVE_LIMIT);
+
+    const response = await look().expect(429);
 
     expect((response.body as ErrorBody).code).toBe("RATE_LIMIT_EXCEEDED");
   });

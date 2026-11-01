@@ -2514,10 +2514,10 @@
         ]
       }
     },
-    "/api/v2/admin/reports/{reportId}/evidence-url": {
-      "post": {
-        "description": "The evidence copy once there is one, the live object before that. Expires after 5 minutes. Every link is logged. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept.",
-        "operationId": "PlatformModerationController_evidenceUrl",
+    "/api/v2/admin/reports/{reportId}/evidence": {
+      "get": {
+        "description": "Streams the evidence copy once there is one, the live object before that, as the raw image with Cache-Control: no-store; no URL is handed out. Every request is logged with the moderator's id (report.evidence.viewed). 403 EVIDENCE_REPORT_CLOSED for a closed report that isn't held. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept or was discarded.",
+        "operationId": "PlatformModerationController_evidence",
         "parameters": [
           {
             "name": "reportId",
@@ -2529,24 +2529,13 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": "A GET URL and when it expires",
+          "200": {
+            "description": "The reported image",
             "content": {
-              "application/json": {
+              "application/octet-stream": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/EvidenceUrlResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -2566,7 +2555,7 @@
             "access-token": []
           }
         ],
-        "summary": "Get a short-lived link to what a report is about (platform moderators)",
+        "summary": "Look at what a report is about (platform moderators)",
         "tags": [
           "admin"
         ]
@@ -4796,23 +4785,6 @@
           "nextCursor"
         ]
       },
-      "EvidenceUrlResponseDto": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string",
-            "description": "A short-lived GET URL for the reported object, or its evidence copy."
-          },
-          "expiresAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url",
-          "expiresAt"
-        ]
-      },
       "ResolvePlatformReportDto": {
         "type": "object",
         "properties": {
@@ -4844,7 +4816,7 @@
           "until": {
             "format": "date-time",
             "type": "string",
-            "description": "The retention purge keeps the report and its evidence until then."
+            "description": "The retention purge keeps the report and its evidence until then. In the future, at most 3 years away (400 otherwise). A report sent to the authorities stays held at least a year from the submission."
           },
           "reason": {
             "allOf": [
@@ -4924,6 +4896,7 @@
               "EVENT_SUSPENDED",
               "EVENT_UNDER_REVIEW",
               "EVIDENCE_NOT_AVAILABLE",
+              "EVIDENCE_REPORT_CLOSED",
               "FORBIDDEN",
               "IMAGE_INVALID_SIZE",
               "IMAGE_UNSUPPORTED_CONTENT_TYPE",

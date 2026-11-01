@@ -2,11 +2,14 @@ import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
+import { Readable } from "node:stream";
+import { EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
 import request from "supertest";
 import { authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
+import { expectApiError } from "./helpers/expect-api-error";
 import { TEST_EVENT_ID } from "./helpers/events.fixtures";
 import { TEST_REPORT_ID, buildReport } from "./helpers/moderation.fixtures";
 import { TEST_USER_ID, buildUserWithDetails } from "./helpers/users.fixtures";
@@ -20,8 +23,9 @@ describe("Platform moderation (integration)", () => {
   const s3Service = {
     deleteObject: jest.fn(),
     deleteObjects: jest.fn(),
-    getPresignedDownloadUrl: jest.fn().mockResolvedValue("https://s3.example/get?sig=1"),
+    getObjectStream: jest.fn(),
   };
+  let evidence: EvidenceServiceMock;
 
   const reportWithEvidence = (overrides: Parameters<typeof buildReport>[0] = {}) => ({
     ...buildReport({ queue: "PLATFORM", ...overrides }),
@@ -48,6 +52,7 @@ describe("Platform moderation (integration)", () => {
     const context = await createTestApp((builder) => builder.overrideProvider(S3Service).useValue(s3Service));
     app = context.app;
     prisma = context.prisma;
+    evidence = context.evidence;
     httpServer = app.getHttpServer() as Server;
   });
 
@@ -64,7 +69,7 @@ describe("Platform moderation (integration)", () => {
   it.each([
     ["GET", "reports"],
     ["GET", `reports/${TEST_REPORT_ID}`],
-    ["POST", `reports/${TEST_REPORT_ID}/evidence-url`],
+    ["GET", `reports/${TEST_REPORT_ID}/evidence`],
     ["PATCH", `reports/${TEST_REPORT_ID}`],
     ["POST", `events/${TEST_EVENT_ID}/lift-review`],
   ])("answers 403 PLATFORM_MODERATOR_ONLY to anyone else on %s /admin/%s", async (method, path) => {
@@ -96,16 +101,140 @@ describe("Platform moderation (integration)", () => {
     expect(JSON.stringify(body)).not.toContain("photos/u/e/p");
   });
 
-  it("gives a moderator a short-lived link to the reported object", async () => {
-    asModerator();
-    prisma.report.findUnique.mockResolvedValue(reportWithEvidence() as never);
+  describe("evidence", () => {
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
-    const response = await request(httpServer)
-      .post(adminPath(`reports/${TEST_REPORT_ID}/evidence-url`))
-      .set(authHeader())
-      .expect(201);
+    beforeEach(() => {
+      s3Service.getObjectStream.mockReset();
+      s3Service.getObjectStream.mockImplementation(() =>
+        Promise.resolve({ body: Readable.from([bytes]), contentType: "image/jpeg", contentLength: bytes.length }),
+      );
+    });
 
-    expect(response.body).toMatchObject({ data: { url: "https://s3.example/get?sig=1" } });
+    it("streams the reported object to a moderator, uncached and with no URL to forward", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(reportWithEvidence() as never);
+
+      const response = await request(httpServer)
+        .get(adminPath(`reports/${TEST_REPORT_ID}/evidence`))
+        .set(authHeader())
+        .buffer(true)
+        .parse((res, done) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (chunk: Buffer) => chunks.push(chunk));
+          res.on("end", () => done(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
+
+      expect(response.headers["content-type"]).toBe("image/jpeg");
+      expect(response.headers["cache-control"]).toBe("no-store");
+      expect(response.headers["content-length"]).toBe(String(bytes.length));
+      expect(response.body).toEqual(bytes);
+      expect(s3Service.getObjectStream).toHaveBeenCalledWith("photos/u/e/p");
+    });
+
+    it("refuses a closed report that isn't held with 403 EVIDENCE_REPORT_CLOSED", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(reportWithEvidence({ status: "DISMISSED" }) as never);
+
+      const response = await request(httpServer)
+        .get(adminPath(`reports/${TEST_REPORT_ID}/evidence`))
+        .set(authHeader())
+        .expect(403);
+
+      expectApiError(response.body, "EVIDENCE_REPORT_CLOSED", { reportId: TEST_REPORT_ID });
+      expect(s3Service.getObjectStream).not.toHaveBeenCalled();
+    });
+
+    it("opens a closed report that is held", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(
+        reportWithEvidence({ status: "ACTIONED", holdUntil: new Date(Date.now() + 86_400_000) }) as never,
+      );
+
+      await request(httpServer)
+        .get(adminPath(`reports/${TEST_REPORT_ID}/evidence`))
+        .set(authHeader())
+        .expect(200);
+    });
+
+    it("answers 404 EVIDENCE_NOT_AVAILABLE when the object is gone", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(reportWithEvidence() as never);
+      s3Service.getObjectStream.mockResolvedValue(null);
+
+      const response = await request(httpServer)
+        .get(adminPath(`reports/${TEST_REPORT_ID}/evidence`))
+        .set(authHeader())
+        .expect(404);
+
+      expectApiError(response.body, "EVIDENCE_NOT_AVAILABLE", { reportId: TEST_REPORT_ID });
+    });
+  });
+
+  describe("holds", () => {
+    it("refuses a hold in the past with 400", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(reportWithEvidence() as never);
+
+      await request(httpServer)
+        .put(adminPath(`reports/${TEST_REPORT_ID}/hold`))
+        .set(authHeader())
+        .send({ until: "2020-01-01T00:00:00.000Z", reason: "LEGAL" })
+        .expect(400);
+      expect(prisma.report.update).not.toHaveBeenCalled();
+    });
+
+    it("refuses a hold more than 3 years away with 400", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(reportWithEvidence() as never);
+      const tooFar = new Date(Date.now() + 4 * 365 * 86_400_000).toISOString();
+
+      await request(httpServer)
+        .put(adminPath(`reports/${TEST_REPORT_ID}/hold`))
+        .set(authHeader())
+        .send({ until: tooFar, reason: "LEGAL" })
+        .expect(400);
+    });
+
+    it("sets a hold within 3 years", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(reportWithEvidence() as never);
+      prisma.report.update.mockResolvedValue(reportWithEvidence() as never);
+      const until = new Date(Date.now() + 90 * 86_400_000);
+
+      await request(httpServer)
+        .put(adminPath(`reports/${TEST_REPORT_ID}/hold`))
+        .set(authHeader())
+        .send({ until: until.toISOString(), reason: "LAW_ENFORCEMENT" })
+        .expect(200);
+      expect(prisma.report.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { holdUntil: until, holdReason: "LAW_ENFORCEMENT" } }),
+      );
+    });
+
+    it("discards an actioned intimate image's evidence copy when its hold is released", async () => {
+      asModerator();
+      prisma.report.findUnique.mockResolvedValue(
+        reportWithEvidence({
+          reason: "NON_CONSENSUAL_INTIMATE_IMAGE",
+          status: "ACTIONED",
+          holdUntil: new Date(Date.now() + 86_400_000),
+          holdReason: "LEGAL",
+        }) as never,
+      );
+
+      await request(httpServer)
+        .delete(adminPath(`reports/${TEST_REPORT_ID}/hold`))
+        .set(authHeader())
+        .expect(200);
+
+      expect(prisma.report.update).toHaveBeenCalledWith({
+        where: { id: TEST_REPORT_ID },
+        data: { holdUntil: null, holdReason: null },
+      });
+      expect(evidence.discardImages).toHaveBeenCalledWith([TEST_REPORT_ID], expect.any(Date));
+    });
   });
 
   it("dismisses a report as the platform", async () => {

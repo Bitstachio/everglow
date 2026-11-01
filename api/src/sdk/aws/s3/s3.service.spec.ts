@@ -1,8 +1,10 @@
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  NoSuchKey,
   NotFound,
   PutObjectCommand,
   S3Client,
@@ -12,6 +14,7 @@ import { InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
+import { Readable } from "node:stream";
 import { S3_SERVICE_ERRORS } from "./s3.constants";
 import { S3Service, presignedUrlExpiresAt } from "./s3.service";
 
@@ -229,6 +232,30 @@ describe("S3Service", () => {
       sendSpy.mockRejectedValueOnce(new Error("boom"));
 
       await expect(service.headObject("a/b.jpg")).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+  });
+
+  describe("getObjectStream", () => {
+    it("opens the object as a stream with its type and length", async () => {
+      const body = Readable.from([Buffer.from("jpeg")]);
+      sendSpy.mockResolvedValueOnce({ Body: body, ContentType: "image/jpeg", ContentLength: 4 } as never);
+
+      const result = await service.getObjectStream("evidence/r/a.jpg");
+
+      expect(sendSpy).toHaveBeenCalledWith(expect.any(GetObjectCommand));
+      expect(result).toEqual({ body, contentType: "image/jpeg", contentLength: 4 });
+    });
+
+    it("returns null when the object is missing", async () => {
+      sendSpy.mockRejectedValueOnce(new NoSuchKey({ $metadata: {}, message: "NoSuchKey" }));
+
+      await expect(service.getObjectStream("evidence/r/missing.jpg")).resolves.toBeNull();
+    });
+
+    it("wraps other client errors in InternalServerErrorException", async () => {
+      sendSpy.mockRejectedValueOnce(new Error("boom"));
+
+      await expect(service.getObjectStream("evidence/r/a.jpg")).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });
 

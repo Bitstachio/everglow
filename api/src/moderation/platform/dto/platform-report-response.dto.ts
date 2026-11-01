@@ -73,11 +73,3 @@ export class PlatformReportListResponseDto {
   @ApiProperty({ type: String, nullable: true, description: "Opaque cursor for the next page; null on the last." })
   nextCursor: string | null;
 }
-
-export class EvidenceUrlResponseDto {
-  @ApiProperty({ description: "A short-lived GET URL for the reported object, or its evidence copy." })
-  url: string;
-
-  @ApiProperty()
-  expiresAt: Date;
-}

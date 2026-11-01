@@ -15,7 +15,7 @@ describe("EvidenceService", () => {
 
   let prisma: DeepMockProxy<PrismaClient>;
   let s3Service: { copyObject: jest.Mock; deleteObject: jest.Mock; deleteObjects: jest.Mock };
-  let logger: { setContext: jest.Mock; info: jest.Mock; error: jest.Mock };
+  let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
   let service: EvidenceService;
 
   beforeEach(() => {
@@ -25,7 +25,7 @@ describe("EvidenceService", () => {
       deleteObject: jest.fn().mockResolvedValue(undefined),
       deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })),
     };
-    logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
+    logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
     const config = {
       getOrThrow: jest.fn(
         (key: string) => ({ "moderation.evidenceJobBatchSize": 50, "moderation.reportRetentionDays": 365 })[key],
@@ -278,7 +278,7 @@ describe("EvidenceService", () => {
     });
 
     it("purges closed reports past the retention window that aren't held, objects first", async () => {
-      prisma.report.findMany.mockResolvedValue([
+      prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
         { id: reportId, evidence: { evidenceS3Key: `evidence/${reportId}/${photoKey}` } },
         { id: otherReportId, evidence: null },
       ] as never);
@@ -307,7 +307,7 @@ describe("EvidenceService", () => {
 
     it("keeps a report whose evidence object couldn't be deleted, for the next run", async () => {
       const key = `evidence/${reportId}/${photoKey}`;
-      prisma.report.findMany.mockResolvedValue([
+      prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
         { id: reportId, evidence: { evidenceS3Key: key } },
         { id: otherReportId, evidence: null },
       ] as never);
@@ -334,7 +334,38 @@ describe("EvidenceService", () => {
         purgedObjects: 0,
         purgeFailed: 0,
         openOlderThanDays: 0,
+        holdsLapsed: 0,
       });
+    });
+
+    it("announces holds that ran out in the last day, and discards an actioned intimate image's copy", async () => {
+      prisma.report.findMany.mockResolvedValueOnce([
+        { id: reportId, eventId: null, holdReason: "LAW_ENFORCEMENT" },
+        { id: otherReportId, eventId: null, holdReason: "CHILD_SAFETY" },
+      ] as never);
+      const discard = jest.spyOn(service, "discardImages").mockResolvedValue(undefined);
+
+      const result = await service.runEvidenceJob(now);
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { holdUntil: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000), lte: now } },
+        orderBy: { holdUntil: "asc" },
+        select: { id: true, eventId: true, holdReason: true },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        {
+          event: "report.hold.lapsed",
+          lapsed: 2,
+          reportIds: [reportId, otherReportId],
+          holdReasons: ["LAW_ENFORCEMENT", "CHILD_SAFETY"],
+          severity: "ticket",
+          audit: true,
+        },
+        expect.any(String),
+      );
+      // discardImages keeps all but actioned intimate-image reports.
+      expect(discard).toHaveBeenCalledWith([reportId, otherReportId], now);
+      expect(result.holdsLapsed).toBe(2);
     });
 
     it("reports how many OPEN reports are over a week old, and never purges them", async () => {
