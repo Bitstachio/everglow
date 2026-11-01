@@ -47,7 +47,9 @@ export const PersonMenu = ({ person, roleLabel, onReport, onBlock, onUnblock, on
       ) : (
         <MenuAction muted label={t("menu.block", { name: firstName })} icon={Prohibit} onPress={onBlock} />
       )}
-      {onRemove ? <MenuAction label={t("menu.remove", { name: firstName })} icon={UserMinus} onPress={onRemove} /> : null}
+      {onRemove ? (
+        <MenuAction label={t("menu.remove", { name: firstName })} icon={UserMinus} onPress={onRemove} />
+      ) : null}
     </View>
   );
 };

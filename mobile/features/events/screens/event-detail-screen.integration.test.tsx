@@ -1413,9 +1413,7 @@ describe("people and the menu", () => {
     expect(await screen.findByText("You won’t see each other.")).toBeOnTheScreen();
     await user.press(screen.getByRole("button", { name: "Block Grace" }));
 
-    await waitFor(() =>
-      expect(mockBlock).toHaveBeenCalledWith({ path: { userId: "user-2" }, throwOnError: true }),
-    );
+    await waitFor(() => expect(mockBlock).toHaveBeenCalledWith({ path: { userId: "user-2" }, throwOnError: true }));
     expect(await screen.findByText("Grace Hopper is blocked")).toBeOnTheScreen();
   });
 });

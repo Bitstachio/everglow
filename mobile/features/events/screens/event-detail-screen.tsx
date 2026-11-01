@@ -613,9 +613,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
             {role === "host" && event.status !== "SUSPENDED" ? (
               <IndexRow label={t("menuSheet.settings")} onPress={screen.onOpenSettings} />
             ) : null}
-            {role !== "host" ? (
-              <IndexRow label={t("report:menu.reportRoll")} onPress={screen.onReportRoll} />
-            ) : null}
+            {role !== "host" ? <IndexRow label={t("report:menu.reportRoll")} onPress={screen.onReportRoll} /> : null}
             {role !== "host" ? <IndexRow action muted label={t("menuSheet.leave")} onPress={screen.onLeave} /> : null}
           </View>
         ) : null}

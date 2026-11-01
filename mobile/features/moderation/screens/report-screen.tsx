@@ -48,13 +48,15 @@ const ReportScreen = () => {
         }
       />
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-6 pt-4" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-5 px-5 pb-6 pt-4"
+          keyboardShouldPersistTaps="handled"
+        >
           {subjectPrint}
           <View testID="report-ticket" className="px-1">
             <LabTicket
-              title={
-                target === "person" ? t("ticket.person", { name: screen.firstName }) : t(`ticket.${target}`)
-              }
+              title={target === "person" ? t("ticket.person", { name: screen.firstName }) : t(`ticket.${target}`)}
               number={t("ticket.anonymous")}
               options={screen.reasons.map((option) => ({
                 key: option.reason,
