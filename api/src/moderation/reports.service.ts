@@ -21,7 +21,7 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { authorize } from "src/casl/authorize";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
-import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { MEMBER_PHOTOS, type MemberPhotos, removeMemberInTransaction } from "src/events/event-membership";
@@ -49,7 +49,14 @@ import {
 } from "./moderation.constants";
 import { eventForPhotoVisibilityInclude } from "./moderation.types";
 import { PhotoVisibilityService } from "./photo-visibility.service";
-import { PLATFORM_ESCALATIONS, escalateToPlatform, escalationLogName, logEscalations } from "./report-escalation";
+import { ageInDays, alertRemovalDeadlines, remindLongOpenReports, removalDueAtFor } from "./report-deadlines";
+import {
+  PLATFORM_ESCALATIONS,
+  escalateToPlatform,
+  escalationAlertFields,
+  escalationLogName,
+  logEscalations,
+} from "./report-escalation";
 import { REPORT_ACTIONS, REPORT_SUBJECT } from "./reports.abilities";
 
 /** What a new report points at; `photoId` is set for PHOTO reports only. */
@@ -80,6 +87,12 @@ export interface StaleReportCheckResult {
   stale: number;
   /** Reports the organizers left too long, moved to the platform this run. */
   movedToPlatform: number;
+  /** Intimate-image reports 12 hours from their removal deadline, announced this run. */
+  removalDueSoon: number;
+  /** Intimate-image reports past their removal deadline, announced this run. */
+  removalOverdue: number;
+  /** OPEN reports over a week old announced again this run (weekly). */
+  reminded: number;
 }
 
 const isGalleryClosed = (event: Event): boolean => galleryStateOf(event) === GALLERY_STATES.CLOSED;
@@ -519,6 +532,10 @@ export class ReportsService {
    * 2. Platform reports waiting longer than that since they got there are
    *    announced once, in one `report.stale` line, and marked so the next run
    *    doesn't repeat them.
+   * 3. Intimate-image reports are announced 12 hours before and after their
+   *    48-hour removal deadline (alertRemovalDeadlines), and reports still
+   *    OPEN a week after filing are announced again weekly
+   *    (remindLongOpenReports).
    */
   async reportStaleReports(now: Date = new Date()): Promise<StaleReportCheckResult> {
     const cutoff = new Date(now.getTime() - STALE_REPORT_AFTER_HOURS * 60 * 60 * 1000);
@@ -546,7 +563,7 @@ export class ReportsService {
         where: overdue,
         orderBy: { escalatedAt: "asc" },
         take: STALE_REPORT_SAMPLE_SIZE,
-        select: { id: true, eventId: true, escalatedAt: true },
+        select: { id: true, eventId: true, escalatedAt: true, createdAt: true },
       }),
     ]);
 
@@ -557,8 +574,10 @@ export class ReportsService {
           stale,
           staleAfterHours: STALE_REPORT_AFTER_HOURS,
           oldestEscalatedAt: oldest[0]?.escalatedAt,
+          ageDays: oldest[0] ? ageInDays(oldest[0].createdAt, now) : null,
           reportIds: oldest.map((report) => report.id),
           eventIds: [...new Set(oldest.flatMap((report) => (report.eventId ? [report.eventId] : [])))],
+          severity: ALERT_SEVERITY.TICKET,
           audit: true,
         },
         "Platform reports have waited longer than the response window",
@@ -566,7 +585,10 @@ export class ReportsService {
       await this.prisma.report.updateMany({ where: overdue, data: { overdueAlertedAt: now } });
     }
 
-    return { stale, movedToPlatform: moved.length };
+    const deadlines = await alertRemovalDeadlines(this.prisma, this.logger, now);
+    const reminded = await remindLongOpenReports(this.prisma, this.logger, now);
+
+    return { stale, movedToPlatform: moved.length, ...deadlines, reminded };
   }
 
   /**
@@ -813,6 +835,8 @@ export class ReportsService {
             escalationReasons: routing,
             // A child-safety report is held from the start, so its evidence
             // outlives any delete until the platform has decided (§7).
+            // An intimate image must be removed within 48 hours (§7).
+            removalDueAt: removalDueAtFor(dto.reason, new Date()),
             ...(dto.reason === ReportReason.CHILD_SAFETY && {
               holdUntil: new Date(Date.now() + CHILD_SAFETY_HOLD_DAYS * 24 * 60 * 60 * 1000),
               holdReason: ReportHoldReason.CHILD_SAFETY,
@@ -861,13 +885,10 @@ export class ReportsService {
 
     const escalationReasons = [...routing, ...consequences];
     if (escalationReasons.length > 0) {
-      // The event the platform owner's alert rule keys off (docs/alerting.md §3).
+      // The event the platform owner's alert rule keys off (docs/alerting.md
+      // §3). No identities: those stay on report.created above.
       this.logger.warn(
-        {
-          event: ALERT_EVENTS.REPORT_ESCALATED,
-          ...fields,
-          escalationReasons: escalationReasons.map(escalationLogName),
-        },
+        escalationAlertFields(created, escalationReasons.map(escalationLogName)),
         "Report needs platform attention",
       );
     }

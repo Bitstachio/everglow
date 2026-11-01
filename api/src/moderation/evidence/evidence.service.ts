@@ -6,6 +6,7 @@ import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { deleteObjectWithDerivatives } from "src/photos/photo-object-deletion";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { OPEN_REPORT_REMINDER_DAYS, daysBefore } from "../report-deadlines";
 import { buildEvidenceS3Key } from "./evidence.constants";
 
 /** What a new report was about, as written to its ReportEvidence row. */
@@ -32,6 +33,11 @@ export interface EvidenceJobResult {
   purgedObjects: number;
   /** Reports whose evidence objects could not be deleted; the next run retries them. */
   purgeFailed: number;
+  /**
+   * OPEN reports filed more than OPEN_REPORT_REMINDER_DAYS (7) days ago. The
+   * purge never touches them; the stale check reminds about them weekly.
+   */
+  openOlderThanDays: number;
 }
 
 type QuarantineCandidate = { id: string; reportId: string; objectS3Key: string | null };
@@ -179,10 +185,14 @@ export class EvidenceService {
       purgedReports: 0,
       purgedObjects: 0,
       purgeFailed: 0,
+      openOlderThanDays: 0,
     };
 
     await this.retryFailedCopies(batchSize, result);
     await this.purgeExpired(now, batchSize, result);
+    result.openOlderThanDays = await this.prisma.report.count({
+      where: { status: ReportStatus.OPEN, createdAt: { lt: daysBefore(now, OPEN_REPORT_REMINDER_DAYS) } },
+    });
 
     return result;
   }
