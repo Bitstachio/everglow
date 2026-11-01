@@ -58,6 +58,7 @@ import {
   logEscalations,
 } from "./report-escalation";
 import { REPORT_ACTIONS, REPORT_SUBJECT } from "./reports.abilities";
+import { liftReviewWhenEventReportsSettled } from "./review-lift";
 
 /** What a new report points at; `photoId` is set for PHOTO reports only. */
 interface ReportTarget extends Pick<Report, "targetType" | "photoId" | "reportedUserId"> {
@@ -650,6 +651,7 @@ export class ReportsService {
       resolvedAt: new Date(),
     };
 
+    let reviewLiftedFrom: Date | null = null;
     const { resolved, closedIds, removedMember } = await this.prisma.$transaction(async (tx) => {
       const [acted] = await tx.report.updateManyAndReturn({
         where: { id: reportId, status: ReportStatus.OPEN },
@@ -677,8 +679,14 @@ export class ReportsService {
           })
         : null;
 
+      // Dismissing the last OPEN event report ends the review it caused (§4).
+      if (!removes && loaded.targetType === ReportTargetType.EVENT && loaded.eventId) {
+        reviewLiftedFrom = await liftReviewWhenEventReportsSettled(tx, loaded.eventId);
+      }
+
       return { resolved: acted, closedIds: [reportId, ...others.map((other) => other.id)], removedMember: member };
     });
+    if (reviewLiftedFrom) this.logReviewLiftedByDismissal(loaded.eventId!, moderatorId, reviewLiftedFrom, reportId);
 
     if (photo) await this.deletePhotoObject(photo, reportId);
     if (removedMember) {
@@ -970,5 +978,26 @@ export class ReportsService {
       data: { underReviewAt: new Date() },
     });
     return count === 1;
+  }
+
+  /** The audit line for a review that ended because the platform dismissed its last event report. */
+  private logReviewLiftedByDismissal(
+    eventId: string,
+    moderatorId: string,
+    underReviewAt: Date,
+    reportId: string,
+  ): void {
+    this.logger.info(
+      {
+        event: "event.review.lifted",
+        eventId,
+        moderatorId,
+        underReviewAt,
+        reportId,
+        trigger: "dismissal",
+        audit: true,
+      },
+      "Event review lifted: its last open event report was dismissed",
+    );
   }
 }
