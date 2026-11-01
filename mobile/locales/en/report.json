@@ -89,7 +89,9 @@
     "reportsToCheck": "Reports · {{count}} to check"
   },
   "person": {
-    "edge": "{{role}} · @{{username}}",
-    "edgeNoUsername": "{{role}}"
+    "edge": "@{{username}} · {{role}} · {{frames}}",
+    "edgeNoUsername": "{{role}} · {{frames}}",
+    "frames_one": "{{count}} frame",
+    "frames_other": "{{count}} frames"
   }
 }

@@ -18,6 +18,8 @@ type ReportSubjectProps = {
 );
 
 const PRINT = 118;
+/** The pencil ring around a reported frame: just past the print and its edge print. */
+const RING = PRINT + 34;
 
 /**
  * What's being reported, as a small print at the top of the ticket: the
@@ -47,13 +49,13 @@ export const ReportSubject = (props: ReportSubjectProps) => (
           </Monochrome>
         )}
       </View>
-      <EdgePrint size="frame-label" numberOfLines={1} className="pt-1 text-center">
+      <EdgePrint size="frame-label" numberOfLines={1} style={{ width: PRINT }} className="pt-1 text-center">
         {props.label}
       </EdgePrint>
     </View>
     {props.circled ? (
-      <View pointerEvents="none" className="absolute -top-3" style={{ width: PRINT + 46, height: PRINT + 46 }}>
-        <GreasePencil mark="ring" width={PRINT + 46} height={PRINT + 46} strokeWidth={2.5} seed={3} drawOn />
+      <View pointerEvents="none" className="absolute -top-2" style={{ width: RING, height: RING }}>
+        <GreasePencil mark="ring" width={RING} height={RING} strokeWidth={2.5} seed={3} drawOn />
       </View>
     ) : null}
   </View>

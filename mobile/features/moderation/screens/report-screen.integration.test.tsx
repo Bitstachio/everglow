@@ -68,7 +68,7 @@ describe("a frame (10.1–10.4)", () => {
   test("sends nothing until a reason is ticked, then sends it and lands on the roll", async () => {
     await renderScreen();
     expect(screen.getByRole("header", { name: "Report frame 144" })).toBeOnTheScreen();
-    expect(await screen.findByLabelText("▸ 144 · Leila Haddad")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("▸ 144 · Leila")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Send report" })).toBeDisabled();
 
     const user = userEvent.setup();
