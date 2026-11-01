@@ -29,10 +29,9 @@ jest.mock("@/lib/api/generated", () => ({
   reportsControllerReportMember: (...args: unknown[]) => mockReportMember(...args),
   reportsControllerReportEvent: (...args: unknown[]) => mockReportEvent(...args),
 }));
+// Read on each call: jest hoists this factory above mockRouter's definition.
 jest.mock("expo-router", () => ({
-  get router() {
-    return mockRouter;
-  },
+  router: new Proxy({}, { get: (_target, key: keyof typeof mockRouter) => mockRouter[key] }),
   useLocalSearchParams: () => mockParams(),
 }));
 
