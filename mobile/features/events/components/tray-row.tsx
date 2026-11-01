@@ -1,13 +1,15 @@
 import { AppIcon } from "@/components/ui/app-icon";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { Sprockets } from "@/components/ui/film-strip";
-import { Photo } from "@/components/ui/photo";
+import { RetryingPhoto } from "@/components/ui/retrying-photo";
 import { colorTokens } from "@/theme/tokens";
 import { ImageSquare, type Icon } from "phosphor-react-native";
 import { Pressable, View } from "react-native";
 
 type TrayRowProps = {
   uri: string;
+  /** Stable identity of a server thumbnail, independent of its signed URL. */
+  cacheKey?: string;
   status: string;
   accessibilityLabel: string;
   done?: boolean;
@@ -17,7 +19,15 @@ type TrayRowProps = {
 };
 
 /** A small square film print beside its upload status and recovery actions. */
-export const TrayRow = ({ uri, status, accessibilityLabel, done = false, progress, actions }: TrayRowProps) => (
+export const TrayRow = ({
+  uri,
+  cacheKey,
+  status,
+  accessibilityLabel,
+  done = false,
+  progress,
+  actions,
+}: TrayRowProps) => (
   <View className="flex-row items-center gap-4 border-b border-line py-3">
     <View
       accessibilityElementsHidden
@@ -27,7 +37,16 @@ export const TrayRow = ({ uri, status, accessibilityLabel, done = false, progres
       <Sprockets edge="top" count={5} />
       <View className="aspect-square w-full items-center justify-center overflow-hidden rounded-frame bg-frame-empty">
         {uri ? (
-          <Photo testID="tray-row-photo" source={{ uri }} contentFit="cover" className="h-full w-full" />
+          // expo-image decodes at the 56pt frame's size (allowDownscaling), not
+          // the original's, and a retry or recycled row never shows another file.
+          <RetryingPhoto
+            testID="tray-row-photo"
+            uri={uri}
+            cacheKey={cacheKey}
+            contentFit="cover"
+            allowDownscaling
+            className="h-full w-full"
+          />
         ) : (
           <View className="opacity-40">
             <AppIcon icon={ImageSquare} size="sm" color={colorTokens.text} />

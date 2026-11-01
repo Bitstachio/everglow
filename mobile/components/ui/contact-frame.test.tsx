@@ -1,13 +1,29 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
+import { Text } from "react-native";
 import { ContactFrame } from "./contact-frame";
 
 test("shows the uploader without a visible frame number, and opens on press", async () => {
   const onPress = jest.fn();
   await render(<ContactFrame number={144} by="Leila" accessibilityLabel="Frame 144 by Leila" onPress={onPress} />);
-  expect(screen.getByText("Leila")).toBeOnTheScreen();
-  expect(screen.queryByText(/144/)).toBeNull();
+  expect(screen.getByText("Leila", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.queryByText(/144/, { includeHiddenElements: true })).toBeNull();
   await fireEvent.press(screen.getByLabelText("Frame 144 by Leila"));
   expect(onPress).toHaveBeenCalledTimes(1);
+});
+
+test("screen readers hear the frame's label once, not its portrait and caption again", async () => {
+  await render(<ContactFrame number={144} by="Maya" avatar={<Text>M</Text>} accessibilityLabel="Frame 144, by Maya" />);
+  expect(screen.getByLabelText("Frame 144, by Maya")).toBeOnTheScreen();
+  expect(screen.queryByText("M")).toBeNull();
+  expect(screen.queryByText("Maya")).toBeNull();
+  expect(screen.getByText("M", { includeHiddenElements: true })).toBeOnTheScreen();
+});
+
+test("marks a frame that didn't make it with the warning icon, hidden from screen readers", async () => {
+  await render(<ContactFrame number={150} crossed accessibilityLabel="Frame 150, didn't take" />);
+  expect(screen.queryByTestId("frame-upload-error")).toBeNull();
+  expect(screen.getByTestId("frame-upload-error", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.queryByText("!", { includeHiddenElements: true })).toBeNull();
 });
 
 test("reports the selected state", async () => {

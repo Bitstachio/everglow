@@ -17,6 +17,18 @@ Use a token, not a raw palette class (`bg-white`, `text-gray-500`).
 
 Spell class names out in full. Tailwind’s scanner cannot see interpolated strings, so `` `text-${color}` `` will not generate a utility. `components/ui/themed-text.tsx` uses a literal lookup table for that reason.
 
+## Conditional `className`
+
+Build conditional or multi-part `className` strings with `cn` from `@/lib/cn` (`clsx` + `tailwind-merge`). Do not use array + `.filter(Boolean).join(" ")`, template-string concatenation, or a second helper.
+
+```tsx
+import { cn } from "@/lib/cn";
+
+<Pressable className={cn("min-h-12 flex-row items-center border-b border-line py-4", disabled && "opacity-50")} />;
+```
+
+Static single-string `className` values stay as plain strings. Prefer `cn` whenever a class list is conditional, composed from props, or might include conflicting utilities (later arguments win via `twMerge`).
+
 ## Safe-area views
 
 Import `SafeAreaView` from `@/components/ui/safe-area-view` when using `className`.
@@ -47,6 +59,7 @@ const styles = StyleSheet.create({ scrim: { ...StyleSheet.absoluteFillObject, ba
 | ---------------- | -------------------- | ------------------------------------------------------------------------------------- |
 | CSS tokens       | `app/global.css`     | Registers utilities (`bg-background`, `text-muted`, …) and supplies light/dark values |
 | JS tokens        | `theme/tokens.ts`    | Same hex values for native chrome that does not take `className`                      |
+| `cn` helper      | `lib/cn.ts`          | Conditional `className` joins (`clsx` + `tailwind-merge`)                             |
 | Navigation theme | `theme/provider.tsx` | Feeds JS tokens into Expo Router / React Navigation                                   |
 | Root wiring      | `app/_layout.tsx`    | Imports `global.css` and wraps the app in `AppThemeProvider`                          |
 

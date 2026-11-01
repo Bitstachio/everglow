@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { before, test } from "node:test";
 import {
   DeleteObjectCommand,
@@ -40,6 +42,14 @@ const event = (name = "ObjectCreated:Put", objectKey = key, id = "message"): SQS
   ] as SQSEvent["Records"],
 });
 const run = (input: SQSEvent) => handler(input, {} as never, () => undefined);
+/** Run through a production-level logger and return the parsed log lines. */
+const runLogged = async (input: SQSEvent) => {
+  const lines: string[] = [];
+  const logger = createLogger({ NODE_ENV: "production" }, { write: (line) => void lines.push(line) });
+  const result = await createHandler(s3, logger)(input, { awsRequestId: "invocation" } as Context, () => undefined);
+  return { result, raw: lines.join(""), logs: lines.map((line) => JSON.parse(line) as Record<string, unknown>) };
+};
+const hevcHeic = readFileSync(path.join(__dirname, "fixtures", "hevc-16x16.heic"));
 let input: Buffer;
 before(async () => {
   input = await sharp({
@@ -71,6 +81,74 @@ void test("logs a failed message once with correlation fields and without its ra
   assert.equal(line.errorType, "SyntaxError");
   assert.ok(!lines[0]!.includes("credential-value"));
   assert.ok(!lines[0]!.includes("private@example.com"));
+});
+
+void test("an undecodable HEIC is logged once with its object and acknowledged without writes", async (t) => {
+  const calls: string[] = [];
+  t.mock.method(s3, "send", async (command: GetObjectCommand) => {
+    calls.push(command.constructor.name);
+    return { ContentLength: hevcHeic.byteLength, Body: { transformToByteArray: async () => hevcHeic } };
+  });
+  const { result, logs } = await runLogged(event());
+  assert.deepEqual(result, { batchItemFailures: [] });
+  assert.deepEqual(calls, ["GetObjectCommand"]);
+  assert.equal(logs.length, 1);
+  const [line] = logs;
+  assert.equal(line!.level, 40);
+  assert.equal(line!.event, "photo.derivatives.undecodable");
+  assert.equal(line!.awsRequestId, "invocation");
+  assert.equal(line!.messageId, "message");
+  assert.equal(line!.bucket, "test-bucket");
+  assert.equal(line!.key, key);
+  assert.equal(line!.reason, "unsupported_format");
+  assert.match(line!.errorMessage as string, /HEVC/);
+  assert.doesNotMatch(line!.errorMessage as string, /bad seek/);
+});
+
+void test("an empty original is acknowledged as undecodable", async (t) => {
+  t.mock.method(s3, "send", async () => ({ ContentLength: 0, Body: Buffer.alloc(0) }));
+  const { result, logs } = await runLogged(event());
+  assert.deepEqual(result, { batchItemFailures: [] });
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0]!.reason, "empty");
+});
+
+void test("a transient S3 failure retries and logs its object, type and status but not the SDK message", async (t) => {
+  t.mock.method(s3, "send", async (command: GetObjectCommand) => {
+    if (command.input.Key === key) {
+      throw Object.assign(new Error("Please reduce your request rate. RequestId: secret-request-id"), {
+        name: "SlowDown",
+        $metadata: { httpStatusCode: 503 },
+      });
+    }
+    return { ContentLength: hevcHeic.byteLength, Body: hevcHeic };
+  });
+  // The second message is undecodable: the batch retries only the transient one.
+  const input = event();
+  input.Records.push(...event("ObjectCreated:Put", "photos/user/event/heic", "heic").Records);
+  const { result, logs, raw } = await runLogged(input);
+  assert.deepEqual(result, { batchItemFailures: [{ itemIdentifier: "message" }] });
+  const failed = logs.filter((line) => line.event === "photo.derivatives.failed");
+  assert.equal(failed.length, 1);
+  assert.equal(failed[0]!.level, 50);
+  assert.equal(failed[0]!.bucket, "test-bucket");
+  assert.equal(failed[0]!.key, key);
+  assert.equal(failed[0]!.errorType, "SlowDown");
+  assert.equal(failed[0]!.httpStatusCode, 503);
+  assert.equal(failed[0]!.errorMessage, undefined);
+  assert.ok(!raw.includes("secret-request-id"));
+  assert.deepEqual(
+    logs.filter((line) => line.event === "photo.derivatives.undecodable").map((line) => line.key),
+    ["photos/user/event/heic"],
+  );
+});
+
+void test("a worker-written transient failure logs its message", async (t) => {
+  t.mock.method(s3, "send", async () => ({ ContentLength: 10, Body: undefined }));
+  const { result, logs } = await runLogged(event());
+  assert.deepEqual(result, { batchItemFailures: [{ itemIdentifier: "message" }] });
+  assert.equal(logs[0]!.errorType, "PhotoProcessingError");
+  assert.equal(logs[0]!.errorMessage, "S3 GetObject returned no body");
 });
 
 void test("writes both renditions and checks the original after both writes settle", async (t) => {

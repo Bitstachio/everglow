@@ -4,6 +4,7 @@ import { PhotoStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { deleteObjectWithDerivatives } from "./photo-object-deletion";
 import { EXPIRED_UPLOAD_SLOT_AGE_SECONDS } from "./photos.constants";
 
 /** Slots past their upload URL's lifetime: released when S3 holds no object for them, kept when it does. */
@@ -49,7 +50,8 @@ export class PhotoPendingCleanupService {
 
     for (const photo of stalePhotos) {
       try {
-        await this.s3Service.deleteObject(photo.s3Key);
+        // An object that landed but was never confirmed may still have been rendered.
+        await deleteObjectWithDerivatives(this.s3Service, photo.s3Key);
         await this.prisma.photo.delete({ where: { id: photo.id } });
         deleted += 1;
       } catch (error) {

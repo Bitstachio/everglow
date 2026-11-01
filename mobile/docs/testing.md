@@ -84,7 +84,11 @@ cancellation, envelope handling, and successful/failed mutation cache invalidati
 
 `testing/native-mocks.tsx` keeps feature components real. Its refresh-control mock preserves props
 because React Native's default Jest mock discards them; native refresh and barcode events use
-`fireEvent`, while ordinary interactions use `userEvent`.
+`fireEvent`, while ordinary interactions use `userEvent`. It also loads Gesture Handler's Jest
+setup and the worklets stand-in, so Reanimated runs on the JS thread and the frame viewer's
+gestures can be driven with `fireGestureHandler` and `getByGestureTestId` from
+`react-native-gesture-handler/jest-utils`. Use fake timers and advance them once after render so
+the pager's UI-thread reactions start, and again after a gesture so its springs settle.
 
 Create, detail and join routes are separate from this page; this suite tests navigation to those routes.
 

@@ -30,11 +30,12 @@ type Upload = (
 
 const mockRestore = jest.fn(() => new Map());
 const mockPersist = jest.fn();
+const mockRemoveStorage = jest.fn();
 jest.mock("./upload-tray-storage", () => ({
   restoreUploadTrays: () => mockRestore(),
   persistUploadTrays: (...args: unknown[]) => mockPersist(...args),
   releaseUploadFile: jest.fn(),
-  removeUploadStorage: jest.fn(),
+  removeUploadStorage: (...args: unknown[]) => mockRemoveStorage(...args),
 }));
 
 const mockUpload = jest.fn<ReturnType<Upload>, Parameters<Upload>>();
@@ -196,7 +197,7 @@ test("sign-out clears visible history and an old focus cleanup cannot close a ne
   const closeOld = openTraySession("event-1");
   addToTray("event-1", [item("old")], settle);
   await flush();
-  runAccountCleared();
+  runAccountCleared("signedOut");
   expect(getTraySession("event-1").items).toEqual([]);
   const closeNew = openTraySession("event-1");
   addToTray("event-1", [item("new")], settle);
@@ -333,9 +334,42 @@ test("clearing the account empties every tray", () => {
   mockUpload.mockImplementation(() => new Promise(() => undefined));
   addToTray("event-1", [item("a")], settle);
 
-  runAccountCleared();
+  runAccountCleared("signedOut");
 
   expect(getTray("event-1").items).toEqual([]);
+});
+
+test("a deliberate sign-out removes the account's queue and files from the phone", () => {
+  activateUploadTrays("account-a", settle);
+  mockUpload.mockImplementation(() => new Promise(() => undefined));
+  addToTray("event-1", [item("a")], settle);
+  mockRemoveStorage.mockClear();
+
+  runAccountCleared("signedOut");
+
+  expect(mockRemoveStorage).toHaveBeenCalledWith("account-a");
+});
+
+test("an expired session stops the work but keeps the queue for the same account to retry", async () => {
+  activateUploadTrays("account-a", settle);
+  mockUpload.mockImplementation(() => new Promise(() => undefined));
+  addToTray("event-1", [item("a")], settle);
+  const { signal, requestSignal } = mockUpload.mock.calls[0]![2];
+  mockRemoveStorage.mockClear();
+
+  runAccountCleared("sessionExpired");
+
+  expect(signal.aborted).toBe(true);
+  expect(requestSignal.aborted).toBe(true);
+  expect(getTray("event-1").items).toEqual([]);
+  expect(mockRemoveStorage).not.toHaveBeenCalled();
+
+  // Signing back in restores what was on disk as interrupted, with Retry.
+  const interrupted = { ...item("a", { kind: "failed", reason: "interrupted" }), minted: { photoId: "p1", seq: 1 } };
+  mockRestore.mockReturnValueOnce(new Map([["event-1", { items: [interrupted], running: false, closed: null }]]));
+  activateUploadTrays("account-a", settle);
+  expect(getTray("event-1").items).toEqual([interrupted]);
+  expect(mockRemoveStorage).not.toHaveBeenCalled();
 });
 
 test("puts the tray's photos at the top of the sheet, numbered after the roll, until the roll has them", () => {
@@ -382,7 +416,7 @@ test("remembers the local file of a developed photo, until the account is cleare
   await flush();
 
   expect(localFileFor("file://a.jpg")).toBe("file://a.jpg");
-  runAccountCleared();
+  runAccountCleared("signedOut");
   expect(localFileFor("file://a.jpg")).toBeUndefined();
 });
 
@@ -398,7 +432,7 @@ test("late updates from a cleared account cannot change its replacement tray", a
       }),
   );
   addToTray("event-1", [item("old")], settle);
-  runAccountCleared();
+  runAccountCleared("signedOut");
   expect(mockUpload.mock.calls[0]![2].requestSignal.aborted).toBe(true);
   const settleNew = jest.fn().mockResolvedValue(undefined);
   mockUpload.mockImplementationOnce(() => new Promise(() => undefined));
@@ -456,7 +490,7 @@ test("bounds automatic connection retries and clears scheduled work on sign-out"
     await jest.advanceTimersByTimeAsync(20000);
     expect(mockUpload).toHaveBeenCalledTimes(4);
     expect(getTray("event-1").items[0]?.status).toEqual({ kind: "failed", reason: "connection" });
-    runAccountCleared();
+    runAccountCleared("signedOut");
     await jest.advanceTimersByTimeAsync(60000);
     expect(mockUpload).toHaveBeenCalledTimes(4);
   } finally {
@@ -487,6 +521,28 @@ test("native byte progress does not serialize the durable queue for every callba
   });
   addToTray("event-1", [item("a")], settle);
   expect(getTray("event-1").items[0]?.status).toEqual({ kind: "sending", bytesSent: 100 });
+});
+
+test("native byte progress only reaches the screen when the whole percent changes", () => {
+  activateUploadTrays("account-a", settle);
+  const big = { ...item("a"), sizeBytes: 1_000_000 };
+  let onFile: (index: number, update: EventPhotoUpdate) => void = () => undefined;
+  mockUpload.mockImplementationOnce((_eventId, _files, options) => {
+    onFile = options.onFile;
+    return new Promise(() => undefined);
+  });
+  addToTray("event-1", [big], settle);
+  onFile(0, { kind: "sending", bytesSent: 0 });
+  const before = getTray("event-1");
+
+  // A thousand callbacks inside the first percent change nothing.
+  for (let bytesSent = 1; bytesSent < 10_000; bytesSent += 10) onFile(0, { kind: "sending", bytesSent });
+  expect(getTray("event-1")).toBe(before);
+
+  onFile(0, { kind: "sending", bytesSent: 10_000 });
+  expect(getTray("event-1").items[0]?.status).toEqual({ kind: "sending", bytesSent: 10_000 });
+  onFile(0, { kind: "sending", bytesSent: 1_000_000 });
+  expect(getTray("event-1").items[0]?.status).toEqual({ kind: "sending", bytesSent: 1_000_000 });
 });
 
 test("Cancel removes pending connection retries so reconnecting cannot resume cancelled work", async () => {

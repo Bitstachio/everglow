@@ -29,6 +29,7 @@ import {
   TEST_SIGNED_PUT_URL,
   buildPhoto,
   expectedPhotoResponse,
+  withPhotoDerivatives,
 } from "./helpers/photos.fixtures";
 import { TEST_USER_ID, buildUserWithDetails } from "./helpers/users.fixtures";
 
@@ -68,7 +69,7 @@ describe("PhotosController (integration)", () => {
   const s3Service = {
     getBucket: jest.fn(),
     putObject: jest.fn(),
-    deleteObject: jest.fn(),
+    deleteObjects: jest.fn(),
     headObject: jest.fn(),
     getPresignedUploadUrl: jest.fn(),
     getPresignedDownloadUrl: jest.fn(),
@@ -119,7 +120,7 @@ describe("PhotosController (integration)", () => {
       Promise.resolve(key.startsWith("derived/") ? TEST_SIGNED_THUMBNAIL_URL : TEST_SIGNED_GET_URL),
     );
     s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
-    s3Service.deleteObject.mockResolvedValue(undefined);
+    s3Service.deleteObjects.mockImplementation((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] }));
   });
 
   describe("POST /events/:eventId/photos/upload-urls", () => {
@@ -325,7 +326,7 @@ describe("PhotosController (integration)", () => {
       const body = response.body as WrappedResponse<ConfirmResultBody[]>;
       expect(body.data).toEqual([{ photoId: TEST_PHOTO_ID, status: "MISSING" }]);
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
-      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
         where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
       });
@@ -347,7 +348,7 @@ describe("PhotosController (integration)", () => {
       const body = response.body as WrappedResponse<ConfirmResultBody[]>;
       expect(body.data).toEqual([{ photoId: TEST_PHOTO_ID, status: "MISMATCHED" }]);
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(photo.s3Key));
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
         where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
       });
@@ -624,7 +625,7 @@ describe("PhotosController (integration)", () => {
         }),
       );
 
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(photo.s3Key));
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
     });
 
@@ -635,7 +636,7 @@ describe("PhotosController (integration)", () => {
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
 
-      expect(s3Service.deleteObject).toHaveBeenCalledWith(photo.s3Key);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(photo.s3Key));
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
     });
 
@@ -645,7 +646,8 @@ describe("PhotosController (integration)", () => {
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
 
-      expect(s3Service.deleteObject).toHaveBeenCalledTimes(1);
+      expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(buildPhoto().s3Key));
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
     });
 
@@ -654,7 +656,7 @@ describe("PhotosController (integration)", () => {
 
       await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
 
-      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     });
 
     it("returns 403 when a participant deletes someone else's photo", async () => {
@@ -668,7 +670,7 @@ describe("PhotosController (integration)", () => {
 
       const body = response.body as ErrorResponse;
       expectApiError(body, "ORGANIZER_ONLY", { action: "delete", subject: "Photo" });
-      expect(s3Service.deleteObject).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     });
 
     it("returns 404 when the photo does not exist", async () => {

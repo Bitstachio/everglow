@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import type { CameraView } from "expo-camera";
+import "react-native-gesture-handler/jestSetup";
 
 export const mockRequestPermission = jest.fn();
 export const mockCameraPermission = jest.fn((): { granted: boolean } | null => ({ granted: true }));
@@ -33,11 +34,17 @@ jest.mock("react-native/Libraries/Components/RefreshControl/RefreshControl", () 
   return { __esModule: true, default: (props: import("react-native").RefreshControlProps) => <View {...props} /> };
 });
 
-// The cover crop's root view installs native gesture handling, which Jest lacks.
+// The cover crop's and viewer's root views install native gesture handling,
+// which Jest lacks. Gesture Handler's own Jest setup stands in for its native
+// module, so tests can drive gestures with `fireGestureHandler`.
 jest.mock("react-native-gesture-handler", () => {
   const { View } = jest.requireActual("react-native");
   return { ...jest.requireActual("react-native-gesture-handler"), GestureHandlerRootView: View };
 });
+
+// Reanimated runs its worklets on the JS thread in Jest; the viewer's pager
+// needs the worklets runtime stand-in that ships with the library.
+jest.mock("react-native-worklets", () => jest.requireActual("react-native-worklets/src/mock"));
 
 // The cropper's gestures need the native worklets runtime. The stand-in
 // reports the photo unmoved, as the real one does on layout.

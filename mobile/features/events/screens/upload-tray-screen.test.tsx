@@ -70,14 +70,14 @@ test("08.3: shows each file's progress, and can cancel the rest or go back", asy
   ];
   await renderScreen();
 
-  expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 3 uploaded");
-  expect(screen.getByLabelText("IMG_2231, Uploaded")).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: /In the tray/ })).toHaveTextContent("In the tray\n1 of 3 developed");
+  expect(screen.getByLabelText("IMG_2231, Developed")).toBeOnTheScreen();
   expect(screen.queryByText("IMG_2231")).not.toBeOnTheScreen();
   expect(screen.queryByText(/Developed ·/)).not.toBeOnTheScreen();
   expect(screen.getAllByTestId("tray-row-photo", { includeHiddenElements: true })[0]!.props.source).toEqual([
     { uri: "file://IMG_2231.jpg" },
   ]);
-  expect(screen.getByRole("progressbar", { name: "IMG_2234, Uploading" })).toHaveAccessibilityValue({
+  expect(screen.getByRole("progressbar", { name: "IMG_2234, Developing" })).toHaveAccessibilityValue({
     min: 0,
     max: 100,
     now: 50,
@@ -113,14 +113,14 @@ test("offers Retry for files that didn't take, not Cancel", async () => {
   await renderScreen();
 
   expect(title()).toHaveTextContent("1 didn’t take.\nRetry sends them again.");
-  expect(screen.getByLabelText("IMG_2231, Failed · offline")).toBeOnTheScreen();
+  expect(screen.getByLabelText("IMG_2231, Didn’t take · offline")).toBeOnTheScreen();
   expect(screen.queryByRole("progressbar")).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Cancel the rest" })).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Retry ↻" }));
   expect(mockRetry).toHaveBeenCalled();
 });
 
-test("an empty tray does not claim cancelled photos were uploaded", async () => {
+test("an empty tray does not claim cancelled photos developed", async () => {
   mockEntries = [];
   await renderScreen();
   expect(title()).toHaveTextContent("The tray is empty.\nNothing waiting here.");
@@ -146,11 +146,11 @@ test("each recoverable failure can be retried or removed independently", async (
   expect(mockRemove).toHaveBeenCalledWith("Second");
 });
 
-test("completed rows use a film thumbnail and Uploaded without a filename or frame number", async () => {
+test("completed rows use a film thumbnail and Developed without a filename or frame number", async () => {
   mockEntries = [entry("IMG_2231", { kind: "developed", photoId: "p1" })];
   await renderScreen();
-  expect(title()).toHaveTextContent("In the tray\n1 of 1 uploaded");
-  expect(screen.getByLabelText("IMG_2231, Uploaded")).toBeOnTheScreen();
+  expect(title()).toHaveTextContent("In the tray\n1 of 1 developed");
+  expect(screen.getByLabelText("IMG_2231, Developed")).toBeOnTheScreen();
   expect(screen.queryByText("IMG_2231")).not.toBeOnTheScreen();
   expect(screen.queryByText(/Developed ·/)).not.toBeOnTheScreen();
   expect(screen.getAllByTestId("tray-row-photo", { includeHiddenElements: true })[0]!.props.source).toEqual([

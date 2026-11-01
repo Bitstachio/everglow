@@ -4,7 +4,8 @@
 #   CloudTrail  records every read and write of a photo, and every change to
 #               the rules below, in a separate log bucket
 #   EventBridge emails an alert when anyone but the API or processor reads a
-#               photo, or when a bucket policy, a key or the trail itself is changed
+#               photo, or when a bucket policy, a key, the trail, the processor's
+#               code or configuration, or its role's trust or permissions change
 #
 # The bucket policy that blocks reads is with the bucket in main.tf.
 
@@ -17,7 +18,11 @@ locals {
   trail_arn  = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${local.trail_name}"
   api_user   = aws_iam_user.api.arn
   # CloudTrail records Lambda as the assumed-role session, not the role ARN.
-  image_processor_session_arn = "arn:aws:sts::${local.account_id}:assumed-role/${aws_iam_role.image_processor.name}/${aws_lambda_function.image_processor.function_name}"
+  # Anyone allowed to assume the role can pick the same session name, so the
+  # read alert also checks userIdentity.inScopeOf.credentialsIssuedTo: Lambda
+  # sets it to the function it issued the credentials to; AssumeRole does not.
+  image_processor_session_arn  = "arn:aws:sts::${local.account_id}:assumed-role/${aws_iam_role.image_processor.name}/${aws_lambda_function.image_processor.function_name}"
+  image_processor_function_arn = aws_lambda_function.image_processor.arn
   photo_read_allowlist = [
     local.api_user,
     local.image_processor_session_arn,
@@ -207,6 +212,16 @@ resource "aws_sns_topic_policy" "security_alerts" {
         Resource  = aws_sns_topic.security_alerts.arn
         Condition = { ArnEquals = { "aws:SourceArn" = local.alert_rules } }
       },
+      {
+        # The image processor's DLQ alarm (image-processor.tf) publishes as
+        # CloudWatch, not EventBridge.
+        Sid       = "CloudWatchPublishesDlqAlarm"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "sns:Publish"
+        Resource  = aws_sns_topic.security_alerts.arn
+        Condition = { ArnEquals = { "aws:SourceArn" = aws_cloudwatch_metric_alarm.photo_uploads_dlq.arn } }
+      },
     ]
   })
 }
@@ -223,6 +238,8 @@ resource "aws_sns_topic_subscription" "security_alerts_email" {
 
 # Someone other than the API read, or tried to read, a photo. Denied attempts
 # are included (errorCode AccessDenied): an attempt is worth knowing about.
+# The processor's session counts as the processor only when Lambda issued its
+# credentials to this function; the same session name from AssumeRole alerts.
 resource "aws_cloudwatch_event_rule" "photo_read_by_person" {
   name        = "everglow-photo-read-by-person-dev"
   description = "A photo in ${aws_s3_bucket.photos.id} was read by someone other than the API or image processor"
@@ -234,7 +251,21 @@ resource "aws_cloudwatch_event_rule" "photo_read_by_person" {
       eventSource       = ["s3.amazonaws.com"]
       eventName         = ["GetObject"]
       requestParameters = { bucketName = [aws_s3_bucket.photos.id] }
-      userIdentity      = { arn = [{ "anything-but" = local.photo_read_allowlist }] }
+      "$or" = [
+        { userIdentity = { arn = [{ "anything-but" = local.photo_read_allowlist }] } },
+        {
+          userIdentity = {
+            arn       = [local.image_processor_session_arn]
+            inScopeOf = { credentialsIssuedTo = [{ exists = false }] }
+          }
+        },
+        {
+          userIdentity = {
+            arn       = [local.image_processor_session_arn]
+            inScopeOf = { credentialsIssuedTo = [{ "anything-but" = [local.image_processor_function_arn] }] }
+          }
+        },
+      ]
     }
   })
 }
@@ -245,30 +276,61 @@ resource "aws_cloudwatch_event_target" "photo_read_by_person" {
 
   input_transformer {
     input_paths = {
-      who   = "$.detail.userIdentity.arn"
-      key   = "$.detail.requestParameters.key"
-      time  = "$.detail.eventTime"
-      ip    = "$.detail.sourceIPAddress"
-      error = "$.detail.errorCode"
+      who      = "$.detail.userIdentity.arn"
+      issuedTo = "$.detail.userIdentity.inScopeOf.credentialsIssuedTo"
+      key      = "$.detail.requestParameters.key"
+      time     = "$.detail.eventTime"
+      ip       = "$.detail.sourceIPAddress"
+      error    = "$.detail.errorCode"
     }
-    input_template = "\"Photo read by <who> at <time> from <ip>. Object: <key>. Error (empty if it succeeded): <error>\""
+    input_template = "\"Photo read by <who> at <time> from <ip>. Object: <key>. Credentials issued to (empty unless Lambda): <issuedTo>. Error (empty if it succeeded): <error>\""
   }
 }
 
 # The controls themselves changed: a bucket policy or encryption setting, a
-# KMS key, or the trail. Reading a photo past the block starts with one of these.
+# KMS key, the trail, or the image processor. Reading a photo past the block
+# starts with one of these.
+#
+# The processor is on the read allowlist, so changing what it runs (code,
+# layers, handler, environment, role) or who can act as its role counts the
+# same as changing the bucket policy. Deleting and recreating the function
+# under its name is CreateFunction. The SQS mapping invokes the unqualified
+# function, so versions and aliases cannot swap the code it runs.
+#
+# Lambda logs functionName as the caller passed it (a name, a full ARN or a
+# partial ARN), so it is matched by suffix. IAM takes only the role name.
+# Terraform deploys of the processor call UpdateFunctionCode and alert too.
 resource "aws_cloudwatch_event_rule" "privacy_controls_changed" {
   name        = "everglow-privacy-controls-changed-dev"
-  description = "A bucket policy, KMS key or CloudTrail trail was changed"
+  description = "A bucket policy, KMS key, CloudTrail trail, or the image processor function or role was changed"
 
   event_pattern = jsonencode({
     "detail-type" = ["AWS API Call via CloudTrail"]
     detail = {
-      eventSource = ["s3.amazonaws.com", "kms.amazonaws.com", "cloudtrail.amazonaws.com"]
-      eventName = [
-        "PutBucketPolicy", "DeleteBucketPolicy", "PutBucketEncryption", "DeleteBucketEncryption",
-        "PutKeyPolicy", "CreateGrant", "DisableKey", "ScheduleKeyDeletion",
-        "StopLogging", "DeleteTrail", "UpdateTrail", "PutEventSelectors",
+      "$or" = [
+        {
+          eventSource = ["s3.amazonaws.com", "kms.amazonaws.com", "cloudtrail.amazonaws.com"]
+          eventName = [
+            "PutBucketPolicy", "DeleteBucketPolicy", "PutBucketEncryption", "DeleteBucketEncryption",
+            "PutKeyPolicy", "CreateGrant", "DisableKey", "ScheduleKeyDeletion",
+            "StopLogging", "DeleteTrail", "UpdateTrail", "PutEventSelectors",
+          ]
+        },
+        {
+          eventSource = ["lambda.amazonaws.com"]
+          eventName = [
+            "CreateFunction20150331", "UpdateFunctionCode20150331v2", "UpdateFunctionConfiguration20150331v2",
+          ]
+          requestParameters = { functionName = [{ suffix = aws_lambda_function.image_processor.function_name }] }
+        },
+        {
+          eventSource = ["iam.amazonaws.com"]
+          eventName = [
+            "UpdateAssumeRolePolicy", "PutRolePolicy", "DeleteRolePolicy", "AttachRolePolicy", "DetachRolePolicy",
+            "PutRolePermissionsBoundary", "DeleteRolePermissionsBoundary",
+          ]
+          requestParameters = { roleName = [aws_iam_role.image_processor.name] }
+        },
       ]
     }
   })

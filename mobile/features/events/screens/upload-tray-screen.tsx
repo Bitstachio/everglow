@@ -5,7 +5,7 @@ import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
 import { ArrowClockwise, Trash } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
-import { ScrollView, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { TrayRow } from "../components/tray-row";
 import { useUploadTrayScreen } from "../hooks/use-upload-tray-screen";
 import type { TrayItem } from "../lib/upload-tray";
@@ -20,7 +20,10 @@ const UploadTrayScreen = () => {
     summary.rejected > 0 && summary.inFlight > 0
       ? [t("tray.developingRejected", { count: summary.inFlight }), t("tray.rejected", { count: summary.rejected })]
       : summary.inFlight > 0 || summary.developed > 0
-        ? [t("tray.title"), t("tray.progress", { developed: summary.developed, total: summary.sendable })]
+        ? [
+            t("tray.title"),
+            t("tray.progress", { developed: summary.developed, total: summary.developed + summary.inFlight }),
+          ]
         : summary.retryable > 0
           ? [t("tray.didntTake", { count: summary.retryable }), t("tray.didntTakeDim")]
           : summary.rejected > 0
@@ -35,9 +38,9 @@ const UploadTrayScreen = () => {
     const { status: s } = item;
     switch (s.kind) {
       case "developed":
-        return t("tray.row.uploaded");
+        return t("tray.row.developed");
       case "sending":
-        return t(item.sizeBytes > 0 && s.bytesSent >= item.sizeBytes ? "tray.row.finishing" : "tray.row.uploading");
+        return t(item.sizeBytes > 0 && s.bytesSent >= item.sizeBytes ? "tray.row.finishing" : "tray.row.developing");
       case "waiting":
         return t("tray.row.waiting");
       case "failed":
@@ -65,51 +68,56 @@ const UploadTrayScreen = () => {
         title={screen.title}
         left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
       />
-      <ScrollView className="flex-1" contentContainerClassName="pb-8 pt-4">
-        <Display className="px-5" dim={dim}>
-          {title}
-        </Display>
-
-        <View accessibilityLabel={t("tray.rows")} className="mt-6 px-5">
-          {entries.map((item) => {
-            const text = status(item);
-            const rowStatus = item.status;
-            const rejected = rowStatus.kind === "rejected";
-            const failed = rowStatus.kind === "failed";
-            const retryable = failed && ["connection", "refused", "interrupted"].includes(rowStatus.reason);
-            return (
-              <TrayRow
-                key={item.key}
-                uri={item.uri}
-                status={text}
-                accessibilityLabel={`${item.name}, ${text}`}
-                done={rowStatus.kind === "developed"}
-                progress={item.progress}
-                actions={
-                  failed || rejected
-                    ? [
-                        ...(retryable
-                          ? [
-                              {
-                                icon: ArrowClockwise,
-                                accessibilityLabel: t("tray.row.retryLabel", { name: item.name }),
-                                onPress: () => screen.onRetryOne(item.key),
-                              },
-                            ]
-                          : []),
-                        {
-                          icon: Trash,
-                          accessibilityLabel: t("tray.row.removeLabel", { name: item.name }),
-                          onPress: () => screen.onRemove(item.key),
-                        },
-                      ]
-                    : undefined
-                }
-              />
-            );
-          })}
-        </View>
-      </ScrollView>
+      {/* A tray can hold hundreds of picks: only the rows on screen mount and decode. */}
+      <FlatList
+        data={entries}
+        keyExtractor={(item) => item.key}
+        accessibilityLabel={t("tray.rows")}
+        className="flex-1"
+        contentContainerClassName="px-5 pb-8 pt-4"
+        ListHeaderComponent={
+          <Display className="mb-6" dim={dim}>
+            {title}
+          </Display>
+        }
+        renderItem={({ item }) => {
+          const text = status(item);
+          const rowStatus = item.status;
+          const rejected = rowStatus.kind === "rejected";
+          const failed = rowStatus.kind === "failed";
+          const retryable = failed && ["connection", "refused", "interrupted"].includes(rowStatus.reason);
+          return (
+            <TrayRow
+              uri={item.uri}
+              cacheKey={item.cacheKey}
+              status={text}
+              accessibilityLabel={`${item.name}, ${text}`}
+              done={rowStatus.kind === "developed"}
+              progress={item.progress}
+              actions={
+                failed || rejected
+                  ? [
+                      ...(retryable
+                        ? [
+                            {
+                              icon: ArrowClockwise,
+                              accessibilityLabel: t("tray.row.retryLabel", { name: item.name }),
+                              onPress: () => screen.onRetryOne(item.key),
+                            },
+                          ]
+                        : []),
+                      {
+                        icon: Trash,
+                        accessibilityLabel: t("tray.row.removeLabel", { name: item.name }),
+                        onPress: () => screen.onRemove(item.key),
+                      },
+                    ]
+                  : undefined
+              }
+            />
+          );
+        }}
+      />
 
       {summary.inFlight > 0 || summary.retryable > 0 ? (
         <View className="flex-row items-center px-3 pb-2">
