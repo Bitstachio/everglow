@@ -14,6 +14,7 @@ import {
   useLeaveEventMutation,
   useRefreshRollAfterUpload,
   useRemoveEventParticipantMutation,
+  type LeaveEventInput,
 } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
@@ -164,6 +165,8 @@ export const useEventDetailScreen = () => {
   // One sheet over the roll whose content changes, so one modal never opens
   // from another: iOS drops a modal presented while another is closing.
   const [sheet, setSheet] = useState<RollSheet | null>(null);
+  const [leavePhotos, setLeavePhotos] = useState<LeaveEventInput["photos"]>("KEEP");
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
   const [person, setPerson] = useState<EventParticipantResponseDto | null>(null);
   const [blockTarget, setBlockTarget] = useState<BlockTarget | null>(null);
@@ -331,20 +334,27 @@ export const useEventDetailScreen = () => {
 
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
+    const frameCount = participants.find((participant) => participant.userId === user?.id)?.photoCount ?? 0;
+    // A closed roll has already lost its photos, so there is nothing to choose.
+    const photosChoice = event.galleryState !== "CLOSED" && frameCount > 0 ? leavePhotos : "KEEP";
+    setLeaveError(null);
     // Stop active readers before membership is revoked and their caches are
     // evicted, and keep the roll on screen until Home replaces it.
     setLeftRoll({ event, photos, participants });
-    leaveEventMutation.mutate({ eventId, photos: "KEEP" }, {
-      onSuccess: () => {
-        closeSheet();
-        router.replace("/events");
+    leaveEventMutation.mutate(
+      { eventId, photos: photosChoice },
+      {
+        onSuccess: () => {
+          closeSheet();
+          router.replace("/events");
+        },
+        onError: (error) => {
+          // The slip stays up, with the choice still selected, so a refusal can be read and retried.
+          setLeftRoll(null);
+          setLeaveError(getErrorMessage(error, t("leave.failed")));
+        },
       },
-      onError: (error) => {
-        closeSheet();
-        setLeftRoll(null);
-        showNotice(getErrorMessage(error));
-      },
-    });
+    );
   };
 
   const onConfirmCut = () => {
@@ -509,6 +519,10 @@ export const useEventDetailScreen = () => {
     sheet: shownSheet,
     arrivalNote,
     isLeaving: leaveEventMutation.isPending,
+    leavePhotos,
+    leaveFrameCount: participants.find((participant) => participant.userId === user?.id)?.photoCount ?? 0,
+    leaveClosed: event?.galleryState === "CLOSED",
+    leaveError,
     isCutting: deactivateMutation.isPending,
     removing,
     isRemoving: removeParticipantMutation.isPending,
@@ -547,7 +561,12 @@ export const useEventDetailScreen = () => {
       closeSheet();
       if (eventId) router.push(`/events/${eventId}/settings`);
     },
-    onLeave: () => setSheet("leave"),
+    onLeave: () => {
+      setLeavePhotos("KEEP");
+      setLeaveError(null);
+      setSheet("leave");
+    },
+    onChooseLeavePhotos: setLeavePhotos,
     onConfirmLeave,
     onCut: () => setSheet("cut"),
     onConfirmCut,
