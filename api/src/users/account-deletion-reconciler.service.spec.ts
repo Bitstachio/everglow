@@ -15,6 +15,7 @@ describe("AccountDeletionReconcilerService", () => {
 
   const now = new Date("2026-06-10T12:00:00.000Z");
   const MAX_ATTEMPTS = 5;
+  const REPORT_RETENTION_DAYS = 365;
   const pendingUser = {
     id: "11111111-1111-1111-1111-111111111111",
     providerSub: "auth0|abc123",
@@ -30,6 +31,10 @@ describe("AccountDeletionReconcilerService", () => {
 
     prisma = mockDeep<PrismaClient>();
     usersService = { completeAccountDeletion: jest.fn().mockResolvedValue(undefined) };
+    // No tombstones to purge unless a case says otherwise.
+    prisma.deletedProviderSub.deleteMany.mockResolvedValue({ count: 0 });
+    prisma.deletedProviderSub.findMany.mockResolvedValue([]);
+    prisma.report.findMany.mockResolvedValue([]);
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -44,6 +49,7 @@ describe("AccountDeletionReconcilerService", () => {
               if (key === "users.accountDeletionReconcilerBatchSize") return 50;
               if (key === "users.accountDeletionReconcilerStuckAfterHours") return 1;
               if (key === "users.accountDeletionMaxAttempts") return MAX_ATTEMPTS;
+              if (key === "moderation.reportRetentionDays") return REPORT_RETENTION_DAYS;
               throw new Error(`Unexpected key: ${key}`);
             }),
           },
@@ -78,7 +84,7 @@ describe("AccountDeletionReconcilerService", () => {
       },
     });
     expect(usersService.completeAccountDeletion).toHaveBeenCalledWith(pendingUser);
-    expect(result).toEqual({ scanned: 1, deleted: 1, failed: 0, stuck: 1, abandoned: 0 });
+    expect(result).toEqual({ scanned: 1, deleted: 1, failed: 0, stuck: 1, abandoned: 0, tombstonesPurged: 0 });
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ event: "user.account.deletion_stuck", userId: pendingUser.id }),
       expect.any(String),
@@ -92,7 +98,7 @@ describe("AccountDeletionReconcilerService", () => {
 
     const result = await service.reconcilePendingDeletions();
 
-    expect(result).toEqual({ scanned: 2, deleted: 1, failed: 1, stuck: 2, abandoned: 0 });
+    expect(result).toEqual({ scanned: 2, deleted: 1, failed: 1, stuck: 2, abandoned: 0, tombstonesPurged: 0 });
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ event: "user.account.deletion_reconcile.failed", userId: pendingUser.id }),
       expect.any(String),
@@ -117,7 +123,7 @@ describe("AccountDeletionReconcilerService", () => {
 
     const result = await service.reconcilePendingDeletions();
 
-    expect(result).toEqual({ scanned: 1, deleted: 0, failed: 1, stuck: 1, abandoned: 1 });
+    expect(result).toEqual({ scanned: 1, deleted: 0, failed: 1, stuck: 1, abandoned: 1, tombstonesPurged: 0 });
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: pendingUser.id },
       data: { deletionAttempts: MAX_ATTEMPTS },
@@ -150,5 +156,87 @@ describe("AccountDeletionReconcilerService", () => {
     prisma.user.update.mockRejectedValue(new Error("db down"));
 
     await expect(service.reconcilePendingDeletions()).resolves.toMatchObject({ failed: 1 });
+  });
+
+  describe("purgeExpiredTombstones", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const daysAgo = (n: number) => new Date(now.getTime() - n * DAY_MS);
+    const sanctioned = (hash: string, formerUserId: string, deletedAt: Date) => ({
+      providerSubHash: hash,
+      formerUserId,
+      deletedAt,
+    });
+
+    it("deletes tombstones that carry nothing once they are past the base window, in one statement", async () => {
+      prisma.deletedProviderSub.deleteMany.mockResolvedValueOnce({ count: 3 });
+
+      await expect(service.purgeExpiredTombstones(now)).resolves.toEqual({ purged: 3, sanctionedKept: 0 });
+
+      expect(prisma.deletedProviderSub.deleteMany).toHaveBeenCalledWith({
+        where: { deletedAt: { lt: daysAgo(30) }, suspendedAt: null, bans: { none: {} } },
+      });
+    });
+
+    it("judges sanctioned tombstones by the reports about the account, found through their evidence", async () => {
+      prisma.deletedProviderSub.findMany.mockResolvedValueOnce([
+        sanctioned("a", "user-a", daysAgo(400)), // no reports, past a year
+        sanctioned("b", "user-b", daysAgo(400)), // a report still open
+        sanctioned("c", "user-c", daysAgo(100)), // no reports, inside the year
+        sanctioned("d", "user-d", daysAgo(400)), // its report closed 200 days ago
+      ] as never);
+      prisma.report.findMany.mockResolvedValueOnce([
+        { resolvedAt: null, holdUntil: null, evidence: { subjectUserId: "user-b" } },
+        { resolvedAt: daysAgo(200), holdUntil: null, evidence: { subjectUserId: "user-d" } },
+      ] as never);
+      prisma.deletedProviderSub.deleteMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+
+      const result = await service.purgeExpiredTombstones(now);
+
+      expect(prisma.deletedProviderSub.findMany).toHaveBeenCalledWith({
+        where: { deletedAt: { lt: daysAgo(30) }, OR: [{ suspendedAt: { not: null } }, { bans: { some: {} } }] },
+        orderBy: { providerSubHash: "asc" },
+        take: 50,
+        select: { providerSubHash: true, formerUserId: true, deletedAt: true },
+      });
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { evidence: { subjectUserId: { in: ["user-a", "user-b", "user-c", "user-d"] } } },
+        select: { resolvedAt: true, holdUntil: true, evidence: { select: { subjectUserId: true } } },
+      });
+      // Only "a" has run out; matched on deletedAt so a newer deletion of the same identity survives.
+      expect(prisma.deletedProviderSub.deleteMany).toHaveBeenLastCalledWith({
+        where: { OR: [{ providerSubHash: "a", deletedAt: daysAgo(400) }] },
+      });
+      expect(result).toEqual({ purged: 1, sanctionedKept: 3 });
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "user.tombstone.purged", purged: 1, sanctionedKept: 3 }),
+        expect.any(String),
+      );
+    });
+
+    it("pages through every sanctioned tombstone, so held ones never hide the rest", async () => {
+      const fullPage = Array.from({ length: 50 }, (_, i) =>
+        sanctioned(`hash-${String(i).padStart(2, "0")}`, `user-${i}`, daysAgo(100)),
+      );
+      prisma.deletedProviderSub.findMany
+        .mockResolvedValueOnce(fullPage as never)
+        .mockResolvedValueOnce([sanctioned("hash-zz", "user-z", daysAgo(400))] as never);
+      prisma.deletedProviderSub.deleteMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+
+      await expect(service.purgeExpiredTombstones(now)).resolves.toEqual({ purged: 1, sanctionedKept: 50 });
+
+      expect(prisma.deletedProviderSub.findMany).toHaveBeenCalledTimes(2);
+      expect(prisma.deletedProviderSub.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ providerSubHash: { gt: "hash-49" } }) as unknown,
+        }),
+      );
+    });
+
+    it("runs at the end of every reconcile pass and reports what it purged", async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      prisma.deletedProviderSub.deleteMany.mockResolvedValueOnce({ count: 2 });
+
+      await expect(service.reconcilePendingDeletions()).resolves.toMatchObject({ tombstonesPurged: 2 });
+    });
   });
 });
