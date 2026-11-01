@@ -18,12 +18,12 @@ The role is checked on every request (`PlatformModeratorGuard`), so revoking it 
 | Endpoint                                        | Does                                                                                                      |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `GET /admin/reports`                            | The platform's OPEN reports, oldest first. `?queue=ORGANIZERS`, `?status=`, `?eventId=` to look elsewhere |
-| `GET /admin/reports/:reportId`                  | One report, with who filed it, why it is here and its evidence summary                                    |
+| `GET /admin/reports/:reportId`                  | One report, with who filed it, why it is here, its evidence summary, `removalDueAt` and `authorityReportedAt` |
 | `POST /admin/reports/:reportId/evidence-url`    | A 5-minute link to what was reported. Every link is logged (`report.evidence.viewed`)                     |
 | `PATCH /admin/reports/:reportId`                | `REMOVE_PHOTO`, `REMOVE_MEMBER` (with `photos`), or `DISMISS`. Closes every OPEN report on the target     |
 | `PUT /admin/reports/:reportId/hold`             | `{ until, reason }`: keep the report and its evidence past the retention window                           |
 | `DELETE /admin/reports/:reportId/hold`          | Release the hold                                                                                          |
-| `PUT /admin/reports/:reportId/authority-report` | `{ reference, submittedAt? }`: record a CyberTipline or police report; holds it a year from submission    |
+| `PUT /admin/reports/:reportId/authority-report` | `{ reference, submittedAt? }`: record a CyberTipline or police report; holds it at least a year from submission |
 | `POST /admin/events/:eventId/lift-review`       | End an event's review                                                                                     |
 | `POST /admin/events/:eventId/suspend`           | Hide the event's photos, cover and description; make it read-only                                         |
 | `POST /admin/events/:eventId/restore`           | Lift a suspension and a review; dismiss the reports about the event                                       |
@@ -37,7 +37,7 @@ The role is checked on every request (`PlatformModeratorGuard`), so revoking it 
 
 ## Every escalated report: within 24 hours
 
-`report.escalated` raises a ticket, and `report.stale` fires once for any report that has waited 24 hours in the platform's queue.
+`report.escalated` raises a ticket, and `report.stale` fires once for any report that has waited 24 hours in the platform's queue. A report still OPEN a week after filing comes back in a weekly `report.stale` with `reminder: true` until someone closes it. The alert names only the report: open it in the platform queue to see who filed it and whom it is about.
 
 1. Open it with `GET /admin/reports/:reportId`. `escalationReasons` says why it reached you.
 2. Look at the evidence if the reason needs it.
@@ -58,7 +58,7 @@ A `CHILD_SAFETY` report is hidden from everyone, organizers included, and held f
 2. **If it is:**
    1. Report it to the **NCMEC CyberTipline** "as soon as reasonably possible" (18 U.S.C. §2258A). Use the provider account set up for Everglow. Registration is a one-time task for the owner.
    2. For a Canadian user or event, report it to **Cybertip.ca**, and notify the police (S.C. 2011, c. 4).
-   3. Record the reference: `PUT /admin/reports/:reportId/authority-report` with `{ reference, submittedAt }`. That holds the report and its evidence for a year from the submission.
+   3. Record the reference: `PUT /admin/reports/:reportId/authority-report` with `{ reference, submittedAt }`. That stores `authorityReportedAt` and holds the report and its evidence until the later of its current hold and a year from the submission.
    4. Remove the content: `PATCH` with `REMOVE_MEMBER` and `photos: DELETE`. The evidence copy is kept under the hold.
    5. Suspend the account: `POST /admin/users/:userId/suspend`. It closes their member reports; their photo reports stay open, so remove those photos with step 4 first.
    6. Tell nobody involved why. Nothing the person sees may prejudice an investigation.
@@ -66,7 +66,7 @@ A `CHILD_SAFETY` report is hidden from everyone, organizers included, and held f
 
 ## Intimate image shared without consent (`intimate_image`): pages, 48 hours
 
-The TAKE IT DOWN Act requires removal within 48 hours of a valid request (47 U.S.C. §223a). The report hides the image from everyone at once; the clock runs from the report's `createdAt`.
+The TAKE IT DOWN Act requires removal within 48 hours of a valid request (47 U.S.C. §223a). The report hides the image from everyone at once; the deadline is the report's `removalDueAt`, 48 hours after filing. `report.removal_due_soon` pages at 36 hours and `report.removal_overdue` at 48 if it is still OPEN.
 
 1. Check it is plausibly the person shown asking. A request by the person shown is enough. You don't have to prove it.
 2. `PATCH` with `REMOVE_PHOTO`. Removing it also deletes its evidence copy and keeps only the hash, so we don't hold a copy of the image the person asked us to remove.
