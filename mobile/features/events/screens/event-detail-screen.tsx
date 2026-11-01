@@ -27,7 +27,9 @@ import { RollCover } from "../components/roll-cover";
 import { RollFooter, type FooterAction, type RollFooterProps } from "../components/roll-footer";
 import { RollNotice } from "../components/roll-notice";
 import { RollOpened } from "../components/roll-opened";
-import { RollPeopleList } from "../components/roll-people-list";
+import { ROLE_KEY, RollPeopleList } from "../components/roll-people-list";
+import { PersonMenu } from "../components/person-menu";
+import { BlockSlip } from "@/features/moderation/components/block-slip";
 import { RollTrayLine } from "../components/roll-tray-line";
 import { UnexposedRoll } from "../components/unexposed-roll";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
@@ -576,7 +578,7 @@ const EventDetailScreen = () => {
 
 /** Everything that opens over the roll: the menu, people, slips, the envelope, a frame. */
 const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation(["roll", "report"]);
   const { event, role } = screen;
   if (!event) return null;
 
@@ -611,6 +613,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
             {role === "host" && event.status !== "SUSPENDED" ? (
               <IndexRow label={t("menuSheet.settings")} onPress={screen.onOpenSettings} />
             ) : null}
+            {role !== "host" ? <IndexRow label={t("report:menu.reportRoll")} onPress={screen.onReportRoll} /> : null}
             {role !== "host" ? <IndexRow action muted label={t("menuSheet.leave")} onPress={screen.onLeave} /> : null}
           </View>
         ) : null}
@@ -619,7 +622,28 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           <RollPeopleList
             participants={screen.participants}
             currentUserId={screen.currentUserId}
-            onRemove={role === "host" && event.status === "ACTIVE" ? screen.onRemove : undefined}
+            onPerson={screen.onOpenPerson}
+          />
+        ) : null}
+
+        {screen.sheet === "person" && screen.person ? (
+          <PersonMenu
+            person={screen.person}
+            roleLabel={t(ROLE_KEY[screen.person.accessLevel])}
+            onReport={screen.onReportPerson}
+            onBlock={screen.onBlockPerson}
+            onUnblock={screen.onUnblockPerson}
+            onRemove={screen.canRemovePerson ? screen.onRemovePerson : undefined}
+          />
+        ) : null}
+
+        {screen.sheet === "block" && screen.rollBlocking ? (
+          <BlockSlip
+            name={screen.rollBlocking.name}
+            busy={screen.rollBlocking.busy}
+            error={screen.rollBlocking.error}
+            onConfirm={screen.onConfirmBlock}
+            onCancel={screen.onCancelBlock}
           />
         ) : null}
 
@@ -724,6 +748,11 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         isDeleting={screen.busy === "delete"}
         onCancelDelete={screen.onCancelDelete}
         onConfirmDelete={screen.onConfirmDelete}
+        onReport={screen.onReportFrame}
+        onBlock={screen.onBlockFrameOwner}
+        blocking={screen.viewerBlocking}
+        onCancelBlock={screen.onCancelBlock}
+        onConfirmBlock={screen.onConfirmBlock}
       />
     </>
   );

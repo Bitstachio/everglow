@@ -47,6 +47,7 @@ let mockParams: { id: string | string[]; arrival?: string; place?: string } = { 
 let mockTrayFocused = true;
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
+const mockBlock = jest.fn().mockResolvedValue({});
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
@@ -58,6 +59,8 @@ jest.mock("@/lib/api/generated", () => ({
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
   photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
   photosControllerFindOne: (...args: unknown[]) => mockFindPhoto(...args),
+  reportsControllerListReports: () => Promise.resolve({ data: { data: { items: [], nextCursor: null } } }),
+  blocksControllerBlock: (...args: unknown[]) => mockBlock(...args),
 }));
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -514,6 +517,7 @@ describe("closed (07.9)", () => {
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
     await user.press(screen.getByRole("button", { name: "People" }));
     await user.press(await screen.findByRole("button", { name: "Grace Hopper, Adds photos" }));
+    await user.press(await screen.findByRole("button", { name: "Remove Grace from the roll" }));
     await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
 
     expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
@@ -1384,6 +1388,7 @@ describe("people and the menu", () => {
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
     await user.press(screen.getByRole("button", { name: "Grace Hopper, Adds photos" }));
+    await user.press(await screen.findByRole("button", { name: "Remove Grace from the roll" }));
     await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
 
     await waitFor(() =>
@@ -1393,6 +1398,23 @@ describe("people and the menu", () => {
       }),
     );
     expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
+  });
+
+  test("someone on the roll call can be reported or blocked (11.8, 10.11)", async () => {
+    await renderScreen({
+      event: openEvent({ usage: { members: 2, storageBytes: "0" } }),
+      participants: [host, guest],
+      photos: oneFrame,
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
+    await user.press(screen.getByRole("button", { name: "Grace Hopper, Adds photos" }));
+    await user.press(await screen.findByRole("button", { name: "Block Grace" }));
+    expect(await screen.findByText("You won’t see each other.")).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Block Grace" }));
+
+    await waitFor(() => expect(mockBlock).toHaveBeenCalledWith({ path: { userId: "user-2" }, throwOnError: true }));
+    expect(await screen.findByText("Grace Hopper is blocked")).toBeOnTheScreen();
   });
 });
 

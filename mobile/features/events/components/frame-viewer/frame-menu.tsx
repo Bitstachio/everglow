@@ -1,37 +1,16 @@
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { DownloadSimple, ShareNetwork, Trash } from "phosphor-react-native";
-import type { ComponentProps } from "react";
-import { AppIcon } from "@/components/ui/app-icon";
+import { DownloadSimple, Flag, Prohibit, ShareNetwork, Trash } from "phosphor-react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { EdgePrint } from "@/components/ui/edge-print";
+import { MenuAction } from "@/components/ui/menu-action";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
-import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
 
-const FrameAction = ({
-  label,
-  icon,
-  onPress,
-}: {
-  label: string;
-  icon: ComponentProps<typeof AppIcon>["icon"];
-  onPress: () => void;
-}) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={label}
-    onPress={onPress}
-    className="min-h-12 flex-row items-center justify-between gap-4 border-t border-line py-4 active:opacity-60"
-  >
-    <EdgePrint tone="text" className="flex-1">
-      {label}
-    </EdgePrint>
-    <AppIcon icon={icon} size="sm" color={colorTokens.text} />
-  </Pressable>
-);
-
-/** Chapter 09's frame summary and action index, without the removed frame numbers. */
+/**
+ * Chapter 09's frame summary and action index, without the removed frame
+ * numbers. Someone else's frame can be reported, and its owner blocked (09.3).
+ */
 export const FrameMenu = ({
   frame,
   name,
@@ -44,6 +23,8 @@ export const FrameMenu = ({
   onSave,
   onShare,
   onDelete,
+  onReport,
+  onBlock,
 }: {
   frame: SheetFrame | null;
   name: string;
@@ -56,8 +37,12 @@ export const FrameMenu = ({
   onSave: () => void;
   onShare: () => void;
   onDelete: () => void;
+  /** Left out for your own frame: you can't report it. */
+  onReport?: () => void;
+  /** Left out for your own frame, and for a frame whose owner left Everglow. */
+  onBlock?: () => void;
 }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation(["roll", "report"]);
   return (
     <BottomSheet testID="frame-menu-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
       <View>
@@ -80,13 +65,22 @@ export const FrameMenu = ({
             {frame?.uploader?.username ? <EdgePrint size="frame-label">@{frame.uploader.username}</EdgePrint> : null}
           </View>
         </View>
-        <FrameAction label={t("viewer.save")} icon={DownloadSimple} onPress={onSave} />
-        <FrameAction label={t("gallery.share")} icon={ShareNetwork} onPress={onShare} />
+        <MenuAction label={t("viewer.save")} icon={DownloadSimple} onPress={onSave} />
+        <MenuAction label={t("gallery.share")} icon={ShareNetwork} onPress={onShare} />
         {canDelete ? (
-          <FrameAction
+          <MenuAction
             label={isOwn ? t("viewer.deleteOwn") : t("viewer.deleteOther", { name })}
             icon={Trash}
             onPress={onDelete}
+          />
+        ) : null}
+        {onReport ? <MenuAction label={t("report:menu.reportFrame")} icon={Flag} onPress={onReport} /> : null}
+        {onBlock ? (
+          <MenuAction
+            muted
+            label={t("report:menu.block", { name: name.split(" ")[0] })}
+            icon={Prohibit}
+            onPress={onBlock}
           />
         ) : null}
       </View>
