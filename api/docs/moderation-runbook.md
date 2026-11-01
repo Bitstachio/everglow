@@ -13,6 +13,8 @@ UPDATE "User" SET "platformRole" = NULL WHERE id = '<user id>';
 
 The role is checked on every request (`PlatformModeratorGuard`), so revoking it takes effect at once. Every `/admin` action is logged with the moderator's id.
 
+A moderator can't be suspended, by themselves or by another moderator (403 `CANNOT_SUSPEND_MODERATOR`): a suspended account can't reach `/admin`, so a sole moderator would be locked out. To suspend a moderator's account, revoke the role in the database first.
+
 ## The tools
 
 | Endpoint                                        | Does                                                                                                      |

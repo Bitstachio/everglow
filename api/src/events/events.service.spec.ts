@@ -1130,6 +1130,36 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ["suspended", { suspendedAt: new Date() }],
+      ["under review", { underReviewAt: new Date() }],
+    ])(
+      "answers an organizer's block with the unknown-link 404 even when the event is %s, revealing nothing",
+      async (_label, state) => {
+        setupSuccessfulJoin();
+        prisma.event.findUnique.mockResolvedValue({ ...eventCreatedByUser, ...state });
+        prisma.userBlock.findMany.mockResolvedValue([
+          { blockerId: "organizer-id", blocked: { details: null } },
+        ] as never);
+
+        await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
+          new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
+        );
+      },
+    );
+
+    it("says the event is on hold before explaining the caller's own block, as the invite preview does", async () => {
+      setupSuccessfulJoin();
+      prisma.event.findUnique.mockResolvedValue({ ...eventCreatedByUser, underReviewAt: new Date() });
+      prisma.userBlock.findMany.mockResolvedValue([
+        { blockerId: callerId, blocked: { details: { name: "Sam" } } },
+      ] as never);
+
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toMatchObject({
+        response: { code: "EVENT_UNDER_REVIEW" },
+      });
+    });
+
     it("tells the caller why when they blocked an organizer of the event", async () => {
       setupSuccessfulJoin();
       prisma.userBlock.findMany.mockResolvedValue([
@@ -3434,6 +3464,10 @@ describe("EventsService", () => {
       // Removal runs in one interactive transaction, against the same mock client.
       prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
       prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+      // Nothing filed by the removed member, unless a test says so.
+      prisma.report.findMany.mockResolvedValue([]);
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      prisma.$queryRaw.mockResolvedValue([]);
     });
 
     const setupOrganizerRemove = (targetAccess: EventAccess = targetParticipantAccess) => {
@@ -3456,10 +3490,75 @@ describe("EventsService", () => {
           photos: "KEEP",
           photosDeleted: 0,
           reportsClosed: 0,
+          filedReportsClosed: 0,
           banned: true,
           audit: true,
         },
         "Event member removed",
+      );
+    });
+
+    it("closes the reports the removed member filed in the event, so they stop hiding photos", async () => {
+      setupOrganizerRemove();
+      prisma.report.updateMany.mockResolvedValue({ count: 3 });
+
+      await service.removeUserFromEvent(eventId, callerId, targetUserId);
+
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: {
+          eventId,
+          reporterId: targetUserId,
+          status: "OPEN",
+          queue: "ORGANIZERS",
+          reason: { notIn: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] },
+        },
+        data: {
+          status: "DISMISSED",
+          closedReason: "REPORTER_REMOVED",
+          closedByRole: "ORGANIZER",
+          resolvedById: callerId,
+          resolvedAt: expect.any(Date) as unknown,
+        },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "event.member.removed", filedReportsClosed: 3 }),
+        "Event member removed",
+      );
+    });
+
+    it("moves the removed member's severe reports to the platform instead, and logs each move", async () => {
+      setupOrganizerRemove();
+      const severe = {
+        id: "r-severe",
+        eventId,
+        targetType: "PHOTO",
+        photoId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        reportedUserId: callerId,
+        reason: "NUDITY_OR_SEXUAL",
+      };
+      prisma.report.findMany.mockResolvedValue([{ id: severe.id }] as never);
+      prisma.$queryRaw.mockResolvedValue([severe]);
+
+      await service.removeUserFromEvent(eventId, callerId, targetUserId);
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: {
+          eventId,
+          reporterId: targetUserId,
+          status: "OPEN",
+          queue: "ORGANIZERS",
+          reason: { in: ["NUDITY_OR_SEXUAL", "VIOLENCE", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"] },
+        },
+        select: { id: true },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.escalated",
+          reportId: severe.id,
+          escalationReasons: ["severe_dismissed"],
+          callerId,
+        }),
+        "Report moved to the platform",
       );
     });
 
@@ -3493,7 +3592,8 @@ describe("EventsService", () => {
       prisma.photo.findMany.mockResolvedValue(uploaded as never);
       prisma.photo.deleteMany.mockResolvedValue({ count: 2 });
       prisma.report.updateMany.mockResolvedValue({ count: 1 });
-      prisma.report.findMany.mockResolvedValue([
+      // The first lookup is for severe reports the member filed: none.
+      prisma.report.findMany.mockResolvedValueOnce([]).mockResolvedValue([
         {
           id: "r-1",
           photoId: uploaded[0].id,

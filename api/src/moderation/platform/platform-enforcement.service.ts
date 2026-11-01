@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import {
   AccessLevel,
+  PlatformRole,
   ReportActorRole,
   ReportClosedReason,
   ReportStatus,
@@ -8,6 +9,7 @@ import {
 } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -165,11 +167,20 @@ export class PlatformEnforcementService {
    * ACCOUNT_SUSPENDED: this is the verdict on them. Reports on its photos stay
    * open, since closing them would show the photos again; the platform
    * removes those with its verdicts. Events it organizes alone are suspended
-   * with it: nobody else could keep them in order. Idempotent.
+   * with it: nobody else could keep them in order. Idempotent. A moderator,
+   * the caller included, can't be suspended: a suspended account can't reach
+   * /admin, so a sole moderator would need a database fix. To suspend one,
+   * the role is revoked in the database first (api/docs/moderation-runbook.md).
    */
   async suspendUser(userId: string, moderatorId: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { suspendedAt: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { suspendedAt: true, platformRole: true },
+    });
     if (!user) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("User", "ID", userId));
+    if (userId === moderatorId || user.platformRole === PlatformRole.MODERATOR) {
+      throw new ApiException("CANNOT_SUSPEND_MODERATOR");
+    }
     if (user.suspendedAt) return;
 
     const organized = await this.prisma.eventAccess.findMany({

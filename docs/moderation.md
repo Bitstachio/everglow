@@ -206,7 +206,9 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 - **Any member may report**, viewers included. Authorization is CASL (`api/src/moderation/reports.abilities.ts`): `create` for members filing in their own name, `read` and `update` for organizers on the reports they may see and close (§3).
 - **Not yourself**, and not your own photo: 403 `CANNOT_REPORT_SELF`. A member report of someone who isn't a member (anymore) is 403 `TARGET_NOT_A_MEMBER`.
 - **The photo must be visible to the reporter.** A photo they cannot see (a blocked uploader, or one already hidden from everyone) is a 404, exactly as `GET /photos/:photoId` would answer. The one exception is a photo hidden by their own OPEN report: that is a repeat, and it gets the report back.
-- **Repeats are idempotent.** While the caller's earlier report on the same target is OPEN, `POST` returns that report with 201 and creates nothing. The reason and note of the first submission stand.
+- **Repeats are idempotent.** While the caller's earlier report on the same target is OPEN, `POST` returns that report with 201 and creates nothing. The reason and note of the first submission stand. Two submissions at the same moment give one row: the partial unique index lets one insert through, and the other gets that report back (§1).
+- **Not again straight after a dismissal.** Once the caller's report on a target is `DISMISSED` (by an organizer, by the platform, or because an organizer removed the caller, §6), reporting the same target again within `REPORT_DISMISSAL_COOLDOWN_DAYS` (7) is a **409** `REPORT_RECENTLY_DISMISSED`, and nothing is created. Without it, a dismissed report could come straight back, hide the photo again, and wait out the organizers' 24 hours to reach the platform, where they can no longer dismiss it. 409 rather than 429: it is about the state of this target, not the caller's request rate, and retrying soon doesn't help. The refusal tells the reporter their report was dismissed, which the photo coming back already shows. `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reports are never refused: they go to the platform, which is the one judging them anyway.
+- **The note** is trimmed, must not be empty once trimmed, and may contain newlines but no other control characters (`REPORT_NOTE_PATTERN`); anything else is a 400 before the target is looked up. It is at most 500 characters, counted after trimming.
 - **Reporters are anonymous to organizers.** `ReportResponseDto` has no `reporterId`. In a small event an organizer who learns who reported them can retaliate; the id stays in the database and in the audit log (§9) for the platform.
 - **Organizers see who uploaded a reported photo, never who reported it.** `reportedUserId` is the uploader (or the reported member); there is no reporter field.
 - **Reporting is allowed after the gallery closes**, for members and the event. Photos can't be reported then, since none can be seen (§5).
@@ -242,6 +244,7 @@ A report in `ORGANIZERS` moves to `PLATFORM` when any of these happen. `escalate
 | It has been OPEN for 24 hours (`ORGANIZER_RESPONSE_HOURS`), checked hourly         | `organizer_timeout`   |
 | The gallery closes. Organizers can no longer see the photo, so they can't judge it | `gallery_closed`      |
 | An organizer dismisses it and its reason is severe                                 | `severe_dismissed`    |
+| Its reporter is removed from the event and its reason is severe (§6)               | `severe_dismissed`    |
 | The reported member is promoted to organizer                                       | `target_is_organizer` |
 | The reported photo is deleted without a verdict and the report is severe (below)   | `target_deleted`      |
 | The reported account is deleted and the report is severe (below)                   | `target_deleted`      |
@@ -274,9 +277,11 @@ Closing a report is an action, not a label (built). The closer says what to do, 
 
 The platform has these and more (§8).
 
-- **One verdict closes every OPEN report on the target that the closer may close.** "The target" is the photo for a photo report, the member for a member report, and for `REMOVE_MEMBER` everything reported about that member in the event, photos included. So a photo reported by five people is one decision, not five (built).
+- **One verdict closes every OPEN report on the target that the closer may close.** "The target" is the photo for a photo report and the member for a member report. So a photo reported by five people is one decision, not five (built).
+  - **`REMOVE_MEMBER` never shows a hidden photo again.** With `photos: KEEP` (the default) the member's photos stay, so it closes only the MEMBER reports about them, plus, on a photo report, the reports on that photo, which it deletes. Reports on their other photos stay OPEN, and so does whatever they hide (§5): closing them would show a photo hidden for nudity to the whole event after a routine removal. They are judged on their own, by a removal of the photo, a dismissal, or the 24-hour move to the platform. With `photos: DELETE` it closes everything reported about the member in the event, photos included, since the photos go too. The platform's `REMOVE_MEMBER` follows the same rule, in both queues.
   - A removal by an organizer leaves the target's `PLATFORM` reports OPEN. The photo is gone and its evidence is kept (§7), and the platform still reviews, for example to report to NCMEC.
   - A dismissal by an organizer closes only non-severe `ORGANIZERS` reports. Severe ones move to `PLATFORM`.
+- **Removing a member settles the reports they filed** in the event, whichever route removed them (§6).
 - **A report is closed once.** The update is guarded on `status = OPEN`. A second verdict, including one racing the first, gets 409 `REPORT_ALREADY_RESOLVED` and removes nothing (built).
 - **A removal needs something to remove.** `REMOVE_PHOTO` when the photo is gone, or `REMOVE_MEMBER` when the account is gone, is a 422 (`REPORTED_PHOTO_GONE`, `REPORTED_MEMBER_GONE`) (built). Today a dismissal closes such a report. Once evidence is kept, these close without a verdict instead (below).
 - The photo's S3 object is deleted after the transaction commits, once its evidence copy exists (§7). If the delete fails, the call still succeeds, a `report.photo_object_retained` warning is logged, and the orphan reconciler removes the object later (built).
@@ -301,6 +306,7 @@ Some reports close because their target went away, not because anyone judged the
 | `EVENT_SUSPENDED`   | `ACTIONED`    | `PLATFORM`                       | The event was suspended (§8)                                     |
 | `EVENT_DELETED`     | `ACTIONED`    | `PLATFORM`                       | The platform deleted the event as its verdict on an event report |
 | `DISMISSED`         | `DISMISSED`   | `ORGANIZER`, `PLATFORM`          | Judged and left as it is                                         |
+| `REPORTER_REMOVED`  | `DISMISSED`   | `ORGANIZER`, `PLATFORM`          | The reporter was removed from the event and banned from it (§6)  |
 | `PHOTO_DELETED`     | `TARGET_GONE` | `SUBJECT`, `ORGANIZER`, `SYSTEM` | The photo was deleted without a verdict                          |
 | `ACCOUNT_DELETED`   | `TARGET_GONE` | `SYSTEM`                         | The reported member deleted their account                        |
 
@@ -344,7 +350,7 @@ Every event report reaches the platform anyway. The threshold only decides when 
 
 While an event is under review:
 
-- **No one can join.** `POST /events/join` answers 403 with `code: "EVENT_UNDER_REVIEW"`, after the ban check, so a removed member still hears that they were removed.
+- **No one can join.** `POST /events/join` answers 403 with `code: "EVENT_UNDER_REVIEW"`, after the ban check, so a removed member still hears that they were removed, and after an organizer's block, which stays the unknown-link 404 (§6).
 - **No photos can be added.** `POST /events/:eventId/photos/upload-urls` answers the same 403, organizers included. Slots minted before can still be confirmed.
 - **Members keep access.** Nothing is hidden beyond what §4 and §5 already hide, and nothing is deleted.
 - **Organizers can still change the cover**, so they can replace one that was reported.
@@ -375,7 +381,8 @@ Hiding is a **filter in the photo read paths**. `PhotoStatus` is untouched and n
 
 3. **A photo is hidden from everyone except the event's organizers after one OPEN report for nudity or violence**, or one OPEN automated report (§11). Leaving such a photo up while it collects more reports costs more than hiding a harmless one until someone looks.
 4. **A photo is hidden from everyone, organizers included, after one OPEN report with a reason in `PLATFORM_ONLY_REPORT_REASONS`.** Only the platform looks at it.
-5. **Resolving restores.** A dismissal brings the photo back for everyone, reporters included; a removal deletes it, so there is nothing to restore.
+5. **Resolving restores.** A dismissal brings the photo back for everyone, reporters included; a removal deletes it, so there is nothing to restore. **No other verdict un-hides a photo:** removing its uploader with `photos: KEEP` leaves the reports on it OPEN (§3), so it stays hidden until someone judges the photo itself.
+6. **Removed reporters stop counting.** Removing a member closes the non-severe `ORGANIZERS` reports they filed in the event as `REPORTER_REMOVED` (§6), so three accounts can't keep a host's photo hidden after the host has removed them. Their severe reports move to the platform instead, so a host can't clear a nudity report by removing whoever filed it.
 
 "Everyone" includes the uploader. Under rules 2 and 3, organizers still see the photo, because they are the ones who have to judge it.
 
@@ -434,12 +441,12 @@ Cost for a non-organizer: **one** extra query per call, a `GROUP BY photoId … 
 
 ### Joining an event across a block
 
-`POST /events/join` first refuses anyone an organizer removed (see [Removing a member](#removing-a-member-and-bans) below), then checks blocks between the joiner and the event's **organizers** (any organizer, not only the creator), in both directions, in one query:
+`POST /events/join` first refuses anyone an organizer removed (see [Removing a member](#removing-a-member-and-bans) below), then checks blocks between the joiner and the event's **organizers** (any organizer, not only the creator), in both directions, in one query. An organizer's block is checked **right after the ban**, before `EVENT_SUSPENDED` and `EVENT_UNDER_REVIEW`, so a blocked person can't learn the event's state from the error code; the joiner's own block is explained after those two, in the invite preview's order:
 
 | Situation                                            | Result                                                                                                                                                                                                                  |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | An organizer removed the joiner                      | **403** with `code: REMOVED_FROM_EVENT` and "You were removed from this event by an organizer." They already know, so saying so reveals nothing. Checked before blocks, so they are not told about a block instead      |
-| An organizer blocked the joiner                      | **404**, the same `Event with invitation URL "…" not found` as a link that does not exist. The block is never revealed to the person blocked                                                                            |
+| An organizer blocked the joiner                      | **404**, the same `Event with invitation URL "…" not found` as a link that does not exist, even when the event is suspended or under review. The block is never revealed to the person blocked                          |
 | The joiner blocked an organizer                      | **403** with `code: ORGANIZER_BLOCKED_BY_CALLER` and "This event is organized by … you blocked. Unblock them to join." The joiner made the block, so explaining it reveals nothing, and the client can offer to unblock |
 | Both blocked each other                              | 404, as in the second row                                                                                                                                                                                               |
 | The joiner and an ordinary member blocked each other | Joins normally; the photo filter keeps the two apart                                                                                                                                                                    |
@@ -450,11 +457,12 @@ The invite preview (`GET /events/invites/:token/preview`, [EV-77](https://linear
 
 ### Removing a member and bans
 
-An organizer removes a member either with `DELETE /events/:eventId/participants/:targetUserId` or with `REMOVE_MEMBER` while resolving a report. Both run the same routine (`removeMemberInTransaction`), in one transaction:
+An organizer removes a member either with `DELETE /events/:eventId/participants/:targetUserId` or with `REMOVE_MEMBER` while resolving a report, and the platform with its own `REMOVE_MEMBER` (§8). All three run the same routine (`removeMemberInTransaction`), in one transaction, and none of them removes the event's last organizer (422 `LAST_ORGANIZER`):
 
 1. The membership is deleted.
 2. An `EventBan` row is recorded (event, member, the organizer who removed them). Removing someone again keeps the first record.
-3. The organizer chooses what happens to the member's photos in that event:
+3. **The reports they filed in the event and that are still with the organizers stop counting.** Non-severe ones close as `DISMISSED`, `REPORTER_REMOVED`, by the remover; removing the reporter is the remover's judgment that their reports there no longer count, and it takes them out of the hide threshold (§5). Severe ones move to the platform (`severe_dismissed`), as a dismissal of them would, and what they hide stays hidden until the platform has looked. Reports already with the platform are left alone. A member who leaves on their own keeps their reports.
+4. The organizer chooses what happens to the member's photos in that event:
 
    | `photos`         | Effect                                                                                                                                                                                       |
    | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -558,9 +566,9 @@ Platform moderators are accounts with `User.platformRole = MODERATOR`, granted o
 What they can do:
 
 - **See the platform queue** across events, oldest first, with the escalation reasons, the reporter and the evidence summary (`GET /admin/reports`, `GET /admin/reports/:reportId`). They can also see any event's `ORGANIZERS` reports.
-- **Close any report** with the organizer verdicts (`PATCH /admin/reports/:reportId`, `ReportsService.resolveAsPlatform`). The same shared routines run, so there is no second path that deletes photos. On a photo that is already gone, `REMOVE_PHOTO` upholds the reports, found together by their snapshot. Removing an intimate image deletes its evidence copies and keeps the hash (§7).
+- **Close any report** with the organizer verdicts (`PATCH /admin/reports/:reportId`, `ReportsService.resolveAsPlatform`). The same shared routines run, so there is no second path that deletes photos. On a photo that is already gone, `REMOVE_PHOTO` upholds the reports, found together by their snapshot. Removing an intimate image deletes its evidence copies and keeps the hash (§7). `REMOVE_MEMBER` keeps reports on photos that stay OPEN (§3), settles the removed member's own reports (§6), and refuses the event's last organizer (422 `LAST_ORGANIZER`): suspend or delete the event instead.
 - **Review evidence** through a logged, 5-minute link (`POST /admin/reports/:reportId/evidence-url`, `report.evidence.viewed`): the photo while it exists, its quarantined copy after.
-- **Suspend an account** (`POST /admin/users/:userId/suspend`, and `/unsuspend`). `User.suspendedAt` makes every request answer 403 `ACCOUNT_SUSPENDED` (`JwtAuthGuard`), except reading and deleting the account (`@AllowSuspended()`), so the person can see why and can still leave. `GET /users/me` returns `suspendedAt`. Suspending closes the account's OPEN member reports as `ACCOUNT_SUSPENDED`. Reports on its photos stay open, since closing them would show the photos again; the platform removes those with its verdicts. Its events keep running for their other organizers; an event it organized alone is suspended too, and stays suspended until restored.
+- **Suspend an account** (`POST /admin/users/:userId/suspend`, and `/unsuspend`). `User.suspendedAt` makes every request answer 403 `ACCOUNT_SUSPENDED` (`JwtAuthGuard`), except reading and deleting the account (`@AllowSuspended()`), so the person can see why and can still leave. `GET /users/me` returns `suspendedAt`. Suspending closes the account's OPEN member reports as `ACCOUNT_SUSPENDED`. Reports on its photos stay open, since closing them would show the photos again; the platform removes those with its verdicts. Its events keep running for their other organizers; an event it organized alone is suspended too, and stays suspended until restored. A moderator, the caller included, can't be suspended (403 `CANNOT_SUSPEND_MODERATOR`): a suspended account can't reach `/admin`, so a sole moderator would be locked out. Revoke the role in the database first ([moderation-runbook.md](../api/docs/moderation-runbook.md)).
 - **Suspend, restore, fix or delete an event** (`POST /admin/events/:eventId/suspend`, `/restore`, `PATCH /admin/events/:eventId`, `DELETE /admin/events/:eventId/cover`, `DELETE /admin/events/:eventId`).
   - A suspended event stays in its members' lists as `status: "SUSPENDED"`, with its title. Its photos, cover and description are hidden from everyone, and it is read-only: joining, uploading and every organizer change answer 403 `EVENT_SUSPENDED`. Reading its bans and deactivating it still work, so the host's place can be freed. Suspending closes its reports about the event itself as `EVENT_SUSPENDED`.
   - Restoring lifts the suspension and the review together, and dismisses its reports about the event itself.
@@ -606,7 +614,7 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 | `event_under_review`       | This report put the event under review (§4): joins and new photos are refused until the platform lifts it. Urgent.                       |
 | `organizer_timeout`        | Organizers left it OPEN for 24 hours.                                                                                                    |
 | `gallery_closed`           | The gallery closed with the report OPEN, or it was filed after close.                                                                    |
-| `severe_dismissed`         | An organizer dismissed a severe report.                                                                                                  |
+| `severe_dismissed`         | An organizer dismissed a severe report, or its reporter was removed from the event (§6).                                                 |
 | `target_deleted`           | The photo or account was deleted without a verdict, and the report is severe or already with the platform.                               |
 | `automated_flag`           | Planned. Upload screening flagged the photo (§11).                                                                                       |
 
