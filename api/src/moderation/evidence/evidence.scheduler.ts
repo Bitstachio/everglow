@@ -5,11 +5,13 @@ import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { runScheduledJob } from "src/common/scheduling/run-scheduled-job";
 import { EvidenceService } from "./evidence.service";
+import { MemberlessEventPurgeService } from "./memberless-event-purge.service";
 
 @Injectable()
 export class EvidenceScheduler implements OnApplicationBootstrap {
   constructor(
     private readonly evidenceService: EvidenceService,
+    private readonly memberlessEventPurge: MemberlessEventPurgeService,
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
@@ -39,7 +41,11 @@ export class EvidenceScheduler implements OnApplicationBootstrap {
       enabled: this.isEnabled(),
       completedEvent: ALERT_EVENTS.REPORT_EVIDENCE_RUN_COMPLETED,
       failedEvent: ALERT_EVENTS.REPORT_EVIDENCE_RUN_FAILED,
-      run: () => this.evidenceService.runEvidenceJob(),
+      // Reports first: closing the last ones on a memberless event is what lets it go.
+      run: async () => ({
+        ...(await this.evidenceService.runEvidenceJob()),
+        ...(await this.memberlessEventPurge.run()),
+      }),
     });
   }
 
