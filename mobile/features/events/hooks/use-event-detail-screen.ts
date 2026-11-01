@@ -43,6 +43,8 @@ import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } 
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
 import { useBlockMutation } from "@/features/moderation/api/mutations";
+import { useEventReportsQuery } from "@/features/moderation/api/queries";
+import { groupOpenReports } from "@/features/moderation/lib/report-groups";
 import { useUnblockMutation } from "@/features/profile/api/mutations";
 
 /** What the roll's page shows, read from its three queries. */
@@ -452,6 +454,11 @@ export const useEventDetailScreen = () => {
     setBlockError(null);
   };
 
+  // 12.1: hosts see how many reports wait for them in the roll's menu.
+  const reportsQuery = useEventReportsQuery(eventId, role === "host" && !leavingRoll);
+  const reportsToCheck =
+    role === "host" ? groupOpenReports(reportsQuery.data ?? [], event?.usage.members ?? 0).length : 0;
+
   const openFrame = gallery.openFrame;
   const ownsOpenFrame = !!openFrame && !!user && openFrame.photo.addedById === user.id;
   // Only someone still on the roll can be blocked from their frame: a leaver
@@ -570,6 +577,11 @@ export const useEventDetailScreen = () => {
           showNotice(getErrorMessage(error));
         },
       });
+    },
+    reportsToCheck,
+    onOpenReports: () => {
+      closeSheet();
+      if (eventId) router.push({ pathname: "/events/[id]/reports", params: { id: eventId } });
     },
     // 10.6: anyone but a host can report the roll from its menu.
     onReportRoll: () => reportAfterSheet({}),
