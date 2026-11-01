@@ -1,4 +1,4 @@
-import { ALERT_EVENTS } from "./alert-events.constants";
+import { ALERT_EVENTS, ALERT_SEVERITY, PAGING_ESCALATION_REASONS } from "./alert-events.constants";
 
 describe("ALERT_EVENTS", () => {
   // These strings are what the alert rules in the log platform match on. If
@@ -28,6 +28,8 @@ describe("ALERT_EVENTS", () => {
 
       REPORT_ESCALATED: "report.escalated",
       REPORT_STALE: "report.stale",
+      REPORT_REMOVAL_DUE_SOON: "report.removal_due_soon",
+      REPORT_REMOVAL_OVERDUE: "report.removal_overdue",
       REPORT_EVIDENCE_COPY_FAILED: "report.evidence.copy_failed",
       REPORT_EVIDENCE_JOB_DISABLED: "report.evidence_job.disabled",
 
@@ -50,5 +52,12 @@ describe("ALERT_EVENTS", () => {
     const names = Object.values(ALERT_EVENTS);
 
     expect(new Set(names).size).toBe(names.length);
+  });
+
+  // The values alert rules route on: `severity = page` pages, and a
+  // report.escalated line with one of these reasons is a page.
+  it("pins the severities and the escalation reasons that page", () => {
+    expect(ALERT_SEVERITY).toEqual({ PAGE: "page", TICKET: "ticket" });
+    expect(PAGING_ESCALATION_REASONS).toEqual(["child_safety", "intimate_image"]);
   });
 });
