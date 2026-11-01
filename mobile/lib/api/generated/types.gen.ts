@@ -268,7 +268,8 @@ export type ReportClosedReason =
   | "EVENT_DELETED"
   | "DISMISSED"
   | "PHOTO_DELETED"
-  | "ACCOUNT_DELETED";
+  | "ACCOUNT_DELETED"
+  | "REPORTER_REMOVED";
 
 /**
  * In which capacity it was closed: ORGANIZER, PLATFORM, SUBJECT (the person it is about, e.g. deleting their own photo) or SYSTEM. Null while OPEN, and on reports closed before it was recorded.
@@ -323,7 +324,7 @@ export type ReportResponseDto = {
 export type CreateReportDto = {
   reason: ReportReason;
   /**
-   * Optional context for the organizers, in the reporter's own words.
+   * Optional context for the organizers, in the reporter's own words. Trimmed before validation; it must not be empty then, and may contain newlines but no other control characters (400 otherwise).
    */
   note?: string;
 };
@@ -807,6 +808,7 @@ export type ApiErrorDto = {
     | "CANNOT_REMOVE_SELF"
     | "CANNOT_REPORT_SELF"
     | "CANNOT_RESOLVE_OWN_REPORT"
+    | "CANNOT_SUSPEND_MODERATOR"
     | "CONFLICT"
     | "COVER_CHANGED_CONCURRENTLY"
     | "DETAILS_ALREADY_EXIST"
@@ -842,6 +844,7 @@ export type ApiErrorDto = {
     | "REPORT_ALREADY_RESOLVED"
     | "REPORT_CHANGED_CONCURRENTLY"
     | "REPORT_ESCALATED"
+    | "REPORT_RECENTLY_DISMISSED"
     | "STORAGE_RESERVATION_CONFLICT"
     | "TARGET_NOT_A_MEMBER"
     | "TOO_MANY_REQUESTS"

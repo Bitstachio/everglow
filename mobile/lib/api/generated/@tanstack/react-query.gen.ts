@@ -787,7 +787,7 @@ export const photosControllerFindOneOptions = (options: Options<PhotosController
 /**
  * Report a photo
  *
- * Any member of the photo's event. The photo is hidden from the reporter at once. Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned.
+ * Any member of the photo's event. The photo is hidden from the reporter at once. Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned. 409 REPORT_RECENTLY_DISMISSED within 7 days of the caller's report on it being dismissed.
  */
 export const reportsControllerReportPhotoMutation = (
   options?: Partial<Options<ReportsControllerReportPhotoData>>,
@@ -816,7 +816,7 @@ export const reportsControllerReportPhotoMutation = (
 /**
  * Report a member of an event
  *
- * Any member of the event, about any other member. Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned.
+ * Any member of the event, about any other member. Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned. 409 REPORT_RECENTLY_DISMISSED within 7 days of the caller's report on them being dismissed.
  */
 export const reportsControllerReportMemberMutation = (
   options?: Partial<Options<ReportsControllerReportMemberData>>,
@@ -915,7 +915,7 @@ export const reportsControllerListReportsInfiniteOptions = (options: Options<Rep
 /**
  * Report an event
  *
- * Any member of the event, about the event itself: its cover, title or description, or the event as a whole (the note can say which). Reviewed by the platform, never by the event's organizers. Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.
+ * Any member of the event, about the event itself: its cover, title or description, or the event as a whole (the note can say which). Reviewed by the platform, never by the event's organizers. Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned. 409 REPORT_RECENTLY_DISMISSED within 7 days of the caller's report on it being dismissed.
  */
 export const reportsControllerReportEventMutation = (
   options?: Partial<Options<ReportsControllerReportEventData>>,
@@ -1682,7 +1682,7 @@ export const platformModerationControllerGetReportOptions = (
 /**
  * Resolve any report (platform moderators)
  *
- * The organizer verdicts, on any OPEN report in either queue. Closes every OPEN report on the same target. REMOVE_PHOTO on a photo that is already gone upholds the reports. A report about the event itself takes DISMISS only. 409 REPORT_ALREADY_RESOLVED once it is closed.
+ * The organizer verdicts, on any OPEN report in either queue. Closes every OPEN report on the same target. REMOVE_PHOTO on a photo that is already gone upholds the reports. A report about the event itself takes DISMISS only. 409 REPORT_ALREADY_RESOLVED once it is closed. REMOVE_MEMBER on the event's only organizer is 422 LAST_ORGANIZER.
  */
 export const platformModerationControllerResolveReportMutation = (
   options?: Partial<Options<PlatformModerationControllerResolveReportData>>,
@@ -1993,7 +1993,7 @@ export const platformModerationControllerRemoveCoverMutation = (
 /**
  * Suspend an account (platform moderators)
  *
- * Every request but reading and deleting the account answers 403 ACCOUNT_SUSPENDED. Closes its OPEN reports as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent.
+ * Every request but reading and deleting the account answers 403 ACCOUNT_SUSPENDED. Closes its OPEN reports as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent. A platform moderator, the caller included, can't be suspended (403 CANNOT_SUSPEND_MODERATOR).
  */
 export const platformModerationControllerSuspendUserMutation = (
   options?: Partial<Options<PlatformModerationControllerSuspendUserData>>,
