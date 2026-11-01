@@ -12,7 +12,13 @@ import { ReportReceiptResponseDto } from "./dto/report-receipt-response.dto";
 import { ReportResponseDto } from "./dto/report-response.dto";
 import { ResolveReportDto } from "./dto/resolve-report.dto";
 import { ReportMapper } from "./mappers/report.mapper";
+import { REPORT_DISMISSAL_COOLDOWN_DAYS } from "./moderation.constants";
 import { ReportsService } from "./reports.service";
+
+/** The cooldown after a dismissal, as each report endpoint documents it (docs/moderation.md §2). */
+const recentlyDismissed = (target: "it" | "them") =>
+  `409 REPORT_RECENTLY_DISMISSED within ${REPORT_DISMISSAL_COOLDOWN_DAYS} days of the caller's report on ${target} ` +
+  "being dismissed.";
 
 @ApiTags("moderation")
 @ApiBearerAuth("access-token")
@@ -28,7 +34,8 @@ export class ReportsController {
     summary: "Report a photo",
     description:
       "Any member of the photo's event. The photo is hidden from the reporter at once. " +
-      "Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned.",
+      "Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned. " +
+      recentlyDismissed("it"),
   })
   @ApiWrappedResponse(ReportReceiptResponseDto, "The caller's open report on the photo", 201)
   async reportPhoto(
@@ -45,7 +52,8 @@ export class ReportsController {
     summary: "Report a member of an event",
     description:
       "Any member of the event, about any other member. " +
-      "Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned.",
+      "Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned. " +
+      recentlyDismissed("them"),
   })
   @ApiWrappedResponse(ReportReceiptResponseDto, "The caller's open report on the member", 201)
   async reportMember(
@@ -64,7 +72,8 @@ export class ReportsController {
     description:
       "Any member of the event, about the event itself: its cover, title or description, or the event as a whole " +
       "(the note can say which). Reviewed by the platform, never by the event's organizers. " +
-      "Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.",
+      "Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned. " +
+      recentlyDismissed("it"),
   })
   @ApiWrappedResponse(ReportReceiptResponseDto, "The caller's open report on the event", 201)
   async reportEvent(

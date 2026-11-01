@@ -194,6 +194,32 @@ describe("PlatformEnforcementService", () => {
 
       await expect(service.suspendUser(userId, moderatorId)).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it("refuses a moderator suspending themselves, changing nothing", async () => {
+      prisma.user.findUnique.mockResolvedValue({ suspendedAt: null, platformRole: "MODERATOR" } as never);
+
+      await expect(service.suspendUser(moderatorId, moderatorId)).rejects.toMatchObject({
+        response: { code: "CANNOT_SUSPEND_MODERATOR" },
+      });
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.report.updateMany).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["active", null],
+      ["already suspended", new Date()],
+    ])("refuses suspending another moderator whose account is %s", async (_label, suspendedAt) => {
+      prisma.user.findUnique.mockResolvedValue({ suspendedAt, platformRole: "MODERATOR" } as never);
+
+      await expect(service.suspendUser(userId, moderatorId)).rejects.toMatchObject({
+        response: { code: "CANNOT_SUSPEND_MODERATOR" },
+      });
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: userId },
+        select: { suspendedAt: true, platformRole: true },
+      });
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
   });
 
   it("lifts an account's suspension, leaving its events to be restored one by one", async () => {

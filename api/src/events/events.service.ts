@@ -159,6 +159,15 @@ export class EventsService {
       throw new ApiException("REMOVED_FROM_EVENT");
     }
 
+    // An organizer's block is the unknown-link 404, checked before anything
+    // else about the event's state (suspended, under review) is told, as the
+    // invite preview does. The joiner's own block is explained later, in the
+    // preview's order.
+    const blocks = await this.findBlocksWithOrganizers(event.id, callerId);
+    if (blocks.byOrganizer) {
+      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
+    }
+
     // Suspended or under review: members keep access, but no one new comes in
     // until the platform has decided (docs/moderation.md).
     if (event.suspendedAt) {
@@ -168,7 +177,11 @@ export class EventsService {
       throw new ApiException("EVENT_UNDER_REVIEW");
     }
 
-    await this.assertNoBlockWithOrganizers(event.id, invitationUrl, callerId);
+    // The joiner made this block, so explaining it reveals nothing, and the
+    // client can offer to unblock (docs/moderation.md §6).
+    if (blocks.blockedOrganizer) {
+      throw new ApiException("ORGANIZER_BLOCKED_BY_CALLER", { organizerName: blocks.blockedOrganizer.name });
+    }
 
     // The member check and the insert share a transaction, so two joins to a
     // nearly full event can't both pass it (docs/event-quotas.md).
@@ -192,29 +205,13 @@ export class EventsService {
   }
 
   /**
-   * Blocks between the joiner and the event's organizers, in one query. An
-   * organizer's block on the joiner reads as the same 404 as an unknown link,
-   * so a block is never revealed to the person blocked. The joiner's own block
-   * on an organizer is explained, since they made it and can undo it. Blocks
-   * between the joiner and ordinary members do not stop a join
-   * (docs/moderation.md).
-   */
-  private async assertNoBlockWithOrganizers(eventId: string, invitationUrl: string, callerId: string): Promise<void> {
-    const { byOrganizer, blockedOrganizer } = await this.findBlocksWithOrganizers(eventId, callerId);
-
-    if (byOrganizer) {
-      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
-    }
-
-    if (blockedOrganizer) {
-      throw new ApiException("ORGANIZER_BLOCKED_BY_CALLER", { organizerName: blockedOrganizer.name });
-    }
-  }
-
-  /**
    * Blocks between the caller and the event's organizers, in both directions,
    * in one query: whether an organizer blocked the caller, and the organizer
-   * the caller blocked, if any.
+   * the caller blocked, if any. An organizer's block reads as the same 404 as
+   * an unknown link, so a block is never revealed to the person blocked; the
+   * caller's own block is explained, since they made it and can undo it.
+   * Blocks between the caller and ordinary members do not stop a join
+   * (docs/moderation.md §6).
    */
   private async findBlocksWithOrganizers(
     eventId: string,
@@ -707,12 +704,14 @@ export class EventsService {
         photos,
         photosDeleted: removed.photosDeleted,
         reportsClosed: removed.reportsClosed,
+        filedReportsClosed: removed.filedReportsClosed,
         banned: true,
         audit: true,
       },
       "Event member removed",
     );
     logEscalations(this.logger, removed.reportsEscalated, ReportEscalation.TARGET_DELETED, { callerId });
+    logEscalations(this.logger, removed.filedReportsEscalated, ReportEscalation.SEVERE_DISMISSED, { callerId });
 
     await this.photoPurgeService.purgeObjects(removed.photoKeys, {
       event: ALERT_EVENTS.EVENT_MEMBER_PHOTOS_PURGED,
