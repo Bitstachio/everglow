@@ -4,12 +4,12 @@ import { EdgePrint } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IconButton } from "@/components/ui/icon-button";
 import { LabTicket } from "@/components/ui/lab-ticket";
-import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { TopBar } from "@/components/ui/top-bar";
 import { colorTokens } from "@/theme/tokens";
 import { X } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReportNote } from "../components/report-note";
 import { ReportSubject } from "../components/report-subject";
 import { useReportScreen } from "../hooks/use-report-screen";
@@ -18,6 +18,8 @@ import { useReportScreen } from "../hooks/use-report-screen";
 const ReportScreen = () => {
   const { t } = useTranslation("report");
   const screen = useReportScreen();
+  // A native full-screen modal gives the native SafeAreaView no insets, so pad from the provider's.
+  const insets = useSafeAreaInsets();
   const { target, photo, subject, event } = screen;
 
   const subjectPrint =
@@ -36,7 +38,7 @@ const ReportScreen = () => {
     );
 
   return (
-    <SafeAreaView className="flex-1 bg-ground">
+    <View className="flex-1 bg-ground" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
       <TopBar
         title={screen.title}
         left={
@@ -51,7 +53,7 @@ const ReportScreen = () => {
           <View testID="report-ticket" className="px-1">
             <LabTicket
               title={
-                target === "person" ? t("ticket.person", { name: screen.name }) : t(`ticket.${target}`)
+                target === "person" ? t("ticket.person", { name: screen.firstName }) : t(`ticket.${target}`)
               }
               number={t("ticket.anonymous")}
               options={screen.reasons.map((option) => ({
@@ -97,7 +99,7 @@ const ReportScreen = () => {
         </View>
       </KeyboardAvoidingView>
       <FilmGrain />
-    </SafeAreaView>
+    </View>
   );
 };
 

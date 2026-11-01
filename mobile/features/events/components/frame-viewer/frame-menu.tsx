@@ -75,7 +75,7 @@ export const FrameMenu = ({
           />
         ) : null}
         {onReport ? <MenuAction label={t("report:menu.reportFrame")} icon={Flag} onPress={onReport} /> : null}
-        {onBlock ? <MenuAction muted label={t("report:menu.block", { name })} icon={Prohibit} onPress={onBlock} /> : null}
+        {onBlock ? <MenuAction muted label={t("report:menu.block", { name: name.split(" ")[0] })} icon={Prohibit} onPress={onBlock} /> : null}
       </View>
     </BottomSheet>
   );

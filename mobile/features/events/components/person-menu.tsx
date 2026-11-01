@@ -23,6 +23,7 @@ export const PersonMenu = ({ person, roleLabel, onReport, onBlock, onUnblock, on
   const { t } = useTranslation(["report", "roll"]);
   const name = person.name || t("roll:people.unknown");
   const firstName = name.trim().split(/\s+/)[0] || name;
+  const frames = t("person.frames", { count: person.photoCount });
   return (
     <View testID="person-menu">
       <View className="flex-row items-center gap-3 pb-4">
@@ -35,8 +36,8 @@ export const PersonMenu = ({ person, roleLabel, onReport, onBlock, onUnblock, on
           </Text>
           <EdgePrint size="frame-label" numberOfLines={1}>
             {person.username
-              ? t("person.edge", { role: roleLabel, username: person.username })
-              : t("person.edgeNoUsername", { role: roleLabel })}
+              ? t("person.edge", { role: roleLabel, username: person.username, frames })
+              : t("person.edgeNoUsername", { role: roleLabel, frames })}
           </EdgePrint>
         </View>
       </View>

@@ -44,6 +44,7 @@ export const useReportScreen = () => {
   const subjectId = target === "frame" ? photo?.addedById : userId;
   const subject = participants.find((participant) => participant.userId === subjectId) ?? null;
   const name = subject?.name || t("subject.roll");
+  const firstName = name.trim().split(/\s+/)[0] || name;
   const number = Number.isInteger(frameNumber) && frameNumber > 0 ? frameNumber : null;
   const serious = reason !== null && goesOnlyToEverglow(reason);
 
@@ -58,7 +59,7 @@ export const useReportScreen = () => {
 
   const frameLabel = number
     ? subject
-      ? t("subject.frame", { number, name })
+      ? t("subject.frame", { number, name: firstName })
       : t("subject.frameNoName", { number })
     : name;
   const subjectLabel = `▸ ${
@@ -66,8 +67,8 @@ export const useReportScreen = () => {
       ? frameLabel
       : target === "person"
         ? subject?.username
-          ? t("subject.person", { name, username: subject.username })
-          : name
+          ? t("subject.person", { name: firstName, username: subject.username })
+          : firstName
         : t("subject.roll")
   }`;
 
@@ -116,6 +117,7 @@ export const useReportScreen = () => {
     photo,
     subject,
     name,
+    firstName,
     subjectLabel,
     reasons: REPORT_REASONS[target].map((value) => ({
       reason: value,
