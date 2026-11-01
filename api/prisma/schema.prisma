@@ -144,11 +144,38 @@ model DeletedProviderSub {
   /// SHA-256 of the Auth0 sub. Hashed because this table outlives the accounts
   /// in it: it must answer "have I seen this subject?" without becoming a
   /// readable list of the identities that asked to be forgotten.
-  providerSubHash String   @id @db.VarChar(64)
-  formerUserId    String   @db.Uuid
-  deletedAt       DateTime @default(now())
+  providerSubHash String    @id @db.VarChar(64)
+  formerUserId    String    @db.Uuid
+  deletedAt       DateTime  @default(now())
+  // The account was suspended when it was deleted (docs/account-deletion.md
+  // §6a). A sign-in after the deletion creates the new account already
+  // suspended and clears this; lifting the suspension clears it too.
+  suspendedAt     DateTime?
 
+  // Event bans the account had when it was deleted, re-created on a sign-in.
+  bans CarriedBan[]
+
+  // The reconciler's purge: tombstones past the base window.
   @@index([deletedAt])
+  // Lifting the suspension of an account that has since been deleted.
+  @@index([formerUserId])
+}
+
+// An event ban carried over a deletion (docs/account-deletion.md §6a). A
+// sign-in after the deletion turns these back into EventBan rows for the new
+// account. Goes with the event, and with the tombstone when it is purged.
+model CarriedBan {
+  providerSubHash String   @db.VarChar(64)
+  eventId         String   @db.Uuid
+  // EventBan.createdAt of the ban that was carried over.
+  bannedAt        DateTime
+
+  tombstone DeletedProviderSub @relation(fields: [providerSubHash], references: [providerSubHash], onDelete: Cascade)
+  event     Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([providerSubHash, eventId])
+  // The foreign key the event's cascade has to find.
+  @@index([eventId])
 }
 
 model UserDetails {
@@ -259,6 +286,8 @@ model Event {
   invites        EventInvite[]
   reports        Report[]
   bans           EventBan[]
+  // Bans of deleted accounts, waiting on their tombstone for a sign-in.
+  carriedBans    CarriedBan[]
 
   @@index([creatorId])
   @@index([coverUpdatedById])
