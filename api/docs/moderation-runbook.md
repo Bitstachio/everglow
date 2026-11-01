@@ -19,10 +19,10 @@ The role is checked on every request (`PlatformModeratorGuard`), so revoking it 
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `GET /admin/reports`                            | The platform's OPEN reports, oldest first. `?queue=ORGANIZERS`, `?status=`, `?eventId=` to look elsewhere |
 | `GET /admin/reports/:reportId`                  | One report, with who filed it, why it is here, its evidence summary, `removalDueAt` and `authorityReportedAt` |
-| `POST /admin/reports/:reportId/evidence-url`    | A 5-minute link to what was reported. Every link is logged (`report.evidence.viewed`)                     |
+| `GET /admin/reports/:reportId/evidence`         | The reported image itself, streamed by the API, never cached. Every look is logged with your id (`report.evidence.viewed`); a child-safety look pages. Closed reports open only while held. 10 a minute |
 | `PATCH /admin/reports/:reportId`                | `REMOVE_PHOTO`, `REMOVE_MEMBER` (with `photos`), or `DISMISS`. Closes every OPEN report on the target     |
-| `PUT /admin/reports/:reportId/hold`             | `{ until, reason }`: keep the report and its evidence past the retention window                           |
-| `DELETE /admin/reports/:reportId/hold`          | Release the hold                                                                                          |
+| `PUT /admin/reports/:reportId/hold`             | `{ until, reason }`: keep the report and its evidence past the retention window. `until` in the future, at most 3 years away |
+| `DELETE /admin/reports/:reportId/hold`          | Release the hold (never below a year from an authority report). An actioned intimate image's copy is deleted at once |
 | `PUT /admin/reports/:reportId/authority-report` | `{ reference, submittedAt? }`: record a CyberTipline or police report; holds it at least a year from submission |
 | `POST /admin/events/:eventId/lift-review`       | End an event's review                                                                                     |
 | `POST /admin/events/:eventId/suspend`           | Hide the event's photos, cover and description; make it read-only                                         |
@@ -33,7 +33,7 @@ The role is checked on every request (`PlatformModeratorGuard`), so revoking it 
 | `POST /admin/users/:userId/suspend`             | Suspend an account everywhere, and the events it organizes alone                                          |
 | `POST /admin/users/:userId/unsuspend`           | Lift an account's suspension (its events stay suspended until restored)                                   |
 
-**Look only as far as you need.** Open the evidence link only to decide, never forward it, never download it. The link is logged, and so is every read of the bucket by anyone but the API ([photo-privacy.md](../../docs/photo-privacy.md)).
+**Look only as far as you need.** Open the evidence only to decide, and never save, copy or forward it. Every look is logged and alerted under your id, and so is every read of the bucket by anyone but the API ([photo-privacy.md](../../docs/photo-privacy.md)).
 
 ## Every escalated report: within 24 hours
 
@@ -81,4 +81,4 @@ The TAKE IT DOWN Act requires removal within 48 hours of a valid request (47 U.S
 ## Retention
 
 - Closed reports and their evidence are deleted a year after they close (`REPORT_RETENTION_DAYS`), by the evidence job (`MODERATION_EVIDENCE_JOB_ENABLED`).
-- A hold keeps them until its `holdUntil`. Review holds every quarter and release the ones that have lapsed.
+- A hold keeps them until its `holdUntil`, at most 3 years ahead. `report.hold.lapsed` raises a ticket the day after a hold runs out: renew it if the preservation request or legal advice still applies, otherwise leave it and the purge takes the report on schedule.
