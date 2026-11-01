@@ -299,8 +299,8 @@ export const useRollGallery = ({
     const signal = scopeRef.current?.signal;
     if (!openFrame || !enabled || !signal) throw new Error("No visible frame");
     // Only this frame's link, written into the contact sheet so it opens with it next time.
-    // A frame that's gone answers 404.
-    await renewPhoto(openFrame.photo.id, signal);
+    // A frame that's gone answers 404. The viewer loads the renewed links it resolves with.
+    return renewPhoto(openFrame.photo.id, signal);
   };
 
   const toggle = (frame: SheetFrame) => {

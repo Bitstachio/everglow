@@ -1,11 +1,14 @@
 import { mockSharePhotos } from "../testing/native-mocks";
 // The integration harness supplies the real data provider and observes native services.
 // eslint-disable-next-line no-restricted-imports
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
 import { Alert, Dimensions } from "react-native";
+import { State } from "react-native-gesture-handler";
+import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import EventDetailScreen from "./event-detail-screen";
+import { PAGE_GAP } from "../components/frame-viewer/paging";
 import { buildEvent, buildParticipant, buildPhoto, deferred } from "../testing/fixtures";
 // Seed and inspect caches at the integration boundary.
 // eslint-disable-next-line no-restricted-imports
@@ -954,6 +957,61 @@ describe("adding photos (08)", () => {
 });
 
 describe("saving and deleting frames", () => {
+  test("saving keeps the open frame on screen, even when the Photos prompt refetches the roll", async () => {
+    const photos = [buildPhoto({ id: "photo-3" }), buildPhoto({ id: "photo-2" }), buildPhoto()];
+    await renderScreen({ photos });
+    const user = userEvent.setup();
+    await user.press(await screen.findByLabelText("Frame 2, by You"));
+    await fireEvent(screen.getByTestId("frame-viewer-photo"), "display");
+    const original = screen.getByTestId("frame-viewer-photo").props.source[0];
+    // iOS backgrounds the app for the permission prompt; returning refetches
+    // every stale query, and the gallery comes back with re-signed URLs.
+    mockRequestMediaPermission.mockImplementation(async () => {
+      mockListPhotos.mockResolvedValue({
+        data: {
+          data: {
+            items: photos.map((photo) => ({
+              ...photo,
+              url: `${photo.url}?resigned`,
+              thumbnailUrl: `${photo.thumbnailUrl}?resigned`,
+            })),
+            nextCursor: null,
+          },
+        },
+      });
+      await act(async () => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      return { status: "granted" };
+    });
+    const download = deferred<{ uri: string; delete: typeof mockDeleteDownload }>();
+    mockDownloadFile.mockReturnValueOnce(download.promise);
+    try {
+      await user.press(screen.getByRole("button", { name: "Save to Photos" }));
+      await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(mockDownloadFile).toHaveBeenCalledTimes(1));
+
+      // Progress sits over the photo instead of shrinking it.
+      expect(screen.getByTestId("frame-viewer-status")).toHaveStyle({ position: "absolute" });
+      expect(screen.getByTestId("frame-viewer-photo").props.source[0]).toEqual(original);
+      await act(async () => download.resolve({ uri: "file://temporary.jpg", delete: mockDeleteDownload }));
+      expect(await screen.findByText("Saved to Photos.")).toBeOnTheScreen();
+
+      // The same image, from the same request: nothing reloads, and the thumbnail is still underneath.
+      expect(screen.getByTestId("frame-viewer-photo").props.source[0]).toEqual(original);
+      expect(screen.getByTestId("frame-viewer-thumbnail").props.source[0].cacheKey).toBe("photo:photo-2:thumbnail");
+      expect(screen.queryByLabelText("Loading frame")).not.toBeOnTheScreen();
+      expect(screen.queryByText("Couldn’t load this frame.")).not.toBeOnTheScreen();
+      // Neighbours that mount later pick up the fresh URLs.
+      expect(
+        screen.getByTestId("frame-original-photo-3", { includeHiddenElements: true }).props.source[0].cacheKey,
+      ).toBe("photo:photo-3:original");
+    } finally {
+      focusManager.setFocused(undefined);
+    }
+  });
+
   test.each([
     ["image/jpeg", "jpg"],
     ["image/png", "png"],
@@ -1587,7 +1645,7 @@ describe("chapter 09 gallery", () => {
     expect(screen.getByRole("button", { name: "Save to Photos" })).toBeEnabled();
   });
 
-  test("swapping frames updates attribution and requests no neighboring originals", async () => {
+  test("tapping the strip swaps frames and updates attribution without downloading", async () => {
     await renderScreen({ photos: mixed, participants: [host, guest] });
     const user = userEvent.setup();
     await user.press(await screen.findByLabelText("Frame 2, by Grace"));
@@ -1602,31 +1660,36 @@ describe("chapter 09 gallery", () => {
     expect(mockDownloadFile).not.toHaveBeenCalled();
   });
 
-  test("native paging updates attribution and the strip only after settling, with one original mounted", async () => {
+  test("swiping moves attribution and the strip with the frame, with its neighbour's original preloaded", async () => {
     await renderScreen({ photos: mixed, participants: [host, guest] });
     const user = userEvent.setup();
     await user.press(await screen.findByLabelText("Frame 2, by Grace"));
-    const width = Dimensions.get("window").width;
-    const pager = screen.getByTestId("frame-viewer-pager");
-    const size = { width: width * 2, height: 600 };
-    const layout = { width, height: 600 };
-    await fireEvent.scroll(pager, {
-      nativeEvent: { contentOffset: { x: width / 2, y: 0 }, contentSize: size, layoutMeasurement: layout },
-    });
+    const stride = Dimensions.get("window").width + PAGE_GAP;
     expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
     expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
-    expect(screen.getByTestId("frame-preview-theirs", { includeHiddenElements: true }).props.source[0].cacheKey).toBe(
-      "photo:theirs:thumbnail",
+    expect(screen.getByTestId("frame-original-theirs", { includeHiddenElements: true }).props.source[0].cacheKey).toBe(
+      "photo:theirs:original",
     );
-    await user.scrollTo(pager, { x: width * 0.7, momentumX: width, contentSize: size, layoutMeasurement: layout });
-    expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
+    const swipe = async (translationX: number, velocityX: number) =>
+      act(async () => {
+        fireGestureHandler(getByGestureTestId("frame-viewer-pan"), [
+          { state: State.BEGAN, translationX: 0, translationY: 0 },
+          { state: State.ACTIVE, translationX: Math.sign(translationX) * 10, translationY: 0 },
+          { translationX, translationY: 0 },
+          { state: State.END, translationX, translationY: 0, velocityX, velocityY: 0 },
+        ]);
+      });
+
+    await swipe(-stride * 0.6, -200);
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen());
     expect(
       within(screen.getByTestId("viewer-film-strip")).getByRole("imagebutton", { name: "Frame 1, by You" }),
     ).toBeSelected();
     expect(screen.getAllByTestId("frame-viewer-photo")).toHaveLength(1);
     expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:theirs:original");
-    await user.scrollTo(pager, { x: width / 3, momentumX: 0, contentSize: size, layoutMeasurement: layout });
-    expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
+
+    await swipe(stride * 0.15, 1500);
+    await waitFor(() => expect(screen.getByText("Grace Hopper")).toBeOnTheScreen());
     expect(screen.getByTestId("frame-viewer-photo").props.source[0].cacheKey).toBe("photo:mine:original");
     expect(mockDownloadFile).not.toHaveBeenCalled();
   });

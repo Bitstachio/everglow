@@ -16,13 +16,39 @@ Counts in the event header use the server's visible photo count. Each page
 records when its links were signed, so a download knows how old they are.
 
 Opening a photo requests its original. Swiping, the thumbnail strip, and the header’s screen-reader adjustment
-actions move the same viewer; only its active frame renders
-an original. The strip and grid use stable thumbnail cache keys. Attribution
-comes from the participant list, with a fallback for a departed/deleted uploader.
-The original viewport uses native horizontal paging: photos track the finger,
-with cached thumbnail previews on adjacent pages. Selection and attribution
-change only after the page settles. The selected page keeps its thumbnail as
-a placeholder while its original loads; dragging back loads no other original.
+actions move the same viewer. The strip and grid use stable thumbnail cache
+keys. Attribution comes from the participant list, with a fallback for a
+departed/deleted uploader.
+
+The viewer's pager (`frame-viewer/use-frame-pager.ts`) runs on the UI thread
+with Gesture Handler and Reanimated. Frames sit on one strip with a 16pt gap;
+the current frame follows the finger 1:1 and neighbours slide in from the
+edges. Release settles with a spring: a flick moves one frame even after a
+short drag, a slow drag moves on past halfway, and the first and last frames
+rubber-band. The current index is derived from the strip's offset, so
+attribution and the film strip change as the swipe passes halfway. A strip
+tap or a screen-reader step glides there from the adjacent frame. The geometry
+(snap target, rubber band, window, zoom limits) is pure and unit-tested in
+`frame-viewer/paging.ts`.
+
+Only the current frame and two on each side are mounted, so a 1,000-frame roll
+renders five pages. The current frame and one on each side load originals;
+the outer two show thumbnails. Every page keeps its thumbnail mounted under
+the original, which fades in over it, so a frame is never blank while its
+original loads, reloads or renews. `expo-image` prefetching keys its cache by
+URL and our signed URLs change on every read, so neighbours preload by
+mounting with the stable cache keys instead. A page keeps the URLs it started
+loading with; a gallery refetch (for example, after the Photos permission
+prompt) does not reload an open original. Only a new attempt, after a renewal
+or a neighbour's failure, takes new URLs.
+
+Pinch and double tap zoom the current frame; paging is off until it is back
+at 1×. Dragging the photo down shrinks it and fades the chrome, then closes
+the viewer through the normal close path; a short drag springs back. Reduce
+Motion uses a stiff spring with no overshoot and shorter fades. Save progress,
+results and "Retry N unsaved" sit over the bottom of the photo rather than
+resizing it.
+
 A suspended/closed gallery or revoked access closes the viewer. Leaving the
 roll keeps its frames on screen until Home replaces it; only actions stop. An
 original that fails or stalls exposes Retry, which renews its URL through the
@@ -88,13 +114,18 @@ letterboxing. The frame menu uses a thumbnail summary and trailing action
 icons; its delete label distinguishes the caller’s own frame from a host
 removing somebody else’s. Visible frame numbers remain omitted.
 
-An original-image failure automatically renews its signed URL once while the
-loading indicator and thumbnail stay visible. Cached gallery URLs can expire
-before a photo is opened even when its thumbnail is still cached. A second
-failure, failed renewal, or 30 seconds without a byte arriving offers explicit
-retry; each progress event restarts that timer, so a slow download carries on.
-Navigation resets the retry budget for the next photo. Original cache keys
-stay stable across renewal.
+An original-image failure on the current frame automatically renews its
+signed URL once while the loading indicator and thumbnail stay visible, and
+loads the links the renewal returns without waiting for the contact sheet to
+re-render. Cached gallery URLs can expire before a photo is opened even when
+its thumbnail is still cached. A second failure, failed renewal, or 30 seconds
+without a byte arriving offers explicit retry; each progress event restarts
+that timer, so a slow download carries on. Only the current frame shows
+loading, failure or Try again, and only it has a stall timer: a neighbour
+loading its original has no deadline until it becomes current, and a
+neighbour whose original fails waits, then renews once it is current, since
+renewal always targets the open frame. Each visit to a frame gets its own
+automatic renewal. Original cache keys stay stable across renewal.
 
 On iOS, ordinary viewer dismissal keeps the selected photo, attribution and
 filmstrip intact until the native fade finishes. Revoked access still clears
