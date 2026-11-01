@@ -31,7 +31,13 @@ const ReportsScreen = () => {
         ) : screen.isError ? (
           <View className="items-start gap-2">
             <Text className="font-sans text-body text-text-2">{t("check.loadFailed")}</Text>
-            <Button title={t("check.retry")} variant="ghost" fullWidth={false} className="-ml-2" onPress={screen.onRefresh} />
+            <Button
+              title={t("check.retry")}
+              variant="ghost"
+              fullWidth={false}
+              className="-ml-2"
+              onPress={screen.onRefresh}
+            />
           </View>
         ) : (
           <>

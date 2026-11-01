@@ -47,7 +47,9 @@ const ReportCheckScreen = () => {
         >
           <RetryingPhoto
             uri={(screen.revealed ? screen.photo?.url : screen.photo?.thumbnailUrl) ?? undefined}
-            cacheKey={screen.photo ? `photo:${screen.photo.id}:${screen.revealed ? "original" : "thumbnail"}` : undefined}
+            cacheKey={
+              screen.photo ? `photo:${screen.photo.id}:${screen.revealed ? "original" : "thumbnail"}` : undefined
+            }
             className="h-full w-full"
             contentFit="cover"
             blurRadius={screen.revealed ? 0 : 40}
@@ -91,7 +93,10 @@ const ReportCheckScreen = () => {
       ) : (
         <View className="mt-6">
           <Fact label={t("decide.reason")} value={screen.reasonValue} />
-          <Fact label={screen.kind === "frame" ? t("decide.addedBy") : t("decide.person")} value={screen.addedByValue} />
+          <Fact
+            label={screen.kind === "frame" ? t("decide.addedBy") : t("decide.person")}
+            value={screen.addedByValue}
+          />
           {screen.notes.map((note, index) => (
             <Fact key={index} words label={t("decide.note")} value={note} />
           ))}

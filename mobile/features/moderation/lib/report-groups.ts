@@ -86,5 +86,4 @@ export const doneThisWeek = (reports: ReportResponseDto[], now: Date) =>
   ).length;
 
 /** Frames are numbered by their place on the whole roll, newest first in the list, as the sheet numbers them. */
-export const frameNumbers = (photoIds: string[]) =>
-  new Map(photoIds.map((id, index) => [id, photoIds.length - index]));
+export const frameNumbers = (photoIds: string[]) => new Map(photoIds.map((id, index) => [id, photoIds.length - index]));

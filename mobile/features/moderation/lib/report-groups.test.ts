@@ -43,7 +43,10 @@ test("one spam report doesn't hide a frame; one for nudity does", () => {
 
 test("a person's reports are their own group, and never hidden", () => {
   const groups = groupOpenReports(
-    [report(), report({ targetType: "MEMBER", photoId: null, reason: "HARASSMENT", createdAt: "2026-10-31T00:00:00Z" })],
+    [
+      report(),
+      report({ targetType: "MEMBER", photoId: null, reason: "HARASSMENT", createdAt: "2026-10-31T00:00:00Z" }),
+    ],
     24,
   );
   expect(groups.map((group) => group.key)).toEqual(["person:u-marcus", "frame:photo-144"]);
@@ -57,9 +60,9 @@ test("a frame whose reports are all with Everglow can't be decided by hosts", ()
 });
 
 test("closed reports and reports about the roll stay off the list", () => {
-  expect(groupOpenReports([report({ status: "DISMISSED" }), report({ targetType: "EVENT", photoId: null })], 24)).toEqual(
-    [],
-  );
+  expect(
+    groupOpenReports([report({ status: "DISMISSED" }), report({ targetType: "EVENT", photoId: null })], 24),
+  ).toEqual([]);
 });
 
 test("done this week counts what closed in the last seven days", () => {

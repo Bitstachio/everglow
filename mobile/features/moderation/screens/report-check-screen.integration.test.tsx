@@ -29,7 +29,8 @@ jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => 
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: () => Promise.resolve({ data: { data: mockEvent, meta: {} } }),
   eventsControllerGetParticipants: () => Promise.resolve({ data: { data: mockParticipants, meta: {} } }),
-  photosControllerListPhotos: () => Promise.resolve({ data: { data: { items: mockPhotos, nextCursor: null }, meta: {} } }),
+  photosControllerListPhotos: () =>
+    Promise.resolve({ data: { data: { items: mockPhotos, nextCursor: null }, meta: {} } }),
   reportsControllerListReports: (...args: unknown[]) => mockListReports(...args),
   reportsControllerResolveReport: (...args: unknown[]) => mockResolve(...args),
 }));
@@ -64,7 +65,8 @@ const report = (overrides: Partial<ReportResponseDto> = {}): ReportResponseDto =
   createdAt: "2026-10-30T10:00:00.000Z",
   ...overrides,
 });
-const listed = (items: ReportResponseDto[]) => Promise.resolve({ data: { data: { items, nextCursor: null }, meta: {} } });
+const listed = (items: ReportResponseDto[]) =>
+  Promise.resolve({ data: { data: { items, nextCursor: null }, meta: {} } });
 
 const renderWithClient = (ui: React.ReactElement) => {
   const client = new QueryClient({
