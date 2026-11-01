@@ -24,12 +24,7 @@ Build conditional or multi-part `className` strings with `cn` from `@/lib/cn` (`
 ```tsx
 import { cn } from "@/lib/cn";
 
-<Pressable
-  className={cn(
-    "min-h-12 flex-row items-center border-b border-line py-4",
-    disabled && "opacity-50",
-  )}
-/>
+<Pressable className={cn("min-h-12 flex-row items-center border-b border-line py-4", disabled && "opacity-50")} />;
 ```
 
 Static single-string `className` values stay as plain strings. Prefer `cn` whenever a class list is conditional, composed from props, or might include conflicting utilities (later arguments win via `twMerge`).
