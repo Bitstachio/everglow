@@ -8,6 +8,7 @@ import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
 import EventsScreen from "./events-screen";
+import { noteLeftRoll, takeLeftRoll } from "../lib/left-roll-note";
 import { buildEvent, deferred } from "../testing/fixtures";
 
 const mockFindAll = jest.fn();
@@ -50,6 +51,7 @@ const renderScreen = async () => {
 const openJoin = async () => userEvent.setup().press(screen.getByRole("button", { name: "Scan an envelope" }));
 
 beforeEach(() => {
+  takeLeftRoll();
   mockUser = { id: "user-1" };
   mockFocused = true;
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
@@ -158,6 +160,15 @@ test("keeps the saved rolls on screen when the connection drops", async () => {
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
   // Each roll says when it was loaded, in place of its time (03.5).
   expect(screen.getByText(/ppl · as of \d\d:\d\d$/)).toBeOnTheScreen();
+});
+
+test("says which roll you left, once, over Home", async () => {
+  noteLeftRoll("Sam & Jo’s wedding");
+  mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Nadia turns 30" })] } });
+  await renderScreen();
+  expect(await screen.findByRole("alert")).toHaveTextContent(/You left Sam & Jo’s wedding/);
+  expect(screen.getByText("✓", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(await screen.findByText("Nadia turns 30")).toBeOnTheScreen();
 });
 
 test("opens the lab card from the header avatar", async () => {

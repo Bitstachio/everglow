@@ -26,6 +26,7 @@ import {
   type PickedFile,
   type RoomShortfall,
 } from "../lib/picked-photos";
+import { noteLeftRoll } from "../lib/left-roll-note";
 import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
 import { hasClosed } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
@@ -345,6 +346,7 @@ export const useEventDetailScreen = () => {
       { eventId, photos: photosChoice },
       {
         onSuccess: () => {
+          noteLeftRoll(event.title);
           closeSheet();
           router.replace("/events");
         },

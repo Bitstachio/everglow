@@ -13,6 +13,7 @@
     "joinEnvelope": "Join with an envelope"
   },
   "newEvent": "New event",
+  "leftRoll": "You left {{title}}",
   "roll": {
     "people": "<value>{{count}}</value> ppl",
     "peopleIn": "Unexposed · <value>{{count}}</value> ppl in",

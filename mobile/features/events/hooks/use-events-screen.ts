@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { eventsKeys } from "../api/keys";
 import { useEventsQuery } from "../api/queries";
+import { takeLeftRoll } from "../lib/left-roll-note";
 import { groupRolls, hasClosed, isLastDay, ROLL_FRAMES } from "../lib/rolls";
 import type { Event } from "../types";
 
@@ -37,12 +38,22 @@ export const useEventsScreen = () => {
     }
   }, [isError, error, errorUpdatedAt, t]);
 
+  const [leftRoll, setLeftRoll] = useState<string | null>(null);
+
   // Legacy detail pages do not invalidate queries yet. Refresh when returning.
   useFocusEffect(
     useCallback(() => {
+      const title = takeLeftRoll();
+      if (title) setLeftRoll(title);
       if (user?.id) void refetch({ cancelRefetch: false });
     }, [refetch, user?.id]),
   );
+
+  useEffect(() => {
+    if (!leftRoll) return;
+    const timer = setTimeout(() => setLeftRoll(null), 4000);
+    return () => clearTimeout(timer);
+  }, [leftRoll]);
 
   const groups = useMemo(() => groupRolls(events), [events]);
   const hasRolls = events.length > 0;
@@ -71,6 +82,7 @@ export const useEventsScreen = () => {
 
   return {
     groups,
+    leftRoll,
     hasRolls,
     isLoading,
     isRefreshing: isRefetching,

@@ -12,6 +12,7 @@ import { colorTokens } from "@/theme/tokens";
 import { QrCode } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { ArrivalNote } from "../components/arrival-note";
 import { RollCard } from "../components/roll-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { useRollPreview } from "../hooks/use-roll-preview";
@@ -45,6 +46,7 @@ const EventsScreen = () => {
   const { t } = useTranslation("home");
   const {
     groups,
+    leftRoll,
     hasRolls,
     isLoading,
     isRefreshing,
@@ -163,6 +165,12 @@ const EventsScreen = () => {
           </>
         )}
       </View>
+
+      {leftRoll ? (
+        <View pointerEvents="none" className="absolute left-4 right-4 top-72">
+          <ArrivalNote label={t("leftRoll", { title: leftRoll })} />
+        </View>
+      ) : null}
 
       <FilmGrain />
     </SafeAreaView>
