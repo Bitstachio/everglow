@@ -27,6 +27,7 @@ ESLint enforces these globally. Still verify in review:
 - [ ] UI errors use `getErrorMessage`, not raw Axios shapes
 - [ ] No new `StyleSheet` usage — NativeWind `className` + theme tokens ([Theme](./theme.md))
 - [ ] Spacing, type, radius, and tap targets follow [UI scale](./ui-scale.md) (16px gutters, `h-12` controls, pinned page-level actions, no arbitrary px)
+- [ ] Comments, JSDoc, and test titles describe behavior — no contact-sheet chapter/frame numbers (`12.2`, `07.1`, …); see [Comments](./code-conventions.md#comments)
 
 ## Feature structure
 

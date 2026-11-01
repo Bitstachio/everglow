@@ -408,7 +408,7 @@ export const useEventDetailScreen = () => {
     onCloseSheet: shownSheet === "closedSending" ? onDismissClosed : closeSheet,
     onSheetClosed,
     onOpenPeople: () => setSheet("people"),
-    // 05: the host's envelope screen, from Send the envelope (07.1) and Invite (07.4–07.8).
+    // Host envelope screen: from Send the envelope and Invite on the roll.
     onOpenEnvelope: () => {
       closeSheet();
       if (eventId) router.push(`/events/${eventId}/envelope`);

@@ -1127,7 +1127,7 @@ describe("people and the menu", () => {
     expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
   });
 
-  test("12.1 the host menu lists envelope, roll call, settings, cut and leave", async () => {
+  test("the host menu lists envelope, roll call, settings, cut and leave", async () => {
     await renderScreen({ photos: oneFrame });
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
