@@ -4,12 +4,14 @@ import {
   reportsControllerReportEvent,
   reportsControllerReportMember,
   reportsControllerReportPhoto,
+  reportsControllerResolveReport,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { eventsKeys } from "@/features/events/api/keys";
 import { profileKeys } from "@/features/profile/api/keys";
 import type { ReportTarget } from "../lib/reasons";
-import type { ReportReason, ReportResponseDto } from "../types";
+import { moderationKeys } from "./keys";
+import type { ReportReason, ReportResponseDto, ResolveReportDto } from "../types";
 
 export type ReportRequest = {
   eventId: string;
@@ -82,6 +84,39 @@ export const useBlockMutation = () => {
     },
     onSuccess: async () => {
       await Promise.all(QUERIES_AFTER_BLOCK.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+    },
+  });
+};
+
+export type ResolveRequest = { eventId: string; reportId: string } & ResolveReportDto;
+
+/**
+ * A host's decision on a frame or a person (10.9). One decision closes every
+ * open report on it: removing deletes the frame or takes the person off the
+ * roll, keeping it shows a hidden frame again.
+ */
+export const useResolveReportMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<ReportResponseDto, Error, ResolveRequest>({
+    mutationFn: async ({ reportId, action, photos }) => {
+      const { data } = await reportsControllerResolveReport({
+        path: { reportId },
+        body: { action, ...(photos ? { photos } : {}) },
+        throwOnError: true,
+      });
+      return unwrapEnvelope(data);
+    },
+    // Read again on failure too: a 409 or REPORT_ESCALATED means the list moved on.
+    onSettled: async (_report, _error, { eventId }) => {
+      await Promise.all(
+        [
+          moderationKeys.reports(eventId),
+          eventsKeys.detail(eventId),
+          eventsKeys.photos(eventId),
+          eventsKeys.participants(eventId),
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      );
     },
   });
 };

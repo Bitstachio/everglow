@@ -75,6 +75,9 @@ const RootNavigator = () => {
         <Stack.Screen name="events/[id]/tray" options={{ headerShown: false }} />
         {/* Chapter 10: a report rises over the roll and closes with its X. */}
         <Stack.Screen name="events/[id]/report" options={{ headerShown: false, presentation: "fullScreenModal" }} />
+        {/* 10.8–10.10: the hosts' reports draw their own top bars. */}
+        <Stack.Screen name="events/[id]/reports" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/report-check" options={{ headerShown: false }} />
         <Stack.Screen
           name="events/[id]/settings"
           options={{ title: t("screens.eventSettings"), headerBackTitle: backTitle }}
