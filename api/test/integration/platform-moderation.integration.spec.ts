@@ -4,6 +4,7 @@ import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
+import { hashProviderSub } from "src/users/deleted-provider-sub";
 import request from "supertest";
 import { authHeader } from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
@@ -130,6 +131,53 @@ describe("Platform moderation (integration)", () => {
         }) as unknown,
       }),
     );
+  });
+
+  describe("POST /admin/users/:userId/unsuspend", () => {
+    const targetId = "77777777-7777-7777-7777-777777777777";
+    const moderator = () => ({ ...buildUserWithDetails(), platformRole: "MODERATOR" }) as never;
+
+    it("lifts the account's suspension and any its identity's tombstone carries", async () => {
+      prisma.user.findUnique
+        .mockResolvedValueOnce(moderator())
+        .mockResolvedValueOnce({ suspendedAt: new Date(), providerSub: "google-oauth2|77" } as never);
+
+      await request(httpServer)
+        .post(adminPath(`users/${targetId}/unsuspend`))
+        .set(authHeader())
+        .expect(204);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: targetId }, data: { suspendedAt: null } });
+      expect(prisma.deletedProviderSub.updateMany).toHaveBeenCalledWith({
+        where: { providerSubHash: hashProviderSub("google-oauth2|77"), suspendedAt: { not: null } },
+        data: { suspendedAt: null },
+      });
+    });
+
+    it("lifts the suspension a deleted account carries on its tombstone", async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(moderator()).mockResolvedValueOnce(null);
+      prisma.deletedProviderSub.findFirst.mockResolvedValue({ providerSubHash: "h", suspendedAt: new Date() } as never);
+
+      await request(httpServer)
+        .post(adminPath(`users/${targetId}/unsuspend`))
+        .set(authHeader())
+        .expect(204);
+
+      expect(prisma.deletedProviderSub.update).toHaveBeenCalledWith({
+        where: { providerSubHash: "h" },
+        data: { suspendedAt: null },
+      });
+    });
+
+    it("answers 404 for an id that was never an account", async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(moderator()).mockResolvedValueOnce(null);
+      prisma.deletedProviderSub.findFirst.mockResolvedValue(null);
+
+      await request(httpServer)
+        .post(adminPath(`users/${targetId}/unsuspend`))
+        .set(authHeader())
+        .expect(404);
+    });
   });
 
   it("lifts an event's review", async () => {

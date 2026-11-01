@@ -45,6 +45,10 @@ describe("UsersService", () => {
   const providerSub = "auth0|abc123";
   const now = new Date("2026-06-10T12:00:00.000Z");
 
+  /** A tombstone as the provision path loads it, with its carried bans. */
+  const tombstone = (overrides: Record<string, unknown> = {}) =>
+    ({ providerSubHash, formerUserId: userId, deletedAt: now, suspendedAt: null, bans: [], ...overrides }) as never;
+
   const createUserDetailsDto: CreateUserDetailsDto = {
     name: "Jane Doe",
     username: "jane.doe",
@@ -593,10 +597,10 @@ describe("UsersService", () => {
     const expectTombstoneThenDelete = (): void => {
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledWith({
         where: { providerSubHash },
-        create: { providerSubHash, formerUserId: userId },
+        create: { providerSubHash, formerUserId: userId, suspendedAt: null },
         // deletedAt is refreshed: a subject that registered again and deleted
         // again must be judged against the later deletion, not the first.
-        update: { formerUserId: userId, deletedAt: expect.any(Date) as Date },
+        update: { formerUserId: userId, deletedAt: expect.any(Date) as Date, suspendedAt: null },
       });
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
       expect(prisma.deletedProviderSub.upsert.mock.invocationCallOrder[0]).toBeLessThan(
@@ -613,6 +617,7 @@ describe("UsersService", () => {
         providerSubHash,
         formerUserId: userId,
         deletedAt: now,
+        suspendedAt: null,
       });
       prisma.user.delete.mockResolvedValue(userWithDetails);
 
@@ -637,6 +642,59 @@ describe("UsersService", () => {
         auth0Management.deleteUser,
         prisma.$transaction,
       );
+    });
+
+    describe("carrying sanctions over", () => {
+      const suspendedAt = new Date("2026-06-01T09:00:00.000Z");
+      const bannedAt = new Date("2026-05-20T09:00:00.000Z");
+      const eventId = "33333333-3333-3333-3333-333333333333";
+      const resumedUser = (): AccountDeletionUser => ({
+        ...freshDeletionUser(),
+        deletionStartedAt,
+        auth0DeletedAt,
+      });
+
+      beforeEach(() => {
+        prisma.user.delete.mockResolvedValue(userWithDetails);
+      });
+
+      it("writes the account's suspension and event bans onto the tombstone, under a lock on the row", async () => {
+        prisma.user.findUnique.mockResolvedValue({
+          suspendedAt,
+          eventBans: [{ eventId, createdAt: bannedAt }],
+        } as never);
+
+        await service.completeAccountDeletion(resumedUser());
+
+        expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+        expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+          prisma.user.findUnique.mock.invocationCallOrder[0],
+        );
+        expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledWith({
+          where: { providerSubHash },
+          create: { providerSubHash, formerUserId: userId, suspendedAt },
+          update: { formerUserId: userId, deletedAt: expect.any(Date) as Date, suspendedAt },
+        });
+        // An earlier deletion's bans are replaced, not merged.
+        expect(prisma.carriedBan.deleteMany).toHaveBeenCalledWith({ where: { providerSubHash } });
+        expect(prisma.carriedBan.createMany).toHaveBeenCalledWith({
+          data: [{ providerSubHash, eventId, bannedAt }],
+          skipDuplicates: true,
+        });
+        expect(prisma.carriedBan.createMany.mock.invocationCallOrder[0]).toBeLessThan(
+          prisma.user.delete.mock.invocationCallOrder[0],
+        );
+      });
+
+      it("clears the tombstone's suspension and bans when the account has none", async () => {
+        prisma.user.findUnique.mockResolvedValue({ suspendedAt: null, eventBans: [] } as never);
+
+        await service.completeAccountDeletion(resumedUser());
+
+        expectTombstoneThenDelete();
+        expect(prisma.carriedBan.deleteMany).toHaveBeenCalledWith({ where: { providerSubHash } });
+        expect(prisma.carriedBan.createMany).not.toHaveBeenCalled();
+      });
     });
 
     it("revokes the Apple token before the Auth0 user is deleted, on every pass that still has one", async () => {
@@ -702,6 +760,7 @@ describe("UsersService", () => {
         providerSubHash,
         formerUserId: userId,
         deletedAt: now,
+        suspendedAt: null,
       });
       prisma.user.delete.mockResolvedValue(userWithDetails);
 
@@ -732,6 +791,7 @@ describe("UsersService", () => {
         providerSubHash,
         formerUserId: userId,
         deletedAt: now,
+        suspendedAt: null,
       });
       prisma.user.delete.mockResolvedValue(userWithDetails);
 
@@ -754,6 +814,7 @@ describe("UsersService", () => {
         providerSubHash,
         formerUserId: userId,
         deletedAt: now,
+        suspendedAt: null,
       });
       prisma.user.delete.mockResolvedValue(userWithDetails);
 
@@ -761,10 +822,10 @@ describe("UsersService", () => {
 
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledWith({
         where: { providerSubHash },
-        create: { providerSubHash, formerUserId: userId },
+        create: { providerSubHash, formerUserId: userId, suspendedAt: null },
         // deletedAt is refreshed: a subject that registered again and deleted
         // again must be judged against the later deletion, not the first.
-        update: { formerUserId: userId, deletedAt: expect.any(Date) as Date },
+        update: { formerUserId: userId, deletedAt: expect.any(Date) as Date, suspendedAt: null },
       });
     });
 
@@ -917,6 +978,7 @@ describe("UsersService", () => {
         providerSubHash,
         formerUserId: userId,
         deletedAt: now,
+        suspendedAt: null,
       });
       prisma.user.delete.mockRejectedValue(prismaError);
 
@@ -992,6 +1054,7 @@ describe("UsersService", () => {
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(prisma.deletedProviderSub.findUnique).toHaveBeenCalledWith({
         where: { providerSubHash },
+        include: { bans: { select: { eventId: true, bannedAt: true } } },
       });
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: { providerSub },
@@ -1005,7 +1068,7 @@ describe("UsersService", () => {
       // must block the old tokens without banning the person for good.
       const deletedAt = new Date("2026-06-10T12:00:00.000Z");
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.deletedProviderSub.findUnique.mockResolvedValue({ providerSubHash, formerUserId: userId, deletedAt });
+      prisma.deletedProviderSub.findUnique.mockResolvedValue(tombstone({ deletedAt }));
       prisma.user.create.mockResolvedValue(userWithoutDetails);
 
       const result = await service.resolveByProviderSub(providerSub, deletedAt.getTime() / 1000 + 60);
@@ -1017,10 +1080,77 @@ describe("UsersService", () => {
       expect(result).toEqual(userWithoutDetails);
     });
 
+    describe("after a deletion with sanctions", () => {
+      const deletedAt = new Date("2026-06-10T12:00:00.000Z");
+      const afterDeletion = deletedAt.getTime() / 1000 + 60;
+      const suspendedAt = new Date("2026-06-01T09:00:00.000Z");
+      const bannedAt = new Date("2026-05-20T09:00:00.000Z");
+      const eventId = "33333333-3333-3333-3333-333333333333";
+      const newUserId = "55555555-5555-5555-5555-555555555555";
+
+      beforeEach(() => {
+        prisma.user.findUnique.mockResolvedValue(null);
+        prisma.user.create.mockResolvedValue({ ...userWithoutDetails, id: newUserId, suspendedAt });
+      });
+
+      it("creates the new account already suspended and clears the suspension off the tombstone", async () => {
+        prisma.deletedProviderSub.findUnique.mockResolvedValue(tombstone({ deletedAt, suspendedAt }));
+
+        const result = await service.resolveByProviderSub(providerSub, afterDeletion);
+
+        expect(result.suspendedAt).toEqual(suspendedAt);
+        expect(prisma.user.create).toHaveBeenCalledWith({
+          data: { providerSub, suspendedAt },
+          include: userWithDetailsInclude,
+        });
+        expect(prisma.deletedProviderSub.update).toHaveBeenCalledWith({
+          where: { providerSubHash },
+          data: { suspendedAt: null },
+        });
+        expect(prisma.eventBan.createMany).not.toHaveBeenCalled();
+      });
+
+      it("re-creates the carried event bans for the new account and removes them from the tombstone", async () => {
+        prisma.deletedProviderSub.findUnique.mockResolvedValue(tombstone({ deletedAt, bans: [{ eventId, bannedAt }] }));
+
+        await service.resolveByProviderSub(providerSub, afterDeletion);
+
+        expect(prisma.user.create).toHaveBeenCalledWith({ data: { providerSub }, include: userWithDetailsInclude });
+        expect(prisma.eventBan.createMany).toHaveBeenCalledWith({
+          data: [{ eventId, userId: newUserId, createdAt: bannedAt }],
+          skipDuplicates: true,
+        });
+        expect(prisma.carriedBan.deleteMany).toHaveBeenCalledWith({ where: { providerSubHash } });
+        expect(prisma.deletedProviderSub.update).not.toHaveBeenCalled();
+      });
+
+      it("touches nothing else when the tombstone carries no sanction", async () => {
+        prisma.deletedProviderSub.findUnique.mockResolvedValue(tombstone({ deletedAt }));
+
+        await service.resolveByProviderSub(providerSub, afterDeletion);
+
+        expect(prisma.eventBan.createMany).not.toHaveBeenCalled();
+        expect(prisma.carriedBan.deleteMany).not.toHaveBeenCalled();
+        expect(prisma.deletedProviderSub.update).not.toHaveBeenCalled();
+      });
+
+      it("carries nothing over to a leftover token, which is refused", async () => {
+        prisma.deletedProviderSub.findUnique.mockResolvedValue(
+          tombstone({ deletedAt, suspendedAt, bans: [{ eventId, bannedAt }] }),
+        );
+
+        await expect(service.resolveByProviderSub(providerSub, afterDeletion - 120)).rejects.toThrow(
+          UnauthorizedException,
+        );
+        expect(prisma.user.create).not.toHaveBeenCalled();
+        expect(prisma.eventBan.createMany).not.toHaveBeenCalled();
+      });
+    });
+
     it("refuses a tombstoned subject whose token predates the deletion", async () => {
       const deletedAt = new Date("2026-06-10T12:00:00.000Z");
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.deletedProviderSub.findUnique.mockResolvedValue({ providerSubHash, formerUserId: userId, deletedAt });
+      prisma.deletedProviderSub.findUnique.mockResolvedValue(tombstone({ deletedAt }));
 
       await expect(service.resolveByProviderSub(providerSub, deletedAt.getTime() / 1000 - 60)).rejects.toThrow(
         new UnauthorizedException(
@@ -1037,6 +1167,7 @@ describe("UsersService", () => {
         providerSubHash,
         formerUserId: userId,
         deletedAt: now,
+        suspendedAt: null,
       });
 
       await expect(service.resolveByProviderSub(providerSub)).rejects.toThrow(
@@ -1077,6 +1208,7 @@ describe("UsersService", () => {
         providerSubHash,
         formerUserId: userId,
         deletedAt: now,
+        suspendedAt: null,
       });
       prisma.user.create.mockRejectedValue(uniqueConstraintError());
 
