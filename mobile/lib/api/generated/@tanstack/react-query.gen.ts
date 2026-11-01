@@ -847,6 +847,8 @@ export const reportsControllerListReportsQueryKey = (options: Options<ReportsCon
 
 /**
  * List an event's reports (organizers only, cursor-paginated)
+ *
+ * The event's photo and member reports, in both queues. Never reports about the event itself, child-safety or intimate-image reports, nor reports about the caller or their own photos.
  */
 export const reportsControllerListReportsOptions = (options: Options<ReportsControllerListReportsData>) =>
   queryOptions<
@@ -873,6 +875,8 @@ export const reportsControllerListReportsInfiniteQueryKey = (
 
 /**
  * List an event's reports (organizers only, cursor-paginated)
+ *
+ * The event's photo and member reports, in both queues. Never reports about the event itself, child-safety or intimate-image reports, nor reports about the caller or their own photos.
  */
 export const reportsControllerListReportsInfiniteOptions = (options: Options<ReportsControllerListReportsData>) => {
   const opts = infiniteQueryOptions<

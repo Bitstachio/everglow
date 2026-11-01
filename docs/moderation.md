@@ -209,6 +209,16 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 - **Repeats are idempotent.** While the caller's earlier report on the same target is OPEN, `POST` returns that report with 201 and creates nothing. The reason and note of the first submission stand.
 - **Reporters are anonymous to organizers.** `ReportResponseDto` has no `reporterId`. In a small event an organizer who learns who reported them can retaliate; the id stays in the database and in the audit log (§9) for the platform.
 - **Organizers see who uploaded a reported photo, never who reported it.** `reportedUserId` is the uploader (or the reported member); there is no reporter field.
+- **An organizer never sees a report about themselves or their own photo** ([EV-196](https://linear.app/mehrshadfb/issue/EV-196)). Its note and time could tell them who filed it. The `read` and `update` rules leave out reports whose `reportedUserId` is the caller, so such a report is not in their list and their `PATCH` is refused (§3). Another organizer of the event still sees it.
+
+### What each role sees
+
+| Who               | Gets                                                                                                       | Never gets                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| The reporter      | `ReportReceiptResponseDto` from the `POST`s, the repeat included: `id`, `targetType`, `reason`, `note`, `status`, `createdAt` | the queue, the subject, who handles it or how it closed (§13)    |
+| Organizers        | `ReportResponseDto` in the list and from `PATCH`: the target, the subject, the reason and note, the queue and how it closed | the reporter; reports about themselves, about the event, or with a platform-only reason |
+| Platform, list    | `PlatformReportListItemDto` on `GET /admin/reports`: the organizers' fields plus the reporter, escalation, hold and evidence summary | `authorityReference`                                             |
+| Platform, one     | `PlatformReportResponseDto` on `GET /admin/reports/:reportId` and the action responses: the list fields plus `authorityReference` | the evidence object's key or a URL (§7)                          |
 - **Reporting is allowed after the gallery closes**, for members and the event. Photos can't be reported then, since none can be seen (§5).
 - The list uses the same keyset pagination as the photo list (`api/src/common/pagination`).
 
@@ -255,12 +265,12 @@ The gallery-close move happens in the close job, in the same pass that marks the
 | `ORGANIZERS` | Any organizer of the event who is neither the reported member or uploader nor the reporter. The platform. |
 | `PLATFORM`   | The platform only.                                                                                        |
 
-- **Not the subject.** An organizer cannot close a report about themselves or their own photo: 403 `CANNOT_RESOLVE_OWN_REPORT`. Such reports start in `PLATFORM` anyway. The rule is the backstop for a report filed before its subject became an organizer.
+- **Not the subject.** An organizer cannot see or close a report about themselves or their own photo. The CASL `update` rule leaves it out, so their `PATCH` gets 403 `ORGANIZER_ONLY` before the report is looked at. Such reports start in `PLATFORM` anyway. The rule is the backstop for a report filed before its subject became an organizer, which another organizer can still close.
 - **Not the reporter.** A reporter who is later promoted can't close their own report: 403 `CANNOT_RESOLVE_OWN_REPORT`. Another organizer has to.
 - **A member who isn't an organizer** gets 403 `ORGANIZER_ONLY`, for listing reports too (built).
 - **A `PLATFORM` report** answers 403 `REPORT_ESCALATED` to an organizer's `PATCH`.
 
-**What organizers see.** `GET /events/:eventId/reports` lists the event's PHOTO and MEMBER reports in both queues, each with its `queue`. Reports in `PLATFORM` are read-only for organizers, so they know the platform has them. Two kinds are never listed: reports about the event itself (built), and reports with a reason in `PLATFORM_ONLY_REPORT_REASONS`.
+**What organizers see.** `GET /events/:eventId/reports` lists the event's PHOTO and MEMBER reports in both queues, each with its `queue`. Reports in `PLATFORM` are read-only for organizers, so they know the platform has them. Three kinds are never listed: reports about the event itself (built), reports with a reason in `PLATFORM_ONLY_REPORT_REASONS`, and reports about the calling organizer or their own photo. The last are filtered per caller, so a co-organizer still sees them.
 
 ### Verdicts
 
@@ -663,7 +673,7 @@ The two list endpoints stay on the global default. The platform's endpoints (§8
 
 ## 13. Out of scope
 
-- **Telling reporters the outcome.** A report's response is its receipt. Reporters see a dismissed photo come back, and are told nothing else, so organizers can't be pressured through them. The EU DSA would require a decision notice; it comes with an EU launch.
+- **Telling reporters the outcome.** A report's response is its receipt (`ReportReceiptResponseDto`, §2): what they gave and `status`, never the `queue`, which would tell them an organizer dismissed or sat on it. Reporters see a dismissed photo come back, and are told nothing else, so organizers can't be pressured through them. The EU DSA would require a decision notice; it comes with an EU launch.
 - **Notifications** ([EV-33](https://linear.app/mehrshadfb/issue/EV-33)). Organizers should hear about new reports and hidden photos, and uploaders when their photo is removed or they are removed from an event.
 - **Appeals.** A removed photo or member has no appeal flow. When one comes, it goes to the platform, never back to the organizer who decided.
 - **Automatic removal.** No number of reports deletes a photo or removes a member. Hiding is the strongest automatic effect, and deleting is always someone's verdict.

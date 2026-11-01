@@ -58,6 +58,16 @@ export const expectedReportResponse = (report: Report) => ({
   createdAt: report.createdAt.toISOString(),
 });
 
+/** What the reporter gets back on filing: only what they gave, and the status. */
+export const expectedReportReceipt = (report: Report) => ({
+  id: report.id,
+  targetType: report.targetType,
+  reason: report.reason,
+  note: report.note,
+  status: report.status,
+  createdAt: report.createdAt.toISOString(),
+});
+
 /** The primary test user's block on the target user. */
 export const buildBlock = (overrides: Partial<BlockWithBlockedUser> = {}): BlockWithBlockedUser => ({
   id: TEST_BLOCK_ID,

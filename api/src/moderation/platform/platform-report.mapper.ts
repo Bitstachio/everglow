@@ -1,12 +1,17 @@
 import { Report, ReportEvidence } from "generated/prisma/client";
 import { KeysetPage } from "src/common/pagination/keyset-cursor";
 import { ReportMapper } from "../mappers/report.mapper";
-import { PlatformReportListResponseDto, PlatformReportResponseDto } from "./dto/platform-report-response.dto";
+import {
+  PlatformReportListItemDto,
+  PlatformReportListResponseDto,
+  PlatformReportResponseDto,
+} from "./dto/platform-report-response.dto";
 
 export type ReportWithEvidence = Report & { evidence: ReportEvidence | null };
 
 export class PlatformReportMapper {
-  static toResponseDto(report: ReportWithEvidence): PlatformReportResponseDto {
+  /** A report on a queue page: no authority reference, which only the report's own page shows. */
+  static toListItemDto(report: ReportWithEvidence): PlatformReportListItemDto {
     const { evidence } = report;
     return {
       ...ReportMapper.toResponseDto(report),
@@ -16,7 +21,6 @@ export class PlatformReportMapper {
       escalatedAt: report.escalatedAt,
       holdUntil: report.holdUntil,
       holdReason: report.holdReason,
-      authorityReference: report.authorityReference,
       evidence: evidence && {
         quarantined: evidence.evidenceS3Key !== null,
         sha256: evidence.sha256,
@@ -28,9 +32,16 @@ export class PlatformReportMapper {
     };
   }
 
+  static toResponseDto(report: ReportWithEvidence): PlatformReportResponseDto {
+    return {
+      ...PlatformReportMapper.toListItemDto(report),
+      authorityReference: report.authorityReference,
+    };
+  }
+
   static toListResponseDto(page: KeysetPage<ReportWithEvidence>): PlatformReportListResponseDto {
     return {
-      items: page.items.map((report) => PlatformReportMapper.toResponseDto(report)),
+      items: page.items.map((report) => PlatformReportMapper.toListItemDto(report)),
       nextCursor: page.nextCursor,
     };
   }

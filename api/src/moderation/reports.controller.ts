@@ -8,6 +8,7 @@ import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.deco
 import { CreateReportDto } from "./dto/create-report.dto";
 import { ListReportsQueryDto } from "./dto/list-reports-query.dto";
 import { ReportListResponseDto } from "./dto/report-list-response.dto";
+import { ReportReceiptResponseDto } from "./dto/report-receipt-response.dto";
 import { ReportResponseDto } from "./dto/report-response.dto";
 import { ResolveReportDto } from "./dto/resolve-report.dto";
 import { ReportMapper } from "./mappers/report.mapper";
@@ -29,13 +30,13 @@ export class ReportsController {
       "Any member of the photo's event. The photo is hidden from the reporter at once. " +
       "Idempotent: while the caller's earlier report on the photo is still OPEN, that report is returned.",
   })
-  @ApiWrappedResponse(ReportResponseDto, "The caller's open report on the photo", 201)
+  @ApiWrappedResponse(ReportReceiptResponseDto, "The caller's open report on the photo", 201)
   async reportPhoto(
     @CurrentUser() user: AuthenticatedUser,
     @Param("photoId", ParseUUIDPipe) photoId: string,
     @Body() dto: CreateReportDto,
-  ): Promise<ReportResponseDto> {
-    return ReportMapper.toResponseDto(await this.reportsService.reportPhoto(photoId, user.id, dto));
+  ): Promise<ReportReceiptResponseDto> {
+    return ReportMapper.toReceiptDto(await this.reportsService.reportPhoto(photoId, user.id, dto));
   }
 
   @Post("events/:eventId/participants/:targetUserId/reports")
@@ -46,14 +47,14 @@ export class ReportsController {
       "Any member of the event, about any other member. " +
       "Idempotent: while the caller's earlier report on the member is still OPEN, that report is returned.",
   })
-  @ApiWrappedResponse(ReportResponseDto, "The caller's open report on the member", 201)
+  @ApiWrappedResponse(ReportReceiptResponseDto, "The caller's open report on the member", 201)
   async reportMember(
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
     @Param("targetUserId", ParseUUIDPipe) targetUserId: string,
     @Body() dto: CreateReportDto,
-  ): Promise<ReportResponseDto> {
-    return ReportMapper.toResponseDto(await this.reportsService.reportMember(eventId, targetUserId, user.id, dto));
+  ): Promise<ReportReceiptResponseDto> {
+    return ReportMapper.toReceiptDto(await this.reportsService.reportMember(eventId, targetUserId, user.id, dto));
   }
 
   @Post("events/:eventId/reports")
@@ -65,17 +66,22 @@ export class ReportsController {
       "(the note can say which). Reviewed by the platform, never by the event's organizers. " +
       "Idempotent: while the caller's earlier report on the event is still OPEN, that report is returned.",
   })
-  @ApiWrappedResponse(ReportResponseDto, "The caller's open report on the event", 201)
+  @ApiWrappedResponse(ReportReceiptResponseDto, "The caller's open report on the event", 201)
   async reportEvent(
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
     @Body() dto: CreateReportDto,
-  ): Promise<ReportResponseDto> {
-    return ReportMapper.toResponseDto(await this.reportsService.reportEvent(eventId, user.id, dto));
+  ): Promise<ReportReceiptResponseDto> {
+    return ReportMapper.toReceiptDto(await this.reportsService.reportEvent(eventId, user.id, dto));
   }
 
   @Get("events/:eventId/reports")
-  @ApiOperation({ summary: "List an event's reports (organizers only, cursor-paginated)" })
+  @ApiOperation({
+    summary: "List an event's reports (organizers only, cursor-paginated)",
+    description:
+      "The event's photo and member reports, in both queues. Never reports about the event itself, child-safety " +
+      "or intimate-image reports, nor reports about the caller or their own photos.",
+  })
   @ApiWrappedResponse(ReportListResponseDto, "Reports, newest first")
   async listReports(
     @CurrentUser() user: AuthenticatedUser,
