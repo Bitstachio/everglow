@@ -94,6 +94,16 @@ describe("14.11 Delete account", () => {
     expect(screen.queryByText("Rolls you started or are alone on")).not.toBeOnTheScreen();
   });
 
+  test.each([true, false])("says what is kept after deletion (rolls shown: %s)", async (showRolls) => {
+    mockDeleteScreen.showRolls = showRolls;
+    await renderScreen(<DeleteAccountScreen />);
+    expect(
+      screen.getByText(
+        "Reports about you or by you, and copies of reported photos, are kept for up to a year for safety and legal reasons, then removed.",
+      ),
+    ).toBeOnTheScreen();
+  });
+
   test("the leader waits while the account is being deleted", async () => {
     mockDeleteScreen.photos = "DELETE";
     mockDeleteScreen.isDeleting = true;
