@@ -42,7 +42,7 @@ import {
   photosControllerRemove,
   platformModerationControllerDeleteEvent,
   platformModerationControllerEditEvent,
-  platformModerationControllerEvidenceUrl,
+  platformModerationControllerEvidence,
   platformModerationControllerGetReport,
   platformModerationControllerLiftReview,
   platformModerationControllerListReports,
@@ -160,9 +160,9 @@ import type {
   PlatformModerationControllerEditEventData,
   PlatformModerationControllerEditEventError,
   PlatformModerationControllerEditEventResponse,
-  PlatformModerationControllerEvidenceUrlData,
-  PlatformModerationControllerEvidenceUrlError,
-  PlatformModerationControllerEvidenceUrlResponse,
+  PlatformModerationControllerEvidenceData,
+  PlatformModerationControllerEvidenceError,
+  PlatformModerationControllerEvidenceResponse,
   PlatformModerationControllerGetReportData,
   PlatformModerationControllerGetReportError,
   PlatformModerationControllerGetReportResponse,
@@ -1708,34 +1708,35 @@ export const platformModerationControllerResolveReportMutation = (
   return mutationOptions;
 };
 
+export const platformModerationControllerEvidenceQueryKey = (
+  options: Options<PlatformModerationControllerEvidenceData>,
+) => createQueryKey("platformModerationControllerEvidence", options);
+
 /**
- * Get a short-lived link to what a report is about (platform moderators)
+ * Look at what a report is about (platform moderators)
  *
- * The evidence copy once there is one, the live object before that. Expires after 5 minutes. Every link is logged. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept.
+ * Streams the evidence copy once there is one, the live object before that, as the raw image with Cache-Control: no-store; no URL is handed out. Every request is logged with the moderator's id (report.evidence.viewed). 403 EVIDENCE_REPORT_CLOSED for a closed report that isn't held. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept or was discarded.
  */
-export const platformModerationControllerEvidenceUrlMutation = (
-  options?: Partial<Options<PlatformModerationControllerEvidenceUrlData>>,
-): UseMutationOptions<
-  PlatformModerationControllerEvidenceUrlResponse,
-  AxiosError<PlatformModerationControllerEvidenceUrlError>,
-  Options<PlatformModerationControllerEvidenceUrlData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    PlatformModerationControllerEvidenceUrlResponse,
-    AxiosError<PlatformModerationControllerEvidenceUrlError>,
-    Options<PlatformModerationControllerEvidenceUrlData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await platformModerationControllerEvidenceUrl({
+export const platformModerationControllerEvidenceOptions = (
+  options: Options<PlatformModerationControllerEvidenceData>,
+) =>
+  queryOptions<
+    PlatformModerationControllerEvidenceResponse,
+    AxiosError<PlatformModerationControllerEvidenceError>,
+    PlatformModerationControllerEvidenceResponse,
+    ReturnType<typeof platformModerationControllerEvidenceQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await platformModerationControllerEvidence({
         ...options,
-        ...fnOptions,
+        ...queryKey[0],
+        signal,
         throwOnError: true,
       });
       return data;
     },
-  };
-  return mutationOptions;
-};
+    queryKey: platformModerationControllerEvidenceQueryKey(options),
+  });
 
 /**
  * Release a report's hold (platform moderators)

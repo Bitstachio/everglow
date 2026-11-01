@@ -92,9 +92,9 @@ import type {
   PlatformModerationControllerEditEventData,
   PlatformModerationControllerEditEventErrors,
   PlatformModerationControllerEditEventResponses,
-  PlatformModerationControllerEvidenceUrlData,
-  PlatformModerationControllerEvidenceUrlErrors,
-  PlatformModerationControllerEvidenceUrlResponses,
+  PlatformModerationControllerEvidenceData,
+  PlatformModerationControllerEvidenceErrors,
+  PlatformModerationControllerEvidenceResponses,
   PlatformModerationControllerGetReportData,
   PlatformModerationControllerGetReportErrors,
   PlatformModerationControllerGetReportResponses,
@@ -969,24 +969,24 @@ export const platformModerationControllerResolveReport = <ThrowOnError extends b
   });
 
 /**
- * Get a short-lived link to what a report is about (platform moderators)
+ * Look at what a report is about (platform moderators)
  *
- * The evidence copy once there is one, the live object before that. Expires after 5 minutes. Every link is logged. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept.
+ * Streams the evidence copy once there is one, the live object before that, as the raw image with Cache-Control: no-store; no URL is handed out. Every request is logged with the moderator's id (report.evidence.viewed). 403 EVIDENCE_REPORT_CLOSED for a closed report that isn't held. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept or was discarded.
  */
-export const platformModerationControllerEvidenceUrl = <ThrowOnError extends boolean = false>(
-  options: Options<PlatformModerationControllerEvidenceUrlData, ThrowOnError>,
+export const platformModerationControllerEvidence = <ThrowOnError extends boolean = false>(
+  options: Options<PlatformModerationControllerEvidenceData, ThrowOnError>,
 ): RequestResult<
-  PlatformModerationControllerEvidenceUrlResponses,
-  PlatformModerationControllerEvidenceUrlErrors,
+  PlatformModerationControllerEvidenceResponses,
+  PlatformModerationControllerEvidenceErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).post<
-    PlatformModerationControllerEvidenceUrlResponses,
-    PlatformModerationControllerEvidenceUrlErrors,
+  (options.client ?? client).get<
+    PlatformModerationControllerEvidenceResponses,
+    PlatformModerationControllerEvidenceErrors,
     ThrowOnError
   >({
-    responseType: "json",
-    url: "/api/v2/admin/reports/{reportId}/evidence-url",
+    responseType: "blob",
+    url: "/api/v2/admin/reports/{reportId}/evidence",
     ...options,
   });
 

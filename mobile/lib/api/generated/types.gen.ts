@@ -753,14 +753,6 @@ export type PlatformReportListResponseDto = {
   nextCursor: string | null;
 };
 
-export type EvidenceUrlResponseDto = {
-  /**
-   * A short-lived GET URL for the reported object, or its evidence copy.
-   */
-  url: string;
-  expiresAt: string;
-};
-
 export type ResolvePlatformReportDto = {
   /**
    * REMOVE_PHOTO: delete the reported photo. REMOVE_MEMBER: remove the reported member from the event and ban them from rejoining through the invitation link, deleting the reported photo too when the report is about one. DISMISS: nothing was wrong; hidden content returns. Every action closes all OPEN reports on the same target.
@@ -774,7 +766,7 @@ export type ResolvePlatformReportDto = {
 
 export type SetReportHoldDto = {
   /**
-   * The retention purge keeps the report and its evidence until then.
+   * The retention purge keeps the report and its evidence until then. In the future, at most 3 years away (400 otherwise). A report sent to the authorities stays held at least a year from the submission.
    */
   until: string;
   reason: ReportHoldReason;
@@ -828,6 +820,7 @@ export type ApiErrorDto = {
     | "EVENT_SUSPENDED"
     | "EVENT_UNDER_REVIEW"
     | "EVIDENCE_NOT_AVAILABLE"
+    | "EVIDENCE_REPORT_CLOSED"
     | "FORBIDDEN"
     | "IMAGE_INVALID_SIZE"
     | "IMAGE_UNSUPPORTED_CONTENT_TYPE"
@@ -2479,16 +2472,16 @@ export type PlatformModerationControllerResolveReportResponses = {
 export type PlatformModerationControllerResolveReportResponse =
   PlatformModerationControllerResolveReportResponses[keyof PlatformModerationControllerResolveReportResponses];
 
-export type PlatformModerationControllerEvidenceUrlData = {
+export type PlatformModerationControllerEvidenceData = {
   body?: never;
   path: {
     reportId: string;
   };
   query?: never;
-  url: "/api/v2/admin/reports/{reportId}/evidence-url";
+  url: "/api/v2/admin/reports/{reportId}/evidence";
 };
 
-export type PlatformModerationControllerEvidenceUrlErrors = {
+export type PlatformModerationControllerEvidenceErrors = {
   /**
    * Missing or invalid access token
    */
@@ -2503,21 +2496,18 @@ export type PlatformModerationControllerEvidenceUrlErrors = {
   429: ApiErrorDto;
 };
 
-export type PlatformModerationControllerEvidenceUrlError =
-  PlatformModerationControllerEvidenceUrlErrors[keyof PlatformModerationControllerEvidenceUrlErrors];
+export type PlatformModerationControllerEvidenceError =
+  PlatformModerationControllerEvidenceErrors[keyof PlatformModerationControllerEvidenceErrors];
 
-export type PlatformModerationControllerEvidenceUrlResponses = {
+export type PlatformModerationControllerEvidenceResponses = {
   /**
-   * A GET URL and when it expires
+   * The reported image
    */
-  201: {
-    data: EvidenceUrlResponseDto;
-    meta: ResponseMetaDto;
-  };
+  200: Blob | File;
 };
 
-export type PlatformModerationControllerEvidenceUrlResponse =
-  PlatformModerationControllerEvidenceUrlResponses[keyof PlatformModerationControllerEvidenceUrlResponses];
+export type PlatformModerationControllerEvidenceResponse =
+  PlatformModerationControllerEvidenceResponses[keyof PlatformModerationControllerEvidenceResponses];
 
 export type PlatformModerationControllerReleaseHoldData = {
   body?: never;
