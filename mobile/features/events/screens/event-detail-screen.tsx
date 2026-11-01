@@ -609,6 +609,16 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
         {screen.sheet === "menu" ? (
           <View>
+            {role === "host" ? (
+              <IndexRow
+                label={
+                  screen.reportsToCheck
+                    ? t("report:menu.reportsToCheck", { count: screen.reportsToCheck })
+                    : t("report:menu.reports")
+                }
+                onPress={screen.onOpenReports}
+              />
+            ) : null}
             <IndexRow label={t("menuSheet.people")} onPress={screen.onOpenPeople} />
             {role === "host" && event.status !== "SUSPENDED" ? (
               <IndexRow label={t("menuSheet.settings")} onPress={screen.onOpenSettings} />

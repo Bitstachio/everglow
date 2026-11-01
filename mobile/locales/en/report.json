@@ -93,5 +93,73 @@
     "edgeNoUsername": "{{role}} · {{frames}}",
     "frames_one": "{{count}} frame",
     "frames_other": "{{count}} frames"
+  },
+  "check": {
+    "top": "Reports · {{count}} to check",
+    "topNone": "Reports",
+    "title_one": "{{count}} to check",
+    "title_other": "{{count}} to check",
+    "titleDim": "on your roll.",
+    "empty": "Nothing to check",
+    "loadFailed": "Couldn’t load the reports.",
+    "retry": "Try again",
+    "frameRow": "Frame {{number}} · by {{name}}",
+    "frameRowNoNumber": "A frame by {{name}}",
+    "edge_one": "{{count}} report · {{reason}}",
+    "edge_other": "{{count}} reports · {{reason}}",
+    "hidden": "hidden",
+    "withEverglow": "with Everglow",
+    "done": "Done · {{count}} this week"
+  },
+  "reasonShort": {
+    "SPAM": "spam",
+    "NUDITY_OR_SEXUAL": "nudity",
+    "HARASSMENT": "harassment",
+    "VIOLENCE": "violence",
+    "OTHER": "something else",
+    "CHILD_SAFETY": "a child at risk",
+    "NON_CONSENSUAL_INTIMATE_IMAGE": "intimate image"
+  },
+  "reasonLong": {
+    "SPAM": "Spam",
+    "NUDITY_OR_SEXUAL": "Nudity",
+    "HARASSMENT": "Harassment",
+    "VIOLENCE": "Violence",
+    "OTHER": "Something else",
+    "CHILD_SAFETY": "A child at risk",
+    "NON_CONSENSUAL_INTIMATE_IMAGE": "Intimate image"
+  },
+  "decide": {
+    "topFrame_one": "Frame {{number}} · {{count}} report",
+    "topFrame_other": "Frame {{number}} · {{count}} reports",
+    "topFrameNoNumber_one": "A frame · {{count}} report",
+    "topFrameNoNumber_other": "A frame · {{count}} reports",
+    "topPerson_one": "{{name}} · {{count}} report",
+    "topPerson_other": "{{name}} · {{count}} reports",
+    "tapToLook": "Tap to look",
+    "lookLabel": "The reported frame, blurred. Tap to look.",
+    "reason": "Reason",
+    "reasonValue": "{{reason}} · {{count}}",
+    "addedBy": "Added by",
+    "addedByValue": "{{name}} · {{time}}",
+    "person": "Reported",
+    "note": "Note",
+    "removeFrame": "Remove the frame",
+    "removePerson": "Remove {{name}} from the roll",
+    "keepFrame": "Keep it, it’s fine",
+    "keepPerson": "Keep them, it’s fine",
+    "failed": "Didn’t go through. Try again.",
+    "gone": "Already handled."
+  },
+  "everglow": {
+    "topFrame": "Frame {{number}} · reported",
+    "topFrameNoNumber": "A frame · reported",
+    "topPerson": "{{name}} · reported",
+    "hidden": "Hidden",
+    "title": "This one is with",
+    "titleDim": "Everglow’s safety team.",
+    "bodyFrame": "You don’t need to do anything. The frame stays hidden until they decide.",
+    "bodyPerson": "You don’t need to do anything. Everglow decides what happens next.",
+    "ok": "Ok"
   }
 }
