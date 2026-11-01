@@ -517,6 +517,7 @@ describe("closed (07.9)", () => {
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
     await user.press(screen.getByRole("button", { name: "People" }));
     await user.press(await screen.findByRole("button", { name: "Grace Hopper, Adds photos" }));
+    await user.press(await screen.findByRole("button", { name: "Remove Grace from the roll" }));
     await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
 
     expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
