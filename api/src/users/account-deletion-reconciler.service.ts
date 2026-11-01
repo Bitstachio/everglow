@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
+import { TOMBSTONE_RETENTION_DAYS, TombstoneRelatedReport, tombstoneExpiresAt } from "./deleted-provider-sub";
 import { UsersService } from "./users.service";
 
 export interface AccountDeletionReconcileResult {
@@ -16,9 +17,18 @@ export interface AccountDeletionReconcileResult {
   stuck: number;
   // Users that used up their attempt budget on this run and will not be retried
   abandoned: number;
+  // Tombstones past their retention, deleted this run
+  tombstonesPurged: number;
+}
+
+export interface TombstonePurgeResult {
+  purged: number;
+  // Tombstones past the base window kept because they carry a suspension or a ban
+  sanctionedKept: number;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 /**
  * Finishes account-deletion sagas left mid-flight after Auth0 was cleared (or
@@ -67,6 +77,7 @@ export class AccountDeletionReconcilerService {
       failed: 0,
       stuck: 0,
       abandoned: 0,
+      tombstonesPurged: 0,
     };
 
     for (const user of pending) {
@@ -130,11 +141,106 @@ export class AccountDeletionReconcilerService {
       }
     }
 
+    const tombstones = await this.purgeExpiredTombstones();
+    result.tombstonesPurged = tombstones.purged;
+
     this.logger.info(
-      { event: "user.account.deletion_reconcile.completed", ...result, stuckAfterHours, audit: true },
+      {
+        event: "user.account.deletion_reconcile.completed",
+        ...result,
+        sanctionedTombstonesKept: tombstones.sanctionedKept,
+        stuckAfterHours,
+        audit: true,
+      },
       "Account deletion reconcile finished",
     );
 
     return result;
+  }
+
+  /**
+   * Deletes tombstones past their retention (docs/account-deletion.md §6a). A
+   * tombstone is personal data (a hash of a stable social identifier and the
+   * former user id), so it has a maximum like everything else. One that
+   * carries nothing goes after TOMBSTONE_RETENTION_DAYS; one that carries a
+   * suspension or a ban is judged against the reports about the account
+   * (tombstoneExpiresAt). Its carried bans go with it by cascade.
+   */
+  async purgeExpiredTombstones(now: Date = new Date()): Promise<TombstonePurgeResult> {
+    const batchSize = this.configService.getOrThrow<number>("users.accountDeletionReconcilerBatchSize");
+    const reportRetentionDays = this.configService.getOrThrow<number>("moderation.reportRetentionDays");
+    const baseCutoff = new Date(now.getTime() - TOMBSTONE_RETENTION_DAYS * DAY_MS);
+
+    const plain = await this.prisma.deletedProviderSub.deleteMany({
+      where: { deletedAt: { lt: baseCutoff }, suspendedAt: null, bans: { none: {} } },
+    });
+    const result: TombstonePurgeResult = { purged: plain.count, sanctionedKept: 0 };
+
+    // Few tombstones carry a sanction, and those are kept for a long time, so
+    // every one is looked at on each run: a batch that stopped at the oldest
+    // would never reach the rest while those are still held.
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await this.prisma.deletedProviderSub.findMany({
+        where: {
+          deletedAt: { lt: baseCutoff },
+          OR: [{ suspendedAt: { not: null } }, { bans: { some: {} } }],
+          ...(cursor && { providerSubHash: { gt: cursor } }),
+        },
+        orderBy: { providerSubHash: "asc" },
+        take: batchSize,
+        select: { providerSubHash: true, formerUserId: true, deletedAt: true },
+      });
+      if (page.length === 0) break;
+      cursor = page[page.length - 1].providerSubHash;
+
+      const reportsBySubject = await this.reportsAbout(page.map((tombstone) => tombstone.formerUserId));
+      const expired = page.filter((tombstone) => {
+        const expiresAt = tombstoneExpiresAt({
+          deletedAt: tombstone.deletedAt,
+          sanctioned: true,
+          relatedReports: reportsBySubject.get(tombstone.formerUserId) ?? [],
+          reportRetentionDays,
+        });
+        return expiresAt !== null && expiresAt <= now;
+      });
+      result.sanctionedKept += page.length - expired.length;
+
+      if (expired.length > 0) {
+        // Matched on deletedAt too: deleting the same identity again refreshes
+        // it, and that newer tombstone has not been judged.
+        const { count } = await this.prisma.deletedProviderSub.deleteMany({
+          where: {
+            OR: expired.map(({ providerSubHash, deletedAt }) => ({ providerSubHash, deletedAt })),
+          },
+        });
+        result.purged += count;
+      }
+      if (page.length < batchSize) break;
+    }
+
+    if (result.purged > 0) {
+      this.logger.info(
+        { event: "user.tombstone.purged", ...result, audit: true },
+        "Account deletion tombstones past their retention purged",
+      );
+    }
+    return result;
+  }
+
+  // Reports about a deleted account are found by their evidence, which keeps
+  // the subject's id after Report.reportedUserId is nulled.
+  private async reportsAbout(formerUserIds: string[]): Promise<Map<string, TombstoneRelatedReport[]>> {
+    const reports = await this.prisma.report.findMany({
+      where: { evidence: { subjectUserId: { in: formerUserIds } } },
+      select: { resolvedAt: true, holdUntil: true, evidence: { select: { subjectUserId: true } } },
+    });
+    const bySubject = new Map<string, TombstoneRelatedReport[]>();
+    for (const { evidence, resolvedAt, holdUntil } of reports) {
+      const subject = evidence?.subjectUserId;
+      if (!subject) continue;
+      bySubject.set(subject, [...(bySubject.get(subject) ?? []), { resolvedAt, holdUntil }]);
+    }
+    return bySubject;
   }
 }
