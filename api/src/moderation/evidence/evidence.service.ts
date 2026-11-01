@@ -2,11 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Prisma, ReportReason, ReportStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
-import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
 import { deleteObjectWithDerivatives } from "src/photos/photo-object-deletion";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { STALE_REPORT_SAMPLE_SIZE } from "../moderation.constants";
 import { OPEN_REPORT_REMINDER_DAYS, daysBefore } from "../report-deadlines";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 import { buildEvidenceS3Key } from "./evidence.constants";
 
 /** What a new report was about, as written to its ReportEvidence row. */
@@ -38,6 +41,8 @@ export interface EvidenceJobResult {
    * purge never touches them; the stale check reminds about them weekly.
    */
   openOlderThanDays: number;
+  /** Holds that ran out in the day before this run, announced in `report.hold.lapsed`. */
+  holdsLapsed: number;
 }
 
 type QuarantineCandidate = { id: string; reportId: string; objectS3Key: string | null };
@@ -186,15 +191,50 @@ export class EvidenceService {
       purgedObjects: 0,
       purgeFailed: 0,
       openOlderThanDays: 0,
+      holdsLapsed: 0,
     };
 
     await this.retryFailedCopies(batchSize, result);
+    result.holdsLapsed = await this.reportLapsedHolds(now);
     await this.purgeExpired(now, batchSize, result);
     result.openOlderThanDays = await this.prisma.report.count({
       where: { status: ReportStatus.OPEN, createdAt: { lt: daysBefore(now, OPEN_REPORT_REMINDER_DAYS) } },
     });
 
     return result;
+  }
+
+  /**
+   * Holds that ran out since the last daily run (docs/moderation.md §7):
+   * announced in one `report.hold.lapsed` line, so someone decides whether to
+   * renew them before the purge takes the report. An actioned intimate-image
+   * report among them loses its evidence copy now, as it would have at the
+   * verdict without the hold.
+   */
+  private async reportLapsedHolds(now: Date): Promise<number> {
+    const lapsed = await this.prisma.report.findMany({
+      where: { holdUntil: { gte: new Date(now.getTime() - DAY_MS), lte: now } },
+      orderBy: { holdUntil: "asc" },
+      select: { id: true, eventId: true, holdReason: true },
+    });
+    if (lapsed.length === 0) return 0;
+
+    this.logger.warn(
+      {
+        event: ALERT_EVENTS.REPORT_HOLD_LAPSED,
+        lapsed: lapsed.length,
+        reportIds: lapsed.slice(0, STALE_REPORT_SAMPLE_SIZE).map((report) => report.id),
+        holdReasons: [...new Set(lapsed.map((report) => report.holdReason))],
+        severity: ALERT_SEVERITY.TICKET,
+        audit: true,
+      },
+      "Report holds lapsed; renew them or let the retention purge take the reports",
+    );
+    await this.discardImages(
+      lapsed.map((report) => report.id),
+      now,
+    );
+    return lapsed.length;
   }
 
   /**
