@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { ReportHoldReason, ReportQueue, ReportReason, ReportStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
@@ -20,6 +20,17 @@ import { ReportWithEvidence } from "./platform-report.mapper";
 export const EVIDENCE_URL_TTL_SECONDS = 300;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// How far ahead of the API's clock a submission time may be, for a moderator
+// whose own clock runs a little fast.
+const SUBMITTED_AT_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/** The day a report sent to the authorities may be purged at the earliest: a year after the submission. */
+export const authorityPreservedUntil = (authorityReportedAt: Date): Date =>
+  new Date(authorityReportedAt.getTime() + CHILD_SAFETY_HOLD_DAYS * DAY_MS);
+
+/** max() of two optional dates: a hold only ever grows by this rule. */
+const laterOf = (current: Date | null, floor: Date): Date => (current && current > floor ? current : floor);
 
 /**
  * What platform moderators do besides giving verdicts, which ReportsService
@@ -123,8 +134,9 @@ export class PlatformModerationService {
 
   /**
    * Records that the report went to NCMEC's CyberTipline or the police, and
-   * holds it for a year from the submission: the preservation the law asks
-   * for (18 U.S.C. §2258A(h); docs/moderation.md §7). A longer hold stays.
+   * when (`authorityReportedAt`). The hold becomes the later of the current
+   * one and a year from the submission: the preservation the law asks for
+   * (18 U.S.C. §2258A(h); docs/moderation.md §7). A longer hold stays.
    */
   async recordAuthorityReport(
     reportId: string,
@@ -132,20 +144,32 @@ export class PlatformModerationService {
     reference: string,
     submittedAt: Date = new Date(),
   ): Promise<ReportWithEvidence> {
+    if (submittedAt.getTime() > Date.now() + SUBMITTED_AT_CLOCK_SKEW_MS) {
+      throw new BadRequestException(
+        RESPONSE_TEMPLATES.INVALID_VALUE("submittedAt", submittedAt.toISOString(), "in the past"),
+      );
+    }
     const current = await this.getReport(reportId);
-    const preservedUntil = new Date(submittedAt.getTime() + CHILD_SAFETY_HOLD_DAYS * DAY_MS);
-    const holdUntil = current.holdUntil && current.holdUntil > preservedUntil ? current.holdUntil : preservedUntil;
+    const holdUntil = laterOf(current.holdUntil, authorityPreservedUntil(submittedAt));
     const holdReason =
       current.reason === ReportReason.CHILD_SAFETY ? ReportHoldReason.CHILD_SAFETY : ReportHoldReason.LAW_ENFORCEMENT;
 
     const report = await this.prisma.report.update({
       where: { id: reportId },
-      data: { authorityReference: reference, holdUntil, holdReason },
+      data: { authorityReference: reference, authorityReportedAt: submittedAt, holdUntil, holdReason },
       include: { evidence: true },
     });
     // The reference itself is not logged: it identifies a case outside Everglow.
     this.logger.info(
-      { event: "report.authority_report.recorded", reportId, moderatorId, holdUntil, holdReason, audit: true },
+      {
+        event: "report.authority_report.recorded",
+        reportId,
+        moderatorId,
+        authorityReportedAt: submittedAt,
+        holdUntil,
+        holdReason,
+        audit: true,
+      },
       "Report recorded as reported to the authorities",
     );
     return report;
