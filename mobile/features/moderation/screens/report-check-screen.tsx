@@ -12,12 +12,17 @@ import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useReportCheckScreen } from "../hooks/use-report-check-screen";
 
-const Fact = ({ label, value }: { label: string; value: string }) => (
+/** A label and its value on a ruled line. A reporter's note is their own words, so it stays in plain type. */
+const Fact = ({ label, value, words = false }: { label: string; value: string; words?: boolean }) => (
   <View className="min-h-11 flex-row items-center justify-between gap-4 border-b border-line py-2.5">
     <EdgePrint>{label}</EdgePrint>
-    <EdgePrint tone="text" className="shrink text-right" numberOfLines={2}>
-      {value}
-    </EdgePrint>
+    {words ? (
+      <Text className="shrink text-right font-sans text-body text-text">{value}</Text>
+    ) : (
+      <EdgePrint tone="text" className="shrink text-right" numberOfLines={2}>
+        {value}
+      </EdgePrint>
+    )}
   </View>
 );
 
@@ -88,7 +93,7 @@ const ReportCheckScreen = () => {
           <Fact label={t("decide.reason")} value={screen.reasonValue} />
           <Fact label={screen.kind === "frame" ? t("decide.addedBy") : t("decide.person")} value={screen.addedByValue} />
           {screen.notes.map((note, index) => (
-            <Fact key={index} label={t("decide.note")} value={note} />
+            <Fact key={index} words label={t("decide.note")} value={note} />
           ))}
         </View>
       )}
