@@ -4,6 +4,7 @@ import { PinoLogger } from "nestjs-pino";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
+import { subjectUsernameScrubbable } from "src/moderation/evidence/subject-username";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -286,8 +287,19 @@ export class UsersService {
           skipDuplicates: true,
         });
       }
+      // Reports about the account outlive it, but its username does not,
+      // except while a child-safety or law-enforcement hold may need it; the
+      // evidence job scrubs those when the hold ends.
+      const scrubbed = await tx.reportEvidence.updateMany({
+        where: { subjectUserId: id, subjectUsername: { not: null }, report: subjectUsernameScrubbable(new Date()) },
+        data: { subjectUsername: null },
+      });
       await tx.user.delete({ where: { id } });
-      return { suspended: sanctions.suspendedAt !== null, bans: sanctions.bans.length };
+      return {
+        suspended: sanctions.suspendedAt !== null,
+        bans: sanctions.bans.length,
+        usernamesScrubbed: scrubbed.count,
+      };
     });
 
     this.logger.info(
@@ -299,6 +311,7 @@ export class UsersService {
         photoPolicy: policy,
         suspensionCarried: carried.suspended,
         bansCarried: carried.bans,
+        evidenceUsernamesScrubbed: carried.usernamesScrubbed,
         audit: true,
       },
       "User account deleted",
