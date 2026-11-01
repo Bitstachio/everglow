@@ -405,9 +405,10 @@ export const useEventDetailScreen = () => {
   }, [reported, router]);
   // A cancelled frame report reopens the frame it came from.
   const [resumed, setResumed] = useState<string | undefined>(undefined);
-  if (resume && resume !== resumed) {
+  if (resume !== resumed) {
+    // Cleared again once handled, so the same frame can come back after another report.
     setResumed(resume);
-    gallery.onMoveFrame(resume);
+    if (resume) gallery.onMoveFrame(resume);
   }
   useEffect(() => {
     if (resume) router.setParams({ resume: undefined });
