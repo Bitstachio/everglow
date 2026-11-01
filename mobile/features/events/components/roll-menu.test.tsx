@@ -3,7 +3,7 @@ import { renderWithI18n } from "@/testing/render";
 import { screen, userEvent } from "@testing-library/react-native";
 import { RollMenu } from "./roll-menu";
 
-test("12.1 host menu lists the run-the-roll actions without Reports", async () => {
+test("host menu lists the run-the-roll actions without Reports", async () => {
   const onSendEnvelope = jest.fn();
   const onOpenRollCall = jest.fn();
   const onOpenSettings = jest.fn();

@@ -1,20 +1,16 @@
 import "../testing/native-mocks";
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { render, screen, waitFor } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
 import EventSettingsScreen from "./event-settings-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
-import { formatEventDateTime } from "../utils";
+import { formatClosesUntil, formatOpensAt } from "../lib/roll-page";
 
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
-const mockRemove = jest.fn();
-const mockRemoveCover = jest.fn();
 const mockBack = jest.fn();
-const mockReplace = jest.fn();
-const mockPush = jest.fn();
 
 let mockUser: { id: string } | null = { id: "user-1" };
 let mockEventId: string | string[] = "event-1";
@@ -23,12 +19,10 @@ jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => 
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
-  eventsControllerRemove: (...args: unknown[]) => mockRemove(...args),
-  eventsControllerRemoveCover: (...args: unknown[]) => mockRemoveCover(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush }),
+  useRouter: () => ({ back: mockBack }),
   useLocalSearchParams: () => ({ id: mockEventId }),
 }));
 
@@ -49,23 +43,12 @@ const renderScreen = async (event = buildEvent()) => {
   return client;
 };
 
-const confirmDestructiveAlert = () => {
-  const calls = jest.mocked(Alert.alert).mock.calls;
-  const last = calls[calls.length - 1];
-  const buttons = last?.[2] as { text?: string; style?: string; onPress?: () => void }[] | undefined;
-  buttons?.find((button) => button.style === "destructive")?.onPress?.();
-};
-
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockEventId = "event-1";
   mockFindOne.mockReset();
   mockGetParticipants.mockReset();
-  mockRemove.mockReset().mockResolvedValue({});
-  mockRemoveCover.mockReset().mockResolvedValue({});
   mockBack.mockReset();
-  mockReplace.mockReset();
-  mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
@@ -74,44 +57,50 @@ afterEach(() => {
   clients.splice(0).forEach((client) => client.clear());
 });
 
-test("lists event fields and opens the title editor", async () => {
-  const event = buildEvent();
+test("upcoming: every schedule row can still change", async () => {
+  const event = buildEvent({
+    galleryState: "UPCOMING",
+    galleryOpensAt: "2026-11-07T19:00:00.000Z",
+    galleryWindowDays: 7,
+    coverUrl: null,
+    description: null,
+  });
   await renderScreen(event);
-  const { date, time } = formatEventDateTime(event.date);
 
-  expect(await screen.findByText("Title")).toBeOnTheScreen();
-  expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
-  expect(screen.getByText("An afternoon with friends")).toBeOnTheScreen();
-  expect(screen.getByText(`${date} · ${time}`)).toBeOnTheScreen();
-  expect(screen.getByText("Danger Zone")).toBeOnTheScreen();
-  expect(screen.getByText("Delete Event")).toBeOnTheScreen();
+  expect(await screen.findByText("Roll settings")).toBeOnTheScreen();
+  expect(screen.getByText(event.title)).toBeOnTheScreen();
+  expect(screen.getByText(`Opens ${formatOpensAt(event.galleryOpensAt)}`)).toBeOnTheScreen();
 
-  await userEvent.setup().press(screen.getByLabelText("Title"));
-  expect(mockPush).toHaveBeenCalledWith("/events/event-1/edit-title");
+  expect(screen.getByRole("button", { name: `Name, ${event.title}` })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Cover, Add" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Note for guests, Add" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: `When, ${formatOpensAt(event.date)}` })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Film, 7-day roll" })).toBeOnTheScreen();
+  expect(screen.getByLabelText("Storage, 0 of 3 GB")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Envelopes, Two · reset" })).toBeOnTheScreen();
+  expect(screen.getByLabelText("Delete the roll, After it closes")).toBeOnTheScreen();
+  expect(screen.queryByText(/locked once the gallery opens/)).toBeNull();
 });
 
-test("opens description and date editors", async () => {
-  await renderScreen();
-  await screen.findByText("Title");
-  const user = userEvent.setup();
-  await user.press(screen.getByLabelText("Description"));
-  expect(mockPush).toHaveBeenCalledWith("/events/event-1/edit-description");
-  await user.press(screen.getByLabelText("Date & Time"));
-  expect(mockPush).toHaveBeenCalledWith("/events/event-1/edit-date");
+test("open: date and film are locked and explain why", async () => {
+  const event = buildEvent({
+    galleryState: "OPEN",
+    galleryClosesAt: "2026-11-17T16:00:00.000Z",
+    galleryWindowDays: 30,
+    coverUrl: "https://cdn.example.com/cover.jpg",
+    description: "Black tie",
+  });
+  await renderScreen(event);
+
+  expect(await screen.findByText(`Open · until ${formatClosesUntil(event.galleryClosesAt!)}`)).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Cover, Change" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Note for guests, Black tie" })).toBeOnTheScreen();
+  expect(screen.getByLabelText(`When, ${formatOpensAt(event.date)} · locked`)).toBeOnTheScreen();
+  expect(screen.getByLabelText("Film, 30-day roll · locked")).toBeOnTheScreen();
+  expect(screen.getByText(/locked once the gallery opens/)).toBeOnTheScreen();
 });
 
-test("deletes the event from the danger zone and returns to the events root", async () => {
-  await renderScreen();
-  await screen.findByText("Delete Event");
-  await userEvent.setup().press(screen.getByLabelText("Delete Event"));
-  confirmDestructiveAlert();
-
-  await waitFor(() => expect(mockRemove).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
-  expect(mockReplace).toHaveBeenCalledWith("/events");
-  expect(Alert.alert).toHaveBeenCalledWith("Success", "Event deleted successfully");
-});
-
-test("sends non-organizers back", async () => {
+test("sends non-hosts back", async () => {
   mockUser = { id: "user-2" };
   mockFindOne.mockResolvedValue({ data: { data: buildEvent({ creatorId: "user-1" }) } });
   mockGetParticipants.mockResolvedValue({
@@ -130,35 +119,4 @@ test("sends non-organizers back", async () => {
   );
 
   await waitFor(() => expect(mockBack).toHaveBeenCalled());
-});
-
-const lastAlertButtonLabels = () => {
-  const calls = jest.mocked(Alert.alert).mock.calls;
-  const buttons = calls[calls.length - 1]?.[2] as { text?: string }[] | undefined;
-  return buttons?.map((button) => button.text);
-};
-
-test("offers to add a cover when the event has none", async () => {
-  await renderScreen();
-  expect(await screen.findByText("Cover Photo")).toBeOnTheScreen();
-  expect(screen.getAllByText("Not set").length).toBeGreaterThan(0);
-  expect(screen.queryByTestId("event-cover-image", { includeHiddenElements: true })).toBeNull();
-
-  await userEvent.setup().press(screen.getByLabelText("Cover Photo"));
-  expect(lastAlertButtonLabels()).toEqual(["Take Photo", "Choose from Library", "Cancel"]);
-});
-
-test("shows the current cover and removes it", async () => {
-  await renderScreen(buildEvent({ coverUrl: "https://bucket.example.com/event-covers/event-1/upload-1?sig=a" }));
-  expect(await screen.findByText("Change or remove the cover")).toBeOnTheScreen();
-  expect(screen.getByTestId("event-cover-image", { includeHiddenElements: true })).toBeOnTheScreen();
-
-  await userEvent.setup().press(screen.getByLabelText("Cover Photo"));
-  expect(lastAlertButtonLabels()).toContain("Remove Cover");
-  confirmDestructiveAlert();
-
-  await waitFor(() =>
-    expect(mockRemoveCover).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }),
-  );
-  expect(await screen.findByText("Not set")).toBeOnTheScreen();
 });

@@ -1,91 +1,69 @@
-import { H3 } from "@/components/ui/heading";
+import { Display } from "@/components/ui/display";
+import { EdgePrint } from "@/components/ui/edge-print";
+import { FilmGrain } from "@/components/ui/film-grain";
+import { IndexRow } from "@/components/ui/index-row";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
-import { SettingsRow } from "@/components/ui/settings-row";
 import { Spinner } from "@/components/ui/spinner";
+import { BackButton, TopBar } from "@/components/ui/top-bar";
+import { useTranslation } from "react-i18next";
 import { ScrollView, View } from "react-native";
-import { CoverCrop } from "../components/cover-crop";
-import { EventCover } from "../components/event-cover";
 import { useEventSettingsScreen } from "../hooks/use-event-settings-screen";
 
+/** Roll settings for an upcoming or open roll. */
 const EventSettingsScreen = () => {
-  const {
-    event,
-    isLoading,
-    isDeleting,
-    dateSummary,
-    coverSummary,
-    isUpdatingCover,
-    handleChangeCover,
-    coverCrop,
-    handleOpenTitle,
-    handleOpenDescription,
-    handleOpenDate,
-    handleDeleteEvent,
-  } = useEventSettingsScreen();
+  const { t } = useTranslation(["roll", "common"]);
+  const screen = useEventSettingsScreen();
 
-  if (isLoading || !event) {
+  if (screen.isLoading || !screen.event) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <Spinner label="Loading event settings" />
+      <View className="flex-1 items-center justify-center bg-ground">
+        <Spinner label={t("roll:settings.loading")} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-4 pt-4 pb-6">
-        <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <EventCover eventId={event.id} uri={event.coverUrl} />
-          <SettingsRow
-            title="Cover Photo"
-            description={coverSummary}
-            icon="image-outline"
-            onPress={handleChangeCover}
-            disabled={isDeleting || isUpdatingCover}
+    <SafeAreaView className="flex-1 bg-ground">
+      <TopBar
+        title={t("roll:settings.title")}
+        left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
+      />
+
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-8 pt-4">
+        <Display>{screen.title}</Display>
+        <EdgePrint className="mt-2">{screen.subtitle}</EdgePrint>
+
+        <View className="mt-8">
+          <IndexRow first label={t("roll:settings.name")} value={screen.nameValue} onPress={screen.onOpenName} />
+          <IndexRow label={t("roll:settings.cover")} value={screen.coverValue} onPress={screen.onOpenCover} />
+          <IndexRow label={t("roll:settings.note")} value={screen.noteValue} onPress={screen.onOpenNote} />
+          <IndexRow
+            label={t("roll:settings.when")}
+            value={screen.whenValue}
+            lit={!screen.scheduleLocked}
+            onPress={screen.onOpenWhen}
           />
+          <IndexRow
+            label={t("roll:settings.film")}
+            value={screen.filmValue}
+            lit={!screen.scheduleLocked}
+            onPress={screen.onOpenFilm}
+          />
+          <IndexRow label={t("roll:settings.storage")} value={screen.storageValue} />
+          <IndexRow
+            label={t("roll:settings.envelopes")}
+            value={screen.envelopesValue}
+            onPress={screen.onOpenEnvelopes}
+          />
+          <IndexRow muted label={t("roll:settings.delete")} value={screen.deleteValue} />
         </View>
 
-        <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <SettingsRow
-            title="Title"
-            description={event.title}
-            icon="text-outline"
-            onPress={handleOpenTitle}
-            disabled={isDeleting}
-          />
-          <View className="h-px bg-border" />
-          <SettingsRow
-            title="Description"
-            description={event.description?.trim() ? event.description : "Not set"}
-            icon="document-text-outline"
-            onPress={handleOpenDescription}
-            disabled={isDeleting}
-          />
-          <View className="h-px bg-border" />
-          <SettingsRow
-            title="Date & Time"
-            description={dateSummary}
-            icon="calendar-outline"
-            onPress={handleOpenDate}
-            disabled={isDeleting}
-          />
-        </View>
-
-        <View className="gap-3">
-          <H3>Danger Zone</H3>
-          <View className="overflow-hidden rounded-2xl border border-border bg-surface">
-            <SettingsRow
-              title={isDeleting ? "Deleting event…" : "Delete Event"}
-              description="Permanently delete this event and all of its photos. This cannot be undone."
-              icon="trash-outline"
-              onPress={handleDeleteEvent}
-              destructive
-              disabled={isDeleting}
-            />
-          </View>
-        </View>
+        {screen.scheduleLocked ? (
+          <EdgePrint className="mt-6">{t("roll:settings.scheduleLockedNote")}</EdgePrint>
+        ) : null}
       </ScrollView>
-      <CoverCrop {...coverCrop} />
+
+      <FilmGrain />
     </SafeAreaView>
   );
 };

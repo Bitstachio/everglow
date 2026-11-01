@@ -2,13 +2,14 @@ import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
-import { useDeleteEventMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
-import { formatEventDateTime } from "../utils";
-import { useChangeEventCover } from "./use-change-event-cover";
+import { formatClosesUntil, formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
 
+/** Roll settings for upcoming and open galleries. Row actions wire up in later slices. */
 export const useEventSettingsScreen = () => {
+  const { t } = useTranslation("roll");
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
@@ -16,16 +17,11 @@ export const useEventSettingsScreen = () => {
 
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
-  const deleteEventMutation = useDeleteEventMutation();
-  const { isUpdatingCover, handleChangeCover, coverCrop } = useChangeEventCover(
-    eventId ?? "",
-    Boolean(eventQuery.data?.coverUrl),
-  );
 
   const event = eventQuery.data ?? null;
   const participants = participantsQuery.data ?? [];
-  const currentParticipant = participants.find((participant) => participant.userId === user?.id);
-  const isAdmin = event?.creatorId === user?.id || currentParticipant?.accessLevel === "ORGANIZER";
+  const role = event ? rollRole(event, participants, user?.id) : "viewer";
+  const isHost = role === "host";
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
 
   useEffect(() => {
@@ -36,60 +32,52 @@ export const useEventSettingsScreen = () => {
 
   useEffect(() => {
     if (isLoading || !event) return;
-    if (!isAdmin) router.back();
-  }, [isLoading, event, isAdmin, router]);
+    if (!isHost) router.back();
+  }, [isLoading, event, isHost, router]);
 
-  const dateSummary = event
-    ? (() => {
-        const { date, time } = formatEventDateTime(event.date);
-        return `${date} · ${time}`;
-      })()
+  // Date and film lock once the gallery is no longer upcoming (EVENT_SCHEDULE_LOCKED).
+  const scheduleLocked = event ? event.galleryState !== "UPCOMING" : false;
+
+  const subtitle = event
+    ? scheduleLocked && event.galleryClosesAt
+      ? t("settings.openUntil", { until: formatClosesUntil(event.galleryClosesAt) })
+      : t("settings.opens", { when: formatOpensAt(event.galleryOpensAt) })
     : "";
 
-  const coverSummary = isUpdatingCover ? "Updating cover…" : event?.coverUrl ? "Change or remove the cover" : "Not set";
+  const whenValue = event ? formatOpensAt(event.date) : "";
+  const filmValue =
+    event?.galleryWindowDays != null ? t("settings.filmDays", { count: event.galleryWindowDays }) : "";
+
+  const storage =
+    event != null
+      ? storagePair(Number(event.usage.storageBytes), Number(event.limits.storageBytes))
+      : { used: "0", limit: "" };
+
+  const note = event?.description?.trim() ?? "";
+
+  // TODO: Wire each row to its editor / sheet (date, film, cover, note, envelopes, delete).
+  const later = () => {};
 
   return {
     event,
-    isLoading: isLoading || !event || !isAdmin,
-    isDeleting: deleteEventMutation.isPending,
-    dateSummary,
-    coverSummary,
-    isUpdatingCover,
-    handleChangeCover,
-    coverCrop,
-    handleOpenTitle: () => {
-      if (!eventId) return;
-      router.push(`/events/${eventId}/edit-title`);
-    },
-    handleOpenDescription: () => {
-      if (!eventId) return;
-      router.push(`/events/${eventId}/edit-description`);
-    },
-    handleOpenDate: () => {
-      if (!eventId) return;
-      router.push(`/events/${eventId}/edit-date`);
-    },
-    handleDeleteEvent: () => {
-      if (!eventId) return;
-
-      Alert.alert("Delete Event", "Are you sure you want to delete this event? This action cannot be undone.", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            deleteEventMutation.mutate(eventId, {
-              onSuccess: () => {
-                Alert.alert("Success", "Event deleted successfully");
-                router.replace("/events");
-              },
-              onError: (error) => {
-                Alert.alert("Error", getErrorMessage(error, "Failed to delete event"));
-              },
-            });
-          },
-        },
-      ]);
-    },
+    isLoading: isLoading || !event || !isHost,
+    scheduleLocked,
+    title: event?.title ?? "",
+    subtitle,
+    nameValue: event?.title ?? "",
+    coverValue: event?.coverUrl ? t("settings.coverChange") : t("settings.coverAdd"),
+    noteValue: note || t("settings.noteAdd"),
+    whenValue: scheduleLocked ? t("settings.locked", { value: whenValue }) : whenValue,
+    filmValue: scheduleLocked ? t("settings.locked", { value: filmValue }) : filmValue,
+    storageValue: t("settings.storageUsed", { used: storage.used, limit: storage.limit }),
+    envelopesValue: t("settings.envelopesTwo"),
+    deleteValue: t("settings.deleteAfter"),
+    onBack: () => router.back(),
+    onOpenName: later,
+    onOpenCover: later,
+    onOpenNote: later,
+    onOpenWhen: scheduleLocked ? undefined : later,
+    onOpenFilm: scheduleLocked ? undefined : later,
+    onOpenEnvelopes: later,
   };
 };
