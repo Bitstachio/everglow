@@ -78,9 +78,7 @@ export const useReportCheckScreen = () => {
     : null;
 
   const onBack = () =>
-    router.canGoBack()
-      ? router.back()
-      : router.replace({ pathname: "/events/[id]/reports", params: { id: eventId } });
+    router.canGoBack() ? router.back() : router.replace({ pathname: "/events/[id]/reports", params: { id: eventId } });
 
   const decide = (action: ResolveReportDto["action"]) => {
     const report = group?.actionable;
