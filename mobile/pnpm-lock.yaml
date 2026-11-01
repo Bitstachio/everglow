@@ -29,9 +29,6 @@ importers:
       axios:
         specifier: ^1.13.2
         version: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
       expo:
         specifier: ~57.0.24
         version: 57.0.24(f6c56d5a54db484f5617ad94e89ccbc2)
@@ -2382,10 +2379,6 @@ packages:
   clone@1.0.4:
     resolution: {integrity: sha512-JQHZ2QMW6l3aH/j6xCqQThY/9OH4D/9ls34cgkUBiEeocRTU04tHfKPBsUK1PqZCUQM7GiA0IIXJSuXHI64Kbg==}
     engines: {node: '>=0.8'}
-
-  clsx@2.1.1:
-    resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
-    engines: {node: '>=6'}
 
   co@4.6.0:
     resolution: {integrity: sha512-QVb0dM5HvG+uaxitm8wONl7jltx8dqhfU33DcqtOZcLSVIKSDDLDi7+0LbAKiyI8hD9u42m2YxXSkMGWThaecQ==}
@@ -8351,8 +8344,6 @@ snapshots:
       wrap-ansi: 7.0.0
 
   clone@1.0.4: {}
-
-  clsx@2.1.1: {}
 
   co@4.6.0: {}
 

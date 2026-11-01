@@ -31,7 +31,6 @@
     "@react-native-community/netinfo": "12.0.1",
     "@tanstack/react-query": "^5.102.8",
     "axios": "^1.13.2",
-    "clsx": "^2.1.1",
     "expo": "~57.0.24",
     "expo-build-properties": "~57.0.21",
     "expo-camera": "~57.0.5",
