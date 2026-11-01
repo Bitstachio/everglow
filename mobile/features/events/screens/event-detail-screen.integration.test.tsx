@@ -1363,7 +1363,13 @@ describe("people and the menu", () => {
     });
     await user.press(await screen.findByRole("button", { name: "Leave" }));
 
-    await waitFor(() => expect(mockLeave).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
+    await waitFor(() =>
+      expect(mockLeave).toHaveBeenCalledWith({
+        path: { eventId: "event-1" },
+        query: { photos: "KEEP" },
+        throwOnError: true,
+      }),
+    );
     expect(mockReplace).toHaveBeenCalledWith("/events");
     expect([
       mockFindOne.mock.calls.length,

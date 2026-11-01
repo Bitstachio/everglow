@@ -334,7 +334,7 @@ export const useEventDetailScreen = () => {
     // Stop active readers before membership is revoked and their caches are
     // evicted, and keep the roll on screen until Home replaces it.
     setLeftRoll({ event, photos, participants });
-    leaveEventMutation.mutate(eventId, {
+    leaveEventMutation.mutate({ eventId, photos: "KEEP" }, {
       onSuccess: () => {
         closeSheet();
         router.replace("/events");

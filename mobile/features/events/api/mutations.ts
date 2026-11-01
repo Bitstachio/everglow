@@ -114,14 +114,20 @@ export const useDeactivateEventMutation = () => {
   });
 };
 
+export type LeaveEventInput = {
+  eventId: string;
+  /** What happens to the frames you added. A closed roll has already lost them, so it stays KEEP. */
+  photos: MemberPhotos;
+};
+
 export const useLeaveEventMutation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
-    mutationFn: async (eventId) => {
-      await eventsControllerLeave({ path: { eventId }, throwOnError: true });
+  return useMutation<void, Error, LeaveEventInput>({
+    mutationFn: async ({ eventId, photos }) => {
+      await eventsControllerLeave({ path: { eventId }, query: { photos }, throwOnError: true });
     },
-    onSuccess: async (_data, eventId) => {
+    onSuccess: async (_data, { eventId }) => {
       // Membership is gone: refetching these active queries now only returns 403.
       // Cancel and evict them before refreshing Home and navigating away.
       const keys = [eventsKeys.detail(eventId), eventsKeys.photos(eventId), eventsKeys.participants(eventId)];
