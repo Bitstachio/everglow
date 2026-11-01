@@ -353,7 +353,7 @@ While an event is under review:
 
 The report that puts the event under review is escalated with `event_under_review` (§9); later reports are not, since the event is already there. The update only matches an event not yet under review, so of two reports that cross the threshold together exactly one says so.
 
-**Only the platform lifts it**, with `POST /admin/events/:eventId/lift-review` (§8). Resolving the reports does not.
+**Only the platform lifts it**: with `POST /admin/events/:eventId/lift-review` or a restore (§8), or by dismissing the last OPEN event report (`PATCH /admin/reports/:reportId` with `DISMISS`), which lifts the review in the same transaction and logs `event.review.lifted` with `trigger: "dismissal"`. A single false child-safety report therefore no longer freezes an event past its dismissal. Organizers resolving other reports do not lift it.
 
 ---
 
@@ -492,7 +492,7 @@ Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-
   - Everything else waits for the platform.
   - Deactivating stays allowed: it frees the host's place and hides the photos.
 - **The close job keeps every photo of an event under review** until the platform lifts it. It already keeps photos with OPEN reports (built). The next sweep removes them once nothing holds them ([photos-architecture.md](./photos-architecture.md) §12).
-- **Account deletion is never refused**, but it no longer deletes a sole organizer's event that has OPEN reports or is under review. Such an event is left with no members, for the platform, which deletes it when it is done (§8). An event without them is deleted as today.
+- **Account deletion is never refused**, but it no longer deletes a sole organizer's event that has OPEN reports or is under review. Such an event is left with no members, for the platform. Once its last report closes and its review is lifted, the daily evidence job deletes it like any event delete: the rows first, then its photos and cover through the normal purge, which copies every reported object to evidence (`MemberlessEventPurgeService`, `event.memberless.deleted`). The platform may also delete it sooner (§8). An event without pending moderation is deleted with the account, as today.
 
 ### Evidence
 
@@ -516,6 +516,7 @@ Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-
 | --------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Reports and their evidence                    | 1 year after the report closes (`REPORT_RETENTION_DAYS`)  | Purged by the daily evidence job (`MODERATION_EVIDENCE_JOB_ENABLED`, opt-in like the other jobs that delete from S3), objects first |
 | A report under a hold                         | Until `holdUntil`                                         | Purged as above                                                                                                                     |
+| An OPEN report whose target is gone, not held | `REPORT_RETENTION_DAYS` after filing (the ceiling)        | Closed by the evidence job as `TARGET_GONE` (`PHOTO_DELETED`, `ACCOUNT_DELETED` or `EVENT_DELETED`, by `SYSTEM`), then kept and purged as a closed report |
 | Child-safety reports to NCMEC or the police   | 1 year from the submission (`holdUntil`), longer if asked | Purged as above                                                                                                                     |
 | Hash and metadata of a removed intimate image | 1 year after closure, to block identical re-uploads       | Purged as above                                                                                                                     |
 | `note`                                        | As its report                                             | Never logged ([logging-conventions.md §3](../api/docs/logging-conventions.md#3-redaction--pii-the-non-negotiable-rule))             |
@@ -566,7 +567,7 @@ What they can do:
   - Restoring lifts the suspension and the review together, and dismisses its reports about the event itself.
   - A fix changes the title or the description, or removes the cover (its evidence copy is made first).
   - A deleted event goes whatever its state, with its OPEN reports closed first as `EVENT_DELETED`.
-- **Lift a review** (`POST /admin/events/:eventId/lift-review`) and close event reports with `DISMISS`.
+- **Lift a review** (`POST /admin/events/:eventId/lift-review`) and close event reports with `DISMISS`. Dismissing the last OPEN event report lifts the review too (§4).
 - **Set and release holds** (`PUT`/`DELETE /admin/reports/:reportId/hold`), and record a CyberTipline or police reference (`PUT /admin/reports/:reportId/authority-report`). That stores `authorityReportedAt` and holds the report at least a year from the submission (§7). `GET /admin/reports/:reportId` shows both, and an intimate-image report's `removalDueAt`.
 
 **The target: act within 24 hours of a report reaching the platform**, and within 48 hours of an intimate-image request. Apple's reviewers expect the 24 hours, and the TAKE IT DOWN Act requires the 48. The overdue alert (§9) is the safety net.

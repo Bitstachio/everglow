@@ -45,7 +45,7 @@ The role is checked on every request (`PlatformModeratorGuard`), so revoking it 
    - **Violates the terms:** `REMOVE_PHOTO` for a photo, `REMOVE_MEMBER` for a person (`photos: DELETE` to remove all their photos in the event). On a photo that is already gone, `REMOVE_PHOTO` upholds the report.
    - **Doesn't:** `DISMISS`. A photo hidden by its reports comes back.
 4. For a report about the event itself, decide on the event:
-   - **Fine:** `POST /admin/events/:eventId/restore` dismisses its event reports and lifts the review.
+   - **Fine:** `POST /admin/events/:eventId/restore` dismisses its event reports and lifts the review. Dismissing the last OPEN event report with `PATCH` lifts the review as well.
    - **Fixable:** fix the title or description, or remove the cover, then restore.
    - **Not acceptable:** `POST /admin/events/:eventId/suspend`, or `DELETE /admin/events/:eventId`.
 5. **Repeat offenders**, and anyone who targets others across events: `POST /admin/users/:userId/suspend`.
@@ -81,4 +81,6 @@ The TAKE IT DOWN Act requires removal within 48 hours of a valid request (47 U.S
 ## Retention
 
 - Closed reports and their evidence are deleted a year after they close (`REPORT_RETENTION_DAYS`), by the evidence job (`MODERATION_EVIDENCE_JOB_ENABLED`).
+- An OPEN report whose photo, account or event is gone, and that isn't held, is closed by the same job as `TARGET_GONE` a year after it was filed, so a missed report can't keep evidence for ever. Act on it before then: the weekly `report.stale` reminder names it.
+- An event left with no members by an account deletion is deleted by the job once its last report is closed and its review lifted. Its reports and their evidence stay.
 - A hold keeps them until its `holdUntil`, at most 3 years ahead. `report.hold.lapsed` raises a ticket the day after a hold runs out: renew it if the preservation request or legal advice still applies, otherwise leave it and the purge takes the report on schedule.
