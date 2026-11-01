@@ -31,6 +31,8 @@ describe("ALERT_EVENTS", () => {
       REPORT_REMOVAL_DUE_SOON: "report.removal_due_soon",
       REPORT_REMOVAL_OVERDUE: "report.removal_overdue",
       REPORT_EVIDENCE_COPY_FAILED: "report.evidence.copy_failed",
+      REPORT_EVIDENCE_VIEWED: "report.evidence.viewed",
+      REPORT_HOLD_LAPSED: "report.hold.lapsed",
       REPORT_EVIDENCE_JOB_DISABLED: "report.evidence_job.disabled",
 
       ACCOUNT_DELETION_RECONCILE_RUN_COMPLETED: "user.account.deletion_reconcile.run_completed",
