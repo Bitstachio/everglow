@@ -12,9 +12,25 @@ const EVERGLOW_ONLY: readonly ReportReason[] = ["CHILD_SAFETY", "NON_CONSENSUAL_
  * (the API answers 400), and "pretending to be someone" waits on EV-170.
  */
 export const REPORT_REASONS = {
-  frame: ["SPAM", "NUDITY_OR_SEXUAL", "HARASSMENT", "VIOLENCE", "OTHER", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"],
+  frame: [
+    "SPAM",
+    "NUDITY_OR_SEXUAL",
+    "HARASSMENT",
+    "VIOLENCE",
+    "OTHER",
+    "CHILD_SAFETY",
+    "NON_CONSENSUAL_INTIMATE_IMAGE",
+  ],
   person: ["SPAM", "HARASSMENT", "VIOLENCE", "OTHER", "CHILD_SAFETY"],
-  roll: ["SPAM", "NUDITY_OR_SEXUAL", "HARASSMENT", "VIOLENCE", "OTHER", "CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"],
+  roll: [
+    "SPAM",
+    "NUDITY_OR_SEXUAL",
+    "HARASSMENT",
+    "VIOLENCE",
+    "OTHER",
+    "CHILD_SAFETY",
+    "NON_CONSENSUAL_INTIMATE_IMAGE",
+  ],
 } as const satisfies Record<ReportTarget, readonly ReportReason[]>;
 
 export const goesOnlyToEverglow = (reason: ReportReason) => EVERGLOW_ONLY.includes(reason);
