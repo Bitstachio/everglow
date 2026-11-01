@@ -1,6 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Prisma, ReportReason, ReportStatus } from "generated/prisma/client";
+import {
+  Prisma,
+  ReportActorRole,
+  ReportClosedReason,
+  ReportReason,
+  ReportStatus,
+  ReportTargetType,
+} from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
 import { deleteObjectWithDerivatives } from "src/photos/photo-object-deletion";
@@ -10,6 +17,13 @@ import { STALE_REPORT_SAMPLE_SIZE } from "../moderation.constants";
 import { OPEN_REPORT_REMINDER_DAYS, daysBefore } from "../report-deadlines";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Why the ceiling closes a report: what of its target is gone. */
+const TARGET_GONE_CLOSED_REASON: Record<ReportTargetType, ReportClosedReason> = {
+  PHOTO: ReportClosedReason.PHOTO_DELETED,
+  MEMBER: ReportClosedReason.ACCOUNT_DELETED,
+  EVENT: ReportClosedReason.EVENT_DELETED,
+};
 import { buildEvidenceS3Key } from "./evidence.constants";
 
 /** What a new report was about, as written to its ReportEvidence row. */
@@ -43,6 +57,8 @@ export interface EvidenceJobResult {
   openOlderThanDays: number;
   /** Holds that ran out in the day before this run, announced in `report.hold.lapsed`. */
   holdsLapsed: number;
+  /** OPEN reports past the retention window whose target is gone, closed as TARGET_GONE (the ceiling). */
+  closedTargetGone: number;
 }
 
 type QuarantineCandidate = { id: string; reportId: string; objectS3Key: string | null };
@@ -192,10 +208,12 @@ export class EvidenceService {
       purgeFailed: 0,
       openOlderThanDays: 0,
       holdsLapsed: 0,
+      closedTargetGone: 0,
     };
 
     await this.retryFailedCopies(batchSize, result);
     result.holdsLapsed = await this.reportLapsedHolds(now);
+    result.closedTargetGone = await this.closeAbandonedOpenReports(now, batchSize);
     await this.purgeExpired(now, batchSize, result);
     result.openOlderThanDays = await this.prisma.report.count({
       where: { status: ReportStatus.OPEN, createdAt: { lt: daysBefore(now, OPEN_REPORT_REMINDER_DAYS) } },
@@ -235,6 +253,64 @@ export class EvidenceService {
       now,
     );
     return lapsed.length;
+  }
+
+  /**
+   * The ceiling on OPEN reports (docs/moderation.md §7): one filed more than
+   * REPORT_RETENTION_DAYS ago whose target is gone (the photo, the account or
+   * the event) and that isn't held closes as TARGET_GONE, by the system. Its
+   * evidence then follows the ordinary retention from that day. Nothing about
+   * it is left to remove, and the weekly reminder has named it all along.
+   */
+  private async closeAbandonedOpenReports(now: Date, batchSize: number): Promise<number> {
+    const retentionDays = this.configService.getOrThrow<number>("moderation.reportRetentionDays");
+    const abandoned = await this.prisma.report.findMany({
+      where: {
+        status: ReportStatus.OPEN,
+        createdAt: { lt: daysBefore(now, retentionDays) },
+        AND: [
+          { OR: [{ holdUntil: null }, { holdUntil: { lt: now } }] },
+          {
+            OR: [
+              { targetType: ReportTargetType.PHOTO, photoId: null },
+              { targetType: ReportTargetType.MEMBER, reportedUserId: null },
+              { targetType: ReportTargetType.EVENT, eventId: null },
+            ],
+          },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      take: batchSize,
+      select: { id: true, targetType: true },
+    });
+    if (abandoned.length === 0) return 0;
+
+    let closed = 0;
+    for (const targetType of Object.values(ReportTargetType)) {
+      const ids = abandoned.filter((report) => report.targetType === targetType).map((report) => report.id);
+      if (ids.length === 0) continue;
+      const { count } = await this.prisma.report.updateMany({
+        where: { id: { in: ids }, status: ReportStatus.OPEN },
+        data: {
+          status: ReportStatus.TARGET_GONE,
+          closedReason: TARGET_GONE_CLOSED_REASON[targetType],
+          closedByRole: ReportActorRole.SYSTEM,
+          resolvedAt: now,
+        },
+      });
+      closed += count;
+    }
+    this.logger.info(
+      {
+        event: "report.retention.open_closed",
+        closed,
+        reportIds: abandoned.slice(0, STALE_REPORT_SAMPLE_SIZE).map((report) => report.id),
+        retentionDays,
+        audit: true,
+      },
+      "Open reports past the retention window, whose target is gone, closed",
+    );
+    return closed;
   }
 
   /**
