@@ -27,6 +27,11 @@ export const MODERATION_API_ERRORS = {
     status: HttpStatus.NOT_FOUND,
     message: ({ reportId }: { reportId: string }) => `Report "${reportId}" has no reported object to show`,
   },
+  EVIDENCE_REPORT_CLOSED: {
+    status: HttpStatus.FORBIDDEN,
+    message: ({ reportId }: { reportId: string }) =>
+      `Report "${reportId}" is closed and not held, so its evidence is shut`,
+  },
   PLATFORM_MODERATOR_ONLY: {
     status: HttpStatus.FORBIDDEN,
     message: "Only platform moderators may do this",

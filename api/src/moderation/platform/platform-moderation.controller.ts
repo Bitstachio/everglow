@@ -11,19 +11,25 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
   ApiNoContentResponse,
+  ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
+import type { Response } from "express";
+import { pipeline } from "node:stream/promises";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { RateLimit } from "src/common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "src/common/swagger/api-wrapped-response.decorator";
 import { ReportsService } from "../reports.service";
 import { ListPlatformReportsQueryDto } from "./dto/list-platform-reports-query.dto";
@@ -32,11 +38,7 @@ import {
   ResolvePlatformReportDto,
   SetReportHoldDto,
 } from "./dto/platform-report-actions.dto";
-import {
-  EvidenceUrlResponseDto,
-  PlatformReportListResponseDto,
-  PlatformReportResponseDto,
-} from "./dto/platform-report-response.dto";
+import { PlatformReportListResponseDto, PlatformReportResponseDto } from "./dto/platform-report-response.dto";
 import { EditEventAsPlatformDto } from "./dto/platform-event-actions.dto";
 import { PlatformEnforcementService } from "./platform-enforcement.service";
 import { PlatformModerationService } from "./platform-moderation.service";
@@ -45,8 +47,9 @@ import { PlatformReportMapper } from "./platform-report.mapper";
 
 /**
  * The platform's moderation tools (docs/moderation.md §8). Platform
- * moderators only: anyone else gets 403 PLATFORM_MODERATOR_ONLY. Not rate
- * limited per user; every action is audit-logged.
+ * moderators only: anyone else gets 403 PLATFORM_MODERATOR_ONLY. Every
+ * action is audit-logged; looking at evidence is also on the `sensitive` rate
+ * limit tier.
  */
 @ApiTags("admin")
 @ApiBearerAuth("access-token")
@@ -78,19 +81,41 @@ export class PlatformModerationController {
     return PlatformReportMapper.toResponseDto(await this.platformModerationService.getReport(reportId));
   }
 
-  @Post("reports/:reportId/evidence-url")
+  @Get("reports/:reportId/evidence")
+  @RateLimit("sensitive")
   @ApiOperation({
-    summary: "Get a short-lived link to what a report is about (platform moderators)",
+    summary: "Look at what a report is about (platform moderators)",
     description:
-      "The evidence copy once there is one, the live object before that. Expires after 5 minutes. Every link is " +
-      "logged. 404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept.",
+      "Streams the evidence copy once there is one, the live object before that, as the raw image with " +
+      "Cache-Control: no-store; no URL is handed out. Every request is logged with the moderator's id " +
+      "(report.evidence.viewed). 403 EVIDENCE_REPORT_CLOSED for a closed report that isn't held. " +
+      "404 EVIDENCE_NOT_AVAILABLE for a member report, or a report whose object was never kept or was discarded.",
   })
-  @ApiWrappedResponse(EvidenceUrlResponseDto, "A GET URL and when it expires", 201)
-  async evidenceUrl(
+  @ApiProduces("image/*", "application/octet-stream")
+  @ApiOkResponse({
+    description: "The reported image",
+    content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
+  })
+  async evidence(
     @CurrentUser() user: AuthenticatedUser,
     @Param("reportId", ParseUUIDPipe) reportId: string,
-  ): Promise<EvidenceUrlResponseDto> {
-    return this.platformModerationService.evidenceUrl(reportId, user.id);
+    @Res() res: Response,
+  ): Promise<void> {
+    const evidence = await this.platformModerationService.openEvidence(reportId, user.id);
+    res.status(HttpStatus.OK);
+    res.setHeader("Content-Type", evidence.contentType);
+    if (evidence.contentLength !== null) res.setHeader("Content-Length", String(evidence.contentLength));
+    // Nothing on the way may keep a copy: not the moderator's browser, not a proxy.
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    try {
+      await pipeline(evidence.body, res);
+    } catch {
+      // The moderator went away mid-stream, or S3 did; the headers are gone,
+      // so there is nothing to answer. pipeline() has closed both ends.
+    }
   }
 
   @Patch("reports/:reportId")
