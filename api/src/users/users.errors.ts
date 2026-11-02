@@ -3,6 +3,17 @@ import type { ApiErrorDefinition } from "src/common/errors/api-error.types";
 import { USERNAME_CHANGE_LIMIT, USERNAME_CHANGE_WINDOW_DAYS } from "./users.constants";
 
 export const USER_API_ERRORS = {
+  // 401, the status the auth guard uses, so a client that knows nothing of it
+  // still signs out; the code lets the app say why (docs/account-deletion.md §4).
+  ACCOUNT_DELETION_IN_PROGRESS: {
+    status: HttpStatus.UNAUTHORIZED,
+    message: "This account is being deleted",
+  },
+  // Nothing was changed: the saga could not have finished, so it never started.
+  ACCOUNT_DELETION_UNAVAILABLE: {
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    message: "Account deletion is not available right now",
+  },
   ACCOUNT_SUSPENDED: {
     status: HttpStatus.FORBIDDEN,
     message: "Account is suspended",

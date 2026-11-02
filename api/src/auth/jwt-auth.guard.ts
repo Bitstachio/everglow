@@ -2,7 +2,7 @@ import { ExecutionContext, Injectable, ServiceUnavailableException, Unauthorized
 import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
 import { ApiException } from "src/common/errors/api.exception";
-import { ALLOW_SUSPENDED_KEY } from "./allow-suspended.decorator";
+import { ALLOW_DELETION_IN_PROGRESS_KEY, ALLOW_SUSPENDED_KEY } from "./allow-suspended.decorator";
 import { AuthenticatedUser } from "./auth.types";
 import { Request } from "express";
 import { ExtractJwt } from "passport-jwt";
@@ -57,8 +57,15 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     // validate() threw: a 401 that already has its reason, or a server failure.
     if (err) throw err;
     if (user) {
+      const caller = user as unknown as AuthenticatedUser;
+      // An account being deleted may only ask again for its deletion, which
+      // resumes the saga (docs/account-deletion.md §4). Checked before the
+      // suspension: a suspended account that started deleting itself is going.
+      if (caller.deletionInProgress && !this.allows(context, ALLOW_DELETION_IN_PROGRESS_KEY)) {
+        throw new ApiException("ACCOUNT_DELETION_IN_PROGRESS");
+      }
       // A suspended account reads and deletes itself, nothing else (docs/moderation.md §8).
-      if ((user as unknown as AuthenticatedUser).suspended && !this.allowsSuspended(context)) {
+      if (caller.suspended && !this.allows(context, ALLOW_SUSPENDED_KEY)) {
         throw new ApiException("ACCOUNT_SUSPENDED");
       }
       return user;
@@ -78,10 +85,7 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     );
   }
 
-  private allowsSuspended(context: ExecutionContext): boolean {
-    return (
-      this.reflector.getAllAndOverride<boolean>(ALLOW_SUSPENDED_KEY, [context.getHandler(), context.getClass()]) ===
-      true
-    );
+  private allows(context: ExecutionContext, key: string): boolean {
+    return this.reflector.getAllAndOverride<boolean>(key, [context.getHandler(), context.getClass()]) === true;
   }
 }

@@ -16,6 +16,7 @@ import {
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -41,7 +42,7 @@ import { UserAvatarService } from "./user-avatar.service";
 import { UsersService } from "./users.service";
 import { UserWithDetails } from "./users.types";
 import { EventPlanService } from "src/plans/event-plan.service";
-import { AllowSuspended } from "src/auth/allow-suspended.decorator";
+import { AllowDeletionInProgress, AllowSuspended } from "src/auth/allow-suspended.decorator";
 
 @ApiTags("users")
 @ApiBearerAuth("access-token")
@@ -161,10 +162,21 @@ export class UsersController {
 
   @Delete("me")
   @AllowSuspended()
+  @AllowDeletionInProgress()
   @RateLimit("sensitive")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Delete current user" })
+  @ApiOperation({
+    summary: "Delete current user",
+    description:
+      "Checks first that the deletion can finish (Auth0 management access, and Sign in with Apple revocation " +
+      "for an Apple identity); if not, 503 ACCOUNT_DELETION_UNAVAILABLE and nothing is changed. An account " +
+      "whose deletion has already started may call this again to resume it; every other route answers it " +
+      "401 ACCOUNT_DELETION_IN_PROGRESS, as does this one while the background job is finishing it.",
+  })
   @ApiNoContentResponse({ description: "User deleted (empty data envelope at runtime)" })
+  @ApiServiceUnavailableResponse({
+    description: "ACCOUNT_DELETION_UNAVAILABLE: the deletion could not finish right now, so nothing was changed",
+  })
   async removeMe(@CurrentUser() user: AuthenticatedUser, @Query() query: DeleteAccountQueryDto): Promise<void> {
     return this.usersService.remove(user.id, query.photos);
   }
