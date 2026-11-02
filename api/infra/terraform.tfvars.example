@@ -1,2 +1,12 @@
 # Copy to terraform.tfvars (gitignored) and fill in.
 alert_emails = ["you@example.com"]
+
+# The environment whose API logs are alerted on, and the jobs it runs. Match
+# api/copilot/api/manifest.yml for that environment.
+# api_log_group_name = "/copilot/everglow-staging-api"
+# api_jobs_enabled = {
+#   account_deletion_reconciler = true
+#   photo_orphan_reconciler     = true
+#   gallery_close               = true
+#   moderation_evidence_job     = true
+# }

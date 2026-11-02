@@ -28,6 +28,10 @@ locals {
     local.image_processor_session_arn,
   ]
   alert_rules = [aws_cloudwatch_event_rule.photo_read_by_person.arn, aws_cloudwatch_event_rule.privacy_controls_changed.arn]
+  cloudwatch_alarms = concat(
+    [aws_cloudwatch_metric_alarm.photo_uploads_dlq.arn],
+    [for alarm in aws_cloudwatch_metric_alarm.api : alarm.arn],
+  )
 }
 
 # --- KMS: the photos key --------------------------------------------------------
@@ -213,14 +217,17 @@ resource "aws_sns_topic_policy" "security_alerts" {
         Condition = { ArnEquals = { "aws:SourceArn" = local.alert_rules } }
       },
       {
-        # The image processor's DLQ alarm (image-processor.tf) publishes as
-        # CloudWatch, not EventBridge.
-        Sid       = "CloudWatchPublishesDlqAlarm"
+        # CloudWatch alarms publish as CloudWatch, not EventBridge: the image
+        # processor's DLQ alarm (image-processor.tf) and the API log alarms
+        # (moderation-alerts.tf). Listed by ARN rather than by a name prefix,
+        # so an alarm made outside Terraform cannot post to the security topic
+        # and pass for one of ours.
+        Sid       = "CloudWatchPublishesOurAlarms"
         Effect    = "Allow"
         Principal = { Service = "cloudwatch.amazonaws.com" }
         Action    = "sns:Publish"
         Resource  = aws_sns_topic.security_alerts.arn
-        Condition = { ArnEquals = { "aws:SourceArn" = aws_cloudwatch_metric_alarm.photo_uploads_dlq.arn } }
+        Condition = { ArnEquals = { "aws:SourceArn" = local.cloudwatch_alarms } }
       },
     ]
   })
