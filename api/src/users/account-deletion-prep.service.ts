@@ -11,6 +11,7 @@ import { PinoLogger } from "nestjs-pino";
 import { lockPendingModeration } from "src/moderation/pending-moderation";
 import { EscalatedReport, escalateToPlatform, logEscalations } from "src/moderation/report-escalation";
 import { closeMemberReportsOnDeletedAccount, closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
+import { uploaderIdInPhotoS3Key } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
 import { AccountDeletionEventOutcome } from "./users.constants";
@@ -255,6 +256,20 @@ export class AccountDeletionPrepService {
       }
       photosDeleted = ready.length;
     } else {
+      // Kept photos whose key still names the account move to a key that
+      // doesn't (photos/{eventId}/{photoId}): every presigned URL carries the
+      // key, and a former user id in it would let anyone group the person's
+      // kept photos across events. The move is S3 work, queued here and done
+      // by the outbox once this commits.
+      const named = await tx.photo.findMany({
+        where: { addedById: userId },
+        select: { id: true, eventId: true, s3Key: true },
+      });
+      await this.outbox.enqueueRekey(
+        tx,
+        userId,
+        named.filter((photo) => uploaderIdInPhotoS3Key(photo.s3Key) === userId.toLowerCase()),
+      );
       // Photo.addedById is SET NULL, so the row would survive the user anyway;
       // doing it here makes the outcome explicit and countable.
       const { count } = await tx.photo.updateMany({ where: { addedById: userId }, data: { addedById: null } });
