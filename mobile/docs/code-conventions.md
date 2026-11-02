@@ -183,7 +183,7 @@ Full patterns: [Exception handling](./exception-handling.md).
 | `local/no-component-folder` | No `index` entries; no same-named folders that only wrap a component (+ tests) |
 | `local/no-stylesheet`       | No React Native `StyleSheet` (use NativeWind)                                  |
 
-Styling: prefer NativeWind `className` and theme tokens. Do not use `StyleSheet` — see [Theme](./theme.md#no-stylesheet).
+Styling: prefer NativeWind `className` and theme tokens. Do not use `StyleSheet` — see [Theme](./theme.md#no-stylesheet). For conditional or composed class lists, use `cn` from `@/lib/cn` — see [Theme](./theme.md#conditional-classname). Do not add new array + `.filter(Boolean).join(" ")` className builders.
 
 ### `app/`: Expo Router routes
 

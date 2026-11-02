@@ -1,6 +1,6 @@
 import type { LegalSection } from "./components/legal-document";
 
-export const LEGAL_LAST_UPDATED = "September 22, 2026";
+export const LEGAL_LAST_UPDATED = "November 1, 2026";
 
 export const PRIVACY_POLICY_INTRO =
   "Everglow lets you share photos inside private events. This policy explains what we collect, why we collect it, and the choices you have.";
@@ -20,7 +20,7 @@ export const PRIVACY_POLICY_SECTIONS: LegalSection[] = [
   },
   {
     heading: "Data retention",
-    body: "We keep your account data for as long as your account is active. When you delete your account you choose whether your uploaded photos stay in shared events or are removed from them. Deleted content is purged from our systems shortly afterward.",
+    body: "We keep your account data for as long as your account is active. When you delete your account you choose whether your uploaded photos stay in shared events or are removed from them. Deleted content is removed from our systems shortly afterward, with one exception: reports, including reports about you or filed by you, and copies of the photos they are about, are kept for up to a year after the report is closed, for safety and legal reasons. If the law requires us to preserve them, we keep them until that hold ends. Then they are removed.",
   },
   {
     heading: "Your choices",
@@ -28,7 +28,7 @@ export const PRIVACY_POLICY_SECTIONS: LegalSection[] = [
   },
   {
     heading: "Contact us",
-    body: "If you have questions about this policy or about the data we hold, reach us at privacy@everglow.app.",
+    body: "If you have questions about this policy or about the data we hold, reach us at hello@everglow.social.",
   },
 ];
 

@@ -73,6 +73,8 @@ const DeleteAccountScreen = () => {
             )}
           </View>
         ) : null}
+
+        <Text className="mt-9.5 font-sans text-body text-text-2">{t("delete.kept")}</Text>
       </ScrollView>
 
       <View className="gap-2.5 px-5 pb-1 pt-3">
