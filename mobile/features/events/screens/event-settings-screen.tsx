@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
 import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
+import { CoverCrop } from "../components/cover-crop";
 import { FilmChoice } from "../components/film-choice";
 import { WhenSlip } from "../components/when-slip";
 import { useEventSettingsScreen } from "../hooks/use-event-settings-screen";
@@ -41,7 +42,12 @@ const EventSettingsScreen = () => {
 
         <View className="mt-8">
           <IndexRow first label={t("roll:settings.name")} value={screen.nameValue} onPress={screen.onOpenName} />
-          <IndexRow label={t("roll:settings.cover")} value={screen.coverValue} onPress={screen.onOpenCover} />
+          <IndexRow
+            label={t("roll:settings.cover")}
+            value={screen.coverValue}
+            disabled={screen.isUpdatingCover}
+            onPress={screen.onOpenCover}
+          />
           <IndexRow label={t("roll:settings.note")} value={screen.noteValue} onPress={screen.onOpenNote} />
           <IndexRow
             label={t("roll:settings.when")}
@@ -70,6 +76,8 @@ const EventSettingsScreen = () => {
       </ScrollView>
 
       <FilmGrain />
+
+      <CoverCrop {...screen.coverCrop} />
 
       <BottomSheet visible={when.visible} onClose={when.onClose}>
         <WhenSlip

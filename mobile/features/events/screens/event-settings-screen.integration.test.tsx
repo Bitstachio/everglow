@@ -137,6 +137,33 @@ test("opens name and note editors from the index", async () => {
   expect(mockPush).toHaveBeenCalledWith("/events/event-1/edit-description");
 });
 
+test("opens the cover menu to add a photo", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  await renderScreen(buildEvent({ galleryState: "UPCOMING", coverUrl: null }));
+  await userEvent.setup().press(await screen.findByRole("button", { name: "Cover, Add" }));
+  expect(alert).toHaveBeenCalledWith(
+    "Cover",
+    undefined,
+    expect.arrayContaining([
+      expect.objectContaining({ text: "Take Photo" }),
+      expect.objectContaining({ text: "Choose from Library" }),
+      expect.objectContaining({ text: "Cancel" }),
+    ]),
+  );
+  const buttons = alert.mock.calls[0][2] as { text?: string }[];
+  expect(buttons.map((button) => button.text)).not.toContain("Remove Cover");
+});
+
+test("offers remove when the roll already has a cover", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  await renderScreen(
+    buildEvent({ galleryState: "OPEN", coverUrl: "https://cdn.example.com/cover.jpg" }),
+  );
+  await userEvent.setup().press(await screen.findByRole("button", { name: "Cover, Change" }));
+  const buttons = alert.mock.calls[0][2] as { text?: string }[];
+  expect(buttons.map((button) => button.text)).toContain("Remove Cover");
+});
+
 test("opens when and film slips while upcoming", async () => {
   await renderScreen(
     buildEvent({

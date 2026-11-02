@@ -25,6 +25,7 @@ import {
   WEEKDAY_INITIALS,
 } from "../lib/new-roll";
 import { formatClosesUntil, formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
+import { useChangeEventCover } from "./use-change-event-cover";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
 
@@ -42,6 +43,7 @@ export const useEventSettingsScreen = () => {
   const updateMutation = useUpdateEventMutation(eventId ?? "");
 
   const event = eventQuery.data ?? null;
+  const cover = useChangeEventCover(eventId ?? "", Boolean(event?.coverUrl));
   const participants = participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
   const isHost = role === "host";
@@ -189,7 +191,7 @@ export const useEventSettingsScreen = () => {
     }
   };
 
-  // TODO: Wire cover, envelopes, and delete.
+  // TODO: Wire envelopes and delete.
   const later = () => {};
 
   return {
@@ -210,7 +212,9 @@ export const useEventSettingsScreen = () => {
     onOpenName: () => {
       if (eventId) router.push(`/events/${eventId}/edit-title`);
     },
-    onOpenCover: later,
+    onOpenCover: cover.handleChangeCover,
+    isUpdatingCover: cover.isUpdatingCover,
+    coverCrop: cover.coverCrop,
     onOpenNote: () => {
       if (eventId) router.push(`/events/${eventId}/edit-description`);
     },
