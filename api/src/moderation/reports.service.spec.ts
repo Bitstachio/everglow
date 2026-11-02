@@ -1383,9 +1383,22 @@ describe("ReportsService", () => {
 
         await service.resolveReport(reportId, callerId, "REMOVE_MEMBER");
 
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.objectContaining({ reportId: moved.id, escalationReasons: ["severe_dismissed"], callerId }),
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "report.moved_to_platform",
+            reportId: moved.id,
+            escalationReasons: ["severe_dismissed"],
+            callerId,
+          }),
           "Report moved to the platform",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "report.escalated",
+            reportId: moved.id,
+            escalationReasons: ["severe_dismissed"],
+          }),
+          "Report needs platform attention",
         );
       });
 
