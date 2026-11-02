@@ -2,6 +2,8 @@ import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AuthenticationClient, ManagementClient, ManagementError } from "auth0";
 import { PinoLogger } from "nestjs-pino";
+// The tombstone's hash, so a failure here can be matched to a deletion without naming the subject.
+import { hashProviderSub } from "src/users/deleted-provider-sub";
 import {
   AUTH0_MANAGEMENT_ERRORS,
   MANAGEMENT_ACCESS_CACHE_MAX_SECONDS,
@@ -141,8 +143,11 @@ export class Auth0ManagementService {
     } catch (error) {
       if (isAuth0NotFound(error)) return null;
 
-      this.logger.error({ err: error as Error, providerSub, provider }, "auth0 getUser failed");
-      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.GET_USER_FAILED(providerSub));
+      this.logger.error(
+        { err: error as Error, providerSubHash: hashProviderSub(providerSub), provider },
+        "auth0 getUser failed",
+      );
+      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.GET_USER_FAILED());
     }
   }
 
@@ -153,8 +158,11 @@ export class Auth0ManagementService {
     } catch (error) {
       if (isAuth0NotFound(error)) return;
 
-      this.logger.error({ err: error as Error, providerSub }, "auth0 deleteUser failed");
-      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.DELETE_USER_FAILED(providerSub));
+      this.logger.error(
+        { err: error as Error, providerSubHash: hashProviderSub(providerSub) },
+        "auth0 deleteUser failed",
+      );
+      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.DELETE_USER_FAILED());
     }
   }
 
@@ -192,7 +200,10 @@ export class Auth0ManagementService {
     } catch (error) {
       if (error instanceof InternalServerErrorException) throw error;
 
-      this.logger.error({ err: error as Error, providerSub }, "auth0 createPasswordChangeTicket failed");
+      this.logger.error(
+        { err: error as Error, providerSubHash: hashProviderSub(providerSub) },
+        "auth0 createPasswordChangeTicket failed",
+      );
       throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED());
     }
   }

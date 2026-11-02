@@ -2,7 +2,9 @@ import { InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ManagementClient, ManagementError } from "auth0";
+import { mockDeep, mockReset } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { hashProviderSub } from "src/users/deleted-provider-sub";
 import { AUTH0_MANAGEMENT_ERRORS } from "./auth0-management.constants";
 import { Auth0ManagementService, grantedScopesOf } from "./auth0-management.service";
 
@@ -34,6 +36,7 @@ jest.mock("auth0", () => {
 
 describe("Auth0ManagementService", () => {
   let service: Auth0ManagementService;
+  const logger = mockDeep<PinoLogger>();
 
   const buildService = async (credentials: Record<string, string | undefined>): Promise<Auth0ManagementService> => {
     const module: TestingModule = await Test.createTestingModule({
@@ -64,6 +67,7 @@ describe("Auth0ManagementService", () => {
     mockGetUser.mockReset();
     mockChangePassword.mockReset();
     mockClientCredentialsGrant.mockReset();
+    mockReset(logger);
     jest.mocked(ManagementClient).mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -86,18 +90,52 @@ describe("Auth0ManagementService", () => {
         },
         {
           provide: PinoLogger,
-          useValue: {
-            setContext: jest.fn(),
-            error: jest.fn(),
-            info: jest.fn(),
-            warn: jest.fn(),
-            debug: jest.fn(),
-          },
+          useValue: logger,
         },
       ],
     }).compile();
 
     service = module.get(Auth0ManagementService);
+  });
+
+  describe("logs a failure without the Auth0 subject", () => {
+    const providerSub = "auth0|abc123";
+    const failure = () => new ManagementError({ message: "boom", statusCode: 500 });
+
+    /** The one error line, with the subject's tombstone hash and not the subject. */
+    const expectLoggedWithoutSubject = () => {
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error.mock.calls[0][0]).toMatchObject({ providerSubHash: hashProviderSub(providerSub) });
+      expect(JSON.stringify(logger.error.mock.calls[0])).not.toContain(providerSub);
+    };
+
+    it("when reading the user", async () => {
+      mockGetUser.mockRejectedValue(failure());
+
+      const thrown: unknown = await service
+        .getIdentityProviderTokens(providerSub, "apple")
+        .catch((error: unknown) => error);
+
+      expect((thrown as Error).message).not.toContain(providerSub);
+      expectLoggedWithoutSubject();
+    });
+
+    it("when deleting the user", async () => {
+      mockDeleteUser.mockRejectedValue(failure());
+
+      const thrown: unknown = await service.deleteUser(providerSub).catch((error: unknown) => error);
+
+      expect((thrown as Error).message).not.toContain(providerSub);
+      expectLoggedWithoutSubject();
+    });
+
+    it("when minting a password-change ticket", async () => {
+      mockChangePassword.mockRejectedValue(failure());
+
+      await service.createPasswordChangeTicket(providerSub).catch(() => undefined);
+
+      expectLoggedWithoutSubject();
+    });
   });
 
   it("deletes the Auth0 user by providerSub", async () => {
