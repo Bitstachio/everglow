@@ -142,6 +142,23 @@
       "save": "Save",
       "tooLong": "255 characters at most",
       "failed": "Couldn’t update the note. Try again."
+    },
+    "editWhen": {
+      "edge": "When it happens",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "unavailable": "{{day}}, can’t be picked",
+      "move": "Move to {{day}}, {{time}}",
+      "people_one": "{{count}} person will see the new date.",
+      "people_other": "{{count}} people will see the new date.",
+      "failed": "Couldn’t move the date. Try again."
+    },
+    "editFilm": {
+      "heading": "Film",
+      "dayRoll": "day roll",
+      "save": "Save",
+      "failed": "Couldn’t change the film. Try again.",
+      "removed": "Photos removed <value>{{closes}}</value>"
     }
   },
   "leave": {

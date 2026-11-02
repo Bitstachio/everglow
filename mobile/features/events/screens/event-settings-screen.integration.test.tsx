@@ -10,6 +10,8 @@ import { formatClosesUntil, formatOpensAt } from "../lib/roll-page";
 
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
+const mockUpdate = jest.fn();
+const mockLimits = jest.fn();
 const mockBack = jest.fn();
 const mockPush = jest.fn();
 
@@ -20,14 +22,34 @@ jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => 
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
+  eventsControllerUpdate: (...args: unknown[]) => mockUpdate(...args),
+  usersControllerGetMyLimits: (...args: unknown[]) => mockLimits(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: mockBack, push: mockPush }),
   useLocalSearchParams: () => ({ id: mockEventId }),
 }));
+jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
 const clients: QueryClient[] = [];
+
+const limits = () => ({
+  data: {
+    data: {
+      plan: "FREE",
+      limits: { activeEvents: 2 },
+      usage: { activeEvents: 0 },
+      nextClosingEvent: null,
+      newEvent: {
+        plan: "FREE",
+        galleryWindowOptions: [3, 7, 14, 30],
+        defaultGalleryWindowDays: 30,
+        latestDate: new Date(2027, 10, 1, 9, 41).toISOString(),
+      },
+    },
+  },
+});
 
 const renderScreen = async (event = buildEvent()) => {
   const client = new QueryClient({
@@ -36,6 +58,8 @@ const renderScreen = async (event = buildEvent()) => {
   clients.push(client);
   mockFindOne.mockResolvedValue({ data: { data: event } });
   mockGetParticipants.mockResolvedValue({ data: { data: [buildParticipant()] } });
+  mockLimits.mockResolvedValue(limits());
+  mockUpdate.mockResolvedValue({ data: { data: event } });
   await render(
     <QueryClientProvider client={client}>
       <EventSettingsScreen />
@@ -49,6 +73,8 @@ beforeEach(() => {
   mockEventId = "event-1";
   mockFindOne.mockReset();
   mockGetParticipants.mockReset();
+  mockUpdate.mockReset();
+  mockLimits.mockReset();
   mockBack.mockReset();
   mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
@@ -111,6 +137,48 @@ test("opens name and note editors from the index", async () => {
   expect(mockPush).toHaveBeenCalledWith("/events/event-1/edit-description");
 });
 
+test("opens when and film slips while upcoming", async () => {
+  await renderScreen(
+    buildEvent({
+      galleryState: "UPCOMING",
+      galleryWindowDays: 7,
+      date: "2026-11-07T19:00:00.000Z",
+    }),
+  );
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: `When, ${formatOpensAt("2026-11-07T19:00:00.000Z")}` }));
+  expect(await screen.findByText("When it happens")).toBeOnTheScreen();
+  expect(screen.getByText("1 person will see the new date.")).toBeOnTheScreen();
+
+  await user.press(screen.getByLabelText("Dismiss"));
+  await waitFor(() => expect(screen.queryByText("When it happens")).toBeNull());
+  await user.press(screen.getByRole("button", { name: "Film, 7-day roll" }));
+  expect(await screen.findByLabelText("A week, 7-day roll")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Save" })).toBeOnTheScreen();
+});
+
+test("saves a new film from the slip", async () => {
+  const event = buildEvent({
+    galleryState: "UPCOMING",
+    galleryWindowDays: 7,
+    galleryWindowOptions: [3, 7, 14, 30],
+  });
+  mockUpdate.mockResolvedValue({ data: { data: { ...event, galleryWindowDays: 14 } } });
+  await renderScreen(event);
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Film, 7-day roll" }));
+  await user.press(await screen.findByLabelText("Two weeks, 14-day roll"));
+  await user.press(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() =>
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ path: { eventId: "event-1" }, body: { galleryWindowDays: 14 } }),
+    ),
+  );
+});
+
 test("sends non-hosts back", async () => {
   mockUser = { id: "user-2" };
   mockFindOne.mockResolvedValue({ data: { data: buildEvent({ creatorId: "user-1" }) } });
@@ -119,6 +187,7 @@ test("sends non-hosts back", async () => {
       data: [buildParticipant(), buildParticipant({ userId: "user-2", name: "Guest", accessLevel: "PARTICIPANT" })],
     },
   });
+  mockLimits.mockResolvedValue(limits());
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
   });
