@@ -2,6 +2,7 @@ import { photosControllerConfirmUploads, photosControllerCreateUploadUrls } from
 import type { ConfirmPhotoResultDto, UploadFileDto, UploadSlotResponseDto } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { getErrorCode, isApiError, isConnectionError } from "@/lib/api/errors";
+import { PUT_ALREADY_LANDED_STATUS, WRITE_ONCE_HEADERS } from "@/lib/api/upload-file";
 import { File, UploadTask, UploadType } from "expo-file-system";
 
 /** The API's `MAX_UPLOAD_BATCH_SIZE`: files per mint and per confirm. */
@@ -114,6 +115,8 @@ class MissingUploadFile extends Error {}
 /**
  * Streams the file from disk with byte progress. iOS keeps the transfer going
  * while the app is in the background, so leaving the roll doesn't stop it.
+ * The URL writes its key once (`If-None-Match: *`): a 412 means an earlier
+ * attempt already landed these bytes, so confirm can go ahead.
  */
 export const putEventPhoto: PutEventPhoto = async (file, slot, { onBytes, signal }) => {
   if (slot.expiresAt && Date.parse(slot.expiresAt) <= Date.now()) throw new RefusedUpload("Upload link expired");
@@ -127,12 +130,13 @@ export const putEventPhoto: PutEventPhoto = async (file, slot, { onBytes, signal
     httpMethod: "PUT",
     sessionType: "background",
     uploadType: UploadType.BINARY_CONTENT,
-    headers: { "Content-Type": file.contentType },
+    headers: { "Content-Type": file.contentType, ...WRITE_ONCE_HEADERS },
     mimeType: file.contentType,
     onProgress: ({ bytesSent }) => onBytes(bytesSent),
     signal,
   });
   const result = await task.uploadAsync();
+  if (result.status === PUT_ALREADY_LANDED_STATUS) return;
   if (result.status < 200 || result.status >= 300) throw new RefusedUpload(`Storage refused (${result.status})`);
 };
 
