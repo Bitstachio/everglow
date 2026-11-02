@@ -739,6 +739,14 @@ export type PlatformReportListItemDto = {
    */
   escalatedAt: string | null;
   /**
+   * The legal removal deadline: 48 hours from filing for an intimate image, null otherwise.
+   */
+  removalDueAt: string | null;
+  /**
+   * When it was reported to NCMEC or the police. It is held at least a year from then.
+   */
+  authorityReportedAt: string | null;
+  /**
    * The retention purge skips the report until then.
    */
   holdUntil: string | null;
@@ -806,6 +814,14 @@ export type PlatformReportResponseDto = {
    * When it reached the platform's queue.
    */
   escalatedAt: string | null;
+  /**
+   * The legal removal deadline: 48 hours from filing for an intimate image, null otherwise.
+   */
+  removalDueAt: string | null;
+  /**
+   * When it was reported to NCMEC or the police. It is held at least a year from then.
+   */
+  authorityReportedAt: string | null;
   /**
    * The retention purge skips the report until then.
    */

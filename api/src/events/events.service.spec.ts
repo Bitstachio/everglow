@@ -3551,14 +3551,22 @@ describe("EventsService", () => {
         },
         select: { id: true },
       });
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(logger.info).toHaveBeenCalledWith(
         expect.objectContaining({
-          event: "report.escalated",
+          event: "report.moved_to_platform",
           reportId: severe.id,
           escalationReasons: ["severe_dismissed"],
           callerId,
         }),
         "Report moved to the platform",
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.escalated",
+          reportId: severe.id,
+          escalationReasons: ["severe_dismissed"],
+        }),
+        "Report needs platform attention",
       );
     });
 
