@@ -10,6 +10,8 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import * as presigner from "@aws-sdk/s3-request-presigner";
+import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 import { InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -259,6 +261,37 @@ describe("S3Service", () => {
     });
   });
 
+  describe("sha256OfObject", () => {
+    it("streams the object through SHA-256 and returns the hex digest", async () => {
+      const bytes = Buffer.from("the same bytes");
+      sendSpy.mockResolvedValue({ Body: Readable.from([bytes.subarray(0, 4), bytes.subarray(4)]) } as never);
+
+      await expect(service.sha256OfObject("photos/a/b/c", { timeoutMs: 1000 })).resolves.toBe(
+        createHash("sha256").update(bytes).digest("hex"),
+      );
+      const [command, options] = sendSpy.mock.calls[0] as [GetObjectCommand, { abortSignal: AbortSignal }];
+      expect(command).toBeInstanceOf(GetObjectCommand);
+      expect(command.input).toEqual({ Bucket: bucket, Key: "photos/a/b/c" });
+      expect(options.abortSignal).toBeInstanceOf(AbortSignal);
+    });
+
+    it("wraps a failed read in InternalServerErrorException", async () => {
+      sendSpy.mockRejectedValue(new Error("timeout"));
+
+      await expect(service.sha256OfObject("photos/a/b/c", { timeoutMs: 1000 })).rejects.toThrow(
+        new InternalServerErrorException(S3_SERVICE_ERRORS.HASH_FAILED("photos/a/b/c")),
+      );
+    });
+
+    it("fails when S3 returns no readable body", async () => {
+      sendSpy.mockResolvedValue({ Body: undefined } as never);
+
+      await expect(service.sha256OfObject("photos/a/b/c", { timeoutMs: 1000 })).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+    });
+  });
+
   describe("listObjects", () => {
     const lastModified = new Date("2026-08-01T00:00:00.000Z");
 
@@ -338,7 +371,10 @@ describe("S3Service", () => {
       expect(getSignedUrlMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.any(PutObjectCommand),
-        expect.objectContaining({ expiresIn: 60, signableHeaders: new Set(["content-type", "content-length"]) }),
+        expect.objectContaining({
+          expiresIn: 60,
+          signableHeaders: new Set(["content-type", "content-length", "if-none-match"]),
+        }),
       );
       const [, command] = getSignedUrlMock.mock.calls[0];
       expect((command as PutObjectCommand).input).toEqual({
@@ -346,6 +382,7 @@ describe("S3Service", () => {
         Key: "a/b.jpg",
         ContentType: "image/jpeg",
         ContentLength: 1024,
+        IfNoneMatch: "*",
       });
     });
 
