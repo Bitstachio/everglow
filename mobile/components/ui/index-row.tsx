@@ -43,12 +43,11 @@ export const IndexRow = ({
     .join(" ");
   const content = (
     <>
-      {/* The label gets what the value leaves, so a long roll title shortens before its state does. */}
-      <EdgePrint tone={muted ? "edge" : "text"} numberOfLines={1} className="flex-1">
+      <EdgePrint tone={muted ? "edge" : "text"} numberOfLines={1} className="max-w-[50%] shrink-0">
         {label}
       </EdgePrint>
       {value || arrow ? (
-        <EdgePrint tone={lit ? "text" : "edge"} numberOfLines={1} className="shrink">
+        <EdgePrint tone={lit ? "text" : "edge"} numberOfLines={1} className="min-w-0 flex-1 text-right">
           {[value, arrow ? "›" : null].filter(Boolean).join(" ")}
         </EdgePrint>
       ) : null}
