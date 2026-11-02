@@ -270,8 +270,11 @@ export class EventsService {
       this.prisma.eventAccess.findUnique({ where: { userId_eventId: { userId: callerId, eventId: event.id } } }),
       this.prisma.eventBan.findUnique({ where: { eventId_userId: { eventId: event.id, userId: callerId } } }),
       this.findBlocksWithOrganizers(event.id, callerId),
+      // An organizer whose account is being deleted is not shown as the host:
+      // they are leaving, and an abandoned deletion must not keep a name on
+      // the invite indefinitely (docs/account-deletion.md §4).
       this.prisma.eventAccess.findMany({
-        where: { eventId: event.id, accessLevel: AccessLevel.ORGANIZER },
+        where: { eventId: event.id, accessLevel: AccessLevel.ORGANIZER, user: { deletionStartedAt: null } },
         orderBy: { createdAt: "asc" },
         select: { userId: true, user: { select: { details: { select: { name: true } } } } },
       }),
@@ -577,8 +580,9 @@ export class EventsService {
     authorize(ability, EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, loaded));
 
     const [accesses, photoCounts] = await Promise.all([
+      // Members whose account is being deleted are already gone from the roll.
       this.prisma.eventAccess.findMany({
-        where: { eventId },
+        where: { eventId, user: { deletionStartedAt: null } },
         include: eventAccessWithUserInclude(callerId),
         orderBy: { createdAt: "asc" },
       }),
