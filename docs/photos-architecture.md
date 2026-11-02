@@ -21,7 +21,7 @@ The three-step protocol this shares with avatars and event covers, and the per-p
    - validates contentType allowlist + size cap
    - generates a `photoId` (uuid) and `s3Key = photos/{eventId}/{photoId}` (one bucket; the key never names the uploader, see the key layout below)
    - reserves the batch against the event's gallery storage and inserts a `Photo` row with `status: PENDING` per file — both in one Serializable transaction (see §9)
-   - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular), after the transaction has committed. The URL is bound to the key, the declared `contentType`, and the declared `sizeBytes`. S3 rejects a PUT whose `Content-Type` differs; whether it enforces a signed `Content-Length` is unverified against a real bucket (public reports say it does not), so the size guarantee is confirm's `HeadObject` check
+   - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular), after the transaction has committed. The URL is bound to the key, the declared `contentType`, and the declared `sizeBytes`. S3 rejects a PUT whose `Content-Type` differs; whether it enforces a signed `Content-Length` is unverified against a real bucket (public reports say it does not), so the size guarantee is confirm's `HeadObject` check. It is also signed with `If-None-Match: *`, so the key is written once and a confirmed photo can't be replaced ([uploads.md](./uploads.md#each-key-is-written-once))
    - if presigning fails after the commit, deletes the batch's `PENDING` rows again so no quota is held for URLs that never reached the client
 3. **API responds** with `[{ photoId, uploadUrl }, ...]`.
 4. **Mobile uploads bytes directly to S3.**
@@ -30,7 +30,7 @@ The three-step protocol this shares with avatars and event covers, and the per-p
    `POST /events/:eventId/photos/confirm` with `{ photoIds: [...] }`.
 6. **API verifies each photo with S3 `HeadObject`.**
    - only the caller's own rows are considered; anyone else's ids report `NOT_FOUND`
-   - object exists + size/contentType match → flip row to `READY`
+   - object exists + size/contentType match → read the original once, record its SHA-256 on `sha256`, and flip the row to `READY` ([uploads.md](./uploads.md#the-photos-hash)); a read that fails leaves `sha256` null for the hourly backfill
    - missing → `MISSING`; the row is deleted, since nothing was uploaded
    - mismatched → `MISMATCHED`; the object and the row are deleted
    - both verdicts are final: the slot's quota is released on the spot and the client mints a new slot to retry
@@ -161,9 +161,11 @@ model Photo {
   contentType String
   sizeBytes   Int
   status      PhotoStatus @default(PENDING)
+  sha256      String?     @db.Char(64) // set at confirm (EV-201)
   createdAt   DateTime    @default(now())
 
   @@index([eventId, status, createdAt])
+  @@index([sha256])
 }
 
 enum PhotoStatus {
