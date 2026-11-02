@@ -1,6 +1,5 @@
-jest.mock("jwks-rsa", () => ({
-  passportJwtSecret: jest.fn().mockReturnValue(jest.fn()),
-}));
+// Only the provider token: signing-key-set.spec.ts tests the key set itself.
+jest.mock("./signing-key-set", () => ({ SigningKeySet: class SigningKeySet {} }));
 
 jest.mock("passport-jwt", () => {
   class MockJwtStrategy {
@@ -23,6 +22,7 @@ import { UsersService } from "src/users/users.service";
 import { UserWithDetails } from "src/users/users.types";
 import { JwtPayloadDto } from "./jwt-payload.dto";
 import { JwtStrategy } from "./jwt.strategy";
+import { SigningKeySet } from "./signing-key-set";
 
 describe("JwtStrategy", () => {
   let strategy: JwtStrategy;
@@ -81,6 +81,10 @@ describe("JwtStrategy", () => {
         {
           provide: UsersService,
           useValue: usersService,
+        },
+        {
+          provide: SigningKeySet,
+          useValue: mockDeep<SigningKeySet>(),
         },
       ],
     }).compile();

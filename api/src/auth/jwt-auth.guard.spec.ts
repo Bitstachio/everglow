@@ -11,28 +11,19 @@ import { UserWithDetails } from "src/users/users.types";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { JwtStrategy } from "./jwt.strategy";
 import { Reflector } from "@nestjs/core";
+import { PinoLogger } from "nestjs-pino";
 import { AllowDeletionInProgress, AllowSuspended } from "./allow-suspended.decorator";
+import { SigningKeySet } from "./signing-key-set";
 
-// jose 6 is ESM-only, which Jest's CommonJS runtime can't load (Node can).
-// jwks-rsa uses three of its helpers to read tokens and import keys; these
-// stand-ins do the same with Node's crypto, and the rest of jwks-rsa runs as is.
-jest.mock(require.resolve("jose", { paths: [require.resolve("jwks-rsa")] }), () => {
-  const { createPublicKey } = jest.requireActual<typeof import("crypto")>("crypto");
-  const segment = (token: string, index: number): Record<string, unknown> => {
-    const parts = token.split(".");
-    if (parts.length !== 3) throw new Error("Invalid Compact JWS");
-    return JSON.parse(Buffer.from(parts[index], "base64url").toString("utf8")) as Record<string, unknown>;
-  };
-  return {
-    decodeJwt: (token: string) => segment(token, 1),
-    decodeProtectedHeader: (token: string) => segment(token, 0),
-    importJWK: (jwk: import("crypto").JsonWebKey) => Promise.resolve(createPublicKey({ key: jwk, format: "jwk" })),
-  };
-});
+// jwks-rsa's jose can't load under Jest; see testing/jose-stand-in.ts.
+jest.mock(require.resolve("jose", { paths: [require.resolve("jwks-rsa")] }), () =>
+  jest.requireActual<typeof import("./testing/jose-stand-in")>("./testing/jose-stand-in"),
+);
 
 /**
- * Runs the real chain: passport, passport-jwt, jwks-rsa fetching our key set
- * from a local server, and jsonwebtoken, against tokens signed here.
+ * Runs the real chain: passport, passport-jwt, SigningKeySet fetching our key
+ * set from a local server through jwks-rsa, and jsonwebtoken, against tokens
+ * signed here.
  */
 describe("JwtAuthGuard", () => {
   const ISSUER = "https://test.example.auth0.com/";
@@ -47,6 +38,7 @@ describe("JwtAuthGuard", () => {
   let keySetServer: Server;
   let jwksUri: string;
   let answerKeySetRequest: (res: ServerResponse) => void;
+  let keySetFetches: number;
   let usersService: ReturnType<typeof mockDeep<UsersService>>;
   let guard: JwtAuthGuard;
 
@@ -87,18 +79,22 @@ describe("JwtAuthGuard", () => {
     res.end(JSON.stringify({ keys: [{ ...publicJwk, kid: KEY_ID, alg: "RS256", use: "sig" }] }));
   };
 
-  /** Registers a strategy with passport as "jwt", with a fresh key cache and fetch limit. */
+  /** Registers a strategy with passport as "jwt", with a fresh key set that has never been fetched. */
   const useStrategyFetchingFrom = (uri: string) => {
     const config: Record<string, string> = {
       "auth0.domain": "test.example.auth0.com",
       "auth0.audience": AUDIENCE,
       "auth0.jwksUri": uri,
     };
-    new JwtStrategy({ getOrThrow: (key: string) => config[key] } as unknown as ConfigService, usersService);
+    const configService = { getOrThrow: (key: string) => config[key] } as unknown as ConfigService;
+    new JwtStrategy(configService, usersService, new SigningKeySet(configService, mockDeep<PinoLogger>()));
   };
 
   beforeAll(async () => {
-    keySetServer = createServer((_req, res) => answerKeySetRequest(res));
+    keySetServer = createServer((_req, res) => {
+      keySetFetches += 1;
+      answerKeySetRequest(res);
+    });
     await new Promise<void>((resolve) => keySetServer.listen(0, "127.0.0.1", resolve));
     jwksUri = `http://127.0.0.1:${(keySetServer.address() as AddressInfo).port}/.well-known/jwks.json`;
   });
@@ -107,8 +103,13 @@ describe("JwtAuthGuard", () => {
     await new Promise((resolve) => keySetServer.close(resolve));
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
     answerKeySetRequest = serveKeySet;
+    keySetFetches = 0;
     usersService = mockDeep<UsersService>();
     usersService.resolveByProviderSub.mockResolvedValue({ id: userId, providerSub } as UserWithDetails);
     useStrategyFetchingFrom(jwksUri);
@@ -247,6 +248,31 @@ describe("JwtAuthGuard", () => {
     );
   });
 
+  it("refuses a flood of forged key ids with 401 and no fetch, and a real token still passes", async () => {
+    expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(true);
+
+    for (let i = 0; i < 20; i += 1) {
+      expect(await verdictFor(`Bearer ${signToken(validClaims(), { kid: `forged-${i}` })}`)).toBeInstanceOf(
+        UnauthorizedException,
+      );
+    }
+
+    expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(true);
+    expect(keySetFetches).toBe(1);
+  });
+
+  it("says a token that names no key id has none, without fetching", async () => {
+    const unsigned = `${encode({ alg: "RS256", typ: "JWT" })}.${encode(validClaims())}`;
+    const token = `${unsigned}.${sign("sha256", Buffer.from(unsigned), signingKey.privateKey).toString("base64url")}`;
+
+    expect(await verdictFor(`Bearer ${token}`)).toEqual(
+      rejection(
+        `SigningKeyNotFoundError: The token names no signing key (no kid) (token claims issuer ${ISSUER}, audience ${AUDIENCE})`,
+      ),
+    );
+    expect(keySetFetches).toBe(0);
+  });
+
   it("says the signature doesn't match the key", async () => {
     const verdict = await verdictFor(`Bearer ${signToken(validClaims(), { privateKey: otherKey.privateKey })}`);
 
@@ -302,15 +328,21 @@ describe("JwtAuthGuard", () => {
       expectUnavailable(await verdictFor(`Bearer ${signToken(validClaims())}`), "JwksError: Service Unavailable");
     });
 
-    it("answers 503 for a real token once forged key ids have spent the fetch limit", async () => {
-      for (const kid of ["forged-1", "forged-2", "forged-3", "forged-4", "forged-5"]) {
-        expect(await verdictFor(`Bearer ${signToken(validClaims(), { kid })}`)).toBeInstanceOf(UnauthorizedException);
-      }
+    it("keeps the key set it loaded, and its tokens pass, when a later fetch fails", async () => {
+      expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(true);
+      answerKeySetRequest = (res) => {
+        res.statusCode = 503;
+        res.end();
+      };
+      const now = Date.now();
+      jest.spyOn(Date, "now").mockReturnValue(now + 31_000);
 
-      expectUnavailable(
-        await verdictFor(`Bearer ${signToken(validClaims())}`),
-        "JwksRateLimitError: Too many requests to the JWKS endpoint",
+      // Past the cooldown an unknown key id refetches, which fails: still the token's 401, not a 503.
+      expect(await verdictFor(`Bearer ${signToken(validClaims(), { kid: "new-key" })}`)).toBeInstanceOf(
+        UnauthorizedException,
       );
+      expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(true);
+      expect(keySetFetches).toBe(2);
     });
   });
 });
