@@ -1,6 +1,7 @@
 import {
   hashProviderSub,
   isIssuedAfterDeletion,
+  TOMBSTONE_CLOCK_SKEW_SECONDS,
   TOMBSTONE_RETENTION_DAYS,
   tombstoneExpiresAt,
 } from "./deleted-provider-sub";
@@ -24,13 +25,19 @@ describe("deleted account tombstone helpers", () => {
     const deletedAt = new Date("2026-06-10T12:00:00.000Z");
     const deletedAtSeconds = deletedAt.getTime() / 1000;
 
-    it("accepts a token minted after the deletion", () => {
-      expect(isIssuedAfterDeletion(deletedAtSeconds + 1, deletedAt)).toBe(true);
+    it("accepts a token minted more than the skew margin after the deletion", () => {
+      expect(TOMBSTONE_CLOCK_SKEW_SECONDS).toBe(300);
+      expect(isIssuedAfterDeletion(deletedAtSeconds + 301, deletedAt)).toBe(true);
     });
 
     it("refuses a token minted before, or in the same second as, the deletion", () => {
       expect(isIssuedAfterDeletion(deletedAtSeconds - 1, deletedAt)).toBe(false);
       expect(isIssuedAfterDeletion(deletedAtSeconds, deletedAt)).toBe(false);
+    });
+
+    it("refuses a token inside the skew margin, which Auth0's clock running ahead could explain", () => {
+      expect(isIssuedAfterDeletion(deletedAtSeconds + 1, deletedAt)).toBe(false);
+      expect(isIssuedAfterDeletion(deletedAtSeconds + 300, deletedAt)).toBe(false);
     });
 
     it("refuses a token that cannot be placed in time", () => {

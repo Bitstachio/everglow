@@ -11,7 +11,7 @@ import { UserWithDetails } from "src/users/users.types";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { JwtStrategy } from "./jwt.strategy";
 import { Reflector } from "@nestjs/core";
-import { AllowSuspended } from "./allow-suspended.decorator";
+import { AllowDeletionInProgress, AllowSuspended } from "./allow-suspended.decorator";
 
 // jose 6 is ESM-only, which Jest's CommonJS runtime can't load (Node can).
 // jwks-rsa uses three of its helpers to read tokens and import keys; these
@@ -147,6 +147,48 @@ describe("JwtAuthGuard", () => {
     await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 
+  describe("an account whose deletion has started", () => {
+    const deleting = () =>
+      usersService.resolveByProviderSub.mockResolvedValue({
+        id: userId,
+        providerSub,
+        deletionStartedAt: new Date(),
+      } as UserWithDetails);
+    const contextFor = (handler: () => void) =>
+      new ExecutionContextHost(
+        [{ headers: { authorization: `Bearer ${signToken(validClaims())}` } }, {}],
+        class Plain {},
+        handler,
+      );
+
+    it("is refused with 401 ACCOUNT_DELETION_IN_PROGRESS, a code the app can read", async () => {
+      deleting();
+
+      await expect(guard.canActivate(contextFor(() => undefined))).rejects.toMatchObject({
+        status: 401,
+        response: { code: "ACCOUNT_DELETION_IN_PROGRESS" },
+      });
+    });
+
+    it("is refused even on a route a suspended account may use", async () => {
+      deleting();
+      const handler = () => undefined;
+      AllowSuspended()(handler, "handler", { value: handler });
+
+      await expect(guard.canActivate(contextFor(handler))).rejects.toMatchObject({
+        response: { code: "ACCOUNT_DELETION_IN_PROGRESS" },
+      });
+    });
+
+    it("may ask for its deletion again on a route marked @AllowDeletionInProgress()", async () => {
+      deleting();
+      const handler = () => undefined;
+      AllowDeletionInProgress()(handler, "handler", { value: handler });
+
+      await expect(guard.canActivate(contextFor(handler))).resolves.toBe(true);
+    });
+  });
+
   it("says there was no token", async () => {
     expect(await verdictFor()).toEqual(rejection("Error: No auth token"));
   });
@@ -218,7 +260,7 @@ describe("JwtAuthGuard", () => {
   });
 
   it("passes on the reason an account can't sign in", async () => {
-    const refusal = rejection("the account's deletion is in progress");
+    const refusal = rejection("the token was issued before this identity's account was deleted");
     usersService.resolveByProviderSub.mockRejectedValue(refusal);
 
     expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(refusal);
