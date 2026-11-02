@@ -29,6 +29,10 @@ The Terraform is in `api/infra/`: the bucket policy in `main.tf`, the rest in `p
 
 Each one is itself alerted. Applying Terraform that redeploys the image processor calls `UpdateFunctionCode`, so a deploy raises the same alert as a bucket policy change.
 
+## When an alert is not a known action
+
+An alert that nobody can match to an approved action (a deploy, a Terraform apply, a break-glass read) is a confidentiality incident. Contain it first, then enter it in the [confidentiality incident register](./incident-register.md), which says what each entry records and who must be told.
+
 ## Dev versus production
 
 In dev:

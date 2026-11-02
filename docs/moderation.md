@@ -547,7 +547,7 @@ Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-
 
 - **A hold** (`holdUntil`, `holdReason`) stops the purge. Only the platform sets one: for a child-safety report, a law-enforcement preservation request (18 U.S.C. §2703(f), 90 days, renewable), or legal advice. `until` must be in the future and at most 3 years away (400 otherwise); renew a longer one when it comes due. A report sent to the authorities stays held at least a year from `authorityReportedAt`, whatever is set or released. The daily evidence job logs `report.hold.lapsed` for holds that ran out in the past day, so each is reviewed before the purge takes it.
 - **Why one year.** US law makes a CyberTipline report a request to preserve its contents for 1 year (18 U.S.C. §2258A(h), REPORT Act). Canada asks for 21 days today, rising to 1 year under the Protecting Victims Act (S.C. 2026, c. 19, not in force yet). A year also covers repeat-offender history. PIPEDA and Law 25 ask for a fixed, documented maximum, and this is it.
-- **The privacy policy says so**: reported content and reports are kept for up to a year after deletion, and longer under a legal hold.
+- **The privacy policy says so** ([everglow.social/en/privacy](https://everglow.social/en/privacy#retention), `landing/src/messages/en/legal/privacy.ts`): reported content and reports are kept for up to a year after the report closes, and longer under a legal hold.
 - The periods are pending the legal review in [EV-62](https://linear.app/mehrshadfb/issue/EV-62).
 
 ### Child safety
@@ -559,7 +559,7 @@ A `CHILD_SAFETY` report is handled only by the platform, by the runbook in [EV-6
 3. Apparent child sexual abuse material is reported to the **NCMEC CyberTipline** "as soon as reasonably possible" (18 U.S.C. §2258A), and to **Cybertip.ca and the police** for Canada (S.C. 2011, c. 4). The reference number goes in `authorityReference` and the submission date in `authorityReportedAt` (it can't be in the future). `holdUntil` becomes the later of the current hold and the submission date plus 1 year, so recording a report never shortens a hold.
 4. The photo is removed and the account suspended (§8). Nothing tells the account why, so nothing prejudices an investigation.
 
-Google Play also expects a public child-safety standards page and a named child-safety contact in Play Console. Both are part of [EV-62](https://linear.app/mehrshadfb/issue/EV-62).
+Google Play also expects a public child-safety standards page and a named child-safety contact in Play Console. The page is [everglow.social/en/child-safety](https://everglow.social/en/child-safety), with `safety@everglow.social` as the contact ([EV-203](https://linear.app/mehrshadfb/issue/EV-203)); naming the contact in Play Console is the owner's task.
 
 ### Intimate images: the TAKE IT DOWN Act
 
