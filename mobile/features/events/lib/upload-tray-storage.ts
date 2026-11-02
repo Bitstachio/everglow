@@ -8,7 +8,7 @@ const status = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("developed"), photoId: z.string() }),
   z.object({
     kind: z.literal("failed"),
-    reason: z.enum(["connection", "refused", "noRoom", "closed", "interrupted", "missing"]),
+    reason: z.enum(["connection", "refused", "noRoom", "closed", "interrupted", "missing", "cantAdd"]),
   }),
   z.object({ kind: z.literal("rejected"), reason: z.enum(["video", "tooLarge"]) }),
 ]);

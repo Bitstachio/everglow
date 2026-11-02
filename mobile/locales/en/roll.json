@@ -191,6 +191,7 @@
       "offline": "Didn’t take · offline",
       "interrupted": "Didn’t take · interrupted",
       "missing": "Didn’t take · file unavailable",
+      "cantAdd": "Can’t be added",
       "refused": "Didn’t take",
       "noRoom": "Didn’t take · no room",
       "closed": "Didn’t take · roll closed",
