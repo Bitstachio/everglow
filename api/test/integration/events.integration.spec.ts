@@ -1786,6 +1786,9 @@ describe("EventsController (integration)", () => {
       prisma.eventAccess.findUnique.mockResolvedValue(buildOrganizerAccess());
       prisma.eventAccess.count.mockResolvedValue(2);
       prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+      // No reports filed by the removed creator.
+      prisma.report.updateMany.mockResolvedValue({ count: 0 });
+      prisma.$queryRaw.mockResolvedValue([]);
 
       await request(httpServer)
         .delete(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants/${TEST_USER_ID}`)
