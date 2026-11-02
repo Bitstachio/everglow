@@ -31,6 +31,7 @@ The three-step protocol this shares with avatars and event covers, and the per-p
 6. **API verifies each photo with S3 `HeadObject`.**
    - only the caller's own rows are considered; anyone else's ids report `NOT_FOUND`
    - object exists + size/contentType match → read the original once, record its SHA-256 on `sha256`, and flip the row to `READY` ([uploads.md](./uploads.md#the-photos-hash)); a read that fails leaves `sha256` null for the hourly backfill
+   - an original with the bytes of a removed intimate image fails the whole confirm with 422 `PHOTO_REJECTED_MATCHES_REMOVED_IMAGE`: it is deleted and its slot released, and the rest stay `PENDING` ([moderation.md §7](./moderation.md#intimate-images-the-take-it-down-act))
    - missing → `MISSING`; the row is deleted, since nothing was uploaded
    - mismatched → `MISMATCHED`; the object and the row are deleted
    - both verdicts are final: the slot's quota is released on the spot and the client mints a new slot to retry

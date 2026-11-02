@@ -21,7 +21,9 @@ The URL is signed with `If-None-Match: *`, an S3 conditional write ([EV-201](htt
 
 ### The photo's hash
 
-Confirm streams each verified photo original from S3 once through SHA-256 and stores it on `Photo.sha256`, a few photos at a time (`PHOTO_HASH_CONCURRENCY`), each read bounded by `PHOTO_HASH_TIMEOUT_MS`. The hash is what will find identical copies of a removed intimate image ([moderation.md §7](./moderation.md#intimate-images-the-take-it-down-act)). A read that fails or times out never fails the confirm: the photo goes live without a hash, and the hourly backfill job hashes it. The hashing itself costs about 1 ms for a 3 MB photo and 8 ms for 25 MB on the CPU; the read from S3 is most of the cost, roughly the time to download the photo inside the region.
+Confirm streams each verified photo original from S3 once through SHA-256 and stores it on `Photo.sha256`, a few photos at a time (`PHOTO_HASH_CONCURRENCY`), each read bounded by `PHOTO_HASH_TIMEOUT_MS`. The hash finds identical copies of a removed intimate image ([moderation.md §7](./moderation.md#intimate-images-the-take-it-down-act)). A read that fails or times out never fails the confirm: the photo goes live without a hash, and the hourly backfill job hashes it. The hashing itself costs about 1 ms for a 3 MB photo and 8 ms for 25 MB on the CPU; the read from S3 is most of the cost, roughly the time to download the photo inside the region.
+
+If any photo in a confirm has the bytes of an intimate image the platform removed, the whole confirm answers 422 `PHOTO_REJECTED_MATCHES_REMOVED_IMAGE`. Those uploads are deleted with their renditions and their slots released. Nothing else changes: the other photos stay `PENDING`, so the client confirms the same ids again, gets their verdicts, and the refused ones answer `NOT_FOUND`. The app says only that the photo can't be added.
 
 ## What differs per kind
 
@@ -46,16 +48,17 @@ Why the ids differ: a `photoId` is a real resource the client reads and deletes 
 
 Failures that a client should branch on carry a stable `code` in the error envelope:
 
-| Code                             | Status | Kind          | Meaning                                                 |
-| -------------------------------- | ------ | ------------- | ------------------------------------------------------- |
-| `EVENT_STORAGE_LIMIT_REACHED`    | 403    | photos        | the batch would take the gallery past its storage limit |
-| `EVENT_GALLERY_CLOSED`           | 403    | photos        | the event's gallery has closed                          |
-| `STORAGE_RESERVATION_CONFLICT`   | 409    | photos        | concurrent batches kept colliding; retry                |
-| `IMAGE_UNSUPPORTED_CONTENT_TYPE` | 400    | avatar, cover | type not in the image allowlist                         |
-| `IMAGE_INVALID_SIZE`             | 400    | avatar, cover | size not a whole number between 1 and the image maximum |
-| `IMAGE_UPLOAD_NOT_FOUND`         | 404    | avatar, cover | confirm before the object landed                        |
-| `IMAGE_UPLOAD_EXPIRED`           | 422    | avatar, cover | object older than the confirm window; discarded         |
-| `IMAGE_UPLOAD_REJECTED`          | 422    | avatar, cover | object of the wrong type or size; discarded             |
-| `RATE_LIMIT_EXCEEDED`            | 429    | all           | see [rate-limiting.md](./rate-limiting.md)              |
+| Code                                   | Status | Kind          | Meaning                                                                 |
+| -------------------------------------- | ------ | ------------- | ----------------------------------------------------------------------- |
+| `EVENT_STORAGE_LIMIT_REACHED`          | 403    | photos        | the batch would take the gallery past its storage limit                 |
+| `EVENT_GALLERY_CLOSED`                 | 403    | photos        | the event's gallery has closed                                          |
+| `STORAGE_RESERVATION_CONFLICT`         | 409    | photos        | concurrent batches kept colliding; retry                                |
+| `IMAGE_UNSUPPORTED_CONTENT_TYPE`       | 400    | avatar, cover | type not in the image allowlist                                         |
+| `IMAGE_INVALID_SIZE`                   | 400    | avatar, cover | size not a whole number between 1 and the image maximum                 |
+| `IMAGE_UPLOAD_NOT_FOUND`               | 404    | avatar, cover | confirm before the object landed                                        |
+| `IMAGE_UPLOAD_EXPIRED`                 | 422    | avatar, cover | object older than the confirm window; discarded                         |
+| `IMAGE_UPLOAD_REJECTED`                | 422    | avatar, cover | object of the wrong type or size; discarded                             |
+| `PHOTO_REJECTED_MATCHES_REMOVED_IMAGE` | 422    | photos        | the bytes of a removed intimate image; discarded, the rest left pending |
+| `RATE_LIMIT_EXCEEDED`                  | 429    | all           | see [rate-limiting.md](./rate-limiting.md)                              |
 
-Photo confirm reports problems per id in its response body instead of failing the request, so it has no codes of its own beyond the verdicts above. Request-shape errors (an unknown field, a size above the maximum in the DTO) are plain 400 validation errors without a code.
+Photo confirm reports problems per id in its response body instead of failing the request. Its one code is `PHOTO_REJECTED_MATCHES_REMOVED_IMAGE`, which fails the request on purpose: it says nothing about which photo or why. Request-shape errors (an unknown field, a size above the maximum in the DTO) are plain 400 validation errors without a code.
