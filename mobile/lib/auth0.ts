@@ -138,8 +138,8 @@ export const openPasswordChangeTicket = async (ticketUrl: string): Promise<WebBr
 
 /**
  * After a password change the refresh token is often revoked. Returns false when
- * the local session can no longer be refreshed; callers should clear credentials
- * and send the user to login.
+ * the local session can no longer be refreshed; callers end it through the auth
+ * context (`endExpiredSession`), which also clears the account on this phone.
  */
 export const sessionStillValid = async (): Promise<boolean> => {
   try {
