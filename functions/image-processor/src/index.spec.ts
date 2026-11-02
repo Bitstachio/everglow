@@ -18,7 +18,7 @@ import { derivedKeysForOriginal } from "./keys.js";
 const s3 = new S3Client({});
 const handler = createHandler(s3, createLogger({ NODE_ENV: "test" }));
 
-const key = "photos/user/event/photo";
+const key = "photos/event/photo";
 const derived = Object.values(derivedKeysForOriginal(key));
 const missing = Object.assign(new Error("missing"), {
   $metadata: { httpStatusCode: 404 },
@@ -125,7 +125,7 @@ void test("a transient S3 failure retries and logs its object, type and status b
   });
   // The second message is undecodable: the batch retries only the transient one.
   const input = event();
-  input.Records.push(...event("ObjectCreated:Put", "photos/user/event/heic", "heic").Records);
+  input.Records.push(...event("ObjectCreated:Put", "photos/event/heic", "heic").Records);
   const { result, logs, raw } = await runLogged(input);
   assert.deepEqual(result, { batchItemFailures: [{ itemIdentifier: "message" }] });
   const failed = logs.filter((line) => line.event === "photo.derivatives.failed");
@@ -139,7 +139,7 @@ void test("a transient S3 failure retries and logs its object, type and status b
   assert.ok(!raw.includes("secret-request-id"));
   assert.deepEqual(
     logs.filter((line) => line.event === "photo.derivatives.undecodable").map((line) => line.key),
-    ["photos/user/event/heic"],
+    ["photos/event/heic"],
   );
 });
 
