@@ -1,5 +1,6 @@
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
-import { EditEventTitleForm } from "../components/edit-event-title-form";
+import { SettingsTextEdit } from "@/components/ui/settings-text-edit";
+import { Controller } from "react-hook-form";
 import { buildEvent, deferred } from "../testing/fixtures";
 import { useEditEventTitleForm } from "./use-edit-event-title-form";
 
@@ -17,16 +18,27 @@ const TitleFormProbe = ({ initialTitle = "Weekend meetup" }: { initialTitle?: st
     onSuccess: mockSuccess,
   });
   return (
-    <EditEventTitleForm
+    <Controller
       control={form.control}
-      isDirty={form.formState.isDirty}
-      isSubmitting={form.formState.isSubmitting}
-      error={form.formState.errors.root?.server?.message}
-      onSubmit={onSubmit}
-      placeholder="Name your roll"
-      accessibilityLabel="Roll name"
-      hint="This is the name people see on the roll and on the envelope."
-      saveLabel="Save"
+      name="title"
+      render={({ field, fieldState }) => (
+        <SettingsTextEdit
+          value={field.value}
+          onChangeText={field.onChange}
+          onBlur={field.onBlur}
+          onSubmitEditing={onSubmit}
+          placeholder="Name your roll"
+          accessibilityLabel="Roll name"
+          hint="This is the name people see on the roll and on the envelope."
+          error={fieldState.error?.message ?? form.formState.errors.root?.server?.message}
+          saveLabel="Save"
+          onSave={onSubmit}
+          isDirty={form.formState.isDirty}
+          isSubmitting={form.formState.isSubmitting}
+          autoCapitalize="sentences"
+          maxLength={100}
+        />
+      )}
     />
   );
 };

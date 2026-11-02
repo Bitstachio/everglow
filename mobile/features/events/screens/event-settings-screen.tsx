@@ -70,9 +70,7 @@ const EventSettingsScreen = () => {
           <IndexRow muted label={t("roll:settings.delete")} value={screen.deleteValue} />
         </View>
 
-        {screen.scheduleLocked ? (
-          <EdgePrint className="mt-6">{t("roll:settings.scheduleLockedNote")}</EdgePrint>
-        ) : null}
+        {screen.scheduleLocked ? <EdgePrint className="mt-6">{t("roll:settings.scheduleLockedNote")}</EdgePrint> : null}
       </ScrollView>
 
       <FilmGrain />

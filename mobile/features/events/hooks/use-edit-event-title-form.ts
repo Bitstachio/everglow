@@ -22,11 +22,7 @@ export const useEditEventTitleForm = ({ eventId, initialTitle, onSuccess }: UseE
   const mutation = useUpdateEventMutation(eventId);
   const submitting = useRef(false);
   const schema = z.object({
-    title: z
-      .string()
-      .trim()
-      .min(1, t("settings.editName.required"))
-      .max(100, t("settings.editName.tooLong")),
+    title: z.string().trim().min(1, t("settings.editName.required")).max(100, t("settings.editName.tooLong")),
   });
   const form = useForm<EditEventTitleValues>({
     resolver: zodResolver(schema),

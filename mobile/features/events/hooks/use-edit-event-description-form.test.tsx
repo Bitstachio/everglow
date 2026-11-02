@@ -1,5 +1,6 @@
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
-import { EditEventDescriptionForm } from "../components/edit-event-description-form";
+import { SettingsTextEdit } from "@/components/ui/settings-text-edit";
+import { Controller } from "react-hook-form";
 import { buildEvent, deferred } from "../testing/fixtures";
 import { useEditEventDescriptionForm } from "./use-edit-event-description-form";
 
@@ -17,17 +18,27 @@ const NoteFormProbe = ({ initialDescription = "Bring a jacket" }: { initialDescr
     onSuccess: mockSuccess,
   });
   return (
-    <EditEventDescriptionForm
+    <Controller
       control={form.control}
-      isDirty={form.formState.isDirty}
-      isSubmitting={form.formState.isSubmitting}
-      error={form.formState.errors.root?.server?.message}
-      onSubmit={onSubmit}
-      label="A line for guests · optional"
-      placeholder="Bring a jacket, we’re on the roof"
-      accessibilityLabel="Note for guests, optional"
-      hint="Shown on the envelope. Leave blank to remove it."
-      saveLabel="Save"
+      name="description"
+      render={({ field, fieldState }) => (
+        <SettingsTextEdit
+          label="A line for guests · optional"
+          value={field.value}
+          onChangeText={field.onChange}
+          onBlur={field.onBlur}
+          onSubmitEditing={onSubmit}
+          placeholder="Bring a jacket, we’re on the roof"
+          accessibilityLabel="Note for guests, optional"
+          hint="Shown on the envelope. Leave blank to remove it."
+          error={fieldState.error?.message ?? form.formState.errors.root?.server?.message}
+          saveLabel="Save"
+          onSave={onSubmit}
+          isDirty={form.formState.isDirty}
+          isSubmitting={form.formState.isSubmitting}
+          maxLength={255}
+        />
+      )}
     />
   );
 };

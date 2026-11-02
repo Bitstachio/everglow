@@ -56,7 +56,10 @@ export const useChangeEventCover = (eventId: string, hasCover: boolean) => {
 
   const showRateLimited = () => {
     const seconds = Math.max(1, Math.ceil((rateLimitedUntil.current - Date.now()) / 1000));
-    Alert.alert(t("settings.editCover.rateLimitedTitle"), t("settings.editCover.rateLimited", { wait: formatWait(seconds) }));
+    Alert.alert(
+      t("settings.editCover.rateLimitedTitle"),
+      t("settings.editCover.rateLimited", { wait: formatWait(seconds) }),
+    );
   };
 
   const run = async (title: string, action: () => Promise<void>) => {
@@ -118,7 +121,9 @@ export const useChangeEventCover = (eventId: string, hasCover: boolean) => {
     Alert.alert(t("settings.editCover.menuTitle"), undefined, [
       { text: t("settings.editCover.take"), onPress: () => void pickFrom("camera") },
       { text: t("settings.editCover.choose"), onPress: () => void pickFrom("library") },
-      ...(hasCover ? [{ text: t("settings.editCover.remove"), style: "destructive" as const, onPress: removeCover }] : []),
+      ...(hasCover
+        ? [{ text: t("settings.editCover.remove"), style: "destructive" as const, onPress: removeCover }]
+        : []),
       { text: t("settings.editCover.cancel"), style: "cancel" as const },
     ]);
   };

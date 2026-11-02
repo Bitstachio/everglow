@@ -7,7 +7,15 @@ import { ScrollView, Text, TextInput, View, type TextInputProps } from "react-na
 
 type SettingsTextEditProps = Pick<
   TextInputProps,
-  "value" | "onChangeText" | "onBlur" | "onSubmitEditing" | "editable" | "placeholder" | "accessibilityLabel" | "maxLength" | "autoCapitalize"
+  | "value"
+  | "onChangeText"
+  | "onBlur"
+  | "onSubmitEditing"
+  | "editable"
+  | "placeholder"
+  | "accessibilityLabel"
+  | "maxLength"
+  | "autoCapitalize"
 > & {
   /** Optional edge label above the ruled line. */
   label?: string;
@@ -81,7 +89,13 @@ export const SettingsTextEdit = ({
       </ScrollView>
 
       <View className="px-5 pb-1 pt-3">
-        <Button title={saveLabel} mark="✓" onPress={onSave} isLoading={isSubmitting} disabled={isSubmitting || !isDirty} />
+        <Button
+          title={saveLabel}
+          mark="✓"
+          onPress={onSave}
+          isLoading={isSubmitting}
+          disabled={isSubmitting || !isDirty}
+        />
       </View>
     </View>
   );

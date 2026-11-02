@@ -156,9 +156,7 @@ test("opens the cover menu to add a photo", async () => {
 
 test("offers remove when the roll already has a cover", async () => {
   const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
-  await renderScreen(
-    buildEvent({ galleryState: "OPEN", coverUrl: "https://cdn.example.com/cover.jpg" }),
-  );
+  await renderScreen(buildEvent({ galleryState: "OPEN", coverUrl: "https://cdn.example.com/cover.jpg" }));
   await userEvent.setup().press(await screen.findByRole("button", { name: "Cover, Change" }));
   const buttons = alert.mock.calls[0][2] as { text?: string }[];
   expect(buttons.map((button) => button.text)).toContain("Remove Cover");
