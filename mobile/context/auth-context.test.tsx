@@ -1,3 +1,4 @@
+import { useChangePassword } from "@/features/profile/hooks/use-change-password";
 import { onAccountCleared } from "@/lib/account-cleared";
 import { toApiError } from "@/lib/api/errors";
 import { clearPendingInvite, savePendingInvite, takePendingInvite } from "@/lib/pending-invite";
@@ -17,6 +18,8 @@ let mockSuspended: (() => void) | null = null;
 const mockLogoutFromAuth0 = jest.fn();
 const mockStoredIdentity = jest.fn();
 const mockLogin = jest.fn();
+const mockClearLocalCredentials = jest.fn();
+const mockSessionStillValid = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { replace: (href: unknown) => mockReplace(href) },
@@ -35,10 +38,18 @@ jest.mock("@/lib/auth0", () => ({
   isAuth0Configured: () => true,
   hasValidSession: async () => true,
   getSignedInIdentity: () => mockStoredIdentity(),
-  clearLocalCredentials: async () => undefined,
+  clearLocalCredentials: () => mockClearLocalCredentials(),
   isUserCancellation: () => false,
   loginWithUniversalLogin: () => mockLogin(),
   logoutFromAuth0: () => mockLogoutFromAuth0(),
+  openPasswordChangeTicket: async () => ({ type: "success" }),
+  sessionStillValid: () => mockSessionStillValid(),
+}));
+jest.mock("@/features/profile/api/mutations", () => ({
+  useCreatePasswordChangeTicketMutation: () => ({
+    mutateAsync: async () => ({ ticketUrl: "https://auth0.example/ticket" }),
+    isPending: false,
+  }),
 }));
 
 const initialMetrics = {
@@ -93,6 +104,8 @@ beforeEach(() => {
   clearPendingInvite();
   mockStoredIdentity.mockReset().mockResolvedValue(ada);
   mockLogin.mockReset().mockResolvedValue(ben);
+  mockClearLocalCredentials.mockReset().mockResolvedValue(undefined);
+  mockSessionStillValid.mockReset().mockResolvedValue(true);
 });
 
 test("opening the app offline keeps the session and offers to try again", async () => {
@@ -357,4 +370,35 @@ test("a 401 forgets who was signed in", async () => {
 
   await act(async () => mockUnauthorized?.());
   await waitFor(() => expect(result.current.identity).toBeNull());
+});
+
+test("a password change that revokes the session clears the account like a 401", async () => {
+  const reasons: string[] = [];
+  const stop = onAccountCleared((reason) => reasons.push(reason));
+  try {
+    mockGetUserProfile.mockResolvedValue(profile);
+    const { result } = await renderHook(() => ({ auth: useAuth(), password: useChangePassword() }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <I18nProvider>
+          <Providers>
+            <AuthProvider>{children}</AuthProvider>
+          </Providers>
+        </I18nProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));
+    queryClient.setQueryData(["events"], [{ id: "roll-1" }]);
+    mockSessionStillValid.mockResolvedValue(false);
+
+    await act(async () => result.current.password.handleChangePassword());
+
+    expect(mockClearLocalCredentials).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    expect(result.current.auth.user).toBeNull();
+    expect(result.current.auth.identity).toBeNull();
+    expect(reasons).toEqual(["sessionExpired"]);
+    expect(mockReplace).toHaveBeenLastCalledWith({ pathname: "/login", params: { signedOut: "1" } });
+  } finally {
+    stop();
+  }
 });
