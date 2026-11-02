@@ -289,7 +289,7 @@ describe("Auth0ManagementService", () => {
   });
 
   describe("createPasswordChangeTicket", () => {
-    it("requests a ticket with the native client id", async () => {
+    it("requests a five-minute ticket with the native client id", async () => {
       mockChangePassword.mockResolvedValue({ ticket: "https://auth0.example/ticket" });
 
       await expect(service.createPasswordChangeTicket("auth0|abc123")).resolves.toEqual({
@@ -299,6 +299,7 @@ describe("Auth0ManagementService", () => {
         user_id: "auth0|abc123",
         client_id: "native-client-id",
         mark_email_as_verified: false,
+        ttl_sec: 300,
       });
     });
 

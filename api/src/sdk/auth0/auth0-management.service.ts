@@ -6,6 +6,7 @@ import {
   AUTH0_MANAGEMENT_ERRORS,
   MANAGEMENT_ACCESS_CACHE_MAX_SECONDS,
   MANAGEMENT_ACCESS_PROBE_TIMEOUT_MS,
+  PASSWORD_CHANGE_TICKET_TTL_SECONDS,
 } from "./auth0-management.constants";
 
 /** Tokens the upstream identity provider issued to Auth0 for one of a user's identities. */
@@ -179,6 +180,8 @@ export class Auth0ManagementService {
         user_id: providerSub,
         client_id: nativeClientId,
         mark_email_as_verified: false,
+        // Auth0's default is five days: long enough to turn a stolen access token into a takeover.
+        ttl_sec: PASSWORD_CHANGE_TICKET_TTL_SECONDS,
       });
 
       if (!response.ticket) {

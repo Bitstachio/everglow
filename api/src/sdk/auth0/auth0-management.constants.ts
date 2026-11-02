@@ -1,3 +1,10 @@
+/**
+ * How long a password-change link works. Minted for the person in the app and
+ * opened straight away, so five minutes is plenty; Auth0's default (five days)
+ * would let one stolen access token mint a link that outlives it by days.
+ */
+export const PASSWORD_CHANGE_TICKET_TTL_SECONDS = 300;
+
 export const AUTH0_MANAGEMENT_ERRORS = {
   CREDENTIALS_NOT_CONFIGURED: () => "Auth0 Management API credentials are not configured",
   PASSWORD_CHANGE_TICKET_NOT_CONFIGURED: () =>
