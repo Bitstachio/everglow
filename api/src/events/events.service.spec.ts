@@ -1551,12 +1551,10 @@ describe("EventsService", () => {
       expect(result).not.toHaveProperty("eventAccesses");
     });
 
-    it("returns the event when the caller is the creator without loaded event access rows", async () => {
+    it("refuses the creator once they are no longer a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      const result = await service.findOne(eventId, callerId);
-
-      expect(result).toEqual(eventCreatedByUser);
+      await expect(service.findOne(eventId, callerId)).rejects.toThrow(ForbiddenException);
     });
 
     it("returns the event when the caller is an organizer", async () => {
@@ -3029,23 +3027,11 @@ describe("EventsService", () => {
       expect(result).toHaveLength(2);
     });
 
-    it("returns members when the caller is the creator with read via creatorId", async () => {
+    it("refuses the creator once they are no longer a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
-      prisma.eventAccess.findMany.mockResolvedValue([organizerRow]);
 
-      const result = await service.getEventParticipants(eventId, callerId);
-
-      expect(result).toEqual([
-        {
-          userId: callerId,
-          username: "jane",
-          name: "Jane Doe",
-          accessLevel: AccessLevel.ORGANIZER,
-          avatarUrl: null,
-          isBlockedByCaller: false,
-          photoCount: 0,
-        },
-      ]);
+      await expect(service.getEventParticipants(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
     });
 
     it("orders participants by createdAt ascending", async () => {
