@@ -1008,18 +1008,23 @@ describe("PhotosService", () => {
     it.each([
       ["suspended", { suspendedAt: new Date() }],
       ["under review", { underReviewAt: new Date() }],
-    ])("lets an uploader delete their own photo in a %s event, through the evidence copy", async (_state, eventState) => {
-      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.photo.findUnique.mockResolvedValue({
-        ...photoWithEvent([callerAccess("PARTICIPANT")]),
-        event: { ...event, ...eventState, eventAccesses: [callerAccess("PARTICIPANT")] },
-      } as never);
+    ])(
+      "lets an uploader delete their own photo in a %s event, through the evidence copy",
+      async (_state, eventState) => {
+        prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+        prisma.photo.findUnique.mockResolvedValue({
+          ...photoWithEvent([callerAccess("PARTICIPANT")]),
+          event: { ...event, ...eventState, eventAccesses: [callerAccess("PARTICIPANT")] },
+        } as never);
 
-      await service.deletePhoto(photoId, callerId);
+        await service.deletePhoto(photoId, callerId);
 
-      expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([buildPhotoS3Key(callerId, eventId, photoId)]);
-      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
-    });
+        expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([
+          buildPhotoS3Key(callerId, eventId, photoId),
+        ]);
+        expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
+      },
+    );
 
     it("closes the photo's OPEN reports as TARGET_GONE when its uploader deletes it, and audits how many", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);

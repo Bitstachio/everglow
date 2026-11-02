@@ -32,7 +32,10 @@ describe("defineEventAbilities", () => {
     const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
     expect(
-      ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, { id: eventId, creatorId: userId, eventAccesses: [] } as never)),
+      ability.can(
+        EVENT_ACTIONS.READ,
+        subject(EVENT_SUBJECT, { id: eventId, creatorId: userId, eventAccesses: [] } as never),
+      ),
     ).toBe(false);
   });
 

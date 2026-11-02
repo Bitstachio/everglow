@@ -1713,6 +1713,97 @@ describe("EventsController (integration)", () => {
     });
   });
 
+  describe("a creator who is no longer a member", () => {
+    // buildEvent() is created by TEST_USER_ID; with no access row, the caller is
+    // its creator after they left or an organizer removed them. `creatorId` is
+    // attribution only (docs/account-deletion.md), so they read nothing.
+    const formerCreatorEvent = () => eventWithCallerAccess(buildEvent({ creatorId: TEST_USER_ID }), []);
+
+    it("leaves the event out of GET /events: the list reads memberships only", async () => {
+      await request(httpServer).get(EVENTS_BASE_PATH).set(authHeader()).expect(200);
+
+      const [listArgs] = prisma.event.findMany.mock.calls[0] as [{ where: unknown }];
+      const where = JSON.stringify(listArgs.where);
+      expect(where).not.toContain("creatorId");
+      expect(where).toContain(JSON.stringify({ eventAccesses: { some: { userId: TEST_USER_ID } } }));
+    });
+
+    it("returns 403 on GET /events/:eventId, cover included", async () => {
+      prisma.event.findUnique.mockResolvedValue(formerCreatorEvent());
+
+      const response = await request(httpServer)
+        .get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`)
+        .set(authHeader())
+        .expect(403);
+
+      expectApiError(response.body as ErrorResponse, FORBIDDEN_CODE);
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 on GET /events/:eventId/participants without loading the members", async () => {
+      prisma.event.findUnique.mockResolvedValue(formerCreatorEvent());
+
+      const response = await request(httpServer)
+        .get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants`)
+        .set(authHeader())
+        .expect(403);
+
+      expectApiError(response.body as ErrorResponse, FORBIDDEN_CODE);
+      expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    });
+
+    it("lets a creator who is one of two organizers leave, and then refuses them the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.eventAccess.count.mockResolvedValue(2);
+      prisma.eventAccess.delete.mockResolvedValue(buildOrganizerAccess());
+
+      await request(httpServer).post(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/leave`).set(authHeader()).expect(204);
+
+      prisma.event.findUnique.mockResolvedValue(formerCreatorEvent());
+      await request(httpServer).get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`).set(authHeader()).expect(403);
+    });
+
+    it("still refuses the creator leaving as the sole organizer", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      prisma.eventAccess.count.mockResolvedValue(1);
+
+      const response = await request(httpServer)
+        .post(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/leave`)
+        .set(authHeader())
+        .expect(422);
+
+      expectApiError(response.body as ErrorResponse, "LAST_ORGANIZER", { eventId: TEST_EVENT_ID });
+      expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
+    });
+
+    it("lets a co-organizer remove the creator, who then reads nothing", async () => {
+      prisma.event.findUnique.mockResolvedValue(
+        eventWithCallerAccess(buildOtherUserEvent({ id: TEST_EVENT_ID, creatorId: TEST_USER_ID }), [
+          buildOrganizerAccess({ userId: TEST_OTHER_USER_ID }),
+        ]),
+      );
+      prisma.eventAccess.findUnique.mockResolvedValue(buildOrganizerAccess());
+      prisma.eventAccess.count.mockResolvedValue(2);
+      prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
+
+      await request(httpServer)
+        .delete(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants/${TEST_USER_ID}`)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .expect(204);
+
+      expect(prisma.eventBan.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: { eventId: TEST_EVENT_ID, userId: TEST_USER_ID, bannedById: TEST_OTHER_USER_ID },
+        }),
+      );
+
+      prisma.event.findUnique.mockResolvedValue(formerCreatorEvent());
+      await request(httpServer).get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`).set(authHeader()).expect(403);
+      await request(httpServer).get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants`).set(authHeader()).expect(403);
+    });
+  });
+
   describe("authorization flows across endpoints", () => {
     it("allows a viewer to read an event and list participants but not update it", async () => {
       const event = buildEvent();
