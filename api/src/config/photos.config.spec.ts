@@ -3,6 +3,7 @@ import {
   DEFAULT_GALLERY_CLOSE_BATCH_SIZE,
   DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE,
   DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS,
+  DEFAULT_PHOTO_HASH_BACKFILL_BATCH_SIZE,
 } from "src/photos/photos.constants";
 
 describe("photosConfig", () => {
@@ -11,6 +12,8 @@ describe("photosConfig", () => {
     "PHOTO_PENDING_CLEANUP_BATCH_SIZE",
     "GALLERY_CLOSE_ENABLED",
     "GALLERY_CLOSE_BATCH_SIZE",
+    "PHOTO_HASH_BACKFILL_ENABLED",
+    "PHOTO_HASH_BACKFILL_BATCH_SIZE",
   ] as const;
 
   const original = new Map(MANAGED_VARS.map((name) => [name, process.env[name]]));
@@ -81,6 +84,32 @@ describe("photosConfig", () => {
 
       process.env.GALLERY_CLOSE_BATCH_SIZE = "0";
       expect(photosConfig().galleryCloseBatchSize).toBe(DEFAULT_GALLERY_CLOSE_BATCH_SIZE);
+    });
+  });
+
+  // It deletes the objects of copies of a removed intimate image, keyed off
+  // rows in DATABASE_URL, so it stays off unless switched on explicitly.
+  describe("hash backfill", () => {
+    it("is off unless PHOTO_HASH_BACKFILL_ENABLED is exactly true", () => {
+      expect(photosConfig().hashBackfillEnabled).toBe(false);
+
+      for (const value of ["TRUE", "1", "yes", "false"]) {
+        process.env.PHOTO_HASH_BACKFILL_ENABLED = value;
+        expect(photosConfig().hashBackfillEnabled).toBe(false);
+      }
+
+      process.env.PHOTO_HASH_BACKFILL_ENABLED = "true";
+      expect(photosConfig().hashBackfillEnabled).toBe(true);
+    });
+
+    it("takes a positive whole batch size, or the default", () => {
+      expect(photosConfig().hashBackfillBatchSize).toBe(DEFAULT_PHOTO_HASH_BACKFILL_BATCH_SIZE);
+
+      process.env.PHOTO_HASH_BACKFILL_BATCH_SIZE = "500";
+      expect(photosConfig().hashBackfillBatchSize).toBe(500);
+
+      process.env.PHOTO_HASH_BACKFILL_BATCH_SIZE = "0";
+      expect(photosConfig().hashBackfillBatchSize).toBe(DEFAULT_PHOTO_HASH_BACKFILL_BATCH_SIZE);
     });
   });
 });
