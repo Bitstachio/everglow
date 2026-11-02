@@ -1,9 +1,23 @@
 import { Report, ReportActorRole } from "generated/prisma/client";
 import { KeysetPage } from "src/common/pagination/keyset-cursor";
 import { ReportListResponseDto } from "../dto/report-list-response.dto";
+import { ReportReceiptResponseDto } from "../dto/report-receipt-response.dto";
 import { ReportResponseDto } from "../dto/report-response.dto";
 
 export class ReportMapper {
+  // Only what the reporter gave: not the queue, which would tell them an
+  // organizer dismissed or sat on it (docs/moderation.md §13).
+  static toReceiptDto(report: Report): ReportReceiptResponseDto {
+    return {
+      id: report.id,
+      targetType: report.targetType,
+      reason: report.reason,
+      note: report.note,
+      status: report.status,
+      createdAt: report.createdAt,
+    };
+  }
+
   // reporterId stays behind on purpose: see ReportResponseDto.
   static toResponseDto(report: Report): ReportResponseDto {
     return {

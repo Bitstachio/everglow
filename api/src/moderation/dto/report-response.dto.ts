@@ -9,7 +9,11 @@ import {
 } from "generated/prisma/client";
 import { REPORT_NOTE_MAX_LENGTH } from "../moderation.constants";
 
-/** Deliberately without the reporter: organizers act on a report without learning who filed it. */
+/**
+ * A report as the event's organizers see it, never one about themselves.
+ * Deliberately without the reporter: organizers act on a report without
+ * learning who filed it. The reporter gets ReportReceiptResponseDto instead.
+ */
 export class ReportResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;

@@ -24,6 +24,7 @@ import {
   buildBlock,
   buildMemberReport,
   buildReport,
+  expectedReportReceipt,
   expectedReportResponse,
 } from "./helpers/moderation.fixtures";
 import { TEST_PHOTO_ID, buildPhoto, withPhotoDerivatives } from "./helpers/photos.fixtures";
@@ -48,6 +49,7 @@ type ErrorResponse = {
 };
 
 type ReportBody = ReturnType<typeof expectedReportResponse>;
+type ReceiptBody = ReturnType<typeof expectedReportReceipt>;
 type ReportListBody = { items: ReportBody[]; nextCursor: string | null };
 type BlockedUserBody = { userId: string; name: string | null; username: string | null; blockedAt: string };
 
@@ -105,15 +107,16 @@ describe("Moderation (integration)", () => {
   describe("POST /photos/:photoId/reports", () => {
     const payload = { reason: ReportReason.NUDITY_OR_SEXUAL, note: "Not okay for a family album" };
 
-    it("returns 201 with the report, and never the reporter, for a member of the event", async () => {
+    it("returns 201 with the reporter's receipt, never the reporter, for a member of the event", async () => {
       const report = buildReport(payload);
       prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildViewerAccess()]) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([report]);
 
       const response = await request(httpServer).post(photoReportsPath()).set(authHeader()).send(payload).expect(201);
 
-      const body = response.body as WrappedResponse<ReportBody>;
-      expect(body.data).toEqual(expectedReportResponse(report));
+      const body = response.body as WrappedResponse<ReceiptBody>;
+      expect(body.data).toEqual(expectedReportReceipt(report));
+      expect(Object.keys(body.data).sort()).toEqual(["createdAt", "id", "note", "reason", "status", "targetType"]);
       expect(body.data).not.toHaveProperty("reporterId");
       expect(body.meta.path).toBe(photoReportsPath());
       expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith({
@@ -131,9 +134,28 @@ describe("Moderation (integration)", () => {
 
       const response = await request(httpServer).post(photoReportsPath()).set(authHeader()).send(payload).expect(201);
 
-      const body = response.body as WrappedResponse<ReportBody>;
-      expect(body.data).toEqual(expectedReportResponse(existing));
+      const body = response.body as WrappedResponse<ReceiptBody>;
+      expect(body.data).toEqual(expectedReportReceipt(existing));
       expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+    });
+
+    it("never tells the reporter on a repeat that their report went to the platform", async () => {
+      // Dismissed by an organizer as severe, or left 24 hours: the reporter isn't told (docs/moderation.md §13).
+      const existing = buildReport({
+        reason: ReportReason.NUDITY_OR_SEXUAL,
+        queue: "PLATFORM",
+        escalationReasons: ["SEVERE_REASON", "SEVERE_DISMISSED"],
+        escalatedAt: TEST_NOW,
+      });
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.count.mockResolvedValue(0);
+      prisma.report.findFirst.mockResolvedValue(existing);
+
+      const response = await request(httpServer).post(photoReportsPath()).set(authHeader()).send(payload).expect(201);
+
+      const body = response.body as WrappedResponse<ReceiptBody>;
+      expect(body.data).toEqual(expectedReportReceipt(existing));
+      expect(JSON.stringify(body.data)).not.toContain("PLATFORM");
     });
 
     it.each([
@@ -219,8 +241,8 @@ describe("Moderation (integration)", () => {
 
       const response = await request(httpServer).post(eventReportsPath()).set(authHeader()).send(payload).expect(201);
 
-      const body = response.body as WrappedResponse<ReportBody>;
-      expect(body.data).toEqual(expectedReportResponse(report));
+      const body = response.body as WrappedResponse<ReceiptBody>;
+      expect(body.data).toEqual(expectedReportReceipt(report));
       expect(body.data.targetType).toBe("EVENT");
       expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -306,9 +328,26 @@ describe("Moderation (integration)", () => {
 
       const response = await request(httpServer).post(memberReportsPath()).set(authHeader()).send(payload).expect(201);
 
-      const body = response.body as WrappedResponse<ReportBody>;
-      expect(body.data).toEqual(expectedReportResponse(report));
-      expect(body.data.photoId).toBeNull();
+      const body = response.body as WrappedResponse<ReceiptBody>;
+      expect(body.data).toEqual(expectedReportReceipt(report));
+      expect(body.data.targetType).toBe("MEMBER");
+    });
+
+    it("returns the receipt without the queue for a report about an organizer, which goes to the platform", async () => {
+      const report = buildMemberReport({ ...payload, queue: "PLATFORM", escalationReasons: ["TARGET_IS_ORGANIZER"] });
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.eventAccess.findUnique.mockResolvedValue(
+        buildTargetParticipantAccess({ accessLevel: AccessLevel.ORGANIZER }),
+      );
+      prisma.eventAccess.count.mockResolvedValue(2);
+      prisma.report.createManyAndReturn.mockResolvedValue([report]);
+
+      const response = await request(httpServer).post(memberReportsPath()).set(authHeader()).send(payload).expect(201);
+
+      const body = response.body as WrappedResponse<ReceiptBody>;
+      expect(body.data).toEqual(expectedReportReceipt(report));
+      expect(body.data).not.toHaveProperty("queue");
+      expect(body.data).not.toHaveProperty("reportedUserId");
     });
 
     it("returns 401 when the access token is missing", async () => {
@@ -570,8 +609,8 @@ describe("Moderation (integration)", () => {
       expectApiError(body, "ORGANIZER_ONLY", { action: "update", subject: "Report" });
     });
 
-    it("returns 403 when an organizer resolves a report made against themselves", async () => {
-      setup(reportWithAccess([buildOrganizerAccess()], { reportedUserId: TEST_USER_ID }));
+    it("returns 403 when an organizer resolves a report they filed, for instance before their promotion", async () => {
+      setup(reportWithAccess([buildOrganizerAccess()], { reporterId: TEST_USER_ID }));
 
       const response = await patch({ action: "DISMISS" }).expect(403);
 

@@ -500,6 +500,8 @@ export const reportsControllerReportMember = <ThrowOnError extends boolean = fal
 
 /**
  * List an event's reports (organizers only, cursor-paginated)
+ *
+ * The event's photo and member reports, in both queues. Never reports about the event itself, child-safety or intimate-image reports, nor reports about the caller or their own photos.
  */
 export const reportsControllerListReports = <ThrowOnError extends boolean = false>(
   options: Options<ReportsControllerListReportsData, ThrowOnError>,

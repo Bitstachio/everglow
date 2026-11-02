@@ -25,11 +25,16 @@ export const defineReportAbilities = (can: AbilityBuilder<AppAbility>["can"], us
   // Organizers read the event's reports about photos and members, and resolve
   // them. Reports about the event itself are about their own content, and
   // child-safety and intimate-image reports are not a host's to look at, so
-  // both go to the platform only (docs/moderation.md §2).
+  // both go to the platform only (docs/moderation.md §2). Nor does an organizer
+  // see a report about themselves or their own photo: its note and time could
+  // tell them who filed it (§3). The rule stays a Prisma filter for
+  // accessibleBy, and `not` alone would drop rows whose subject has deleted
+  // their account (null), so the null is spelled out.
   const organizerReviewable = {
     targetType: { in: [ReportTargetType.PHOTO, ReportTargetType.MEMBER] },
     reason: { notIn: [...PLATFORM_ONLY_REPORT_REASONS] },
     event: { is: { eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } } } },
+    OR: [{ reportedUserId: null }, { reportedUserId: { not: user.id } }],
   };
   can(REPORT_ACTIONS.READ, REPORT_SUBJECT, organizerReviewable);
   can(REPORT_ACTIONS.UPDATE, REPORT_SUBJECT, organizerReviewable);

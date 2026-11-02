@@ -1467,8 +1467,10 @@ describe("ReportsService", () => {
     ])("does not let an organizer resolve %s", async (_label, overrides) => {
       setup(reportFor(AccessLevel.ORGANIZER, { ...overrides, reportedUserId: callerId }));
 
+      // The ability itself leaves such a report out (reports.abilities.ts), so
+      // the refusal comes from the CASL check, before the report is looked at.
       await expect(service.resolveReport(reportId, callerId, "DISMISS")).rejects.toMatchObject({
-        response: { code: "CANNOT_RESOLVE_OWN_REPORT" },
+        response: { code: "ORGANIZER_ONLY" },
       });
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
