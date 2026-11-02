@@ -29,3 +29,16 @@ test.each([
 test("the revision date is a parseable date", () => {
   expect(Number.isNaN(Date.parse(LEGAL_LAST_UPDATED))).toBe(false);
 });
+
+const privacySection = (heading: string) =>
+  PRIVACY_POLICY_SECTIONS.find((section) => section.heading === heading)?.body ?? "";
+
+test("the privacy policy says reports are kept for up to a year, longer under a legal hold", () => {
+  const retention = privacySection("Data retention");
+  expect(retention).toMatch(/up to a year after the report is closed/);
+  expect(retention).toMatch(/until that hold ends/);
+});
+
+test("the privacy policy's contact is on the website's domain", () => {
+  expect(privacySection("Contact us")).toContain("hello@everglow.social");
+});
