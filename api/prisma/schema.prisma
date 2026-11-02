@@ -184,6 +184,38 @@ model CarriedBan {
   @@index([eventId])
 }
 
+// S3 work an account deletion owes once its database changes have committed
+// (docs/account-deletion.md §4). Prep writes it in its own transaction, so a
+// pass that fails afterwards (Auth0, Apple, a crash) leaves the work on record
+// instead of in memory. Drained right after that commit, again by a resumed
+// saga, and by the reconciler for anything left behind. No foreign key to the
+// user: the work outlives the row.
+model AccountDeletionOutbox {
+  id          String                      @id @default(uuid()) @db.Uuid
+  userId      String                      @db.Uuid
+  action      AccountDeletionOutboxAction
+  // PURGE: the object to delete, with its derived copies. REKEY: the
+  // original to move away from.
+  s3Key       String                      @db.VarChar(255)
+  // REKEY only: the photo being moved, and the key it moves to.
+  photoId     String?                     @db.Uuid
+  targetS3Key String?                     @db.VarChar(255)
+  // Drains that failed for this entry; past a bound it is left to the S3
+  // orphan reconciler.
+  attempts    Int                         @default(0)
+  createdAt   DateTime                    @default(now())
+
+  // A resumed prep queues the same keys again; they are one entry.
+  @@unique([action, s3Key])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum AccountDeletionOutboxAction {
+  PURGE
+  REKEY
+}
+
 model UserDetails {
   id          String   @id @default(uuid()) @db.Uuid
   userId      String   @unique @db.Uuid
