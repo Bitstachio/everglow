@@ -236,6 +236,7 @@
         ]
       },
       "delete": {
+        "description": "Checks first that the deletion can finish (Auth0 management access, and Sign in with Apple revocation for an Apple identity); if not, 503 ACCOUNT_DELETION_UNAVAILABLE and nothing is changed. An account whose deletion has already started may call this again to resume it; every other route answers it 401 ACCOUNT_DELETION_IN_PROGRESS, as does this one while the background job is finishing it.",
         "operationId": "UsersController_removeMe",
         "parameters": [
           {
@@ -261,6 +262,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "description": "ACCOUNT_DELETION_UNAVAILABLE: the deletion could not finish right now, so nothing was changed"
           }
         },
         "security": [
@@ -5099,6 +5103,8 @@
           "code": {
             "type": "string",
             "enum": [
+              "ACCOUNT_DELETION_IN_PROGRESS",
+              "ACCOUNT_DELETION_UNAVAILABLE",
               "ACCOUNT_SUSPENDED",
               "ACTIVE_EVENT_LIMIT_REACHED",
               "ALREADY_A_MEMBER",
