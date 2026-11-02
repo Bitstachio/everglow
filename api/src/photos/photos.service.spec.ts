@@ -34,7 +34,7 @@ describe("PhotosService", () => {
     deleteObjects: jest.Mock;
     sha256OfObject: jest.Mock;
   };
-  let identicalCopiesService: { findRemovedImages: jest.Mock };
+  let identicalCopiesService: { findRemovedImages: jest.Mock; removeCopies: jest.Mock };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
   let photoVisibilityService: { whereVisibleTo: jest.Mock; isVisibleTo: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
@@ -152,7 +152,10 @@ describe("PhotosService", () => {
       // Each original hashes to a digest derived from its key, so tests can tell them apart.
       sha256OfObject: jest.fn((key: string) => Promise.resolve(hashOf(key))),
     };
-    identicalCopiesService = { findRemovedImages: jest.fn().mockResolvedValue(new Map()) };
+    identicalCopiesService = {
+      findRemovedImages: jest.fn().mockResolvedValue(new Map()),
+      removeCopies: jest.fn().mockResolvedValue([]),
+    };
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
     photoVisibilityService = {
@@ -627,6 +630,25 @@ describe("PhotosService", () => {
 
         expect(prisma.photo.updateMany).not.toHaveBeenCalled();
         expect(prisma.photo.deleteMany).toHaveBeenCalledTimes(1);
+      });
+
+      it("removes a photo whose image was removed between the check and the READY flip", async () => {
+        identicalCopiesService.findRemovedImages
+          .mockReset()
+          .mockResolvedValueOnce(new Map())
+          .mockResolvedValueOnce(new Map([[hashOf(matchingKey()), "report-1"]]));
+        identicalCopiesService.removeCopies.mockResolvedValue(["linked-1"]);
+        prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+        await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
+
+        // Checked again after the flip: the removal's search ran before these were READY.
+        expect(identicalCopiesService.findRemovedImages).toHaveBeenCalledTimes(2);
+        expect(identicalCopiesService.removeCopies.mock.invocationCallOrder[0]).toBeGreaterThan(
+          prisma.photo.updateMany.mock.invocationCallOrder[1],
+        );
+        expect(identicalCopiesService.removeCopies).toHaveBeenCalledWith(["report-1"]);
+        expect(evidenceService.discardImages).toHaveBeenCalledWith(["linked-1"]);
       });
 
       it("keeps the row when the object can't be deleted, so it can never become READY", async () => {

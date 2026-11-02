@@ -241,6 +241,7 @@ export class PhotosService {
         { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verified.length },
         "Photo uploads confirmed",
       );
+      await this.removeIfRemovedMeanwhile(hashes);
     }
 
     await this.releaseRejectedSlots(eventId, callerId, missingIds, mismatched);
@@ -279,6 +280,21 @@ export class PhotosService {
       refused: refused.length,
     });
     throw new ApiException("PHOTO_REJECTED_MATCHES_REMOVED_IMAGE");
+  }
+
+  /**
+   * Checks the hashes again once the photos are READY. A removal that
+   * committed between the refusal check and the READY flip looked for copies
+   * before these were READY and missed them; this check, made after the
+   * flip, then sees its report. So one of the two always catches the photo.
+   */
+  private async removeIfRemovedMeanwhile(hashes: Map<string, string | null>): Promise<void> {
+    const hashed = [...hashes.values()].filter((hash): hash is string => Boolean(hash));
+    const removed = await this.identicalCopiesService.findRemovedImages(hashed);
+    if (removed.size === 0) return;
+
+    const closed = await this.identicalCopiesService.removeCopies([...new Set(removed.values())]);
+    await this.evidenceService.discardImages(closed);
   }
 
   /**
