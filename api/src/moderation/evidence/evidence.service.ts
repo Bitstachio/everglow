@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { forwardRef, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   Prisma,
@@ -26,6 +26,7 @@ const TARGET_GONE_CLOSED_REASON: Record<ReportTargetType, ReportClosedReason> = 
 };
 import { buildEvidenceS3Key } from "./evidence.constants";
 import { SUBJECT_USERNAME_HOLD_REASONS } from "./subject-username";
+import { IdenticalCopiesService } from "./identical-copies.service";
 
 /** What a new report was about, as written to its ReportEvidence row. */
 export interface EvidenceSnapshot {
@@ -79,6 +80,8 @@ export class EvidenceService {
     private readonly s3Service: S3Service,
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
+    @Inject(forwardRef(() => IdenticalCopiesService))
+    private readonly identicalCopiesService: IdenticalCopiesService,
   ) {
     this.logger.setContext(this.constructor.name);
   }
@@ -148,6 +151,8 @@ export class EvidenceService {
    */
   async discardImages(reportIds: string[], now: Date = new Date()): Promise<void> {
     if (reportIds.length === 0) return;
+    // Identical copies go too, each under a linked report whose evidence is discarded below (EV-201).
+    reportIds = [...reportIds, ...(await this.identicalCopiesService.removeCopies(reportIds, now))];
 
     const rows = await this.prisma.reportEvidence.findMany({
       where: {
