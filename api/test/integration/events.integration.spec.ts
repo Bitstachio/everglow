@@ -559,6 +559,24 @@ describe("EventsController (integration)", () => {
     const preview = async (expected: number, token?: string) =>
       request(httpServer).get(path(token)).set(authHeader(TEST_OTHER_ACCESS_TOKEN)).expect(expected);
 
+    it("never names an organizer whose account is being deleted as the host", async () => {
+      setupPreview();
+      const organizers = [
+        { userId: TEST_USER_ID, deleting: true, user: { details: { name: "Jane Doe" } } },
+        { userId: TEST_TARGET_USER_ID, deleting: false, user: { details: { name: "Target User" } } },
+      ];
+      prisma.eventAccess.findMany.mockImplementation(((args: { where: { user?: { deletionStartedAt: null } } }) =>
+        Promise.resolve(organizers.filter((row) => !args.where.user || !row.deleting))) as never);
+
+      const response = await preview(200);
+
+      expect((response.body as WrappedResponse<InvitePreviewBody>).data.host).toEqual({
+        userId: TEST_TARGET_USER_ID,
+        name: "Target User",
+      });
+      expect(JSON.stringify(response.body)).not.toContain("Jane Doe");
+    });
+
     it("returns 200 with the event's public details and JOINABLE", async () => {
       const event = buildEvent({ galleryClosesAt: new Date("2099-11-17T00:00:00.000Z") });
       setupPreview(event);
@@ -1088,10 +1106,30 @@ describe("EventsController (integration)", () => {
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith(expect.objectContaining({ key: avatarS3Key }));
       expect(JSON.stringify(body.data)).not.toContain("avatarS3Key");
       expect(prisma.eventAccess.findMany).toHaveBeenCalledWith({
-        where: { eventId: TEST_EVENT_ID },
+        where: { eventId: TEST_EVENT_ID, user: { deletionStartedAt: null } },
         include: eventAccessWithUserInclude(TEST_USER_ID),
         orderBy: { createdAt: "asc" },
       });
+    });
+
+    it("leaves out a member whose account is being deleted", async () => {
+      const organizerRow = buildEventAccessWithUser(buildOrganizerAccess(), buildUserWithDetails());
+      const leavingRow = buildEventAccessWithUser(
+        buildTargetParticipantAccess(),
+        { ...buildTargetUserWithDetails(), deletionStartedAt: new Date("2026-06-10T12:00:00.000Z") },
+        { blockedByCaller: false },
+      );
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
+      // The stand-in applies the query's account filter the way the database would.
+      prisma.eventAccess.findMany.mockImplementation(((args: { where: { user?: { deletionStartedAt: null } } }) =>
+        Promise.resolve(
+          [organizerRow, leavingRow].filter((row) => !args.where.user || row.user.deletionStartedAt === null),
+        )) as never);
+
+      const response = await request(httpServer).get(path()).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<ParticipantResponseBody[]>;
+      expect(body.data.map((participant) => participant.userId)).toEqual([TEST_USER_ID]);
     });
 
     it("returns 403 when the caller cannot read the event", async () => {

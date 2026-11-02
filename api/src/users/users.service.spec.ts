@@ -6,10 +6,10 @@ import { PinoLogger } from "nestjs-pino";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { ApiException } from "src/common/errors/api.exception";
-import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { ClaimedDeletion } from "./account-deletion-claim";
+import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
 import { AccountDeletionPreflightService } from "./account-deletion-preflight.service";
 import { AccountDeletionPrepService } from "./account-deletion-prep.service";
 import { AppleIdentityRevocationService } from "./apple-identity-revocation.service";
@@ -38,7 +38,7 @@ describe("UsersService", () => {
   let auth0Management: DeepMockProxy<Auth0ManagementService>;
   let deletionPrep: { prepareRelatedData: jest.Mock };
   let appleRevocation: { revokeBeforeAuth0Delete: jest.Mock };
-  let photoPurge: { purgeObjects: jest.Mock };
+  let outbox: { drain: jest.Mock };
   let preflight: { assertCanFinish: jest.Mock };
 
   const providerSubHash = hashProviderSub("auth0|abc123");
@@ -117,12 +117,12 @@ describe("UsersService", () => {
           uploadsDiscarded: 0,
           avatarQueued: false,
         },
-        s3Keys: [],
+        events: [],
       }),
     };
     appleRevocation = { revokeBeforeAuth0Delete: jest.fn().mockResolvedValue("not_apple") };
     preflight = { assertCanFinish: jest.fn().mockResolvedValue(undefined) };
-    photoPurge = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
+    outbox = { drain: jest.fn().mockResolvedValue({ done: 0, failed: 0, givenUp: 0 }) };
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     prisma.reportEvidence.updateMany.mockResolvedValue({ count: 0 });
 
@@ -150,8 +150,8 @@ describe("UsersService", () => {
           useValue: preflight,
         },
         {
-          provide: PhotoPurgeService,
-          useValue: photoPurge,
+          provide: AccountDeletionOutboxService,
+          useValue: outbox,
         },
         {
           provide: PinoLogger,
@@ -830,31 +830,17 @@ describe("UsersService", () => {
       expect(deletionPrep.prepareRelatedData).toHaveBeenCalledWith(userId, AccountDeletionPhotoPolicy.KEEP);
     });
 
-    it("purges the prepared S3 keys, avatar included, only after the row is gone", async () => {
-      const s3Keys = ["photos/u/e/a", "photos/u/e/b", "avatars/u/a"];
-      deletionPrep.prepareRelatedData.mockResolvedValue({
-        summary: {
-          eventsDeleted: 1,
-          eventsHandedOver: 0,
-          photosKept: 0,
-          photosDeleted: 2,
-          reportsClosed: 0,
-          uploadsDiscarded: 0,
-          avatarQueued: true,
-        },
-        s3Keys,
-      });
-      auth0Management.deleteUser.mockResolvedValue(undefined);
-      prisma.user.delete.mockResolvedValue(userWithDetails);
+    it("drains the objects prep queued right after prep, before Apple or Auth0 can fail", async () => {
+      auth0Management.deleteUser.mockRejectedValue(new Error("Auth0 down"));
 
-      await service.completeAccountDeletion(freshDeletionUser());
+      await expect(service.completeAccountDeletion(freshDeletionUser())).rejects.toThrow("Auth0 down");
 
-      expect(photoPurge.purgeObjects).toHaveBeenCalledWith(s3Keys, {
-        event: "user.account.photos_purged",
-        userId,
-      });
-      expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
-        photoPurge.purgeObjects.mock.invocationCallOrder[0],
+      expect(outbox.drain).toHaveBeenCalledWith({ userId });
+      expect(deletionPrep.prepareRelatedData.mock.invocationCallOrder[0]).toBeLessThan(
+        outbox.drain.mock.invocationCallOrder[0],
+      );
+      expect(outbox.drain.mock.invocationCallOrder[0]).toBeLessThan(
+        auth0Management.deleteUser.mock.invocationCallOrder[0],
       );
     });
 

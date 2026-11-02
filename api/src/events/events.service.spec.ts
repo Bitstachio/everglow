@@ -318,7 +318,8 @@ describe("EventsService", () => {
   });
 
   const participantsLookup = (lookupEventId: string, lookupCallerId: string) => ({
-    where: { eventId: lookupEventId },
+    // Accounts being deleted are left out of the roster.
+    where: { eventId: lookupEventId, user: { deletionStartedAt: null } },
     include: eventAccessWithUserInclude(lookupCallerId),
     orderBy: { createdAt: "asc" as const },
   });
@@ -1307,7 +1308,12 @@ describe("EventsService", () => {
       expect(prisma.eventAccess.count).toHaveBeenCalledWith({ where: { eventId: eventWithAccessOnly.id } });
       expect(prisma.eventAccess.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { eventId: eventWithAccessOnly.id, accessLevel: AccessLevel.ORGANIZER },
+          // An organizer being deleted is never named as the host.
+          where: {
+            eventId: eventWithAccessOnly.id,
+            accessLevel: AccessLevel.ORGANIZER,
+            user: { deletionStartedAt: null },
+          },
           orderBy: { createdAt: "asc" },
         }),
       );

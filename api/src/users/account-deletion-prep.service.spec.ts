@@ -3,12 +3,19 @@ import { AccessLevel, AccountDeletionPhotoPolicy, PhotoStatus, PrismaClient } fr
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
+import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
 import { AccountDeletionPrepService } from "./account-deletion-prep.service";
 
 describe("AccountDeletionPrepService", () => {
   let service: AccountDeletionPrepService;
   let prisma: DeepMockProxy<PrismaClient>;
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
+  let outbox: { enqueuePurge: jest.Mock };
+  /** The keys the last pass queued for the purge, in the transaction. */
+  const queued = (call = -1): string[] => {
+    const args = outbox.enqueuePurge.mock.calls.at(call) as [unknown, string, string[]] | undefined;
+    return args?.[2] ?? [];
+  };
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const soloEventId = "66666666-6666-6666-6666-666666666666";
@@ -45,11 +52,13 @@ describe("AccountDeletionPrepService", () => {
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
     prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key: null } as never);
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    outbox = { enqueuePurge: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AccountDeletionPrepService,
         { provide: PrismaService, useValue: prisma },
+        { provide: AccountDeletionOutboxService, useValue: outbox },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -60,7 +69,8 @@ describe("AccountDeletionPrepService", () => {
   it("does nothing and reports empty counts for an account with no events or photos", async () => {
     const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
 
-    expect(result).toEqual({ summary: emptySummary, s3Keys: [] });
+    expect(result).toEqual({ summary: emptySummary, events: [] });
+    expect(queued()).toEqual([]);
     expect(prisma.event.deleteMany).not.toHaveBeenCalled();
     expect(prisma.eventAccess.update).not.toHaveBeenCalled();
   });
@@ -92,6 +102,69 @@ describe("AccountDeletionPrepService", () => {
           args.where.eventId === soloEventId ? [{ s3Key: "photos/solo/a" }, { s3Key: "photos/solo/b" }] : [],
         )) as never);
       prisma.event.deleteMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("says what happened to each event it organized alone, and leaves co-organized ones out", async () => {
+      prisma.eventAccess.findMany.mockResolvedValue([
+        { eventId: coOrganizedEventId, event: { title: "Co-hosted" } },
+        { eventId: sharedEventId, event: { title: "Shared" } },
+        { eventId: soloEventId, event: { title: "Solo" } },
+      ] as never);
+
+      const { events } = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(events).toEqual([
+        { eventId: sharedEventId, title: "Shared", outcome: "HANDED_OVER" },
+        { eventId: soloEventId, title: "Solo", outcome: "DELETED" },
+      ]);
+    });
+
+    it("reports a solo event kept for review, and one that settling the reports let go as deleted", async () => {
+      prisma.report.count.mockResolvedValue(1);
+      const kept = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+      expect(kept.events).toContainEqual(expect.objectContaining({ eventId: soloEventId, outcome: "KEPT_FOR_REVIEW" }));
+
+      prisma.report.count.mockReset();
+      prisma.report.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+      const released = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+      expect(released.events).toContainEqual(expect.objectContaining({ eventId: soloEventId, outcome: "DELETED" }));
+    });
+
+    it("queues the keys it collects in its own transaction, so a later failure cannot lose them", async () => {
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      expect(outbox.enqueuePurge).toHaveBeenCalledWith(prisma, userId, ["photos/solo/a", "photos/solo/b"]);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    describe("preview", () => {
+      it("runs the same preparation and rolls it back, returning each event's outcome", async () => {
+        let rolledBack = false;
+        prisma.$transaction.mockImplementation(async (fn) => {
+          try {
+            return await (fn as (tx: unknown) => Promise<unknown>)(prisma);
+          } catch (error) {
+            rolledBack = true;
+            throw error;
+          }
+        });
+
+        const events = await service.preview(userId, AccountDeletionPhotoPolicy.DELETE);
+
+        expect(rolledBack).toBe(true);
+        expect(events.map((event) => event.outcome)).toEqual(["HANDED_OVER", "DELETED"]);
+        // Nothing is logged as done: it never happened.
+        expect(logger.info).not.toHaveBeenCalledWith(
+          expect.objectContaining({ event: "user.account.deletion_prepared" }),
+          expect.any(String),
+        );
+      });
+
+      it("passes a real failure through", async () => {
+        prisma.eventAccess.count.mockRejectedValue(new Error("db down"));
+
+        await expect(service.preview(userId, AccountDeletionPhotoPolicy.KEEP)).rejects.toThrow("db down");
+      });
     });
 
     it("leaves an event that still has another organizer untouched", async () => {
@@ -151,7 +224,7 @@ describe("AccountDeletionPrepService", () => {
 
       expect(prisma.event.deleteMany).toHaveBeenCalledWith({ where: { id: soloEventId } });
       expect(result.summary.eventsDeleted).toBe(1);
-      expect(result.s3Keys).toEqual(expect.arrayContaining(["photos/solo/a", "photos/solo/b"]));
+      expect(queued()).toEqual(expect.arrayContaining(["photos/solo/a", "photos/solo/b"]));
     });
 
     it.each<[string, () => void]>([
@@ -164,7 +237,7 @@ describe("AccountDeletionPrepService", () => {
 
       expect(prisma.event.deleteMany).not.toHaveBeenCalled();
       expect(result.summary).toMatchObject({ eventsDeleted: 0, eventsKeptForModeration: 1 });
-      expect(result.s3Keys).not.toEqual(expect.arrayContaining(["photos/solo/a"]));
+      expect(queued()).not.toEqual(expect.arrayContaining(["photos/solo/a"]));
     });
 
     it("deletes a kept event after all once settling the account's reports leaves nothing pending", async () => {
@@ -181,7 +254,7 @@ describe("AccountDeletionPrepService", () => {
       const coverS3Key = `event-covers/${soloEventId}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`;
       prisma.event.findUnique.mockResolvedValue({ coverS3Key } as never);
 
-      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
 
       // Only the event that is going away is asked for its cover, and before the row goes.
       expect(prisma.event.findUnique).toHaveBeenCalledTimes(1);
@@ -192,15 +265,15 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.event.findUnique.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.event.deleteMany.mock.invocationCallOrder[0],
       );
-      expect(result.s3Keys).toEqual(["photos/solo/a", "photos/solo/b", coverS3Key]);
+      expect(queued()).toEqual(["photos/solo/a", "photos/solo/b", coverS3Key]);
     });
 
     it("collects no cover key for a deleted event that has none", async () => {
       prisma.event.findUnique.mockResolvedValue({ coverS3Key: null } as never);
 
-      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
 
-      expect(result.s3Keys).toEqual(["photos/solo/a", "photos/solo/b"]);
+      expect(queued()).toEqual(["photos/solo/a", "photos/solo/b"]);
     });
 
     it("counts an event as deleted only when the row was actually still there", async () => {
@@ -259,7 +332,7 @@ describe("AccountDeletionPrepService", () => {
         where: { addedById: userId, status: PhotoStatus.PENDING },
       });
       expect(result.summary.uploadsDiscarded).toBe(2);
-      expect(result.s3Keys).toEqual(expect.arrayContaining(pending.map((photo) => photo.s3Key)));
+      expect(queued()).toEqual(expect.arrayContaining(pending.map((photo) => photo.s3Key)));
     });
 
     it("keeps uploaded photos in the event with no uploader by default", async () => {
@@ -269,7 +342,7 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.photo.deleteMany).not.toHaveBeenCalledWith({ where: { addedById: userId } });
       expect(result.summary).toMatchObject({ photosKept: 1, photosDeleted: 0 });
       // A kept photo's object must not be purged.
-      expect(result.s3Keys).not.toContain("photos/u/e/ready-1");
+      expect(queued()).not.toContain("photos/u/e/ready-1");
       // The kept photo is still there to judge, so its reports stay open.
       expect(prisma.report.updateMany).not.toHaveBeenCalledWith(
         expect.objectContaining({
@@ -284,7 +357,7 @@ describe("AccountDeletionPrepService", () => {
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { addedById: userId } });
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
       expect(result.summary).toMatchObject({ photosKept: 0, photosDeleted: 1, uploadsDiscarded: 2 });
-      expect(result.s3Keys).toEqual(expect.arrayContaining(["photos/u/e/ready-1", "photos/u/e/pending-1"]));
+      expect(queued()).toEqual(expect.arrayContaining(["photos/u/e/ready-1", "photos/u/e/pending-1"]));
     });
 
     it("closes the OPEN reports on the photos it removes, before removing them", async () => {
@@ -350,7 +423,8 @@ describe("AccountDeletionPrepService", () => {
         where: { userId },
         select: { avatarS3Key: true },
       });
-      expect(result).toEqual({ summary: { ...emptySummary, avatarQueued: true }, s3Keys: [avatarS3Key] });
+      expect(result).toEqual({ summary: { ...emptySummary, avatarQueued: true }, events: [] });
+      expect(queued()).toEqual([avatarS3Key]);
       expect(prisma.userDetails.update).not.toHaveBeenCalled();
       expect(prisma.userDetails.updateMany).not.toHaveBeenCalled();
     });
@@ -358,9 +432,9 @@ describe("AccountDeletionPrepService", () => {
     it("queues it whatever the photo policy: an avatar is never shared content", async () => {
       prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key } as never);
 
-      const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.DELETE);
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.DELETE);
 
-      expect(result.s3Keys).toEqual([avatarS3Key]);
+      expect(queued()).toEqual([avatarS3Key]);
     });
 
     it("finds the same key again on a resumed saga", async () => {
@@ -369,7 +443,8 @@ describe("AccountDeletionPrepService", () => {
       const first = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
       const second = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
 
-      expect(second.s3Keys).toEqual(first.s3Keys);
+      expect(second).toEqual(first);
+      expect(queued(1)).toEqual(queued(0));
     });
 
     it("queues nothing for an account that never onboarded", async () => {
@@ -377,7 +452,8 @@ describe("AccountDeletionPrepService", () => {
 
       const result = await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
 
-      expect(result).toEqual({ summary: emptySummary, s3Keys: [] });
+      expect(result).toEqual({ summary: emptySummary, events: [] });
+      expect(queued()).toEqual([]);
     });
   });
 
@@ -390,6 +466,7 @@ describe("AccountDeletionPrepService", () => {
 
     expect(prisma.eventAccess.update).not.toHaveBeenCalled();
     expect(prisma.event.deleteMany).not.toHaveBeenCalled();
-    expect(result).toEqual({ summary: emptySummary, s3Keys: [] });
+    expect(result).toEqual({ summary: emptySummary, events: [] });
+    expect(queued()).toEqual([]);
   });
 });

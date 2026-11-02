@@ -18,6 +18,7 @@ describe("ALERT_EVENTS", () => {
       APPLE_REVOCATION_FAILED: "user.account.apple_revocation_failed",
 
       ACCOUNT_PHOTOS_PURGED: "user.account.photos_purged",
+      ACCOUNT_DELETION_OUTBOX_GIVEN_UP: "user.account.deletion_outbox.given_up",
       EVENT_PHOTOS_PURGED: "event.photos.purged",
       EVENT_MEMBER_PHOTOS_PURGED: "event.member.photos_purged",
       GALLERY_PHOTOS_PURGED: "event.gallery.photos_purged",
