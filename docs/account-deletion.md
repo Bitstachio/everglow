@@ -122,7 +122,8 @@ This is a small **saga / state machine** for dual-store delete. Durable intent l
 3. Claim the row and mark deletion intent: set deletionStartedAt (once) and
    the claim's lease, in one statement
 4. Prep related database data so user.delete is likely to succeed
-   (events, memberships, photos, etc. per product rules)
+   (events, memberships, photos, etc. per product rules), writing the S3 keys
+   it collects to the outbox in the same transaction; then drain the outbox
 5. Sign in with Apple only: revoke the Apple token Auth0 holds for each of the
    user's Apple identities (idempotent: Apple answers 200 for an
    already-revoked token)
@@ -132,7 +133,6 @@ This is a small **saga / state machine** for dual-store delete. Durable intent l
    the account's suspension and event bans, null its username on report
    evidence (except under a child-safety or law-enforcement hold), then delete
    the User row (§6a)
-9. Best-effort S3 / other side cleanup (same spirit as event photo purge)
 ```
 
 Step 5 exists because Apple treats the app as still authorised until the token is revoked, and that token lives on the Auth0 user, so it must be revoked before the user is deleted. It repeats on every pass that still has an Auth0 user, which is safe. See [authentication.md](./authentication.md#10-sign-in-with-apple) for the rule and the ops setup.
@@ -185,6 +185,16 @@ A **reconciler** runs hourly and finishes deletions their request could not. It 
 
 It is **opt-in** (`ACCOUNT_DELETION_RECONCILER_ENABLED=true`): it decides which identities to delete from the tenant in `AUTH0_DOMAIN` using rows in `DATABASE_URL`, and those two are not paired outside a deployed environment. Same rule, and the same reason, as the photo orphan reconciler. After `ACCOUNT_DELETION_MAX_ATTEMPTS` failed passes a row stops being picked up and is reported once as `user.account.deletion_abandoned`: a failure that is not transient is not fixed by retrying it hourly, and an alert that fires forever is one nobody reads.
 
+### The outbox: S3 work that survives a failed pass
+
+Prep deletes rows whose objects then have to go too: the photos of deleted events and their covers, `DELETE` photos, uploads in flight, the avatar. Those keys used to live only in memory until the end of the saga, so a pass that failed at Apple or Auth0 lost them, and the objects stayed until the opt-in orphan reconciler found them, if it was on.
+
+They are now written to `AccountDeletionOutbox` (`action = PURGE`, one entry per key, unique on `(action, s3Key)` so a resumed prep adds nothing twice) in prep's own transaction: the rows and the record of their objects commit together. `AccountDeletionOutboxService.drain` runs right after that commit, before Apple and Auth0, so a failure there costs no privacy; it purges through `PhotoPurgeService` (evidence first, derived copies with each original), removes what went, and keeps what S3 refused with `attempts + 1`. A resumed saga drains its leftovers on its own pass; the reconciler drains anything older than 10 minutes on every run, which covers a saga that finished while S3 was down. After `ACCOUNT_DELETION_OUTBOX_MAX_ATTEMPTS` (24, a day of hourly runs) an entry is dropped with `user.account.deletion_outbox.given_up` and left to the S3 orphan reconciler. A key kept for evidence counts as done: the evidence job owns it from there. Every step is safe to repeat, so a request and the reconciler draining at once do the same work twice at worst.
+
+### Accounts mid-deletion are out of sight
+
+From the moment the flag is set the account is leaving, and if the deletion is abandoned it may stay flagged for a while. Its name, username and avatar should not linger on other people's screens meanwhile: `GET /events/:eventId/participants` leaves out members whose `deletionStartedAt` is set, and an invite preview never names such an organizer as the host (the next organizer is named, or none). Prep's organizer rules already ignore them as cover and as successors (§6). The member count on an invite still includes them, because joining still counts their membership until the row goes.
+
 **Recovering an abandoned deletion.** The counter is never reset automatically, so once the underlying cause is fixed the row has to be handed back to the job by hand:
 
 ```sql
@@ -195,6 +205,8 @@ FROM "User" WHERE "deletionStartedAt" IS NOT NULL AND "deletionAttempts" >= 5;
 -- hand one back to the reconciler
 UPDATE "User" SET "deletionAttempts" = 0, "deletionClaimedUntil" = NULL WHERE id = '…';
 ```
+
+**Service level.** A `user.account.deletion_abandoned` page is answered within one working day, and the deletion is finished, by hand or by handing it back, within 7 days of the page, well inside the 30 days PIPEDA treats as reasonable for an erasure request. If it cannot be (Auth0 tenant trouble, a relation prep does not handle), finish the database side by hand: delete the Auth0 user in the dashboard, set `auth0DeletedAt`, and hand the row back so the job tombstones and deletes it. Meanwhile the account is out of sight (above).
 
 The account stays locked out of every route but `DELETE /users/me` while `deletionStartedAt` is set, so the person is not using it in the meantime; their own retry still goes through, and does not count against the budget.
 
@@ -258,7 +270,9 @@ Two things fix it, and both are needed.
 | `UsernameChange.userId`                                             | `Cascade` | The change history only enforces this account's limit. (Holding released usernames for a cool-down, EV-30, may want to keep it.)                                         |
 | `UserBlock.blockerId`, `UserBlock.blockedId`                        | `Cascade` | A block means nothing once either account is gone.                                                                                                                       |
 
-**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It returns the S3 keys (photos, the covers of deleted events, and the avatar alike), which are purged best effort after the row is gone. Reports and blocks need no step here: their relations above settle them on their own.
+**`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It writes the S3 keys (photos, the covers of deleted events, and the avatar alike) to the outbox in the same transaction (§4), and returns what it did to each event the account organized alone.
+
+**Previewing it.** `GET /users/me/deletion-preview?photos=` runs the same preparation in a transaction that is rolled back and returns each event's outcome: `DELETED`, `HANDED_OVER` or `KEPT_FOR_REVIEW` (alone, but under review or with open reports that outlive the account). The delete screen labels each roll from it, so the label is what prep would really do rather than a guess from the member count. The photo choice is part of the question: deleting the photos closes the open reports on them, which can be all that keeps an event. Suspended accounts may ask, since they may delete themselves. Reports and blocks need no step here: their relations above settle them on their own.
 
 **Accounts already being deleted do not count as cover.** Both organizer rules ignore members whose own `deletionStartedAt` is set. Without that, two members of one event leaving at the same time can strand it:
 
@@ -335,13 +349,13 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Organises an event with another organizer      | Membership removed; event untouched                                                                                    |
 | Only organizer, other members are participants | Longest-standing participant promoted                                                                                  |
 | Only organizer, other members are only viewers | Longest-standing viewer promoted                                                                                       |
-| Only member of the event                       | Event deleted with all its photos and its cover; S3 purged after commit                                                |
+| Only member of the event                       | Event deleted with all its photos and its cover; S3 purged through the outbox after commit                             |
 | Created an event it later left                 | `creatorId` set to null; nothing else                                                                                  |
 | Uploaded photos, `?photos=KEEP`                | Kept, `addedById` null; organizers can still delete them                                                               |
-| Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged after commit; their OPEN reports closed as `TARGET_GONE`, `PHOTO_DELETED` first (`reportsClosed`) |
+| Uploaded photos, `?photos=DELETE`              | Rows deleted in prep, objects purged through the outbox after commit; their OPEN reports closed as `TARGET_GONE`, `PHOTO_DELETED` first (`reportsClosed`) |
 | Reported as a member                           | OPEN member reports that aren't severe closed as `TARGET_GONE`, `ACCOUNT_DELETED` (`memberReportsClosed`); severe ones stay for the platform |
 | Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the S3 orphan reconciler                       |
-| Has an avatar                                  | Key collected in prep, column left to the cascade, object purged after commit ([image-uploads.md](./image-uploads.md)) |
+| Has an avatar                                  | Key queued in prep, column left to the cascade, object purged after commit ([image-uploads.md](./image-uploads.md)) |
 | Avatar uploaded but never confirmed            | No row ever referenced it; an orphan for the S3 orphan reconciler                                                      |
 | Management credentials missing, token refused or a scope missing | 503 `ACCOUNT_DELETION_UNAVAILABLE`, nothing written; `user.account.deletion_unavailable` pages        |
 | Apple identity, Sign in with Apple not configured or its key unusable | 503 `ACCOUNT_DELETION_UNAVAILABLE`, nothing written                                                |
@@ -352,7 +366,9 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Reconciler and a request at once               | Only the holder of the claim runs the saga; the other skips. A row deleted under a pass counts as done, never a 500   |
 | Apple refuses the revocation, or has no token  | Deletion goes ahead; the last screen tells a Sign in with Apple account to remove Everglow under its Apple ID          |
 | Database delete fails after Auth0              | Row kept and flagged; reconciler finishes it                                                                           |
-| S3 purge fails                                 | Logged with counts; S3 orphan reconciler reclaims; request still 204                                                   |
+| S3 purge fails                                 | Logged with counts; the keys stay in the outbox for the resumed saga or the reconciler; request still 204 if the rest finished |
+| Pass fails after prep (Apple, Auth0, a crash)  | Prep's keys were queued in its transaction and drained before the failure; the resumed pass drains what is left        |
+| Member or organizer mid-deletion, or abandoned | Left out of participant lists and never named as an invite's host                                                      |
 | Any request with a pre-deletion token          | Generic 401; client signs out                                                                                          |
 | Token issued within 5 minutes after the deletion | Refused like a pre-deletion one: Auth0's clock may run ahead of ours (authentication.md §6)                         |
 | Same person signs in again later               | New account, new id, free tier (see authentication.md §6); suspended again and banned again if the deleted one was (§6a) |
