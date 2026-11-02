@@ -99,7 +99,8 @@ export class PlatformModerationController {
     description:
       "The organizer verdicts, on any OPEN report in either queue. Closes every OPEN report on the same target. " +
       "REMOVE_PHOTO on a photo that is already gone upholds the reports. A report about the event itself takes " +
-      "DISMISS only. 409 REPORT_ALREADY_RESOLVED once it is closed.",
+      "DISMISS only. 409 REPORT_ALREADY_RESOLVED once it is closed. REMOVE_MEMBER on the event's only organizer " +
+      "is 422 LAST_ORGANIZER.",
   })
   @ApiWrappedResponse(PlatformReportResponseDto, "The resolved report")
   async resolveReport(
@@ -225,7 +226,8 @@ export class PlatformModerationController {
     summary: "Suspend an account (platform moderators)",
     description:
       "Every request but reading and deleting the account answers 403 ACCOUNT_SUSPENDED. Closes its OPEN reports " +
-      "as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent.",
+      "as ACCOUNT_SUSPENDED, and suspends the events it organizes alone. Idempotent. A platform moderator, the " +
+      "caller included, can't be suspended (403 CANNOT_SUSPEND_MODERATOR).",
   })
   @ApiNoContentResponse({ description: "Account suspended (empty data envelope at runtime)" })
   async suspendUser(@CurrentUser() user: AuthenticatedUser, @Param("userId", ParseUUIDPipe) userId: string) {

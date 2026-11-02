@@ -67,6 +67,8 @@ enum ReportStatus {
 
 // Why a report left OPEN (docs/moderation.md §3). Verdicts close as ACTIONED
 // or DISMISSED; PHOTO_DELETED and ACCOUNT_DELETED close as TARGET_GONE.
+// REPORTER_REMOVED closes as DISMISSED: removing the reporter from the event
+// is the remover's judgment that their reports there no longer count.
 enum ReportClosedReason {
   PHOTO_REMOVED
   MEMBER_REMOVED
@@ -76,6 +78,7 @@ enum ReportClosedReason {
   DISMISSED
   PHOTO_DELETED
   ACCOUNT_DELETED
+  REPORTER_REMOVED
 }
 
 // In which capacity a report was closed. resolvedById is the person, and is

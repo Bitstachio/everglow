@@ -3,6 +3,16 @@ import { ReportClosedReason, ReportReason, ReportStatus } from "generated/prisma
 // Matches Report.note VarChar(500) in the Prisma schema.
 export const REPORT_NOTE_MAX_LENGTH = 500;
 
+// Control characters other than a newline, which a note must not contain:
+// Postgres refuses a NUL in text, and the others have no place in a note.
+export const REPORT_NOTE_PATTERN = /^(?:\n|\P{Cc})*$/u;
+
+// How long after a dismissal the same reporter can't report the same target
+// again (409 REPORT_RECENTLY_DISMISSED, docs/moderation.md §2). A week covers
+// most rolls, so a dismissed report can't come straight back to hide the photo
+// again or to run out the organizers' 24 hours and reach the platform.
+export const REPORT_DISMISSAL_COOLDOWN_DAYS = 7;
+
 // OPEN reports on one photo, each by a different member, that hide it from
 // everyone but the event's organizers. Three keeps a single member, or a pair
 // acting together, from taking a photo down for the whole event.
