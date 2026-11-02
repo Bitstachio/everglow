@@ -112,7 +112,7 @@ A **tombstone** is a durable record that this `providerSub` belonged to an accou
    - if a tombstone exists for `sub` **and the token was issued before `deletedAt`** → do not create; reject with the same generic 401
    - if a tombstone exists but the token was issued **after** `deletedAt` → the person signed in again, so JIT create a fresh account (see below)
    - otherwise → JIT create as today (real first login)
-3. Keep tombstones at least as long as the maximum access-token lifetime we issue (longer is fine and simpler). After that window, an old JWT cannot authenticate anyway.
+3. Keep tombstones at least as long as the maximum access-token lifetime we issue. After that window, an old JWT cannot authenticate anyway. A tombstone is personal data (a hash of a stable social identifier plus the former user id), so it also has a maximum: the account-deletion reconciler deletes it **30 days** after `deletedAt` (`TOMBSTONE_RETENTION_DAYS`, a wide margin over Auth0's 24-hour default), unless it carries a suspension or an event ban. Those stay at least `REPORT_RETENTION_DAYS` (1 year) after the deletion, and for as long as any report about the account is kept (open, within its retention window, or held). Details and the legal basis are in [account-deletion.md §6a](./account-deletion.md#6a-what-happens-to-the-accounts-data).
 
 Mid-deletion rows that still exist (`deletionStartedAt` set) are rejected on the resolve path before the hard delete and tombstone. See [account-deletion.md](./account-deletion.md).
 
@@ -128,6 +128,8 @@ The `iat` comparison is what separates the two cases. A tombstone blocks the tok
 
 - a token minted **before** `deletedAt` is a leftover of the deleted account → reject
 - a token minted **after** `deletedAt` means they passed Auth0 login again → a real new sign-in, so provision a fresh, empty account
+
+Empty, but not a clean slate: if the deleted account was suspended or banned from events, the tombstone carries those, and the new account is created already suspended and banned again from events that still exist, in the same transaction ([account-deletion.md §6a](./account-deletion.md#6a-what-happens-to-the-accounts-data)). Otherwise deleting and signing in again would undo a platform suspension in two taps.
 
 The deletion timestamp is refreshed whenever the same subject is tombstoned again, so a second deletion is judged against the second timestamp rather than the first.
 
