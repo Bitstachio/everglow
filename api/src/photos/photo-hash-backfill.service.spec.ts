@@ -2,6 +2,9 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { IdenticalCopiesService } from "src/moderation/evidence/identical-copies.service";
+import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { PhotoHashBackfillService } from "./photo-hash-backfill.service";
@@ -16,6 +19,8 @@ describe("PhotoHashBackfillService", () => {
 
   let prisma: DeepMockProxy<PrismaClient>;
   let s3Service: { sha256OfObject: jest.Mock };
+  let identicalCopies: { findRemovedImages: jest.Mock; removeCopies: jest.Mock };
+  let evidence: EvidenceServiceMock;
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
   let service: PhotoHashBackfillService;
 
@@ -25,11 +30,18 @@ describe("PhotoHashBackfillService", () => {
     s3Service = {
       sha256OfObject: jest.fn((key: string) => Promise.resolve(key.endsWith("a") ? hashA : hashB)),
     };
+    identicalCopies = {
+      findRemovedImages: jest.fn().mockResolvedValue(new Map()),
+      removeCopies: jest.fn().mockResolvedValue([]),
+    };
+    evidence = buildEvidenceServiceMock();
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
     const config = { getOrThrow: jest.fn((key: string) => (key === "photos.hashBackfillBatchSize" ? 50 : undefined)) };
     service = new PhotoHashBackfillService(
       prisma as unknown as PrismaService,
       s3Service as unknown as S3Service,
+      identicalCopies as unknown as IdenticalCopiesService,
+      evidence as unknown as EvidenceService,
       config as unknown as ConfigService,
       logger as unknown as PinoLogger,
     );
@@ -38,7 +50,7 @@ describe("PhotoHashBackfillService", () => {
   it("hashes a batch of READY photos without a hash, oldest untouched first", async () => {
     prisma.photo.findMany.mockResolvedValue([a, b] as never);
 
-    await expect(service.runBackfill(now)).resolves.toEqual({ hashed: 2, failed: 0 });
+    await expect(service.runBackfill(now)).resolves.toEqual({ hashed: 2, failed: 0, removedImageMatches: 0 });
 
     expect(prisma.photo.findMany).toHaveBeenCalledWith({
       where: { status: "READY", sha256: null },
@@ -56,12 +68,13 @@ describe("PhotoHashBackfillService", () => {
       where: { id: b.id, sha256: null },
       data: { sha256: hashB },
     });
+    expect(identicalCopies.removeCopies).not.toHaveBeenCalled();
   });
 
   it("does nothing when every photo has its hash", async () => {
     prisma.photo.findMany.mockResolvedValue([]);
 
-    await expect(service.runBackfill(now)).resolves.toEqual({ hashed: 0, failed: 0 });
+    await expect(service.runBackfill(now)).resolves.toEqual({ hashed: 0, failed: 0, removedImageMatches: 0 });
     expect(s3Service.sha256OfObject).not.toHaveBeenCalled();
   });
 
@@ -71,7 +84,7 @@ describe("PhotoHashBackfillService", () => {
       key.endsWith("a") ? Promise.reject(new Error("gone")) : Promise.resolve(hashB),
     );
 
-    await expect(service.runBackfill(now)).resolves.toEqual({ hashed: 1, failed: 1 });
+    await expect(service.runBackfill(now)).resolves.toEqual({ hashed: 1, failed: 1, removedImageMatches: 0 });
 
     expect(prisma.photo.updateMany).toHaveBeenCalledWith({
       where: { id: a.id, sha256: null },
@@ -81,5 +94,18 @@ describe("PhotoHashBackfillService", () => {
       expect.objectContaining({ event: "photo.hash_backfill.read_failed", failed: 1 }),
       expect.any(String),
     );
+  });
+
+  it("removes photos that turn out to be copies of an image already removed", async () => {
+    prisma.photo.findMany.mockResolvedValue([a, b] as never);
+    identicalCopies.findRemovedImages.mockResolvedValue(new Map([[hashA, "report-1"]]));
+    identicalCopies.removeCopies.mockResolvedValue(["linked-1"]);
+
+    await expect(service.runBackfill(now)).resolves.toEqual({ hashed: 2, failed: 0, removedImageMatches: 1 });
+
+    expect(identicalCopies.findRemovedImages).toHaveBeenCalledWith([hashA, hashB], now);
+    expect(identicalCopies.removeCopies).toHaveBeenCalledWith(["report-1"], now);
+    // The linked reports' evidence copies go, as with any removed intimate image.
+    expect(evidence.discardImages).toHaveBeenCalledWith(["linked-1"], now);
   });
 });

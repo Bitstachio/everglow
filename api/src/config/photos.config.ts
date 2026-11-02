@@ -27,7 +27,8 @@ export default registerAs("photos", () => ({
   galleryCloseEnabled: process.env.GALLERY_CLOSE_ENABLED === "true",
   galleryCloseBatchSize: parseIntegerEnv(process.env.GALLERY_CLOSE_BATCH_SIZE, DEFAULT_GALLERY_CLOSE_BATCH_SIZE, 1),
   // Opt-in like the close job: the hash backfill reads every unhashed photo
-  // of DATABASE_URL from AWS_S3_BUCKET, which only makes sense where this
+  // of DATABASE_URL from AWS_S3_BUCKET and removes identical copies of a
+  // removed intimate image, deleting their objects. Enable it only where this
   // database owns the bucket.
   hashBackfillEnabled: process.env.PHOTO_HASH_BACKFILL_ENABLED === "true",
   hashBackfillBatchSize: parseIntegerEnv(
