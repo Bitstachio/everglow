@@ -98,7 +98,7 @@ export class PhotosService {
         id: photoId,
         eventId,
         addedById: callerId,
-        s3Key: buildPhotoS3Key(callerId, eventId, photoId),
+        s3Key: buildPhotoS3Key(eventId, photoId),
         contentType: file.contentType,
         sizeBytes: file.sizeBytes,
         status: PhotoStatus.PENDING,
