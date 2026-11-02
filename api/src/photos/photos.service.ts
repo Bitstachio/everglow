@@ -12,6 +12,7 @@ import { ApiException } from "src/common/errors/api.exception";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { IdenticalCopiesService } from "src/moderation/evidence/identical-copies.service";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
@@ -57,6 +58,7 @@ export class PhotosService {
     private readonly photoStorageService: PhotoStorageService,
     private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly evidenceService: EvidenceService,
+    private readonly identicalCopiesService: IdenticalCopiesService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -214,8 +216,9 @@ export class PhotosService {
 
     if (verified.length > 0) {
       // Each original is read once and hashed, so identical copies of a
-      // removed intimate image can be found (docs/moderation.md §7).
+      // removed intimate image can be found and refused (docs/moderation.md §7).
       const hashes = await hashPhotoOriginals(this.s3Service, verified);
+      await this.refuseRemovedImages(eventId, callerId, verified, hashes);
 
       // One update per photo, since each carries its own hash; together, so a
       // batch flips READY as one.
@@ -243,6 +246,39 @@ export class PhotosService {
     await this.releaseRejectedSlots(eventId, callerId, missingIds, mismatched);
 
     return results;
+  }
+
+  /**
+   * Refuses the whole confirm when any of its photos has the bytes of an
+   * intimate image the platform removed: those uploads are discarded and
+   * their slots released, and nothing else changes. The other photos stay
+   * PENDING with their objects, so confirming them again gives their own
+   * verdicts, and the discarded ones answer NOT_FOUND (docs/uploads.md).
+   */
+  private async refuseRemovedImages(
+    eventId: string,
+    callerId: string,
+    verified: Photo[],
+    hashes: Map<string, string | null>,
+  ): Promise<void> {
+    const hashed = [...hashes.values()].filter((hash): hash is string => Boolean(hash));
+    const removed = await this.identicalCopiesService.findRemovedImages(hashed);
+    const refused = verified.filter((photo) => removed.has(hashes.get(photo.id) ?? ""));
+    if (refused.length === 0) return;
+
+    const deletes = await Promise.allSettled(
+      refused.map((photo) => deleteObjectWithDerivatives(this.s3Service, photo.s3Key)),
+    );
+    // An object that could not be deleted keeps its row, which can't become
+    // READY: confirm refuses it again, and the sweeper deletes both.
+    const releasable = refused.filter((_, index) => deletes[index].status === "fulfilled").map((photo) => photo.id);
+    await this.releaseSlots(releasable, {
+      event: "photo.upload_refused.removed_image",
+      eventId,
+      callerId,
+      refused: refused.length,
+    });
+    throw new ApiException("PHOTO_REJECTED_MATCHES_REMOVED_IMAGE");
   }
 
   /**
