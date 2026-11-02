@@ -10,7 +10,7 @@ describe("AccountDeletionPrepService", () => {
   let service: AccountDeletionPrepService;
   let prisma: DeepMockProxy<PrismaClient>;
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
-  let outbox: { enqueuePurge: jest.Mock };
+  let outbox: { enqueuePurge: jest.Mock; enqueueRekey: jest.Mock };
   /** The keys the last pass queued for the purge, in the transaction. */
   const queued = (call = -1): string[] => {
     const args = outbox.enqueuePurge.mock.calls.at(call) as [unknown, string, string[]] | undefined;
@@ -52,7 +52,10 @@ describe("AccountDeletionPrepService", () => {
     prisma.photo.updateMany.mockResolvedValue({ count: 0 });
     prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key: null } as never);
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
-    outbox = { enqueuePurge: jest.fn().mockResolvedValue(undefined) };
+    outbox = {
+      enqueuePurge: jest.fn().mockResolvedValue(undefined),
+      enqueueRekey: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -408,6 +411,40 @@ describe("AccountDeletionPrepService", () => {
         data: expect.objectContaining({ status: "TARGET_GONE", closedReason: "ACCOUNT_DELETED" }) as unknown,
       });
       expect(result.summary.memberReportsClosed).toBe(1);
+    });
+  });
+
+  describe("kept photos that name their uploader", () => {
+    const eventId = "99999999-0000-0000-0000-000000000009";
+    const keyOf = (uploader: string, photoId: string) => `photos/${uploader}/${eventId}/${photoId}`;
+
+    it("queues the move off the old key for each kept photo that still carries the account's id", async () => {
+      const named = {
+        id: "aaaaaaaa-0000-0000-0000-000000000001",
+        eventId,
+        s3Key: keyOf(userId, "aaaaaaaa-0000-0000-0000-000000000001"),
+      };
+      const fresh = {
+        id: "aaaaaaaa-0000-0000-0000-000000000002",
+        eventId,
+        s3Key: `photos/${eventId}/aaaaaaaa-0000-0000-0000-000000000002`,
+      };
+      prisma.photo.findMany.mockImplementation(((args: { where: { status?: string; eventId?: string } }) =>
+        Promise.resolve(args.where.status || args.where.eventId ? [] : [named, fresh])) as never);
+
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.KEEP);
+
+      // In prep's transaction, before the uploader link is cut.
+      expect(outbox.enqueueRekey).toHaveBeenCalledWith(prisma, userId, [named]);
+      expect(outbox.enqueueRekey.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.photo.updateMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("moves nothing when the photos are deleted instead", async () => {
+      await service.prepareRelatedData(userId, AccountDeletionPhotoPolicy.DELETE);
+
+      expect(outbox.enqueueRekey).not.toHaveBeenCalled();
     });
   });
 

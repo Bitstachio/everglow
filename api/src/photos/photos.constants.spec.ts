@@ -11,18 +11,41 @@ import {
   buildPhotoS3Key,
   buildPhotoThumbnailS3Key,
   hasPhotoDerivatives,
+  isPhotoS3Key,
   PHOTO_DERIVED_S3_KEY_PREFIX,
   PHOTO_LARGE_OBJECT_NAME,
   PHOTO_THUMBNAIL_OBJECT_NAME,
+  uploaderIdInPhotoS3Key,
   withPhotoDerivativeS3Keys,
 } from "./photos.constants";
 
 const userId = "11111111-1111-1111-1111-111111111111";
 const eventId = "66666666-6666-6666-6666-666666666666";
 const photoId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-const original = buildPhotoS3Key(userId, eventId, photoId);
-// Pre-#38 layout, still referenced by old rows.
-const legacyOriginal = `photos/${eventId}/${photoId}`;
+const original = buildPhotoS3Key(eventId, photoId);
+// The uploader layout minted before EV-205, still referenced by old rows.
+const legacyOriginal = `photos/${userId}/${eventId}/${photoId}`;
+
+describe("photo original keys", () => {
+  it("names the event and the photo, never the uploader", () => {
+    expect(original).toBe(`photos/${eventId}/${photoId}`);
+    expect(original).not.toContain(userId);
+  });
+
+  it("recognises both layouts the API has minted, and nothing else", () => {
+    expect(isPhotoS3Key(original)).toBe(true);
+    expect(isPhotoS3Key(legacyOriginal)).toBe(true);
+    expect(isPhotoS3Key(`photos/${eventId}/not-a-uuid`)).toBe(false);
+    expect(isPhotoS3Key(`photos/a/${userId}/${eventId}/${photoId}`)).toBe(false);
+  });
+
+  it("finds the uploader id only in the uploader layout", () => {
+    expect(uploaderIdInPhotoS3Key(legacyOriginal)).toBe(userId);
+    expect(uploaderIdInPhotoS3Key(legacyOriginal.toUpperCase().replace("PHOTOS/", "photos/"))).toBe(userId);
+    expect(uploaderIdInPhotoS3Key(original)).toBeNull();
+    expect(uploaderIdInPhotoS3Key(`evidence/${photoId}/${legacyOriginal}`)).toBeNull();
+  });
+});
 
 describe("photo derivative keys", () => {
   it("uses the image processor's prefix and object names", () => {
@@ -38,8 +61,8 @@ describe("photo derivative keys", () => {
 
   it("pins the layout", () => {
     expect(buildPhotoDerivativeS3Keys(original)).toEqual({
-      thumb: `derived/photos/${userId}/${eventId}/${photoId}/thumb.webp`,
-      large: `derived/photos/${userId}/${eventId}/${photoId}/large.jpg`,
+      thumb: `derived/photos/${eventId}/${photoId}/thumb.webp`,
+      large: `derived/photos/${eventId}/${photoId}/large.jpg`,
     });
   });
 

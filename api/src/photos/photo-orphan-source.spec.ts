@@ -15,8 +15,9 @@ describe("PhotoOrphanSource", () => {
   const userId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
   const photoId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-  const currentKey = buildPhotoS3Key(userId, eventId, photoId);
-  const legacyKey = `${PHOTO_S3_KEY_PREFIX}${eventId}/${photoId}`;
+  const currentKey = buildPhotoS3Key(eventId, photoId);
+  // The uploader layout minted before EV-205.
+  const legacyKey = `${PHOTO_S3_KEY_PREFIX}${userId}/${eventId}/${photoId}`;
 
   beforeEach(() => {
     prisma = mockDeep<PrismaClient>();

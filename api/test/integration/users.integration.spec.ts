@@ -25,10 +25,15 @@ import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
 import { expectApiError } from "./helpers/expect-api-error";
 import { NOT_FOUND_CODE } from "src/common/errors/http.errors";
-import { TEST_EVENT_ID } from "./helpers/events.fixtures";
-import { TEST_PHOTO_ID, withPhotoDerivatives } from "./helpers/photos.fixtures";
+import { TEST_EVENT_ID, buildEvent, buildViewerAccess } from "./helpers/events.fixtures";
+import { TEST_PHOTO_ID, buildPhoto, withPhotoDerivatives } from "./helpers/photos.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
-import { authHeader, TEST_APPLE_ACCESS_TOKEN } from "./helpers/auth.fixtures";
+import {
+  authHeader,
+  TEST_APPLE_ACCESS_TOKEN,
+  TEST_OTHER_ACCESS_TOKEN,
+  TEST_OTHER_USER_ID,
+} from "./helpers/auth.fixtures";
 import { createTestApp } from "./helpers/create-test-app";
 import {
   TEST_NOW,
@@ -72,6 +77,7 @@ describe("UsersController (integration)", () => {
   let httpServer: Server;
 
   const s3Service = {
+    copyObject: jest.fn(),
     deleteObjects: jest.fn(),
     deleteObject: jest.fn(),
     headObject: jest.fn(),
@@ -218,6 +224,8 @@ describe("UsersController (integration)", () => {
     prisma.report.findMany.mockResolvedValue([]);
     for (const method of Object.values(s3Service)) method.mockReset();
     s3Service.deleteObjects.mockResolvedValue({ deleted: [], failed: [] });
+    s3Service.copyObject.mockResolvedValue({ sha256: null });
+    s3Service.headObject.mockResolvedValue({ exists: true });
     s3Service.deleteObject.mockResolvedValue(undefined);
     s3Service.getPresignedUploadUrl.mockResolvedValue(AVATAR_UPLOAD_URL);
     s3Service.getPresignedDownloadUrl.mockResolvedValue(AVATAR_URL);
@@ -1468,6 +1476,71 @@ describe("UsersController (integration)", () => {
 
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives("photos/u/e/left-behind"));
       expect(outboxStore).toEqual([]);
+    });
+
+    it("KEEP moves the person's kept photos off keys that name them: no former user id in photo responses or URLs", async () => {
+      const oldKey = `photos/${TEST_USER_ID}/${TEST_EVENT_ID}/${TEST_PHOTO_ID}`;
+      const newKey = `photos/${TEST_EVENT_ID}/${TEST_PHOTO_ID}`;
+      const photo = { ...buildPhoto({ s3Key: oldKey }) };
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.photo.findMany.mockImplementation(((args: { where: { status?: PhotoStatus; eventId?: string } }) =>
+        Promise.resolve(
+          args.where.status || args.where.eventId ? [] : [{ id: photo.id, eventId: photo.eventId, s3Key: photo.s3Key }],
+        )) as never);
+      prisma.photo.updateMany.mockImplementation(((args: {
+        where: { addedById?: string; id?: string; s3Key?: string };
+        data: { addedById?: null; s3Key?: string };
+      }) => {
+        const matches =
+          (args.where.addedById === undefined || photo.addedById === args.where.addedById) &&
+          (args.where.id === undefined || photo.id === args.where.id) &&
+          (args.where.s3Key === undefined || photo.s3Key === args.where.s3Key);
+        if (matches) Object.assign(photo, args.data);
+        return Promise.resolve({ count: matches ? 1 : 0 });
+      }) as never);
+      prisma.reportEvidence.updateMany.mockResolvedValue({ count: 0 });
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(buildUserWithDetails());
+      s3Service.deleteObjects.mockImplementation((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] }));
+      // The re-key reads the row's key; the photo read joins its event.
+      prisma.photo.findUnique.mockImplementation(((args: { select?: unknown }) =>
+        Promise.resolve(
+          args.select
+            ? { s3Key: photo.s3Key }
+            : {
+                ...photo,
+                event: {
+                  ...buildEvent(),
+                  eventAccesses: [buildViewerAccess({ userId: TEST_OTHER_USER_ID })],
+                  _count: { eventAccesses: 2 },
+                },
+              },
+        )) as never);
+
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+
+      expect(photo).toMatchObject({ addedById: null, s3Key: newKey });
+      expect(s3Service.copyObject).toHaveBeenCalledWith(oldKey, newKey);
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(oldKey));
+      expect(outboxStore).toEqual([]);
+
+      // Another member opens the kept photo.
+      prisma.plan.findUnique.mockResolvedValue(buildFreePlan());
+      prisma.plan.findFirst.mockResolvedValue(buildFreePlan());
+      prisma.report.groupBy.mockResolvedValue([]);
+      prisma.photo.count.mockResolvedValue(1);
+      s3Service.getPresignedDownloadUrl.mockImplementation(({ key }: { key: string }) =>
+        Promise.resolve(`https://s3.example/${key}?X-Amz-Signature=1`),
+      );
+
+      const response = await request(httpServer)
+        .get(`/${API_GLOBAL_PREFIX}/photos/${TEST_PHOTO_ID}`)
+        .set(authHeader(TEST_OTHER_ACCESS_TOKEN))
+        .expect(200);
+
+      const body = JSON.stringify(response.body);
+      expect(body).toContain(newKey);
+      expect(body).not.toContain(TEST_USER_ID);
     });
 
     it("lets a flagged account through on DELETE /users/me only", () => {
