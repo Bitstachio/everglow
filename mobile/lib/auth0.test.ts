@@ -8,16 +8,14 @@ const mockClearCredentials = jest.fn();
 
 jest.mock("react-native-auth0", () => ({
   __esModule: true,
-  default: function Auth0() {
-    return {
-      auth: { revoke: (...args: unknown[]) => mockRevoke(...args) },
-      webAuth: { clearSession: (...args: unknown[]) => mockClearSession(...args) },
-      credentialsManager: {
-        getCredentials: () => mockGetCredentials(),
-        clearCredentials: () => mockClearCredentials(),
-      },
-    };
-  },
+  default: jest.fn().mockImplementation(() => ({
+    auth: { revoke: (...args: unknown[]) => mockRevoke(...args) },
+    webAuth: { clearSession: (...args: unknown[]) => mockClearSession(...args) },
+    credentialsManager: {
+      getCredentials: () => mockGetCredentials(),
+      clearCredentials: () => mockClearCredentials(),
+    },
+  })),
   parseIdToken: jest.fn(),
 }));
 jest.mock("expo-web-browser", () => ({ openAuthSessionAsync: jest.fn() }));
