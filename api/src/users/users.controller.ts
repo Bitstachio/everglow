@@ -121,7 +121,12 @@ export class UsersController {
 
   @Post("me/avatar/upload-url")
   @RateLimit("uploads")
-  @ApiOperation({ summary: "Mint a presigned upload URL for the current user's avatar" })
+  @ApiOperation({
+    summary: "Mint a presigned upload URL for the current user's avatar",
+    description:
+      "PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: " +
+      "a later PUT gets 412 from storage, which means the file already landed.",
+  })
   @ApiWrappedResponse(ImageUploadResponseDto, "Upload id with a presigned S3 PUT URL", 201)
   async createAvatarUploadUrl(
     @CurrentUser() user: AuthenticatedUser,

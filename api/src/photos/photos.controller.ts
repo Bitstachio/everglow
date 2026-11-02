@@ -37,7 +37,12 @@ export class PhotosController {
 
   @Post("events/:eventId/photos/upload-urls")
   @RateLimit("uploads")
-  @ApiOperation({ summary: "Mint presigned upload URLs for a batch of photos" })
+  @ApiOperation({
+    summary: "Mint presigned upload URLs for a batch of photos",
+    description:
+      "PUT each file to its uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key " +
+      "once: a later PUT gets 412 from storage, which means the file already landed.",
+  })
   @ApiWrappedResponse(UploadSlotResponseDto, "Upload slots with presigned S3 PUT URLs", 201)
   async createUploadUrls(
     @CurrentUser() user: AuthenticatedUser,

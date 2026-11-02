@@ -471,6 +471,8 @@ export const usersControllerGetMyLimitsOptions = (options?: Options<UsersControl
 
 /**
  * Mint a presigned upload URL for the current user's avatar
+ *
+ * PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.
  */
 export const usersControllerCreateAvatarUploadUrlMutation = (
   options?: Partial<Options<UsersControllerCreateAvatarUploadUrlData>>,
@@ -608,6 +610,8 @@ export const usersControllerPreviewDeletionOptions = (options?: Options<UsersCon
 
 /**
  * Mint presigned upload URLs for a batch of photos
+ *
+ * PUT each file to its uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.
  */
 export const photosControllerCreateUploadUrlsMutation = (
   options?: Partial<Options<PhotosControllerCreateUploadUrlsData>>,
@@ -1528,6 +1532,8 @@ export const eventsControllerRegenerateInviteMutation = (
 
 /**
  * Mint a presigned upload URL for the event cover image
+ *
+ * PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.
  */
 export const eventsControllerCreateCoverUploadUrlMutation = (
   options?: Partial<Options<EventsControllerCreateCoverUploadUrlData>>,

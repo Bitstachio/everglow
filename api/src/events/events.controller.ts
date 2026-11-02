@@ -293,7 +293,12 @@ export class EventsController {
 
   @Post(":eventId/cover/upload-url")
   @RateLimit("uploads")
-  @ApiOperation({ summary: "Mint a presigned upload URL for the event cover image" })
+  @ApiOperation({
+    summary: "Mint a presigned upload URL for the event cover image",
+    description:
+      "PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: " +
+      "a later PUT gets 412 from storage, which means the file already landed.",
+  })
   @ApiWrappedResponse(ImageUploadResponseDto, "Upload id with a presigned S3 PUT URL", 201)
   async createCoverUploadUrl(
     @CurrentUser() user: AuthenticatedUser,
