@@ -1,6 +1,8 @@
 import type { UsersControllerRemoveMeData } from "@/lib/api/generated";
 
 export type {
+  AccountDeletionEventOutcome,
+  AccountDeletionPreviewResponseDto,
   BlockedUserResponseDto,
   PasswordChangeTicketResponseDto,
   UpdateUserDto,

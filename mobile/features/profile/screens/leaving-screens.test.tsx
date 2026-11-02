@@ -23,8 +23,9 @@ jest.mock("../hooks/use-lab-card", () => ({
 const mockDeleteScreen = {
   photos: null as "KEEP" | "DELETE" | null,
   rolls: [
-    { id: "e1", title: "Nadia turns 30", fate: "stays" as const },
-    { id: "e2", title: "Picnic, just me", fate: "deleted" as const },
+    { id: "e1", title: "Nadia turns 30", fate: "HANDED_OVER" as const },
+    { id: "e2", title: "Picnic, just me", fate: "DELETED" as const },
+    { id: "e3", title: "On hold", fate: "KEPT_FOR_REVIEW" as const },
   ],
   showRolls: true,
   rollsFailed: false,
@@ -79,6 +80,7 @@ describe("14.11 Delete account", () => {
     await renderScreen(<DeleteAccountScreen />);
     expect(screen.getByLabelText("Nadia turns 30, Stays with the people on it")).toBeOnTheScreen();
     expect(screen.getByLabelText("Picnic, just me, Deleted · no one else on it")).toBeOnTheScreen();
+    expect(screen.getByLabelText("On hold, Kept while Everglow reviews it")).toBeOnTheScreen();
   });
 
   test("says when the rolls couldn't load, and tries again", async () => {
@@ -93,7 +95,7 @@ describe("14.11 Delete account", () => {
   test("leaves the rolls section out when there's nothing in it", async () => {
     mockDeleteScreen.showRolls = false;
     await renderScreen(<DeleteAccountScreen />);
-    expect(screen.queryByText("Rolls you started or are alone on")).not.toBeOnTheScreen();
+    expect(screen.queryByText("Rolls you host alone")).not.toBeOnTheScreen();
   });
 
   test.each([true, false])("says what is kept after deletion (rolls shown: %s)", async (showRolls) => {
