@@ -182,7 +182,7 @@ describe("Identical copies of a removed intimate image (integration)", () => {
     // As with the original, an intimate image's evidence copy is then deleted; only its hash stays.
     expect(prisma.reportEvidence.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ reportId: { in: [TEST_REPORT_ID, LINKED_REPORT_ID] } }),
+        where: expect.objectContaining({ reportId: { in: [TEST_REPORT_ID, LINKED_REPORT_ID] } }) as unknown,
       }),
     );
     expect(s3Service.deleteObject).toHaveBeenCalledWith(evidenceKey(TEST_REPORT_ID, originalKey));
