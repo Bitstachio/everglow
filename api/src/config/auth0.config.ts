@@ -13,7 +13,8 @@ export default registerAs("auth0", () => {
     // the deletion scopes documented in .env.example.
     managementClientId: process.env.AUTH0_MANAGEMENT_CLIENT_ID,
     managementClientSecret: process.env.AUTH0_MANAGEMENT_CLIENT_SECRET,
-    // Native app client id (same value as EXPO_PUBLIC_AUTH0_CLIENT_ID). Passed on
+    // Native app client id (same value as EXPO_PUBLIC_AUTH0_CLIENT_ID). Required:
+    // JwtStrategy accepts only tokens whose azp is this client. Also passed on
     // password-change tickets so New Universal Login brands the page and can
     // offer "Back to app" via the application's Application Login URI.
     nativeClientId: process.env.AUTH0_NATIVE_CLIENT_ID,

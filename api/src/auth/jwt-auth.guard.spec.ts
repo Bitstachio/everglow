@@ -28,6 +28,7 @@ jest.mock(require.resolve("jose", { paths: [require.resolve("jwks-rsa")] }), () 
 describe("JwtAuthGuard", () => {
   const ISSUER = "https://test.example.auth0.com/";
   const AUDIENCE = "https://api.test.example.com";
+  const NATIVE_CLIENT_ID = "native-app-client-id";
   const KEY_ID = "test-key";
   const userId = "11111111-1111-1111-1111-111111111111";
   const providerSub = "auth0|abc123";
@@ -57,6 +58,7 @@ describe("JwtAuthGuard", () => {
     sub: providerSub,
     iss: ISSUER,
     aud: AUDIENCE,
+    azp: NATIVE_CLIENT_ID,
     iat: nowInSeconds() - 60,
     exp: nowInSeconds() + 3600,
   });
@@ -85,6 +87,7 @@ describe("JwtAuthGuard", () => {
       "auth0.domain": "test.example.auth0.com",
       "auth0.audience": AUDIENCE,
       "auth0.jwksUri": uri,
+      "auth0.nativeClientId": NATIVE_CLIENT_ID,
     };
     const configService = { getOrThrow: (key: string) => config[key] } as unknown as ConfigService;
     new JwtStrategy(configService, usersService, new SigningKeySet(configService, mockDeep<PinoLogger>()));
@@ -119,6 +122,22 @@ describe("JwtAuthGuard", () => {
   it("lets a valid token through", async () => {
     expect(await verdictFor(`Bearer ${signToken(validClaims())}`)).toBe(true);
     expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub, expect.any(Number));
+  });
+
+  it("refuses a machine-to-machine token signed by the tenant with 401, and provisions nobody", async () => {
+    const claims = { ...validClaims(), sub: "m2m-client@clients", azp: "m2m-client", gty: "client-credentials" };
+
+    expect(await verdictFor(`Bearer ${signToken(claims)}`)).toEqual(
+      rejection("a client-credentials (machine-to-machine) token"),
+    );
+    expect(usersService.resolveByProviderSub).not.toHaveBeenCalled();
+  });
+
+  it("refuses a token another application of the tenant was issued with 401", async () => {
+    expect(await verdictFor(`Bearer ${signToken({ ...validClaims(), azp: "web-client" })}`)).toEqual(
+      rejection("issued to client web-client, not the app"),
+    );
+    expect(usersService.resolveByProviderSub).not.toHaveBeenCalled();
   });
 
   it("refuses a suspended account with 403 ACCOUNT_SUSPENDED on a route that doesn't allow it", async () => {

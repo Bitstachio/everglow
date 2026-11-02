@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
 import { Request } from "express";
 import { ExtractJwt, Strategy } from "passport-jwt";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { UsersService } from "src/users/users.service";
 import { AuthenticatedUser } from "./auth.types";
 import { JwtPayloadDto } from "./jwt-payload.dto";
@@ -18,8 +19,22 @@ const headerOf = (token: string): { kid?: unknown; alg?: unknown } | undefined =
   }
 };
 
+/**
+ * Why a verified token still isn't the app's: a machine-to-machine grant, or
+ * a token issued to another application of the tenant. Undefined when it is.
+ */
+const clientRefusalOf = (payload: JwtPayloadDto, nativeClientId: string): string | undefined => {
+  if (payload.gty === "client-credentials") return "a client-credentials (machine-to-machine) token";
+  if (payload.azp !== nativeClientId) {
+    return `issued to client ${typeof payload.azp === "string" ? payload.azp : "none"}, not the app`;
+  }
+  return undefined;
+};
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly nativeClientId: string;
+
   constructor(
     configService: ConfigService,
     private usersService: UsersService,
@@ -52,9 +67,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       algorithms: ["RS256"],
       ignoreExpiration: false,
     });
+
+    // The mobile app's Auth0 application: the only client whose tokens are a person's session.
+    this.nativeClientId = configService.getOrThrow<string>("auth0.nativeClientId");
   }
 
   async validate(payload: JwtPayloadDto): Promise<AuthenticatedUser> {
+    // Refused before resolving, so another client's token never provisions a User row.
+    const refusal = clientRefusalOf(payload, this.nativeClientId);
+    if (refusal) throw new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED(refusal));
+
     // The issue time lets a tombstoned identity tell an old token from a new sign-in.
     const user = await this.usersService.resolveByProviderSub(payload.sub, payload.iat);
     return {

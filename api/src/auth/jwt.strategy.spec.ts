@@ -18,6 +18,7 @@ import { UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { UsersService } from "src/users/users.service";
 import { UserWithDetails } from "src/users/users.types";
 import { JwtPayloadDto } from "./jwt-payload.dto";
@@ -32,10 +33,13 @@ describe("JwtStrategy", () => {
   const providerSub = "auth0|abc123";
   const now = new Date("2026-06-10T12:00:00.000Z");
 
+  const nativeClientId = "native-app-client-id";
+
   const payload: JwtPayloadDto = {
     sub: providerSub,
     iat: 1710000000,
     exp: 1710003600,
+    azp: nativeClientId,
   };
 
   const resolvedUser: UserWithDetails = {
@@ -68,6 +72,7 @@ describe("JwtStrategy", () => {
                 "auth0.domain": "test.example.auth0.com",
                 "auth0.audience": "https://api.test.example.com",
                 "auth0.jwksUri": "https://test.example.auth0.com/.well-known/jwks.json",
+                "auth0.nativeClientId": nativeClientId,
               };
 
               if (!(key in config)) {
@@ -137,6 +142,30 @@ describe("JwtStrategy", () => {
 
       await expect(strategy.validate(payload)).rejects.toThrow(error);
       expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub, payload.iat);
+    });
+
+    describe("refuses a token that isn't the app's, before resolving anyone", () => {
+      const expectRefused = async (claims: JwtPayloadDto, reason: string) => {
+        await expect(strategy.validate(claims)).rejects.toEqual(
+          new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED(reason)),
+        );
+        expect(usersService.resolveByProviderSub).not.toHaveBeenCalled();
+      };
+
+      it("a machine-to-machine token, even one naming the app", async () => {
+        await expectRefused(
+          { ...payload, sub: "m2m-client@clients", gty: "client-credentials" },
+          "a client-credentials (machine-to-machine) token",
+        );
+      });
+
+      it("a token issued to another application of the tenant", async () => {
+        await expectRefused({ ...payload, azp: "other-client-id" }, "issued to client other-client-id, not the app");
+      });
+
+      it("a token that names no application", async () => {
+        await expectRefused({ ...payload, azp: undefined }, "issued to client none, not the app");
+      });
     });
 
     it("propagates UnauthorizedException when the identity is tombstoned or deleting", async () => {
