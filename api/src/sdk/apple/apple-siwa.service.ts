@@ -50,6 +50,23 @@ export class AppleSiwaService {
   }
 
   /**
+   * What would stop a revocation before it reached Apple, checked without
+   * calling Apple: the credentials are missing, or the private key cannot
+   * sign a client secret. Null when a revocation could be sent. Account
+   * deletion checks this before it changes anything.
+   */
+  revocationProblem(): "unconfigured" | "key_unusable" | null {
+    const credentials = this.getCredentials();
+    if (!credentials) return "unconfigured";
+    try {
+      signAppleClientSecret(credentials);
+      return null;
+    } catch {
+      return "key_unusable";
+    }
+  }
+
+  /**
    * Revokes one Apple token. Apple answers 200 for a token that is already
    * revoked or was never valid, so this is idempotent and safe for a resumed
    * deletion saga to repeat.

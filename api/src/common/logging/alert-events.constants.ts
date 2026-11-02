@@ -12,6 +12,7 @@ export const ALERT_EVENTS = {
 
   ACCOUNT_DELETION_ABANDONED: "user.account.deletion_abandoned",
   ACCOUNT_DELETION_STUCK: "user.account.deletion_stuck",
+  ACCOUNT_DELETION_UNAVAILABLE: "user.account.deletion_unavailable",
   ACCOUNT_DELETION_RECONCILER_DISABLED: "user.account.deletion_reconciler.disabled",
   APPLE_REVOCATION_SKIPPED: "user.account.apple_revocation_skipped",
   APPLE_REVOCATION_FAILED: "user.account.apple_revocation_failed",

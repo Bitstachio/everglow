@@ -52,6 +52,24 @@ describe("AppleSiwaService", () => {
     });
   });
 
+  describe("revocationProblem", () => {
+    it("is null when a client secret can be signed", async () => {
+      await expect(buildService(configured).then((s) => s.revocationProblem())).resolves.toBeNull();
+    });
+
+    it("says unconfigured when a credential is missing", async () => {
+      await expect(
+        buildService({ ...configured, "apple.siwaKeyId": undefined }).then((s) => s.revocationProblem()),
+      ).resolves.toBe("unconfigured");
+    });
+
+    it("says key_unusable when the private key is not a valid PEM", async () => {
+      await expect(
+        buildService({ ...configured, "apple.siwaPrivateKey": "not a key" }).then((s) => s.revocationProblem()),
+      ).resolves.toBe("key_unusable");
+    });
+  });
+
   describe("revokeToken", () => {
     it("posts the token with a freshly signed client secret to Apple's revoke endpoint", async () => {
       fetchMock.mockResolvedValue(jsonResponse(200));

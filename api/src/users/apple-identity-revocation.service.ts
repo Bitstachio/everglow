@@ -53,8 +53,8 @@ export class AppleIdentityRevocationService {
       return "skipped_unconfigured";
     }
 
-    const tokens = await this.auth0Management.getIdentityProviderTokens(providerSub, APPLE_PROVIDER);
-    if (tokens === null) {
+    const identities = await this.auth0Management.getIdentityProviderTokens(providerSub, APPLE_PROVIDER);
+    if (identities === null) {
       // Auth0 already deleted the user (a resumed saga). The token went with it;
       // nothing is left to revoke on our side.
       this.logger.warn(
@@ -64,8 +64,13 @@ export class AppleIdentityRevocationService {
       return "skipped_identity_gone";
     }
 
-    const selected = selectToken(tokens);
-    if (!selected) {
+    // Every Apple identity on the user, not only the primary one: with linked
+    // accounts each holds its own authorisation under someone's Apple ID.
+    const selected = identities.flatMap((tokens) => {
+      const token = selectToken(tokens);
+      return token ? [token] : [];
+    });
+    if (selected.length === 0) {
       this.logger.error(
         { event: ALERT_EVENTS.APPLE_REVOCATION_SKIPPED, userId, reason: "no_token", audit: true },
         "Auth0 returned no Apple token for this user: check the management client has read:user_idp_tokens " +
@@ -74,24 +79,27 @@ export class AppleIdentityRevocationService {
       return "skipped_no_token";
     }
 
-    try {
-      await this.appleSiwa.revokeToken(selected.token, selected.tokenType);
-    } catch (error) {
-      if (error instanceof AppleTokenRevocationError && !error.retryable) {
-        this.logger.error(
-          { err: error, event: ALERT_EVENTS.APPLE_REVOCATION_FAILED, userId, retryable: false, audit: true },
-          "Apple refused the token revocation; continuing account deletion, the person must revoke manually",
-        );
-        return "failed";
+    let refused = false;
+    for (const { token, tokenType } of selected) {
+      try {
+        await this.appleSiwa.revokeToken(token, tokenType);
+      } catch (error) {
+        if (error instanceof AppleTokenRevocationError && !error.retryable) {
+          this.logger.error(
+            { err: error, event: ALERT_EVENTS.APPLE_REVOCATION_FAILED, userId, retryable: false, audit: true },
+            "Apple refused the token revocation; continuing account deletion, the person must revoke manually",
+          );
+          refused = true;
+          continue;
+        }
+        throw error;
       }
-      throw error;
+      this.logger.info(
+        { event: "user.account.apple_token_revoked", userId, tokenType, audit: true },
+        "Sign in with Apple token revoked for account deletion saga",
+      );
     }
-
-    this.logger.info(
-      { event: "user.account.apple_token_revoked", userId, tokenType: selected.tokenType, audit: true },
-      "Sign in with Apple token revoked for account deletion saga",
-    );
-    return "revoked";
+    return refused ? "failed" : "revoked";
   }
 }
 
