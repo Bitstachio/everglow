@@ -750,18 +750,21 @@ describe("PhotosController (integration)", () => {
       it.each([
         ["suspended", { suspendedAt: new Date("2026-11-01T00:00:00Z") }, "EVENT_SUSPENDED"],
         ["under review", { underReviewAt: new Date("2026-11-01T00:00:00Z") }, "EVENT_UNDER_REVIEW"],
-      ])("returns 403 when an organizer deletes another member's photo in a %s event", async (_state, state, code) => {
-        prisma.photo.findUnique.mockResolvedValue(
-          inEvent([buildOrganizerAccess()], state, { addedById: TEST_OTHER_USER_ID }) as never,
-        );
+      ] as const)(
+        "returns 403 when an organizer deletes another member's photo in a %s event",
+        async (_state, state, code) => {
+          prisma.photo.findUnique.mockResolvedValue(
+            inEvent([buildOrganizerAccess()], state, { addedById: TEST_OTHER_USER_ID }) as never,
+          );
 
-        const response = await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
+          const response = await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
 
-        expectApiError(response.body as ErrorResponse, code);
-        expect(s3Service.deleteObjects).not.toHaveBeenCalled();
-        expect(prisma.photo.delete).not.toHaveBeenCalled();
-        expect(prisma.report.updateMany).not.toHaveBeenCalled();
-      });
+          expectApiError(response.body as ErrorResponse, code);
+          expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+          expect(prisma.photo.delete).not.toHaveBeenCalled();
+          expect(prisma.report.updateMany).not.toHaveBeenCalled();
+        },
+      );
 
       it.each([
         ["suspended", { suspendedAt: new Date("2026-11-01T00:00:00Z") }],
