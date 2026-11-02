@@ -47,7 +47,8 @@ const terms: LegalDocument = {
     },
     {
       id: "rolls",
-      source: "docs/event-quotas.md (Free); docs/moderation.md §6 (invite links, removing a member); docs/photos-architecture.md §9, §12",
+      source:
+        "docs/event-quotas.md (Free); docs/moderation.md §6 (invite links, removing a member); docs/photos-architecture.md §9, §12",
       heading: "Rolls, hosts and invitations",
       blocks: [
         {
@@ -148,7 +149,8 @@ const terms: LegalDocument = {
         {
           kind: "p",
           text: "We work to keep Everglow running reliably, but it is provided as is, without warranties. Features may change. Photos are removed when their roll closes, so don't use Everglow as your only copy of a photo.",
-          pending: "Warranty disclaimer and limits of liability need the lawyer's wording, including Quebec consumer protection rules.",
+          pending:
+            "Warranty disclaimer and limits of liability need the lawyer's wording, including Quebec consumer protection rules.",
         },
       ],
     },
@@ -160,7 +162,8 @@ const terms: LegalDocument = {
         {
           kind: "p",
           text: "We may update these terms as Everglow changes. We change the date at the top when we do. Using the app after an update means you accept the new terms.",
-          pending: "Decide whether material changes need a new acceptance in the app (docs/moderation.md §10, versioned acceptance).",
+          pending:
+            "Decide whether material changes need a new acceptance in the app (docs/moderation.md §10, versioned acceptance).",
         },
       ],
     },

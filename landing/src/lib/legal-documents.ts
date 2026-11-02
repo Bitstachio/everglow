@@ -56,8 +56,7 @@ const LOADERS: Record<Locale, Record<LegalDocumentId, DocumentLoader>> = {
   },
 };
 
-export const loadLegalDocument = async (locale: Locale, id: LegalDocumentId) =>
-  (await LOADERS[locale][id]()).default;
+export const loadLegalDocument = async (locale: Locale, id: LegalDocumentId) => (await LOADERS[locale][id]()).default;
 
 export const formatLegalDate = (locale: Locale, isoDate: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${isoDate}T00:00:00Z`));

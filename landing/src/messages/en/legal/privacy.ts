@@ -4,7 +4,8 @@ import type { LegalDocument } from "@/lib/legal-documents";
 // Each section's `source` names where its facts come from. Change the copy when that source changes.
 const privacy: LegalDocument = {
   title: "Privacy policy",
-  description: "What Everglow collects, why, where it is kept, for how long, who can see it, and how to ask us about it.",
+  description:
+    "What Everglow collects, why, where it is kept, for how long, who can see it, and how to ask us about it.",
   updated: "2026-11-02",
   intro: [
     "Everglow is an app for shared photo albums. Each event gets a roll: one album that the host and the people they invite add photos to, which closes after a set time.",
@@ -164,7 +165,11 @@ const privacy: LegalDocument = {
               "Until the roll closes: 3, 7, 14 or 30 days after it opens, as the host chose, or earlier if a host closes it. A photo with an open report is kept, hidden, until the report is decided.",
               "Removed within an hour of the roll closing. The roll itself, its details and its members stay.",
             ],
-            ["A photo you delete", "Removed for everyone at once.", "Its files are deleted straight away, unless it was reported (below)."],
+            [
+              "A photo you delete",
+              "Removed for everyone at once.",
+              "Its files are deleted straight away, unless it was reported (below).",
+            ],
             [
               "Your account (name, username, profile photo)",
               "Until you delete your account.",
@@ -203,11 +208,7 @@ const privacy: LegalDocument = {
             ["Server logs", "Up to 90 days.", "Deleted automatically."],
             ["Photo processing logs and failed upload notices", "14 days.", "Deleted automatically."],
             ["Record of each photo upload and download (with IP address)", "1 year.", "Deleted automatically."],
-            [
-              "Waitlist email",
-              "Until we send the launch email, or you ask us to remove it.",
-              "Deleted.",
-            ],
+            ["Waitlist email", "Until we send the launch email, or you ask us to remove it.", "Deleted."],
           ],
           pending:
             "Retention periods are pending the legal review in EV-62. The sign-in record and the 90-day log periods depend on EV-200 and EV-199; the waitlist period is not yet set.",
@@ -220,7 +221,8 @@ const privacy: LegalDocument = {
     },
     {
       id: "deleting-your-account",
-      source: "docs/account-deletion.md §6a, §6b, “No grace period”; docs/moderation.md §1 (What happens on delete), §7",
+      source:
+        "docs/account-deletion.md §6a, §6b, “No grace period”; docs/moderation.md §1 (What happens on delete), §7",
       heading: "Deleting your account",
       blocks: [
         {
@@ -285,7 +287,8 @@ const privacy: LegalDocument = {
         {
           kind: "p",
           text: `Under Quebec's privacy law (Law 25), you can also ask for your information in a structured, commonly used format, and ask us to stop spreading information about you. Our person in charge of the protection of personal information can be reached at ${mailLink("privacy")}.`,
-          pending: "Law 25 asks us to publish the title of the person in charge of the protection of personal information.",
+          pending:
+            "Law 25 asks us to publish the title of the person in charge of the protection of personal information.",
         },
         {
           kind: "p",

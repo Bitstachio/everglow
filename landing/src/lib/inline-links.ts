@@ -1,7 +1,5 @@
 export type InlineSegment =
-  | { kind: "text"; text: string }
-  | { kind: "strong"; text: string }
-  | { kind: "link"; text: string; href: string };
+  { kind: "text"; text: string } | { kind: "strong"; text: string } | { kind: "link"; text: string; href: string };
 
 // `[label](href)` or `**strong**`; neither nests.
 const INLINE_PATTERN = /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*/g;

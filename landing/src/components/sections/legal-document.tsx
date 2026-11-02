@@ -56,7 +56,11 @@ const Block = ({ block, pendingLabel }: { block: LegalBlock; pendingLabel: strin
           <thead>
             <tr className="border-border border-b">
               {block.head.map((cell) => (
-                <th key={cell} scope="col" className="text-edge py-3 pr-4 align-bottom font-mono text-[11px] font-medium tracking-[0.12em] uppercase">
+                <th
+                  key={cell}
+                  scope="col"
+                  className="text-edge py-3 pr-4 align-bottom font-mono text-[11px] font-medium tracking-[0.12em] uppercase"
+                >
                   {cell}
                 </th>
               ))}
@@ -86,11 +90,7 @@ const Block = ({ block, pendingLabel }: { block: LegalBlock; pendingLabel: strin
 };
 
 const Section = ({ section, pendingLabel }: { section: LegalSection; pendingLabel: string }) => (
-  <section
-    id={section.id}
-    data-source={section.source}
-    className="border-border-muted scroll-mt-8 border-t pt-8"
-  >
+  <section id={section.id} data-source={section.source} className="border-border-muted scroll-mt-8 border-t pt-8">
     <h2 className="font-display text-strong mb-4 text-[24px] leading-[1.2] font-semibold tracking-[-0.02em]">
       {section.heading}
     </h2>
