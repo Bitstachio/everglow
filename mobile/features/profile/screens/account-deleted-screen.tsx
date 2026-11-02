@@ -13,7 +13,7 @@ import { useAccountDeletedScreen } from "../hooks/use-account-deleted-screen";
  */
 const AccountDeletedScreen = () => {
   const { t } = useTranslation("you");
-  const { onStart } = useAccountDeletedScreen();
+  const { showAppleNote, onStart } = useAccountDeletedScreen();
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
@@ -23,6 +23,9 @@ const AccountDeletedScreen = () => {
           {t("deleted.title")}
         </Display>
         <Text className="mt-3 text-center font-sans text-body text-text-2">{t("deleted.body")}</Text>
+        {showAppleNote ? (
+          <Text className="text-center font-sans text-body text-text-2">{t("deleted.apple")}</Text>
+        ) : null}
       </View>
       <View className="px-5 pb-1">
         <Button title={t("deleted.start")} variant="secondary" mark="‹" onPress={onStart} />

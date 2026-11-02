@@ -6,10 +6,14 @@ const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 export const API_BASE_URL = `${RAW_BASE_URL.replace(/\/+$/, "")}/api/v2`;
 
-let onUnauthorized: (() => void) | null = null;
+let onUnauthorized: ((code: string | undefined) => void) | null = null;
 let onSuspended: (() => void) | null = null;
 
-export const setUnauthorizedHandler = (handler: (() => void) | null): void => {
+/**
+ * Called on any 401 with the API's code: UNAUTHORIZED for a refused token, or
+ * ACCOUNT_DELETION_IN_PROGRESS for an account whose deletion has started.
+ */
+export const setUnauthorizedHandler = (handler: ((code: string | undefined) => void) | null): void => {
   onUnauthorized = handler;
 };
 
@@ -42,7 +46,7 @@ export const createAxiosInstance = (): AxiosInstance => {
     async (error) => {
       const apiError = toApiError(error);
       if (error.response?.status === 401) {
-        onUnauthorized?.();
+        onUnauthorized?.(apiError.code);
       } else if (apiError.code === "ACCOUNT_SUSPENDED") {
         onSuspended?.();
       }

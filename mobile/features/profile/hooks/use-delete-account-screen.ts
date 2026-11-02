@@ -1,6 +1,7 @@
 import { useAuth } from "@/context/auth-context";
 import { useEventsQuery } from "@/features/events/api/queries";
-import { getErrorMessage } from "@/lib/api/errors";
+import { getErrorCode, isApiError } from "@/lib/api/errors";
+import { messageForApiErrorCode } from "@/lib/api/error-messages";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,7 +24,7 @@ export type RollFate = "stays" | "deleted";
  */
 export const useDeleteAccountScreen = () => {
   const { t } = useTranslation("you");
-  const { user, isSuspended, logout } = useAuth();
+  const { user, identity, isSuspended, logout } = useAuth();
   const events = useEventsQuery(isSuspended ? undefined : user?.id);
   const [photos, setPhotos] = useState<DeleteAccountPhotoPolicy | null>(null);
   const deleteProfile = useDeleteProfileMutation();
@@ -47,12 +48,26 @@ export const useDeleteAccountScreen = () => {
     try {
       await deleteProfile.mutateAsync(photos);
     } catch (error) {
+      const code = getErrorCode(error);
+      // The background job is finishing it; the auth context has already
+      // cleared this phone and says so on the welcome.
+      if (code === "ACCOUNT_DELETION_IN_PROGRESS") return;
       deleting.current = false;
       setIsDeleting(false);
-      Alert.alert(t("delete.failedTitle"), getErrorMessage(error));
+      if (code === "ACCOUNT_DELETION_UNAVAILABLE") {
+        // Checked before anything was touched: the account is as it was.
+        Alert.alert(t("delete.unavailableTitle"), messageForApiErrorCode(code));
+        return;
+      }
+      // A request that never reached the API changed nothing; anything else
+      // may have started the deletion, which Delete my account resumes.
+      const started = isApiError(error) && error.status != null;
+      Alert.alert(t("delete.failedTitle"), started ? t("delete.failedBody") : undefined);
       return;
     }
-    await logout("/account-deleted");
+    // Apple keeps Everglow listed under the Apple ID when the token couldn't
+    // be revoked; the last screen says where to remove it.
+    await logout(identity?.sub.startsWith("apple|") ? "/account-deleted?apple=1" : "/account-deleted");
   };
 
   return {

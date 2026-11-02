@@ -12,7 +12,7 @@ import { AuthProvider, useAuth } from "./auth-context";
 
 const mockReplace = jest.fn();
 const mockGetUserProfile = jest.fn();
-let mockUnauthorized: (() => void) | null = null;
+let mockUnauthorized: ((code?: string) => void) | null = null;
 let mockSuspended: (() => void) | null = null;
 const mockLogoutFromAuth0 = jest.fn();
 const mockStoredIdentity = jest.fn();
@@ -24,7 +24,7 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("@/lib/auth", () => ({ authService: { getUserProfile: () => mockGetUserProfile() } }));
 jest.mock("@/lib/api/axios-instance", () => ({
-  setUnauthorizedHandler: (handler: (() => void) | null) => {
+  setUnauthorizedHandler: (handler: ((code?: string) => void) | null) => {
     mockUnauthorized = handler;
   },
   setSuspendedHandler: (handler: (() => void) | null) => {
@@ -163,6 +163,22 @@ test("a 401 clears the account but tells local stores the session expired, so th
     await screen.findByText("App");
     await act(async () => mockUnauthorized?.());
     await waitFor(() => expect(reasons).toEqual(["sessionExpired"]));
+  } finally {
+    stop();
+  }
+});
+
+test("an account being deleted is cleared for good, and the welcome says it is being deleted", async () => {
+  const reasons: string[] = [];
+  const stop = onAccountCleared((reason) => reasons.push(reason));
+  try {
+    mockGetUserProfile.mockResolvedValue(profile);
+    await renderProvider();
+    await screen.findByText("App");
+    await act(async () => mockUnauthorized?.("ACCOUNT_DELETION_IN_PROGRESS"));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: "/login", params: { deleting: "1" } }));
+    // Nothing the account picked stays on the phone, unlike an expired session.
+    expect(reasons).toEqual(["signedOut"]);
   } finally {
     stop();
   }

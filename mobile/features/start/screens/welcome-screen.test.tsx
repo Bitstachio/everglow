@@ -21,7 +21,7 @@ jest.mock("@/context/auth-context", () => ({
   useAuth: () => ({ login: mockLogin, signup: mockSignup, isLoading: false }),
 }));
 
-let mockParams: { signedOut?: string } = {};
+let mockParams: { signedOut?: string; deleting?: string } = {};
 jest.mock("expo-router", () => ({ useLocalSearchParams: () => mockParams }));
 
 jest.mock("react-native/Libraries/Alert/Alert", () => ({
@@ -69,6 +69,15 @@ test("after a 401 the welcome opens with the signed-out slip", async () => {
   expect(screen.getByRole("header", { name: "Sign in again\nto see your rolls." })).toBeOnTheScreen();
   fireEvent.press(screen.getAllByRole("button", { name: "Sign in" }).at(-1)!);
   await waitFor(() => expect(mockLogin).toHaveBeenCalledTimes(1));
+});
+
+test("an account being deleted opens the welcome with a slip that says so, and no sign-in offer", async () => {
+  mockParams = { deleting: "1" };
+  await renderWelcome();
+  expect(screen.getByRole("header", { name: "Your account\nis being deleted." })).toBeOnTheScreen();
+  expect(screen.queryByText("Sign in again\nto see your rolls.")).not.toBeOnTheScreen();
+  fireEvent.press(screen.getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByText("Your account\nis being deleted.")).not.toBeOnTheScreen());
 });
 
 test("a normal visit has no slip", async () => {

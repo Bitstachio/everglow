@@ -46,7 +46,8 @@ const layoutOf = (event: LayoutChangeEvent): Box => event.nativeEvent.layout;
  */
 const WelcomeScreen = () => {
   const { t } = useTranslation("start");
-  const { isLoading, onStart, onSignIn, showSignedOut, onDismissSignedOut, onSignInAgain } = useWelcomeScreen();
+  const { isLoading, onStart, onSignIn, showSignedOut, showDeleting, onDismissSignedOut, onSignInAgain } =
+    useWelcomeScreen();
   const [sheet, setSheet] = useState<Box | null>(null);
   const [middleStrip, setMiddleStrip] = useState<Box | null>(null);
   const [noteRow, setNoteRow] = useState<Box | null>(null);
@@ -172,6 +173,12 @@ const WelcomeScreen = () => {
       <BottomSheet visible={showSignedOut} onClose={onDismissSignedOut}>
         <Slip edge={t("signedOut.edge")} title={t("signedOut.title")} body={t("signedOut.body")}>
           <Button title={t("signedOut.signIn")} mark="▸" onPress={onSignInAgain} />
+        </Slip>
+      </BottomSheet>
+
+      <BottomSheet visible={showDeleting} onClose={onDismissSignedOut}>
+        <Slip edge={t("deleting.edge")} title={t("deleting.title")} body={t("deleting.body")}>
+          <Button title={t("deleting.close")} variant="secondary" onPress={onDismissSignedOut} />
         </Slip>
       </BottomSheet>
     </SafeAreaView>

@@ -91,7 +91,9 @@
     "confirm": "Delete my account",
     "note": "Can’t be undone · sign-in is removed too",
     "choose": "Choose what happens to your frames first",
-    "failedTitle": "Couldn’t delete your account"
+    "failedTitle": "Couldn’t delete your account",
+    "unavailableTitle": "Can’t delete your account right now",
+    "failedBody": "The deletion started but didn’t finish. Try again to finish it."
   },
   "deleted": {
     "stamp": "Closed",
@@ -99,7 +101,8 @@
     "title": "Your account",
     "titleDim": "is deleted.",
     "body": "Thanks for the photos. You can start again any time.",
-    "start": "Back to the start"
+    "start": "Back to the start",
+    "apple": "Signed in with Apple? In Settings, open your Apple ID, then Sign in with Apple, and remove Everglow if it’s still there."
   },
   "suspended": {
     "edge": "Account suspended",

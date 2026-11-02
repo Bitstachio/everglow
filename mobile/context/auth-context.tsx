@@ -47,8 +47,11 @@ const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
 const SUSPENDED_ROUTE = "/account-suspended" as const;
 
-/** Where signing out lands: the welcome, or Deleted (14.12) after deleting the account. */
-type SignedOutRoute = typeof LOGIN_ROUTE | "/account-deleted";
+/**
+ * Where signing out lands: the welcome, or Deleted (14.12) after deleting the
+ * account, with `apple=1` for a Sign in with Apple account.
+ */
+type SignedOutRoute = typeof LOGIN_ROUTE | "/account-deleted" | "/account-deleted?apple=1";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -62,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient();
 
   // Avoid stale closures when the 401 handler is invoked from the interceptor.
-  const handleSessionExpiredRef = useRef<() => void>(() => {});
+  const handleSessionExpiredRef = useRef<(code?: string) => void>(() => {});
   // Set by a deliberate sign-out until the next sign-in. A deleted account's
   // token answers 401 at once, and a refetch racing the sign-out must not turn
   // Deleted (14.12) into the signed-out welcome.
@@ -107,22 +110,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [queryClient],
   );
 
-  const handleSessionExpired = useCallback(async () => {
-    if (signedOutRef.current) return;
-    await clearLocalCredentials();
-    clearAccount("sessionExpired");
-    // The welcome shows the signed-out slip (01.8) instead of a blank start.
-    router.replace({ pathname: LOGIN_ROUTE, params: { signedOut: "1" } });
-  }, [clearAccount]);
+  const handleSessionExpired = useCallback(
+    async (code?: string) => {
+      if (signedOutRef.current) return;
+      await clearLocalCredentials();
+      // An account being deleted is gone for this phone: nothing it left may
+      // remain, unlike an expired session the same person signs back into.
+      const deleting = code === "ACCOUNT_DELETION_IN_PROGRESS";
+      if (deleting) signedOutRef.current = true;
+      clearAccount(deleting ? "signedOut" : "sessionExpired");
+      // The welcome shows the signed-out slip (01.8), or says the account is
+      // being deleted, instead of a blank start.
+      router.replace({ pathname: LOGIN_ROUTE, params: deleting ? { deleting: "1" } : { signedOut: "1" } });
+    },
+    [clearAccount],
+  );
 
   useEffect(() => {
-    handleSessionExpiredRef.current = () => {
-      void handleSessionExpired();
+    handleSessionExpiredRef.current = (code) => {
+      void handleSessionExpired(code);
     };
   }, [handleSessionExpired]);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => handleSessionExpiredRef.current());
+    setUnauthorizedHandler((code) => handleSessionExpiredRef.current(code));
     return () => setUnauthorizedHandler(null);
   }, []);
 
