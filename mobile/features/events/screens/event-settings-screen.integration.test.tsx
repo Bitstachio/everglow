@@ -1,7 +1,7 @@
 import "../testing/native-mocks";
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react-native";
+import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
 import EventSettingsScreen from "./event-settings-screen";
@@ -11,6 +11,7 @@ import { formatClosesUntil, formatOpensAt } from "../lib/roll-page";
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 
 let mockUser: { id: string } | null = { id: "user-1" };
 let mockEventId: string | string[] = "event-1";
@@ -22,7 +23,7 @@ jest.mock("@/lib/api/generated", () => ({
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack }),
+  useRouter: () => ({ back: mockBack, push: mockPush }),
   useLocalSearchParams: () => ({ id: mockEventId }),
 }));
 
@@ -49,6 +50,7 @@ beforeEach(() => {
   mockFindOne.mockReset();
   mockGetParticipants.mockReset();
   mockBack.mockReset();
+  mockPush.mockReset();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
@@ -98,6 +100,15 @@ test("open: date and film are locked and explain why", async () => {
   expect(screen.getByLabelText(`When, ${formatOpensAt(event.date)} · locked`)).toBeOnTheScreen();
   expect(screen.getByLabelText("Film, 30-day roll · locked")).toBeOnTheScreen();
   expect(screen.getByText(/locked once the gallery opens/)).toBeOnTheScreen();
+});
+
+test("opens name and note editors from the index", async () => {
+  await renderScreen(buildEvent({ galleryState: "UPCOMING" }));
+  const user = userEvent.setup();
+  await user.press(await screen.findByRole("button", { name: `Name, Weekend meetup` }));
+  expect(mockPush).toHaveBeenCalledWith("/events/event-1/edit-title");
+  await user.press(screen.getByRole("button", { name: "Note for guests, An afternoon with friends" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/event-1/edit-description");
 });
 
 test("sends non-hosts back", async () => {

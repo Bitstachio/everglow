@@ -80,14 +80,8 @@ const RootNavigator = () => {
         <Stack.Screen name="events/[id]/report-check" options={{ headerShown: false }} />
         {/* Roll settings draws its own top bar. */}
         <Stack.Screen name="events/[id]/settings" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="events/[id]/edit-title"
-          options={{ title: t("screens.editTitle"), headerBackTitle: backTitle }}
-        />
-        <Stack.Screen
-          name="events/[id]/edit-description"
-          options={{ title: t("screens.editDescription"), headerBackTitle: backTitle }}
-        />
+        <Stack.Screen name="events/[id]/edit-title" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/edit-description" options={{ headerShown: false }} />
         <Stack.Screen
           name="events/[id]/edit-date"
           options={{ title: t("screens.editDate"), headerBackTitle: backTitle }}

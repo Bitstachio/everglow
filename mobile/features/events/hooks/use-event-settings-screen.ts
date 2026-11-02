@@ -7,7 +7,7 @@ import { Alert } from "react-native";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import { formatClosesUntil, formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
 
-/** Roll settings for upcoming and open galleries. Row actions wire up in later slices. */
+/** Roll settings for upcoming and open galleries. */
 export const useEventSettingsScreen = () => {
   const { t } = useTranslation("roll");
   const router = useRouter();
@@ -55,7 +55,7 @@ export const useEventSettingsScreen = () => {
 
   const note = event?.description?.trim() ?? "";
 
-  // TODO: Wire each row to its editor / sheet (date, film, cover, note, envelopes, delete).
+  // TODO: Wire cover, when, film, envelopes, and delete.
   const later = () => {};
 
   return {
@@ -73,9 +73,13 @@ export const useEventSettingsScreen = () => {
     envelopesValue: t("settings.envelopesTwo"),
     deleteValue: t("settings.deleteAfter"),
     onBack: () => router.back(),
-    onOpenName: later,
+    onOpenName: () => {
+      if (eventId) router.push(`/events/${eventId}/edit-title`);
+    },
     onOpenCover: later,
-    onOpenNote: later,
+    onOpenNote: () => {
+      if (eventId) router.push(`/events/${eventId}/edit-description`);
+    },
     onOpenWhen: scheduleLocked ? undefined : later,
     onOpenFilm: scheduleLocked ? undefined : later,
     onOpenEnvelopes: later,

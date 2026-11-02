@@ -9,13 +9,15 @@ export const useEditEventTitleScreen = () => {
   const eventQuery = useEventQuery(eventId);
   const event = eventQuery.data ?? null;
 
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else if (eventId) router.replace(`/events/${eventId}/settings`);
+  };
+
   const { form, onSubmit } = useEditEventTitleForm({
     eventId: eventId ?? "",
     initialTitle: event?.title ?? "",
-    onSuccess: () => {
-      if (router.canGoBack()) router.back();
-      else if (eventId) router.replace(`/events/${eventId}/settings`);
-    },
+    onSuccess: goBack,
   });
 
   return {
@@ -23,5 +25,6 @@ export const useEditEventTitleScreen = () => {
     isLoading: eventQuery.isLoading || !event,
     form,
     onSubmit,
+    onBack: goBack,
   };
 };

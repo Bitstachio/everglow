@@ -9,13 +9,15 @@ export const useEditEventDescriptionScreen = () => {
   const eventQuery = useEventQuery(eventId);
   const event = eventQuery.data ?? null;
 
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else if (eventId) router.replace(`/events/${eventId}/settings`);
+  };
+
   const { form, onSubmit } = useEditEventDescriptionForm({
     eventId: eventId ?? "",
     initialDescription: event?.description ?? "",
-    onSuccess: () => {
-      if (router.canGoBack()) router.back();
-      else if (eventId) router.replace(`/events/${eventId}/settings`);
-    },
+    onSuccess: goBack,
   });
 
   return {
@@ -23,5 +25,6 @@ export const useEditEventDescriptionScreen = () => {
     isLoading: eventQuery.isLoading || !event,
     form,
     onSubmit,
+    onBack: goBack,
   };
 };
