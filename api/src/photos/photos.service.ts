@@ -21,6 +21,7 @@ import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
+import { hashPhotoOriginals } from "./photo-hashing";
 import { deleteObjectWithDerivatives } from "./photo-object-deletion";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
@@ -185,7 +186,7 @@ export class PhotosService {
     });
     const photosById = new Map(photos.map((photo) => [photo.id, photo]));
 
-    const verifiedIds: string[] = [];
+    const verified: Photo[] = [];
     const missingIds: string[] = [];
     const mismatched: Photo[] = [];
     const results = await Promise.all(
@@ -206,18 +207,35 @@ export class PhotosService {
           return { photoId, status: CONFIRM_PHOTO_STATUSES.MISMATCHED };
         }
 
-        verifiedIds.push(photoId);
+        verified.push(photo);
         return { photoId, status: CONFIRM_PHOTO_STATUSES.READY };
       }),
     );
 
-    if (verifiedIds.length > 0) {
-      await this.prisma.photo.updateMany({
-        where: { id: { in: verifiedIds } },
-        data: { status: PhotoStatus.READY },
+    if (verified.length > 0) {
+      // Each original is read once and hashed, so identical copies of a
+      // removed intimate image can be found (docs/moderation.md §7).
+      const hashes = await hashPhotoOriginals(this.s3Service, verified);
+
+      // One update per photo, since each carries its own hash; together, so a
+      // batch flips READY as one.
+      await this.prisma.$transaction(async (tx) => {
+        for (const photo of verified) {
+          await tx.photo.updateMany({
+            where: { id: photo.id },
+            data: { status: PhotoStatus.READY, sha256: hashes.get(photo.id) ?? null },
+          });
+        }
       });
+      const unhashed = verified.filter((photo) => !hashes.get(photo.id)).length;
+      if (unhashed > 0) {
+        this.logger.warn(
+          { event: "photo.hash_failed", eventId, callerId, unhashed },
+          "Confirmed photos could not be hashed; the hash backfill will hash them",
+        );
+      }
       this.logger.info(
-        { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verifiedIds.length },
+        { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verified.length },
         "Photo uploads confirmed",
       );
     }
