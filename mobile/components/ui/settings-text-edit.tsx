@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { EdgePrint } from "@/components/ui/edge-print";
+import i18n from "@/i18n/instance";
 import { cn } from "@/lib/cn";
 import { colorTokens } from "@/theme/tokens";
 import { ScrollView, Text, TextInput, View, type TextInputProps } from "react-native";
@@ -33,38 +34,55 @@ export const SettingsTextEdit = ({
   isDirty,
   isSubmitting,
   editable = true,
+  maxLength,
   ...input
-}: SettingsTextEditProps) => (
-  <View className="flex-1 bg-ground">
-    <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-6" keyboardShouldPersistTaps="handled">
-      <View className="gap-1.5">
-        {label ? <EdgePrint>{label}</EdgePrint> : null}
-        <View className={cn("border-b-2 pb-2 pt-2.5", value ? "border-text" : "border-outline-soft")}>
-          <TextInput
-            value={value}
-            editable={editable && !isSubmitting}
-            placeholderTextColor={colorTokens.outline}
-            returnKeyType="done"
-            keyboardAppearance="dark"
-            selectionColor={colorTokens.pencil}
-            cursorColor={colorTokens.pencil}
-            className="p-0 font-display text-input-line text-text"
-            // In points: h-6 renders at 21 (EV-165), short of the 18px line with its descenders.
-            style={{ height: 24 }}
-            {...input}
-          />
+}: SettingsTextEditProps) => {
+  const length = value?.length ?? 0;
+  const atLimit = maxLength != null && length >= maxLength;
+
+  return (
+    <View className="flex-1 bg-ground">
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-6" keyboardShouldPersistTaps="handled">
+        <View className="gap-1.5">
+          {label ? <EdgePrint>{label}</EdgePrint> : null}
+          <View className={cn("border-b-2 pb-2 pt-2.5", value ? "border-text" : "border-outline-soft")}>
+            <TextInput
+              value={value}
+              editable={editable && !isSubmitting}
+              maxLength={maxLength}
+              placeholderTextColor={colorTokens.outline}
+              returnKeyType="done"
+              keyboardAppearance="dark"
+              selectionColor={colorTokens.pencil}
+              cursorColor={colorTokens.pencil}
+              className="p-0 font-display text-input-line text-text"
+              // In points: h-6 renders at 21 (EV-165), short of the 18px line with its descenders.
+              style={{ height: 24 }}
+              {...input}
+            />
+          </View>
+          {maxLength != null ? (
+            <EdgePrint
+              className="self-end"
+              tone={atLimit ? "pencil" : "edge"}
+              accessibilityLabel={i18n.t("a11y.characterCount", { ns: "common", count: length, max: maxLength })}
+            >
+              {`${length} / ${maxLength}`}
+            </EdgePrint>
+          ) : null}
         </View>
-        <EdgePrint>{hint}</EdgePrint>
+
+        <EdgePrint className="mt-5">{hint}</EdgePrint>
         {error ? (
-          <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
+          <Text accessibilityRole="alert" className="mt-1.5 font-sans text-body text-pencil">
             {error}
           </Text>
         ) : null}
-      </View>
-    </ScrollView>
+      </ScrollView>
 
-    <View className="px-5 pb-1 pt-3">
-      <Button title={saveLabel} mark="✓" onPress={onSave} isLoading={isSubmitting} disabled={isSubmitting || !isDirty} />
+      <View className="px-5 pb-1 pt-3">
+        <Button title={saveLabel} mark="✓" onPress={onSave} isLoading={isSubmitting} disabled={isSubmitting || !isDirty} />
+      </View>
     </View>
-  </View>
-);
+  );
+};

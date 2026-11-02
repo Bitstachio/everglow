@@ -14,7 +14,8 @@
   },
   "a11y": {
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "characterCount": "{{count}} of {{max}} characters"
   },
   "auth": {
     "failed": "Authentication failed. Please try again.",

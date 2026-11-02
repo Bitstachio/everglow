@@ -9,7 +9,7 @@ beforeEach(() => {
   onChangeText.mockReset();
 });
 
-test("shows the hint and keeps Save disabled until dirty", async () => {
+test("shows the hint, count, and keeps Save disabled until dirty", async () => {
   await render(
     <SettingsTextEdit
       value="Weekend meetup"
@@ -20,11 +20,13 @@ test("shows the hint and keeps Save disabled until dirty", async () => {
       onSave={onSave}
       isDirty={false}
       isSubmitting={false}
+      maxLength={100}
     />,
   );
 
   expect(screen.getByLabelText("Roll name")).toHaveDisplayValue("Weekend meetup");
   expect(screen.getByText("Shown on the roll.")).toBeOnTheScreen();
+  expect(screen.getByLabelText("14 of 100 characters")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 });
 
