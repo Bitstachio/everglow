@@ -5,6 +5,7 @@ import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { ApiException } from "src/common/errors/api.exception";
 import { PrismaService } from "src/prisma/prisma.service";
 import { claimNextPendingDeletion, releaseDeletionClaim } from "./account-deletion-claim";
+import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
 import { AccountDeletionPreflightService } from "./account-deletion-preflight.service";
 import { TOMBSTONE_RETENTION_DAYS, TombstoneRelatedReport, tombstoneExpiresAt } from "./deleted-provider-sub";
 import { ACCOUNT_DELETION_RECONCILER_MIN_AGE_MINUTES } from "./users.constants";
@@ -23,6 +24,9 @@ export interface AccountDeletionReconcileResult {
   abandoned: number;
   // Users skipped because Auth0 or Apple could not be used (ACCOUNT_DELETION_UNAVAILABLE); not an attempt
   unavailable: number;
+  // Outbox entries drained this run, and those that failed again
+  outboxPurged: number;
+  outboxFailed: number;
   // Tombstones past their retention, deleted this run
   tombstonesPurged: number;
 }
@@ -50,6 +54,7 @@ export class AccountDeletionReconcilerService {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly preflight: AccountDeletionPreflightService,
+    private readonly outbox: AccountDeletionOutboxService,
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
@@ -71,6 +76,8 @@ export class AccountDeletionReconcilerService {
       stuck: 0,
       abandoned: 0,
       unavailable: 0,
+      outboxPurged: 0,
+      outboxFailed: 0,
       tombstonesPurged: 0,
     };
 
@@ -159,6 +166,13 @@ export class AccountDeletionReconcilerService {
         }
       }
     }
+
+    // Objects left queued by passes that finished but could not purge, or
+    // whose row is gone: anything older than a request would still be
+    // draining itself.
+    const outbox = await this.outbox.drain({ createdBefore: startedBefore });
+    result.outboxPurged = outbox.done;
+    result.outboxFailed = outbox.failed + outbox.givenUp;
 
     const tombstones = await this.purgeExpiredTombstones();
     result.tombstonesPurged = tombstones.purged;

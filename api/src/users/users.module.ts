@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ImagesModule } from "src/images/images.module";
 import { PhotosModule } from "src/photos/photos.module";
 import { PlansModule } from "src/plans/plans.module";
+import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
 import { AccountDeletionPreflightService } from "./account-deletion-preflight.service";
 import { AccountDeletionPrepService } from "./account-deletion-prep.service";
 import { AccountDeletionReconcilerScheduler } from "./account-deletion-reconciler.scheduler";
@@ -23,6 +24,7 @@ import { UsersService } from "./users.service";
     CredentialsService,
     AccountDeletionPrepService,
     AccountDeletionPreflightService,
+    AccountDeletionOutboxService,
     AppleIdentityRevocationService,
     AccountDeletionReconcilerService,
     AccountDeletionReconcilerScheduler,

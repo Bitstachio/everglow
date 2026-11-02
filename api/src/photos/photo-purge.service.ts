@@ -12,6 +12,8 @@ export interface PhotoPurgeResult {
   retained: number;
   /** Thumbnails and display copies S3 refused to delete; not counted in `failed`. */
   derivativesFailed: number;
+  /** The given keys that were not deleted and are not retained: what a caller that keeps a record may retry. */
+  failedKeys: string[];
 }
 
 export interface PhotoPurgeContext {
@@ -58,6 +60,7 @@ export class PhotoPurgeService {
       failed: 0,
       retained: 0,
       derivativesFailed: 0,
+      failedKeys: [],
     };
     if (keys.length === 0) return result;
 
@@ -70,13 +73,24 @@ export class PhotoPurgeService {
         result.deleted = outcome.deleted.length;
         result.failed = outcome.failed.length;
         result.derivativesFailed = outcome.derivativesFailed.length;
+        result.failedKeys = outcome.failed.map((failure) => failure.key);
       } catch {
         // S3Service has logged the transport failure; nothing in this batch was deleted.
         result.failed = deletable.length;
+        result.failedKeys = deletable;
       }
     }
 
-    const summary = { ...context, ...result, audit: true };
+    // Counts only: the keys stay out of the log line.
+    const summary = {
+      ...context,
+      requested: result.requested,
+      deleted: result.deleted,
+      failed: result.failed,
+      retained: result.retained,
+      derivativesFailed: result.derivativesFailed,
+      audit: true,
+    };
     if (result.failed > 0 || result.derivativesFailed > 0) {
       this.logger.error(summary, "Some photo objects could not be purged; the orphan reconciler will retry them");
     } else {
