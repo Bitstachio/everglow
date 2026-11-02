@@ -20,6 +20,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
+import { AccountDeletionPhotoPolicy } from "generated/prisma/client";
 import type { AuthenticatedUser } from "src/auth/auth.types";
 import { CurrentUser } from "src/auth/current-user.decorator";
 import { ConfirmImageUploadDto } from "src/images/dto/confirm-image-upload.dto";
@@ -30,6 +31,8 @@ import { RateLimit } from "../common/rate-limit/rate-limit.decorator";
 import { ApiWrappedResponse } from "../common/swagger/api-wrapped-response.decorator";
 import { CredentialsService } from "./credentials.service";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
+import { AccountDeletionPreviewQueryDto } from "./dto/account-deletion-preview-query.dto";
+import { AccountDeletionPreviewResponseDto } from "./dto/account-deletion-preview-response.dto";
 import { DeleteAccountQueryDto } from "./dto/delete-account-query.dto";
 import { PasswordChangeTicketResponseDto } from "./dto/password-change-ticket-response.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -158,6 +161,24 @@ export class UsersController {
   @ApiForbiddenResponse({ description: "Caller is not a database identity" })
   async createPasswordChangeTicket(@CurrentUser() user: AuthenticatedUser): Promise<PasswordChangeTicketResponseDto> {
     return this.credentialsService.createPasswordChangeTicket(user.id, user.sub);
+  }
+
+  @Get("me/deletion-preview")
+  @AllowSuspended()
+  @ApiOperation({
+    summary: "Preview what deleting the current user would do to their events",
+    description:
+      "Runs the deletion's own preparation in a transaction that is rolled back, so each outcome is the one " +
+      "DELETE /users/me would produce now. Nothing is changed. Suspended accounts may call it: they may delete " +
+      "themselves.",
+  })
+  @ApiWrappedResponse(AccountDeletionPreviewResponseDto, "Outcome per event the caller organizes alone")
+  async previewDeletion(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: AccountDeletionPreviewQueryDto,
+  ): Promise<AccountDeletionPreviewResponseDto> {
+    const events = await this.usersService.previewDeletion(user.id, query.photos ?? AccountDeletionPhotoPolicy.KEEP);
+    return { events };
   }
 
   @Delete("me")
