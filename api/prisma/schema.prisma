@@ -95,30 +95,33 @@ enum ReportActorRole {
 }
 
 model User {
-  id                  String                      @id @default(uuid()) @db.Uuid
-  providerSub         String                      @unique @db.VarChar(255)
+  id                   String                      @id @default(uuid()) @db.Uuid
+  providerSub          String                      @unique @db.VarChar(255)
   // Account deletion saga (see docs/account-deletion.md): null means that
   // phase has not happened. deletionStartedAt marks durable intent;
   // auth0DeletedAt marks that the IdP user is already gone.
-  deletionStartedAt   DateTime?
-  auth0DeletedAt      DateTime?
+  deletionStartedAt    DateTime?
+  auth0DeletedAt       DateTime?
   // The caller's photo choice, captured with the intent so a resumed saga
   // honours it. Null until a deletion starts.
-  deletionPhotoPolicy AccountDeletionPhotoPolicy?
+  deletionPhotoPolicy  AccountDeletionPhotoPolicy?
   // Failed reconciler passes. Bounded so a permanently stuck row is reported
   // once instead of alerting every hour forever.
-  deletionAttempts    Int                         @default(0)
+  deletionAttempts     Int                         @default(0)
+  // Lease of the saga pass running this deletion, a request or the reconciler.
+  // Only the holder runs it, so two passes never race (docs/account-deletion.md §4).
+  deletionClaimedUntil DateTime?
   // When the account accepted the terms of use (App Store guideline 1.2).
   // Null for accounts onboarded before the client sent `acceptedTerms`.
-  termsAcceptedAt     DateTime?
+  termsAcceptedAt      DateTime?
   // Platform moderators act on any report, across events (docs/moderation.md
   // §8). Granted only in the database: no endpoint sets it.
-  platformRole        PlatformRole?
+  platformRole         PlatformRole?
   // Suspended by the platform (docs/moderation.md §8): every request but
   // reading and deleting the account answers 403 ACCOUNT_SUSPENDED.
-  suspendedAt         DateTime?
-  createdAt           DateTime                    @default(now())
-  updatedAt           DateTime                    @updatedAt
+  suspendedAt          DateTime?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
 
   details           UserDetails?
   createdEvents     Event[]          @relation("CreatedEvents")
