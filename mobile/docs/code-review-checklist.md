@@ -26,6 +26,7 @@ ESLint enforces these globally. Still verify in review:
 - [ ] Cross-folder imports use `@/` alias
 - [ ] UI errors use `getErrorMessage`, not raw Axios shapes
 - [ ] No new `StyleSheet` usage — NativeWind `className` + theme tokens ([Theme](./theme.md))
+- [ ] Conditional / composed `className` lists use `cn` from `@/lib/cn` — no new array + `.filter(Boolean).join(" ")` ([Theme](./theme.md#conditional-classname))
 - [ ] Spacing, type, radius, and tap targets follow [UI scale](./ui-scale.md) (16px gutters, `h-12` controls, pinned page-level actions, no arbitrary px)
 
 ## Feature structure
