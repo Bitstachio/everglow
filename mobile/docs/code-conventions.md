@@ -8,20 +8,21 @@ This document is the entry point for how we write TypeScript and React Native co
 
 ## Topic docs
 
-| Topic                                         | Doc                                                         |
-| --------------------------------------------- | ----------------------------------------------------------- |
-| Feature folder structure and layer boundaries | [Feature code organization](./feature-code-organization.md) |
-| API client, React Query, feature `api/`       | [API](./api.md)                                             |
-| API failures, translation table, interceptor  | [Exception handling](./exception-handling.md)               |
-| Locale catalogs, i18next, device language     | [i18n](./i18n.md)                                           |
-| Forms (React Hook Form + Zod)                 | [Forms](./forms.md)                                         |
-| Custom SVG icons (`AppIcon`)                  | [Icons](./icons.md)                                         |
-| Theme tokens, light/dark, NativeWind          | [Theme](./theme.md)                                         |
-| Type, space, radius, tap targets              | [UI scale](./ui-scale.md)                                   |
-| Component / hook tests (Jest + RNTL)          | [Testing](./testing.md)                                     |
-| E2E tests (Maestro)                           | [E2E](./e2e.md)                                             |
-| PR review judgments                           | [Code review checklist](./code-review-checklist.md)         |
-| Shared product / architecture                 | [Repo `docs/`](../../docs/)                                 |
+| Topic                                                 | Doc                                                         |
+| ----------------------------------------------------- | ----------------------------------------------------------- |
+| Feature folder structure and layer boundaries         | [Feature code organization](./feature-code-organization.md) |
+| API client, React Query, feature `api/`               | [API](./api.md)                                             |
+| API failures, translation table, interceptor          | [Exception handling](./exception-handling.md)               |
+| Locale catalogs, i18next, device language             | [i18n](./i18n.md)                                           |
+| Forms (React Hook Form + Zod)                         | [Forms](./forms.md)                                         |
+| Custom SVG icons (`AppIcon`)                          | [Icons](./icons.md)                                         |
+| Theme tokens, light/dark, NativeWind                  | [Theme](./theme.md)                                         |
+| Type, space, radius, tap targets                      | [UI scale](./ui-scale.md)                                   |
+| Component / hook tests (Jest + RNTL)                  | [Testing](./testing.md)                                     |
+| E2E tests (Maestro)                                   | [E2E](./e2e.md)                                             |
+| How native + JS builds run (Expo, Metro, iOS/Android) | [Build pipeline](./build-pipeline.md)                       |
+| PR review judgments                                   | [Code review checklist](./code-review-checklist.md)         |
+| Shared product / architecture                         | [Repo `docs/`](../../docs/)                                 |
 
 ## Convention hierarchy
 

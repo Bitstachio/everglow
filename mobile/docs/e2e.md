@@ -102,7 +102,7 @@ Add further test YAML files under `flows/`. Keep reusable subflows in a sibling 
 
 ## CI
 
-GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) (`workflow_dispatch`) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios`.
+GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) (`workflow_dispatch`) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios`. For what “Release / no Metro,” prebuild, and CocoaPods mean in that job, see [Build pipeline](./build-pipeline.md).
 
 Required repository secrets:
 

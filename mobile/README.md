@@ -20,6 +20,8 @@ Point the app at an API with `EXPO_PUBLIC_API_URL` in `mobile/.env`. Local API s
 
 Run `pnpm ios` or `pnpm android` to refresh the generated native project before building and installing the app. This keeps splash images, fonts and config plugins in sync when `ios/` or `android/` already exists. Extra run options still work, for example `pnpm ios --device`.
 
+For how Expo prebuild, Metro, CocoaPods, Gradle, and Release vs Debug fit together, see [docs/build-pipeline.md](docs/build-pipeline.md).
+
 Changes to native splash artwork require a new native build; restarting Metro or reloading JavaScript does not update the installed splash. The launch screen shows only the Everglow wordmark. “Loading the roll” is an accessibility label, not visible copy.
 
 ## Tests
@@ -34,13 +36,14 @@ Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run i
 
 ## Docs
 
-| Topic                     | Doc                                                                                                  |
-| ------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Conventions (entry point) | [docs/code-conventions.md](docs/code-conventions.md)                                                 |
-| Feature folders           | [docs/feature-code-organization.md](docs/feature-code-organization.md)                               |
-| API client                | [docs/api.md](docs/api.md)                                                                           |
-| Exception handling        | [docs/exception-handling.md](docs/exception-handling.md)                                             |
-| Forms                     | [docs/forms.md](docs/forms.md)                                                                       |
-| Theme / UI scale / icons  | [docs/theme.md](docs/theme.md), [docs/ui-scale.md](docs/ui-scale.md), [docs/icons.md](docs/icons.md) |
-| Testing / E2E             | [docs/testing.md](docs/testing.md), [docs/e2e.md](docs/e2e.md)                                       |
-| Shared product docs       | [../docs/](../docs/)                                                                                 |
+| Topic                          | Doc                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Conventions (entry point)      | [docs/code-conventions.md](docs/code-conventions.md)                                                 |
+| Feature folders                | [docs/feature-code-organization.md](docs/feature-code-organization.md)                               |
+| API client                     | [docs/api.md](docs/api.md)                                                                           |
+| Exception handling             | [docs/exception-handling.md](docs/exception-handling.md)                                             |
+| Forms                          | [docs/forms.md](docs/forms.md)                                                                       |
+| Theme / UI scale / icons       | [docs/theme.md](docs/theme.md), [docs/ui-scale.md](docs/ui-scale.md), [docs/icons.md](docs/icons.md) |
+| Testing / E2E                  | [docs/testing.md](docs/testing.md), [docs/e2e.md](docs/e2e.md)                                       |
+| Build pipeline (Expo / native) | [docs/build-pipeline.md](docs/build-pipeline.md)                                                     |
+| Shared product docs            | [../docs/](../docs/)                                                                                 |
