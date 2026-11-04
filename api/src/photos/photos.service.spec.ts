@@ -569,8 +569,8 @@ describe("PhotosService", () => {
         });
       }
       expect(identicalCopiesService.findRemovedImages).toHaveBeenCalledWith([
-        hashOf(buildPhotoS3Key(callerId, eventId, photoId)),
-        hashOf(buildPhotoS3Key(callerId, eventId, otherPhotoId)),
+        hashOf(buildPhotoS3Key(eventId, photoId)),
+        hashOf(buildPhotoS3Key(eventId, otherPhotoId)),
       ]);
     });
 
@@ -596,7 +596,7 @@ describe("PhotosService", () => {
     });
 
     describe("an upload with the bytes of a removed intimate image", () => {
-      const matchingKey = () => buildPhotoS3Key(callerId, eventId, photoId);
+      const matchingKey = () => buildPhotoS3Key(eventId, photoId);
 
       beforeEach(() => {
         prisma.user.findUnique.mockResolvedValue(callerWithDetails);

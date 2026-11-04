@@ -18,9 +18,14 @@ import { IdenticalCopiesService } from "./identical-copies.service";
   imports: [StorageModule],
   // PhotoPurgeService is stateless; provided here for the memberless-event
   // purge, as ModerationModule does, since importing PhotosModule would be a cycle.
-  providers: [EvidenceService, EvidenceOrphanSource, EvidenceScheduler, MemberlessEventPurgeService, PhotoPurgeService],
-  exports: [EvidenceService],
-  providers: [EvidenceService, IdenticalCopiesService, EvidenceOrphanSource, EvidenceScheduler],
+  providers: [
+    EvidenceService,
+    IdenticalCopiesService,
+    EvidenceOrphanSource,
+    EvidenceScheduler,
+    MemberlessEventPurgeService,
+    PhotoPurgeService,
+  ],
   // Confirm and the hash backfill ask IdenticalCopiesService about removed images.
   exports: [EvidenceService, IdenticalCopiesService],
 })

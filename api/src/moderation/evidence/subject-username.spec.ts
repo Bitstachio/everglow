@@ -5,6 +5,7 @@ import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { EvidenceService } from "./evidence.service";
+import { IdenticalCopiesService } from "./identical-copies.service";
 import { holdKeepsSubjectUsername, subjectUsernameScrubbable } from "./subject-username";
 
 // Kept apart from evidence.service.spec.ts: EV-200 adds this one method to the
@@ -28,6 +29,7 @@ describe("EvidenceService.scrubDeletedSubjectUsernames", () => {
       { deleteObjects: jest.fn() } as unknown as S3Service,
       config as unknown as ConfigService,
       logger as unknown as PinoLogger,
+      { removeCopies: jest.fn() } as unknown as IdenticalCopiesService,
     );
     prisma.reportEvidence.findMany.mockResolvedValue([]);
     prisma.report.findMany.mockResolvedValue([]);

@@ -25,8 +25,8 @@ describe("Identical copies of a removed intimate image (integration)", () => {
   const COPY_UPLOADER_ID = "abababab-1111-4222-8333-abababababab";
   const LINKED_REPORT_ID = "acacacac-1111-4222-8333-acacacacacac";
   const sha256 = "9f".repeat(32);
-  const originalKey = buildPhotoS3Key(TEST_USER_ID, TEST_EVENT_ID, TEST_PHOTO_ID);
-  const copyKey = buildPhotoS3Key(COPY_UPLOADER_ID, OTHER_EVENT_ID, COPY_PHOTO_ID);
+  const originalKey = buildPhotoS3Key(TEST_EVENT_ID, TEST_PHOTO_ID);
+  const copyKey = buildPhotoS3Key(OTHER_EVENT_ID, COPY_PHOTO_ID);
   const evidenceKey = (reportId: string, key: string) => `evidence/${reportId}/${key}`;
 
   let app: INestApplication;
