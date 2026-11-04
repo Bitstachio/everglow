@@ -16,7 +16,6 @@ import { InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
-import { Readable } from "node:stream";
 import { S3_SERVICE_ERRORS } from "./s3.constants";
 import { S3Service, presignedUrlExpiresAt } from "./s3.service";
 

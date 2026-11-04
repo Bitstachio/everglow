@@ -510,7 +510,7 @@ describe("PhotosService", () => {
       ]);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: photoId },
-        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(callerId, eventId, photoId)) },
+        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
       expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(
@@ -537,7 +537,7 @@ describe("PhotosService", () => {
       expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: photoId },
-        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(callerId, eventId, photoId)) },
+        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
       // Only the verified original is read and hashed.
       expect(s3Service.sha256OfObject).toHaveBeenCalledTimes(1);
@@ -554,7 +554,7 @@ describe("PhotosService", () => {
       await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
 
       for (const id of [photoId, otherPhotoId]) {
-        const key = buildPhotoS3Key(callerId, eventId, id);
+        const key = buildPhotoS3Key(eventId, id);
         expect(s3Service.sha256OfObject).toHaveBeenCalledWith(key, { timeoutMs: PHOTO_HASH_TIMEOUT_MS });
         expect(prisma.photo.updateMany).toHaveBeenCalledWith({
           where: { id },
