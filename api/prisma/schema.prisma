@@ -375,6 +375,11 @@ model Photo {
   contentType String      @db.VarChar(100)
   sizeBytes   Int
   status      PhotoStatus @default(PENDING)
+  // Hex SHA-256 of the original's bytes, computed by the API at confirm. Null
+  // while PENDING, for photos from before it was recorded until the hash
+  // backfill reaches them, and when hashing failed at confirm. Identical
+  // copies of a removed intimate image are found by it (docs/moderation.md §7).
+  sha256      String?     @db.Char(64)
   // Null once the uploader's account is deleted and the photo was kept for the
   // event. It still counts toward the event's gallery storage.
   addedById   String?     @db.Uuid
@@ -389,6 +394,8 @@ model Photo {
   @@index([eventId, status, createdAt])
   @@index([addedById])
   @@index([status, createdAt])
+  // Identical copies of a removed image, and the backfill's IS NULL scan.
+  @@index([sha256])
 }
 
 // A member's report of a photo or of another member (see docs/moderation.md).
@@ -586,6 +593,8 @@ model ReportEvidence {
   @@index([objectS3Key])
   // The retry pass.
   @@index([quarantineFailedAt])
+  // Confirm refuses a photo whose hash matches a removed intimate image.
+  @@index([sha256])
 }
 
 // Who handles a report (docs/moderation.md §3).

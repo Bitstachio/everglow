@@ -27,6 +27,7 @@ describe("ALERT_EVENTS", () => {
       STORAGE_RESERVATION_CONFLICT: "photo.storage.reservation_conflict",
       UPLOAD_SLOTS_PRESIGN_FAILED: "photo.upload_slots.presign_failed",
       UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",
+      PHOTO_HASH_BACKFILL_DISABLED: "photo.hash_backfill.disabled",
 
       REPORT_ESCALATED: "report.escalated",
       REPORT_STALE: "report.stale",
@@ -49,6 +50,8 @@ describe("ALERT_EVENTS", () => {
       GALLERY_CLOSE_RUN_FAILED: "event.gallery_close.run_failed",
       REPORT_EVIDENCE_RUN_COMPLETED: "report.evidence_job.run_completed",
       REPORT_EVIDENCE_RUN_FAILED: "report.evidence_job.run_failed",
+      PHOTO_HASH_BACKFILL_RUN_COMPLETED: "photo.hash_backfill.run_completed",
+      PHOTO_HASH_BACKFILL_RUN_FAILED: "photo.hash_backfill.run_failed",
     });
   });
 

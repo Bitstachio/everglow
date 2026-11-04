@@ -13,7 +13,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
-import { buildPhotoS3Key, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
+import { buildPhotoS3Key, PHOTO_HASH_TIMEOUT_MS, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosService } from "./photos.service";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
@@ -31,6 +31,7 @@ describe("PhotosService", () => {
     getPresignedDownloadUrl: jest.Mock;
     headObject: jest.Mock;
     deleteObjects: jest.Mock;
+    sha256OfObject: jest.Mock;
   };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
   let photoVisibilityService: { whereVisibleTo: jest.Mock; isVisibleTo: jest.Mock };
@@ -115,6 +116,12 @@ describe("PhotosService", () => {
     { contentType: "image/png", sizeBytes: 2048 },
   ];
 
+  const hashOf = (key: string) =>
+    key
+      .replace(/[^0-9a-f]/g, "")
+      .slice(-64)
+      .padStart(64, "0");
+
   const buildPhoto = (photoId: string, overrides: Partial<Photo> = {}): Photo => ({
     id: photoId,
     eventId,
@@ -123,6 +130,7 @@ describe("PhotosService", () => {
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "PENDING",
+    sha256: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -139,7 +147,10 @@ describe("PhotosService", () => {
         ),
       headObject: jest.fn(),
       deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })),
+      // Each original hashes to a digest derived from its key, so tests can tell them apart.
+      sha256OfObject: jest.fn((key: string) => Promise.resolve(hashOf(key))),
     };
+    prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
     photoVisibilityService = {
       whereVisibleTo: jest.fn().mockResolvedValue(visibilityWhere),
@@ -498,8 +509,8 @@ describe("PhotosService", () => {
         { photoId: mismatchedPhotoId, status: "MISMATCHED" },
       ]);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: [photoId] } },
-        data: { status: "READY" },
+        where: { id: photoId },
+        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
       expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(
@@ -525,10 +536,52 @@ describe("PhotosService", () => {
       ]);
       expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: [photoId] } },
-        data: { status: "READY" },
+        where: { id: photoId },
+        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
+      // Only the verified original is read and hashed.
+      expect(s3Service.sha256OfObject).toHaveBeenCalledTimes(1);
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId));
+    });
+
+    it("records each confirmed photo's own hash", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId), buildPhoto(otherPhotoId)]);
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
+
+      for (const id of [photoId, otherPhotoId]) {
+        const key = buildPhotoS3Key(eventId, id);
+        expect(s3Service.sha256OfObject).toHaveBeenCalledWith(key, { timeoutMs: PHOTO_HASH_TIMEOUT_MS });
+        expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+          where: { id },
+          data: { status: "READY", sha256: hashOf(key) },
+        });
+      }
+    });
+
+    it("confirms a photo without a hash when it can't be read, for the backfill to hash later", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+      s3Service.sha256OfObject.mockRejectedValue(new Error("timeout"));
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
+
+      expect(results).toEqual([{ photoId, status: "READY" }]);
+      expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+        where: { id: photoId },
+        data: { status: "READY", sha256: null },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "photo.hash_failed", eventId, callerId, unhashed: 1 }),
+        expect.any(String),
+      );
     });
 
     it("touches no rows beyond the READY flip when every photo verifies", async () => {

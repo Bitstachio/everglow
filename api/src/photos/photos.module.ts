@@ -6,6 +6,8 @@ import { PlansModule } from "src/plans/plans.module";
 import { StorageModule } from "src/storage/storage.module";
 import { GalleryCloseScheduler } from "./gallery-close.scheduler";
 import { GalleryCloseService } from "./gallery-close.service";
+import { PhotoHashBackfillScheduler } from "./photo-hash-backfill.scheduler";
+import { PhotoHashBackfillService } from "./photo-hash-backfill.service";
 import { PhotoDerivativeOrphanSource } from "./photo-derivative-orphan-source";
 import { PhotoOrphanSource } from "./photo-orphan-source";
 import { PhotoPendingCleanupScheduler } from "./photo-pending-cleanup.scheduler";
@@ -28,6 +30,8 @@ import { PhotosService } from "./photos.service";
     PhotoDerivativeOrphanSource,
     GalleryCloseService,
     GalleryCloseScheduler,
+    PhotoHashBackfillService,
+    PhotoHashBackfillScheduler,
   ],
   exports: [PhotosService, PhotoStorageService, PhotoPurgeService],
 })

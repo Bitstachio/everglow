@@ -326,6 +326,7 @@
     },
     "/api/v2/users/me/avatar/upload-url": {
       "post": {
+        "description": "PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.",
         "operationId": "UsersController_createAvatarUploadUrl",
         "parameters": [],
         "requestBody": {
@@ -570,6 +571,7 @@
     },
     "/api/v2/events/{eventId}/photos/upload-urls": {
       "post": {
+        "description": "PUT each file to its uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.",
         "operationId": "PhotosController_createUploadUrls",
         "parameters": [
           {
@@ -2200,6 +2202,7 @@
     },
     "/api/v2/events/{eventId}/cover/upload-url": {
       "post": {
+        "description": "PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.",
         "operationId": "EventsController_createCoverUploadUrl",
         "parameters": [
           {

@@ -3,6 +3,7 @@ import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { PhotoHashBackfillService } from "src/photos/photo-hash-backfill.service";
 import { STORAGE_RESERVATION_MAX_ATTEMPTS } from "src/photos/photos.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
@@ -73,7 +74,9 @@ describe("PhotosController (integration)", () => {
     headObject: jest.fn(),
     getPresignedUploadUrl: jest.fn(),
     getPresignedDownloadUrl: jest.fn(),
+    sha256OfObject: jest.fn(),
   };
+  const sha256 = "5e".repeat(32);
 
   const eventWithAccess = (access: ReturnType<typeof buildOrganizerAccess>[]) => ({
     ...buildEvent(),
@@ -121,6 +124,7 @@ describe("PhotosController (integration)", () => {
     );
     s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
     s3Service.deleteObjects.mockImplementation((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] }));
+    s3Service.sha256OfObject.mockResolvedValue(sha256);
   });
 
   describe("POST /events/:eventId/photos/upload-urls", () => {
@@ -300,9 +304,11 @@ describe("PhotosController (integration)", () => {
         { photoId: TEST_PHOTO_ID, status: "READY" },
         { photoId: TEST_OTHER_PHOTO_ID, status: "NOT_FOUND" },
       ]);
+      // The original is read once and its hash stored with the READY flip.
+      expect(s3Service.sha256OfObject).toHaveBeenCalledWith(buildPhoto().s3Key, expect.anything());
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: [TEST_PHOTO_ID] } },
-        data: { status: "READY" },
+        where: { id: TEST_PHOTO_ID },
+        data: { status: "READY", sha256 },
       });
       // Only the caller's own slots are considered; an unknown id is not released.
       expect(prisma.photo.findMany).toHaveBeenCalledWith({
@@ -681,6 +687,26 @@ describe("PhotosController (integration)", () => {
 
     it("returns 401 when the access token is missing", async () => {
       await request(httpServer).delete(photoPath()).expect(401);
+    });
+  });
+
+  describe("the photo hash backfill job", () => {
+    it("hashes READY photos confirmed without a hash, in a bounded batch", async () => {
+      const photo = buildPhoto();
+      prisma.photo.findMany.mockResolvedValue([{ id: photo.id, s3Key: photo.s3Key }] as never);
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await app.get(PhotoHashBackfillService).runBackfill();
+
+      expect(result).toEqual({ hashed: 1, failed: 0 });
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: "READY", sha256: null }, take: 100 }),
+      );
+      expect(s3Service.sha256OfObject).toHaveBeenCalledWith(photo.s3Key, expect.anything());
+      expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+        where: { id: photo.id, sha256: null },
+        data: { sha256 },
+      });
     });
   });
 });

@@ -12,6 +12,7 @@ describe("PhotoMapper", () => {
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "READY",
+    sha256: null,
     createdAt: now,
     updatedAt: now,
     url: "https://signed-get",

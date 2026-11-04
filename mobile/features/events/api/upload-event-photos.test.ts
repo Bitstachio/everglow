@@ -263,7 +263,7 @@ describe("putEventPhoto", () => {
     expect(options).toMatchObject({
       sessionType: "background",
       httpMethod: "PUT",
-      headers: { "Content-Type": "image/jpeg" },
+      headers: { "Content-Type": "image/jpeg", "If-None-Match": "*" },
     });
     options.onProgress({ bytesSent: 2, totalBytes: 3 });
     expect(onBytes).toHaveBeenCalledWith(2);
@@ -282,6 +282,12 @@ describe("putEventPhoto", () => {
     expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "missing" }]);
     expect(mockUploadTask).not.toHaveBeenCalled();
     expect(mockConfirmUploads).not.toHaveBeenCalled();
+  });
+
+  test("goes on to confirm when storage says the key already holds the bytes (412)", async () => {
+    mockUploadAsync.mockResolvedValue({ status: 412, body: "", headers: {} });
+
+    await expect(putEventPhoto(file, slot, { onBytes: jest.fn() })).resolves.toBeUndefined();
   });
 
   test("rejects when storage refuses the bytes, which the upload reports as refused", async () => {

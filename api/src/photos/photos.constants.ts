@@ -133,6 +133,17 @@ export const DEFAULT_GALLERY_CLOSE_BATCH_SIZE = 100;
 // DeleteObjects batch each, so a large gallery never holds a long transaction.
 export const GALLERY_CLOSE_PHOTO_CHUNK_SIZE = 500;
 
+// Confirm hashes each verified original by streaming it from S3 once
+// (docs/moderation.md §7). At most this many stream at a time per confirm, so
+// a batch of 20 large photos doesn't pull 500 MB at once, and each read gives
+// up after the timeout: the photo is confirmed without a hash, and the
+// backfill job hashes it later.
+export const PHOTO_HASH_CONCURRENCY = 4;
+export const PHOTO_HASH_TIMEOUT_MS = 20_000;
+
+// READY photos without a hash that the backfill job hashes per run.
+export const DEFAULT_PHOTO_HASH_BACKFILL_BATCH_SIZE = 100;
+
 // Per-photo outcome of a confirm call. READY flips the row; MISSING and
 // MISMATCHED are final verdicts that release the slot (row, and object if one
 // landed) so the client mints a fresh one; NOT_FOUND names an id that is not a
