@@ -507,6 +507,67 @@
         ]
       }
     },
+    "/api/v2/users/me/deletion-preview": {
+      "get": {
+        "description": "Runs the deletion's own preparation in a transaction that is rolled back, so each outcome is the one DELETE /users/me would produce now. Nothing is changed. Suspended accounts may call it: they may delete themselves.",
+        "operationId": "UsersController_previewDeletion",
+        "parameters": [
+          {
+            "name": "photos",
+            "required": false,
+            "in": "query",
+            "description": "The photo choice to preview with. It can change an outcome: deleting the caller's photos also closes the open reports on them, which may be all that keeps an event for review.",
+            "schema": {
+              "default": "KEEP",
+              "type": "string",
+              "enum": [
+                "KEEP",
+                "DELETE"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outcome per event the caller organizes alone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AccountDeletionPreviewResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Preview what deleting the current user would do to their events",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v2/events/{eventId}/photos/upload-urls": {
       "post": {
         "operationId": "PhotosController_createUploadUrls",
@@ -3503,6 +3564,56 @@
         },
         "required": [
           "ticketUrl"
+        ]
+      },
+      "AccountDeletionEventOutcome": {
+        "type": "string",
+        "enum": [
+          "DELETED",
+          "HANDED_OVER",
+          "KEPT_FOR_REVIEW"
+        ],
+        "description": "DELETED: nobody else is in it, so it goes with its photos and cover. HANDED_OVER: the longest-standing member becomes an organizer. KEPT_FOR_REVIEW: nobody else is in it, but it is under review or has open reports that outlive the account, so it stays, without members, until the platform decides."
+      },
+      "AccountDeletionEventPreviewDto": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "outcome": {
+            "description": "DELETED: nobody else is in it, so it goes with its photos and cover. HANDED_OVER: the longest-standing member becomes an organizer. KEPT_FOR_REVIEW: nobody else is in it, but it is under review or has open reports that outlive the account, so it stays, without members, until the platform decides.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountDeletionEventOutcome"
+              }
+            ]
+          }
+        },
+        "required": [
+          "eventId",
+          "title",
+          "outcome"
+        ]
+      },
+      "AccountDeletionPreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "description": "The events the caller organizes alone, and what deleting the account now would do to each. Events with another organizer are not listed: only the caller's membership goes.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountDeletionEventPreviewDto"
+            }
+          }
+        },
+        "required": [
+          "events"
         ]
       },
       "UploadSlotResponseDto": {

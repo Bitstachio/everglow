@@ -67,6 +67,7 @@ import {
   usersControllerCreatePasswordChangeTicket,
   usersControllerFindMe,
   usersControllerGetMyLimits,
+  usersControllerPreviewDeletion,
   usersControllerRemoveAvatar,
   usersControllerRemoveMe,
   usersControllerUpdateMe,
@@ -235,6 +236,9 @@ import type {
   UsersControllerGetMyLimitsData,
   UsersControllerGetMyLimitsError,
   UsersControllerGetMyLimitsResponse,
+  UsersControllerPreviewDeletionData,
+  UsersControllerPreviewDeletionError,
+  UsersControllerPreviewDeletionResponse,
   UsersControllerRemoveAvatarData,
   UsersControllerRemoveAvatarError,
   UsersControllerRemoveAvatarResponse,
@@ -574,6 +578,33 @@ export const usersControllerCreatePasswordChangeTicketMutation = (
   };
   return mutationOptions;
 };
+
+export const usersControllerPreviewDeletionQueryKey = (options?: Options<UsersControllerPreviewDeletionData>) =>
+  createQueryKey("usersControllerPreviewDeletion", options);
+
+/**
+ * Preview what deleting the current user would do to their events
+ *
+ * Runs the deletion's own preparation in a transaction that is rolled back, so each outcome is the one DELETE /users/me would produce now. Nothing is changed. Suspended accounts may call it: they may delete themselves.
+ */
+export const usersControllerPreviewDeletionOptions = (options?: Options<UsersControllerPreviewDeletionData>) =>
+  queryOptions<
+    UsersControllerPreviewDeletionResponse,
+    AxiosError<UsersControllerPreviewDeletionError>,
+    UsersControllerPreviewDeletionResponse,
+    ReturnType<typeof usersControllerPreviewDeletionQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await usersControllerPreviewDeletion({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: usersControllerPreviewDeletionQueryKey(options),
+  });
 
 /**
  * Mint presigned upload URLs for a batch of photos

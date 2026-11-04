@@ -37,6 +37,14 @@ export const ACCOUNT_DELETION_RECONCILER_MIN_AGE_MINUTES = 10;
 // pass never loses it; short enough that a crashed one frees the row soon.
 // A failed pass gives it up at once.
 export const ACCOUNT_DELETION_CLAIM_LEASE_SECONDS = 5 * 60;
+
+// Outbox entries one drain handles per round: one select, one S3 batch.
+export const ACCOUNT_DELETION_OUTBOX_BATCH_SIZE = 500;
+
+// Drains an outbox entry may fail before it is dropped and left to the S3
+// orphan reconciler: a day of hourly reconciler runs. An object S3 refuses that
+// long needs a person, and the reconciler reclaims it either way.
+export const ACCOUNT_DELETION_OUTBOX_MAX_ATTEMPTS = 24;
 export const DEFAULT_ACCOUNT_DELETION_RECONCILER_STUCK_AFTER_HOURS = 1;
 
 // A saga that has failed this many times is not going to succeed by being run
@@ -54,3 +62,7 @@ export const DEFAULT_ACCOUNT_DELETION_MAX_ATTEMPTS = 5;
  * destroying other people's media on a row we know nothing about.
  */
 export const ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK = AccountDeletionPhotoPolicy.KEEP;
+
+/** What deleting the account does to an event it organizes alone; prep's OrganizedEventOutcome. */
+export const ACCOUNT_DELETION_EVENT_OUTCOMES = ["DELETED", "HANDED_OVER", "KEPT_FOR_REVIEW"] as const;
+export type AccountDeletionEventOutcome = (typeof ACCOUNT_DELETION_EVENT_OUTCOMES)[number];

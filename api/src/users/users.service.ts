@@ -3,15 +3,14 @@ import { AccountDeletionPhotoPolicy, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { ApiException } from "src/common/errors/api.exception";
-import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { subjectUsernameScrubbable } from "src/moderation/evidence/subject-username";
-import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
 import { ClaimedDeletion, claimDeletionForRequest, releaseDeletionClaim } from "./account-deletion-claim";
+import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
 import { AccountDeletionPreflightService } from "./account-deletion-preflight.service";
-import { AccountDeletionPrepService } from "./account-deletion-prep.service";
+import { AccountDeletionPrepService, OrganizedEventFate } from "./account-deletion-prep.service";
 import { AppleIdentityRevocationService } from "./apple-identity-revocation.service";
 import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
 import { CreateUserDetailsDto } from "./dto/create-user-details.dto";
@@ -44,7 +43,7 @@ export class UsersService {
     private readonly deletionPrep: AccountDeletionPrepService,
     private readonly preflight: AccountDeletionPreflightService,
     private readonly appleRevocation: AppleIdentityRevocationService,
-    private readonly photoPurge: PhotoPurgeService,
+    private readonly outbox: AccountDeletionOutboxService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(UsersService.name);
@@ -200,6 +199,12 @@ export class UsersService {
     return candidates.filter((candidate) => !heldNames.has(candidate)).slice(0, USERNAME_SUGGESTION_COUNT);
   }
 
+  /** What deleting the account now would do to each event it organizes alone (prep, rolled back). */
+  async previewDeletion(id: string, photoPolicy: AccountDeletionPhotoPolicy): Promise<OrganizedEventFate[]> {
+    await this.getById(id);
+    return this.deletionPrep.preview(id, photoPolicy);
+  }
+
   /**
    * `DELETE /users/me`. Checks the deletion can finish before writing
    * anything, then claims the row and runs the saga. An account whose
@@ -275,7 +280,12 @@ export class UsersService {
 
     // Settle events and photos so user.delete has nothing left to trip on and
     // no event is orphaned. Idempotent, so a resumed saga repeats it harmlessly.
-    const { s3Keys } = await this.deletionPrep.prepareRelatedData(id, policy);
+    await this.deletionPrep.prepareRelatedData(id, policy);
+
+    // The objects of the rows prep removed, queued in its transaction: purge
+    // them now, so a failure at Apple or Auth0 below costs no privacy. A
+    // resumed saga drains what an earlier pass could not. Never throws.
+    await this.outbox.drain({ userId: id });
 
     if (!auth0DeletedAt) {
       // Apple keeps the app authorised until the token Auth0 obtained is
@@ -346,10 +356,6 @@ export class UsersService {
       "User account deleted",
     );
 
-    // S3 last and best effort (photos and the avatar alike): the rows are
-    // already gone, so what is left at stake is storage cost, which the S3
-    // orphan reconciler also covers.
-    await this.photoPurge.purgeObjects(s3Keys, { event: ALERT_EVENTS.ACCOUNT_PHOTOS_PURGED, userId: id });
     return "deleted";
   }
 

@@ -176,6 +176,27 @@ export type PasswordChangeTicketResponseDto = {
   ticketUrl: string;
 };
 
+/**
+ * DELETED: nobody else is in it, so it goes with its photos and cover. HANDED_OVER: the longest-standing member becomes an organizer. KEPT_FOR_REVIEW: nobody else is in it, but it is under review or has open reports that outlive the account, so it stays, without members, until the platform decides.
+ */
+export type AccountDeletionEventOutcome = "DELETED" | "HANDED_OVER" | "KEPT_FOR_REVIEW";
+
+export type AccountDeletionEventPreviewDto = {
+  eventId: string;
+  title: string;
+  /**
+   * DELETED: nobody else is in it, so it goes with its photos and cover. HANDED_OVER: the longest-standing member becomes an organizer. KEPT_FOR_REVIEW: nobody else is in it, but it is under review or has open reports that outlive the account, so it stays, without members, until the platform decides.
+   */
+  outcome: AccountDeletionEventOutcome;
+};
+
+export type AccountDeletionPreviewResponseDto = {
+  /**
+   * The events the caller organizes alone, and what deleting the account now would do to each. Events with another organizer are not listed: only the caller's membership goes.
+   */
+  events: Array<AccountDeletionEventPreviewDto>;
+};
+
 export type UploadSlotResponseDto = {
   photoId: string;
   /**
@@ -1299,6 +1320,45 @@ export type UsersControllerCreatePasswordChangeTicketResponses = {
 
 export type UsersControllerCreatePasswordChangeTicketResponse =
   UsersControllerCreatePasswordChangeTicketResponses[keyof UsersControllerCreatePasswordChangeTicketResponses];
+
+export type UsersControllerPreviewDeletionData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * The photo choice to preview with. It can change an outcome: deleting the caller's photos also closes the open reports on them, which may be all that keeps an event for review.
+     */
+    photos?: "KEEP" | "DELETE";
+  };
+  url: "/api/v2/users/me/deletion-preview";
+};
+
+export type UsersControllerPreviewDeletionErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type UsersControllerPreviewDeletionError =
+  UsersControllerPreviewDeletionErrors[keyof UsersControllerPreviewDeletionErrors];
+
+export type UsersControllerPreviewDeletionResponses = {
+  /**
+   * Outcome per event the caller organizes alone
+   */
+  200: {
+    data: AccountDeletionPreviewResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type UsersControllerPreviewDeletionResponse =
+  UsersControllerPreviewDeletionResponses[keyof UsersControllerPreviewDeletionResponses];
 
 export type PhotosControllerCreateUploadUrlsData = {
   body: CreateUploadUrlsDto;

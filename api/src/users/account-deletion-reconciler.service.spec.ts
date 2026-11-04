@@ -5,6 +5,7 @@ import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
 import { ApiException } from "src/common/errors/api.exception";
 import { PrismaService } from "src/prisma/prisma.service";
+import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
 import { AccountDeletionPreflightService } from "./account-deletion-preflight.service";
 import { AccountDeletionReconcilerService } from "./account-deletion-reconciler.service";
 import { UsersService } from "./users.service";
@@ -14,6 +15,7 @@ describe("AccountDeletionReconcilerService", () => {
   let prisma: DeepMockProxy<PrismaClient>;
   let usersService: { completeAccountDeletion: jest.Mock };
   let preflight: { assertCanFinish: jest.Mock };
+  let outbox: { drain: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
 
   const now = new Date("2026-06-10T12:00:00.000Z");
@@ -36,6 +38,7 @@ describe("AccountDeletionReconcilerService", () => {
     prisma = mockDeep<PrismaClient>();
     usersService = { completeAccountDeletion: jest.fn().mockResolvedValue("deleted") };
     preflight = { assertCanFinish: jest.fn().mockResolvedValue(undefined) };
+    outbox = { drain: jest.fn().mockResolvedValue({ done: 0, failed: 0, givenUp: 0 }) };
     // No tombstones to purge unless a case says otherwise.
     prisma.deletedProviderSub.deleteMany.mockResolvedValue({ count: 0 });
     prisma.deletedProviderSub.findMany.mockResolvedValue([]);
@@ -48,6 +51,7 @@ describe("AccountDeletionReconcilerService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: usersService },
         { provide: AccountDeletionPreflightService, useValue: preflight },
+        { provide: AccountDeletionOutboxService, useValue: outbox },
         {
           provide: ConfigService,
           useValue: {
@@ -95,6 +99,8 @@ describe("AccountDeletionReconcilerService", () => {
     stuck: 0,
     abandoned: 0,
     unavailable: 0,
+    outboxPurged: 0,
+    outboxFailed: 0,
     tombstonesPurged: 0,
     ...overrides,
   });
@@ -193,6 +199,15 @@ describe("AccountDeletionReconcilerService", () => {
     );
 
     await expect(service.reconcilePendingDeletions()).resolves.toMatchObject({ scanned: 50, deleted: 50 });
+  });
+
+  it("drains outbox entries older than ten minutes that their pass left behind", async () => {
+    pendingRows();
+    outbox.drain.mockResolvedValue({ done: 3, failed: 1, givenUp: 1 });
+
+    await expect(service.reconcilePendingDeletions()).resolves.toMatchObject({ outboxPurged: 3, outboxFailed: 2 });
+
+    expect(outbox.drain).toHaveBeenCalledWith({ createdBefore: new Date(now.getTime() - 10 * 60 * 1000) });
   });
 
   it("counts a failed pass against the row's attempt budget", async () => {

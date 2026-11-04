@@ -8,7 +8,13 @@ import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
 import { useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
-import { useDeleteAccountScreen } from "../hooks/use-delete-account-screen";
+import { useDeleteAccountScreen, type RollFate } from "../hooks/use-delete-account-screen";
+
+const ROLL_FATE_LABELS = {
+  DELETED: "delete.rollDeleted",
+  HANDED_OVER: "delete.rollStays",
+  KEPT_FOR_REVIEW: "delete.rollKept",
+} as const satisfies Record<RollFate, string>;
 
 /** 14.11 Delete account: what happens to your frames, and to each roll you started. */
 const DeleteAccountScreen = () => {
@@ -66,7 +72,7 @@ const DeleteAccountScreen = () => {
                   key={roll.id}
                   first={index === 0}
                   label={roll.title}
-                  value={roll.fate === "deleted" ? t("delete.rollDeleted") : t("delete.rollStays")}
+                  value={t(ROLL_FATE_LABELS[roll.fate])}
                   lit
                 />
               ))

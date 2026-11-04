@@ -167,6 +167,9 @@ import type {
   UsersControllerGetMyLimitsData,
   UsersControllerGetMyLimitsErrors,
   UsersControllerGetMyLimitsResponses,
+  UsersControllerPreviewDeletionData,
+  UsersControllerPreviewDeletionErrors,
+  UsersControllerPreviewDeletionResponses,
   UsersControllerRemoveAvatarData,
   UsersControllerRemoveAvatarErrors,
   UsersControllerRemoveAvatarResponses,
@@ -374,6 +377,24 @@ export const usersControllerCreatePasswordChangeTicket = <ThrowOnError extends b
   >({
     responseType: "json",
     url: "/api/v2/users/me/password-change-ticket",
+    ...options,
+  });
+
+/**
+ * Preview what deleting the current user would do to their events
+ *
+ * Runs the deletion's own preparation in a transaction that is rolled back, so each outcome is the one DELETE /users/me would produce now. Nothing is changed. Suspended accounts may call it: they may delete themselves.
+ */
+export const usersControllerPreviewDeletion = <ThrowOnError extends boolean = false>(
+  options?: Options<UsersControllerPreviewDeletionData, ThrowOnError>,
+): RequestResult<UsersControllerPreviewDeletionResponses, UsersControllerPreviewDeletionErrors, ThrowOnError> =>
+  (options?.client ?? client).get<
+    UsersControllerPreviewDeletionResponses,
+    UsersControllerPreviewDeletionErrors,
+    ThrowOnError
+  >({
+    responseType: "json",
+    url: "/api/v2/users/me/deletion-preview",
     ...options,
   });
 

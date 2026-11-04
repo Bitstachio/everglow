@@ -14,19 +14,14 @@ jest.mock("@/context/auth-context", () => ({
 jest.mock("../api/mutations", () => ({
   useDeleteProfileMutation: () => ({ mutateAsync: mockDelete }),
 }));
-const event = (id: string, title: string, creatorId: string | null, members: number) => ({
-  id,
-  title,
-  creatorId,
-  usage: { members, storageBytes: "0" },
-});
-const mockEventsQuery = jest.fn();
+const preview = (id: string, title: string, outcome: string) => ({ eventId: id, title, outcome });
+const mockPreviewQuery = jest.fn();
 const mockRefetch = jest.fn();
-let mockEvents: { data?: unknown[]; isError: boolean } = { isError: false };
-jest.mock("@/features/events/api/queries", () => ({
-  useEventsQuery: (userId: string | undefined) => {
-    mockEventsQuery(userId);
-    return { ...mockEvents, refetch: mockRefetch };
+let mockPreview: { data?: { events: unknown[] }; isError: boolean } = { isError: false };
+jest.mock("../api/queries", () => ({
+  useDeletionPreviewQuery: (photos: string) => {
+    mockPreviewQuery(photos);
+    return { ...mockPreview, refetch: mockRefetch };
   },
 }));
 const mockReplace = jest.fn();
@@ -43,51 +38,57 @@ beforeEach(() => {
   mockSuspended = false;
   mockSub = "auth0|me";
   mockCanGoBack = true;
-  mockEvents = {
+  mockPreview = {
     isError: false,
-    data: [
-      event("e1", "Nadia turns 30", "me", 6),
-      event("e2", "Picnic, just me", "me", 1),
-      event("e3", "Sam & Jo’s wedding", "sam", 40),
-      event("e4", "Left alone", null, 1),
-    ],
+    data: {
+      events: [
+        preview("e1", "Nadia turns 30", "HANDED_OVER"),
+        preview("e2", "Picnic, just me", "DELETED"),
+        preview("e4", "On hold", "KEPT_FOR_REVIEW"),
+      ],
+    },
   };
   mockDelete.mockResolvedValue(undefined);
   mockLogout.mockResolvedValue(undefined);
 });
 
-test("lists the rolls you started or are alone on, and what happens to each", async () => {
+test("lists the rolls you host alone with what the API says deleting would do to each", async () => {
   const { result } = await render();
-  expect(mockEventsQuery).toHaveBeenCalledWith("me");
+  // Before a choice, what Leave them would do.
+  expect(mockPreviewQuery).toHaveBeenLastCalledWith("KEEP");
   expect(result.current.showRolls).toBe(true);
   expect(result.current.rolls).toEqual([
-    { id: "e1", title: "Nadia turns 30", fate: "stays" },
-    { id: "e2", title: "Picnic, just me", fate: "deleted" },
-    { id: "e4", title: "Left alone", fate: "deleted" },
+    { id: "e1", title: "Nadia turns 30", fate: "HANDED_OVER" },
+    { id: "e2", title: "Picnic, just me", fate: "DELETED" },
+    { id: "e4", title: "On hold", fate: "KEPT_FOR_REVIEW" },
   ]);
 });
 
-test("leaves the rolls out when none are yours or yours alone", async () => {
-  mockEvents = { isError: false, data: [event("e3", "Sam & Jo’s wedding", "sam", 40)] };
+test("asks again with the photos choice, which can change an outcome", async () => {
+  const { result } = await render();
+  await act(() => result.current.onChoosePhotos("DELETE"));
+  expect(mockPreviewQuery).toHaveBeenLastCalledWith("DELETE");
+});
+
+test("leaves the rolls out when you host none alone", async () => {
+  mockPreview = { isError: false, data: { events: [] } };
   const { result } = await render();
   expect(result.current.showRolls).toBe(false);
 });
 
 test("says when the rolls couldn't load, and tries again", async () => {
-  mockEvents = { isError: true };
+  mockPreview = { isError: true };
   const { result } = await render();
   expect(result.current).toMatchObject({ showRolls: true, rollsFailed: true, rolls: [] });
   result.current.onRetryRolls();
   expect(mockRefetch).toHaveBeenCalledTimes(1);
 });
 
-test("a suspended account doesn't ask for its rolls, which the API refuses", async () => {
+test("a suspended account sees its rolls too, and goes back to its own screen", async () => {
   mockSuspended = true;
-  mockEvents = { isError: false };
   mockCanGoBack = false;
   const { result } = await render();
-  expect(mockEventsQuery).toHaveBeenCalledWith(undefined);
-  expect(result.current.showRolls).toBe(true);
+  expect(result.current.rolls).toHaveLength(3);
   result.current.onBack();
   expect(mockReplace).toHaveBeenCalledWith("/account-suspended");
 });

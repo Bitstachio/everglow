@@ -1,5 +1,4 @@
 import { useAuth } from "@/context/auth-context";
-import { useEventsQuery } from "@/features/events/api/queries";
 import { getErrorCode, isApiError } from "@/lib/api/errors";
 import { messageForApiErrorCode } from "@/lib/api/error-messages";
 import { router } from "expo-router";
@@ -7,39 +6,39 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { useDeleteProfileMutation } from "../api/mutations";
-import type { DeleteAccountPhotoPolicy } from "../types";
+import { useDeletionPreviewQuery } from "../api/queries";
+import type { AccountDeletionEventOutcome, DeleteAccountPhotoPolicy } from "../types";
 
-export type RollFate = "stays" | "deleted";
+export type RollFate = AccountDeletionEventOutcome;
 
 /**
  * 14.11 Delete account. The photos choice is required by the API and has no
  * default here: both outcomes are permanent, so the person picks one.
  *
- * What happens to each roll follows docs/account-deletion.md: a roll with no
- * one else on it is deleted; any other stays, handed to the longest-standing
- * member when you host it alone. The events list says who started a roll and
- * how many are on it, not who else hosts it, so the rows say "stays" rather
- * than naming who it goes to. A suspended account can't list its rolls (the
- * API refuses), so it gets the rule without the list.
+ * What happens to each roll comes from the API, which runs the deletion's own
+ * preparation and rolls it back (docs/account-deletion.md §6a): a roll you
+ * host alone goes to its longest-standing member, one with no one else on it
+ * is deleted, unless it is under review or has open reports, in which case it
+ * is kept for Everglow. The answer can depend on the photos choice, so it is
+ * asked again when that changes; before a choice it shows what Leave them
+ * would do. A suspended account may ask too, since it may delete itself.
  */
 export const useDeleteAccountScreen = () => {
   const { t } = useTranslation("you");
-  const { user, identity, isSuspended, logout } = useAuth();
-  const events = useEventsQuery(isSuspended ? undefined : user?.id);
+  const { identity, isSuspended, logout } = useAuth();
   const [photos, setPhotos] = useState<DeleteAccountPhotoPolicy | null>(null);
+  const preview = useDeletionPreviewQuery(photos ?? "KEEP");
   const deleteProfile = useDeleteProfileMutation();
   // Stays set through the sign-out that follows, so the leader can't be
   // pressed again while Auth0 clears the session.
   const [isDeleting, setIsDeleting] = useState(false);
   const deleting = useRef(false);
 
-  const rolls = (events.data ?? [])
-    .filter((event) => event.usage.members <= 1 || event.creatorId === user?.id)
-    .map((event) => ({
-      id: event.id,
-      title: event.title,
-      fate: (event.usage.members <= 1 ? "deleted" : "stays") as RollFate,
-    }));
+  const rolls = (preview.data?.events ?? []).map((event) => ({
+    id: event.eventId,
+    title: event.title,
+    fate: event.outcome,
+  }));
 
   const onDelete = async () => {
     if (!photos || deleting.current) return;
@@ -74,11 +73,11 @@ export const useDeleteAccountScreen = () => {
     photos,
     rolls,
     /** The rolls section, unless there's nothing in it to talk about. */
-    showRolls: isSuspended || events.isError || rolls.length > 0,
-    rollsFailed: events.isError,
+    showRolls: preview.isError || rolls.length > 0,
+    rollsFailed: preview.isError,
     isDeleting,
     onChoosePhotos: setPhotos,
-    onRetryRolls: () => void events.refetch(),
+    onRetryRolls: () => void preview.refetch(),
     onDelete: () => void onDelete(),
     onBack: () =>
       router.canGoBack() ? router.back() : router.replace(isSuspended ? "/account-suspended" : "/account-settings"),

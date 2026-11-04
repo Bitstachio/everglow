@@ -1,9 +1,18 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
-import { PhotoPurgeService } from "./photo-purge.service";
+import { PhotoPurgeResult, PhotoPurgeService } from "./photo-purge.service";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
+
+/** What the log line carries: the counts, never the keys. */
+const counts = (result: PhotoPurgeResult) => ({
+  requested: result.requested,
+  deleted: result.deleted,
+  failed: result.failed,
+  retained: result.retained,
+  derivativesFailed: result.derivativesFailed,
+});
 
 describe("PhotoPurgeService", () => {
   let evidenceService: EvidenceServiceMock;
@@ -44,10 +53,10 @@ describe("PhotoPurgeService", () => {
 
     const result = await service.purgeObjects(keys, context);
 
-    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0, derivativesFailed: 0 });
+    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0, derivativesFailed: 0, failedKeys: [] });
     expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
     expect(s3Service.deleteObjects).toHaveBeenCalledWith(batchFor(keys));
-    expect(logger.info).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
+    expect(logger.info).toHaveBeenCalledWith({ ...context, ...counts(result), audit: true }, expect.any(String));
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -59,8 +68,15 @@ describe("PhotoPurgeService", () => {
 
     const result = await service.purgeObjects(keys, context);
 
-    expect(result).toEqual({ requested: 3, deleted: 2, failed: 1, retained: 0, derivativesFailed: 0 });
-    expect(logger.error).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
+    expect(result).toEqual({
+      requested: 3,
+      deleted: 2,
+      failed: 1,
+      retained: 0,
+      derivativesFailed: 0,
+      failedKeys: [keys[2]],
+    });
+    expect(logger.error).toHaveBeenCalledWith({ ...context, ...counts(result), audit: true }, expect.any(String));
     expect(logger.info).not.toHaveBeenCalled();
   });
 
@@ -73,6 +89,7 @@ describe("PhotoPurgeService", () => {
       failed: 3,
       retained: 0,
       derivativesFailed: 0,
+      failedKeys: keys,
     });
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ ...context, failed: 3, audit: true }),
@@ -87,6 +104,7 @@ describe("PhotoPurgeService", () => {
       failed: 0,
       retained: 0,
       derivativesFailed: 0,
+      failedKeys: [],
     });
 
     expect(s3Service.deleteObjects).not.toHaveBeenCalled();
@@ -103,7 +121,7 @@ describe("PhotoPurgeService", () => {
     // The retained original keeps its copies: they go when the evidence job deletes it.
     expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
     expect(s3Service.deleteObjects).toHaveBeenCalledWith(batchFor(keys.slice(0, 2)));
-    expect(result).toEqual({ requested: 3, deleted: 2, failed: 0, retained: 1, derivativesFailed: 0 });
+    expect(result).toEqual({ requested: 3, deleted: 2, failed: 0, retained: 1, derivativesFailed: 0, failedKeys: [] });
   });
 
   it("deletes nothing when every key is kept for evidence", async () => {
@@ -115,6 +133,7 @@ describe("PhotoPurgeService", () => {
       failed: 0,
       retained: 3,
       derivativesFailed: 0,
+      failedKeys: [],
     });
     expect(s3Service.deleteObjects).not.toHaveBeenCalled();
   });
@@ -126,7 +145,7 @@ describe("PhotoPurgeService", () => {
     const result = await service.purgeObjects([keys[0], cover], context);
 
     expect(s3Service.deleteObjects).toHaveBeenCalledWith([...batchFor([keys[0]]), cover]);
-    expect(result).toEqual({ requested: 2, deleted: 2, failed: 0, retained: 0, derivativesFailed: 0 });
+    expect(result).toEqual({ requested: 2, deleted: 2, failed: 0, retained: 0, derivativesFailed: 0, failedKeys: [] });
   });
 
   it("counts derived keys that fail apart from the originals and logs them at error level", async () => {
@@ -138,7 +157,7 @@ describe("PhotoPurgeService", () => {
 
     const result = await service.purgeObjects(keys, context);
 
-    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0, derivativesFailed: 1 });
-    expect(logger.error).toHaveBeenCalledWith({ ...context, ...result, audit: true }, expect.any(String));
+    expect(result).toEqual({ requested: 3, deleted: 3, failed: 0, retained: 0, derivativesFailed: 1, failedKeys: [] });
+    expect(logger.error).toHaveBeenCalledWith({ ...context, ...counts(result), audit: true }, expect.any(String));
   });
 });

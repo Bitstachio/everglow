@@ -12,6 +12,8 @@ import { lockPendingModeration } from "src/moderation/pending-moderation";
 import { EscalatedReport, escalateToPlatform, logEscalations } from "src/moderation/report-escalation";
 import { closeMemberReportsOnDeletedAccount, closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
 import { PrismaService } from "src/prisma/prisma.service";
+import { AccountDeletionOutboxService } from "./account-deletion-outbox.service";
+import { AccountDeletionEventOutcome } from "./users.constants";
 
 export interface AccountDeletionPrepSummary {
   /** Events the account organised alone with nobody else in them: deleted, photos and cover included. */
@@ -40,10 +42,30 @@ export interface AccountDeletionPrepSummary {
   avatarQueued: boolean;
 }
 
+/** What prep does to an event the account organizes alone (docs/account-deletion.md §6a). */
+export type OrganizedEventOutcome = AccountDeletionEventOutcome;
+
+export interface OrganizedEventFate {
+  eventId: string;
+  title: string;
+  outcome: OrganizedEventOutcome;
+}
+
 export interface AccountDeletionPrepResult {
   summary: AccountDeletionPrepSummary;
-  /** S3 objects the caller should purge once the user row is gone. */
-  s3Keys: string[];
+  /**
+   * The events the account organizes alone and what happened to each. Events
+   * with another organizer are untouched and not listed.
+   */
+  events: OrganizedEventFate[];
+}
+
+/** Carries a dry run's result out of the transaction it rolls back. */
+class DryRun extends Error {
+  constructor(readonly result: AccountDeletionPrepResult) {
+    super("Account deletion preview: rolled back on purpose");
+    this.name = "DryRun";
+  }
 }
 
 // Prep visits every event the account organises; leave room for the busiest
@@ -73,6 +95,7 @@ const TRANSACTION_TIMEOUT_MS = 30_000;
 export class AccountDeletionPrepService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly outbox: AccountDeletionOutboxService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -97,6 +120,30 @@ export class AccountDeletionPrepService {
     return result;
   }
 
+  /**
+   * What prep would do to each event the account organizes alone, if it ran
+   * now with `photoPolicy`: the same code, in a transaction that is rolled
+   * back. The delete screen shows it, so its labels are prep's real outcome
+   * rather than a guess from the member count (an event under review, or one
+   * whose open reports outlive the account, is kept, not deleted).
+   */
+  async preview(userId: string, photoPolicy: AccountDeletionPhotoPolicy): Promise<OrganizedEventFate[]> {
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          const { summary, events } = await this.prepareInTransaction(tx, userId, photoPolicy);
+          throw new DryRun({ summary, events });
+        },
+        { timeout: TRANSACTION_TIMEOUT_MS },
+      );
+    } catch (error) {
+      if (error instanceof DryRun) return error.result.events;
+      throw error;
+    }
+    // The transaction always throws; this is unreachable.
+    return [];
+  }
+
   private async prepareInTransaction(
     tx: Prisma.TransactionClient,
     userId: string,
@@ -107,15 +154,18 @@ export class AccountDeletionPrepService {
     let eventsHandedOver = 0;
     const keptForModeration: string[] = [];
     const promoted: EscalatedReport[] = [];
+    const fates = new Map<string, OrganizedEventFate>();
 
     // 1. Events the account organises. With another organizer around nothing
     //    needs doing: the membership cascades with the row. Otherwise the
     //    event must not be left without anyone able to manage or delete it.
     const organized = await tx.eventAccess.findMany({
       where: { userId, accessLevel: AccessLevel.ORGANIZER },
-      select: { eventId: true },
+      select: { eventId: true, event: { select: { title: true } } },
     });
-    for (const { eventId } of organized) {
+    for (const { eventId, event } of organized) {
+      const fate = (outcome: OrganizedEventOutcome) =>
+        fates.set(eventId, { eventId, title: event?.title ?? "", outcome });
       // Another organizer only counts as cover if they are staying.
       const otherOrganizers = await tx.eventAccess.count({
         where: {
@@ -156,6 +206,7 @@ export class AccountDeletionPrepService {
           )),
         );
         eventsHandedOver += 1;
+        fate("HANDED_OVER");
         continue;
       }
 
@@ -165,10 +216,12 @@ export class AccountDeletionPrepService {
       // the photo policy below, like any event that outlives the account.
       if (await lockPendingModeration(tx, eventId)) {
         keptForModeration.push(eventId);
+        fate("KEPT_FOR_REVIEW");
         continue;
       }
 
       eventsDeleted += await this.deleteAbandonedEvent(tx, eventId, s3Keys);
+      fate("DELETED");
     }
 
     // 2. Uploads in flight never became visible to anyone; they only hold
@@ -223,6 +276,8 @@ export class AccountDeletionPrepService {
         continue;
       }
       eventsDeleted += await this.deleteAbandonedEvent(tx, eventId, s3Keys);
+      const kept = fates.get(eventId);
+      if (kept) fates.set(eventId, { ...kept, outcome: "DELETED" });
     }
 
     // 5. The avatar. Its column cascades with the user row, so only the object
@@ -231,6 +286,11 @@ export class AccountDeletionPrepService {
     const profile = await tx.userDetails.findUnique({ where: { userId }, select: { avatarS3Key: true } });
     const avatarS3Key = profile?.avatarS3Key ?? null;
     if (avatarS3Key) s3Keys.push(avatarS3Key);
+
+    // 6. Every object collected above, queued in this transaction: the rows
+    //    that pointed at them are gone the moment it commits, and nothing else
+    //    would remember them if the saga failed before purging.
+    await this.outbox.enqueuePurge(tx, userId, s3Keys);
 
     return {
       summary: {
@@ -245,7 +305,7 @@ export class AccountDeletionPrepService {
         uploadsDiscarded: pending.length,
         avatarQueued: avatarS3Key !== null,
       },
-      s3Keys,
+      events: [...fates.values()],
       escalated,
       promoted,
     };

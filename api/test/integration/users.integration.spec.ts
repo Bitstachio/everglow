@@ -97,6 +97,48 @@ describe("UsersController (integration)", () => {
     deletionClaimedUntil: new Date(TEST_NOW.getTime() + 300_000),
     ...overrides,
   });
+  /** The stand-in database's AccountDeletionOutbox table. */
+  type OutboxRow = { id: string; userId: string; action: string; s3Key: string; attempts: number; createdAt: Date };
+  let outboxStore: OutboxRow[];
+  const answerOutbox = () => {
+    let nextId = 0;
+    prisma.accountDeletionOutbox.createMany.mockImplementation(((args: {
+      data: Omit<OutboxRow, "id" | "attempts" | "createdAt">[];
+    }) => {
+      const fresh = args.data.filter(
+        (row) => !outboxStore.some((kept) => kept.action === row.action && kept.s3Key === row.s3Key),
+      );
+      outboxStore.push(
+        ...fresh.map((row) => ({ ...row, id: String(nextId++).padStart(8, "0"), attempts: 0, createdAt: new Date() })),
+      );
+      return Promise.resolve({ count: fresh.length });
+    }) as never);
+    prisma.accountDeletionOutbox.findMany.mockImplementation(((args: {
+      where: { action: string; userId?: string; createdAt?: { lt: Date }; id?: { gt: string } };
+      take: number;
+    }) => {
+      const { action, userId, createdAt, id } = args.where;
+      return Promise.resolve(
+        outboxStore
+          .filter((row) => row.action === action)
+          .filter((row) => userId === undefined || row.userId === userId)
+          .filter((row) => createdAt === undefined || row.createdAt < createdAt.lt)
+          .filter((row) => id === undefined || row.id > id.gt)
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .slice(0, args.take),
+      );
+    }) as never);
+    prisma.accountDeletionOutbox.deleteMany.mockImplementation(((args: { where: { id: { in: string[] } } }) => {
+      const before = outboxStore.length;
+      outboxStore = outboxStore.filter((row) => !args.where.id.in.includes(row.id));
+      return Promise.resolve({ count: before - outboxStore.length });
+    }) as never);
+    prisma.accountDeletionOutbox.updateMany.mockImplementation(((args: { where: { id: { in: string[] } } }) => {
+      for (const row of outboxStore) if (args.where.id.in.includes(row.id)) row.attempts += 1;
+      return Promise.resolve({ count: args.where.id.in.length });
+    }) as never);
+  };
+
   const sqlOf = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
   const requestClaimCalls = () =>
     prisma.$queryRaw.mock.calls.filter((call) => sqlOf(call).includes('COALESCE("deletionStartedAt"'));
@@ -154,6 +196,8 @@ describe("UsersController (integration)", () => {
     requestClaim = {};
     pendingStore = [];
     answerRawStatements();
+    outboxStore = [];
+    answerOutbox();
     prisma.user.updateMany.mockResolvedValue({ count: 1 });
     // Account deletion checks Auth0 (and Apple) can finish it before anything else.
     auth0Management.checkAccess.mockResolvedValue({ ok: true });
@@ -699,7 +743,7 @@ describe("UsersController (integration)", () => {
     });
 
     describe("DELETE /users/me", () => {
-      it("purges the avatar object with the rest of the account's objects, after the row is gone", async () => {
+      it("purges the avatar object with the rest of the account's objects once prep has committed", async () => {
         prisma.user.findUnique.mockResolvedValue(buildUserWithAvatar(AVATAR_S3_KEY));
         prisma.user.update.mockResolvedValue(buildUserWithAvatar(AVATAR_S3_KEY));
         prisma.userDetails.findUnique.mockResolvedValue({ avatarS3Key: AVATAR_S3_KEY } as never);
@@ -708,9 +752,11 @@ describe("UsersController (integration)", () => {
         await request(httpServer).delete(`${USERS_BASE_PATH}/me?photos=KEEP`).set(authHeader()).expect(204);
 
         expect(s3Service.deleteObjects).toHaveBeenCalledWith([AVATAR_S3_KEY]);
-        expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        // Through the outbox prep wrote in its transaction, drained as soon as it committed.
+        expect(prisma.accountDeletionOutbox.createMany.mock.invocationCallOrder[0]).toBeLessThan(
           s3Service.deleteObjects.mock.invocationCallOrder[0],
         );
+        expect(outboxStore).toEqual([]);
       });
     });
   });
@@ -1064,13 +1110,14 @@ describe("UsersController (integration)", () => {
           data: expect.objectContaining({ status: "TARGET_GONE", closedReason: "PHOTO_DELETED" }) as unknown,
         }),
       );
-      // Objects go only once the rows are gone.
+      // Objects go once prep's transaction, which removed their rows, has committed.
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(
         withPhotoDerivatives("photos/u/e/pending", "photos/u/e/ready"),
       );
-      expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(prisma.photo.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
         s3Service.deleteObjects.mock.invocationCallOrder[0],
       );
+      expect(outboxStore).toEqual([]);
     });
 
     it("still returns 204 when the S3 purge fails", async () => {
@@ -1243,6 +1290,66 @@ describe("UsersController (integration)", () => {
     });
   });
 
+  describe("GET /users/me/deletion-preview", () => {
+    const soloId = "aaaaaaaa-0000-0000-0000-000000000001";
+    const sharedId = "aaaaaaaa-0000-0000-0000-000000000002";
+    const reviewedId = "aaaaaaaa-0000-0000-0000-000000000003";
+
+    beforeEach(() => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.eventAccess.findMany.mockResolvedValue([
+        { eventId: soloId, event: { title: "Picnic, just me" } },
+        { eventId: sharedId, event: { title: "Nadia turns 30" } },
+        { eventId: reviewedId, event: { title: "On hold" } },
+      ] as never);
+      prisma.eventAccess.count.mockResolvedValue(0);
+      prisma.eventAccess.findFirst.mockImplementation(((args: { where: { eventId: string } }) =>
+        Promise.resolve(args.where.eventId === sharedId ? { id: "successor" } : null)) as never);
+      prisma.eventAccess.update.mockResolvedValue({ userId: "successor-user" } as never);
+      prisma.$queryRaw.mockImplementation(((strings: TemplateStringsArray, ...values: unknown[]) =>
+        Promise.resolve(
+          strings.join("?").includes('FROM "Event"')
+            ? [{ underReviewAt: values.includes(reviewedId) ? TEST_NOW : null }]
+            : [],
+        )) as never);
+      prisma.report.count.mockResolvedValue(0);
+      prisma.event.deleteMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("says what deleting the account now would do to each roll it hosts alone, and changes nothing", async () => {
+      const response = await request(httpServer)
+        .get(`${USERS_BASE_PATH}/me/deletion-preview?photos=DELETE`)
+        .set(authHeader())
+        .expect(200);
+
+      expect((response.body as WrappedResponse<{ events: unknown[] }>).data.events).toEqual([
+        { eventId: soloId, title: "Picnic, just me", outcome: "DELETED" },
+        { eventId: sharedId, title: "Nadia turns 30", outcome: "HANDED_OVER" },
+        { eventId: reviewedId, title: "On hold", outcome: "KEPT_FOR_REVIEW" },
+      ]);
+      // A dry run: the transaction is rolled back and nothing outside it runs.
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+      expect(requestClaimCalls()).toHaveLength(0);
+    });
+
+    it("previews with KEEP when no photo choice is given", async () => {
+      await request(httpServer).get(`${USERS_BASE_PATH}/me/deletion-preview`).set(authHeader()).expect(200);
+
+      expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+        where: { addedById: TEST_USER_ID },
+        data: { addedById: null },
+      });
+    });
+
+    it("refuses an unknown photo choice", async () => {
+      await request(httpServer)
+        .get(`${USERS_BASE_PATH}/me/deletion-preview?photos=archive`)
+        .set(authHeader())
+        .expect(400);
+    });
+  });
+
   describe("account deletion that fails safely and can be retried", () => {
     const keepPath = `${USERS_BASE_PATH}/me?photos=KEEP`;
     const reconciler = () => app.get(AccountDeletionReconcilerService);
@@ -1312,6 +1419,55 @@ describe("UsersController (integration)", () => {
       expect(auth0Management.deleteUser).toHaveBeenCalledTimes(2);
       expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledTimes(1);
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: TEST_USER_ID } });
+    });
+
+    it("purges every key after a failed pass under DELETE once the deletion resumes", async () => {
+      const readyKeys = ["photos/u/e/ready-1", "photos/u/e/ready-2"];
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      prisma.photo.findMany.mockImplementation(((args: { where: { status?: PhotoStatus } }) =>
+        Promise.resolve(
+          args.where.status === PhotoStatus.PENDING
+            ? [{ s3Key: "photos/u/e/pending" }]
+            : readyKeys.map((s3Key, i) => ({ id: `p-${i}`, s3Key })),
+        )) as never);
+      // First pass: S3 is down for the purge, then Auth0 fails.
+      s3Service.deleteObjects.mockRejectedValueOnce(new Error("s3 down"));
+      auth0Management.deleteUser.mockRejectedValueOnce(auth0Down());
+
+      await request(httpServer).delete(`${USERS_BASE_PATH}/me?photos=DELETE`).set(authHeader()).expect(500);
+
+      // The rows are gone, but the keys were not only in memory.
+      expect(outboxStore.map((row) => row.s3Key).sort()).toEqual(["photos/u/e/pending", ...readyKeys].sort());
+
+      // Resume: prep finds nothing left to delete; the outbox still knows what to purge.
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ deletionStartedAt: TEST_NOW }));
+      prisma.photo.findMany.mockResolvedValue([]);
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(buildUserWithDetails());
+
+      await request(httpServer).delete(`${USERS_BASE_PATH}/me?photos=DELETE`).set(authHeader()).expect(204);
+
+      const purgedKeys = s3Service.deleteObjects.mock.calls.slice(1).flatMap(([keys]) => keys as string[]);
+      expect(purgedKeys).toEqual(expect.arrayContaining(withPhotoDerivatives("photos/u/e/pending", ...readyKeys)));
+      expect(outboxStore).toEqual([]);
+    });
+
+    it("leaves keys a finished deletion could not purge to the reconciler, which drains them", async () => {
+      outboxStore.push({
+        id: "00000001",
+        userId: TEST_USER_ID,
+        action: "PURGE",
+        s3Key: "photos/u/e/left-behind",
+        attempts: 1,
+        createdAt: new Date(Date.now() - 60 * 60 * 1000),
+      });
+      prisma.deletedProviderSub.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.deletedProviderSub.findMany.mockResolvedValue([]);
+
+      await expect(reconciler().reconcilePendingDeletions()).resolves.toMatchObject({ outboxPurged: 1 });
+
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives("photos/u/e/left-behind"));
+      expect(outboxStore).toEqual([]);
     });
 
     it("lets a flagged account through on DELETE /users/me only", () => {
