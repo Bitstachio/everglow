@@ -88,7 +88,8 @@ export const FrameViewer = (props: Props) => {
     onLoadMore: props.onLoadMore,
   });
   const uploader = frame?.uploader;
-  const name = uploader?.name ?? frame?.by ?? t("gallery.unknownUploader");
+  const name =
+    uploader?.name ?? frame?.by ?? (frame?.deleted ? t("frame.deletedAccount") : t("gallery.unknownUploader"));
   const time = frame
     ? new Date(frame.photo.createdAt).toLocaleString(i18n.language, {
         weekday: "short",
@@ -211,7 +212,7 @@ export const FrameViewer = (props: Props) => {
                     accessibilityRole="imagebutton"
                     accessibilityLabel={t("frame.labelBy", {
                       number: item.number,
-                      name: item.by ?? t("gallery.unknownUploader"),
+                      name: item.by ?? (item.deleted ? t("frame.deletedAccount") : t("gallery.unknownUploader")),
                     })}
                     accessibilityState={{ selected: item.photo.id === frame?.photo.id }}
                     onPress={() => props.onMove(item.photo.id)}
