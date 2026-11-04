@@ -15,8 +15,12 @@ import { ConfigService } from "@nestjs/config";
 import { PinoLogger } from "nestjs-pino";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { PrismaService } from "src/prisma/prisma.service";
+import { ClaimedDeletion } from "src/users/account-deletion-claim";
 import { AccountDeletionReconcilerService } from "src/users/account-deletion-reconciler.service";
 import { UsersService } from "src/users/users.service";
+import { UsersController } from "src/users/users.controller";
+import { ALLOW_DELETION_IN_PROGRESS_KEY } from "src/auth/allow-suspended.decorator";
+import { Reflector } from "@nestjs/core";
 import { userWithDetailsInclude } from "src/users/users.types";
 import request from "supertest";
 import { expectApiError } from "./helpers/expect-api-error";
@@ -75,6 +79,49 @@ describe("UsersController (integration)", () => {
     getPresignedDownloadUrl: jest.fn(),
   };
 
+  /**
+   * The stand-in database's answers to the saga's raw statements. The request
+   * claim succeeds with `requestClaim` (null: another pass holds the row);
+   * each reconciler claim hands out the next of `reconcilerQueue`.
+   */
+  let requestClaim: Partial<ClaimedDeletion> | null;
+  // Rows the reconciler may claim; `held` stands for an unexpired claim of another pass.
+  let pendingStore: (ClaimedDeletion & { held?: boolean })[];
+  const claimedRow = (overrides: Partial<ClaimedDeletion> = {}): ClaimedDeletion => ({
+    id: TEST_USER_ID,
+    providerSub: TEST_PROVIDER_SUB,
+    deletionStartedAt: TEST_NOW,
+    auth0DeletedAt: null,
+    deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP,
+    deletionAttempts: 0,
+    deletionClaimedUntil: new Date(TEST_NOW.getTime() + 300_000),
+    ...overrides,
+  });
+  const sqlOf = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
+  const requestClaimCalls = () =>
+    prisma.$queryRaw.mock.calls.filter((call) => sqlOf(call).includes('COALESCE("deletionStartedAt"'));
+  const answerRawStatements = () => {
+    prisma.$queryRaw.mockImplementation(((strings: TemplateStringsArray, ...values: unknown[]) => {
+      const sql = strings.join("?");
+      if (sql.includes('COALESCE("deletionStartedAt"')) {
+        if (!requestClaim) return Promise.resolve([]);
+        const policy = values.find((value) => value === "KEEP" || value === "DELETE") as AccountDeletionPhotoPolicy;
+        return Promise.resolve([claimedRow({ deletionPhotoPolicy: policy, ...requestClaim })]);
+      }
+      if (sql.includes("SKIP LOCKED")) {
+        const maxAttempts = values.find((value) => typeof value === "number") as number;
+        const skip = (values.find((value) => Array.isArray(value)) as string[] | undefined) ?? [];
+        const next = pendingStore.find(
+          (row) => !row.held && row.deletionAttempts < maxAttempts && !skip.includes(row.id),
+        );
+        if (!next) return Promise.resolve([]);
+        return Promise.resolve([{ ...next, held: undefined }]);
+      }
+      // The claim's release and the row lock before the tombstone.
+      return Promise.resolve([]);
+    }) as never);
+  };
+
   beforeAll(async () => {
     auth0Management = mockDeep<Auth0ManagementService>();
     appleSiwa = mockDeep<AppleSiwaService>();
@@ -104,6 +151,13 @@ describe("UsersController (integration)", () => {
     mockReset(auth0Management);
     mockReset(appleSiwa);
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    requestClaim = {};
+    pendingStore = [];
+    answerRawStatements();
+    prisma.user.updateMany.mockResolvedValue({ count: 1 });
+    // Account deletion checks Auth0 (and Apple) can finish it before anything else.
+    auth0Management.checkAccess.mockResolvedValue({ ok: true });
+    appleSiwa.revocationProblem.mockReturnValue(null);
     // Prep sweeps events and photos before the Auth0 call; an account with
     // nothing to settle is the default for these cases.
     prisma.eventAccess.findMany.mockResolvedValue([]);
@@ -902,12 +956,7 @@ describe("UsersController (integration)", () => {
     const keepPath = `${path}?photos=${AccountDeletionPhotoPolicy.KEEP}`;
 
     it("returns 204 when the account deletion saga completes and writes a tombstone", async () => {
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
-      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt } as never)
-        .mockResolvedValueOnce({ auth0DeletedAt } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.deletedProviderSub.upsert.mockResolvedValue({
         providerSubHash: hashProviderSub(TEST_PROVIDER_SUB),
@@ -941,9 +990,6 @@ describe("UsersController (integration)", () => {
       prisma.user.findUnique
         .mockResolvedValueOnce(buildUserWithDetails({ suspendedAt }))
         .mockResolvedValueOnce({ suspendedAt, eventBans: [{ eventId: TEST_EVENT_ID, createdAt: bannedAt }] } as never);
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt: TEST_NOW } as never)
-        .mockResolvedValueOnce({ auth0DeletedAt: TEST_NOW } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
@@ -965,23 +1011,16 @@ describe("UsersController (integration)", () => {
     });
 
     it("stamps the caller's KEEP choice with the intent and keeps uploaded photos", async () => {
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
-      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt } as never)
-        .mockResolvedValueOnce({ auth0DeletedAt } as never);
       prisma.photo.updateMany.mockResolvedValue({ count: 3 });
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
       await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
 
-      expect(prisma.user.update).toHaveBeenNthCalledWith(1, {
-        where: { id: TEST_USER_ID },
-        data: { deletionStartedAt: expect.any(Date) as Date, deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP },
-        select: { deletionStartedAt: true },
-      });
+      // The intent, the choice and the claim go in one statement.
+      expect(requestClaimCalls()).toHaveLength(1);
+      expect(requestClaimCalls()[0]).toContain(AccountDeletionPhotoPolicy.KEEP);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { addedById: TEST_USER_ID },
         data: { addedById: null },
@@ -989,12 +1028,7 @@ describe("UsersController (integration)", () => {
     });
 
     it("removes uploaded photos and purges their objects with ?photos=DELETE", async () => {
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
-      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt } as never)
-        .mockResolvedValueOnce({ auth0DeletedAt } as never);
       prisma.photo.findMany.mockImplementation(((args: { where: { status?: PhotoStatus } }) =>
         Promise.resolve(
           args.where.status === PhotoStatus.PENDING
@@ -1040,12 +1074,7 @@ describe("UsersController (integration)", () => {
     });
 
     it("still returns 204 when the S3 purge fails", async () => {
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
-      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt } as never)
-        .mockResolvedValueOnce({ auth0DeletedAt } as never);
       prisma.photo.findMany.mockResolvedValue([{ s3Key: "photos/u/e/pending" }] as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
@@ -1078,16 +1107,14 @@ describe("UsersController (integration)", () => {
     });
 
     it("returns 500 and leaves the database row when Auth0 deletion fails after intent is stamped", async () => {
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.user.update.mockResolvedValueOnce({ deletionStartedAt } as never);
       auth0Management.deleteUser.mockRejectedValue(
         new InternalServerErrorException(`Failed to delete Auth0 user "${TEST_PROVIDER_SUB}"`),
       );
 
       await request(httpServer).delete(keepPath).set(authHeader()).expect(500);
 
-      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
       // Prep has its own transaction; what must not happen is the tombstone.
       expect(prisma.deletedProviderSub.upsert).not.toHaveBeenCalled();
       expect(prisma.deletedProviderSub.upsert).not.toHaveBeenCalled();
@@ -1095,12 +1122,7 @@ describe("UsersController (integration)", () => {
     });
 
     it("returns 500 and does not delete the user when tombstone write fails", async () => {
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
-      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt } as never)
-        .mockResolvedValueOnce({ auth0DeletedAt } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.deletedProviderSub.upsert.mockRejectedValue(new Error("Tombstone write failed"));
 
@@ -1111,12 +1133,7 @@ describe("UsersController (integration)", () => {
     });
 
     it("does not touch Apple for an identity from another connection", async () => {
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
-      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
       prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
-      prisma.user.update
-        .mockResolvedValueOnce({ deletionStartedAt } as never)
-        .mockResolvedValueOnce({ auth0DeletedAt } as never);
       auth0Management.deleteUser.mockResolvedValue(undefined);
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
@@ -1128,20 +1145,16 @@ describe("UsersController (integration)", () => {
 
     describe("Sign in with Apple", () => {
       const appleSub = "apple|001234.abcdef0123456789.0123";
-      const deletionStartedAt = new Date("2026-06-10T12:01:00.000Z");
-      const auth0DeletedAt = new Date("2026-06-10T12:02:00.000Z");
 
       beforeEach(() => {
+        requestClaim = { providerSub: appleSub };
         prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ providerSub: appleSub }));
-        prisma.user.update
-          .mockResolvedValueOnce({ deletionStartedAt } as never)
-          .mockResolvedValueOnce({ auth0DeletedAt } as never);
         prisma.user.delete.mockResolvedValue(buildUserWithDetails({ providerSub: appleSub }));
         appleSiwa.isRevocationConfigured.mockReturnValue(true);
       });
 
       it("revokes the Apple refresh token before deleting the Auth0 user", async () => {
-        auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "apple-refresh" });
+        auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "apple-refresh" }]);
         appleSiwa.revokeToken.mockResolvedValue(undefined);
         auth0Management.deleteUser.mockResolvedValue(undefined);
 
@@ -1157,7 +1170,7 @@ describe("UsersController (integration)", () => {
       });
 
       it("returns 500 and keeps the Auth0 user when Apple is unreachable, so a retry can still revoke", async () => {
-        auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "apple-refresh" });
+        auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "apple-refresh" }]);
         appleSiwa.revokeToken.mockRejectedValue(new AppleTokenRevocationError("Apple down", true));
 
         await request(httpServer).delete(keepPath).set(authHeader()).expect(500);
@@ -1165,12 +1178,12 @@ describe("UsersController (integration)", () => {
         expect(auth0Management.deleteUser).not.toHaveBeenCalled();
         expect(prisma.deletedProviderSub.upsert).not.toHaveBeenCalled();
         expect(prisma.user.delete).not.toHaveBeenCalled();
-        // Intent stays stamped for the reconciler.
-        expect(prisma.user.update).toHaveBeenCalledTimes(1);
+        // Intent stays stamped for the retry; auth0DeletedAt is never set.
+        expect(prisma.user.updateMany).not.toHaveBeenCalled();
       });
 
       it("still deletes the account when Apple refuses the revocation outright", async () => {
-        auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "apple-refresh" });
+        auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "apple-refresh" }]);
         appleSiwa.revokeToken.mockRejectedValue(new AppleTokenRevocationError("invalid_client", false));
         auth0Management.deleteUser.mockResolvedValue(undefined);
 
@@ -1180,15 +1193,32 @@ describe("UsersController (integration)", () => {
         expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: TEST_USER_ID } });
       });
 
-      it("still deletes the account when Apple credentials are not configured", async () => {
-        appleSiwa.isRevocationConfigured.mockReturnValue(false);
-        auth0Management.deleteUser.mockResolvedValue(undefined);
+      it("returns 503 ACCOUNT_DELETION_UNAVAILABLE and changes nothing when Apple credentials are not configured", async () => {
+        appleSiwa.revocationProblem.mockReturnValue("unconfigured");
 
-        await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+        const response = await request(httpServer).delete(keepPath).set(authHeader()).expect(503);
 
-        expect(auth0Management.getIdentityProviderTokens).not.toHaveBeenCalled();
-        expect(appleSiwa.revokeToken).not.toHaveBeenCalled();
-        expect(auth0Management.deleteUser).toHaveBeenCalledWith(appleSub);
+        expectApiError(response.body as ErrorResponse, "ACCOUNT_DELETION_UNAVAILABLE");
+        expect(requestClaimCalls()).toHaveLength(0);
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+      });
+
+      it("returns 503 when the management client cannot read the Apple token", async () => {
+        auth0Management.checkAccess.mockResolvedValue({
+          ok: false,
+          reason: "scope_missing",
+          missingScopes: ["read:user_idp_tokens"],
+        });
+
+        await request(httpServer).delete(keepPath).set(authHeader()).expect(503);
+
+        expect(auth0Management.checkAccess).toHaveBeenCalledWith([
+          "delete:users",
+          "read:users",
+          "read:user_idp_tokens",
+        ]);
+        expect(requestClaimCalls()).toHaveLength(0);
       });
     });
 
@@ -1213,6 +1243,196 @@ describe("UsersController (integration)", () => {
     });
   });
 
+  describe("account deletion that fails safely and can be retried", () => {
+    const keepPath = `${USERS_BASE_PATH}/me?photos=KEEP`;
+    const reconciler = () => app.get(AccountDeletionReconcilerService);
+    const writes = () => [
+      prisma.$queryRaw,
+      prisma.$transaction,
+      prisma.user.update,
+      prisma.user.updateMany,
+      prisma.user.delete,
+      prisma.eventAccess.update,
+      prisma.event.deleteMany,
+      prisma.photo.deleteMany,
+      prisma.photo.updateMany,
+      prisma.report.updateMany,
+      prisma.deletedProviderSub.upsert,
+    ];
+    const auth0Down = () => new InternalServerErrorException(`Failed to delete Auth0 user "${TEST_PROVIDER_SUB}"`);
+
+    it("answers 503 ACCOUNT_DELETION_UNAVAILABLE with an unchanged database when Management credentials are missing", async () => {
+      // The real check, on a config with no management client: it decides without calling Auth0.
+      const unconfigured = new Auth0ManagementService(
+        { get: () => undefined, getOrThrow: () => "tenant.example.auth0.com" } as unknown as ConfigService,
+        { setContext: jest.fn(), error: jest.fn() } as unknown as PinoLogger,
+      );
+      auth0Management.checkAccess.mockImplementation((scopes) => unconfigured.checkAccess(scopes));
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+
+      const response = await request(httpServer).delete(keepPath).set(authHeader()).expect(503);
+
+      expectApiError(response.body as ErrorResponse, "ACCOUNT_DELETION_UNAVAILABLE");
+      for (const write of writes()) expect(write).not.toHaveBeenCalled();
+      expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("answers 503 with nothing changed when the management client lacks delete:users", async () => {
+      auth0Management.checkAccess.mockResolvedValue({
+        ok: false,
+        reason: "scope_missing",
+        missingScopes: ["delete:users"],
+      });
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(503);
+
+      for (const write of writes()) expect(write).not.toHaveBeenCalled();
+    });
+
+    it("lets the same person retry after Auth0 failed, and the retry finishes the deletion", async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+      auth0Management.deleteUser.mockRejectedValueOnce(auth0Down());
+
+      await request(httpServer).delete(keepPath).set(authHeader()).expect(500);
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+      // The failed pass gave its claim back, so the retry can take it at once.
+      expect(prisma.$queryRaw.mock.calls.some((call) => sqlOf(call).includes('"deletionClaimedUntil" = NULL'))).toBe(
+        true,
+      );
+
+      // Second tap: the row is flagged now, and DELETE /users/me is the one route that accepts it.
+      prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ deletionStartedAt: TEST_NOW }));
+      auth0Management.deleteUser.mockResolvedValue(undefined);
+      prisma.user.delete.mockResolvedValue(buildUserWithDetails());
+
+      await request(httpServer).delete(`${USERS_BASE_PATH}/me?photos=DELETE`).set(authHeader()).expect(204);
+
+      expect(requestClaimCalls()).toHaveLength(2);
+      expect(auth0Management.deleteUser).toHaveBeenCalledTimes(2);
+      expect(prisma.deletedProviderSub.upsert).toHaveBeenCalledTimes(1);
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: TEST_USER_ID } });
+    });
+
+    it("lets a flagged account through on DELETE /users/me only", () => {
+      const reflector = app.get(Reflector);
+      const allowed = (handler: keyof UsersController) =>
+        reflector.get<boolean>(ALLOW_DELETION_IN_PROGRESS_KEY, UsersController.prototype[handler] as () => unknown);
+
+      expect(allowed("removeMe")).toBe(true);
+      for (const handler of ["findMe", "updateMe", "getMyLimits", "completeOnboarding"] as const) {
+        expect(allowed(handler)).toBeUndefined();
+      }
+    });
+
+    describe("the reconciler against a live request", () => {
+      beforeEach(() => {
+        // No tombstones to purge at the end of a pass.
+        prisma.deletedProviderSub.deleteMany.mockResolvedValue({ count: 0 });
+        prisma.deletedProviderSub.findMany.mockResolvedValue([]);
+      });
+
+      const pending = (overrides: Partial<ClaimedDeletion> = {}) =>
+        claimedRow({ deletionStartedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), ...overrides });
+
+      it("leaves a deletion a request is running alone, and the request finishes it: one success, no 500", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithDetails());
+        prisma.user.delete.mockResolvedValue(buildUserWithDetails());
+        let releaseAuth0!: () => void;
+        auth0Management.deleteUser.mockImplementation(() => new Promise<void>((resolve) => (releaseAuth0 = resolve)));
+
+        const inFlight = request(httpServer)
+          .delete(keepPath)
+          .set(authHeader())
+          .then((response) => response.status);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // The request's claim is live: the reconciler's SKIP LOCKED / lease check passes over the row.
+        pendingStore = [{ ...pending(), held: true }];
+        const run = await reconciler().reconcilePendingDeletions();
+        releaseAuth0();
+
+        expect(run).toMatchObject({ scanned: 0, deleted: 0, failed: 0 });
+        await expect(inFlight).resolves.toBe(204);
+        expect(prisma.user.delete).toHaveBeenCalledTimes(1);
+      });
+
+      it("answers the request 401 ACCOUNT_DELETION_IN_PROGRESS, not 500, while the reconciler holds the row", async () => {
+        prisma.user.findUnique.mockResolvedValue(buildUserWithDetails({ deletionStartedAt: TEST_NOW }));
+        requestClaim = null;
+
+        const response = await request(httpServer).delete(keepPath).set(authHeader()).expect(401);
+
+        expectApiError(response.body as ErrorResponse, "ACCOUNT_DELETION_IN_PROGRESS");
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(auth0Management.deleteUser).not.toHaveBeenCalled();
+      });
+
+      it("answers the request 204 when the reconciler finished the deletion before the request could claim it", async () => {
+        prisma.user.findUnique
+          .mockResolvedValueOnce(buildUserWithDetails({ deletionStartedAt: TEST_NOW }))
+          .mockResolvedValue(null);
+        requestClaim = null;
+
+        await request(httpServer).delete(keepPath).set(authHeader()).expect(204);
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      });
+
+      it("counts a row a concurrent request deleted first as a success", async () => {
+        pendingStore = [pending({ auth0DeletedAt: TEST_NOW })];
+        prisma.user.delete.mockRejectedValue(
+          new Prisma.PrismaClientKnownRequestError("Record to delete does not exist", {
+            code: "P2025",
+            clientVersion: "7.8.0",
+          }),
+        );
+        // Gone when the reconciler looks again after the failed delete.
+        prisma.user.findUnique.mockResolvedValue(null);
+
+        await expect(reconciler().reconcilePendingDeletions()).resolves.toMatchObject({
+          scanned: 1,
+          deleted: 1,
+          failed: 0,
+        });
+        expect(prisma.user.update).not.toHaveBeenCalled();
+      });
+
+      it("reports deletion_abandoned once after the last attempt, and never picks the row up again", async () => {
+        const errorSpy = jest.spyOn(PinoLogger.prototype, "error");
+        pendingStore = [pending({ deletionAttempts: 4 })];
+        prisma.user.findUnique.mockResolvedValue({ id: TEST_USER_ID } as never);
+        prisma.user.update.mockImplementation(((args: { data: { deletionAttempts?: number } }) => {
+          if (args.data.deletionAttempts !== undefined) pendingStore[0].deletionAttempts = args.data.deletionAttempts;
+          return Promise.resolve({} as never);
+        }) as never);
+        auth0Management.deleteUser.mockRejectedValue(auth0Down());
+
+        await expect(reconciler().reconcilePendingDeletions()).resolves.toMatchObject({
+          scanned: 1,
+          failed: 1,
+          abandoned: 1,
+        });
+        await expect(reconciler().reconcilePendingDeletions()).resolves.toMatchObject({ scanned: 0, abandoned: 0 });
+
+        const abandoned = errorSpy.mock.calls.filter(
+          ([fields]) => (fields as { event?: string }).event === "user.account.deletion_abandoned",
+        );
+        expect(abandoned).toHaveLength(1);
+        expect(auth0Management.deleteUser).toHaveBeenCalledTimes(1);
+        errorSpy.mockRestore();
+      });
+
+      it("leaves a deletion younger than ten minutes to its request", async () => {
+        await reconciler().reconcilePendingDeletions();
+
+        const claim = prisma.$queryRaw.mock.calls.find((call) => sqlOf(call).includes("SKIP LOCKED"))!;
+        const cutoff = JSON.stringify(claim.slice(1)).match(/\d{4}-\d\d-\d\dT[\d:.]+Z/g)!;
+        // The first timestamp is the lease, the second the age cutoff.
+        expect(Math.abs(new Date(cutoff[1]).getTime() - (Date.now() - 10 * 60 * 1000))).toBeLessThan(60_000);
+      });
+    });
+  });
+
   describe("what outlives a deleted account (wired services)", () => {
     const DAY_MS = 24 * 60 * 60 * 1000;
     const daysAgo = (n: number) => new Date(Date.now() - n * DAY_MS);
@@ -1221,6 +1441,7 @@ describe("UsersController (integration)", () => {
       prisma.user.findUnique.mockResolvedValue(
         buildUserWithDetails({ deletionStartedAt: TEST_NOW, auth0DeletedAt: TEST_NOW }),
       );
+      requestClaim = { auth0DeletedAt: TEST_NOW };
       prisma.user.delete.mockResolvedValue(buildUserWithDetails());
 
       await request(httpServer).delete(`${USERS_BASE_PATH}/me?photos=KEEP`).set(authHeader()).expect(204);
@@ -1336,16 +1557,11 @@ describe("UsersController (integration)", () => {
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
-    it("rejects a mid-deletion user that still has a database row", async () => {
-      prisma.user.findUnique.mockResolvedValue(
-        buildUserWithDetails({
-          deletionStartedAt: new Date("2026-06-10T12:01:00.000Z"),
-        }),
-      );
+    it("returns a mid-deletion user that still has a database row, for the guard to refuse", async () => {
+      const deleting = buildUserWithDetails({ deletionStartedAt: new Date("2026-06-10T12:01:00.000Z") });
+      prisma.user.findUnique.mockResolvedValue(deleting);
 
-      await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB)).rejects.toThrow(
-        new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED("the account's deletion is in progress")),
-      );
+      await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB)).resolves.toEqual(deleting);
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
@@ -1354,7 +1570,7 @@ describe("UsersController (integration)", () => {
       const suspendedAt = new Date("2026-06-01T09:00:00.000Z");
       const bannedAt = new Date("2026-05-20T09:00:00.000Z");
       const newUserId = "55555555-5555-5555-5555-555555555555";
-      const afterDeletion = TEST_NOW.getTime() / 1000 + 60;
+      const afterDeletion = TEST_NOW.getTime() / 1000 + 600;
       const providerSubHash = hashProviderSub(TEST_PROVIDER_SUB);
       const sanctionedTombstone = (overrides: Record<string, unknown>) =>
         ({
@@ -1403,6 +1619,23 @@ describe("UsersController (integration)", () => {
         });
         expect(prisma.carriedBan.deleteMany).toHaveBeenCalledWith({ where: { providerSubHash } });
       });
+    });
+
+    it("rejects a token issued inside the 300-second clock-skew margin after the deletion", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.deletedProviderSub.findUnique.mockResolvedValue({
+        providerSubHash: hashProviderSub(TEST_PROVIDER_SUB),
+        formerUserId: TEST_USER_ID,
+        deletedAt: TEST_NOW,
+        suspendedAt: null,
+        bans: [],
+      } as never);
+      const twoMinutesAfter = TEST_NOW.getTime() / 1000 + 120;
+
+      await expect(usersService.resolveByProviderSub(TEST_PROVIDER_SUB, twoMinutesAfter)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
     it("still resolves an active user after an unrelated providerSub was tombstoned", async () => {

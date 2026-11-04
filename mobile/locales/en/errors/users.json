@@ -1,4 +1,6 @@
 {
+  "ACCOUNT_DELETION_IN_PROGRESS": "Your account is being deleted. You can't sign in to it any more.",
+  "ACCOUNT_DELETION_UNAVAILABLE": "Deleting accounts isn't working right now. Nothing was deleted. Try again later.",
   "ACCOUNT_SUSPENDED": "Your account was suspended for breaking our terms. You can still delete it.",
   "AVATAR_CHANGED_CONCURRENTLY": "Your photo was changed on another device. Please try again.",
   "DETAILS_ALREADY_EXIST": "Your lab card is already set up.",

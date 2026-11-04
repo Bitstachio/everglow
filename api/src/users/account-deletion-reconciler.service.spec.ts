@@ -3,7 +3,9 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AccountDeletionPhotoPolicy, PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
 import { PinoLogger } from "nestjs-pino";
+import { ApiException } from "src/common/errors/api.exception";
 import { PrismaService } from "src/prisma/prisma.service";
+import { AccountDeletionPreflightService } from "./account-deletion-preflight.service";
 import { AccountDeletionReconcilerService } from "./account-deletion-reconciler.service";
 import { UsersService } from "./users.service";
 
@@ -11,6 +13,7 @@ describe("AccountDeletionReconcilerService", () => {
   let service: AccountDeletionReconcilerService;
   let prisma: DeepMockProxy<PrismaClient>;
   let usersService: { completeAccountDeletion: jest.Mock };
+  let preflight: { assertCanFinish: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
 
   const now = new Date("2026-06-10T12:00:00.000Z");
@@ -23,6 +26,7 @@ describe("AccountDeletionReconcilerService", () => {
     auth0DeletedAt: new Date("2026-06-10T10:01:00.000Z"),
     deletionPhotoPolicy: AccountDeletionPhotoPolicy.KEEP,
     deletionAttempts: 0,
+    deletionClaimedUntil: new Date("2026-06-10T12:05:00.000Z"),
   };
 
   beforeEach(async () => {
@@ -30,7 +34,8 @@ describe("AccountDeletionReconcilerService", () => {
     jest.setSystemTime(now);
 
     prisma = mockDeep<PrismaClient>();
-    usersService = { completeAccountDeletion: jest.fn().mockResolvedValue(undefined) };
+    usersService = { completeAccountDeletion: jest.fn().mockResolvedValue("deleted") };
+    preflight = { assertCanFinish: jest.fn().mockResolvedValue(undefined) };
     // No tombstones to purge unless a case says otherwise.
     prisma.deletedProviderSub.deleteMany.mockResolvedValue({ count: 0 });
     prisma.deletedProviderSub.findMany.mockResolvedValue([]);
@@ -42,6 +47,7 @@ describe("AccountDeletionReconcilerService", () => {
         AccountDeletionReconcilerService,
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: usersService },
+        { provide: AccountDeletionPreflightService, useValue: preflight },
         {
           provide: ConfigService,
           useValue: {
@@ -65,48 +71,132 @@ describe("AccountDeletionReconcilerService", () => {
     jest.useRealTimers();
   });
 
-  it("completes pending deletions and reports counts", async () => {
-    prisma.user.findMany.mockResolvedValue([pendingUser] as never);
+  /** The SQL text of a raw call, placeholders joined. */
+  const sqlOf = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
+  const claimCalls = () => prisma.$queryRaw.mock.calls.filter((call) => sqlOf(call).includes("SKIP LOCKED"));
+  const releaseCalls = () => prisma.$queryRaw.mock.calls.filter((call) => sqlOf(call).includes("= NULL"));
 
-    const result = await service.reconcilePendingDeletions();
+  /** Each claim hands out the next row, as `FOR UPDATE SKIP LOCKED` would, then nothing. */
+  const pendingRows = (...rows: (typeof pendingUser)[]) => {
+    const queue = [...rows];
+    prisma.$queryRaw.mockImplementation(((strings: TemplateStringsArray) => {
+      if (strings.join("?").includes("SKIP LOCKED")) {
+        const next = queue.shift();
+        return Promise.resolve(next ? [next] : []);
+      }
+      return Promise.resolve([]);
+    }) as never);
+  };
 
-    expect(prisma.user.findMany).toHaveBeenCalledWith({
-      where: { deletionStartedAt: { not: null }, deletionAttempts: { lt: MAX_ATTEMPTS } },
-      orderBy: { deletionStartedAt: "asc" },
-      take: 50,
-      select: {
-        id: true,
-        providerSub: true,
-        deletionStartedAt: true,
-        auth0DeletedAt: true,
-        deletionPhotoPolicy: true,
-        deletionAttempts: true,
-      },
-    });
+  const result = (overrides: Partial<Awaited<ReturnType<typeof service.reconcilePendingDeletions>>> = {}) => ({
+    scanned: 0,
+    deleted: 0,
+    failed: 0,
+    stuck: 0,
+    abandoned: 0,
+    unavailable: 0,
+    tombstonesPurged: 0,
+    ...overrides,
+  });
+
+  it("claims pending deletions one at a time and finishes them", async () => {
+    pendingRows(pendingUser);
+
+    await expect(service.reconcilePendingDeletions()).resolves.toEqual(result({ scanned: 1, deleted: 1 }));
+
+    expect(preflight.assertCanFinish).toHaveBeenCalledWith(pendingUser);
     expect(usersService.completeAccountDeletion).toHaveBeenCalledWith(pendingUser);
-    expect(result).toEqual({ scanned: 1, deleted: 1, failed: 0, stuck: 1, abandoned: 0, tombstonesPurged: 0 });
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ event: "user.account.deletion_stuck", userId: pendingUser.id }),
+    // A deletion this run finishes is not stuck, however old it is.
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: "user.account.deletion_stuck" }),
       expect.any(String),
     );
   });
 
-  it("counts failures without aborting the batch", async () => {
+  it("only claims deletions older than ten minutes, under the attempt budget, that nobody holds", async () => {
+    pendingRows();
+
+    await service.reconcilePendingDeletions();
+
+    const [call] = claimCalls();
+    const sql = sqlOf(call);
+    expect(sql).toContain('"deletionStartedAt" < ');
+    expect(sql).toContain('"deletionAttempts" < ');
+    expect(sql).toContain('"deletionClaimedUntil" IS NULL OR "deletionClaimedUntil" < ');
+    expect(sql).toContain("FOR UPDATE SKIP LOCKED");
+    const values = JSON.stringify(call.slice(1));
+    expect(values).toContain(new Date(now.getTime() - 10 * 60 * 1000).toISOString());
+    expect(call).toContain(MAX_ATTEMPTS);
+  });
+
+  it("does not claim the same row twice in one run after it failed", async () => {
     const other = { ...pendingUser, id: "22222222-2222-2222-2222-222222222222" };
-    prisma.user.findMany.mockResolvedValue([pendingUser, other] as never);
-    usersService.completeAccountDeletion.mockRejectedValueOnce(new Error("fk")).mockResolvedValueOnce(undefined);
+    pendingRows(pendingUser, other);
+    usersService.completeAccountDeletion.mockRejectedValueOnce(new Error("fk")).mockResolvedValueOnce("deleted");
 
-    const result = await service.reconcilePendingDeletions();
+    await expect(service.reconcilePendingDeletions()).resolves.toEqual(
+      result({ scanned: 2, deleted: 1, failed: 1, stuck: 1 }),
+    );
 
-    expect(result).toEqual({ scanned: 2, deleted: 1, failed: 1, stuck: 2, abandoned: 0, tombstonesPurged: 0 });
+    // Each claim skips the rows already tried.
+    expect(claimCalls()[1]).toContainEqual([pendingUser.id]);
+    expect(claimCalls()[2]).toContainEqual([pendingUser.id, other.id]);
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ event: "user.account.deletion_reconcile.failed", userId: pendingUser.id }),
       expect.any(String),
     );
   });
 
+  it("counts a row another pass deleted first as a success", async () => {
+    pendingRows(pendingUser);
+    usersService.completeAccountDeletion.mockResolvedValue("vanished");
+
+    await expect(service.reconcilePendingDeletions()).resolves.toEqual(result({ scanned: 1, deleted: 1 }));
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it("logs deletion_stuck only after a failed attempt on an old deletion", async () => {
+    const young = {
+      ...pendingUser,
+      id: "33333333-3333-3333-3333-333333333333",
+      deletionStartedAt: new Date(now.getTime() - 20 * 60 * 1000),
+    };
+    pendingRows(pendingUser, young);
+    usersService.completeAccountDeletion.mockRejectedValue(new Error("auth0 down"));
+
+    await expect(service.reconcilePendingDeletions()).resolves.toMatchObject({ failed: 2, stuck: 1 });
+
+    const stuck = logger.warn.mock.calls.filter(
+      ([fields]) => (fields as { event?: string }).event === "user.account.deletion_stuck",
+    );
+    expect(stuck).toEqual([[expect.objectContaining({ userId: pendingUser.id, attempts: 1 }), expect.any(String)]]);
+    expect(logger.error.mock.invocationCallOrder[0]).toBeLessThan(logger.warn.mock.invocationCallOrder[0]);
+  });
+
+  it("skips a row Auth0 or Apple cannot serve right now without spending an attempt", async () => {
+    pendingRows(pendingUser);
+    preflight.assertCanFinish.mockRejectedValue(new ApiException("ACCOUNT_DELETION_UNAVAILABLE"));
+
+    await expect(service.reconcilePendingDeletions()).resolves.toEqual(result({ scanned: 1, unavailable: 1 }));
+
+    expect(usersService.completeAccountDeletion).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(releaseCalls()).toHaveLength(1);
+  });
+
+  it("stops at the batch size", async () => {
+    pendingRows(
+      ...Array.from({ length: 60 }, (_, i) => ({
+        ...pendingUser,
+        id: `00000000-0000-0000-0000-${String(i).padStart(12, "0")}`,
+      })),
+    );
+
+    await expect(service.reconcilePendingDeletions()).resolves.toMatchObject({ scanned: 50, deleted: 50 });
+  });
+
   it("counts a failed pass against the row's attempt budget", async () => {
-    prisma.user.findMany.mockResolvedValue([pendingUser] as never);
+    pendingRows(pendingUser);
     usersService.completeAccountDeletion.mockRejectedValue(new Error("fk"));
 
     await service.reconcilePendingDeletions();
@@ -118,12 +208,12 @@ describe("AccountDeletionReconcilerService", () => {
   });
 
   it("stops retrying and reports once when the budget runs out", async () => {
-    prisma.user.findMany.mockResolvedValue([{ ...pendingUser, deletionAttempts: MAX_ATTEMPTS - 1 }] as never);
+    pendingRows({ ...pendingUser, deletionAttempts: MAX_ATTEMPTS - 1 });
     usersService.completeAccountDeletion.mockRejectedValue(new Error("fk"));
 
-    const result = await service.reconcilePendingDeletions();
-
-    expect(result).toEqual({ scanned: 1, deleted: 0, failed: 1, stuck: 1, abandoned: 1, tombstonesPurged: 0 });
+    await expect(service.reconcilePendingDeletions()).resolves.toEqual(
+      result({ scanned: 1, failed: 1, stuck: 1, abandoned: 1 }),
+    );
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: pendingUser.id },
       data: { deletionAttempts: MAX_ATTEMPTS },
@@ -139,7 +229,7 @@ describe("AccountDeletionReconcilerService", () => {
   });
 
   it("does not report abandonment while attempts remain", async () => {
-    prisma.user.findMany.mockResolvedValue([pendingUser] as never);
+    pendingRows(pendingUser);
     usersService.completeAccountDeletion.mockRejectedValue(new Error("fk"));
 
     await service.reconcilePendingDeletions();
@@ -151,7 +241,7 @@ describe("AccountDeletionReconcilerService", () => {
   });
 
   it("keeps going when the attempt counter itself cannot be written", async () => {
-    prisma.user.findMany.mockResolvedValue([pendingUser] as never);
+    pendingRows(pendingUser);
     usersService.completeAccountDeletion.mockRejectedValue(new Error("fk"));
     prisma.user.update.mockRejectedValue(new Error("db down"));
 
@@ -233,7 +323,7 @@ describe("AccountDeletionReconcilerService", () => {
     });
 
     it("runs at the end of every reconcile pass and reports what it purged", async () => {
-      prisma.user.findMany.mockResolvedValue([]);
+      pendingRows();
       prisma.deletedProviderSub.deleteMany.mockResolvedValueOnce({ count: 2 });
 
       await expect(service.reconcilePendingDeletions()).resolves.toMatchObject({ tombstonesPurged: 2 });

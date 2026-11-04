@@ -117,21 +117,25 @@ This is a small **saga / state machine** for dual-store delete. Durable intent l
 
 ```text
 1. Load user
-2. Mark deletion intent: set deletionStartedAt
-3. Prep related database data so user.delete is likely to succeed
+2. Pre-flight: check the deletion can finish (Auth0 management access and,
+   for an Apple identity, Sign in with Apple); if not, 503 and nothing written
+3. Claim the row and mark deletion intent: set deletionStartedAt (once) and
+   the claim's lease, in one statement
+4. Prep related database data so user.delete is likely to succeed
    (events, memberships, photos, etc. per product rules)
-4. Sign in with Apple only: revoke the Apple token Auth0 holds for the user
-   (idempotent: Apple answers 200 for an already-revoked token)
-5. Delete Auth0 user (idempotent: already-gone / 404 counts as success)
-6. Set auth0DeletedAt
-7. In one transaction: lock the row, upsert the DeletedProviderSub tombstone with
+5. Sign in with Apple only: revoke the Apple token Auth0 holds for each of the
+   user's Apple identities (idempotent: Apple answers 200 for an
+   already-revoked token)
+6. Delete Auth0 user (idempotent: already-gone / 404 counts as success)
+7. Set auth0DeletedAt
+8. In one transaction: lock the row, upsert the DeletedProviderSub tombstone with
    the account's suspension and event bans, null its username on report
    evidence (except under a child-safety or law-enforcement hold), then delete
    the User row (§6a)
-8. Best-effort S3 / other side cleanup (same spirit as event photo purge)
+9. Best-effort S3 / other side cleanup (same spirit as event photo purge)
 ```
 
-Step 4 exists because Apple treats the app as still authorised until the token is revoked, and that token lives on the Auth0 user, so it must be revoked before the user is deleted. It repeats on every pass that still has an Auth0 user, which is safe. See [authentication.md](./authentication.md#10-sign-in-with-apple) for the rule and the ops setup.
+Step 5 exists because Apple treats the app as still authorised until the token is revoked, and that token lives on the Auth0 user, so it must be revoked before the user is deleted. It repeats on every pass that still has an Auth0 user, which is safe. See [authentication.md](./authentication.md#10-sign-in-with-apple) for the rule and the ops setup.
 
 Derived state from the two nullable timestamps (no separate status enum):
 
@@ -141,24 +145,43 @@ Derived state from the two nullable timestamps (no separate status enum):
 | set                 | null             | Deletion in progress; Auth0 not confirmed cleared        |
 | set                 | set              | Auth0 cleared; database teardown still owed (reconciler) |
 
+### Before anything is written: the pre-flight
+
+Every step after the intent is stamped is either irreversible (prep deletes events and photos, hands rolls over) or external (Apple, Auth0). If the external steps cannot work at all, starting is what strands the person: their rolls are gone, their login is still there, and the account is locked. So `DELETE /users/me` first asks `AccountDeletionPreflightService` whether the saga could finish, and answers **503 `ACCOUNT_DELETION_UNAVAILABLE`** with nothing written when it could not:
+
+- the management credentials (`AUTH0_MANAGEMENT_CLIENT_ID`, `AUTH0_MANAGEMENT_CLIENT_SECRET`) are set;
+- a client-credentials grant for the Management API succeeds with them (a bad secret fails here), and its token carries `delete:users`, plus `read:users` and `read:user_idp_tokens` for an Apple identity (`Auth0ManagementService.checkAccess`). A successful probe is cached for as long as the token would live, at most 15 minutes; a failed one is not cached, so fixing the tenant takes effect on the next tap;
+- for an Apple identity, the `APPLE_SIWA_*` values are set and the private key signs a client secret (`AppleSiwaService.revocationProblem`). Nothing is sent to Apple.
+
+The refusal is logged as `user.account.deletion_unavailable` at `error` with the `blockers` and any `missingScopes`, which pages ([alerting.md](../api/docs/alerting.md)): it is a misconfiguration and every deletion is refused until it is fixed. The app says deletion isn't available right now and that nothing was deleted. The check covers what no retry fixes; an outage that starts after it is handled by resuming.
+
+A row whose `auth0DeletedAt` is already set skips the check: only database work is left.
+
+### Retrying, and who runs a deletion
+
+A deletion that fails part way leaves the row flagged. The person can **tap Delete again**: `DELETE /users/me` is the one route that lets a flagged account through (`@AllowDeletionInProgress()`), and the saga resumes with the photo choice it started with (the request's `?photos=` is only read the first time). Every other route answers it **401 `ACCOUNT_DELETION_IN_PROGRESS`**: the status the guard always used, so an old client still signs out, with a code the app reads to say the account is being deleted instead of showing the signed-out slip. The app treats it as a sign-out, not an expired session, so nothing the account left on the phone (the upload tray's copies of picked photos) survives it.
+
+Only one pass runs a deletion at a time. `User.deletionClaimedUntil` is a lease: the request takes it in the statement that stamps the intent, the reconciler takes it with `FOR UPDATE SKIP LOCKED`, and a pass only runs the saga for a row it holds. The lease is five minutes (`ACCOUNT_DELETION_CLAIM_LEASE_SECONDS`), longer than a pass can take; a failed pass gives it up at once, so the person's next tap can claim it. A request that finds the row held answers 401 `ACCOUNT_DELETION_IN_PROGRESS` (the reconciler is finishing it), or 204 when the row is already gone. A pass that finds the row deleted under it, by a concurrent pass that got there first, counts it as done rather than as a failure.
+
 ### If Apple revocation fails (after the flag)
 
 Two cases, decided by whether trying again could help:
 
+- **Apple credentials missing, the key unusable, or the management client without `read:users` / `read:user_idp_tokens`**: caught by the pre-flight, so the deletion never starts (503, above).
 - **Apple unreachable** (transport error, 5xx): the saga stops before the Auth0 delete and returns an error. `deletionStartedAt` stays set, the Auth0 user and its token stay put, and the next pass (client retry or reconciler) revokes again. Same shape as an Auth0 failure.
-- **Apple refuses** (400: wrong client id, key not accepted), **the key cannot be loaded** (`APPLE_SIWA_PRIVATE_KEY` is not a valid PEM, so no request is made) or **no token to revoke** (Apple credentials not configured, management client lacks `read:user_idp_tokens`, connection stores no token): logged at `error` with `audit: true`, and the saga carries on to delete the Auth0 user. Apple's own guidance is that the deletion must still be honoured; the person then has to unlink the app under Settings → Apple ID → Sign in with Apple themselves. Retrying would only delay a deletion the person asked for, and the token is lost with the Auth0 user either way.
-- **Auth0 refuses the token read** (403: management client lacks `read:users`): handled like any other Auth0 failure, the saga stops with an error and retries. This is a tenant misconfiguration rather than an Apple problem, and it fails loudly on purpose: grant the scope and the reconciler finishes the deletion with the token revoked.
+- **Apple refuses** (400: wrong client id, key not accepted) or **no token to revoke** (the connection stores none): logged at `error` with `audit: true`, and the saga carries on to delete the Auth0 user. Apple's own guidance is that the deletion must still be honoured; the person then has to unlink the app under Settings → Apple ID → Sign in with Apple themselves, and the app's last screen (14.12) tells every Sign in with Apple account where to look, since the API cannot tell the app after the fact (the reconciler may be the one finishing). Retrying would only delay a deletion the person asked for, and the token is lost with the Auth0 user either way.
+- **Several Apple identities** (only if account linking is ever turned on): each one's token is revoked; one Apple refuses does not stop the others. The step still only runs for a user whose primary identity is Apple, since the identities are read off the Auth0 user and linking is off today; turning linking on means dropping that gate in `AppleIdentityRevocationService` and requiring `read:users` for every deletion.
 
 ### If Auth0 fails (after the flag)
 
 Leave `deletionStartedAt` set and return an error. Do not delete the database user.
-Retries (client or reconciler) call Auth0 again; `404` is treated as success so a lost success response cannot drop the durable marker.
+Retries (the person tapping Delete again, or the reconciler) call Auth0 again; `404` is treated as success so a lost success response cannot drop the durable marker.
 
 ### If Auth0 succeeds and database delete fails
 
 Leave the row **with the deletion flag set** (and `auth0DeletedAt` if you have it). Return a server error: deletion is not fully complete.
 
-A **reconciler** periodically finds users with deletion intent still set, re-runs prep + `user.delete`, and alerts if a row stays stuck. Each pass then purges tombstones past their retention (§6a).
+A **reconciler** runs hourly and finishes deletions their request could not. It claims one row at a time, oldest first, so each lease covers the pass that runs it: a row whose deletion started more than 10 minutes ago (`ACCOUNT_DELETION_RECONCILER_MIN_AGE_MINUTES`; a younger one belongs to its request, still running or about to be retried), under the attempt budget, and not held by another pass. It runs the pre-flight first (a refusal releases the row and is not an attempt: nothing about the row is wrong), then prep + Auth0 + `user.delete`. A failed attempt is logged as `user.account.deletion_reconcile.failed`, and, once the deletion is older than `ACCOUNT_DELETION_RECONCILER_STUCK_AFTER_HOURS`, as `user.account.deletion_stuck`: a deletion the run finishes is not stuck, however old. Each pass then purges tombstones past their retention (§6a).
 
 It is **opt-in** (`ACCOUNT_DELETION_RECONCILER_ENABLED=true`): it decides which identities to delete from the tenant in `AUTH0_DOMAIN` using rows in `DATABASE_URL`, and those two are not paired outside a deployed environment. Same rule, and the same reason, as the photo orphan reconciler. After `ACCOUNT_DELETION_MAX_ATTEMPTS` failed passes a row stops being picked up and is reported once as `user.account.deletion_abandoned`: a failure that is not transient is not fixed by retrying it hourly, and an alert that fires forever is one nobody reads.
 
@@ -170,16 +193,16 @@ SELECT id, "deletionStartedAt", "auth0DeletedAt", "deletionAttempts"
 FROM "User" WHERE "deletionStartedAt" IS NOT NULL AND "deletionAttempts" >= 5;
 
 -- hand one back to the reconciler
-UPDATE "User" SET "deletionAttempts" = 0 WHERE id = '…';
+UPDATE "User" SET "deletionAttempts" = 0, "deletionClaimedUntil" = NULL WHERE id = '…';
 ```
 
-The account stays locked out of every route while `deletionStartedAt` is set, so the person is not using it in the meantime.
+The account stays locked out of every route but `DELETE /users/me` while `deletionStartedAt` is set, so the person is not using it in the meantime; their own retry still goes through, and does not count against the budget.
 
 **The job is not optional in a deployed environment.** A deletion that fails after its intent is stamped leaves the account refused on every route, and this job is the only thing that finishes it. With the job off, that state is permanent: no login, and the data still there. The API logs `user.account.deletion_reconciler.disabled` at `warn` on boot when that is the case.
 
 While flagged:
 
-- Do not treat the user as a normal active account.
+- Do not treat the user as a normal active account: every route but `DELETE /users/me` answers 401 `ACCOUNT_DELETION_IN_PROGRESS`.
 - Do not JIT-provision a fresh life for that identity in a way that undoes deletion intent.
 - In-flight JWTs remain cryptographically valid until they expire even after Auth0 and the row are gone. That is a separate hole from “Auth0 still alive.” We close it with deleted-`providerSub` tombstones on the JIT path; see [authentication.md](./authentication.md).
 
@@ -320,11 +343,18 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Upload in flight                               | `PENDING` row deleted, key purged; a PUT landing later is an orphan for the S3 orphan reconciler                       |
 | Has an avatar                                  | Key collected in prep, column left to the cascade, object purged after commit ([image-uploads.md](./image-uploads.md)) |
 | Avatar uploaded but never confirmed            | No row ever referenced it; an orphan for the S3 orphan reconciler                                                      |
-| Prep fails                                     | 500, Auth0 untouched, login intact, retryable                                                                          |
-| Auth0 fails after intent                       | 500, row and flag kept; reconciler retries, 404 counts as success                                                      |
+| Management credentials missing, token refused or a scope missing | 503 `ACCOUNT_DELETION_UNAVAILABLE`, nothing written; `user.account.deletion_unavailable` pages        |
+| Apple identity, Sign in with Apple not configured or its key unusable | 503 `ACCOUNT_DELETION_UNAVAILABLE`, nothing written                                                |
+| Prep fails                                     | 500, Auth0 untouched, flag kept; tapping Delete again resumes, the reconciler finishes it otherwise                   |
+| Auth0 fails after intent                       | 500, row and flag kept; the person's retry or the reconciler calls Auth0 again, 404 counts as success                 |
+| Any other request while the flag is set        | 401 `ACCOUNT_DELETION_IN_PROGRESS`; the app clears the phone as a sign-out and says the account is being deleted       |
+| The person retries while the reconciler runs it | 401 `ACCOUNT_DELETION_IN_PROGRESS` (the reconciler holds the claim), or 204 if it already finished                    |
+| Reconciler and a request at once               | Only the holder of the claim runs the saga; the other skips. A row deleted under a pass counts as done, never a 500   |
+| Apple refuses the revocation, or has no token  | Deletion goes ahead; the last screen tells a Sign in with Apple account to remove Everglow under its Apple ID          |
 | Database delete fails after Auth0              | Row kept and flagged; reconciler finishes it                                                                           |
 | S3 purge fails                                 | Logged with counts; S3 orphan reconciler reclaims; request still 204                                                   |
 | Any request with a pre-deletion token          | Generic 401; client signs out                                                                                          |
+| Token issued within 5 minutes after the deletion | Refused like a pre-deletion one: Auth0's clock may run ahead of ours (authentication.md §6)                         |
 | Same person signs in again later               | New account, new id, free tier (see authentication.md §6); suspended again and banned again if the deleted one was (§6a) |
 | Suspended account deletes itself               | Allowed (`@AllowSuspended()`); the suspension waits on the tombstone for a sign-in or for the platform to lift it      |
 | Suspended or banned mid-deletion               | The suspend or ban waits on the row lock, then fails because the row is gone, or lands first and is carried            |
@@ -344,7 +374,8 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 ## 7. What we are optimizing for
 
 1. **No JIT resurrection** of an account the user asked to delete: Auth0 stops being a live login for that identity, and the tombstone stops the tokens it already issued.
-1. **Nothing irreversible before something that can fail**: prep and its foreign keys come before the Auth0 call, so a failure never costs a login.
+1. **Nothing irreversible before something that can fail**: the pre-flight checks Auth0 and Apple can be used before anything is written, and prep and its foreign keys come before the Auth0 call, so a failure never costs a login.
+1. **A failure never strands the person**: they can ask again and the saga resumes; until it finishes, the app says the account is being deleted instead of signing them out with no reason.
 1. **No false atomicity** via long DB transactions around Auth0.
 1. **Detectable, finishable** leftovers when database teardown fails after Auth0.
 1. **Familiar ops model** aligned with photo orphan reconciliation, with order chosen for IdP risk.

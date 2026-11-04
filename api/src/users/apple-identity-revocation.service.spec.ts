@@ -42,7 +42,7 @@ describe("AppleIdentityRevocationService", () => {
   });
 
   it("revokes the refresh token Auth0 holds for the Apple identity", async () => {
-    auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "r-1", accessToken: "a-1" });
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "r-1", accessToken: "a-1" }]);
     appleSiwa.revokeToken.mockResolvedValue(undefined);
 
     await expect(service.revokeBeforeAuth0Delete(userId, appleSub)).resolves.toBe("revoked");
@@ -56,7 +56,7 @@ describe("AppleIdentityRevocationService", () => {
   });
 
   it("falls back to the access token when Auth0 stored no refresh token", async () => {
-    auth0Management.getIdentityProviderTokens.mockResolvedValue({ accessToken: "a-1" });
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([{ accessToken: "a-1" }]);
     appleSiwa.revokeToken.mockResolvedValue(undefined);
 
     await expect(service.revokeBeforeAuth0Delete(userId, appleSub)).resolves.toBe("revoked");
@@ -65,7 +65,9 @@ describe("AppleIdentityRevocationService", () => {
   });
 
   it("never logs the token values", async () => {
-    auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "r-secret", accessToken: "a-secret" });
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([
+      { refreshToken: "r-secret", accessToken: "a-secret" },
+    ]);
     appleSiwa.revokeToken.mockResolvedValue(undefined);
 
     await service.revokeBeforeAuth0Delete(userId, appleSub);
@@ -101,7 +103,7 @@ describe("AppleIdentityRevocationService", () => {
   });
 
   it("skips with an error log when Auth0 returned no token for the identity", async () => {
-    auth0Management.getIdentityProviderTokens.mockResolvedValue({});
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([{}]);
 
     await expect(service.revokeBeforeAuth0Delete(userId, appleSub)).resolves.toBe("skipped_no_token");
 
@@ -113,7 +115,7 @@ describe("AppleIdentityRevocationService", () => {
   });
 
   it("logs and continues when Apple rejects the request for good", async () => {
-    auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "r-1" });
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "r-1" }]);
     appleSiwa.revokeToken.mockRejectedValue(new AppleTokenRevocationError("invalid_client", false));
 
     await expect(service.revokeBeforeAuth0Delete(userId, appleSub)).resolves.toBe("failed");
@@ -124,8 +126,36 @@ describe("AppleIdentityRevocationService", () => {
     );
   });
 
+  it("revokes every Apple identity on the user, not only the primary one", async () => {
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "r-1" }, { accessToken: "a-2" }]);
+    appleSiwa.revokeToken.mockResolvedValue(undefined);
+
+    await expect(service.revokeBeforeAuth0Delete(userId, appleSub)).resolves.toBe("revoked");
+
+    expect(appleSiwa.revokeToken).toHaveBeenCalledWith("r-1", "refresh_token");
+    expect(appleSiwa.revokeToken).toHaveBeenCalledWith("a-2", "access_token");
+  });
+
+  it("still revokes the other identities when Apple refuses one, and reports the refusal", async () => {
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "r-1" }, { refreshToken: "r-2" }]);
+    appleSiwa.revokeToken
+      .mockRejectedValueOnce(new AppleTokenRevocationError("invalid_client", false))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(service.revokeBeforeAuth0Delete(userId, appleSub)).resolves.toBe("failed");
+
+    expect(appleSiwa.revokeToken).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips with an error log when the user has no Apple identity left", async () => {
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([]);
+
+    await expect(service.revokeBeforeAuth0Delete(userId, appleSub)).resolves.toBe("skipped_no_token");
+    expect(appleSiwa.revokeToken).not.toHaveBeenCalled();
+  });
+
   it("propagates a retryable Apple failure so the saga retries while the token still exists", async () => {
-    auth0Management.getIdentityProviderTokens.mockResolvedValue({ refreshToken: "r-1" });
+    auth0Management.getIdentityProviderTokens.mockResolvedValue([{ refreshToken: "r-1" }]);
     const outage = new AppleTokenRevocationError("503", true);
     appleSiwa.revokeToken.mockRejectedValue(outage);
 

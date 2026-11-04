@@ -4,13 +4,24 @@ import { createHash } from "node:crypto";
 export const hashProviderSub = (providerSub: string): string => createHash("sha256").update(providerSub).digest("hex");
 
 /**
+ * How far Auth0's clock may run ahead of ours. `iat` is Auth0's clock and
+ * `deletedAt` is ours, so a token minted just before the deletion could carry
+ * an `iat` just after it. Inside this margin a token counts as issued before:
+ * the cost is a person who signs in again within five minutes of deleting
+ * being asked to sign in once more, against a leftover token resurrecting the
+ * account they just deleted.
+ */
+export const TOMBSTONE_CLOCK_SKEW_SECONDS = 300;
+
+/**
  * True when a token was issued after the account it names was deleted, which
  * makes it a genuine new sign-in rather than a leftover of the deleted
- * account. `issuedAt` is the JWT `iat` claim, in seconds. A token without one
- * cannot be placed in time and is treated as pre-deletion, the safe side.
+ * account. `issuedAt` is the JWT `iat` claim, in seconds; it has to clear the
+ * deletion by TOMBSTONE_CLOCK_SKEW_SECONDS. A token without one cannot be
+ * placed in time and is treated as pre-deletion, the safe side.
  */
 export const isIssuedAfterDeletion = (issuedAt: number | undefined, deletedAt: Date): boolean =>
-  issuedAt !== undefined && issuedAt * 1000 > deletedAt.getTime();
+  issuedAt !== undefined && issuedAt * 1000 > deletedAt.getTime() + TOMBSTONE_CLOCK_SKEW_SECONDS * 1000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

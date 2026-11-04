@@ -878,6 +878,8 @@ export type ApiErrorDto = {
    * Stable machine-readable error code
    */
   code:
+    | "ACCOUNT_DELETION_IN_PROGRESS"
+    | "ACCOUNT_DELETION_UNAVAILABLE"
     | "ACCOUNT_SUSPENDED"
     | "ACTIVE_EVENT_LIMIT_REACHED"
     | "ALREADY_A_MEMBER"
@@ -1047,6 +1049,10 @@ export type UsersControllerRemoveMeErrors = {
    * Rate limit exceeded; retry after the number of seconds in the Retry-After header
    */
   429: ApiErrorDto;
+  /**
+   * ACCOUNT_DELETION_UNAVAILABLE: the deletion could not finish right now, so nothing was changed
+   */
+  503: unknown;
 };
 
 export type UsersControllerRemoveMeError = UsersControllerRemoveMeErrors[keyof UsersControllerRemoveMeErrors];

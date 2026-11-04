@@ -40,7 +40,9 @@ Guarded routes use `JwtAuthGuard`. On each authenticated request:
 
 Controllers then use `@CurrentUser()` for the app user id. Authorization (CASL, etc.) builds on that id, not on raw Auth0 claims alone.
 
-If any step fails, the answer is 401 `UNAUTHORIZED` and the app signs the user out. The request's log line says why in `errorReason`. It is either passport's reason, with the issuer and audience the token claims, or the account's reason from step 4. Passport's reasons are: no token, expired (and when), malformed, bad signature, a key id the key set doesn't have, wrong audience, or wrong issuer. The account's reasons are a deletion in progress, or a token issued before the deletion.
+If any step fails, the answer is 401 `UNAUTHORIZED` and the app signs the user out. The request's log line says why in `errorReason`. It is either passport's reason, with the issuer and audience the token claims, or the account's reason from step 4. Passport's reasons are: no token, expired (and when), malformed, bad signature, a key id the key set doesn't have, wrong audience, or wrong issuer. The account's reason is a token issued before the deletion.
+
+An account whose deletion has started also answers 401, with the code `ACCOUNT_DELETION_IN_PROGRESS` instead of `UNAUTHORIZED`, on every route but `DELETE /users/me`, which lets it resume the deletion ([account-deletion.md §4](./account-deletion.md#retrying-and-who-runs-a-deletion)). `resolveByProviderSub` returns the row as it is and `JwtAuthGuard` refuses it unless the route is marked `@AllowDeletionInProgress()`. The status stays 401 so any client signs out; the code lets the app say why and clear the phone for good.
 
 The one exception is a token the API couldn't check at all, because Auth0's signing keys couldn't be fetched: Auth0 or the network is down, or jwks-rsa's limit of 5 key fetches a minute is spent. That answers 503 with the generic `INTERNAL_ERROR`, so the app keeps the session and offers a retry. A 401 there would sign everyone out during an Auth0 outage. The 503 is logged as `request.unhandled_error`, which pages (`api/docs/alerting.md`).
 
@@ -107,10 +109,9 @@ A **tombstone** is a durable record that this `providerSub` belonged to an accou
 
 1. When account deletion removes the `User` row, write a `DeletedProviderSub` tombstone in the same database transaction (tombstone first, then delete). The key is a **SHA-256 of the `providerSub`**, not the subject itself: this table outlives the accounts in it, and a readable list of the identities that asked to be forgotten is exactly what it must not become. It answers "have I seen this subject?" without being able to name one. `formerUserId` stays for audit; it is an internal id, not an external identifier.
 2. In `resolveByProviderSub`, **before** create:
-   - if a live `User` exists with `deletionStartedAt` set → reject with a **generic 401** (same client message as any other unauthorized request; deletion reason stays in server logs only)
-   - if a live `User` exists → return it
-   - if a tombstone exists for `sub` **and the token was issued before `deletedAt`** → do not create; reject with the same generic 401
-   - if a tombstone exists but the token was issued **after** `deletedAt` → the person signed in again, so JIT create a fresh account (see below)
+   - if a live `User` exists → return it; when its `deletionStartedAt` is set the guard answers 401 `ACCOUNT_DELETION_IN_PROGRESS` on every route but `DELETE /users/me`
+   - if a tombstone exists for `sub` **and the token was issued before `deletedAt` + 300 seconds** → do not create; reject with the generic 401
+   - if a tombstone exists and the token was issued **more than 300 seconds after** `deletedAt` → the person signed in again, so JIT create a fresh account (see below)
    - otherwise → JIT create as today (real first login)
 3. Keep tombstones at least as long as the maximum access-token lifetime we issue. After that window, an old JWT cannot authenticate anyway. A tombstone is personal data (a hash of a stable social identifier plus the former user id), so it also has a maximum: the account-deletion reconciler deletes it **30 days** after `deletedAt` (`TOMBSTONE_RETENTION_DAYS`, a wide margin over Auth0's 24-hour default), unless it carries a suspension or an event ban. Those stay at least `REPORT_RETENTION_DAYS` (1 year) after the deletion, and for as long as any report about the account is kept (open, within its retention window, or held). Details and the legal basis are in [account-deletion.md §6a](./account-deletion.md#6a-what-happens-to-the-accounts-data).
 
@@ -130,6 +131,8 @@ The `iat` comparison is what separates the two cases. A tombstone blocks the tok
 - a token minted **after** `deletedAt` means they passed Auth0 login again → a real new sign-in, so provision a fresh, empty account
 
 Empty, but not a clean slate: if the deleted account was suspended or banned from events, the tombstone carries those, and the new account is created already suspended and banned again from events that still exist, in the same transaction ([account-deletion.md §6a](./account-deletion.md#6a-what-happens-to-the-accounts-data)). Otherwise deleting and signing in again would undo a platform suspension in two taps.
+
+`iat` is Auth0's clock and `deletedAt` is ours, so the comparison allows a margin of 300 seconds (`TOMBSTONE_CLOCK_SKEW_SECONDS`): a token minted just before the deletion by a clock running ahead could otherwise read as minted after it, and recreate the account the person just deleted. The cost is that someone who signs in again within five minutes of deleting is refused once and has to sign in again.
 
 The deletion timestamp is refreshed whenever the same subject is tombstoned again, so a second deletion is judged against the second timestamp rather than the first.
 
@@ -219,14 +222,15 @@ What Apple _does_ need is the token revocation below. Without it the app stays l
 Apple requires apps that offer Sign in with Apple to revoke the user's Apple tokens when the account is deleted (App Store Review Guideline 5.1.1(v); Apple technote TN3194). Auth0 obtained those tokens when it exchanged the authorization code, keeps them on the user's `identities[]` entry for the Apple connection, and **does not revoke them when the user is deleted**. Deleting the Auth0 user simply discards them. So the API revokes first, then deletes:
 
 ```text
-intent → prep → revoke Apple token (if apple|) → Auth0 delete → tombstone + row delete
+pre-flight → intent → prep → revoke Apple token (if apple|) → Auth0 delete → tombstone + row delete
 ```
 
 Implementation:
 
-- `AppleIdentityRevocationService` (users module) decides whether the step applies and what to log. It reads the Apple identity's tokens through `Auth0ManagementService.getIdentityProviderTokens`, prefers the refresh token (revoking only the access token leaves the authorisation in place) and calls `AppleSiwaService.revokeToken`.
+- `AccountDeletionPreflightService` refuses to start the deletion of an Apple identity (503 `ACCOUNT_DELETION_UNAVAILABLE`) unless the `APPLE_SIWA_*` values are set, the key signs a client secret, and the management client's token carries `read:users` and `read:user_idp_tokens`. Without those the revocation could never happen, and the deletion would go ahead without it.
+- `AppleIdentityRevocationService` (users module) decides whether the step applies and what to log. It reads the tokens of every Apple identity on the Auth0 user through `Auth0ManagementService.getIdentityProviderTokens` (one today; more only if accounts are ever linked), prefers each one's refresh token (revoking only the access token leaves the authorisation in place) and calls `AppleSiwaService.revokeToken` for each.
 - `AppleSiwaService` (`api/src/sdk/apple`) posts to `https://appleid.apple.com/auth/revoke` with a per-request `client_secret`: an ES256 JWT signed with the Sign in with Apple private key (`signAppleClientSecret`). Apple answers `200` for a token that is already revoked, so the step is idempotent and a resumed saga repeats it safely.
-- Failure handling is in [account-deletion.md](./account-deletion.md): Apple unreachable → the saga stops and retries later with the token still in Auth0; Apple refuses or there is no token → logged, deletion continues.
+- Failure handling is in [account-deletion.md](./account-deletion.md): Apple unreachable → the saga stops and retries later with the token still in Auth0; Apple refuses or there is no token → logged, deletion continues, and the app's last screen tells a Sign in with Apple account to remove Everglow under Settings → Apple ID → Sign in with Apple if it is still listed.
 
 The client id sent to Apple must be the one Auth0 presented when the person authorised. The mobile app signs in through **Universal Login** (`webAuth.authorize` in `mobile/lib/auth0.ts`), a browser flow, so that is the **Services ID**: the "Client ID" field on the Auth0 Apple connection. The app's bundle identifier (App ID) is only correct for Auth0's native iOS flow, which the app does not use. A mismatch is a `400 invalid_client`, logged and not retried, so the account is deleted but stays authorised under the person's Apple ID. If the app ever moves to the native flow, this value has to change with it.
 

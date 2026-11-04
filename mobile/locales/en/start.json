@@ -23,5 +23,11 @@
     "title": "Sign in again\nto see your rolls.",
     "body": "For your safety, Everglow signs you out after a while. Your rolls and photos are where you left them.",
     "signIn": "Sign in"
+  },
+  "deleting": {
+    "edge": "Account",
+    "title": "Your account\nis being deleted.",
+    "body": "Everglow is finishing it. You can't sign in to this account in the meantime.",
+    "close": "Close"
   }
 }

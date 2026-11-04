@@ -9,6 +9,8 @@ import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { isUniqueConstraintViolation } from "src/prisma/prisma.errors";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Auth0ManagementService } from "src/sdk/auth0/auth0-management.service";
+import { ClaimedDeletion, claimDeletionForRequest, releaseDeletionClaim } from "./account-deletion-claim";
+import { AccountDeletionPreflightService } from "./account-deletion-preflight.service";
 import { AccountDeletionPrepService } from "./account-deletion-prep.service";
 import { AppleIdentityRevocationService } from "./apple-identity-revocation.service";
 import { hashProviderSub, isIssuedAfterDeletion } from "./deleted-provider-sub";
@@ -22,12 +24,6 @@ import {
 } from "./users.constants";
 import { OnboardedUser, UserWithDetails, userWithDetailsInclude } from "./users.types";
 import { normalizeUsername, USERNAME_SUGGESTION_COUNT, usernameCandidates, usernameFormatReason } from "./username";
-
-/** Fields the account-deletion saga needs; callers may pass a lean select. */
-export type AccountDeletionUser = Pick<
-  UserWithDetails,
-  "id" | "providerSub" | "deletionStartedAt" | "auth0DeletedAt" | "deletionPhotoPolicy"
->;
 
 type TombstoneWithBans = Prisma.DeletedProviderSubGetPayload<{
   include: { bans: { select: { eventId: true; bannedAt: true } } };
@@ -46,6 +42,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly auth0Management: Auth0ManagementService,
     private readonly deletionPrep: AccountDeletionPrepService,
+    private readonly preflight: AccountDeletionPreflightService,
     private readonly appleRevocation: AppleIdentityRevocationService,
     private readonly photoPurge: PhotoPurgeService,
     private readonly logger: PinoLogger,
@@ -203,47 +200,82 @@ export class UsersService {
     return candidates.filter((candidate) => !heldNames.has(candidate)).slice(0, USERNAME_SUGGESTION_COUNT);
   }
 
+  /**
+   * `DELETE /users/me`. Checks the deletion can finish before writing
+   * anything, then claims the row and runs the saga. An account whose
+   * deletion already started may call it again: the saga resumes with the
+   * photo choice it started with.
+   */
   async remove(id: string, photoPolicy: AccountDeletionPhotoPolicy): Promise<void> {
     const user = await this.getById(id);
-    await this.completeAccountDeletion(user, photoPolicy);
+    await this.preflight.assertCanFinish(user);
+
+    const claimed = await claimDeletionForRequest(this.prisma, id, photoPolicy);
+    if (!claimed) {
+      // Gone: another pass finished it in the meantime, which is what was asked.
+      if (!(await this.userExists(id))) return;
+      // The reconciler, or this person's other request, is running it now.
+      throw new ApiException("ACCOUNT_DELETION_IN_PROGRESS");
+    }
+
+    this.logger.info(
+      {
+        event: user.deletionStartedAt ? "user.account.deletion_resumed" : "user.account.deletion_started",
+        userId: id,
+        photoPolicy: claimed.deletionPhotoPolicy,
+        audit: true,
+      },
+      user.deletionStartedAt ? "Account deletion saga resumed by its owner" : "Account deletion saga started",
+    );
+
+    await this.completeAccountDeletion(claimed);
   }
 
   /**
-   * Dual-store account deletion saga (see docs/account-deletion.md).
-   * Idempotent: safe for request retries and the account-deletion reconciler.
+   * Dual-store account deletion saga (see docs/account-deletion.md), for a
+   * row the caller has claimed. Idempotent: safe for request retries and the
+   * account-deletion reconciler.
    *
    * Prep runs before the Auth0 call on purpose. Deleting the Auth0 identity
    * cannot be compensated, so nothing irreversible happens until the
    * application data is in a state that can actually be torn down; the other
    * order strands the user with no login and all their data.
    *
-   * `photoPolicy` is only read when the saga starts, where the HTTP edge always
-   * supplies it (`?photos=` is required); a resumed saga uses the choice already
-   * stored on the row, and falls back to KEEP only if the row has none.
+   * The photo choice is the one stored when the saga started; a row that
+   * somehow has none falls back to KEEP.
+   *
+   * Returns "vanished" when the row was already gone, which a concurrent pass
+   * finishing first can cause: that is the outcome asked for, not a failure.
+   * A failed pass gives its claim up, so the person can retry straight away.
    */
-  async completeAccountDeletion(user: AccountDeletionUser, photoPolicy?: AccountDeletionPhotoPolicy): Promise<void> {
-    const { id, providerSub } = user;
-    let deletionStartedAt = user.deletionStartedAt;
-    let auth0DeletedAt = user.auth0DeletedAt;
-    let policy = user.deletionPhotoPolicy;
-
-    if (!deletionStartedAt) {
-      policy = photoPolicy ?? ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK;
-      const started = await this.prisma.user.update({
-        where: { id },
-        data: { deletionStartedAt: new Date(), deletionPhotoPolicy: policy },
-        select: { deletionStartedAt: true },
-      });
-      deletionStartedAt = started.deletionStartedAt;
-      this.logger.info(
-        { event: "user.account.deletion_started", userId: id, photoPolicy: policy, audit: true },
-        "Account deletion saga started",
-      );
+  async completeAccountDeletion(claimed: ClaimedDeletion): Promise<"deleted" | "vanished"> {
+    try {
+      return await this.runClaimedDeletion(claimed);
+    } catch (error) {
+      if (!(await this.userExists(claimed.id).catch(() => true))) {
+        this.logger.info(
+          { event: "user.account.deletion_vanished", userId: claimed.id, audit: true },
+          "Account deletion pass found the row already deleted by another pass",
+        );
+        return "vanished";
+      }
+      await releaseDeletionClaim(this.prisma, claimed).catch(() => undefined);
+      throw error;
     }
+  }
+
+  private async userExists(id: string): Promise<boolean> {
+    return (await this.prisma.user.findUnique({ where: { id }, select: { id: true } })) !== null;
+  }
+
+  private async runClaimedDeletion(claimed: ClaimedDeletion): Promise<"deleted" | "vanished"> {
+    const { id, providerSub, deletionStartedAt } = claimed;
+    let auth0DeletedAt = claimed.auth0DeletedAt;
+    const policy = claimed.deletionPhotoPolicy ?? ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK;
 
     // Settle events and photos so user.delete has nothing left to trip on and
     // no event is orphaned. Idempotent, so a resumed saga repeats it harmlessly.
-    const { s3Keys } = await this.deletionPrep.prepareRelatedData(id, policy ?? ACCOUNT_DELETION_PHOTO_POLICY_FALLBACK);
+    const { s3Keys } = await this.deletionPrep.prepareRelatedData(id, policy);
 
     if (!auth0DeletedAt) {
       // Apple keeps the app authorised until the token Auth0 obtained is
@@ -255,12 +287,9 @@ export class UsersService {
       // Leave deletionStartedAt set if Auth0 fails so a lost success response
       // cannot drop the durable marker; retries treat Auth0 404 as success.
       await this.auth0Management.deleteUser(providerSub);
-      const cleared = await this.prisma.user.update({
-        where: { id },
-        data: { auth0DeletedAt: new Date() },
-        select: { auth0DeletedAt: true },
-      });
-      auth0DeletedAt = cleared.auth0DeletedAt;
+      auth0DeletedAt = new Date();
+      const cleared = await this.prisma.user.updateMany({ where: { id }, data: { auth0DeletedAt } });
+      if (cleared.count === 0) return "vanished";
       this.logger.info(
         { event: "user.account.auth0_deleted", userId: id, audit: true },
         "Auth0 identity deleted for account deletion saga",
@@ -321,6 +350,7 @@ export class UsersService {
     // already gone, so what is left at stake is storage cost, which the S3
     // orphan reconciler also covers.
     await this.photoPurge.purgeObjects(s3Keys, { event: ALERT_EVENTS.ACCOUNT_PHOTOS_PURGED, userId: id });
+    return "deleted";
   }
 
   /**
@@ -346,7 +376,8 @@ export class UsersService {
 
   /**
    * Resolve the app user for an Auth0 `sub`, JIT-creating on first login.
-   * Rejects mid-deletion rows and tombstoned identities (see docs/authentication.md).
+   * Rejects tombstoned identities (see docs/authentication.md); a row whose
+   * deletion has started is returned and left to the guard.
    *
    * `issuedAt` is the token's `iat` claim. A tombstoned subject whose token was
    * minted after the deletion signed in again, which is a new account rather
@@ -358,28 +389,12 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    if (existing) {
-      this.assertNotDeleting(existing);
-      return existing;
-    }
+    // A row mid-deletion is returned as it is: JwtAuthGuard refuses it with
+    // ACCOUNT_DELETION_IN_PROGRESS on every route but DELETE /users/me, which
+    // resumes the deletion.
+    if (existing) return existing;
 
     return this.provisionUnlessTombstoned(sub, issuedAt);
-  }
-
-  private assertNotDeleting(user: UserWithDetails): void {
-    if (!user.deletionStartedAt) return;
-
-    this.logger.info(
-      {
-        event: "user.resolve.rejected_deletion_in_progress",
-        userId: user.id,
-        audit: true,
-      },
-      "Rejected resolve for account with deletion in progress",
-    );
-    // The client gets the generic 401, never told the account is going; the
-    // reason only reaches the log line.
-    throw new UnauthorizedException(RESPONSE_TEMPLATES.TOKEN_REJECTED("the account's deletion is in progress"));
   }
 
   private rejectTombstoned(formerUserId: string): never {
@@ -500,10 +515,7 @@ export class UsersService {
       include: userWithDetailsInclude,
     });
 
-    if (existing) {
-      this.assertNotDeleting(existing);
-      return existing;
-    }
+    if (existing) return existing;
 
     const tombstone = await this.prisma.deletedProviderSub.findUnique({
       where: { providerSubHash: hashProviderSub(sub) },

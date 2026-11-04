@@ -359,6 +359,8 @@ export const usersControllerCheckUsernameAvailabilityOptions = (
 
 /**
  * Delete current user
+ *
+ * Checks first that the deletion can finish (Auth0 management access, and Sign in with Apple revocation for an Apple identity); if not, 503 ACCOUNT_DELETION_UNAVAILABLE and nothing is changed. An account whose deletion has already started may call this again to resume it; every other route answers it 401 ACCOUNT_DELETION_IN_PROGRESS, as does this one while the background job is finishing it.
  */
 export const usersControllerRemoveMeMutation = (
   options?: Partial<Options<UsersControllerRemoveMeData>>,

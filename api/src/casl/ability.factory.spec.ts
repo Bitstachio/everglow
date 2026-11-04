@@ -20,6 +20,7 @@ describe("AbilityFactory", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    deletionClaimedUntil: null,
     termsAcceptedAt: null,
     platformRole: null,
     suspendedAt: null,

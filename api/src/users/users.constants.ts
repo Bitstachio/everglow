@@ -27,6 +27,16 @@ export const APPLE_PROVIDER = "apple";
 export const isAppleProviderSub = (providerSub: string): boolean => providerSub.startsWith(`${APPLE_PROVIDER}|`);
 
 export const DEFAULT_ACCOUNT_DELETION_RECONCILER_BATCH_SIZE = 50;
+
+// The reconciler leaves a deletion this young to the request that started it:
+// a pass that is still running, or a person about to tap Try again.
+export const ACCOUNT_DELETION_RECONCILER_MIN_AGE_MINUTES = 10;
+
+// How long one pass of the saga holds its row. Longer than a pass can take
+// (prep's 30 s transaction, the Apple and Auth0 calls, the purge), so a live
+// pass never loses it; short enough that a crashed one frees the row soon.
+// A failed pass gives it up at once.
+export const ACCOUNT_DELETION_CLAIM_LEASE_SECONDS = 5 * 60;
 export const DEFAULT_ACCOUNT_DELETION_RECONCILER_STUCK_AFTER_HOURS = 1;
 
 // A saga that has failed this many times is not going to succeed by being run

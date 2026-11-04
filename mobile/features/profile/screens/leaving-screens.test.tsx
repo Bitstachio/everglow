@@ -8,8 +8,10 @@ import DeleteAccountScreen from "./delete-account-screen";
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+let mockParams: { apple?: string } = {};
 jest.mock("expo-router", () => ({
   router: { replace: (href: unknown) => mockReplace(href), push: (href: unknown) => mockPush(href) },
+  useLocalSearchParams: () => mockParams,
 }));
 const mockLogout = jest.fn();
 let mockAuthLoading = false;
@@ -114,10 +116,22 @@ describe("14.11 Delete account", () => {
 });
 
 test("14.12 Deleted goes back to the start", async () => {
+  mockParams = {};
   await renderScreen(<AccountDeletedScreen />);
   expect(screen.getByRole("header", { name: "Your account\nis deleted." })).toBeOnTheScreen();
+  expect(screen.queryByText(/Sign in with Apple/)).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Back to the start" }));
   expect(mockReplace).toHaveBeenCalledWith("/login");
+});
+
+test("14.12 Deleted tells an Apple account where to remove Everglow from its Apple ID", async () => {
+  mockParams = { apple: "1" };
+  await renderScreen(<AccountDeletedScreen />);
+  expect(
+    screen.getByText(
+      "Signed in with Apple? In Settings, open your Apple ID, then Sign in with Apple, and remove Everglow if it’s still there.",
+    ),
+  ).toBeOnTheScreen();
 });
 
 describe("14.13 Suspended account", () => {

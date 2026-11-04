@@ -45,6 +45,7 @@ describe("JwtStrategy", () => {
     auth0DeletedAt: null,
     deletionPhotoPolicy: null,
     deletionAttempts: 0,
+    deletionClaimedUntil: null,
     termsAcceptedAt: null,
     platformRole: null,
     suspendedAt: null,
@@ -98,7 +99,13 @@ describe("JwtStrategy", () => {
       const result = await strategy.validate(payload);
 
       expect(usersService.resolveByProviderSub).toHaveBeenCalledWith(providerSub, payload.iat);
-      expect(result).toEqual({ id: userId, sub: providerSub, suspended: false });
+      expect(result).toEqual({ id: userId, sub: providerSub, suspended: false, deletionInProgress: false });
+    });
+
+    it("marks an account whose deletion has started, for JwtAuthGuard to refuse", async () => {
+      usersService.resolveByProviderSub.mockResolvedValue({ ...resolvedUser, deletionStartedAt: new Date() });
+
+      await expect(strategy.validate(payload)).resolves.toMatchObject({ deletionInProgress: true });
     });
 
     it("marks a suspended account, for JwtAuthGuard to refuse", async () => {

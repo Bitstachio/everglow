@@ -8,12 +8,13 @@ import { Alert } from "react-native";
  * 01.2 Welcome. Start a roll and Sign in both open Auth0 Universal Login; the
  * first lands on its sign-up screen. Cancelling the browser does nothing.
  * After a 401 the route carries `signedOut=1` and the welcome opens with the
- * signed-out slip (01.8).
+ * signed-out slip (01.8), or `deleting=1` when the account is being deleted,
+ * with a slip that says so instead.
  */
 export const useWelcomeScreen = () => {
   const { login, signup, isLoading } = useAuth();
   const { t } = useTranslation(["start", "common"]);
-  const { signedOut } = useLocalSearchParams<{ signedOut?: string }>();
+  const { signedOut, deleting } = useLocalSearchParams<{ signedOut?: string; deleting?: string }>();
   const [slipDismissed, setSlipDismissed] = useState(false);
 
   const run = (action: () => Promise<void>) => async () => {
@@ -33,7 +34,8 @@ export const useWelcomeScreen = () => {
     isLoading,
     onStart: run(signup),
     onSignIn,
-    showSignedOut: signedOut === "1" && !slipDismissed,
+    showSignedOut: signedOut === "1" && deleting !== "1" && !slipDismissed,
+    showDeleting: deleting === "1" && !slipDismissed,
     onDismissSignedOut: () => setSlipDismissed(true),
     onSignInAgain: () => {
       setSlipDismissed(true);
