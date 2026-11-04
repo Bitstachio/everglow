@@ -32,8 +32,30 @@ export const EXPIRED_UPLOAD_SLOT_AGE_SECONDS = UPLOAD_URL_TTL_SECONDS + UPLOAD_C
 
 export const PHOTO_S3_KEY_PREFIX = "photos/";
 
-export const buildPhotoS3Key = (userId: string, eventId: string, photoId: string): string =>
-  `${PHOTO_S3_KEY_PREFIX}${userId}/${eventId}/${photoId}`;
+/**
+ * `photos/{eventId}/{photoId}`. The key names the event and the photo, never
+ * the uploader: every presigned URL carries the key, and a photo kept after
+ * its uploader deleted their account must not be groupable, across events, by
+ * the id of the person who added it (docs/account-deletion.md §6a).
+ *
+ * Unique because the photo id is: a fresh UUID that is also the row's primary
+ * key, with `Photo.s3Key` unique on top. The pre-#38 layout had the same
+ * shape and used the row id too, so the two cannot collide either.
+ */
+export const buildPhotoS3Key = (eventId: string, photoId: string): string =>
+  `${PHOTO_S3_KEY_PREFIX}${eventId}/${photoId}`;
+
+// photos/{uploaderId}/{eventId}/{photoId}: what #38 to EV-205 minted. Rows
+// minted then keep their key until the uploader's account is deleted with
+// KEEP, which moves the photo to buildPhotoS3Key (account deletion's outbox).
+const UPLOADER_PHOTO_S3_KEY_PATTERN = new RegExp(
+  `^${PHOTO_S3_KEY_PREFIX}(${S3_KEY_UUID_SEGMENT})/(${S3_KEY_UUID_SEGMENT})/(${S3_KEY_UUID_SEGMENT})$`,
+  "i",
+);
+
+/** The uploader id a key of the uploader layout embeds, or null for any other key. */
+export const uploaderIdInPhotoS3Key = (key: string): string | null =>
+  UPLOADER_PHOTO_S3_KEY_PATTERN.exec(key)?.[1]?.toLowerCase() ?? null;
 
 // The image processor's renditions of an original (functions/image-processor/src/keys.ts):
 // derived/{originalKey}/thumb.webp and derived/{originalKey}/large.jpg.
@@ -72,11 +94,12 @@ export const withPhotoDerivativeS3Keys = (keys: string[]): string[] =>
     return [key, thumb, large];
   });
 
-// The current photos/{userId}/{eventId}/{photoId} layout plus the pre-#38
-// photos/{eventId}/{photoId} layout, whose rows still reference their old keys.
+// The current photos/{eventId}/{photoId} layout (also the pre-#38 one) plus
+// the photos/{uploaderId}/{eventId}/{photoId} layout between them, whose rows
+// still reference their keys.
 const PHOTO_S3_KEY_PATTERNS = [
-  new RegExp(`^${PHOTO_S3_KEY_PREFIX}${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}$`, "i"),
   new RegExp(`^${PHOTO_S3_KEY_PREFIX}${S3_KEY_UUID_SEGMENT}/${S3_KEY_UUID_SEGMENT}$`, "i"),
+  UPLOADER_PHOTO_S3_KEY_PATTERN,
 ];
 
 /** True for keys the API could have minted; anything else under the prefix is not ours to touch. */

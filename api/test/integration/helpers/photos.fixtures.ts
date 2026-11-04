@@ -19,7 +19,7 @@ export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
   id: TEST_PHOTO_ID,
   eventId: TEST_EVENT_ID,
   addedById: TEST_USER_ID,
-  s3Key: buildPhotoS3Key(TEST_USER_ID, TEST_EVENT_ID, TEST_PHOTO_ID),
+  s3Key: buildPhotoS3Key(TEST_EVENT_ID, TEST_PHOTO_ID),
   contentType: "image/jpeg",
   sizeBytes: 1024,
   status: PhotoStatus.READY,

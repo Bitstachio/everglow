@@ -19,7 +19,7 @@ The three-step protocol this shares with avatars and event covers, and the per-p
 2. **API mints slots.**
    For each file, API:
    - validates contentType allowlist + size cap
-   - generates a `photoId` (uuid) and `s3Key = photos/{userId}/{eventId}/{photoId}` (one bucket, one prefix per uploader)
+   - generates a `photoId` (uuid) and `s3Key = photos/{eventId}/{photoId}` (one bucket; the key never names the uploader, see the key layout below)
    - reserves the batch against the event's gallery storage and inserts a `Photo` row with `status: PENDING` per file — both in one Serializable transaction (see §9)
    - signs an S3 PUT URL (TTL ~1 hour, long enough to survive a backgrounded upload on flaky cellular), after the transaction has committed. The URL is bound to the key, the declared `contentType`, and the declared `sizeBytes`. S3 rejects a PUT whose `Content-Type` differs; whether it enforces a signed `Content-Length` is unverified against a real bucket (public reports say it does not), so the size guarantee is confirm's `HeadObject` check
    - if presigning fails after the commit, deletes the batch's `PENDING` rows again so no quota is held for URLs that never reached the client
@@ -42,13 +42,33 @@ The client uploads straight to S3 without our API ever seeing the bytes. No band
 
 ### S3 key layout
 
-One shared bucket per environment (`everglow-photos-dev`, etc.). Objects are grouped by uploader:
+One shared bucket per environment (`everglow-photos-dev`, etc.). Objects are grouped by event:
 
 ```
-photos/{userId}/{eventId}/{photoId}
+photos/{eventId}/{photoId}
 ```
 
-`userId` is the uploader's `addedById`. This keeps each user's objects under one prefix (useful for account deletion sweeps and future per-user lifecycle rules) while events remain the domain boundary in the API. The `s3Key` is stored on the `Photo` row at slot creation and never changes.
+The key names the event and the photo, never the uploader (`buildPhotoS3Key`). Every presigned URL carries the key, so an uploader id in it would let any member group a person's photos across events by that id, and it would stay on photos kept after the person deleted their account ([account-deletion.md §6a](./account-deletion.md#6a-what-happens-to-the-accounts-data)). The key is unique because the photo id is: a fresh UUID that is also the row's primary key, with `Photo.s3Key` unique on top. The `s3Key` is stored on the `Photo` row at slot creation; the one thing that changes it is account deletion with `?photos=KEEP` moving a photo off the older layout below.
+
+Two older layouts are still on rows and in the bucket, and every path that reads keys accepts all of them (`isPhotoS3Key`, the derived-key helpers, the image processor):
+
+- `photos/{uploaderId}/{eventId}/{photoId}`, minted from #38 until EV-205. When the uploader deletes their account with KEEP, prep queues each such photo in the account-deletion outbox and the drain copies the original and its renditions to `photos/{eventId}/{photoId}`, points the row (and any report evidence still waiting for its copy) at the new key, then deletes the old objects. Photos of accounts that still exist keep their key; nothing about them is exposed that the uploader id on the row does not already say to the members who can see it.
+- `photos/{eventId}/{photoId}` from before #38, the same shape as today's.
+
+Photos kept by accounts deleted before EV-205 still carry their former uploader's id. The one-off migration below moves them with the same machinery; it is opt-in and run by hand, once, in the environment whose database owns the bucket:
+
+```sql
+-- Queue every kept photo whose uploader is gone and whose key still names one.
+INSERT INTO "AccountDeletionOutbox" ("id", "userId", "action", "s3Key", "photoId", "targetS3Key", "createdAt")
+SELECT gen_random_uuid(), split_part("s3Key", '/', 2)::uuid, 'REKEY', "s3Key", "id",
+       'photos/' || "eventId" || '/' || "id", now() - interval '1 hour'
+FROM "Photo"
+WHERE "addedById" IS NULL AND "status" = 'READY'
+  AND "s3Key" ~ '^photos/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}$'
+ON CONFLICT ("action", "s3Key") DO NOTHING;
+```
+
+The account-deletion reconciler drains entries older than 10 minutes on its next run, in batches of 500 (`ACCOUNT_DELETION_RECONCILER_ENABLED` must be on there). Progress is the row count left in `AccountDeletionOutbox` with `action = 'REKEY'`; a photo whose move keeps failing is dropped after 24 attempts with `user.account.deletion_outbox.given_up` and keeps its old key. Each move is a copy, an update and a delete, so running the statement again only queues what is left. Evidence copies already made (`evidence/{reportId}/{original key}`) keep the key they were copied from; they go with their report.
 
 ### Why a PENDING/READY status
 
@@ -352,7 +372,7 @@ The job is not specific to photos. It lives in `api/src/storage` and walks a reg
 - **Service:** `S3OrphanReconcilerService.reconcileOrphanedObjects()`
 - **Schedule:** daily at 03:00 via `S3OrphanReconcilerScheduler` (`@nestjs/schedule`). Every run lists every registered prefix end to end, which is not worth doing hourly, and orphans cost money rather than correctness.
 - **Walk:** `S3Service.listObjects()` (`ListObjectsV2`) under each registered prefix (`photos/` here), one page of up to 1000 keys at a time, end to end on every run. Nothing is loaded into memory beyond the current page.
-- **Candidates:** keys shaped like `photos/{userId}/{eventId}/{photoId}` or the legacy `photos/{eventId}/{photoId}` (UUID segments, `isPhotoS3Key()`), with `LastModified` older than `PHOTO_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS` (default **24h**, `0` disables the buffer; a source may set a floor under it, which image prefixes do). Anything else under the prefix is skipped and never deleted.
+- **Candidates:** keys shaped like `photos/{eventId}/{photoId}` or the older `photos/{uploaderId}/{eventId}/{photoId}` (UUID segments, `isPhotoS3Key()`), with `LastModified` older than `PHOTO_ORPHAN_RECONCILER_MIN_OBJECT_AGE_HOURS` (default **24h**, `0` disables the buffer; a source may set a floor under it, which image prefixes do). Anything else under the prefix is skipped and never deleted.
 - **Lookup:** `OrphanSource.findReferencedKeys()`, for photos one `Photo.findMany({ s3Key: { in } })` per page. `s3Key` is unique, so this is an index probe per key without a round trip per key. A key with a row in **any** status is left alone; `PENDING` rows belong to the stale-PENDING cleanup.
 - **Delete:** `DeleteObject` per orphan, at most `PHOTO_ORPHAN_RECONCILER_BATCH_SIZE` per run (default **100**), shared by all prefixes. The cap bounds the blast radius of a bad run more than the work: when it is hit the summary reports `completed: false` and the next run picks up the rest. Failed deletes count against the cap and are retried next run.
 - **Where:** only in the one environment whose database owns `AWS_S3_BUCKET`, the deployed API that wrote the rows. Every other environment that shares the bucket (local dev, compose, a second dev database) must leave it off, for `photos/` and `derived/photos/` alike.

@@ -119,7 +119,7 @@ describe("PhotosService", () => {
     id: photoId,
     eventId,
     addedById: callerId,
-    s3Key: buildPhotoS3Key(callerId, eventId, photoId),
+    s3Key: buildPhotoS3Key(eventId, photoId),
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "PENDING",
@@ -285,7 +285,7 @@ describe("PhotosService", () => {
             contentType: files[index].contentType,
             sizeBytes: files[index].sizeBytes,
             status: "PENDING",
-            s3Key: buildPhotoS3Key(callerId, eventId, row.id as string),
+            s3Key: buildPhotoS3Key(eventId, row.id as string),
           });
         }
 
@@ -449,9 +449,7 @@ describe("PhotosService", () => {
       expect(results).toEqual([{ photoId, status: "MISMATCHED" }]);
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
       // Object first, then the row, same order as a manual delete.
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith(
-        withDerivatives(buildPhotoS3Key(callerId, eventId, photoId)),
-      );
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives(buildPhotoS3Key(eventId, photoId)));
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(photoId));
       expect(s3Service.deleteObjects.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.deleteMany.mock.invocationCallOrder[0],
@@ -505,7 +503,7 @@ describe("PhotosService", () => {
       });
       expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(
-        withDerivatives(buildPhotoS3Key(callerId, eventId, mismatchedPhotoId)),
+        withDerivatives(buildPhotoS3Key(eventId, mismatchedPhotoId)),
       );
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId, mismatchedPhotoId));
     });
@@ -525,7 +523,7 @@ describe("PhotosService", () => {
         { photoId, status: "READY" },
         { photoId: otherPhotoId, status: "MISSING" },
       ]);
-      expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(callerId, eventId, photoId));
+      expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [photoId] } },
         data: { status: "READY" },
@@ -779,7 +777,7 @@ describe("PhotosService", () => {
       });
       expect(result).not.toHaveProperty("event");
       expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith({
-        key: buildPhotoS3Key(callerId, eventId, photoId),
+        key: buildPhotoS3Key(eventId, photoId),
         expiresInSeconds: 900,
       });
     });
@@ -843,9 +841,7 @@ describe("PhotosService", () => {
 
       await service.deletePhoto(photoId, callerId);
 
-      expect(s3Service.deleteObjects).toHaveBeenCalledWith(
-        withDerivatives(buildPhotoS3Key(callerId, eventId, photoId)),
-      );
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives(buildPhotoS3Key(eventId, photoId)));
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
       expect(s3Service.deleteObjects.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.photo.delete.mock.invocationCallOrder[0],
@@ -932,7 +928,7 @@ describe("PhotosService", () => {
     });
 
     it("keeps the row when S3 refuses the original, even though its derived copies went", async () => {
-      const original = buildPhotoS3Key(callerId, eventId, photoId);
+      const original = buildPhotoS3Key(eventId, photoId);
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);
       s3Service.deleteObjects.mockResolvedValueOnce({
@@ -945,7 +941,7 @@ describe("PhotosService", () => {
     });
 
     it("deletes the row when only a derived copy is refused, leaving it to the backstops", async () => {
-      const original = buildPhotoS3Key(callerId, eventId, photoId);
+      const original = buildPhotoS3Key(eventId, photoId);
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);
       s3Service.deleteObjects.mockResolvedValueOnce({
@@ -965,7 +961,7 @@ describe("PhotosService", () => {
 
       await service.deletePhoto(photoId, callerId);
 
-      expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([buildPhotoS3Key(callerId, eventId, photoId)]);
+      expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([buildPhotoS3Key(eventId, photoId)]);
       // Neither the original nor its renditions: the evidence job deletes all three once the copy is made.
       expect(s3Service.deleteObjects).not.toHaveBeenCalled();
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });

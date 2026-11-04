@@ -35,7 +35,7 @@ describe("PhotoStorageService", () => {
       id,
       eventId,
       addedById: userId,
-      s3Key: buildPhotoS3Key(userId, eventId, id),
+      s3Key: buildPhotoS3Key(eventId, id),
       contentType: "image/jpeg",
       sizeBytes,
       status: PhotoStatus.PENDING,
