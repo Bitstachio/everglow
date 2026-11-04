@@ -384,6 +384,25 @@ describe("open (07.4–07.8)", () => {
     expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
   });
 
+  test("a frame kept by a deleted account is signed Deleted account with a ghost; a departed member's stays unsigned", async () => {
+    await renderScreen({
+      event: openEvent(),
+      participants: [host],
+      photos: [
+        buildPhoto({ id: "photo-2", addedById: null, createdAt: fromNow(-DAY) }),
+        buildPhoto({ id: "photo-1", addedById: "departed", createdAt: fromNow(-2 * DAY) }),
+      ],
+    });
+
+    const kept = within(await screen.findByLabelText("Frame 2, by Deleted account"));
+    expect(kept.getByText("Deleted account", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(kept.getByTestId("deleted-avatar", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(kept.queryByTestId("avatar-image", { includeHiddenElements: true })).toBeNull();
+    const departed = within(screen.getByLabelText("Frame 1"));
+    expect(departed.queryByText(/\S/, { includeHiddenElements: true })).toBeNull();
+    expect(departed.queryByTestId("deleted-avatar", { includeHiddenElements: true })).toBeNull();
+  });
+
   test("a guest gets People instead of Invite", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ participants: [host, guest], photos: oneFrame });

@@ -114,6 +114,12 @@ export type SheetFrame = {
   number: number;
   /** The uploader's first name, "You", or null once they've left or deleted their account. */
   by: string | null;
+  /**
+   * The uploader deleted their account and kept the frame (the API clears the
+   * uploader). Shown as "Deleted account", never as who it was. Someone who
+   * merely left the roll still has an uploader id and stays unsigned.
+   */
+  deleted: boolean;
   /** Only current participants can supply an uploader portrait. */
   uploader: Pick<EventParticipantResponseDto, "userId" | "name" | "avatarUrl" | "username"> | null;
   /** Added by someone else since the caller last looked. */
@@ -137,6 +143,7 @@ export const sheetFrames = (
       number: photos.length - index,
       by: mine ? you : uploader?.name ? firstName(uploader.name) : null,
       uploader: uploader ?? null,
+      deleted: photo.addedById === null,
       isNew: since !== null && !mine && new Date(photo.createdAt).getTime() > since,
     };
   });

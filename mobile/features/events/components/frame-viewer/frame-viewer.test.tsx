@@ -23,7 +23,7 @@ jest.mock("react-native/Libraries/Modal/Modal", () => {
 });
 
 const props = (): ComponentProps<typeof FrameViewer> => {
-  const frame = { photo: buildPhoto(), number: 1, by: "You", uploader: null, isNew: false };
+  const frame = { photo: buildPhoto(), number: 1, by: "You", uploader: null, deleted: false, isNew: false };
   return {
     frame,
     canDelete: false,
@@ -61,6 +61,7 @@ const roll = (count: number) =>
     number: page + 1,
     by: "You",
     uploader: null,
+    deleted: false,
     isNew: false,
   }));
 
@@ -535,4 +536,17 @@ test("changing photos clears a closing menu's deferred action", async () => {
   expect(input.onSave).not.toHaveBeenCalled();
   await user.press(screen.getAllByRole("button", { name: "More" })[0]);
   expect(screen.getByText("Leila’s frame")).toBeOnTheScreen();
+});
+
+test("a frame kept by a deleted account is signed as one, not as an unknown photographer", async () => {
+  const input = props();
+  input.isOwn = false;
+  input.frame = { ...input.frame!, photo: buildPhoto({ addedById: null }), by: null, deleted: true };
+  input.frames = [input.frame];
+  await render(<FrameViewer {...input} />);
+  expect(screen.getByRole("adjustable").props.accessibilityLabel).toMatch(/^Deleted account · /);
+  expect(screen.getByLabelText("Frame by Deleted account")).toBeOnTheScreen();
+  expect(screen.queryByText("Unknown photographer", { includeHiddenElements: true })).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getAllByRole("button", { name: "More" })[0]);
+  expect(screen.getByText("Frame from a deleted account")).toBeOnTheScreen();
 });

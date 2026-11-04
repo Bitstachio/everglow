@@ -38,6 +38,7 @@
     "edge": "Frame {{number}}",
     "edgeBy": "Frame {{number}} · {{name}}",
     "you": "You",
+    "deletedAccount": "Deleted account",
     "new": "{{label}}, new"
   },
   "footer": {
@@ -132,9 +133,11 @@
     "moreAction": "More ⋯",
     "ownFrame": "Your frame",
     "someoneFrame": "{{name}}’s frame",
+    "deletedFrame": "Frame from a deleted account",
     "byline": "By {{name}} · {{time}}",
     "deleteOwn": "Delete for everyone",
     "deleteOther": "Delete {{name}}’s frame",
+    "deleteDeleted": "Delete this frame",
     "loading": "Loading frame",
     "loadFailed": "Couldn’t load this frame.",
     "retry": "Try again",

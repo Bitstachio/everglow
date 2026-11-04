@@ -1,5 +1,8 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { ThemedText } from "@/components/ui/themed-text";
+import { colorTokens } from "@/theme/tokens";
 import { Image } from "expo-image";
+import { Ghost } from "phosphor-react-native";
 import { useState } from "react";
 import { View } from "react-native";
 
@@ -22,6 +25,9 @@ const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string }> = {
 };
 
 const FILL = { width: "100%", height: "100%" } as const;
+
+// The ghost fills a little over half the portrait at every size.
+const GHOST_PX: Record<AvatarSize, number> = { caption: 10, md: 22, header: 22, lg: 44 };
 
 export const getInitial = (name: string | null | undefined): string => name?.trim().charAt(0).toUpperCase() || "E";
 
@@ -62,3 +68,18 @@ export const Avatar = ({ userId, name, uri, size = "md" }: AvatarProps) => {
     </View>
   );
 };
+
+/**
+ * The portrait of an uploader who deleted their account: one ghost for every
+ * such person, so frames can't be grouped back to whoever took them.
+ */
+export const DeletedAvatar = ({ size = "md" }: { size?: AvatarSize }) => (
+  <View
+    testID="deleted-avatar"
+    accessibilityElementsHidden
+    importantForAccessibility="no-hide-descendants"
+    className={`${SIZE_CLASSES[size].container} items-center justify-center overflow-hidden bg-frame-empty`}
+  >
+    <AppIcon icon={Ghost} size={GHOST_PX[size]} color={colorTokens.muted} />
+  </View>
+);

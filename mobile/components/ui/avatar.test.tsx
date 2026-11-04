@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
-import { Avatar, getAvatarCacheKey, getInitial } from "./avatar";
+import { Avatar, DeletedAvatar, getAvatarCacheKey, getInitial } from "./avatar";
 
 // The avatar is decorative, so it is hidden from accessibility queries by default.
 const hidden = { includeHiddenElements: true };
@@ -23,6 +23,13 @@ test("falls back to the initial when the image fails to load", async () => {
   await render(<Avatar userId="user-1" name="Ada" uri={signedUrl("a")} />);
   await fireEvent(screen.getByTestId("avatar-image", hidden), "error", { nativeEvent: { error: "expired" } });
   expect(screen.getByText("A", hidden)).toBeOnTheScreen();
+});
+
+test("a deleted account gets the one ghost portrait, never an image or an initial", async () => {
+  await render(<DeletedAvatar size="caption" />);
+  expect(screen.getByTestId("deleted-avatar", hidden)).toBeOnTheScreen();
+  expect(screen.queryByTestId("avatar-image", hidden)).toBeNull();
+  expect(screen.queryByText(/./, hidden)).toBeNull();
 });
 
 test("uses a placeholder initial when the name is empty", () => {

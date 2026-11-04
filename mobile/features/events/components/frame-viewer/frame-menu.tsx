@@ -72,7 +72,11 @@ export const FrameMenu = ({
           </View>
           <View className="flex-1 gap-1">
             <Text className="font-sans-medium text-name text-text">
-              {isOwn ? t("viewer.ownFrame") : t("viewer.someoneFrame", { name })}
+              {isOwn
+                ? t("viewer.ownFrame")
+                : frame?.deleted
+                  ? t("viewer.deletedFrame")
+                  : t("viewer.someoneFrame", { name })}
             </Text>
             <EdgePrint size="frame-label">
               {t("viewer.byline", { name: isOwn ? t("frame.you") : name, time })}
@@ -84,7 +88,13 @@ export const FrameMenu = ({
         <FrameAction label={t("gallery.share")} icon={ShareNetwork} onPress={onShare} />
         {canDelete ? (
           <FrameAction
-            label={isOwn ? t("viewer.deleteOwn") : t("viewer.deleteOther", { name })}
+            label={
+              isOwn
+                ? t("viewer.deleteOwn")
+                : frame?.deleted
+                  ? t("viewer.deleteDeleted")
+                  : t("viewer.deleteOther", { name })
+            }
             icon={Trash}
             onPress={onDelete}
           />

@@ -1,7 +1,7 @@
 import { GalleryProgress, GallerySelectionBar, GalleryUnsaved, SaveRollSheet } from "../components/gallery-controls";
 import { GalleryDeleteSheet } from "../components/gallery-delete-sheet";
 import { AppIcon } from "@/components/ui/app-icon";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, DeletedAvatar } from "@/components/ui/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { ContactFrame } from "@/components/ui/contact-frame";
@@ -57,8 +57,12 @@ type SheetItem = { kind: "photo"; frame: SheetFrame } | { kind: "developing"; fr
 
 const value = <EdgeValue>{null}</EdgeValue>;
 
-const uploaderAvatar = (uploader: SheetFrame["uploader"]) =>
-  uploader ? <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" /> : null;
+const uploaderAvatar = (uploader: SheetFrame["uploader"], deleted = false) =>
+  uploader ? (
+    <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" />
+  ) : deleted ? (
+    <DeletedAvatar size="caption" />
+  ) : null;
 
 /** The result of an action, for a few seconds over the foot of the roll. */
 const Notice = ({ message, className = "", style }: { message: string; className?: string; style?: ViewStyle }) => (
@@ -355,9 +359,11 @@ const EventDetailScreen = () => {
     </View>
   );
 
+  const frameBy = (frame: SheetFrame) => frame.by ?? (frame.deleted ? t("frame.deletedAccount") : null);
   const frameLabel = (frame: SheetFrame) => {
-    const label = frame.by
-      ? t("frame.labelBy", { number: frame.number, name: frame.by })
+    const by = frameBy(frame);
+    const label = by
+      ? t("frame.labelBy", { number: frame.number, name: by })
       : t("frame.label", { number: frame.number });
     return frame.isNew ? t("frame.new", { label }) : label;
   };
@@ -371,8 +377,8 @@ const EventDetailScreen = () => {
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
           onPreviewReady={() => screen.onPreviewReady(item.frame.photo.id)}
           number={item.frame.number}
-          by={item.frame.by ?? undefined}
-          avatar={uploaderAvatar(item.frame.uploader)}
+          by={frameBy(item.frame) ?? undefined}
+          avatar={uploaderAvatar(item.frame.uploader, item.frame.deleted)}
           isNew={item.frame.isNew}
           ringSeed={frameSeed(item.frame.photo.id)}
           selected={screen.selectedIds.has(item.frame.photo.id)}
