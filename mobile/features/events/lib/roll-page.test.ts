@@ -159,6 +159,17 @@ describe("sheetFrames", () => {
     ]);
   });
 
+  it("marks only a frame whose uploader is gone from the row as from a deleted account", () => {
+    const frames = sheetFrames(
+      [buildPhoto({ addedById: "departed" }), buildPhoto({ addedById: null }), buildPhoto({ addedById: "maya" })],
+      participants,
+      "user-1",
+      null,
+      "You",
+    );
+    expect(frames.map((frame) => frame.deleted)).toEqual([false, true, false]);
+  });
+
   it("ticks other people's frames added since the last visit", () => {
     const frames = sheetFrames(photos, participants, "user-1", "2026-10-09T12:00:00.000Z", "You");
     expect(frames.map((frame) => frame.isNew)).toEqual([true, false, false]);
