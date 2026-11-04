@@ -125,6 +125,8 @@ describe("PhotosController (integration)", () => {
     s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
     s3Service.deleteObjects.mockImplementation((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] }));
     s3Service.sha256OfObject.mockResolvedValue(sha256);
+    // No upload matches a removed image unless a test says so.
+    prisma.reportEvidence.findMany.mockResolvedValue([]);
   });
 
   describe("POST /events/:eventId/photos/upload-urls", () => {
@@ -315,6 +317,39 @@ describe("PhotosController (integration)", () => {
         where: { id: { in: [TEST_PHOTO_ID, TEST_OTHER_PHOTO_ID] }, eventId: TEST_EVENT_ID, addedById: TEST_USER_ID },
       });
       expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 422 PHOTO_REJECTED_MATCHES_REMOVED_IMAGE for the bytes of an intimate image removed within the retention window", async () => {
+      const photo = buildPhoto({ status: "PENDING" });
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findMany.mockResolvedValue([photo]);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.reportEvidence.findMany.mockResolvedValue([{ sha256, reportId: "removed-report" }] as never);
+
+      const before = Date.now();
+      const response = await request(httpServer)
+        .post(confirmPath())
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID] })
+        .expect(422);
+
+      expect(response.body).toMatchObject({ code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE" });
+      // Matched against actioned intimate-image reports closed within REPORT_RETENTION_DAYS, or held.
+      const [lookup] = prisma.reportEvidence.findMany.mock.calls[0] as [
+        { where: { report: { OR: [{ resolvedAt: { gte: Date } }, unknown] } } },
+      ];
+      expect(lookup).toMatchObject({
+        where: { sha256: { in: [sha256] }, report: { reason: "NON_CONSENSUAL_INTIMATE_IMAGE", status: "ACTIONED" } },
+      });
+      const cutoff = lookup.where.report.OR[0].resolvedAt.gte.getTime();
+      expect(before - cutoff).toBeGreaterThanOrEqual(365 * 24 * 60 * 60 * 1000 - 1000);
+      expect(before - cutoff).toBeLessThan(366 * 24 * 60 * 60 * 1000);
+      // The upload is discarded with its renditions and its slot released; nothing becomes READY.
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(photo.s3Key));
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
+      });
+      expect(prisma.photo.updateMany).not.toHaveBeenCalled();
     });
 
     it("returns 201 with MISSING and releases the slot when nothing was uploaded", async () => {
@@ -698,7 +733,7 @@ describe("PhotosController (integration)", () => {
 
       const result = await app.get(PhotoHashBackfillService).runBackfill();
 
-      expect(result).toEqual({ hashed: 1, failed: 0 });
+      expect(result).toEqual({ hashed: 1, failed: 0, removedImageMatches: 0 });
       expect(prisma.photo.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { status: "READY", sha256: null }, take: 100 }),
       );
@@ -707,6 +742,8 @@ describe("PhotosController (integration)", () => {
         where: { id: photo.id, sha256: null },
         data: { sha256 },
       });
+      // Nothing it hashed is a removed image, so nothing is removed.
+      expect(prisma.report.create).not.toHaveBeenCalled();
     });
   });
 });

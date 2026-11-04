@@ -5,6 +5,7 @@ import { PinoLogger } from "nestjs-pino";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { EvidenceService } from "./evidence.service";
+import { IdenticalCopiesService } from "./identical-copies.service";
 
 describe("EvidenceService", () => {
   const reportId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
@@ -16,6 +17,7 @@ describe("EvidenceService", () => {
   let prisma: DeepMockProxy<PrismaClient>;
   let s3Service: { copyObject: jest.Mock; deleteObject: jest.Mock; deleteObjects: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
+  let identicalCopies: { removeCopies: jest.Mock };
   let service: EvidenceService;
 
   beforeEach(() => {
@@ -31,11 +33,13 @@ describe("EvidenceService", () => {
         (key: string) => ({ "moderation.evidenceJobBatchSize": 50, "moderation.reportRetentionDays": 365 })[key],
       ),
     };
+    identicalCopies = { removeCopies: jest.fn().mockResolvedValue([]) };
     service = new EvidenceService(
       prisma as unknown as PrismaService,
       s3Service as unknown as S3Service,
       config as unknown as ConfigService,
       logger as unknown as PinoLogger,
+      identicalCopies as unknown as IdenticalCopiesService,
     );
     prisma.reportEvidence.update.mockResolvedValue({} as never);
   });
@@ -201,6 +205,27 @@ describe("EvidenceService", () => {
         where: { id: "ev-1" },
         data: { evidenceS3Key: null, objectS3Key: null, quarantineFailedAt: null },
       });
+    });
+
+    it("removes the image's identical copies first and discards their evidence with its own", async () => {
+      const copyReportId = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+      identicalCopies.removeCopies.mockResolvedValue([copyReportId]);
+      prisma.reportEvidence.findMany.mockResolvedValue([]);
+
+      await service.discardImages([reportId], now);
+
+      expect(identicalCopies.removeCopies).toHaveBeenCalledWith([reportId], now);
+      expect(prisma.reportEvidence.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ reportId: { in: [reportId, copyReportId] } }) as unknown,
+        }),
+      );
+    });
+
+    it("looks for no copies when no report closed", async () => {
+      await service.discardImages([]);
+
+      expect(identicalCopies.removeCopies).not.toHaveBeenCalled();
     });
 
     it("keeps the row pointing at a copy it could not delete, and alerts", async () => {

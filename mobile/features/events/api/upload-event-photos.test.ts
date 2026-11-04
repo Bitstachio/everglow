@@ -376,3 +376,61 @@ test.each(["MISSING", "NOT_FOUND", "MISMATCHED"])(
     expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
   },
 );
+
+describe("a photo the API refuses for good (PHOTO_REJECTED_MATCHES_REMOVED_IMAGE)", () => {
+  const refusal = () => createApiError("Can't be added", { status: 422, code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE" });
+
+  test("can't be added, while the rest of its batch develops", async () => {
+    mockConfirmUploads
+      .mockRejectedValueOnce(refusal())
+      .mockImplementationOnce(({ body }: { body: { photoIds: string[] } }) =>
+        Promise.resolve({
+          data: {
+            data: body.photoIds.map((photoId) => ({
+              photoId,
+              status: photoId === "photo-1" ? "NOT_FOUND" : "READY",
+            })),
+          },
+        }),
+      );
+    const onFile = jest.fn();
+
+    const result = await uploadEventPhotos("event-1", photoFiles(3), { onFile, put });
+
+    expect(result).toEqual({ total: 3, uploaded: 2, error: null });
+    // The refusal left the rest pending; confirming again gave their verdicts.
+    expect(mockConfirmUploads).toHaveBeenCalledTimes(2);
+    expect(lastUpdates(onFile)).toEqual([
+      { kind: "developed", photoId: "photo-0" },
+      { kind: "failed", reason: "cantAdd" },
+      { kind: "developed", photoId: "photo-2" },
+    ]);
+  });
+
+  test("is never minted and sent again when an interrupted upload is reconciled", async () => {
+    mockConfirmUploads
+      .mockRejectedValueOnce(refusal())
+      .mockResolvedValueOnce({ data: { data: [{ photoId: "previous", status: "NOT_FOUND" }] } });
+    const onFile = jest.fn();
+
+    await uploadEventPhotos(
+      "event-1",
+      photoFiles(1).map((file) => ({ ...file, resumePhotoId: "previous" })),
+      { onFile, put },
+    );
+
+    expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+    expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "cantAdd" }]);
+  });
+
+  test("leaves NOT_FOUND after any other failure as refused, which can be retried", async () => {
+    mockConfirmUploads
+      .mockRejectedValueOnce(new Error("Network unavailable"))
+      .mockResolvedValueOnce({ data: { data: [{ photoId: "photo-0", status: "NOT_FOUND" }] } });
+    const onFile = jest.fn();
+
+    await uploadEventPhotos("event-1", photoFiles(1), { onFile, put });
+
+    expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "refused" }]);
+  });
+});

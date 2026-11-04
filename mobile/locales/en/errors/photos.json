@@ -1,4 +1,5 @@
 {
+  "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE": "This photo can't be added.",
   "STORAGE_RESERVATION_CONFLICT": "Another batch is still developing. Please try again in a moment.",
   "VIEWER_CANNOT_UPLOAD": "You joined this roll to look, so you can't add photos to it."
 }

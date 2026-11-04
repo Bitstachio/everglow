@@ -10,7 +10,7 @@ describe("PhotoHashBackfillScheduler", () => {
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock };
   let enabled: boolean;
 
-  const idleRun = { hashed: 0, failed: 0 };
+  const idleRun = { hashed: 0, failed: 0, removedImageMatches: 0 };
 
   beforeEach(async () => {
     enabled = true;

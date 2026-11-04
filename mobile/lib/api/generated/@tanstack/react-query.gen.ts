@@ -639,6 +639,8 @@ export const photosControllerCreateUploadUrlsMutation = (
 
 /**
  * Confirm uploaded photos and mark them ready
+ *
+ * Per-photo verdicts. 422 PHOTO_REJECTED_MATCHES_REMOVED_IMAGE when any photo has the bytes of an image the platform removed: those uploads are discarded and nothing else changes, so confirm the rest again (the discarded ids then answer NOT_FOUND).
  */
 export const photosControllerConfirmUploadsMutation = (
   options?: Partial<Options<PhotosControllerConfirmUploadsData>>,

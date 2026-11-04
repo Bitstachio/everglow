@@ -108,6 +108,18 @@ test("08.5: says which can't be added and why, and removes them", async () => {
   expect(mockRemove).toHaveBeenCalledWith("IMG_2260.MOV");
 });
 
+test("a photo the roll refused for good says only that it can't be added, and can only be removed", async () => {
+  mockEntries = [entry("IMG_2240", { kind: "failed", reason: "cantAdd" })];
+  await renderScreen();
+
+  expect(title()).toHaveTextContent("1 can’t be added.");
+  expect(screen.getByLabelText("IMG_2240, Can’t be added")).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Retry IMG_2240" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Retry ↻" })).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Remove IMG_2240 from the tray" }));
+  expect(mockRemove).toHaveBeenCalledWith("IMG_2240");
+});
+
 test("offers Retry for files that didn't take, not Cancel", async () => {
   mockEntries = [entry("IMG_2231", { kind: "failed", reason: "connection" })];
   await renderScreen();
