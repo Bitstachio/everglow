@@ -269,6 +269,7 @@ Two things fix it, and both are needed.
 | `Event.deactivatedById`                                             | `SetNull` | Attribution of who deactivated the event only; it stays closed, and `deactivatedAt` stays set.                                                                           |
 | `UsernameChange.userId`                                             | `Cascade` | The change history only enforces this account's limit. (Holding released usernames for a cool-down, EV-30, may want to keep it.)                                         |
 | `UserBlock.blockerId`, `UserBlock.blockedId`                        | `Cascade` | A block means nothing once either account is gone.                                                                                                                       |
+| `UserDevice.userId`                                                 | `Cascade` | A phone registered for pushes stops receiving them with the account ([notifications.md](./notifications.md) §2).                                                       |
 
 **`AccountDeletionPrepService`** (step 3 of the happy path above) applies the product rules the schema cannot express: handing over or deleting events the account organised, discarding uploads in flight, applying the photo policy, and collecting the avatar's key. One transaction, idempotent, so the reconciler repeats it safely. It writes the S3 keys (photos, the covers of deleted events, and the avatar alike) to the outbox in the same transaction (§4), and returns what it did to each event the account organized alone.
 
@@ -302,6 +303,7 @@ The reconciler stays the **safety net** for crashes and for relations someone ad
 | Uploads in flight (`PENDING`)                 | Always discarded, objects purged.                                              |
 | Reports filed, received or resolved           | Kept with the account's id nulled, for the report retention window, not tied to the event (below). |
 | Blocks, in either direction                   | Deleted by cascade.                                                            |
+| Phones registered for pushes (`UserDevice`)   | Deleted by cascade. Nothing is sent to an account once its deletion starts.    |
 | A suspension, event bans                      | Carried on the tombstone: a later sign-in with the same identity gets them back (below). |
 
 ### What outlives the account

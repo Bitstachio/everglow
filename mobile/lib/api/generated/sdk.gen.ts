@@ -14,6 +14,12 @@ import type {
   BlocksControllerUnblockData,
   BlocksControllerUnblockErrors,
   BlocksControllerUnblockResponses,
+  DevicesControllerRegisterData,
+  DevicesControllerRegisterErrors,
+  DevicesControllerRegisterResponses,
+  DevicesControllerUnregisterData,
+  DevicesControllerUnregisterErrors,
+  DevicesControllerUnregisterResponses,
   EventsControllerConfirmCoverUploadData,
   EventsControllerConfirmCoverUploadErrors,
   EventsControllerConfirmCoverUploadResponses,
@@ -932,6 +938,38 @@ export const eventsControllerConfirmCoverUpload = <ThrowOnError extends boolean 
       ...options.headers,
     },
   });
+
+/**
+ * Register this phone for push notifications
+ *
+ * Call on every launch while signed in, and whenever the push token changes. Idempotent per token. A token registered to another account moves to the caller. Each account keeps its 10 most recently seen phones.
+ */
+export const devicesControllerRegister = <ThrowOnError extends boolean = false>(
+  options: Options<DevicesControllerRegisterData, ThrowOnError>,
+): RequestResult<DevicesControllerRegisterResponses, DevicesControllerRegisterErrors, ThrowOnError> =>
+  (options.client ?? client).put<DevicesControllerRegisterResponses, DevicesControllerRegisterErrors, ThrowOnError>({
+    responseType: "json",
+    url: "/api/v2/users/me/devices",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Stop push notifications to a phone
+ *
+ * Call on sign-out, before the access token is cleared. Idempotent: an unknown id is not an error.
+ */
+export const devicesControllerUnregister = <ThrowOnError extends boolean = false>(
+  options: Options<DevicesControllerUnregisterData, ThrowOnError>,
+): RequestResult<DevicesControllerUnregisterResponses, DevicesControllerUnregisterErrors, ThrowOnError> =>
+  (options.client ?? client).delete<
+    DevicesControllerUnregisterResponses,
+    DevicesControllerUnregisterErrors,
+    ThrowOnError
+  >({ url: "/api/v2/users/me/devices/{deviceId}", ...options });
 
 /**
  * List reports across events (platform moderators)
