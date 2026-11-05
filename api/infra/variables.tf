@@ -8,3 +8,9 @@ variable "allow_human_photo_reads" {
   type        = bool
   default     = false
 }
+
+variable "api_log_group_name" {
+  description = "CloudWatch log group Copilot creates for the API service (/copilot/<app>-<env>-<svc>). Saved queries and the dashboard read it. Terraform does not create the group; deploy the service first."
+  type        = string
+  default     = "/copilot/everglow-staging-api"
+}

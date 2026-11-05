@@ -199,3 +199,23 @@ import { PinoLogger } from "nestjs-pino";
 - [ ] Provide a `PinoLogger` stub in the service's unit test.
 - [ ] If someone should be alerted on an event, register it in `ALERT_EVENTS` and add it to
       [`alerting.md`](./alerting.md).
+
+---
+
+## 9. Searching production logs
+
+Production writes one JSON object per line to the CloudWatch log group Copilot creates for the service
+(`/copilot/<app>-<env>-<svc>`; the Terraform default is `/copilot/everglow-staging-api`). There is no log
+shipper in the API. Saved Logs Insights queries and a dashboard live in
+[`../infra/api-logs.tf`](../infra/api-logs.tf). They filter on fields, never on the message text.
+
+| Saved query | Replace | What it returns |
+| --- | --- | --- |
+| Everglow/API/lines for one request | `REQUEST_ID` | Every line for that request, oldest first. The id is `req.id` (the serializer in `logging.config.ts`). |
+| Everglow/API/lines for one event | `EVENT_NAME` | The last 100 lines with that `event`. |
+| Everglow/API/errors | | The last 100 lines at `level >= 50` (pino's error). |
+| Everglow/API/scheduler heartbeats | | The last 50 `*.run_completed` lines. |
+
+The dashboard (`copilot-everglow-staging-api`, unless the group name changes) charts `request.unhandled_error`
+and request volume, and shows the same error and heartbeat tables. Which of those lines page someone is
+[`alerting.md`](./alerting.md), not this file.
