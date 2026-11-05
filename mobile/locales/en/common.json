@@ -29,5 +29,8 @@
     "editTitle": "Edit Title",
     "editDescription": "Edit Description",
     "editDate": "Edit Date & Time"
+  },
+  "notes": {
+    "channel": "Notes"
   }
 }

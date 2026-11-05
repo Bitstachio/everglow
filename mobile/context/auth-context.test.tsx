@@ -1,4 +1,5 @@
 import { onAccountCleared } from "@/lib/account-cleared";
+import { onBeforeSignOut } from "@/lib/before-sign-out";
 import { toApiError } from "@/lib/api/errors";
 import { clearPendingInvite, savePendingInvite, takePendingInvite } from "@/lib/pending-invite";
 import { renderWithI18n } from "@/testing/render";
@@ -348,6 +349,27 @@ test("signing out forgets who was signed in, and the next sign-in is someone els
 
   await act(async () => result.current.login());
   expect(result.current.identity).toEqual(ben);
+});
+
+test("signing out runs the before-sign-out work while the session still works", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const order: string[] = [];
+  const unsubscribe = onBeforeSignOut(({ accountDeleted }) => {
+    order.push(`before:${accountDeleted}`);
+    return Promise.resolve();
+  });
+  mockLogoutFromAuth0.mockImplementation(() => {
+    order.push("auth0");
+    return Promise.resolve();
+  });
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => result.current.logout());
+  await act(async () => result.current.logout("/account-deleted"));
+  unsubscribe();
+
+  expect(order).toEqual(["before:false", "auth0", "before:true", "auth0"]);
 });
 
 test("a 401 forgets who was signed in", async () => {

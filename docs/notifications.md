@@ -21,10 +21,10 @@ own issues: the gallery opening ([EV-141](https://linear.app/mehrshadfb/issue/EV
 
 The app registers the phone it runs on, and the API keeps one `UserDevice` row per Expo push token.
 
-| Endpoint                              | When the app calls it                                                                      |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `PUT /users/me/devices`               | On every launch while signed in, and when the push token changes. Returns the device `id`. |
-| `DELETE /users/me/devices/:deviceId`  | On sign-out, before the access token is cleared.                                           |
+| Endpoint                             | When the app calls it                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `PUT /users/me/devices`              | On every launch while signed in, and when the push token changes. Returns the device `id`. |
+| `DELETE /users/me/devices/:deviceId` | On sign-out, before the access token is cleared.                                           |
 
 - **Idempotent per token.** A phone that registers again only updates `lastSeenAt`, `platform` and `locale`.
 - **A token moves between accounts.** If a phone signs in to another account, its row moves to that account, so
@@ -121,3 +121,21 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
   ```
 
   It sends a `TEST` notification to every phone the account has registered and prints what Expo answered.
+
+## 7. The app
+
+The mobile side lives in `mobile/features/notifications/`.
+
+- **Asking.** Once per phone, the first time someone joins a roll (06.6, "Want a note when photos land?"), and only
+  while the system has not asked yet. Never at launch. "Not now" is final; after that the person decides in the
+  system settings. The copy drops the drawing's "when people add a batch": no such notification is planned yet.
+- **Registering.** Each time an account is ready on the phone (launch, sign-in) and whenever the push token
+  changes, but only where notifications are already allowed. A simulator, or an app without an EAS project id,
+  has no token and registers nothing.
+- **Signing out.** The app unregisters the phone before it clears the session (`lib/before-sign-out.ts`), giving
+  up after 3 seconds. After deleting the account it skips this: the API removed the phones with the account. If
+  the request never arrives, the phone keeps that account's pushes until someone signs in on it, which moves the
+  token, or until Expo reports it gone.
+- **Tapping.** Opens the notification's `url` once an account is ready and the launch redirect has landed, so the
+  screen opens on top of Home. Only app paths are followed.
+- **In the foreground.** A notification shows as a banner, without sound.
