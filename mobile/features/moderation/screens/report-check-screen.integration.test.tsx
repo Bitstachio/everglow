@@ -81,7 +81,7 @@ const renderWithClient = (ui: React.ReactElement) => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockParams.mockReturnValue({ id: "event-1", photoId: "photo-144" });
+  mockParams.mockReturnValue({ id: "event-1", key: "frame:photo-144" });
   mockResolve.mockResolvedValue({ data: { data: report({ status: "ACTIONED" }), meta: {} } });
 });
 
@@ -106,7 +106,7 @@ test("10.8 lists one ticket per frame with its reasons, never who reported it", 
   await userEvent.setup().press(screen.getByRole("button", { name: /Frame 2/ }));
   expect(mockRouter.push).toHaveBeenCalledWith({
     pathname: "/events/[id]/report-check",
-    params: { id: "event-1", photoId: "photo-144" },
+    params: { id: "event-1", key: "frame:photo-144" },
   });
 });
 
@@ -128,7 +128,7 @@ test("10.9 one decision closes the frame's reports, then goes back to the list",
 
 test("a failed decision says so and stays", async () => {
   mockListReports.mockImplementation(() => listed([report()]));
-  mockResolve.mockRejectedValue(new Error("Offline"));
+  mockResolve.mockRejectedValue(createApiError("Network error. Please check your connection."));
   await renderWithClient(<ReportCheckScreen />);
 
   await userEvent.setup().press(await screen.findByRole("button", { name: "Remove the frame" }));
@@ -154,6 +154,79 @@ test("10.10 a frame with Everglow tells hosts no more than that", async () => {
   expect(await screen.findByRole("header", { name: "Frame 2 · reported" })).toBeOnTheScreen();
   expect(screen.getByText(/Everglow’s safety team/)).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Remove the frame" })).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Ok" }));
+  expect(mockRouter.back).toHaveBeenCalled();
+});
+
+test("10.8 counts only what hosts can decide, and names someone who left", async () => {
+  mockParams.mockReturnValue({ id: "event-1" });
+  mockListReports.mockImplementation(() =>
+    listed([
+      report({ queue: "PLATFORM" }),
+      report({ targetType: "MEMBER", photoId: null, reportedUserId: "u-gone", reason: "SPAM" }),
+    ]),
+  );
+  await renderWithClient(<ReportsScreen />);
+
+  expect(await screen.findByRole("header", { name: "Reports · 1 to check" })).toBeOnTheScreen();
+  expect(
+    screen.getByRole("button", { name: "Frame 2 · by Marcus, 1 report · nudity · with Everglow" }),
+  ).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Someone who left, 1 report · spam" })).toBeOnTheScreen();
+});
+
+test("10.8 a host-only list that fails to load says why, and tries again", async () => {
+  mockParams.mockReturnValue({ id: "event-1" });
+  mockListReports.mockRejectedValueOnce(createApiError("Only hosts", { status: 403, code: "ORGANIZER_ONLY" }));
+  mockListReports.mockImplementation(() => listed([]));
+  await renderWithClient(<ReportsScreen />);
+
+  expect(await screen.findByText("Only hosts can do that.")).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByRole("header", { name: "Nothing to check on your roll." })).toBeOnTheScreen();
+});
+
+test("10.9 a report the host filed is decided through another one on the frame", async () => {
+  const own = report();
+  const other = report();
+  mockListReports.mockImplementation(() => listed([own, other]));
+  mockResolve
+    .mockRejectedValueOnce(createApiError("Own", { status: 403, code: "CANNOT_RESOLVE_OWN_REPORT" }))
+    .mockResolvedValueOnce({ data: { data: report({ status: "ACTIONED" }), meta: {} } });
+  await renderWithClient(<ReportCheckScreen />);
+
+  await userEvent.setup().press(await screen.findByRole("button", { name: "Remove the frame" }));
+
+  await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
+  expect(mockResolve.mock.calls.map(([options]) => options.path.reportId)).toEqual([own.id, other.id]);
+});
+
+test("10.9 a frame no longer on the roll can only be kept", async () => {
+  mockParams.mockReturnValue({ id: "event-1", key: "frame:photo-deleted" });
+  mockListReports.mockImplementation(() => listed([report({ photoId: "photo-deleted", reason: "SPAM" })]));
+  await renderWithClient(<ReportCheckScreen />);
+
+  expect(await screen.findByText("Deleted")).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Remove the frame" })).not.toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Keep it, it’s fine" })).toBeOnTheScreen();
+});
+
+test("10.9 a report that can't load isn't called handled", async () => {
+  mockListReports.mockRejectedValue(createApiError("Network error. Please check your connection."));
+  await renderWithClient(<ReportCheckScreen />);
+
+  expect(await screen.findByText("Network error. Please check your connection.")).toBeOnTheScreen();
+  expect(screen.queryByText("Already handled.")).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Keep it, it’s fine" })).not.toBeOnTheScreen();
+});
+
+test("10.9 a decision made elsewhere leaves nothing to do here", async () => {
+  mockListReports.mockImplementation(() =>
+    listed([report({ status: "ACTIONED", resolvedAt: new Date().toISOString() })]),
+  );
+  await renderWithClient(<ReportCheckScreen />);
+
+  expect(await screen.findByText("Already handled.")).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Ok" }));
   expect(mockRouter.back).toHaveBeenCalled();
 });

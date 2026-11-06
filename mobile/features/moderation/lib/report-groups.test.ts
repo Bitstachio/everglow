@@ -1,5 +1,5 @@
 import type { ReportResponseDto } from "../types";
-import { doneThisWeek, groupOpenReports, hideThreshold } from "./report-groups";
+import { doneThisWeek, groupOpenReports, hideThreshold, toCheckCount } from "./report-groups";
 
 let next = 0;
 const report = (overrides: Partial<ReportResponseDto> = {}): ReportResponseDto => ({
@@ -56,7 +56,29 @@ test("a person's reports are their own group, and never hidden", () => {
 test("a frame whose reports are all with Everglow can't be decided by hosts", () => {
   const [group] = groupOpenReports([report({ queue: "PLATFORM" })], 24);
   expect(group.withEverglow).toBe(true);
-  expect(group.actionable).toBeNull();
+  expect(group.decidable).toEqual([]);
+  expect(toCheckCount([group])).toBe(0);
+});
+
+test("hosts decide a frame on the reports still with them, even when some went to Everglow", () => {
+  const withHosts = report();
+  const [group] = groupOpenReports([report({ queue: "PLATFORM" }), withHosts], 24);
+  expect(group.withEverglow).toBe(false);
+  expect(group.decidable).toEqual([withHosts]);
+  expect(toCheckCount([group])).toBe(1);
+});
+
+test("reports whose frame or person is gone stand alone instead of merging", () => {
+  const groups = groupOpenReports(
+    [
+      report({ id: "a", photoId: null, queue: "PLATFORM" }),
+      report({ id: "b", photoId: null, queue: "PLATFORM" }),
+      report({ id: "c", targetType: "MEMBER", photoId: null, reportedUserId: null, reason: "VIOLENCE" }),
+    ],
+    24,
+  );
+  expect(groups.map((group) => group.key)).toEqual(["report:a", "report:b", "report:c"]);
+  expect(groups[2].kind).toBe("person");
 });
 
 test("closed reports and reports about the roll stay off the list", () => {
