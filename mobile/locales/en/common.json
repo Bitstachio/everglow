@@ -25,10 +25,6 @@
   "screens": {
     "privacyPolicy": "Privacy Policy",
     "termsOfUse": "Terms of Use",
-    "myEvents": "My Events",
-    "eventSettings": "Event Settings",
-    "editTitle": "Edit Title",
-    "editDescription": "Edit Description",
-    "editDate": "Edit Date & Time"
+    "myEvents": "My Events"
   }
 }

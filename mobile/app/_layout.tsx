@@ -82,10 +82,6 @@ const RootNavigator = () => {
         <Stack.Screen name="events/[id]/settings" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/edit-title" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/edit-description" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="events/[id]/edit-date"
-          options={{ title: t("screens.editDate"), headerBackTitle: backTitle }}
-        />
       </Stack.Protected>
     </Stack>
   );
