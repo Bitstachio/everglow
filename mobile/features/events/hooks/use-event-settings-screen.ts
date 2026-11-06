@@ -2,10 +2,10 @@ import { useAuth } from "@/context/auth-context";
 import { useMyLimitsQuery } from "@/features/profile/api/queries";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
-import { useUpdateEventMutation } from "../api/mutations";
+import { useDeleteEventMutation, useUpdateEventMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import {
   addMonths,
@@ -24,7 +24,9 @@ import {
   TIME_SLOTS,
   WEEKDAY_INITIALS,
 } from "../lib/new-roll";
-import { formatClosesUntil, formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
+import { closedOn, formatEnvelopeDay } from "../lib/envelope";
+import { formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
+import { formatClosedOn } from "../lib/rolls";
 import { useChangeEventCover } from "./use-change-event-cover";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
@@ -41,6 +43,9 @@ export const useEventSettingsScreen = () => {
   const participantsQuery = useEventParticipantsQuery(eventId);
   const limitsQuery = useMyLimitsQuery();
   const updateMutation = useUpdateEventMutation(eventId ?? "");
+  const deleteMutation = useDeleteEventMutation();
+  // Once the roll is deleted its queries fail on the way out; that's not a load error.
+  const deleted = useRef(false);
 
   const event = eventQuery.data ?? null;
   const cover = useChangeEventCover(eventId ?? "", Boolean(event?.coverUrl));
@@ -50,10 +55,10 @@ export const useEventSettingsScreen = () => {
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
 
   useEffect(() => {
-    if (!eventQuery.isError) return;
-    Alert.alert("Error", getErrorMessage(eventQuery.error, "Failed to load event settings"));
+    if (!eventQuery.isError || deleted.current) return;
+    Alert.alert(t("roll:settings.loadFailed"), getErrorMessage(eventQuery.error));
     router.back();
-  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, router]);
+  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, router, t]);
 
   useEffect(() => {
     if (isLoading || !event) return;
@@ -63,11 +68,16 @@ export const useEventSettingsScreen = () => {
   // Date and film lock once the gallery is no longer upcoming (EVENT_SCHEDULE_LOCKED).
   const scheduleLocked = event ? event.galleryState !== "UPCOMING" : false;
 
-  const subtitle = event
-    ? scheduleLocked && event.galleryClosesAt
-      ? t("roll:settings.openUntil", { until: formatClosesUntil(event.galleryClosesAt) })
-      : t("roll:settings.opens", { when: formatOpensAt(event.galleryOpensAt) })
-    : "";
+  const isClosed = event?.galleryState === "CLOSED";
+  const subtitle = !event
+    ? ""
+    : isClosed
+      ? t("roll:closed.top", { date: formatClosedOn(closedOn(event)) })
+      : event.galleryState === "OPEN"
+        ? event.galleryClosesAt
+          ? t("roll:settings.openUntil", { until: formatEnvelopeDay(event.galleryClosesAt) })
+          : t("roll:settings.open")
+        : t("roll:settings.opens", { when: formatOpensAt(event.galleryOpensAt) });
 
   const whenValue = event ? formatOpensAt(event.date) : "";
   const filmValue =
@@ -94,8 +104,13 @@ export const useEventSettingsScreen = () => {
   const clampWhen = (next: Date) =>
     next > latest ? atMinutes(latest, Math.floor(minutesOf(latest) / SLOT_MINUTES) * SLOT_MINUTES) : next;
 
+  // The latest date comes with the account's limits; until then the calendar would end today.
+  const canOpenWhen = !scheduleLocked && Boolean(limitsQuery.data);
+  // Everyone else on the roll: the host moving it knows already.
+  const othersOnRoll = participants.filter((participant) => participant.userId !== user?.id).length;
+
   const openWhen = () => {
-    if (!event || scheduleLocked) return;
+    if (!event || !canOpenWhen) return;
     const date = new Date(event.date);
     setWhenDraft(date);
     setWhenMonth(startOfMonth(date));
@@ -191,8 +206,25 @@ export const useEventSettingsScreen = () => {
     }
   };
 
-  // TODO: Wire envelopes and delete.
-  const later = () => {};
+  // A roll can be deleted once it has closed (EVENT_STILL_ACTIVE before then).
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const confirmDelete = () => {
+    if (!eventId || deleteMutation.isPending) return;
+    setDeleteError(null);
+    deleted.current = true;
+    deleteMutation.mutate(eventId, {
+      onSuccess: () => {
+        setDeleteVisible(false);
+        router.replace("/events");
+      },
+      onError: (error) => {
+        deleted.current = false;
+        setDeleteError(getErrorMessage(error, t("roll:settings.deleteRoll.failed")));
+      },
+    });
+  };
 
   return {
     event,
@@ -207,7 +239,7 @@ export const useEventSettingsScreen = () => {
     filmValue: scheduleLocked ? t("roll:settings.locked", { value: filmValue }) : filmValue,
     storageValue: t("roll:settings.storageUsed", { used: storage.used, limit: storage.limit }),
     envelopesValue: t("roll:settings.envelopesTwo"),
-    deleteValue: t("roll:settings.deleteAfter"),
+    deleteValue: isClosed ? undefined : t("roll:settings.deleteAfter"),
     onBack: () => router.back(),
     onOpenName: () => {
       if (eventId) router.push(`/events/${eventId}/edit-title`);
@@ -218,9 +250,35 @@ export const useEventSettingsScreen = () => {
     onOpenNote: () => {
       if (eventId) router.push(`/events/${eventId}/edit-description`);
     },
-    onOpenWhen: scheduleLocked ? undefined : openWhen,
+    onOpenWhen: canOpenWhen ? openWhen : undefined,
     onOpenFilm: scheduleLocked ? undefined : openFilm,
-    onOpenEnvelopes: later,
+    onOpenEnvelopes: () => {
+      if (eventId) router.push(`/events/${eventId}/envelope`);
+    },
+    onOpenDelete: isClosed
+      ? () => {
+          setDeleteError(null);
+          setDeleteVisible(true);
+        }
+      : undefined,
+    deleteRoll: {
+      visible: deleteVisible,
+      onClose: () => {
+        if (deleteMutation.isPending) return;
+        setDeleteVisible(false);
+      },
+      edge: event
+        ? t("roll:settings.deleteRoll.edge", {
+            date: formatClosedOn(closedOn(event)),
+            count: event.usage.members,
+          })
+        : "",
+      body: t("roll:settings.deleteRoll.body", { count: event?.usage.members ?? 0 }),
+      confirmLabel: t("roll:settings.deleteRoll.confirm", { title: event?.title ?? "" }),
+      onConfirm: confirmDelete,
+      isDeleting: deleteMutation.isPending,
+      error: deleteError,
+    },
     when: {
       visible: whenVisible,
       onClose: () => {
@@ -241,7 +299,7 @@ export const useEventSettingsScreen = () => {
       },
       weekdays: WEEKDAY_INITIALS,
       times: whenTimes,
-      people: t("roll:settings.editWhen.people", { count: participants.length }),
+      people: othersOnRoll > 0 ? t("roll:settings.editWhen.people", { count: othersOnRoll }) : null,
       error: whenError,
       setLabel: t("roll:settings.editWhen.move", {
         day: formatLongDay(whenDraft),

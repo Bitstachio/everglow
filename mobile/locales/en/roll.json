@@ -104,7 +104,9 @@
   "settings": {
     "title": "Roll settings",
     "loading": "Loading roll settings",
+    "loadFailed": "Couldn’t open the roll’s settings",
     "opens": "Opens {{when}}",
+    "open": "Open",
     "openUntil": "Open · until {{until}}",
     "name": "Name",
     "cover": "Cover",
@@ -137,6 +139,16 @@
     "envelopesTwo": "Two · reset",
     "delete": "Delete the roll",
     "deleteAfter": "After it closes",
+    "deleteRoll": {
+      "edge_one": "Closed {{date}} · {{count}} person",
+      "edge_other": "Closed {{date}} · {{count}} people",
+      "title": "Delete the roll?",
+      "body_one": "The name, dates and roll call go too. The photos were already removed when it closed.",
+      "body_other": "The name, dates and roll call go too, for all {{count}} people. The photos were already removed when it closed.",
+      "confirm": "Delete {{title}}",
+      "cancel": "Keep it",
+      "failed": "Couldn’t delete the roll. Try again."
+    },
     "scheduleLockedNote": "The date and film are locked once the gallery opens, so nobody’s time is cut short.",
     "editName": {
       "title": "Name",

@@ -5,6 +5,7 @@ import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IndexRow } from "@/components/ui/index-row";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
+import { Slip } from "@/components/ui/slip";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
 import { Trans, useTranslation } from "react-i18next";
@@ -27,7 +28,7 @@ const EventSettingsScreen = () => {
     );
   }
 
-  const { when, film } = screen;
+  const { when, film, deleteRoll } = screen;
 
   return (
     <SafeAreaView className="flex-1 bg-ground">
@@ -40,7 +41,7 @@ const EventSettingsScreen = () => {
         <Display>{screen.title}</Display>
         <EdgePrint className="mt-2">{screen.subtitle}</EdgePrint>
 
-        <View className="mt-8">
+        <View className="mt-10">
           <IndexRow first label={t("roll:settings.name")} value={screen.nameValue} onPress={screen.onOpenName} />
           <IndexRow
             label={t("roll:settings.cover")}
@@ -67,10 +68,12 @@ const EventSettingsScreen = () => {
             value={screen.envelopesValue}
             onPress={screen.onOpenEnvelopes}
           />
-          <IndexRow muted label={t("roll:settings.delete")} value={screen.deleteValue} />
+          <IndexRow muted label={t("roll:settings.delete")} value={screen.deleteValue} onPress={screen.onOpenDelete} />
         </View>
 
-        {screen.scheduleLocked ? <EdgePrint className="mt-6">{t("roll:settings.scheduleLockedNote")}</EdgePrint> : null}
+        {screen.scheduleLocked && screen.event.galleryState === "OPEN" ? (
+          <Text className="mt-14 font-sans text-body text-text-2">{t("roll:settings.scheduleLockedNote")}</Text>
+        ) : null}
       </ScrollView>
 
       <FilmGrain />
@@ -89,7 +92,7 @@ const EventSettingsScreen = () => {
           times={when.times}
           note={
             <View>
-              <Text className="font-sans text-body text-text">{when.people}</Text>
+              {when.people ? <Text className="font-sans text-body text-text">{when.people}</Text> : null}
               {when.error ? (
                 <Text accessibilityRole="alert" className="mt-1.5 font-sans text-body text-pencil">
                   {when.error}
@@ -136,6 +139,29 @@ const EventSettingsScreen = () => {
             disabled={film.isSaving || !film.canSave}
           />
         </View>
+      </BottomSheet>
+
+      <BottomSheet visible={deleteRoll.visible} onClose={deleteRoll.onClose}>
+        <Slip edge={deleteRoll.edge} title={t("roll:settings.deleteRoll.title")} body={deleteRoll.body}>
+          {deleteRoll.error ? (
+            <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
+              {deleteRoll.error}
+            </Text>
+          ) : null}
+          <Button
+            title={deleteRoll.confirmLabel}
+            variant="danger"
+            mark="✕"
+            onPress={deleteRoll.onConfirm}
+            isLoading={deleteRoll.isDeleting}
+          />
+          <Button
+            title={t("roll:settings.deleteRoll.cancel")}
+            variant="secondary"
+            mark="‹"
+            onPress={deleteRoll.onClose}
+          />
+        </Slip>
       </BottomSheet>
     </SafeAreaView>
   );

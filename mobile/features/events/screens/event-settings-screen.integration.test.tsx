@@ -6,11 +6,14 @@ import { render, screen, userEvent, waitFor } from "@testing-library/react-nativ
 import { Alert } from "react-native";
 import EventSettingsScreen from "./event-settings-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
-import { formatClosesUntil, formatOpensAt } from "../lib/roll-page";
+import { formatEnvelopeDay } from "../lib/envelope";
+import { formatOpensAt } from "../lib/roll-page";
 
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
 const mockUpdate = jest.fn();
+const mockRemove = jest.fn();
+const mockReplace = jest.fn();
 const mockLimits = jest.fn();
 const mockBack = jest.fn();
 const mockPush = jest.fn();
@@ -23,11 +26,12 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
   eventsControllerUpdate: (...args: unknown[]) => mockUpdate(...args),
+  eventsControllerRemove: (...args: unknown[]) => mockRemove(...args),
   usersControllerGetMyLimits: (...args: unknown[]) => mockLimits(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush }),
+  useRouter: () => ({ back: mockBack, push: mockPush, replace: mockReplace }),
   useLocalSearchParams: () => ({ id: mockEventId }),
 }));
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
@@ -51,13 +55,13 @@ const limits = () => ({
   },
 });
 
-const renderScreen = async (event = buildEvent()) => {
+const renderScreen = async (event = buildEvent(), participants = [buildParticipant()]) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
   });
   clients.push(client);
   mockFindOne.mockResolvedValue({ data: { data: event } });
-  mockGetParticipants.mockResolvedValue({ data: { data: [buildParticipant()] } });
+  mockGetParticipants.mockResolvedValue({ data: { data: participants } });
   mockLimits.mockResolvedValue(limits());
   mockUpdate.mockResolvedValue({ data: { data: event } });
   await render(
@@ -74,6 +78,8 @@ beforeEach(() => {
   mockFindOne.mockReset();
   mockGetParticipants.mockReset();
   mockUpdate.mockReset();
+  mockRemove.mockReset();
+  mockReplace.mockReset();
   mockLimits.mockReset();
   mockBack.mockReset();
   mockPush.mockReset();
@@ -120,7 +126,7 @@ test("open: date and film are locked and explain why", async () => {
   });
   await renderScreen(event);
 
-  expect(await screen.findByText(`Open · until ${formatClosesUntil(event.galleryClosesAt!)}`)).toBeOnTheScreen();
+  expect(await screen.findByText(`Open · until ${formatEnvelopeDay(event.galleryClosesAt!)}`)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Cover, Change" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Note for guests, Black tie" })).toBeOnTheScreen();
   expect(screen.getByLabelText(`When, ${formatOpensAt(event.date)} · locked`)).toBeOnTheScreen();
@@ -174,7 +180,8 @@ test("opens when and film slips while upcoming", async () => {
 
   await user.press(await screen.findByRole("button", { name: `When, ${formatOpensAt("2026-11-07T19:00:00.000Z")}` }));
   expect(await screen.findByText("When it happens")).toBeOnTheScreen();
-  expect(screen.getByText("1 person will see the new date.")).toBeOnTheScreen();
+  // Only the host is on the roll, so nobody else will see the move.
+  expect(screen.queryByText(/will see the new date/)).toBeNull();
 
   await user.press(screen.getByLabelText("Dismiss"));
   await waitFor(() => expect(screen.queryByText("When it happens")).toBeNull());
@@ -224,4 +231,92 @@ test("sends non-hosts back", async () => {
   );
 
   await waitFor(() => expect(mockBack).toHaveBeenCalled());
+});
+
+test("a move names everyone else on the roll", async () => {
+  await renderScreen(buildEvent({ galleryState: "UPCOMING", date: "2026-11-07T19:00:00.000Z" }), [
+    buildParticipant(),
+    buildParticipant({ userId: "user-2", name: "Grace", accessLevel: "PARTICIPANT" }),
+    buildParticipant({ userId: "user-3", name: "Alan", accessLevel: "VIEWER" }),
+  ]);
+  await userEvent
+    .setup()
+    .press(await screen.findByRole("button", { name: `When, ${formatOpensAt("2026-11-07T19:00:00.000Z")}` }));
+  expect(await screen.findByText("2 people will see the new date.")).toBeOnTheScreen();
+});
+
+test("when waits for the account's latest date before it opens", async () => {
+  mockLimits.mockReturnValue(new Promise(() => {}));
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
+  });
+  clients.push(client);
+  mockFindOne.mockResolvedValue({ data: { data: buildEvent({ galleryState: "UPCOMING" }) } });
+  mockGetParticipants.mockResolvedValue({ data: { data: [buildParticipant()] } });
+  await render(
+    <QueryClientProvider client={client}>
+      <EventSettingsScreen />
+    </QueryClientProvider>,
+  );
+  const when = await screen.findByLabelText(/^When, /);
+  expect(when).not.toHaveProp("accessibilityRole", "button");
+});
+
+test("envelopes opens the roll's envelopes", async () => {
+  await renderScreen(buildEvent({ galleryState: "OPEN" }));
+  await userEvent.setup().press(await screen.findByRole("button", { name: "Envelopes, Two · reset" }));
+  expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
+});
+
+describe("a closed roll", () => {
+  const closed = () =>
+    buildEvent({
+      title: "Lake weekend",
+      galleryState: "CLOSED",
+      galleryClosesAt: new Date(2026, 8, 21, 12, 0).toISOString(),
+      usage: { members: 11, storageBytes: "0" },
+    });
+
+  test("says when it closed and keeps the schedule locked without the open-roll note", async () => {
+    await renderScreen(closed());
+    expect(await screen.findByText("Closed 21.09")).toBeOnTheScreen();
+    expect(screen.getByLabelText(/^Film, .* · locked$/)).toBeOnTheScreen();
+    expect(screen.queryByText(/locked once the gallery opens/)).toBeNull();
+  });
+
+  test("deletes the roll from its slip and goes Home", async () => {
+    mockRemove.mockResolvedValue({ data: undefined });
+    await renderScreen(closed());
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Delete the roll" }));
+
+    expect(await screen.findByText("Closed 21.09 · 11 people")).toBeOnTheScreen();
+    expect(screen.getByText(/for all 11 people/)).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Delete Lake weekend" }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events"));
+    expect(mockRemove).toHaveBeenCalledWith(expect.objectContaining({ path: { eventId: "event-1" } }));
+  });
+
+  test("a refused delete says why and stays", async () => {
+    mockRemove.mockRejectedValue({
+      success: false,
+      statusCode: 403,
+      code: "EVENT_HAS_OPEN_REPORTS",
+      message: "Forbidden",
+    });
+    await renderScreen(closed());
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Delete the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Delete Lake weekend" }));
+
+    expect(await screen.findByRole("alert")).toBeOnTheScreen();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+});
+
+test("an open roll can't be deleted from settings yet", async () => {
+  await renderScreen(buildEvent({ galleryState: "OPEN" }));
+  expect(await screen.findByLabelText("Delete the roll, After it closes")).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: /Delete the roll/ })).toBeNull();
 });

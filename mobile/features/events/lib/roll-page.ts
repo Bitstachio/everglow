@@ -195,10 +195,6 @@ export const formatRollDate = (iso: string): string => {
   return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)}`;
 };
 
-/** The day an open roll's gallery ends, for the settings subtitle. e.g. "17 Nov". */
-export const formatClosesUntil = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-
 /** The life of a closed roll as a date range. e.g. "Sep 12 – Sep 21". */
 export const formatRange = (fromIso: string, toIso: string): string => {
   const format = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
