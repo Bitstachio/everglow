@@ -11,11 +11,14 @@ import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { colorTokens } from "@/theme/tokens";
 import { QrCode } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
+import { type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
 import { ArrivalNote } from "../components/arrival-note";
 import { RollCard } from "../components/roll-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { useRollPreview } from "../hooks/use-roll-preview";
+import { LEAVE_MOTION } from "../lib/left-roll-note";
 import type { Event } from "../types";
 
 const UNEXPOSED: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n), number: n }));
@@ -30,6 +33,19 @@ const LiveRollCard = ({ event, now, savedAt, onPress }: LiveRollCardProps) => {
   const photos = useRollPreview(event);
   return <RollCard event={event} now={now} savedAt={savedAt} onPress={onPress} photos={photos} />;
 };
+
+// 13.3: the roll you left fades, then the cards below close the gap.
+const LEAVE_FADE = FadeOut.duration(LEAVE_MOTION.fadeMs).easing(Easing.out(Easing.quad));
+const CLOSE_UP = LinearTransition.duration(LEAVE_MOTION.slideMs)
+  .delay(LEAVE_MOTION.slideDelayMs)
+  .easing(Easing.out(Easing.cubic));
+
+/** One row of the list. It only moves while the roll you left goes; any other change to the list is instant. */
+const ListRow = ({ moving, children }: { moving: boolean; children: ReactNode }) => (
+  <Animated.View layout={moving ? CLOSE_UP : undefined} exiting={moving ? LEAVE_FADE : undefined}>
+    {children}
+  </Animated.View>
+);
 
 // While loading, the frames are blank: no numbers until the rolls arrive (03.2).
 const LOADING: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n) }));
@@ -46,6 +62,7 @@ const EventsScreen = () => {
   const { t } = useTranslation("home");
   const {
     groups,
+    leavingRoll,
     leftRoll,
     hasRolls,
     isLoading,
@@ -62,6 +79,9 @@ const EventsScreen = () => {
   } = useEventsScreen();
 
   const showFirstRun = !isLoading && !hasRolls && !isOffline;
+  const moving = leavingRoll !== null;
+  // The roll you left can't be opened while it goes.
+  const openRoll = (event: Event) => (event.id === leavingRoll?.id ? undefined : () => onOpenRoll(event));
   // Offline, each roll says when it was last loaded (03.5).
   const offlineAsOf = isOffline ? savedAtLabel : null;
 
@@ -116,37 +136,32 @@ const EventsScreen = () => {
         ) : (
           <View className="gap-5.5">
             {groups.live.map((event) => (
-              <LiveRollCard
-                key={event.id}
-                event={event}
-                now={now}
-                savedAt={offlineAsOf}
-                onPress={() => onOpenRoll(event)}
-              />
+              <ListRow key={event.id} moving={moving}>
+                {event.id === leavingRoll?.id ? (
+                  // Its queries went with the membership: the strip it had stays until it's gone.
+                  <RollCard event={event} now={now} savedAt={offlineAsOf} photos={leavingRoll.photos} />
+                ) : (
+                  <LiveRollCard event={event} now={now} savedAt={offlineAsOf} onPress={() => onOpenRoll(event)} />
+                )}
+              </ListRow>
             ))}
             {groups.upcoming.map((event) => (
-              <RollCard
-                key={event.id}
-                event={event}
-                now={now}
-                savedAt={offlineAsOf}
-                onPress={() => onOpenRoll(event)}
-              />
+              <ListRow key={event.id} moving={moving}>
+                <RollCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
+              </ListRow>
             ))}
             {groups.closed.length > 0 ? (
-              <View className="mx-5 mb-1.5 mt-7.75 flex-row items-center justify-between border-t-2 border-text pt-2.5">
-                <EdgePrint tone="text">{t("closed.heading", { count: groups.closed.length })}</EdgePrint>
-                <EdgePrint>{t("closed.note")}</EdgePrint>
-              </View>
+              <ListRow key="closed-heading" moving={moving}>
+                <View className="mx-5 mb-1.5 mt-7.75 flex-row items-center justify-between border-t-2 border-text pt-2.5">
+                  <EdgePrint tone="text">{t("closed.heading", { count: groups.closed.length })}</EdgePrint>
+                  <EdgePrint>{t("closed.note")}</EdgePrint>
+                </View>
+              </ListRow>
             ) : null}
             {groups.closed.map((event) => (
-              <RollCard
-                key={event.id}
-                event={event}
-                now={now}
-                savedAt={offlineAsOf}
-                onPress={() => onOpenRoll(event)}
-              />
+              <ListRow key={event.id} moving={moving}>
+                <RollCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
+              </ListRow>
             ))}
           </View>
         )}

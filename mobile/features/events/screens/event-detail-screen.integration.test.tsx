@@ -1372,7 +1372,11 @@ describe("people and the menu", () => {
       }),
     );
     expect(mockReplace).toHaveBeenCalledWith("/events");
-    expect(takeLeftRoll()).toBe("Weekend meetup");
+    // Home keeps the card, with the strip it had, while it goes.
+    expect(takeLeftRoll()).toEqual({
+      event: expect.objectContaining({ title: "Weekend meetup" }),
+      photos: [{ uri: oneFrame[0]!.thumbnailUrl, cacheKey: `photo:${oneFrame[0]!.id}:thumbnail` }],
+    });
     expect([
       mockFindOne.mock.calls.length,
       mockListPhotos.mock.calls.length,

@@ -28,7 +28,7 @@ import {
 import { asksAboutFrames } from "../lib/leave-roll";
 import { noteLeftRoll } from "../lib/left-roll-note";
 import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
-import { hasClosed } from "../lib/rolls";
+import { hasClosed, toRollPhotos } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
   addToTray,
@@ -348,7 +348,8 @@ export const useEventDetailScreen = () => {
       { eventId, photos: photosChoice },
       {
         onSuccess: () => {
-          noteLeftRoll(event.title);
+          // Home keeps its card, strip and all, while it goes (13.3).
+          noteLeftRoll({ event, photos: toRollPhotos(photos) });
           closeSheet();
           router.replace("/events");
         },

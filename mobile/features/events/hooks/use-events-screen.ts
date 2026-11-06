@@ -7,7 +7,8 @@ import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { eventsKeys } from "../api/keys";
 import { useEventsQuery } from "../api/queries";
-import { takeLeftRoll } from "../lib/left-roll-note";
+import { useReduceMotion } from "@/hooks/use-reduce-motion";
+import { LEAVE_MOTION, LEAVE_SETTLE_MS, takeLeftRoll, type LeftRoll } from "../lib/left-roll-note";
 import { groupRolls, hasClosed, isLastDay, ROLL_FRAMES } from "../lib/rolls";
 import type { Event } from "../types";
 
@@ -38,16 +39,35 @@ export const useEventsScreen = () => {
     }
   }, [isError, error, errorUpdatedAt, t]);
 
+  // 13.3: the roll you just left keeps its card in place ("holding"), then the
+  // card goes and the list closes up ("going"). Only once it has settled does
+  // the note say you left. Reduce Motion skips straight to the note.
+  const reduceMotion = useReduceMotion();
+  const [leaving, setLeaving] = useState<{ roll: LeftRoll; phase: "holding" | "going" } | null>(null);
   const [leftRoll, setLeftRoll] = useState<string | null>(null);
 
   // Legacy detail pages do not invalidate queries yet. Refresh when returning.
   useFocusEffect(
     useCallback(() => {
-      const title = takeLeftRoll();
-      if (title) setLeftRoll(title);
+      const roll = takeLeftRoll();
+      if (roll) setLeaving({ roll, phase: "holding" });
       if (user?.id) void refetch({ cancelRefetch: false });
     }, [refetch, user?.id]),
   );
+
+  useEffect(() => {
+    if (!leaving) return;
+    const gone = () => {
+      setLeaving(null);
+      setLeftRoll(leaving.roll.event.title);
+    };
+    if (reduceMotion) return gone();
+    const timer =
+      leaving.phase === "holding"
+        ? setTimeout(() => setLeaving({ ...leaving, phase: "going" }), LEAVE_MOTION.holdMs)
+        : setTimeout(gone, LEAVE_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [leaving, reduceMotion]);
 
   useEffect(() => {
     if (!leftRoll) return;
@@ -55,8 +75,16 @@ export const useEventsScreen = () => {
     return () => clearTimeout(timer);
   }, [leftRoll]);
 
-  const groups = useMemo(() => groupRolls(events), [events]);
-  const hasRolls = events.length > 0;
+  // The list has already dropped the roll you left; it stays on screen until it goes.
+  const leavingEvent = leaving?.roll.event;
+  const holding = leaving?.phase === "holding" && !reduceMotion;
+  const shown = useMemo(() => {
+    if (!leavingEvent) return events;
+    const others = events.filter((event) => event.id !== leavingEvent.id);
+    return holding ? [...others, leavingEvent] : others;
+  }, [events, leavingEvent, holding]);
+  const groups = useMemo(() => groupRolls(shown), [shown]);
+  const hasRolls = shown.length > 0;
 
   // A roll on its last day counts down by the minute (03.3). One that closes
   // while Home is open is fetched again, so it moves below with the closed ones.
@@ -82,6 +110,8 @@ export const useEventsScreen = () => {
 
   return {
     groups,
+    /** The roll going from the list, while it goes: its id and the strip it had. */
+    leavingRoll: leaving && !reduceMotion ? { id: leaving.roll.event.id, photos: leaving.roll.photos } : null,
     leftRoll,
     hasRolls,
     isLoading,
