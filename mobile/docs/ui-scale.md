@@ -285,7 +285,7 @@ The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet;
 | Reporting                   | `LabTicket`                                                                |
 | The account                 | `LabCard`                                                                  |
 | A confirmation              | `Slip` inside a `BottomSheet` with no sheet title                          |
-| A row in a ⋯ sheet menu     | `SheetAction`                                                              |
+| A row in a ⋯ sheet menu     | `MenuAction` (`first` when no header sits above it)                        |
 | One choice among several    | `OptionRow`, grouped in a `radiogroup` view                                |
 | A person on the roll call   | `RollCallRow`                                                              |
 | Any photo                   | `Photo` (expo-image with `className` support)                              |
