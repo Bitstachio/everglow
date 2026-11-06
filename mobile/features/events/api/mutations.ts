@@ -172,6 +172,9 @@ export const useRefreshRollAfterUpload = () => {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }, { throwOnError: true }),
         queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }, { throwOnError: true }),
+        // The roll call counts each member's frames, and leaving asks about yours (13.2).
+        // A failed refetch here keeps the tray's developed rows no longer than the others do.
+        queryClient.invalidateQueries({ queryKey: eventsKeys.participants(eventId) }),
       ]),
     [queryClient],
   );
@@ -194,11 +197,13 @@ export const useDeleteEventPhotoMutation = () => {
         if (!isApiError(error) || error.status !== 404) throw error;
       }
     },
-    // Refetch the event too: deleting a photo frees its storage. In the
-    // background, so deleting several frames doesn't reload the roll between each.
+    // Refetch the event too: deleting a photo frees its storage, and the roll
+    // call's frame counts. In the background, so deleting several frames
+    // doesn't reload the roll between each.
     onSuccess: (_data, { eventId }) => {
       void queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
       void queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
+      void queryClient.invalidateQueries({ queryKey: eventsKeys.participants(eventId) });
     },
   });
 };
