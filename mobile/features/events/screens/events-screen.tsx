@@ -167,7 +167,8 @@ const EventsScreen = () => {
       </View>
 
       {leftRoll ? (
-        <View pointerEvents="none" className="absolute left-4 right-4 top-72">
+        // 13.3: over the rolls, where it was drawn.
+        <View pointerEvents="none" className="absolute left-4 right-4" style={{ top: 340 }}>
           <ArrivalNote label={t("leftRoll", { title: leftRoll })} />
         </View>
       ) : null}

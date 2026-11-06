@@ -41,24 +41,27 @@ export const LeaveRollSlip = ({
       body={asks ? undefined : closed ? t("leave.bodyClosed") : t("leave.return")}
     >
       {asks ? (
-        <View accessibilityRole="radiogroup">
-          <OptionRow
-            title={t("leave.keep")}
-            description={t("leave.keepBody")}
-            selected={photos === "KEEP"}
-            disabled={isLeaving}
-            onPress={() => onChoose("KEEP")}
-          />
-          <OptionRow
-            title={t("leave.take")}
-            description={t("leave.takeBody", { count: frameCount })}
-            selected={photos === "DELETE"}
-            disabled={isLeaving}
-            onPress={() => onChoose("DELETE")}
-          />
+        // As drawn (13.2): the choices sit right under the title, and the line about coming back has room below.
+        <View className="-mt-2">
+          <View accessibilityRole="radiogroup">
+            <OptionRow
+              title={t("leave.keep")}
+              description={t("leave.keepBody")}
+              selected={photos === "KEEP"}
+              disabled={isLeaving}
+              onPress={() => onChoose("KEEP")}
+            />
+            <OptionRow
+              title={t("leave.take")}
+              description={t("leave.takeBody", { count: frameCount })}
+              selected={photos === "DELETE"}
+              disabled={isLeaving}
+              onPress={() => onChoose("DELETE")}
+            />
+          </View>
+          <Text className="mb-2 mt-3 font-sans text-body text-text-2">{t("leave.return")}</Text>
         </View>
       ) : null}
-      {asks ? <Text className="mt-1 font-sans text-body text-text-2">{t("leave.return")}</Text> : null}
       {error ? (
         <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
           {error}
