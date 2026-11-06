@@ -1019,9 +1019,7 @@ describe("PhotosService", () => {
 
         await service.deletePhoto(photoId, callerId);
 
-        expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([
-          buildPhotoS3Key(callerId, eventId, photoId),
-        ]);
+        expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([buildPhotoS3Key(eventId, photoId)]);
         expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
       },
     );
