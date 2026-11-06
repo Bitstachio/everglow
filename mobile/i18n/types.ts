@@ -15,6 +15,7 @@ declare module "i18next" {
       home: typeof en.home;
       join: typeof en.join;
       onboarding: typeof en.onboarding;
+      report: typeof en.report;
       roll: typeof en.roll;
       start: typeof en.start;
       you: typeof en.you;
