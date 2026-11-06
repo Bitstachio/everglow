@@ -31,7 +31,20 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerGetParticipants: () => Promise.resolve({ data: { data: mockParticipants, meta: {} } }),
   photosControllerListPhotos: () =>
     Promise.resolve({ data: { data: { items: mockPhotos, nextCursor: null }, meta: {} } }),
-  reportsControllerListReports: (...args: unknown[]) => mockListReports(...args),
+  // The API filters by `status`; the mock does the same with whatever the test listed.
+  reportsControllerListReports: async (options: { query?: { status?: string } }) => {
+    const response = await mockListReports(options);
+    const status = options.query?.status;
+    if (!status) return response;
+    const page = response.data.data;
+    return {
+      ...response,
+      data: {
+        ...response.data,
+        data: { ...page, items: page.items.filter((item: ReportResponseDto) => item.status === status) },
+      },
+    };
+  },
   reportsControllerResolveReport: (...args: unknown[]) => mockResolve(...args),
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "u-host" } }) }));
@@ -79,8 +92,16 @@ const renderWithClient = (ui: React.ReactElement) => {
   );
 };
 
+/** 10.9 Remove the frame, then confirm on the delete slip. */
+const removeTheFrame = async () => {
+  const user = userEvent.setup();
+  await user.press(await screen.findByRole("button", { name: "Remove the frame" }));
+  await user.press(await screen.findByRole("button", { name: "Delete it" }));
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockParticipants[1] = { ...mockParticipants[1], photoCount: 0 };
   mockParams.mockReturnValue({ id: "event-1", key: "frame:photo-144" });
   mockResolve.mockResolvedValue({ data: { data: report({ status: "ACTIONED" }), meta: {} } });
 });
@@ -131,7 +152,7 @@ test("a failed decision says so and stays", async () => {
   mockResolve.mockRejectedValue(createApiError("Network error. Please check your connection."));
   await renderWithClient(<ReportCheckScreen />);
 
-  await userEvent.setup().press(await screen.findByRole("button", { name: "Remove the frame" }));
+  await removeTheFrame();
 
   expect(await screen.findByRole("alert")).toBeOnTheScreen();
   expect(mockRouter.back).not.toHaveBeenCalled();
@@ -142,7 +163,7 @@ test("a decision someone else already made just goes back", async () => {
   mockResolve.mockRejectedValue(createApiError("Already", { status: 409, code: "REPORT_ALREADY_RESOLVED" }));
   await renderWithClient(<ReportCheckScreen />);
 
-  await userEvent.setup().press(await screen.findByRole("button", { name: "Remove the frame" }));
+  await removeTheFrame();
 
   await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
 });
@@ -195,7 +216,7 @@ test("10.9 a report the host filed is decided through another one on the frame",
     .mockResolvedValueOnce({ data: { data: report({ status: "ACTIONED" }), meta: {} } });
   await renderWithClient(<ReportCheckScreen />);
 
-  await userEvent.setup().press(await screen.findByRole("button", { name: "Remove the frame" }));
+  await removeTheFrame();
 
   await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
   expect(mockResolve.mock.calls.map(([options]) => options.path.reportId)).toEqual([own.id, other.id]);
@@ -229,4 +250,80 @@ test("10.9 a decision made elsewhere leaves nothing to do here", async () => {
   expect(await screen.findByText("Already handled.")).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Ok" }));
   expect(mockRouter.back).toHaveBeenCalled();
+});
+
+test("10.9 removing the frame waits for the confirm", async () => {
+  mockListReports.mockImplementation(() => listed([report({ reason: "SPAM" })]));
+  await renderWithClient(<ReportCheckScreen />);
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Remove the frame" }));
+  expect(await screen.findByRole("header", { name: "Delete this frame for everyone?" })).toBeOnTheScreen();
+  expect(mockResolve).not.toHaveBeenCalled();
+
+  await user.press(screen.getByRole("button", { name: "Keep it" }));
+  expect(mockResolve).not.toHaveBeenCalled();
+});
+
+test("10.9 removing the person confirms on 11.4's slip and sends what happens to their frames", async () => {
+  mockParticipants[1] = { ...mockParticipants[1], photoCount: 4 };
+  mockListReports.mockImplementation(() => listed([report({ reason: "SPAM" })]));
+  await renderWithClient(<ReportCheckScreen />);
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Remove Marcus from the roll" }));
+  expect(await screen.findByRole("header", { name: "What about their 3 other frames?" })).toBeOnTheScreen();
+  expect(screen.getByText("The reported frame is removed either way.")).toBeOnTheScreen();
+  expect(mockResolve).not.toHaveBeenCalled();
+
+  await user.press(screen.getByRole("radio", { name: /Delete them too/ }));
+  await user.press(screen.getByRole("button", { name: "Remove Marcus" }));
+
+  await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
+  expect(mockResolve).toHaveBeenCalledWith(
+    expect.objectContaining({ body: { action: "REMOVE_MEMBER", photos: "DELETE" } }),
+  );
+});
+
+test("10.9 Keep on a severe report says it goes to Everglow, not that it closes", async () => {
+  mockListReports.mockImplementation(() => listed([report({ reason: "VIOLENCE" })]));
+  await renderWithClient(<ReportCheckScreen />);
+
+  expect(
+    await screen.findByText("Keep hands this to Everglow’s safety team. The frame stays hidden until they decide."),
+  ).toBeOnTheScreen();
+});
+
+test("10.9 Keep on an ordinary report has no note", async () => {
+  mockListReports.mockImplementation(() => listed([report({ reason: "SPAM" })]));
+  await renderWithClient(<ReportCheckScreen />);
+
+  expect(await screen.findByRole("button", { name: "Keep it, it’s fine" })).toBeOnTheScreen();
+  expect(screen.queryByText(/hands this to Everglow/)).not.toBeOnTheScreen();
+});
+
+test("10.8 reads every page of open reports, and only recent ones for Done", async () => {
+  mockParams.mockReturnValue({ id: "event-1" });
+  const pages = 7;
+  mockListReports.mockImplementation(({ query }: { query: { status?: string; cursor?: string } }) => {
+    if (query.status !== "OPEN") {
+      return listed([report({ status: "ACTIONED", resolvedAt: new Date().toISOString() })]);
+    }
+    const page = Number(query.cursor ?? 0);
+    return Promise.resolve({
+      data: {
+        data: {
+          items: [report({ photoId: `photo-old-${page}`, reason: "SPAM" })],
+          nextCursor: page + 1 < pages ? String(page + 1) : null,
+        },
+        meta: {},
+      },
+    });
+  });
+  await renderWithClient(<ReportsScreen />);
+
+  expect(await screen.findByRole("header", { name: `Reports · ${pages} to check` })).toBeOnTheScreen();
+  expect(screen.getByText("Done · 1 this week")).toBeOnTheScreen();
+  const openCalls = mockListReports.mock.calls.filter(([options]) => options.query.status === "OPEN");
+  expect(openCalls).toHaveLength(pages);
 });
