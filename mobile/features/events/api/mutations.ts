@@ -20,6 +20,7 @@ import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-i
 import type { CoverImage } from "../lib/cover-image";
 import { profileKeys } from "@/features/profile/api/keys";
 import { extractInvitationToken } from "../lib/invite";
+import { forgetTray } from "../lib/upload-tray";
 import { eventsKeys } from "./keys";
 import type { InviteAccessLevel, MemberPhotos } from "@/lib/api/generated";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, UpdateEventDto } from "../types";
@@ -128,6 +129,8 @@ export const useLeaveEventMutation = () => {
       await eventsControllerLeave({ path: { eventId }, query: { photos }, throwOnError: true });
     },
     onSuccess: async (_data, { eventId }) => {
+      // Frames still developing can no longer land on the roll.
+      forgetTray(eventId);
       // Membership is gone: refetching these active queries now only returns 403.
       // Cancel and evict them before refreshing Home and navigating away.
       const keys = [eventsKeys.detail(eventId), eventsKeys.photos(eventId), eventsKeys.participants(eventId)];
