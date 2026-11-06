@@ -30,7 +30,7 @@ const NoteFormProbe = ({ initialDescription = "Bring a jacket" }: { initialDescr
           onSubmitEditing={onSubmit}
           placeholder="Bring a jacket, we’re on the roof"
           accessibilityLabel="Note for guests, optional"
-          hint="Shown on the envelope. Leave blank to remove it."
+          hint="Leave it blank to remove it."
           error={fieldState.error?.message ?? form.formState.errors.root?.server?.message}
           saveLabel="Save"
           onSave={onSubmit}

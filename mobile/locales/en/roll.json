@@ -158,7 +158,6 @@
       "title": "Name",
       "placeholder": "Name your roll",
       "a11y": "Roll name",
-      "hint": "This is the name people see on the roll and on the envelope.",
       "save": "Save",
       "required": "Give the roll a name",
       "tooLong": "100 characters at most",
@@ -169,7 +168,7 @@
       "label": "A line for guests · optional",
       "placeholder": "Bring a jacket, we’re on the roof",
       "a11y": "Note for guests, optional",
-      "hint": "Shown on the envelope. Leave blank to remove it.",
+      "hint": "Leave it blank to remove it.",
       "save": "Save",
       "tooLong": "255 characters at most",
       "failed": "Couldn’t update the note. Try again."

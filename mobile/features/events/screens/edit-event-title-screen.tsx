@@ -35,7 +35,6 @@ const EditEventTitleScreen = () => {
           onSubmit={onSubmit}
           placeholder={t("roll:settings.editName.placeholder")}
           accessibilityLabel={t("roll:settings.editName.a11y")}
-          hint={t("roll:settings.editName.hint")}
           saveLabel={t("roll:settings.editName.save")}
         />
       </KeyboardAvoidingView>

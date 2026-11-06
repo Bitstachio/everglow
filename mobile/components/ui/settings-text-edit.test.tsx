@@ -1,4 +1,5 @@
-import { render, screen, userEvent } from "@testing-library/react-native";
+import { renderWithI18n } from "@/testing/render";
+import { screen, userEvent } from "@testing-library/react-native";
 import { SettingsTextEdit } from "./settings-text-edit";
 
 const onSave = jest.fn();
@@ -10,7 +11,7 @@ beforeEach(() => {
 });
 
 test("shows the hint, count, and keeps Save disabled until dirty", async () => {
-  await render(
+  await renderWithI18n(
     <SettingsTextEdit
       value="Weekend meetup"
       onChangeText={onChangeText}
@@ -31,7 +32,7 @@ test("shows the hint, count, and keeps Save disabled until dirty", async () => {
 });
 
 test("optional label and Save when dirty", async () => {
-  await render(
+  await renderWithI18n(
     <SettingsTextEdit
       label="A line for guests · optional"
       value="Bring a jacket"
@@ -51,7 +52,7 @@ test("optional label and Save when dirty", async () => {
 });
 
 test("shows an error", async () => {
-  await render(
+  await renderWithI18n(
     <SettingsTextEdit
       value=""
       onChangeText={onChangeText}

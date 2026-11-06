@@ -29,7 +29,6 @@ const TitleFormProbe = ({ initialTitle = "Weekend meetup" }: { initialTitle?: st
           onSubmitEditing={onSubmit}
           placeholder="Name your roll"
           accessibilityLabel="Roll name"
-          hint="This is the name people see on the roll and on the envelope."
           error={fieldState.error?.message ?? form.formState.errors.root?.server?.message}
           saveLabel="Save"
           onSave={onSubmit}

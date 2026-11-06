@@ -10,7 +10,6 @@ type EditEventTitleFormProps = {
   onSubmit: () => void;
   placeholder: string;
   accessibilityLabel: string;
-  hint: string;
   saveLabel: string;
 };
 
@@ -23,7 +22,6 @@ export const EditEventTitleForm = ({
   onSubmit,
   placeholder,
   accessibilityLabel,
-  hint,
   saveLabel,
 }: EditEventTitleFormProps) => (
   <Controller
@@ -37,7 +35,6 @@ export const EditEventTitleForm = ({
         onSubmitEditing={onSubmit}
         placeholder={placeholder}
         accessibilityLabel={accessibilityLabel}
-        hint={hint}
         error={fieldState.error?.message ?? error}
         saveLabel={saveLabel}
         onSave={onSubmit}
