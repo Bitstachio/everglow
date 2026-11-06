@@ -22,7 +22,9 @@ export const ReportNote = ({ value, onChangeText, placeholder, accessibilityLabe
       maxLength={maxLength}
       multiline
       autoFocus
-      className="min-h-11 font-hand text-filled-in text-ink-blue"
+      // The pen's strokes rise above its line box, so the first line needs room
+      // at the top. Inputs take no line height (global.css).
+      className="min-h-11 pt-2 font-hand text-input-card text-ink-blue"
     />
   </View>
 );
