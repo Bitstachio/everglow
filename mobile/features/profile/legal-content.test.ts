@@ -39,6 +39,8 @@ test("the privacy policy says reports are kept for up to a year, longer under a 
   expect(retention).toMatch(/until that hold ends/);
 });
 
-test("the privacy policy's contact is on the website's domain", () => {
-  expect(privacySection("Contact us")).toContain("hello@everglow.social");
+test("the privacy policy's contact and full text are on the website", () => {
+  const contact = privacySection("Contact us");
+  expect(contact).toContain("privacy@everglow.social");
+  expect(contact).toContain("everglow.social/en/privacy");
 });
