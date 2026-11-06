@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/context/auth-context";
 import { I18nProvider } from "@/providers/i18n-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { UploadTrayProvider } from "@/features/events/providers/upload-tray-provider";
+import { NotificationsProvider } from "@/features/notifications/providers/notifications-provider";
 import { AppThemeProvider } from "@/theme/provider";
 import "./global.css";
 
@@ -20,6 +21,7 @@ const RootLayout = () => (
       <AuthProvider>
         <UploadTrayProvider />
         <AppThemeProvider>
+          <NotificationsProvider />
           <RootNavigator />
           <StatusBar style="light" />
         </AppThemeProvider>

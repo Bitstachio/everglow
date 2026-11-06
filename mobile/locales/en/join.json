@@ -56,6 +56,12 @@
     "joinedNoPlace": "You’re on the roll",
     "already": "You’re already on this roll"
   },
+  "notes": {
+    "title": "Want a note when photos land?",
+    "body": "A note when the gallery opens, and the day before photos are removed.",
+    "turnOn": "Turn on notes",
+    "notNow": "Not now"
+  },
   "refused": {
     "edgeNotValid": "Envelope",
     "returned": "Returned",

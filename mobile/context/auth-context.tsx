@@ -8,6 +8,7 @@ import { authService, OnboardingData, User } from "@/lib/auth";
 import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import { isConnectionError } from "@/lib/api/errors";
 import { runAccountCleared, type AccountClearedReason } from "@/lib/account-cleared";
+import { runBeforeSignOut } from "@/lib/before-sign-out";
 import { clearPendingInvite, takeLandingRoute } from "@/lib/pending-invite";
 import { View } from "react-native";
 import {
@@ -268,6 +269,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signedOutRef.current = true;
       try {
         setIsLoading(true);
+        // While the token still works: stop this phone's pushes for the account, for example.
+        await runBeforeSignOut({ accountDeleted: to !== LOGIN_ROUTE });
         await logoutFromAuth0();
       } catch (err) {
         console.error("Logout error:", err);
