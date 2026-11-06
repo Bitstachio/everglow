@@ -1153,7 +1153,7 @@ describe("EventsService", () => {
         ] as never);
 
         await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-          new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
+          inviteNotFound(invitationUrl),
         );
       },
     );
