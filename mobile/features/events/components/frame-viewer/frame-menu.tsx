@@ -5,7 +5,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { MenuAction } from "@/components/ui/menu-action";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
-import type { SheetFrame } from "../../lib/roll-page";
+import { firstName, type SheetFrame } from "../../lib/roll-page";
 
 /**
  * Chapter 09's frame summary and action index, without the removed frame
@@ -39,7 +39,7 @@ export const FrameMenu = ({
   onDelete: () => void;
   /** Left out for your own frame: you can't report it. */
   onReport?: () => void;
-  /** Left out for your own frame, and for a frame whose owner left Everglow. */
+  /** Left out for your own frame, and when its owner is off the roll or already blocked. */
   onBlock?: () => void;
 }) => {
   const { t } = useTranslation(["roll", "report"]);
@@ -88,7 +88,7 @@ export const FrameMenu = ({
         {onBlock ? (
           <MenuAction
             muted
-            label={t("report:menu.block", { name: name.split(" ")[0] })}
+            label={t("report:menu.block", { name: firstName(name) })}
             icon={Prohibit}
             onPress={onBlock}
           />

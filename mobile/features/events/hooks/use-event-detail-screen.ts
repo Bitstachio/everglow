@@ -44,7 +44,6 @@ import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
 import { useBlockMutation } from "@/features/moderation/api/mutations";
 import { useUnblockMutation } from "@/features/profile/api/mutations";
-import type { SheetFrame } from "../lib/roll-page";
 
 /** What the roll's page shows, read from its three queries. */
 type RollOnScreen = {
@@ -455,8 +454,14 @@ export const useEventDetailScreen = () => {
 
   const openFrame = gallery.openFrame;
   const ownsOpenFrame = !!openFrame && !!user && openFrame.photo.addedById === user.id;
-  const openFrameOwnerId = ownsOpenFrame ? null : openFrame?.photo.addedById;
-  const frameOwnerName = (frame: SheetFrame) => frame.uploader?.name ?? frame.by ?? t("gallery.unknownUploader");
+  // Only someone still on the roll can be blocked from their frame: a leaver
+  // has no name to show, and a block needs a roll in common. Someone already
+  // blocked only shows up in a roll you host, and Unblock is in the roll call.
+  const openFrameOwner =
+    openFrame && !ownsOpenFrame
+      ? participants.find((participant) => participant.userId === openFrame.photo.addedById)
+      : undefined;
+  const blockableFrameOwner = openFrameOwner && !openFrameOwner.isBlockedByCaller ? openFrameOwner : null;
 
   return {
     ...gallery,
@@ -553,7 +558,7 @@ export const useEventDetailScreen = () => {
       setSheet("block");
     },
     onUnblockPerson: () => {
-      if (!person) return;
+      if (!person || unblockMutation.isPending) return;
       const name = person.name || t("people.unknown");
       unblockMutation.mutate(person.userId, {
         onSuccess: () => {
@@ -575,13 +580,16 @@ export const useEventDetailScreen = () => {
             openReport({ photoId: openFrame.photo.id, number: String(openFrame.number) });
           }
         : undefined,
-    onBlockFrameOwner:
-      openFrame && openFrameOwnerId
-        ? () => {
-            setBlockError(null);
-            setBlockTarget({ userId: openFrameOwnerId, name: frameOwnerName(openFrame), over: "viewer" });
-          }
-        : undefined,
+    onBlockFrameOwner: blockableFrameOwner
+      ? () => {
+          setBlockError(null);
+          setBlockTarget({
+            userId: blockableFrameOwner.userId,
+            name: blockableFrameOwner.name || t("people.unknown"),
+            over: "viewer",
+          });
+        }
+      : undefined,
     onCancelBlock,
     onConfirmBlock,
     onBackToPeople: () => setSheet("people"),

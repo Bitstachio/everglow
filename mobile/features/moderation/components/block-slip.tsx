@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { firstName } from "@/features/events/lib/roll-page";
 import { Slip } from "@/components/ui/slip";
 import { useTranslation } from "react-i18next";
 import { Text } from "react-native";
@@ -19,16 +20,16 @@ type BlockSlipProps = {
  */
 export const BlockSlip = ({ name, busy, error, onConfirm, onCancel }: BlockSlipProps) => {
   const { t } = useTranslation("report");
-  const firstName = name.trim().split(/\s+/)[0] || name;
+  const first = firstName(name) || name;
   return (
-    <Slip edge={t("block.edge", { name })} title={t("block.title")} body={t("block.body", { name: firstName })}>
+    <Slip edge={t("block.edge", { name })} title={t("block.title")} body={t("block.body", { name: first })}>
       {error ? (
         <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
           {error}
         </Text>
       ) : null}
       <Button
-        title={t("block.confirm", { name: firstName })}
+        title={t("block.confirm", { name: first })}
         variant="danger"
         mark="⦸"
         isLoading={busy}
