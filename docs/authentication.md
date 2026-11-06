@@ -2,7 +2,7 @@
 
 This document explains how Everglow authenticates API requests, why we outsource login to Auth0, how just-in-time (JIT) user provisioning works, and why we keep a tombstone of deleted identities. It is written for engineers who will touch auth or account deletion.
 
-Related: [Account deletion](./account-deletion.md) covers the dual-store delete saga (Auth0 + application database). [Credential changes](./credential-changes.md) covers password and email. This document covers the request path and the JWT resurrection hole that deletion alone does not close.
+Related: [Account deletion](./account-deletion.md) covers the dual-store delete saga (Auth0 + application database). [Credential changes](./credential-changes.md) covers password and email. This document covers the request path, the JWT resurrection hole that deletion alone does not close, and how the phone signs out (section 11).
 
 ---
 
@@ -276,3 +276,23 @@ Apple Developer portal:
 5. Optional, not required for review: register a server-to-server notification endpoint so Apple's `consent-revoked` and `account-delete` events can start the deletion saga when the person unlinks the app from their Apple ID settings instead of from within the app. Not implemented yet.
 
 Verifying a deployment: delete an Apple-signed-in test account, then check the device's Settings → Apple ID → Sign in with Apple. The app must no longer be listed, and the next sign-in must show Apple's full consent screen again.
+
+---
+
+## 11. Signing out on the phone
+
+The mobile app keeps its Auth0 tokens in react-native-auth0's credentials manager (`mobile/lib/auth0.ts`). The refresh token there renews the access token without a new sign-in, so it is the credential worth stealing. Clearing the credentials manager only forgets it on this phone. A copy taken off the device would keep working until Auth0 expires it.
+
+So a deliberate sign-out (`logout` in `mobile/context/auth-context.tsx`, which `logoutFromAuth0` serves) does three things in order:
+
+```text
+revoke the refresh token (POST /oauth/revoke) → clear the Auth0 web session → clear the credentials manager
+```
+
+1. **Revoke.** `logoutFromAuth0` reads the stored credentials and calls `auth0.auth.revoke({ refreshToken })`. This is best effort. When it fails (offline, Auth0 unreachable, the token already revoked, or credentials that cannot be read), the app logs `auth.sign_out.revoke_failed` with the error code, never the token, and carries on. The person is not told: they asked to sign out, and the phone signs out either way.
+2. **Clear the web session** with `webAuth.clearSession`, so the next Universal Login does not sign the same person straight back in.
+3. **Clear the credentials manager**, in a `finally`, so a cancelled or failed step above never leaves tokens on the phone.
+
+The auth context then clears the account (`clearAccount("signedOut")`: the query cache, `user`, `identity`, a waiting invite, and the upload trays registered in `mobile/lib/account-cleared.ts`). Account deletion signs out the same way, onto Deleted (14.12).
+
+A session that ends on its own takes a shorter path, `handleSessionExpired`: a 401 from the API (section 2) or a password change that killed the refresh token ([Credential changes](./credential-changes.md), section 2.1). It clears the credentials manager and the account with reason `sessionExpired`, which keeps unfinished uploads on the phone for the same person, and does not revoke. After a password change Auth0 has already revoked the token. After a 401 the stored tokens are only dropped from the phone.
