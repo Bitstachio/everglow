@@ -11,7 +11,7 @@ export type LeftRoll = { event: Event; photos: RollPhoto[] };
 /** The roll just left, waiting to be read once when Home is shown. */
 let pending: LeftRoll | null = null;
 
-export const noteLeftRoll = (roll: LeftRoll) => {
+export const handOverLeftRoll = (roll: LeftRoll) => {
   pending = roll;
 };
 

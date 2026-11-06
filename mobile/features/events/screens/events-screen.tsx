@@ -17,7 +17,7 @@ import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanim
 import { RollCard } from "../components/roll-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { useRollPreview } from "../hooks/use-roll-preview";
-import { LEAVE_MOTION } from "../lib/left-roll-note";
+import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
 
 const UNEXPOSED: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n), number: n }));

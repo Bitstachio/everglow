@@ -8,7 +8,7 @@ import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/
 // eslint-disable-next-line no-restricted-imports
 import { AccessibilityInfo, Alert } from "react-native";
 import EventsScreen from "./events-screen";
-import { LEAVE_MOTION, LEAVE_SETTLE_MS, noteLeftRoll, takeLeftRoll } from "../lib/left-roll-note";
+import { LEAVE_MOTION, LEAVE_SETTLE_MS, handOverLeftRoll, takeLeftRoll } from "../lib/left-roll";
 import { buildEvent, deferred } from "../testing/fixtures";
 
 const mockFindAll = jest.fn();
@@ -170,7 +170,7 @@ const leftWedding = () => ({
 const SETTLED = { timeout: LEAVE_MOTION.holdMs + LEAVE_SETTLE_MS + 2000 };
 
 test("the roll you left keeps its place, then goes, once", async () => {
-  noteLeftRoll(leftWedding());
+  handOverLeftRoll(leftWedding());
   // The list no longer has the roll: leaving refetched it before Home came back.
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "event-2", title: "Nadia turns 30" })] } });
   const view = await renderScreen();
@@ -200,7 +200,7 @@ test("with Reduce Motion the roll you left is simply gone", async () => {
   const view = await renderScreen();
   await screen.findByText("Nadia turns 30");
   // Home was already on screen, with the setting read, before you came back to it.
-  noteLeftRoll(leftWedding());
+  handOverLeftRoll(leftWedding());
   mockFocused = false;
   await view.rerender();
   mockFocused = true;

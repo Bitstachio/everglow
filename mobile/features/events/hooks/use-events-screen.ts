@@ -8,7 +8,7 @@ import { Alert } from "react-native";
 import { eventsKeys } from "../api/keys";
 import { useEventsQuery } from "../api/queries";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
-import { LEAVE_MOTION, LEAVE_SETTLE_MS, takeLeftRoll, type LeftRoll } from "../lib/left-roll-note";
+import { LEAVE_MOTION, LEAVE_SETTLE_MS, takeLeftRoll, type LeftRoll } from "../lib/left-roll";
 import { groupRolls, hasClosed, isLastDay, ROLL_FRAMES } from "../lib/rolls";
 import type { Event } from "../types";
 

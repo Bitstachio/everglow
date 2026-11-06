@@ -13,7 +13,7 @@ import { buildEvent, buildParticipant, buildPhoto, deferred } from "../testing/f
 // Seed and inspect caches at the integration boundary.
 // eslint-disable-next-line no-restricted-imports
 import { eventsKeys } from "../api/keys";
-import { takeLeftRoll } from "../lib/left-roll-note";
+import { takeLeftRoll } from "../lib/left-roll";
 import { createApiError } from "@/lib/api/errors";
 import UploadTrayScreen from "./upload-tray-screen";
 import { addToTray, activateUploadTrays, getTray } from "../lib/upload-tray";

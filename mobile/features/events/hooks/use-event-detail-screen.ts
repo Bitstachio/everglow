@@ -26,7 +26,7 @@ import {
   type RoomShortfall,
 } from "../lib/picked-photos";
 import { asksAboutFrames } from "../lib/leave-roll";
-import { noteLeftRoll } from "../lib/left-roll-note";
+import { handOverLeftRoll } from "../lib/left-roll";
 import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
 import { hasClosed, toRollPhotos } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
@@ -349,7 +349,7 @@ export const useEventDetailScreen = () => {
       {
         onSuccess: () => {
           // Home keeps its card, strip and all, while it goes (13.3).
-          noteLeftRoll({ event, photos: toRollPhotos(photos) });
+          handOverLeftRoll({ event, photos: toRollPhotos(photos) });
           closeSheet();
           router.replace("/events");
         },
