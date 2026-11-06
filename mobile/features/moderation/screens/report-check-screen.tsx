@@ -142,6 +142,7 @@ const ReportCheckScreen = () => {
         <Button
           title={screen.kind === "frame" ? t("decide.keepFrame") : t("decide.keepPerson")}
           variant="ghost"
+          className={screen.pending ? undefined : "opacity-80"}
           isLoading={screen.pending === "DISMISS"}
           disabled={!!screen.pending}
           onPress={screen.onKeep}

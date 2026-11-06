@@ -44,7 +44,7 @@ const ReportsScreen = () => {
             <Display dim={t("check.titleDim")}>
               {screen.toCheck ? t("check.title", { count: screen.toCheck }) : t("check.empty")}
             </Display>
-            <View className="mt-6">
+            <View className="mt-14">
               {screen.rows.map((row) => (
                 <ReportRow
                   key={row.key}
@@ -57,7 +57,7 @@ const ReportsScreen = () => {
                 />
               ))}
             </View>
-            {screen.done > 0 ? <EdgePrint className="mt-7">{t("check.done", { count: screen.done })}</EdgePrint> : null}
+            {screen.done > 0 ? <EdgePrint className="mt-9">{t("check.done", { count: screen.done })}</EdgePrint> : null}
           </>
         )}
       </ScrollView>
