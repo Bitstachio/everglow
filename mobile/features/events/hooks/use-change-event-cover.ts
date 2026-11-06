@@ -12,8 +12,6 @@ type PhotoSource = "camera" | "library";
 // Not cropped here: iOS's editor only crops square, so the cover crop frames it at 16:9.
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 1 };
 
-const formatWait = (seconds: number) => (seconds < 60 ? `${seconds} seconds` : `${Math.ceil(seconds / 60)} minutes`);
-
 const pickPhoto = async (
   source: PhotoSource,
   denied: string,
@@ -58,7 +56,12 @@ export const useChangeEventCover = (eventId: string, hasCover: boolean) => {
     const seconds = Math.max(1, Math.ceil((rateLimitedUntil.current - Date.now()) / 1000));
     Alert.alert(
       t("settings.editCover.rateLimitedTitle"),
-      t("settings.editCover.rateLimited", { wait: formatWait(seconds) }),
+      t("settings.editCover.rateLimited", {
+        wait:
+          seconds < 60
+            ? t("settings.editCover.waitSeconds", { count: seconds })
+            : t("settings.editCover.waitMinutes", { count: Math.ceil(seconds / 60) }),
+      }),
     );
   };
 
