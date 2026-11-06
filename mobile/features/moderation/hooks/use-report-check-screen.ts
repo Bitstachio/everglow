@@ -6,15 +6,13 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useResolveReportMutation } from "../api/mutations";
 import { useEventReportsQuery } from "../api/queries";
-import { frameNumbers, groupKey, groupOpenReports } from "../lib/report-groups";
+import { frameNumbers, groupOpenReports } from "../lib/report-groups";
 import type { ResolveReportDto } from "../types";
 
-type Params = { id: string; photoId?: string; userId?: string };
+/** `key` is the group's key from 10.8 (`frame:…`, `person:…` or `report:…`). */
+type Params = { id: string; key: string };
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
-
-/** Codes that mean the decision is no longer the hosts' to make: go back and let the list catch up. */
-const MOVED_ON = new Set(["REPORT_ALREADY_RESOLVED", "REPORTED_PHOTO_GONE", "REPORTED_MEMBER_GONE"]);
 
 /**
  * 10.9 Decide on a frame or a person: remove the frame, remove the person,
@@ -26,47 +24,54 @@ export const useReportCheckScreen = () => {
   const { user } = useAuth();
   const params = useLocalSearchParams<Params>();
   const eventId = first(params.id) ?? "";
-  const photoId = first(params.photoId);
-  const userId = first(params.userId);
-  const kind = photoId ? "frame" : "person";
+  const key = first(params.key) ?? "";
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resolve = useResolveReportMutation();
 
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
-  const photosQuery = useEventPhotosQuery(eventId, kind === "frame");
   const reportsQuery = useEventReportsQuery(eventId);
 
-  const key = groupKey(
-    photoId
-      ? { targetType: "PHOTO", photoId, reportedUserId: null }
-      : { targetType: "MEMBER", photoId: null, reportedUserId: userId ?? null },
-  );
   const group =
     groupOpenReports(reportsQuery.data ?? [], eventQuery.data?.usage.members ?? 0).find((item) => item.key === key) ??
     null;
+  const kind = group?.kind ?? (key.startsWith("person:") ? "person" : "frame");
+  const photoId = group?.photoId ?? null;
+  const photosQuery = useEventPhotosQuery(eventId, kind === "frame");
   const photos = photosQuery.data ?? [];
   const photo = photoId ? (photos.find((item) => item.id === photoId) ?? null) : null;
   const number = photoId ? frameNumbers(photos.map((item) => item.id)).get(photoId) : undefined;
-  const subjectId = group?.userId ?? userId ?? photo?.addedById ?? null;
-  const subject = (participantsQuery.data ?? []).find((person) => person.userId === subjectId) ?? null;
-  const name = subject?.name || t("subject.roll");
+  const subject = (participantsQuery.data ?? []).find((person) => person.userId === group?.userId) ?? null;
+  // Someone who left the roll, or deleted their account, is no longer in the roll call.
+  const name = subject?.name || t("check.left");
   const firstName = name.split(" ")[0];
   const count = group?.reports.length ?? 0;
   const withEverglow = group?.withEverglow ?? false;
 
-  const title = withEverglow
-    ? kind === "frame"
-      ? number
-        ? t("everglow.topFrame", { number })
-        : t("everglow.topFrameNoNumber")
-      : t("everglow.topPerson", { name })
-    : kind === "frame"
-      ? number
-        ? t("decide.topFrame", { number, count })
-        : t("decide.topFrameNoNumber", { count })
-      : t("decide.topPerson", { name, count });
+  const isLoading =
+    reportsQuery.isLoading ||
+    eventQuery.isLoading ||
+    participantsQuery.isLoading ||
+    (kind === "frame" && photosQuery.isLoading);
+  // A list that loaded once stays on screen through a failed refresh.
+  const loadError = reportsQuery.isError && !reportsQuery.data ? getErrorMessage(reportsQuery.error) : null;
+  const isGone = !isLoading && !loadError && !group;
+
+  const title =
+    !group || isLoading
+      ? t("check.topNone")
+      : withEverglow
+        ? kind === "frame"
+          ? number
+            ? t("everglow.topFrame", { number })
+            : t("everglow.topFrameNoNumber")
+          : t("everglow.topPerson", { name })
+        : kind === "frame"
+          ? number
+            ? t("decide.topFrame", { number, count })
+            : t("decide.topFrameNoNumber", { count })
+          : t("decide.topPerson", { name, count });
 
   const addedAt = photo
     ? new Date(photo.createdAt).toLocaleString(i18n.language, {
@@ -80,25 +85,31 @@ export const useReportCheckScreen = () => {
   const onBack = () =>
     router.canGoBack() ? router.back() : router.replace({ pathname: "/events/[id]/reports", params: { id: eventId } });
 
-  const decide = (action: ResolveReportDto["action"]) => {
-    const report = group?.actionable;
-    if (!report || resolve.isPending) return;
+  const decide = async (action: ResolveReportDto["action"]) => {
+    const candidates = group?.decidable ?? [];
+    if (!candidates.length || resolve.isPending) return;
     setError(null);
-    resolve.mutate(
-      { eventId, reportId: report.id, action },
-      {
-        onSuccess: onBack,
-        onError: (failure) => {
-          const code = getErrorCode(failure);
-          if (code && MOVED_ON.has(code)) {
-            onBack();
-            return;
-          }
-          // REPORT_ESCALATED: it moved to Everglow meanwhile; the refetch turns this into 10.10.
-          if (code !== "REPORT_ESCALATED") setError(getErrorMessage(failure, t("decide.failed")));
-        },
-      },
-    );
+    let failure: unknown;
+    // A host can't decide on a report they filed themselves, but another
+    // report on the same frame or person closes theirs with it.
+    for (const report of candidates) {
+      try {
+        await resolve.mutateAsync({ eventId, reportId: report.id, action });
+        onBack();
+        return;
+      } catch (caught) {
+        failure = caught;
+        if (getErrorCode(caught) !== "CANNOT_RESOLVE_OWN_REPORT") break;
+      }
+    }
+    const code = getErrorCode(failure);
+    // Another host decided first: the list has caught up, so go back to it.
+    if (code === "REPORT_ALREADY_RESOLVED") {
+      onBack();
+      return;
+    }
+    // REPORT_ESCALATED: it moved to Everglow meanwhile; the refetch turns this into 10.10.
+    if (code !== "REPORT_ESCALATED") setError(getErrorMessage(failure, t("decide.failed")));
   };
 
   // A host can't be removed by another host's report decision, nor can you remove yourself.
@@ -107,9 +118,10 @@ export const useReportCheckScreen = () => {
   return {
     kind,
     title,
-    isLoading: reportsQuery.isLoading || eventQuery.isLoading,
+    isLoading,
+    loadError,
     /** Decided elsewhere, or never there: nothing left to do here. */
-    isGone: !reportsQuery.isLoading && !group,
+    isGone,
     withEverglow,
     photo,
     subject,
@@ -120,13 +132,16 @@ export const useReportCheckScreen = () => {
     addedByValue: addedAt ? t("decide.addedByValue", { name, time: addedAt }) : name,
     notes: (group?.reports ?? []).map((report) => report.note).filter((note): note is string => !!note),
     removePersonLabel: t("decide.removePerson", { name: firstName }),
+    /** Only a frame still on the roll can be removed. */
+    canRemoveFrame: !!photo,
     canRemovePerson,
     error,
     pending: resolve.isPending ? resolve.variables?.action : undefined,
     onReveal: () => setRevealed(true),
-    onRemoveFrame: () => decide("REMOVE_PHOTO"),
-    onRemovePerson: () => decide("REMOVE_MEMBER"),
-    onKeep: () => decide("DISMISS"),
+    onRemoveFrame: () => void decide("REMOVE_PHOTO"),
+    onRemovePerson: () => void decide("REMOVE_MEMBER"),
+    onKeep: () => void decide("DISMISS"),
+    onRetry: () => void reportsQuery.refetch(),
     onBack,
   };
 };

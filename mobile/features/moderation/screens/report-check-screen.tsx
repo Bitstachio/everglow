@@ -33,23 +33,21 @@ const ReportCheckScreen = () => {
 
   const print =
     screen.kind === "frame" ? (
-      screen.withEverglow ? (
+      screen.withEverglow || !screen.photo ? (
         <View className="aspect-square items-center justify-center bg-frame-empty">
-          <EdgePrint>{t("everglow.hidden")}</EdgePrint>
+          <EdgePrint>{screen.withEverglow ? t("everglow.hidden") : t("decide.frameGone")}</EdgePrint>
         </View>
       ) : (
         <Pressable
           accessibilityRole="imagebutton"
-          accessibilityLabel={t("decide.lookLabel")}
+          accessibilityLabel={screen.revealed ? t("decide.lookedLabel") : t("decide.lookLabel")}
           disabled={screen.revealed}
           onPress={screen.onReveal}
           className="aspect-square overflow-hidden bg-frame-empty"
         >
           <RetryingPhoto
-            uri={(screen.revealed ? screen.photo?.url : screen.photo?.thumbnailUrl) ?? undefined}
-            cacheKey={
-              screen.photo ? `photo:${screen.photo.id}:${screen.revealed ? "original" : "thumbnail"}` : undefined
-            }
+            uri={(screen.revealed ? screen.photo.url : screen.photo.thumbnailUrl) ?? undefined}
+            cacheKey={`photo:${screen.photo.id}:${screen.revealed ? "original" : "thumbnail"}`}
             className="h-full w-full"
             contentFit="cover"
             blurRadius={screen.revealed ? 0 : 40}
@@ -76,6 +74,11 @@ const ReportCheckScreen = () => {
 
   const body = screen.isLoading ? (
     <Spinner label={t("common:actions.loading")} />
+  ) : screen.loadError ? (
+    <View className="items-start gap-2">
+      <Text className="font-sans text-body text-text-2">{screen.loadError}</Text>
+      <Button title={t("check.retry")} variant="ghost" fullWidth={false} className="-ml-2" onPress={screen.onRetry} />
+    </View>
   ) : screen.isGone ? (
     <Text className="font-sans text-body text-text-2">{t("decide.gone")}</Text>
   ) : (
@@ -105,46 +108,46 @@ const ReportCheckScreen = () => {
     </>
   );
 
-  const actions = screen.isGone ? (
-    <Button title={t("everglow.ok")} variant="secondary" mark="‹" onPress={screen.onBack} />
-  ) : screen.withEverglow ? (
-    <Button title={t("everglow.ok")} variant="secondary" mark="✓" onPress={screen.onBack} />
-  ) : screen.isLoading ? null : (
-    <>
-      {screen.error ? (
-        <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
-          {screen.error}
-        </Text>
-      ) : null}
-      {screen.kind === "frame" ? (
+  // Decided elsewhere and 10.10 both leave nothing to do but acknowledge it.
+  const actions =
+    screen.isGone || screen.withEverglow ? (
+      <Button title={t("everglow.ok")} variant="secondary" mark="✓" onPress={screen.onBack} />
+    ) : screen.isLoading || screen.loadError ? null : (
+      <>
+        {screen.error ? (
+          <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
+            {screen.error}
+          </Text>
+        ) : null}
+        {screen.canRemoveFrame ? (
+          <Button
+            title={t("decide.removeFrame")}
+            variant="danger"
+            mark="✕"
+            isLoading={screen.pending === "REMOVE_PHOTO"}
+            disabled={!!screen.pending}
+            onPress={screen.onRemoveFrame}
+          />
+        ) : null}
+        {screen.canRemovePerson ? (
+          <Button
+            title={screen.removePersonLabel}
+            variant={screen.kind === "frame" ? "secondary" : "danger"}
+            mark="▸"
+            isLoading={screen.pending === "REMOVE_MEMBER"}
+            disabled={!!screen.pending}
+            onPress={screen.onRemovePerson}
+          />
+        ) : null}
         <Button
-          title={t("decide.removeFrame")}
-          variant="danger"
-          mark="✕"
-          isLoading={screen.pending === "REMOVE_PHOTO"}
+          title={screen.kind === "frame" ? t("decide.keepFrame") : t("decide.keepPerson")}
+          variant="ghost"
+          isLoading={screen.pending === "DISMISS"}
           disabled={!!screen.pending}
-          onPress={screen.onRemoveFrame}
+          onPress={screen.onKeep}
         />
-      ) : null}
-      {screen.canRemovePerson ? (
-        <Button
-          title={screen.removePersonLabel}
-          variant={screen.kind === "frame" ? "secondary" : "danger"}
-          mark="▸"
-          isLoading={screen.pending === "REMOVE_MEMBER"}
-          disabled={!!screen.pending}
-          onPress={screen.onRemovePerson}
-        />
-      ) : null}
-      <Button
-        title={screen.kind === "frame" ? t("decide.keepFrame") : t("decide.keepPerson")}
-        variant="ghost"
-        isLoading={screen.pending === "DISMISS"}
-        disabled={!!screen.pending}
-        onPress={screen.onKeep}
-      />
-    </>
-  );
+      </>
+    );
 
   return (
     <SafeAreaView className="flex-1 bg-ground">

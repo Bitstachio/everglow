@@ -21,13 +21,25 @@ export type ReportGroup = {
   hidden: boolean;
   /** Every report on it is with Everglow: hosts can only look (10.10). */
   withEverglow: boolean;
-  /** The report a host's decision is sent on. It closes all the others with it. */
-  actionable: ReportResponseDto | null;
+  /**
+   * The reports still with the hosts. A decision is sent on one
+   * of them and closes the others with it; the next is tried when the API
+   * says this host filed the first (CANNOT_RESOLVE_OWN_REPORT).
+   */
+  decidable: ReportResponseDto[];
   newestAt: string;
 };
 
-export const groupKey = (report: Pick<ReportResponseDto, "targetType" | "photoId" | "reportedUserId">) =>
-  report.targetType === "PHOTO" ? `frame:${report.photoId}` : `person:${report.reportedUserId}`;
+/**
+ * One frame or one person. A report whose frame was deleted (photoId null) or
+ * whose person deleted their account (reportedUserId null) can't be matched
+ * to the others any more, so it stands alone.
+ */
+export const groupKey = (report: Pick<ReportResponseDto, "id" | "targetType" | "photoId" | "reportedUserId">) => {
+  if (report.targetType === "PHOTO" && report.photoId) return `frame:${report.photoId}`;
+  if (report.targetType === "MEMBER" && report.reportedUserId) return `person:${report.reportedUserId}`;
+  return `report:${report.id}`;
+};
 
 const topReason = (reports: ReportResponseDto[]) => {
   const counts = new Map<ReportReason, number>();
@@ -67,12 +79,15 @@ export const groupOpenReports = (reports: ReportResponseDto[], memberCount: numb
           isFrame &&
           (items.length >= hideThreshold(memberCount) || items.some((item) => HIDES_AT_ONCE.includes(item.reason))),
         withEverglow: items.every((item) => item.queue === "PLATFORM"),
-        actionable: items.find((item) => item.queue === "ORGANIZERS") ?? null,
+        decidable: items.filter((item) => item.queue === "ORGANIZERS"),
         newestAt: items.reduce((newest, item) => (item.createdAt > newest ? item.createdAt : newest), first.createdAt),
       };
     })
     .sort((a, b) => b.newestAt.localeCompare(a.newestAt));
 };
+
+/** The groups a host can still decide on: what "N to check" counts. Those with Everglow are listed, not counted. */
+export const toCheckCount = (groups: ReportGroup[]) => groups.filter((group) => !group.withEverglow).length;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 

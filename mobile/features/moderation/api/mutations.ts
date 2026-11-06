@@ -108,15 +108,17 @@ export const useResolveReportMutation = () => {
       return unwrapEnvelope(data);
     },
     // Read again on failure too: a 409 or REPORT_ESCALATED means the list moved on.
-    onSettled: async (_report, _error, { eventId }) => {
-      await Promise.all(
-        [
-          moderationKeys.reports(eventId),
-          eventsKeys.detail(eventId),
-          eventsKeys.photos(eventId),
-          eventsKeys.participants(eventId),
-        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-      );
+    // Not awaited, so the screen goes back at once instead of showing its
+    // reports gone while the list reloads underneath it.
+    onSettled: (_report, _error, { eventId }) => {
+      for (const queryKey of [
+        moderationKeys.reports(eventId),
+        eventsKeys.detail(eventId),
+        eventsKeys.photos(eventId),
+        eventsKeys.participants(eventId),
+      ]) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
     },
   });
 };
