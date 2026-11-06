@@ -141,7 +141,12 @@ const EventSettingsScreen = () => {
         </View>
       </BottomSheet>
 
-      <BottomSheet visible={deleteRoll.visible} onClose={deleteRoll.onClose}>
+      <BottomSheet
+        testID="delete-roll-dialog"
+        visible={deleteRoll.visible}
+        onClose={deleteRoll.onClose}
+        onClosed={deleteRoll.onClosed}
+      >
         <Slip edge={deleteRoll.edge} title={t("roll:settings.deleteRoll.title")} body={deleteRoll.body}>
           {deleteRoll.error ? (
             <Text accessibilityRole="alert" className="font-sans text-body text-pencil">

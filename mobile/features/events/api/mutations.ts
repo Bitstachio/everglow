@@ -91,8 +91,10 @@ export const useDeleteEventMutation = () => {
     mutationFn: async (eventId) => {
       await eventsControllerRemove({ path: { eventId }, throwOnError: true });
     },
-    onSuccess: async (_data, eventId) => {
-      await invalidateEventCaches(queryClient, eventId);
+    onSuccess: async () => {
+      // Only Home's list: the roll's own queries would refetch to a 404 on the
+      // screens still open over it. They go with those screens, to garbage collection.
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
     },
   });
 };

@@ -1,7 +1,7 @@
 import "../testing/native-mocks";
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
 import EventSettingsScreen from "./event-settings-screen";
@@ -14,6 +14,7 @@ const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
 const mockUpdate = jest.fn();
 const mockRemove = jest.fn();
+const mockDismissAll = jest.fn();
 const mockReplace = jest.fn();
 const mockLimits = jest.fn();
 const mockBack = jest.fn();
@@ -32,7 +33,7 @@ jest.mock("@/lib/api/generated", () => ({
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush, replace: mockReplace }),
+  useRouter: () => ({ back: mockBack, push: mockPush, dismissAll: mockDismissAll, replace: mockReplace }),
   useLocalSearchParams: () => ({ id: mockEventId }),
 }));
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
@@ -80,6 +81,7 @@ beforeEach(() => {
   mockGetParticipants.mockReset();
   mockUpdate.mockReset();
   mockRemove.mockReset();
+  mockDismissAll.mockReset();
   mockReplace.mockReset();
   mockLimits.mockReset();
   mockBack.mockReset();
@@ -295,7 +297,12 @@ describe("a closed roll", () => {
     expect(screen.getByText(/for all 11 people/)).toBeOnTheScreen();
     await user.press(screen.getByRole("button", { name: "Delete Lake weekend" }));
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events"));
+    await waitFor(() => expect(mockRemove).toHaveBeenCalled());
+    // Home only once the slip has gone.
+    expect(mockReplace).not.toHaveBeenCalled();
+    await act(async () => screen.getByTestId("delete-roll-dialog", { includeHiddenElements: true }).props.onDismiss());
+    expect(mockDismissAll).toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith("/events");
     expect(mockRemove).toHaveBeenCalledWith(expect.objectContaining({ path: { eventId: "event-1" } }));
   });
 

@@ -219,10 +219,8 @@ export const useEventSettingsScreen = () => {
     setDeleteError(null);
     deleted.current = true;
     deleteMutation.mutate(eventId, {
-      onSuccess: () => {
-        setDeleteVisible(false);
-        router.replace("/events");
-      },
+      // Home once the slip has gone (see onClosed below).
+      onSuccess: () => setDeleteVisible(false),
       onError: (error) => {
         deleted.current = false;
         setDeleteError(getErrorMessage(error, t("roll:settings.deleteRoll.failed")));
@@ -267,6 +265,12 @@ export const useEventSettingsScreen = () => {
       : undefined,
     deleteRoll: {
       visible: deleteVisible,
+      onClosed: () => {
+        if (!deleted.current) return;
+        // Home, past the roll underneath, which would only fail to load now.
+        router.dismissAll();
+        router.replace("/events");
+      },
       onClose: () => {
         if (deleteMutation.isPending) return;
         setDeleteVisible(false);
