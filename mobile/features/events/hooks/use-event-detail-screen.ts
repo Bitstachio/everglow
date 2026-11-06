@@ -43,7 +43,7 @@ import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } 
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
 import { useBlockMutation } from "@/features/moderation/api/mutations";
-import { useEventReportsQuery } from "@/features/moderation/api/queries";
+import { useEventOpenReportsQuery } from "@/features/moderation/api/queries";
 import { groupOpenReports, toCheckCount } from "@/features/moderation/lib/report-groups";
 import { useUnblockMutation } from "@/features/profile/api/mutations";
 
@@ -457,7 +457,7 @@ export const useEventDetailScreen = () => {
   // 12.1: hosts see how many reports wait for them in the roll's menu. A
   // suspended roll is read-only (EVENT_SUSPENDED), so it has no Reports row.
   const canReviewReports = role === "host" && event?.status !== "SUSPENDED";
-  const reportsQuery = useEventReportsQuery(eventId, canReviewReports && !leavingRoll);
+  const reportsQuery = useEventOpenReportsQuery(eventId, canReviewReports && !leavingRoll);
   const reportsToCheck = canReviewReports
     ? toCheckCount(groupOpenReports(reportsQuery.data ?? [], event?.usage.members ?? 0))
     : 0;

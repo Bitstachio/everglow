@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useResolveReportMutation } from "../api/mutations";
-import { useEventReportsQuery } from "../api/queries";
+import { useEventOpenReportsQuery } from "../api/queries";
 import { frameNumbers, groupOpenReports } from "../lib/report-groups";
 import type { ResolveReportDto } from "../types";
 
@@ -31,7 +31,7 @@ export const useReportCheckScreen = () => {
 
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
-  const reportsQuery = useEventReportsQuery(eventId);
+  const reportsQuery = useEventOpenReportsQuery(eventId);
 
   const group =
     groupOpenReports(reportsQuery.data ?? [], eventQuery.data?.usage.members ?? 0).find((item) => item.key === key) ??

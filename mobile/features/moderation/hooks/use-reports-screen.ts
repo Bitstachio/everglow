@@ -3,7 +3,7 @@ import { getErrorMessage } from "@/lib/api/errors";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useEventReportsQuery } from "../api/queries";
+import { useEventOpenReportsQuery, useEventRecentReportsQuery } from "../api/queries";
 import { doneThisWeek, frameNumbers, groupOpenReports, toCheckCount } from "../lib/report-groups";
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
@@ -18,11 +18,11 @@ export const useReportsScreen = () => {
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
   const photosQuery = useEventPhotosQuery(eventId);
-  const reportsQuery = useEventReportsQuery(eventId);
+  const reportsQuery = useEventOpenReportsQuery(eventId);
+  const recentQuery = useEventRecentReportsQuery(eventId);
 
   const memberCount = eventQuery.data?.usage.members ?? participantsQuery.data?.length ?? 0;
-  const reports = reportsQuery.data ?? [];
-  const groups = groupOpenReports(reports, memberCount);
+  const groups = groupOpenReports(reportsQuery.data ?? [], memberCount);
   const toCheck = toCheckCount(groups);
   const numbers = frameNumbers((photosQuery.data ?? []).map((photo) => photo.id));
   const photos = new Map((photosQuery.data ?? []).map((photo) => [photo.id, photo]));
@@ -61,13 +61,19 @@ export const useReportsScreen = () => {
     rows,
     /** What hosts can still decide; rows with Everglow are listed but not counted. */
     toCheck,
-    done: doneThisWeek(reports, now),
+    done: doneThisWeek(recentQuery.data ?? [], now),
     // Names and frame numbers come with the roll call and the frames, so wait for them too.
     isLoading: reportsQuery.isLoading || participantsQuery.isLoading || photosQuery.isLoading,
     // A list that loaded once stays on screen through a failed refresh.
     loadError: reportsQuery.isError && !reportsQuery.data ? getErrorMessage(reportsQuery.error) : null,
     refreshing: reportsQuery.isRefetching,
-    onRefresh: () => void Promise.all([reportsQuery.refetch(), photosQuery.refetch(), participantsQuery.refetch()]),
+    onRefresh: () =>
+      void Promise.all([
+        reportsQuery.refetch(),
+        recentQuery.refetch(),
+        photosQuery.refetch(),
+        participantsQuery.refetch(),
+      ]),
     onBack: () =>
       router.canGoBack() ? router.back() : router.replace({ pathname: "/events/[id]", params: { id: eventId } }),
   };
