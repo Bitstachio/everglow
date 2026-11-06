@@ -24,7 +24,6 @@
       "roll": "Reports about a roll go to Everglow. The hosts are not told who reported it.",
       "serious": "This goes only to Everglow’s safety team, not the hosts. If someone is in danger now, call 911."
     },
-    "note": "A short note",
     "notePlaceholder": "What happened",
     "noteLabel": "A short note about what’s wrong, optional"
   },
@@ -60,11 +59,11 @@
   "failed": "Didn’t send. Try again.",
   "gone": {
     "frame": "This frame isn’t on the roll anymore.",
-    "person": "{{name}} isn’t on this roll anymore.",
     "roll": "This roll isn’t there anymore."
   },
   "sent": {
     "frame": "Report sent · frame hidden for you",
+    "hostFrame": "Report sent",
     "person": "Report sent",
     "roll": "Report sent to Everglow"
   },

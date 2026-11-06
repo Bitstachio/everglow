@@ -397,7 +397,13 @@ export const useEventDetailScreen = () => {
 
   // 10.4: a sent report says so on the roll for a few seconds, then the
   // param goes so coming back doesn't repeat it, as the arrival note does.
-  const sentNotice = reported && REPORTED.includes(reported) ? t(`report:sent.${reported}`) : null;
+  // A host's own roll keeps showing them a frame they report.
+  const sentNotice =
+    reported === "frame" && role === "host"
+      ? t("report:sent.hostFrame")
+      : reported && REPORTED.includes(reported)
+        ? t(`report:sent.${reported}`)
+        : null;
   useEffect(() => {
     if (!reported) return;
     const timer = setTimeout(() => router.setParams({ reported: undefined }), NOTICE_MS);

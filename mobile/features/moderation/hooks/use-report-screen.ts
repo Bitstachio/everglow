@@ -1,4 +1,6 @@
+import { useAuth } from "@/context/auth-context";
 import { useEventParticipantsQuery, useEventQuery } from "@/features/events/api/queries";
+import { firstName as firstNameOf } from "@/features/events/lib/roll-page";
 import { getErrorMessage, isApiError } from "@/lib/api/errors";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -21,7 +23,7 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
  * two serious reasons go only to Everglow, and the ticket says so.
  */
 export const useReportScreen = () => {
-  const { t } = useTranslation("report");
+  const { t } = useTranslation(["report", "roll"]);
   const params = useLocalSearchParams<Params>();
   const eventId = first(params.id) ?? "";
   const photoId = first(params.photoId);
@@ -43,8 +45,14 @@ export const useReportScreen = () => {
   const photo = photoQuery.data ?? null;
   const subjectId = target === "frame" ? photo?.addedById : userId;
   const subject = participants.find((participant) => participant.userId === subjectId) ?? null;
-  const name = subject?.name || t("subject.roll");
-  const firstName = name.trim().split(/\s+/)[0] || name;
+  // Hosts go on seeing a frame they report in their own roll: they're the ones who judge it.
+  const { user } = useAuth();
+  const isHost = participants.some(
+    (participant) => participant.userId === user?.id && participant.accessLevel === "ORGANIZER",
+  );
+  // Until the roll call loads, or for someone who has left it.
+  const name = subject?.name || t("roll:people.unknown");
+  const firstName = firstNameOf(name) || name;
   const number = Number.isInteger(frameNumber) && frameNumber > 0 ? frameNumber : null;
   const serious = reason !== null && goesOnlyToEverglow(reason);
 
@@ -55,7 +63,9 @@ export const useReportScreen = () => {
         : t("top.frameNoNumber")
       : target === "person"
         ? t("top.person", { name })
-        : t("top.roll", { title: event?.title ?? "" });
+        : event?.title
+          ? t("top.roll", { title: event.title })
+          : t("menu.reportRoll");
 
   const frameLabel = number
     ? subject
@@ -98,9 +108,10 @@ export const useReportScreen = () => {
           router.dismissTo({ pathname: "/events/[id]", params: { id: eventId, reported } });
         },
         onError: (failure) => {
-          // A frame hidden or removed since the menu opened, or a person who left.
+          // A frame hidden or removed since the menu opened, or a roll that's gone.
+          // Someone who has left the roll is a 403 with its own message.
           if (isApiError(failure) && failure.status === 404) {
-            setError(t(`gone.${target}`, { name }));
+            setError(t(target === "frame" ? "gone.frame" : "gone.roll"));
             return;
           }
           setError(getErrorMessage(failure, t("failed")));
@@ -125,6 +136,11 @@ export const useReportScreen = () => {
       checked: value === reason,
     })),
     dividerAfter: lastHostReason(target),
+    footer: serious
+      ? t("ticket.footer.serious")
+      : target === "frame" && isHost
+        ? t("ticket.footer.person")
+        : t(`ticket.footer.${target}`),
     reason,
     serious,
     note,

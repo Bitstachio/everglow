@@ -81,7 +81,7 @@ const ReportScreen = () => {
                     }
                   : undefined
               }
-              footer={screen.serious ? t("ticket.footer.serious") : t(`ticket.footer.${target}`)}
+              footer={screen.footer}
             />
           </View>
         </ScrollView>

@@ -19,7 +19,9 @@ const mockParticipants = [
   buildParticipant({ userId: "u-leila", name: "Leila Haddad", username: "leila.h", accessLevel: "PARTICIPANT" }),
 ];
 const mockPhoto = buildPhoto({ id: "photo-144", addedById: "u-leila" });
+let mockUserId = "u-guest";
 
+jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: mockUserId } }) }));
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: () => Promise.resolve({ data: { data: mockEvent, meta: {} } }),
@@ -57,6 +59,7 @@ const renderScreen = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockUserId = "u-guest";
   mockReportPhoto.mockImplementation(filed);
   mockReportMember.mockImplementation(filed);
   mockReportEvent.mockImplementation(filed);
@@ -120,6 +123,14 @@ describe("a frame (10.1–10.4)", () => {
     expect(mockRouter.dismissTo).not.toHaveBeenCalled();
   });
 
+  test("a host goes on seeing a frame they report, and the ticket doesn't promise otherwise", async () => {
+    mockUserId = "u-host";
+    await renderScreen();
+
+    expect(await screen.findByText("The hosts see what was reported, never who reported it.")).toBeOnTheScreen();
+    expect(screen.queryByText(/You stop seeing this photo/)).not.toBeOnTheScreen();
+  });
+
   test("closing goes back to the frame it came from", async () => {
     await renderScreen();
     await user().press(screen.getByRole("button", { name: "Close" }));
@@ -146,6 +157,17 @@ test("a person has their own reasons, and no intimate-image reason (10.5)", asyn
       expect.objectContaining({ path: { eventId: "event-1", targetUserId: "u-leila" }, body: { reason: "VIOLENCE" } }),
     ),
   );
+});
+
+test("a person report on a roll that has gone says the roll has gone", async () => {
+  mockParams.mockReturnValue({ id: "event-1", userId: "u-leila" });
+  mockReportMember.mockRejectedValue(createApiError("Not found", { status: 404 }));
+  await renderScreen();
+  await screen.findByRole("header", { name: "Report Leila Haddad" });
+  await user().press(screen.getByRole("checkbox", { name: "Spam" }));
+  await user().press(screen.getByRole("button", { name: "Send report" }));
+
+  expect(await screen.findByText("This roll isn’t there anymore.")).toBeOnTheScreen();
 });
 
 test("the whole roll goes to Everglow (10.6)", async () => {
