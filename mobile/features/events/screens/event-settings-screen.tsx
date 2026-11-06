@@ -72,7 +72,7 @@ const EventSettingsScreen = () => {
         </View>
 
         {screen.scheduleLocked && screen.event.galleryState === "OPEN" ? (
-          <Text className="mt-14 font-sans text-body text-text-2">{t("roll:settings.scheduleLockedNote")}</Text>
+          <Text className="mt-16 font-sans text-body text-text-2">{t("roll:settings.scheduleLockedNote")}</Text>
         ) : null}
       </ScrollView>
 
@@ -92,7 +92,7 @@ const EventSettingsScreen = () => {
           times={when.times}
           note={
             <View>
-              {when.people ? <Text className="font-sans text-body text-text">{when.people}</Text> : null}
+              {when.people ? <Text className="font-sans text-body text-text-2">{when.people}</Text> : null}
               {when.error ? (
                 <Text accessibilityRole="alert" className="mt-1.5 font-sans text-body text-pencil">
                   {when.error}
