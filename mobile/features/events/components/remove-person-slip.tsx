@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { OptionRow } from "@/components/ui/option-row";
 import { Slip } from "@/components/ui/slip";
-import type { MemberPhotos } from "@/lib/api/generated";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
+import type { MemberPhotos } from "../types";
 
 type RemovePersonSlipProps = {
   name: string;

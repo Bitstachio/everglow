@@ -39,8 +39,7 @@ import {
   useUploadTray,
   type TrayItem,
 } from "../lib/upload-tray";
-import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } from "../types";
-import type { MemberPhotos } from "@/lib/api/generated";
+import type { EventParticipantResponseDto, EventResponseDto, MemberPhotos, PhotoResponseDto } from "../types";
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
 import { useBlockMutation } from "@/features/moderation/api/mutations";
