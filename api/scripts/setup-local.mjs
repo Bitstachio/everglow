@@ -26,6 +26,7 @@ const REQUIRED = [
   "DATABASE_URL",
   "AUTH0_DOMAIN",
   "AUTH0_AUDIENCE",
+  "AUTH0_NATIVE_CLIENT_ID",
   "AWS_REGION",
   "AWS_ACCESS_KEY_ID",
   "AWS_SECRET_ACCESS_KEY",
@@ -38,7 +39,6 @@ const OPTIONAL_FEATURES = [
     keys: ["AUTH0_MANAGEMENT_CLIENT_ID", "AUTH0_MANAGEMENT_CLIENT_SECRET"],
     feature: "account deletion and password change (DELETE /users/me, POST /users/me/password-change-ticket)",
   },
-  { keys: ["AUTH0_NATIVE_CLIENT_ID"], feature: "password change (POST /users/me/password-change-ticket)" },
 ];
 
 // Jobs that delete shared data. On a developer machine they would act on the
