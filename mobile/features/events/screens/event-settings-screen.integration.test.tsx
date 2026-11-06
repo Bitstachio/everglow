@@ -6,6 +6,7 @@ import { render, screen, userEvent, waitFor } from "@testing-library/react-nativ
 import { Alert } from "react-native";
 import EventSettingsScreen from "./event-settings-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
+import { createApiError } from "@/lib/api/errors";
 import { formatEnvelopeDay } from "../lib/envelope";
 import { formatOpensAt } from "../lib/roll-page";
 
@@ -299,18 +300,13 @@ describe("a closed roll", () => {
   });
 
   test("a refused delete says why and stays", async () => {
-    mockRemove.mockRejectedValue({
-      success: false,
-      statusCode: 403,
-      code: "EVENT_HAS_OPEN_REPORTS",
-      message: "Forbidden",
-    });
+    mockRemove.mockRejectedValue(createApiError("Forbidden", { status: 403, code: "EVENT_HAS_OPEN_REPORTS" }));
     await renderScreen(closed());
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Delete the roll" }));
     await user.press(await screen.findByRole("button", { name: "Delete Lake weekend" }));
 
-    expect(await screen.findByRole("alert")).toBeOnTheScreen();
+    expect(await screen.findByText(/reports waiting for a decision/)).toBeOnTheScreen();
     expect(mockReplace).not.toHaveBeenCalled();
   });
 });
@@ -319,4 +315,18 @@ test("an open roll can't be deleted from settings yet", async () => {
   await renderScreen(buildEvent({ galleryState: "OPEN" }));
   expect(await screen.findByLabelText("Delete the roll, After it closes")).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: /Delete the roll/ })).toBeNull();
+});
+
+test("a film change refused because the roll opened says so and reloads the roll", async () => {
+  const event = buildEvent({ galleryState: "UPCOMING", galleryWindowDays: 7, galleryWindowOptions: [3, 7, 14, 30] });
+  await renderScreen(event);
+  mockUpdate.mockRejectedValue(createApiError("Locked", { status: 409, code: "EVENT_SCHEDULE_LOCKED" }));
+  const user = userEvent.setup();
+
+  await user.press(await screen.findByRole("button", { name: "Film, 7-day roll" }));
+  await user.press(await screen.findByLabelText("Two weeks, 14-day roll"));
+  await user.press(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByText("The date and film can only change before the roll opens.")).toBeOnTheScreen();
+  await waitFor(() => expect(mockFindOne).toHaveBeenCalledTimes(2));
 });

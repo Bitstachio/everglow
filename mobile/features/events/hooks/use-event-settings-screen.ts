@@ -164,6 +164,8 @@ export const useEventSettingsScreen = () => {
       setWhenVisible(false);
     } catch (error) {
       setWhenError(getErrorMessage(error, t("roll:settings.editWhen.failed")));
+      // The roll may have opened meanwhile (EVENT_SCHEDULE_LOCKED): show the index as it is now.
+      void eventQuery.refetch();
     } finally {
       setWhenSaving(false);
     }
@@ -201,6 +203,8 @@ export const useEventSettingsScreen = () => {
       setFilmVisible(false);
     } catch (error) {
       setFilmError(getErrorMessage(error, t("roll:settings.editFilm.failed")));
+      // The roll may have opened meanwhile (EVENT_SCHEDULE_LOCKED): show the index as it is now.
+      void eventQuery.refetch();
     } finally {
       setFilmSaving(false);
     }
