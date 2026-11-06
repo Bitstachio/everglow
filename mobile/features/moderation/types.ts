@@ -1,6 +1,7 @@
 export type {
   EventParticipantResponseDto,
   ReportReason,
+  ReportReceiptResponseDto,
   ReportResponseDto,
   ReportStatus,
   ResolveReportDto,

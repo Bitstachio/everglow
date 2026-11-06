@@ -9,7 +9,7 @@ import { unwrapEnvelope } from "@/lib/api/envelope";
 import { eventsKeys } from "@/features/events/api/keys";
 import { profileKeys } from "@/features/profile/api/keys";
 import type { ReportTarget } from "../lib/reasons";
-import type { ReportReason, ReportResponseDto } from "../types";
+import type { ReportReason, ReportReceiptResponseDto } from "../types";
 
 export type ReportRequest = {
   eventId: string;
@@ -50,7 +50,7 @@ const fileReport = async ({ eventId, target, photoId, userId, reason, note }: Re
 export const useReportMutation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<ReportResponseDto, Error, ReportRequest>({
+  return useMutation<ReportReceiptResponseDto, Error, ReportRequest>({
     mutationFn: fileReport,
     onSuccess: async (_report, { eventId }) => {
       await Promise.all([

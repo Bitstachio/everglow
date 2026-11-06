@@ -29,7 +29,7 @@ const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string }> = {
 const FILL = { width: "100%", height: "100%" } as const;
 
 // The ghost fills a little over half the portrait at every size.
-const GHOST_PX: Record<AvatarSize, number> = { caption: 10, md: 22, header: 22, lg: 44 };
+const GHOST_PX: Record<AvatarSize, number> = { caption: 10, md: 22, header: 22, lg: 44, fill: 64 };
 
 export const getInitial = (name: string | null | undefined): string => name?.trim().charAt(0).toUpperCase() || "E";
 
