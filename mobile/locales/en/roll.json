@@ -192,11 +192,24 @@
     }
   },
   "leave": {
+    "edge": "Leave {{title}}",
     "title": "Leave {{title}}?",
-    "body": "Your frames stay on the roll until it closes. You can come back with the envelope.",
+    "framesTitle_one": "What about your frame?",
+    "framesTitle_other": "What about your {{count}} frames?",
+    "keep_one": "Leave it on the roll",
+    "keep_other": "Leave them on the roll",
+    "keepBody_one": "Everyone keeps it until the roll closes",
+    "keepBody_other": "Everyone keeps them until the roll closes",
+    "take_one": "Take it with me",
+    "take_other": "Take them with me",
+    "takeBody_one": "It’s removed for everyone. This can’t be undone.",
+    "takeBody_other": "All {{count}} are removed for everyone. This can’t be undone.",
+    "takeBodyBoth": "Both are removed for everyone. This can’t be undone.",
+    "return": "To come back you’ll need a new envelope.",
     "bodyClosed": "It has closed, so you can’t join it again.",
-    "confirm": "Leave",
-    "cancel": "Stay"
+    "confirm": "Leave the roll",
+    "cancel": "Stay",
+    "failed": "Couldn’t leave the roll. Try again."
   },
   "cut": {
     "title": "Cut the roll?",
