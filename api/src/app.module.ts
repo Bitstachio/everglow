@@ -19,6 +19,7 @@ import usersConfig from "./config/users.config";
 import { EventsModule } from "./events/events.module";
 import { EvidenceModule } from "./moderation/evidence/evidence.module";
 import { ModerationModule } from "./moderation/moderation.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { PlatformModerationModule } from "./moderation/platform/platform-moderation.module";
 import { PhotosModule } from "./photos/photos.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -58,6 +59,7 @@ import { UsersModule } from "./users/users.module";
     AppleSiwaModule,
     Auth0ManagementModule,
     PhotosModule,
+    NotificationsModule,
     ModerationModule,
     EvidenceModule,
     PlatformModerationModule,
