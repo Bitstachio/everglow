@@ -45,15 +45,15 @@ export const LeaveRollSlip = ({
         <View className="-mt-2">
           <View accessibilityRole="radiogroup">
             <OptionRow
-              title={t("leave.keep")}
-              description={t("leave.keepBody")}
+              title={t("leave.keep", { count: frameCount })}
+              description={t("leave.keepBody", { count: frameCount })}
               selected={photos === "KEEP"}
               disabled={isLeaving}
               onPress={() => onChoose("KEEP")}
             />
             <OptionRow
-              title={t("leave.take")}
-              description={t("leave.takeBody", { count: frameCount })}
+              title={t("leave.take", { count: frameCount })}
+              description={frameCount === 2 ? t("leave.takeBodyBoth") : t("leave.takeBody", { count: frameCount })}
               selected={photos === "DELETE"}
               disabled={isLeaving}
               onPress={() => onChoose("DELETE")}

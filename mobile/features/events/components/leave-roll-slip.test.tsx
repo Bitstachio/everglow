@@ -34,6 +34,20 @@ test("asks what happens to the frames you added, with leaving them selected", as
   expect(props.onConfirm).not.toHaveBeenCalled();
 });
 
+test("says which frames go in words that fit the count", async () => {
+  const view = await renderWithI18n(<LeaveRollSlip {...props} frameCount={1} />);
+  expect(screen.getByRole("header", { name: "What about your frame?" })).toBeOnTheScreen();
+  expect(
+    screen.getByRole("radio", { name: "Leave it on the roll. Everyone keeps it until the roll closes" }),
+  ).toBeOnTheScreen();
+  expect(screen.getByRole("radio", { name: /^Take it with me/ })).toBeOnTheScreen();
+  expect(screen.getByText("It’s removed for everyone. This can’t be undone.")).toBeOnTheScreen();
+
+  await view.rerender(<LeaveRollSlip {...props} frameCount={2} />);
+  expect(screen.getByRole("header", { name: "What about your 2 frames?" })).toBeOnTheScreen();
+  expect(screen.getByText("Both are removed for everyone. This can’t be undone.")).toBeOnTheScreen();
+});
+
 test("a roll with no frames of yours, or a closed roll, does not ask", async () => {
   const view = await renderWithI18n(<LeaveRollSlip {...props} frameCount={0} />);
   expect(screen.getByRole("header", { name: "Leave Sam & Jo’s wedding?" })).toBeOnTheScreen();
