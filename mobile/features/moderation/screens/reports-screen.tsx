@@ -28,9 +28,9 @@ const ReportsScreen = () => {
       >
         {screen.isLoading ? (
           <Spinner label={t("common:actions.loading")} />
-        ) : screen.isError ? (
+        ) : screen.loadError ? (
           <View className="items-start gap-2">
-            <Text className="font-sans text-body text-text-2">{t("check.loadFailed")}</Text>
+            <Text className="font-sans text-body text-text-2">{screen.loadError}</Text>
             <Button
               title={t("check.retry")}
               variant="ghost"
@@ -42,7 +42,7 @@ const ReportsScreen = () => {
         ) : (
           <>
             <Display dim={t("check.titleDim")}>
-              {screen.count ? t("check.title", { count: screen.count }) : t("check.empty")}
+              {screen.toCheck ? t("check.title", { count: screen.toCheck }) : t("check.empty")}
             </Display>
             <View className="mt-6">
               {screen.rows.map((row) => (

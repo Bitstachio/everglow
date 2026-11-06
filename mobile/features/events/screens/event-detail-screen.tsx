@@ -615,7 +615,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
         {screen.sheet === "menu" ? (
           <View>
-            {role === "host" ? (
+            {screen.canReviewReports ? (
               <IndexRow
                 label={
                   screen.reportsToCheck
