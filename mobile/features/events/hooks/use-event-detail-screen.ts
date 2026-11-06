@@ -399,6 +399,11 @@ export const useEventDetailScreen = () => {
   const onDismissClosed = () => {
     if (eventId) dismissClosed(eventId);
   };
+  const onCloseSheet = () => {
+    if (shownSheet === "closedSending") onDismissClosed();
+    // A leave on its way can't be dismissed: its result, or why it was refused, shows on the slip.
+    else if (!(shownSheet === "leave" && leavingRoll)) closeSheet();
+  };
 
   const openedVisible = !openedDismissed && event !== null && shouldShowOpened(event, lastVisit);
   const gallery = useRollGallery({
@@ -553,7 +558,7 @@ export const useEventDetailScreen = () => {
     onPickAgain,
     onDismissClosed,
     onOpenMenu: () => setSheet("menu"),
-    onCloseSheet: shownSheet === "closedSending" ? onDismissClosed : closeSheet,
+    onCloseSheet,
     onSheetClosed,
     onOpenPeople: () => setSheet("people"),
     // Host envelope screen: from Send the envelope and Invite on the roll.

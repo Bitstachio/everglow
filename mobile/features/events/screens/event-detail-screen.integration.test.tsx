@@ -16,7 +16,7 @@ import { eventsKeys } from "../api/keys";
 import { takeLeftRoll } from "../lib/left-roll-note";
 import { createApiError } from "@/lib/api/errors";
 import UploadTrayScreen from "./upload-tray-screen";
-import { addToTray, activateUploadTrays } from "../lib/upload-tray";
+import { addToTray, activateUploadTrays, getTray } from "../lib/upload-tray";
 import { runAccountCleared } from "@/lib/account-cleared";
 
 const mockFindOne = jest.fn();
@@ -1386,6 +1386,44 @@ describe("people and the menu", () => {
     expect(screen.queryByLabelText("Loading")).not.toBeOnTheScreen();
     expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
     expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
+  });
+
+  test("leaving stops the roll's tray, and the slip can't be dismissed while the leave is on its way", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, { ...guest, photoCount: 1 }], photos: oneFrame });
+    await act(async () => {
+      addToTray(
+        "event-1",
+        [
+          {
+            key: "left-behind",
+            name: "Left behind",
+            uri: "file://left-behind.jpg",
+            contentType: "image/jpeg",
+            sizeBytes: 3,
+            status: { kind: "failed", reason: "interrupted" },
+          },
+        ],
+        async () => undefined,
+      );
+    });
+    const leaving = deferred<object>();
+    mockLeave.mockReturnValueOnce(leaving.promise);
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    expect(screen.getByRole("header", { name: "What about your frame?" })).toBeOnTheScreen();
+    expect(screen.getByText("It’s removed for everyone. This can’t be undone.")).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.getByRole("header", { name: "What about your frame?" })).toBeOnTheScreen();
+    expect(mockLeave).toHaveBeenCalledTimes(1);
+    expect(getTray("event-1").items).toHaveLength(1);
+    await act(async () => leaving.resolve({}));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events"));
+    expect(getTray("event-1").items).toEqual([]);
   });
 
   test("a failed Leave stays on the slip so the member can retry or stay", async () => {
