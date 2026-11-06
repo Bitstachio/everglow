@@ -365,6 +365,7 @@ While an event is under review:
 - **No one can join.** `POST /events/join` answers 403 with `code: "EVENT_UNDER_REVIEW"`, after the ban check, so a removed member still hears that they were removed, and after an organizer's block, which stays the unknown-link 404 (§6).
 - **No photos can be added.** `POST /events/:eventId/photos/upload-urls` answers the same 403, organizers included. Slots minted before can still be confirmed.
 - **Members keep access.** Nothing is hidden beyond what §4 and §5 already hide, and nothing is deleted.
+- **No one deletes another member's photo.** `DELETE /photos/:photoId` answers 403 `EVENT_UNDER_REVIEW` to an organizer deleting a photo they did not upload. An unreported photo has no evidence copy, so it would be gone before the platform looked. The uploader can still delete their own, through the evidence copy (§7).
 - **Organizers can still change the cover**, so they can replace one that was reported.
 - **Every event response carries `status: "UNDER_REVIEW"`** (otherwise `"ACTIVE"`), so the app can say so on the event screen.
 - **The event can't be deleted, and the close job removes none of its photos** until the review is lifted (§7).
@@ -511,6 +512,7 @@ Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-
   - Organizers can clear photo and member reports in `ORGANIZERS` themselves.
   - Everything else waits for the platform.
   - Deactivating stays allowed: it frees the host's place and hides the photos.
+- **Organizers can't delete other members' photos in an event under review or suspended.** `DELETE /photos/:photoId` answers 403 `EVENT_UNDER_REVIEW` or `EVENT_SUSPENDED` (suspension checked first) unless the caller uploaded the photo. The uploader's own delete goes through, as everywhere: the photo is hidden at once and a reported one keeps its evidence copy.
 - **The close job keeps every photo of an event under review** until the platform lifts it. It already keeps photos with OPEN reports (built). The next sweep removes them once nothing holds them ([photos-architecture.md](./photos-architecture.md) §12).
 - **Account deletion is never refused**, but it no longer deletes a sole organizer's event that has OPEN reports or is under review. Such an event is left with no members, for the platform. Once its last report closes and its review is lifted, the daily evidence job deletes it like any event delete: the rows first, then its photos and cover through the normal purge, which copies every reported object to evidence (`MemberlessEventPurgeService`, `event.memberless.deleted`). The platform may also delete it sooner (§8). An event without pending moderation is deleted with the account, as today.
 
@@ -547,7 +549,7 @@ Deletes waiting for moderation ([EV-106](https://linear.app/mehrshadfb/issue/EV-
 
 - **A hold** (`holdUntil`, `holdReason`) stops the purge. Only the platform sets one: for a child-safety report, a law-enforcement preservation request (18 U.S.C. §2703(f), 90 days, renewable), or legal advice. `until` must be in the future and at most 3 years away (400 otherwise); renew a longer one when it comes due. A report sent to the authorities stays held at least a year from `authorityReportedAt`, whatever is set or released. The daily evidence job logs `report.hold.lapsed` for holds that ran out in the past day, so each is reviewed before the purge takes it.
 - **Why one year.** US law makes a CyberTipline report a request to preserve its contents for 1 year (18 U.S.C. §2258A(h), REPORT Act). Canada asks for 21 days today, rising to 1 year under the Protecting Victims Act (S.C. 2026, c. 19, not in force yet). A year also covers repeat-offender history. PIPEDA and Law 25 ask for a fixed, documented maximum, and this is it.
-- **The privacy policy says so**: reported content and reports are kept for up to a year after deletion, and longer under a legal hold.
+- **The privacy policy says so** ([everglow.social/en/privacy](https://everglow.social/en/privacy#retention), `landing/src/messages/en/legal/privacy.ts`): reported content and reports are kept for up to a year after the report closes, and longer under a legal hold.
 - The periods are pending the legal review in [EV-62](https://linear.app/mehrshadfb/issue/EV-62).
 
 ### Child safety
@@ -559,7 +561,7 @@ A `CHILD_SAFETY` report is handled only by the platform, by the runbook in [EV-6
 3. Apparent child sexual abuse material is reported to the **NCMEC CyberTipline** "as soon as reasonably possible" (18 U.S.C. §2258A), and to **Cybertip.ca and the police** for Canada (S.C. 2011, c. 4). The reference number goes in `authorityReference` and the submission date in `authorityReportedAt` (it can't be in the future). `holdUntil` becomes the later of the current hold and the submission date plus 1 year, so recording a report never shortens a hold.
 4. The photo is removed and the account suspended (§8). Nothing tells the account why, so nothing prejudices an investigation.
 
-Google Play also expects a public child-safety standards page and a named child-safety contact in Play Console. Both are part of [EV-62](https://linear.app/mehrshadfb/issue/EV-62).
+Google Play also expects a public child-safety standards page and a named child-safety contact in Play Console. The page is [everglow.social/en/child-safety](https://everglow.social/en/child-safety), with `safety@everglow.social` as the contact ([EV-203](https://linear.app/mehrshadfb/issue/EV-203)); naming the contact in Play Console is the owner's task.
 
 ### Intimate images: the TAKE IT DOWN Act
 
@@ -592,7 +594,7 @@ What they can do:
 - **Review evidence** (`GET /admin/reports/:reportId/evidence`): the photo while it exists, its quarantined copy after. The API streams the image itself with `Cache-Control: no-store` rather than handing out a link, so nothing can be forwarded and each look is logged with the moderator's id (`report.evidence.viewed`, a page on a child-safety report). It is on the `sensitive` rate limit tier, and a closed report's evidence opens only while the report is held (403 `EVIDENCE_REPORT_CLOSED`).
 - **Suspend an account** (`POST /admin/users/:userId/suspend`, and `/unsuspend`). `User.suspendedAt` makes every request answer 403 `ACCOUNT_SUSPENDED` (`JwtAuthGuard`), except reading and deleting the account (`@AllowSuspended()`), so the person can see why and can still leave. `GET /users/me` returns `suspendedAt`. Suspending closes the account's OPEN member reports as `ACCOUNT_SUSPENDED`. Reports on its photos stay open, since closing them would show the photos again; the platform removes those with its verdicts. Its events keep running for their other organizers; an event it organized alone is suspended too, and stays suspended until restored. A moderator, the caller included, can't be suspended (403 `CANNOT_SUSPEND_MODERATOR`): a suspended account can't reach `/admin`, so a sole moderator would be locked out. Revoke the role in the database first ([moderation-runbook.md](../api/docs/moderation-runbook.md)).
 - **Suspend, restore, fix or delete an event** (`POST /admin/events/:eventId/suspend`, `/restore`, `PATCH /admin/events/:eventId`, `DELETE /admin/events/:eventId/cover`, `DELETE /admin/events/:eventId`).
-  - A suspended event stays in its members' lists as `status: "SUSPENDED"`, with its title. Its photos, cover and description are hidden from everyone, and it is read-only: joining, uploading and every organizer change answer 403 `EVENT_SUSPENDED`. Reading its bans and deactivating it still work, so the host's place can be freed. Suspending closes its reports about the event itself as `EVENT_SUSPENDED`.
+  - A suspended event stays in its members' lists as `status: "SUSPENDED"`, with its title. Its photos, cover and description are hidden from everyone, and it is read-only: joining, uploading, every organizer change and deleting another member's photo answer 403 `EVENT_SUSPENDED`. An uploader can still delete their own photo (§7). Reading its bans and deactivating it still work, so the host's place can be freed. Suspending closes its reports about the event itself as `EVENT_SUSPENDED`.
   - Restoring lifts the suspension and the review together, and dismisses its reports about the event itself.
   - A fix changes the title or the description, or removes the cover (its evidence copy is made first).
   - A deleted event goes whatever its state, with its OPEN reports closed first as `EVENT_DELETED`.

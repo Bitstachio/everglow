@@ -988,6 +988,42 @@ describe("PhotosService", () => {
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
     });
 
+    it.each([
+      ["suspended", { suspendedAt: new Date() }, "EVENT_SUSPENDED"],
+      ["under review", { underReviewAt: new Date() }, "EVENT_UNDER_REVIEW"],
+      ["suspended and under review", { suspendedAt: new Date(), underReviewAt: new Date() }, "EVENT_SUSPENDED"],
+    ])("refuses an organizer deleting someone else's photo in a %s event", async (_state, eventState, code) => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue({
+        ...photoWithEvent([callerAccess("ORGANIZER")], { addedById: "22222222-2222-2222-2222-222222222222" }),
+        event: { ...event, ...eventState, eventAccesses: [callerAccess("ORGANIZER")] },
+      } as never);
+
+      await expect(service.deletePhoto(photoId, callerId)).rejects.toMatchObject({ response: { code } });
+      expect(evidenceService.preserveBeforeDelete).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+      expect(prisma.photo.delete).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["suspended", { suspendedAt: new Date() }],
+      ["under review", { underReviewAt: new Date() }],
+    ])(
+      "lets an uploader delete their own photo in a %s event, through the evidence copy",
+      async (_state, eventState) => {
+        prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+        prisma.photo.findUnique.mockResolvedValue({
+          ...photoWithEvent([callerAccess("PARTICIPANT")]),
+          event: { ...event, ...eventState, eventAccesses: [callerAccess("PARTICIPANT")] },
+        } as never);
+
+        await service.deletePhoto(photoId, callerId);
+
+        expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([buildPhotoS3Key(eventId, photoId)]);
+        expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
+      },
+    );
+
     it("closes the photo's OPEN reports as TARGET_GONE when its uploader deletes it, and audits how many", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("ORGANIZER")]) as never);

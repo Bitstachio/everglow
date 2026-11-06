@@ -2,10 +2,13 @@ import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AuthenticationClient, ManagementClient, ManagementError } from "auth0";
 import { PinoLogger } from "nestjs-pino";
+// The tombstone's hash, so a failure here can be matched to a deletion without naming the subject.
+import { hashProviderSub } from "src/users/deleted-provider-sub";
 import {
   AUTH0_MANAGEMENT_ERRORS,
   MANAGEMENT_ACCESS_CACHE_MAX_SECONDS,
   MANAGEMENT_ACCESS_PROBE_TIMEOUT_MS,
+  PASSWORD_CHANGE_TICKET_TTL_SECONDS,
 } from "./auth0-management.constants";
 
 /** Tokens the upstream identity provider issued to Auth0 for one of a user's identities. */
@@ -140,8 +143,11 @@ export class Auth0ManagementService {
     } catch (error) {
       if (isAuth0NotFound(error)) return null;
 
-      this.logger.error({ err: error as Error, providerSub, provider }, "auth0 getUser failed");
-      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.GET_USER_FAILED(providerSub));
+      this.logger.error(
+        { err: error as Error, providerSubHash: hashProviderSub(providerSub), provider },
+        "auth0 getUser failed",
+      );
+      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.GET_USER_FAILED());
     }
   }
 
@@ -152,8 +158,11 @@ export class Auth0ManagementService {
     } catch (error) {
       if (isAuth0NotFound(error)) return;
 
-      this.logger.error({ err: error as Error, providerSub }, "auth0 deleteUser failed");
-      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.DELETE_USER_FAILED(providerSub));
+      this.logger.error(
+        { err: error as Error, providerSubHash: hashProviderSub(providerSub) },
+        "auth0 deleteUser failed",
+      );
+      throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.DELETE_USER_FAILED());
     }
   }
 
@@ -179,6 +188,8 @@ export class Auth0ManagementService {
         user_id: providerSub,
         client_id: nativeClientId,
         mark_email_as_verified: false,
+        // Auth0's default is five days: long enough to turn a stolen access token into a takeover.
+        ttl_sec: PASSWORD_CHANGE_TICKET_TTL_SECONDS,
       });
 
       if (!response.ticket) {
@@ -189,7 +200,10 @@ export class Auth0ManagementService {
     } catch (error) {
       if (error instanceof InternalServerErrorException) throw error;
 
-      this.logger.error({ err: error as Error, providerSub }, "auth0 createPasswordChangeTicket failed");
+      this.logger.error(
+        { err: error as Error, providerSubHash: hashProviderSub(providerSub) },
+        "auth0 createPasswordChangeTicket failed",
+      );
       throw new InternalServerErrorException(AUTH0_MANAGEMENT_ERRORS.PASSWORD_CHANGE_TICKET_FAILED());
     }
   }

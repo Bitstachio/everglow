@@ -46,6 +46,21 @@
   },
   "footer": {
     "copyright": "© 2026 Everglow · everglow.social",
-    "contact": "hello@everglow.social"
+    "contact": "hello@everglow.social",
+    "legalAriaLabel": "Legal",
+    "legal": {
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "child-safety": "Child safety",
+      "takedown": "Takedown requests",
+      "law-enforcement": "Law enforcement"
+    }
+  },
+  "legal": {
+    "brand": "Everglow",
+    "eyebrow": "Legal",
+    "updated": "Last updated {date}",
+    "contents": "On this page",
+    "pending": "Pending review"
   }
 }

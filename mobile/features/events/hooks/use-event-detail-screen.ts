@@ -39,9 +39,13 @@ import {
   useUploadTray,
   type TrayItem,
 } from "../lib/upload-tray";
-import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } from "../types";
+import type { EventParticipantResponseDto, EventResponseDto, MemberPhotos, PhotoResponseDto } from "../types";
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
+import { useBlockMutation } from "@/features/moderation/api/mutations";
+import { useEventOpenReportsQuery } from "@/features/moderation/api/queries";
+import { groupOpenReports, toCheckCount } from "@/features/moderation/lib/report-groups";
+import { useUnblockMutation } from "@/features/profile/api/mutations";
 
 /** What the roll's page shows, read from its three queries. */
 type RollOnScreen = {
@@ -102,7 +106,14 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
 };
 
 /** What the sheet over the roll shows: the menu, people, or a slip. */
-export type RollSheet = "menu" | "people" | "leave" | "cut" | "remove" | "room" | "closedSending";
+export type RollSheet = "menu" | "people" | "person" | "block" | "leave" | "cut" | "remove" | "room" | "closedSending";
+
+/** Who is about to be blocked (10.11), and whether the slip is over the roll or the viewer. */
+type BlockTarget = { userId: string; name: string; over: "roll" | "viewer" };
+
+/** How a report hands back to the roll: `reported` once sent (10.4), `resume` to reopen the frame it left. */
+const REPORTED = ["frame", "person", "roll"] as const;
+type ReportReturn = { reported?: (typeof REPORTED)[number]; resume?: string };
 
 /** 08.6: picked photos that don't all fit, waiting on Send or Pick again. */
 type RoomCheck = RoomShortfall & { items: TrayItem[]; leftBytes: number };
@@ -112,9 +123,9 @@ const NOTICE_MS = 4000;
 
 /** 07.1–07.11: the roll, through its whole life, for each role. */
 export const useEventDetailScreen = () => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation(["roll", "report"]);
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, reported, resume } = useLocalSearchParams<{ id: string } & ReportReturn>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
   // The roll as it was when Leave was confirmed. Leaving evicts its caches
@@ -154,6 +165,11 @@ export const useEventDetailScreen = () => {
   // from another: iOS drops a modal presented while another is closing.
   const [sheet, setSheet] = useState<RollSheet | null>(null);
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
+  const [person, setPerson] = useState<EventParticipantResponseDto | null>(null);
+  const [blockTarget, setBlockTarget] = useState<BlockTarget | null>(null);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const blockMutation = useBlockMutation();
+  const unblockMutation = useUnblockMutation();
   // What waits for the sheet to be fully gone: the library picker can't open over it.
   const afterSheetCloses = useRef<(() => void) | null>(null);
   const closeSheet = () => setSheet(null);
@@ -345,19 +361,22 @@ export const useEventDetailScreen = () => {
     });
   };
 
-  const onConfirmRemove = () => {
+  const onConfirmRemove = (photos: MemberPhotos) => {
     if (!removing) return;
     const name = removing.name;
-    removeParticipantMutation.mutate(removing.userId, {
-      onSuccess: () => {
-        closeSheet();
-        showNotice(t("result.removed", { name }));
+    removeParticipantMutation.mutate(
+      { targetUserId: removing.userId, photos },
+      {
+        onSuccess: () => {
+          closeSheet();
+          showNotice(t("result.removed", { name }));
+        },
+        onError: (error) => {
+          closeSheet();
+          showNotice(getErrorMessage(error));
+        },
       },
-      onError: (error) => {
-        closeSheet();
-        showNotice(getErrorMessage(error));
-      },
-    });
+    );
   };
 
   // 08.8 takes the sheet once nothing else is on it: one sheet, so iOS never drops it.
@@ -379,6 +398,83 @@ export const useEventDetailScreen = () => {
     listed,
     showNotice,
   });
+
+  // 10.4: a sent report says so on the roll for a few seconds, then the
+  // param goes so coming back doesn't repeat it, as the arrival note does.
+  // A host's own roll keeps showing them a frame they report.
+  const sentNotice =
+    reported === "frame" && role === "host"
+      ? t("report:sent.hostFrame")
+      : reported && REPORTED.includes(reported)
+        ? t(`report:sent.${reported}`)
+        : null;
+  useEffect(() => {
+    if (!reported) return;
+    const timer = setTimeout(() => router.setParams({ reported: undefined }), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [reported, router]);
+  // A cancelled frame report reopens the frame it came from.
+  const [resumed, setResumed] = useState<string | undefined>(undefined);
+  if (resume !== resumed) {
+    // Cleared again once handled, so the same frame can come back after another report.
+    setResumed(resume);
+    if (resume) gallery.onMoveFrame(resume);
+  }
+  useEffect(() => {
+    if (resume) router.setParams({ resume: undefined });
+  }, [resume, router]);
+
+  const openReport = (params: { photoId?: string; userId?: string; number?: string }) => {
+    if (eventId) router.push({ pathname: "/events/[id]/report", params: { id: eventId, ...params } });
+  };
+
+  /** After the sheet has gone: the report opens over the roll, and iOS drops it over a closing sheet. */
+  const reportAfterSheet = (params: { userId?: string }) => {
+    closeSheet();
+    afterSheetCloses.current = () => openReport(params);
+  };
+
+  const onConfirmBlock = () => {
+    if (!blockTarget || blockMutation.isPending) return;
+    const { userId, name, over } = blockTarget;
+    setBlockError(null);
+    blockMutation.mutate(userId, {
+      onSuccess: () => {
+        setBlockTarget(null);
+        // Their frames are gone for you now, the one on screen included.
+        if (over === "viewer") gallery.onCloseFrame();
+        else closeSheet();
+        showNotice(t("report:block.done", { name }));
+      },
+      onError: (error) => setBlockError(getErrorMessage(error, t("report:block.failed"))),
+    });
+  };
+
+  const onCancelBlock = () => {
+    if (blockMutation.isPending) return;
+    if (blockTarget?.over === "roll") closeSheet();
+    setBlockTarget(null);
+    setBlockError(null);
+  };
+
+  // 12.1: hosts see how many reports wait for them in the roll's menu. A
+  // suspended roll is read-only (EVENT_SUSPENDED), so it has no Reports row.
+  const canReviewReports = role === "host" && event?.status !== "SUSPENDED";
+  const reportsQuery = useEventOpenReportsQuery(eventId, canReviewReports && !leavingRoll);
+  const reportsToCheck = canReviewReports
+    ? toCheckCount(groupOpenReports(reportsQuery.data ?? [], event?.usage.members ?? 0))
+    : 0;
+
+  const openFrame = gallery.openFrame;
+  const ownsOpenFrame = !!openFrame && !!user && openFrame.photo.addedById === user.id;
+  // Only someone still on the roll can be blocked from their frame: a leaver
+  // has no name to show, and a block needs a roll in common. Someone already
+  // blocked only shows up in a roll you host, and Unblock is in the roll call.
+  const openFrameOwner =
+    openFrame && !ownsOpenFrame
+      ? participants.find((participant) => participant.userId === openFrame.photo.addedById)
+      : undefined;
+  const blockableFrameOwner = openFrameOwner && !openFrameOwner.isBlockedByCaller ? openFrameOwner : null;
 
   return {
     ...gallery,
@@ -408,7 +504,7 @@ export const useEventDetailScreen = () => {
     leftBytes,
     roomCheck,
     preparing,
-    notice: tray.storageError ? t("result.localStorage") : notice,
+    notice: tray.storageError ? t("result.localStorage") : (notice ?? sentNotice),
     openedVisible,
     sheet: shownSheet,
     arrivalNote,
@@ -416,6 +512,16 @@ export const useEventDetailScreen = () => {
     isCutting: deactivateMutation.isPending,
     removing,
     isRemoving: removeParticipantMutation.isPending,
+    person,
+    blockTarget,
+    viewerBlocking:
+      blockTarget?.over === "viewer"
+        ? { name: blockTarget.name, busy: blockMutation.isPending, error: blockError }
+        : null,
+    rollBlocking:
+      blockTarget?.over === "roll"
+        ? { name: blockTarget.name, busy: blockMutation.isPending, error: blockError }
+        : null,
     onRefresh,
     onBack,
     onDismissOpened: () => setOpenedDismissed(true),
@@ -444,10 +550,67 @@ export const useEventDetailScreen = () => {
     onConfirmLeave,
     onCut: () => setSheet("cut"),
     onConfirmCut,
-    onRemove: (participant: EventParticipantResponseDto) => {
-      setRemoving(participant);
+    // 11.2 / 11.8: someone else on the roll call.
+    onOpenPerson: (participant: EventParticipantResponseDto) => {
+      setPerson(participant);
+      setSheet("person");
+    },
+    canRemovePerson: role === "host" && event?.status === "ACTIVE" && !!person && person.accessLevel !== "ORGANIZER",
+    onRemovePerson: () => {
+      if (!person) return;
+      setRemoving(person);
       setSheet("remove");
     },
+    onReportPerson: () => {
+      if (person) reportAfterSheet({ userId: person.userId });
+    },
+    onBlockPerson: () => {
+      if (!person) return;
+      setBlockError(null);
+      setBlockTarget({ userId: person.userId, name: person.name || t("people.unknown"), over: "roll" });
+      setSheet("block");
+    },
+    onUnblockPerson: () => {
+      if (!person || unblockMutation.isPending) return;
+      const name = person.name || t("people.unknown");
+      unblockMutation.mutate(person.userId, {
+        onSuccess: () => {
+          closeSheet();
+          showNotice(t("report:menu.unblocked", { name }));
+        },
+        onError: (error) => {
+          closeSheet();
+          showNotice(getErrorMessage(error));
+        },
+      });
+    },
+    canReviewReports,
+    reportsToCheck,
+    onOpenReports: () => {
+      closeSheet();
+      if (eventId) router.push({ pathname: "/events/[id]/reports", params: { id: eventId } });
+    },
+    // 10.6: anyone but a host can report the roll from its menu.
+    onReportRoll: () => reportAfterSheet({}),
+    // 10.1: someone else's frame, from the frame menu (09.3, 09.4). The viewer is closed by then.
+    onReportFrame:
+      openFrame && !ownsOpenFrame
+        ? () => {
+            openReport({ photoId: openFrame.photo.id, number: String(openFrame.number) });
+          }
+        : undefined,
+    onBlockFrameOwner: blockableFrameOwner
+      ? () => {
+          setBlockError(null);
+          setBlockTarget({
+            userId: blockableFrameOwner.userId,
+            name: blockableFrameOwner.name || t("people.unknown"),
+            over: "viewer",
+          });
+        }
+      : undefined,
+    onCancelBlock,
+    onConfirmBlock,
     onBackToPeople: () => setSheet("people"),
     onConfirmRemove,
     onOpenRules: () => router.push("/terms-of-use"),

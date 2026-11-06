@@ -8,6 +8,7 @@ export type {
   InvitePreviewResponseDto,
   InvitePreviewState,
   JoinEventDto,
+  MemberPhotos,
   NewEventResponseDto,
   PhotoResponseDto,
   UpdateEventDto,

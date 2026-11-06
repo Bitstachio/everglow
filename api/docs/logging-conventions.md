@@ -29,7 +29,9 @@ them** in controllers or services:
 - **Request/response bookends.** Each request is auto-logged once on completion with method, route, status code,
   and duration. You do not need to log "entering controller" / "request finished".
 - **Correlation IDs.** Every request gets a `reqId` (`genReqId`). We honour an inbound `x-request-id` /
-  `x-correlation-id` header if present, otherwise generate a UUID, and echo it back on the response. Because
+  `x-correlation-id` header when it is a UUID, otherwise generate one, and echo it back on the response. Any client
+  can set the header, so anything else (a forged id to collide with another request's lines, a huge value) is
+  replaced. Because
   `nestjs-pino` stores the request logger in `AsyncLocalStorage`, **any log you emit during a request (even from
   a singleton service) automatically carries that `reqId`.** This is how one user's journey is reconstructed
   across layers. You never pass it manually.
@@ -45,7 +47,7 @@ them** in controllers or services:
   (token claims issuer https://…/, audience …)`.
 - **Unhandled exceptions.** `AllExceptionsFilter` (`src/common/filters`) emits one authoritative `error` with the
   stack for anything non-HTTP that escapes, and for a 5xx `HttpException` without a catalogue code: an
-  `InternalServerErrorException`, or `JwtAuthGuard`'s 503 when Auth0's signing keys can't be fetched. A body the
+  `InternalServerErrorException`, or `JwtAuthGuard`'s 503 when Auth0's signing keys have never loaded. A body the
   parser refuses (too large, unreadable charset or encoding, dropped mid-upload) is a 4xx, not one of these. The
   filter logs it at `warn` as `request.body_rejected`, with the code and reason. That is the request's only line,
   because the body parser runs before the access log's middleware.
@@ -63,7 +65,12 @@ at the top level and one level deep. This is a **safety net, not a license to be
 Rules:
 
 - **Never log secrets or credentials**, not even masked/partial. If auth fails, log the principal id, not the
-  submitted password or the bearer token.
+  submitted password or the bearer token. An invite token is a credential too: anyone holding it can join. Name
+  an invite by `inviteTokenHash` (`src/common/logging/redact-url.ts`); the access log's URL already shows
+  `/events/invites/sha256:<hash>/preview`, and the invite 404's reason carries the same hash.
+- **Never log the Auth0 subject (`providerSub`)** where a hash will do. Deleted subjects are kept only as
+  `hashProviderSub` (the tombstone), so the Management API's error lines log `providerSubHash`, the same SHA-256,
+  and can still be matched to a deletion.
 - **Never log PII** (email, name, phone, address, government/health/financial data). Log the **opaque internal
   id** (`userId`) instead. "Which principal did this?" must be answerable without turning logs into a copy of the
   user directory.

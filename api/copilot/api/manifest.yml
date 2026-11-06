@@ -36,8 +36,15 @@ variables:
   AWS_S3_BUCKET: everglow-staging-placeholder
   AWS_ACCESS_KEY_ID: PLACEHOLDER
   # Replace with your Auth0 tenant (same values as local mobile/API).
+  # Staging still shares the development tenant and audience, so a development
+  # token is accepted here. Give staging its own API identifier (or tenant)
+  # before real users: docs/authentication.md §2.1.
   AUTH0_DOMAIN: dev-hr3web1pe4wofusq.us.auth0.com
   AUTH0_AUDIENCE: https://api.everglow.com
+  # Required: the API does not start without it. The client id of the native
+  # app the staging build signs in with (its EXPO_PUBLIC_AUTH0_CLIENT_ID); only
+  # tokens whose azp is this client are accepted. Not a secret.
+  # AUTH0_NATIVE_CLIENT_ID: <native app client id>
 
 secrets:
   AWS_SECRET_ACCESS_KEY: /copilot/${COPILOT_APPLICATION_NAME}/${COPILOT_ENVIRONMENT_NAME}/secrets/AWS_SECRET_ACCESS_KEY

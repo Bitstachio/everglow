@@ -38,7 +38,8 @@ Source: [`lib/api/axios-instance.ts`](../lib/api/axios-instance.ts).
 On every failed response:
 
 1. If status is **401**, call the handler registered via `setUnauthorizedHandler`
-   (wired from auth context to clear the session and send the user to login).
+   (wired from auth context to clear the session and send the user to login;
+   a password change that revokes the session uses the same path, `endExpiredSession`).
    It does nothing after a deliberate sign-out: a deleted account's token
    answers 401 at once, and that must not replace the Deleted screen.
 2. If the code is **`ACCOUNT_SUSPENDED`**, call the handler registered via

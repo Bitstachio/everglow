@@ -1,4 +1,7 @@
+import { NotFoundException } from "@nestjs/common";
 import { AccessLevel } from "generated/prisma/client";
+import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
+import { inviteTokenHash } from "src/common/logging/redact-url";
 
 export const EVENT_INVITATION_BASE_URL = process.env.EVENT_INVITATION_BASE_URL ?? "https://events.everglow.app/invite";
 
@@ -20,6 +23,16 @@ export const isInviteAccessLevel = (accessLevel: AccessLevel): accessLevel is Ev
   (EVENT_INVITE_ACCESS_LEVELS as AccessLevel[]).includes(accessLevel);
 
 export const buildInvitationUrl = (token: string): string => `${EVENT_INVITATION_BASE_URL}/${token}`;
+
+/**
+ * The one 404 for an invite that can't be used, whatever the reason. Its
+ * message is the request's logged `errorReason`, so it names the token's hash
+ * (`inviteTokenHash`), never the token.
+ */
+export const inviteNotFound = (token: string): NotFoundException =>
+  new NotFoundException(
+    RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation token hash", inviteTokenHash(token)),
+  );
 
 export const extractInvitationToken = (input: string): string => {
   const trimmed = input.trim();
