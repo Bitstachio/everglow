@@ -71,6 +71,7 @@ const DeleteAccountScreen = () => {
                 <IndexRow
                   key={roll.id}
                   first={index === 0}
+                  truncate="label"
                   label={roll.title}
                   value={t(ROLL_FATE_LABELS[roll.fate])}
                   lit
