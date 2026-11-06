@@ -422,6 +422,14 @@ export class PhotosService {
       isMember: photo.event.eventAccesses.length > 0,
       refusal: "ORGANIZER_ONLY",
     });
+    // Nobody removes someone else's photo while the platform reviews the event
+    // or after it suspended it: an unreported photo has no evidence copy, so it
+    // would be gone before anyone looked. The uploader can still take back
+    // their own (docs/moderation.md §7, §8).
+    if (photo.addedById !== callerId) {
+      if (photo.event.suspendedAt) throw new ApiException("EVENT_SUSPENDED");
+      if (photo.event.underReviewAt) throw new ApiException("EVENT_UNDER_REVIEW");
+    }
 
     // S3 first: if it fails the row survives and the delete can be retried. A
     // reported photo is copied to evidence before it goes; if that copy fails
