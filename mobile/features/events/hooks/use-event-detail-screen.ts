@@ -14,7 +14,6 @@ import {
   useLeaveEventMutation,
   useRefreshRollAfterUpload,
   useRemoveEventParticipantMutation,
-  type LeaveEventInput,
 } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
@@ -26,6 +25,7 @@ import {
   type PickedFile,
   type RoomShortfall,
 } from "../lib/picked-photos";
+import { asksAboutFrames } from "../lib/leave-roll";
 import { noteLeftRoll } from "../lib/left-roll-note";
 import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
 import { hasClosed } from "../lib/rolls";
@@ -166,7 +166,7 @@ export const useEventDetailScreen = () => {
   // One sheet over the roll whose content changes, so one modal never opens
   // from another: iOS drops a modal presented while another is closing.
   const [sheet, setSheet] = useState<RollSheet | null>(null);
-  const [leavePhotos, setLeavePhotos] = useState<LeaveEventInput["photos"]>("KEEP");
+  const [leavePhotos, setLeavePhotos] = useState<MemberPhotos>("KEEP");
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
   const [person, setPerson] = useState<EventParticipantResponseDto | null>(null);
@@ -333,11 +333,13 @@ export const useEventDetailScreen = () => {
     next?.();
   };
 
+  // 13.2: the frames you added, as the roll call counts them.
+  const leaveFrameCount = participants.find((participant) => participant.userId === user?.id)?.photoCount ?? 0;
+  const leaveClosed = event?.galleryState === "CLOSED";
+
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
-    const frameCount = participants.find((participant) => participant.userId === user?.id)?.photoCount ?? 0;
-    // A closed roll has already lost its photos, so there is nothing to choose.
-    const photosChoice = event.galleryState !== "CLOSED" && frameCount > 0 ? leavePhotos : "KEEP";
+    const photosChoice = asksAboutFrames(leaveFrameCount, leaveClosed) ? leavePhotos : "KEEP";
     setLeaveError(null);
     // Stop active readers before membership is revoked and their caches are
     // evicted, and keep the roll on screen until Home replaces it.
@@ -522,8 +524,8 @@ export const useEventDetailScreen = () => {
     arrivalNote,
     isLeaving: leaveEventMutation.isPending,
     leavePhotos,
-    leaveFrameCount: participants.find((participant) => participant.userId === user?.id)?.photoCount ?? 0,
-    leaveClosed: event?.galleryState === "CLOSED",
+    leaveFrameCount,
+    leaveClosed,
     leaveError,
     isCutting: deactivateMutation.isPending,
     removing,

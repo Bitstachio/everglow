@@ -115,7 +115,7 @@ export const useDeactivateEventMutation = () => {
   });
 };
 
-export type LeaveEventInput = {
+type LeaveEventInput = {
   eventId: string;
   /** What happens to the frames you added. A closed roll has already lost them, so it stays KEEP. */
   photos: MemberPhotos;

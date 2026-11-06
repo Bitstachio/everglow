@@ -3,18 +3,18 @@ import { OptionRow } from "@/components/ui/option-row";
 import { Slip } from "@/components/ui/slip";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
-
-type LeavePhotos = "KEEP" | "DELETE";
+import { asksAboutFrames } from "../lib/leave-roll";
+import type { MemberPhotos } from "../types";
 
 type LeaveRollSlipProps = {
   rollTitle: string;
-  /** Frames this member added. The choice is skipped at 0, and on a closed roll the photos are already gone. */
+  /** Frames this member added. */
   frameCount: number;
   closed: boolean;
-  photos: LeavePhotos;
+  photos: MemberPhotos;
   error: string | null;
   isLeaving: boolean;
-  onChoose: (photos: LeavePhotos) => void;
+  onChoose: (photos: MemberPhotos) => void;
   onConfirm: () => void;
   onStay: () => void;
 };
@@ -32,7 +32,7 @@ export const LeaveRollSlip = ({
   onStay,
 }: LeaveRollSlipProps) => {
   const { t } = useTranslation("roll");
-  const asks = !closed && frameCount > 0;
+  const asks = asksAboutFrames(frameCount, closed);
 
   return (
     <Slip
