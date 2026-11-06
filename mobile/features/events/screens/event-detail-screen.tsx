@@ -29,6 +29,7 @@ import { RollNotice } from "../components/roll-notice";
 import { RollOpened } from "../components/roll-opened";
 import { ROLE_KEY, RollPeopleList } from "../components/roll-people-list";
 import { PersonMenu } from "../components/person-menu";
+import { RemovePersonSlip } from "../components/remove-person-slip";
 import { BlockSlip } from "@/features/moderation/components/block-slip";
 import { RollTrayLine } from "../components/roll-tray-line";
 import { UnexposedRoll } from "../components/unexposed-roll";
@@ -615,6 +616,16 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
         {screen.sheet === "menu" ? (
           <View>
+            {screen.canReviewReports ? (
+              <IndexRow
+                label={
+                  screen.reportsToCheck
+                    ? t("report:menu.reportsToCheck", { count: screen.reportsToCheck })
+                    : t("report:menu.reports")
+                }
+                onPress={screen.onOpenReports}
+              />
+            ) : null}
             <IndexRow label={t("menuSheet.people")} onPress={screen.onOpenPeople} />
             {role === "host" && event.status !== "SUSPENDED" ? (
               <IndexRow label={t("menuSheet.settings")} onPress={screen.onOpenSettings} />
@@ -699,16 +710,14 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           </Slip>
         ) : null}
 
-        {screen.sheet === "remove" ? (
-          <Slip title={t("remove.title", { name: screen.removing?.name ?? "" })} body={t("remove.body")}>
-            <Button
-              title={t("remove.confirm")}
-              variant="danger"
-              onPress={screen.onConfirmRemove}
-              isLoading={screen.isRemoving}
-            />
-            <Button title={t("remove.cancel")} variant="secondary" mark="‹" onPress={screen.onBackToPeople} />
-          </Slip>
+        {screen.sheet === "remove" && screen.removing ? (
+          <RemovePersonSlip
+            name={screen.removing.name || t("people.unknown")}
+            frameCount={screen.removing.photoCount}
+            busy={screen.isRemoving}
+            onConfirm={screen.onConfirmRemove}
+            onCancel={screen.onBackToPeople}
+          />
         ) : null}
       </BottomSheet>
 

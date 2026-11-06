@@ -39,10 +39,12 @@ import {
   useUploadTray,
   type TrayItem,
 } from "../lib/upload-tray";
-import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } from "../types";
+import type { EventParticipantResponseDto, EventResponseDto, MemberPhotos, PhotoResponseDto } from "../types";
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
 import { useBlockMutation } from "@/features/moderation/api/mutations";
+import { useEventOpenReportsQuery } from "@/features/moderation/api/queries";
+import { groupOpenReports, toCheckCount } from "@/features/moderation/lib/report-groups";
 import { useUnblockMutation } from "@/features/profile/api/mutations";
 
 /** What the roll's page shows, read from its three queries. */
@@ -359,19 +361,22 @@ export const useEventDetailScreen = () => {
     });
   };
 
-  const onConfirmRemove = () => {
+  const onConfirmRemove = (photos: MemberPhotos) => {
     if (!removing) return;
     const name = removing.name;
-    removeParticipantMutation.mutate(removing.userId, {
-      onSuccess: () => {
-        closeSheet();
-        showNotice(t("result.removed", { name }));
+    removeParticipantMutation.mutate(
+      { targetUserId: removing.userId, photos },
+      {
+        onSuccess: () => {
+          closeSheet();
+          showNotice(t("result.removed", { name }));
+        },
+        onError: (error) => {
+          closeSheet();
+          showNotice(getErrorMessage(error));
+        },
       },
-      onError: (error) => {
-        closeSheet();
-        showNotice(getErrorMessage(error));
-      },
-    });
+    );
   };
 
   // 08.8 takes the sheet once nothing else is on it: one sheet, so iOS never drops it.
@@ -451,6 +456,14 @@ export const useEventDetailScreen = () => {
     setBlockTarget(null);
     setBlockError(null);
   };
+
+  // 12.1: hosts see how many reports wait for them in the roll's menu. A
+  // suspended roll is read-only (EVENT_SUSPENDED), so it has no Reports row.
+  const canReviewReports = role === "host" && event?.status !== "SUSPENDED";
+  const reportsQuery = useEventOpenReportsQuery(eventId, canReviewReports && !leavingRoll);
+  const reportsToCheck = canReviewReports
+    ? toCheckCount(groupOpenReports(reportsQuery.data ?? [], event?.usage.members ?? 0))
+    : 0;
 
   const openFrame = gallery.openFrame;
   const ownsOpenFrame = !!openFrame && !!user && openFrame.photo.addedById === user.id;
@@ -570,6 +583,12 @@ export const useEventDetailScreen = () => {
           showNotice(getErrorMessage(error));
         },
       });
+    },
+    canReviewReports,
+    reportsToCheck,
+    onOpenReports: () => {
+      closeSheet();
+      if (eventId) router.push({ pathname: "/events/[id]/reports", params: { id: eventId } });
     },
     // 10.6: anyone but a host can report the roll from its menu.
     onReportRoll: () => reportAfterSheet({}),

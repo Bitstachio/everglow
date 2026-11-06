@@ -21,7 +21,7 @@ import type { CoverImage } from "../lib/cover-image";
 import { profileKeys } from "@/features/profile/api/keys";
 import { extractInvitationToken } from "../lib/invite";
 import { eventsKeys } from "./keys";
-import type { InviteAccessLevel } from "@/lib/api/generated";
+import type { InviteAccessLevel, MemberPhotos } from "@/lib/api/generated";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, UpdateEventDto } from "../types";
 
 const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClient>, eventId?: string) => {
@@ -133,9 +133,14 @@ export const useLeaveEventMutation = () => {
 export const useRemoveEventParticipantMutation = (eventId: string) => {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
-    mutationFn: async (targetUserId) => {
-      await eventsControllerRemoveParticipant({ path: { eventId, targetUserId }, throwOnError: true });
+  return useMutation<void, Error, { targetUserId: string; photos: MemberPhotos }>({
+    // KEEP is the API's default, so only DELETE goes on the wire (11.4).
+    mutationFn: async ({ targetUserId, photos }) => {
+      await eventsControllerRemoveParticipant({
+        path: { eventId, targetUserId },
+        ...(photos === "DELETE" ? { query: { photos } } : {}),
+        throwOnError: true,
+      });
     },
     onSuccess: async () => {
       await invalidateEventCaches(queryClient, eventId);

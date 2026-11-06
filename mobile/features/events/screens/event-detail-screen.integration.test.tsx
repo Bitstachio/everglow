@@ -539,7 +539,7 @@ describe("closed (07.9)", () => {
     await user.press(screen.getByRole("button", { name: "People" }));
     await user.press(await screen.findByRole("button", { name: "Grace Hopper, Adds photos" }));
     await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
-    await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Remove Grace" }));
 
     expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
   });
@@ -1426,7 +1426,8 @@ describe("people and the menu", () => {
     await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
     await user.press(screen.getByRole("button", { name: "Grace Hopper, Adds photos" }));
     await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
-    await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+    expect(await screen.findByRole("header", { name: "Remove Grace?" })).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Remove Grace" }));
 
     await waitFor(() =>
       expect(mockRemoveParticipant).toHaveBeenCalledWith({
@@ -1435,6 +1436,29 @@ describe("people and the menu", () => {
       }),
     );
     expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
+  });
+
+  test("a host removing someone with frames chooses what happens to them (11.4)", async () => {
+    await renderScreen({
+      event: openEvent({ usage: { members: 2, storageBytes: "0" } }),
+      participants: [host, { ...guest, photoCount: 31 }],
+      photos: oneFrame,
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
+    await user.press(screen.getByRole("button", { name: /Grace Hopper/ }));
+    await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+    expect(await screen.findByRole("header", { name: "What about their 31 frames?" })).toBeOnTheScreen();
+    await user.press(screen.getByRole("radio", { name: /Delete them too/ }));
+    await user.press(screen.getByRole("button", { name: "Remove Grace" }));
+
+    await waitFor(() =>
+      expect(mockRemoveParticipant).toHaveBeenCalledWith({
+        path: { eventId: "event-1", targetUserId: "user-2" },
+        query: { photos: "DELETE" },
+        throwOnError: true,
+      }),
+    );
   });
 
   test("someone on the roll call can be reported or blocked (11.8, 10.11)", async () => {

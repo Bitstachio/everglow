@@ -121,10 +121,22 @@
     "unknown": "Someone"
   },
   "remove": {
+    "edge": "Remove {{name}}",
     "title": "Remove {{name}}?",
-    "body": "They leave the roll now. Their frames stay.",
-    "confirm": "Remove from the roll",
-    "cancel": "Keep them"
+    "body": "They leave the roll now. Only a host can let them back in.",
+    "bodyReported": "They leave the roll now, and the reported frame is removed. Only a host can let them back in.",
+    "frames_one": "What about their frame?",
+    "frames_other": "What about their {{count}} frames?",
+    "otherFrames_one": "What about their other frame?",
+    "otherFrames_other": "What about their {{count}} other frames?",
+    "reported": "The reported frame is removed either way.",
+    "keep": "Keep their frames",
+    "keepBody": "They stay on the roll, still signed by {{name}}",
+    "delete": "Delete them too",
+    "deleteBody_one": "It’s removed for everyone",
+    "deleteBody_other": "All {{count}} are removed for everyone",
+    "confirm": "Remove {{name}}",
+    "cancel": "Cancel"
   },
   "viewer": {
     "close": "Close frame",

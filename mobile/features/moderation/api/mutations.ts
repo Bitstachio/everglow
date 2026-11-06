@@ -4,12 +4,14 @@ import {
   reportsControllerReportEvent,
   reportsControllerReportMember,
   reportsControllerReportPhoto,
+  reportsControllerResolveReport,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { eventsKeys } from "@/features/events/api/keys";
 import { profileKeys } from "@/features/profile/api/keys";
 import type { ReportTarget } from "../lib/reasons";
-import type { ReportReason, ReportReceiptResponseDto } from "../types";
+import { moderationKeys } from "./keys";
+import type { ReportReason, ReportReceiptResponseDto, ReportResponseDto, ResolveReportDto } from "../types";
 
 export type ReportRequest = {
   eventId: string;
@@ -82,6 +84,41 @@ export const useBlockMutation = () => {
     },
     onSuccess: async () => {
       await Promise.all(QUERIES_AFTER_BLOCK.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+    },
+  });
+};
+
+export type ResolveRequest = { eventId: string; reportId: string } & ResolveReportDto;
+
+/**
+ * A host's decision on a frame or a person (10.9). One decision closes every
+ * open report on it: removing deletes the frame or takes the person off the
+ * roll, keeping it shows a hidden frame again.
+ */
+export const useResolveReportMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<ReportResponseDto, Error, ResolveRequest>({
+    mutationFn: async ({ reportId, action, photos }) => {
+      const { data } = await reportsControllerResolveReport({
+        path: { reportId },
+        body: { action, ...(photos ? { photos } : {}) },
+        throwOnError: true,
+      });
+      return unwrapEnvelope(data);
+    },
+    // Read again on failure too: a 409 or REPORT_ESCALATED means the list moved on.
+    // Not awaited, so the screen goes back at once instead of showing its
+    // reports gone while the list reloads underneath it.
+    onSettled: (_report, _error, { eventId }) => {
+      for (const queryKey of [
+        moderationKeys.reports(eventId),
+        eventsKeys.detail(eventId),
+        eventsKeys.photos(eventId),
+        eventsKeys.participants(eventId),
+      ]) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
     },
   });
 };
