@@ -24,6 +24,7 @@ import { FrameViewer } from "../components/frame-viewer/frame-viewer";
 import { RollBand } from "../components/roll-band";
 import { RollCover } from "../components/roll-cover";
 import { RollFooter, type FooterAction, type RollFooterProps } from "../components/roll-footer";
+import { LeaveRollSlip } from "../components/leave-roll-slip";
 import { RollMenu } from "../components/roll-menu";
 import { RollNotice } from "../components/roll-notice";
 import { RollOpened } from "../components/roll-opened";
@@ -661,13 +662,17 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         ) : null}
 
         {screen.sheet === "leave" ? (
-          <Slip
-            title={t("leave.title", { title: event.title })}
-            body={screen.stage === "closed" ? t("leave.bodyClosed") : t("leave.body")}
-          >
-            <Button title={t("leave.confirm")} mark="⇥" onPress={screen.onConfirmLeave} isLoading={screen.isLeaving} />
-            <Button title={t("leave.cancel")} variant="secondary" mark="‹" onPress={screen.onCloseSheet} />
-          </Slip>
+          <LeaveRollSlip
+            rollTitle={event.title}
+            frameCount={screen.leaveFrameCount}
+            closed={screen.leaveClosed}
+            photos={screen.leavePhotos}
+            error={screen.leaveError}
+            isLeaving={screen.isLeaving}
+            onChoose={screen.onChooseLeavePhotos}
+            onConfirm={screen.onConfirmLeave}
+            onStay={screen.onCloseSheet}
+          />
         ) : null}
 
         {screen.sheet === "cut" ? (
