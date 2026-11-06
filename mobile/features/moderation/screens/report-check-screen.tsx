@@ -1,4 +1,5 @@
 import { Avatar } from "@/components/ui/avatar";
+import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Display } from "@/components/ui/display";
 import { EdgePrint } from "@/components/ui/edge-print";
@@ -10,6 +11,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
 import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import { GalleryDeleteSheet } from "@/features/events/components/gallery-delete-sheet";
+import { RemovePersonSlip } from "@/features/events/components/remove-person-slip";
 import { useReportCheckScreen } from "../hooks/use-report-check-screen";
 
 /** A label and its value on a ruled line. A reporter's note is their own words, so it stays in plain type. */
@@ -161,6 +164,24 @@ const ReportCheckScreen = () => {
       </ScrollView>
       {actions ? <View className="gap-2.5 px-5 pb-2 pt-3">{actions}</View> : null}
       <FilmGrain />
+      {/* 10.9 departs from its drawing here: a removal confirms first, with the same slips as the roll. */}
+      <GalleryDeleteSheet
+        targets={screen.confirming === "frame" && screen.photo ? [screen.photo] : null}
+        busy={false}
+        onClose={screen.onCancelConfirm}
+        onConfirm={screen.onConfirmRemoveFrame}
+      />
+      <BottomSheet visible={screen.confirming === "person"} onClose={screen.onCancelConfirm}>
+        {screen.subject ? (
+          <RemovePersonSlip
+            name={screen.subject.name || t("check.left")}
+            frameCount={screen.subject.photoCount}
+            reportedFrame={screen.kind === "frame"}
+            onConfirm={screen.onConfirmRemovePerson}
+            onCancel={screen.onCancelConfirm}
+          />
+        ) : null}
+      </BottomSheet>
     </SafeAreaView>
   );
 };

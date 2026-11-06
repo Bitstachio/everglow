@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useResolveReportMutation } from "../api/mutations";
 import { useEventOpenReportsQuery } from "../api/queries";
 import { frameNumbers, groupOpenReports } from "../lib/report-groups";
-import type { ResolveReportDto } from "../types";
+import type { MemberPhotos, ResolveReportDto } from "../types";
 
 /** `key` is the group's key from 10.8 (`frame:…`, `person:…` or `report:…`). */
 type Params = { id: string; key: string };
@@ -27,6 +27,8 @@ export const useReportCheckScreen = () => {
   const key = first(params.key) ?? "";
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A removal waits for its confirm: the frame (09.10's slip) or the person (11.4's). */
+  const [confirming, setConfirming] = useState<"frame" | "person" | null>(null);
   const resolve = useResolveReportMutation();
 
   const eventQuery = useEventQuery(eventId);
@@ -85,7 +87,7 @@ export const useReportCheckScreen = () => {
   const onBack = () =>
     router.canGoBack() ? router.back() : router.replace({ pathname: "/events/[id]/reports", params: { id: eventId } });
 
-  const decide = async (action: ResolveReportDto["action"]) => {
+  const decide = async (action: ResolveReportDto["action"], photos?: MemberPhotos) => {
     const candidates = group?.decidable ?? [];
     if (!candidates.length || resolve.isPending) return;
     setError(null);
@@ -94,7 +96,7 @@ export const useReportCheckScreen = () => {
     // report on the same frame or person closes theirs with it.
     for (const report of candidates) {
       try {
-        await resolve.mutateAsync({ eventId, reportId: report.id, action });
+        await resolve.mutateAsync({ eventId, reportId: report.id, action, ...(photos ? { photos } : {}) });
         onBack();
         return;
       } catch (caught) {
@@ -137,9 +139,20 @@ export const useReportCheckScreen = () => {
     canRemovePerson,
     error,
     pending: resolve.isPending ? resolve.variables?.action : undefined,
+    confirming,
     onReveal: () => setRevealed(true),
-    onRemoveFrame: () => void decide("REMOVE_PHOTO"),
-    onRemovePerson: () => void decide("REMOVE_MEMBER"),
+    onRemoveFrame: () => setConfirming("frame"),
+    onRemovePerson: () => setConfirming("person"),
+    onCancelConfirm: () => setConfirming(null),
+    // The slip closes first; the leader on the screen shows the decision going through.
+    onConfirmRemoveFrame: () => {
+      setConfirming(null);
+      void decide("REMOVE_PHOTO");
+    },
+    onConfirmRemovePerson: (photos: MemberPhotos) => {
+      setConfirming(null);
+      void decide("REMOVE_MEMBER", photos);
+    },
     onKeep: () => void decide("DISMISS"),
     onRetry: () => void reportsQuery.refetch(),
     onBack,

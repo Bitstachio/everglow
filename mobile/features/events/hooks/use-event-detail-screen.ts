@@ -40,6 +40,7 @@ import {
   type TrayItem,
 } from "../lib/upload-tray";
 import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } from "../types";
+import type { MemberPhotos } from "@/lib/api/generated";
 import { eventStorageLeftBytes } from "../utils";
 import { useArrivalNote } from "./use-arrival-note";
 import { useBlockMutation } from "@/features/moderation/api/mutations";
@@ -361,19 +362,22 @@ export const useEventDetailScreen = () => {
     });
   };
 
-  const onConfirmRemove = () => {
+  const onConfirmRemove = (photos: MemberPhotos) => {
     if (!removing) return;
     const name = removing.name;
-    removeParticipantMutation.mutate(removing.userId, {
-      onSuccess: () => {
-        closeSheet();
-        showNotice(t("result.removed", { name }));
+    removeParticipantMutation.mutate(
+      { targetUserId: removing.userId, photos },
+      {
+        onSuccess: () => {
+          closeSheet();
+          showNotice(t("result.removed", { name }));
+        },
+        onError: (error) => {
+          closeSheet();
+          showNotice(getErrorMessage(error));
+        },
       },
-      onError: (error) => {
-        closeSheet();
-        showNotice(getErrorMessage(error));
-      },
-    });
+    );
   };
 
   // 08.8 takes the sheet once nothing else is on it: one sheet, so iOS never drops it.
