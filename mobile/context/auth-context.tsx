@@ -34,6 +34,12 @@ interface AuthContextType {
   signup: () => Promise<void>;
   /** Signs out and goes to `to`, the welcome by default. */
   logout: (to?: SignedOutRoute) => Promise<void>;
+  /**
+   * Ends a session Auth0 already revoked, as a password change does: forgets the
+   * credentials and the account on this phone like a 401, keeps unfinished uploads
+   * for the same person, and opens the welcome with the signed-out slip (01.8).
+   */
+  endExpiredSession: () => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   refreshProfile: () => Promise<User | null>;
   updateUser: (user: User) => void;
@@ -287,6 +293,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     login,
     signup,
     logout,
+    endExpiredSession: handleSessionExpired,
     completeOnboarding,
     refreshProfile,
     updateUser,
