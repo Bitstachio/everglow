@@ -150,6 +150,8 @@
     "removePerson": "Remove {{name}} from the roll",
     "keepFrame": "Keep it, it’s fine",
     "keepPerson": "Keep them, it’s fine",
+    "keepSevereFrame": "Keep hands this to Everglow’s safety team. The frame stays hidden until they decide.",
+    "keepSeverePerson": "Keep hands this to Everglow’s safety team to decide.",
     "failed": "Didn’t go through. Try again.",
     "gone": "Already handled."
   },

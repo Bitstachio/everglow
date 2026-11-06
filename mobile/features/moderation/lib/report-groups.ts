@@ -1,7 +1,11 @@
 import type { ReportReason, ReportResponseDto } from "../types";
 
-/** Reasons that hide a photo from members after one report (docs/moderation.md §5, rule 3). */
-const HIDES_AT_ONCE: readonly ReportReason[] = ["NUDITY_OR_SEXUAL", "VIOLENCE"];
+/**
+ * The severe reasons hosts see (`SEVERE_REPORT_REASONS` in the API). One report
+ * hides a photo from members (docs/moderation.md §5, rule 3), and a host's
+ * dismissal hands it to Everglow instead of closing it (§3).
+ */
+export const SEVERE_REASONS: readonly ReportReason[] = ["NUDITY_OR_SEXUAL", "VIOLENCE"];
 
 /** Open reports that hide a photo from members: 3, or 2 on a roll of 3 people or fewer (§5, rule 2). */
 export const hideThreshold = (memberCount: number) => (memberCount <= 3 ? 2 : 3);
@@ -47,7 +51,7 @@ const topReason = (reports: ReportResponseDto[]) => {
   // Ties go to the more serious reason: one that hides at once.
   return [...counts.entries()].sort(
     ([a, countA], [b, countB]) =>
-      countB - countA || Number(HIDES_AT_ONCE.includes(b)) - Number(HIDES_AT_ONCE.includes(a)),
+      countB - countA || Number(SEVERE_REASONS.includes(b)) - Number(SEVERE_REASONS.includes(a)),
   )[0];
 };
 
@@ -77,7 +81,7 @@ export const groupOpenReports = (reports: ReportResponseDto[], memberCount: numb
         reasonCount,
         hidden:
           isFrame &&
-          (items.length >= hideThreshold(memberCount) || items.some((item) => HIDES_AT_ONCE.includes(item.reason))),
+          (items.length >= hideThreshold(memberCount) || items.some((item) => SEVERE_REASONS.includes(item.reason))),
         withEverglow: items.every((item) => item.queue === "PLATFORM"),
         decidable: items.filter((item) => item.queue === "ORGANIZERS"),
         newestAt: items.reduce((newest, item) => (item.createdAt > newest ? item.createdAt : newest), first.createdAt),

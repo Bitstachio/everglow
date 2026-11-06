@@ -106,6 +106,7 @@ const ReportCheckScreen = () => {
           {screen.notes.map((note, index) => (
             <Fact key={index} words label={t("decide.note")} value={note} />
           ))}
+          {screen.keepNote ? <Text className="mt-4 font-sans text-body text-text-2">{screen.keepNote}</Text> : null}
         </View>
       )}
     </>

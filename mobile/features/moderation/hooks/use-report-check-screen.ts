@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useResolveReportMutation } from "../api/mutations";
 import { useEventOpenReportsQuery } from "../api/queries";
-import { frameNumbers, groupOpenReports } from "../lib/report-groups";
+import { frameNumbers, groupOpenReports, SEVERE_REASONS } from "../lib/report-groups";
 import type { MemberPhotos, ResolveReportDto } from "../types";
 
 /** `key` is the group's key from 10.8 (`frame:…`, `person:…` or `report:…`). */
@@ -114,6 +114,10 @@ export const useReportCheckScreen = () => {
     if (code !== "REPORT_ESCALATED") setError(getErrorMessage(failure, t("decide.failed")));
   };
 
+  // Keep closes ordinary reports, but the API hands severe ones to Everglow
+  // instead (docs/moderation.md §3), so say so before the host taps it.
+  const keepGoesToEverglow = (group?.decidable ?? []).some((report) => SEVERE_REASONS.includes(report.reason));
+
   // A host can't be removed by another host's report decision, nor can you remove yourself.
   const canRemovePerson = !!subject && subject.accessLevel !== "ORGANIZER" && subject.userId !== user?.id;
 
@@ -139,6 +143,11 @@ export const useReportCheckScreen = () => {
     canRemovePerson,
     error,
     pending: resolve.isPending ? resolve.variables?.action : undefined,
+    keepNote: keepGoesToEverglow
+      ? kind === "frame"
+        ? t("decide.keepSevereFrame")
+        : t("decide.keepSeverePerson")
+      : null,
     confirming,
     onReveal: () => setRevealed(true),
     onRemoveFrame: () => setConfirming("frame"),
