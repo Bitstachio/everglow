@@ -14,7 +14,6 @@ import { useTranslation } from "react-i18next";
 import { type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
-import { ArrivalNote } from "../components/arrival-note";
 import { RollCard } from "../components/roll-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { useRollPreview } from "../hooks/use-roll-preview";
@@ -63,7 +62,6 @@ const EventsScreen = () => {
   const {
     groups,
     leavingRoll,
-    leftRoll,
     hasRolls,
     isLoading,
     isRefreshing,
@@ -180,13 +178,6 @@ const EventsScreen = () => {
           </>
         )}
       </View>
-
-      {leftRoll ? (
-        // 13.3: over the rolls, where it was drawn.
-        <View pointerEvents="none" className="absolute left-4 right-4" style={{ top: 340 }}>
-          <ArrivalNote label={t("leftRoll", { title: leftRoll })} />
-        </View>
-      ) : null}
 
       <FilmGrain />
     </SafeAreaView>

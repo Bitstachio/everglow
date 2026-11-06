@@ -23,8 +23,7 @@ export const takeLeftRoll = (): LeftRoll | null => {
 
 /**
  * How the left roll goes from Home: its card stays until the screen has
- * settled, then fades while the cards below close the gap, and only then the
- * note says so. Eased, no bounce.
+ * settled, then fades while the cards below close the gap. Eased, no bounce.
  */
 export const LEAVE_MOTION = {
   /** The card in its place, once Home has come back. */

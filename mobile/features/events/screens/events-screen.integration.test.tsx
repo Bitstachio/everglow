@@ -169,24 +169,22 @@ const leftWedding = () => ({
 /** Until the card has gone and the list has settled, with room for a slow runner. */
 const SETTLED = { timeout: LEAVE_MOTION.holdMs + LEAVE_SETTLE_MS + 2000 };
 
-test("the roll you left keeps its place, then goes, and only then the note says so", async () => {
+test("the roll you left keeps its place, then goes, once", async () => {
   noteLeftRoll(leftWedding());
   // The list no longer has the roll: leaving refetched it before Home came back.
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "event-2", title: "Nadia turns 30" })] } });
   const view = await renderScreen();
   const card = await screen.findByRole("button", { name: /^Sam & Jo’s wedding, / });
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
-  expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
   // It can't be opened while it goes, and its strip isn't fetched again.
   await userEvent.setup().press(card);
   expect(mockPush).not.toHaveBeenCalled();
   expect(mockListPhotos).not.toHaveBeenCalledWith(expect.objectContaining({ path: { eventId: "event-left" } }));
 
   await waitFor(() => expect(screen.queryByText("Sam & Jo’s wedding")).not.toBeOnTheScreen(), SETTLED);
-  expect(await screen.findByRole("alert", {}, SETTLED)).toHaveTextContent(/You left Sam & Jo’s wedding/);
-  expect(screen.getByRole("alert")).toHaveProp("accessibilityLabel", "You left Sam & Jo’s wedding");
-  expect(screen.getByText("✓", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
+  // Its going is the confirmation: no note follows.
+  expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
 
   // Once: coming back to Home again doesn't bring the card back.
   mockFocused = false;
@@ -196,7 +194,7 @@ test("the roll you left keeps its place, then goes, and only then the note says 
   expect(screen.queryByRole("button", { name: /^Sam & Jo’s wedding, / })).not.toBeOnTheScreen();
 });
 
-test("with Reduce Motion the roll you left is simply gone and the note shows", async () => {
+test("with Reduce Motion the roll you left is simply gone", async () => {
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "event-2", title: "Nadia turns 30" })] } });
   const view = await renderScreen();
@@ -208,14 +206,14 @@ test("with Reduce Motion the roll you left is simply gone and the note shows", a
   mockFocused = true;
   await view.rerender();
 
-  // Well before the card could have finished going.
-  expect(await screen.findByRole("alert", {}, { timeout: LEAVE_MOTION.holdMs })).toHaveTextContent(
-    /You left Sam & Jo’s wedding/,
-  );
   expect(screen.queryByRole("button", { name: /^Sam & Jo’s wedding, / })).not.toBeOnTheScreen();
+  await new Promise((resolve) => setTimeout(resolve, LEAVE_MOTION.holdMs + LEAVE_SETTLE_MS));
+  expect(screen.queryByRole("button", { name: /^Sam & Jo’s wedding, / })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
+  expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
 });
 
-test("Home reached any other way has no roll going and no note", async () => {
+test("Home reached any other way has no roll going", async () => {
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "event-2", title: "Nadia turns 30" })] } });
   const view = await renderScreen();
   await screen.findByText("Nadia turns 30");
@@ -225,8 +223,8 @@ test("Home reached any other way has no roll going and no note", async () => {
   await view.rerender();
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   await new Promise((resolve) => setTimeout(resolve, LEAVE_MOTION.holdMs + LEAVE_SETTLE_MS));
-  expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
   expect(screen.queryByText("Sam & Jo’s wedding")).not.toBeOnTheScreen();
+  expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
 });
 
 test("opens the lab card from the header avatar", async () => {

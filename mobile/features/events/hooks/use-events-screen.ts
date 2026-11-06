@@ -39,12 +39,11 @@ export const useEventsScreen = () => {
     }
   }, [isError, error, errorUpdatedAt, t]);
 
-  // 13.3: the roll you just left keeps its card in place ("holding"), then the
-  // card goes and the list closes up ("going"). Only once it has settled does
-  // the note say you left. Reduce Motion skips straight to the note.
+  // The roll you just left keeps its card in place ("holding"), then the card
+  // goes and the list closes up ("going"). That is the confirmation. Reduce
+  // Motion shows Home without it straight away.
   const reduceMotion = useReduceMotion();
   const [leaving, setLeaving] = useState<{ roll: LeftRoll; phase: "holding" | "going" } | null>(null);
-  const [leftRoll, setLeftRoll] = useState<string | null>(null);
 
   // Legacy detail pages do not invalidate queries yet. Refresh when returning.
   useFocusEffect(
@@ -56,24 +55,14 @@ export const useEventsScreen = () => {
   );
 
   useEffect(() => {
+    // Under Reduce Motion the phases still run out, but nothing shows them.
     if (!leaving) return;
-    const gone = () => {
-      setLeaving(null);
-      setLeftRoll(leaving.roll.event.title);
-    };
-    if (reduceMotion) return gone();
     const timer =
       leaving.phase === "holding"
         ? setTimeout(() => setLeaving({ ...leaving, phase: "going" }), LEAVE_MOTION.holdMs)
-        : setTimeout(gone, LEAVE_SETTLE_MS);
+        : setTimeout(() => setLeaving(null), LEAVE_SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [leaving, reduceMotion]);
-
-  useEffect(() => {
-    if (!leftRoll) return;
-    const timer = setTimeout(() => setLeftRoll(null), 4000);
-    return () => clearTimeout(timer);
-  }, [leftRoll]);
+  }, [leaving]);
 
   // The list has already dropped the roll you left; it stays on screen until it goes.
   const leavingEvent = leaving?.roll.event;
@@ -112,7 +101,6 @@ export const useEventsScreen = () => {
     groups,
     /** The roll going from the list, while it goes: its id and the strip it had. */
     leavingRoll: leaving && !reduceMotion ? { id: leaving.roll.event.id, photos: leaving.roll.photos } : null,
-    leftRoll,
     hasRolls,
     isLoading,
     isRefreshing: isRefetching,
