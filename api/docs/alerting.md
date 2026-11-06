@@ -141,10 +141,12 @@ builds a rule on them and nobody wonders whether one is missing.
 The API runs on ECS through Copilot ([`api/copilot/api/manifest.yml`](../copilot/api/manifest.yml)), so its lines
 are already in CloudWatch Logs, in the group Copilot creates for the service: `/copilot/everglow-<env>-api`. The
 rules in §3 are CloudWatch metric filters on that group with an alarm each, in
-[`api/infra/moderation-alerts.tf`](../infra/moderation-alerts.tf). Every alarm publishes to the same SNS topic as
-the photo privacy alerts and the image processor's DLQ alarm (`everglow-security-alerts-dev`,
-[`photo-privacy.tf`](../infra/photo-privacy.tf)), which emails the addresses in `alert_emails`. No vendor and no
-code in the API.
+[`api/infra/moderation-alerts.tf`](../infra/moderation-alerts.tf). Saved Logs Insights queries and a dashboard
+for the same group live in [`api/infra/api-logs.tf`](../infra/api-logs.tf); both files share
+`api_log_group_name` and the short name in [`api-log-group.tf`](../infra/api-log-group.tf). Every alarm
+publishes to the same SNS topic as the photo privacy alerts and the image processor's DLQ alarm
+(`everglow-security-alerts-dev`, [`photo-privacy.tf`](../infra/photo-privacy.tf)), which emails the addresses
+in `alert_emails`. No vendor and no code in the API.
 
 - **Page or ticket is in the alarm name**, `everglow-<env>-api-page-…` or `…-ticket-…`, so the email's subject says
   how fast to act. Until a paging service is chosen both arrive as email; subscribing a phone or a pager to the

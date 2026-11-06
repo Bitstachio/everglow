@@ -1,11 +1,10 @@
 # Alerts from the API's own logs (api/docs/alerting.md §3), delivered to the
 # security alerts topic in photo-privacy.tf.
 #
-# The API writes one JSON line per log call to CloudWatch Logs, in the log
-# group Copilot creates for the service. Each rule below is a metric filter
-# on that group, matching the line's `event` field (never the message), and
-# an alarm on the filter's metric. Moderation is why this exists, so it is
-# named for it, but every rule in alerting.md §3 lives here.
+# Pair with api-logs.tf: same var.api_log_group_name, same short name in
+# api-log-group.tf. This file only alarms (metric filter + alarm per §3 rule).
+# Saved queries and the dashboard live next door. Moderation is why this file
+# is named for it, but every rule in alerting.md §3 lives here.
 #
 #   Severity    The alarm name says PAGE or TICKET (alerting.md §2), so the
 #               subject of the email says how fast to act. Both go to the
@@ -24,9 +23,7 @@
 # a new environment: `copilot svc deploy` first, then `terraform apply`.
 
 locals {
-  # "/copilot/everglow-staging-api" -> "everglow-staging-api"
-  api_alarm_prefix     = replace(trimprefix(trimprefix(var.api_log_group_name, "/copilot/"), "/"), "/", "-")
-  api_metric_namespace = "Everglow/${local.api_alarm_prefix}"
+  api_metric_namespace = "Everglow/${local.api_log_name_prefix}"
   api_log_group_exists = contains(tolist(data.aws_cloudwatch_log_groups.api.log_group_names), var.api_log_group_name)
 
   # The console page for the log group, filtered to a pattern. The console
@@ -378,7 +375,7 @@ locals {
 
   api_alarms = {
     for key, alert in local.api_alarm_definitions : key => merge(alert, {
-      name = "${local.api_alarm_prefix}-${alert.severity}-${replace(key, "_", "-")}"
+      name = "${local.api_log_name_prefix}-${alert.severity}-${replace(key, "_", "-")}"
       description = join(" ", [
         "[${upper(alert.severity)}]",
         alert.summary,

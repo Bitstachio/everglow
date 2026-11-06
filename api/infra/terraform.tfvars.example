@@ -1,8 +1,10 @@
 # Copy to terraform.tfvars (gitignored) and fill in.
 alert_emails = ["you@example.com"]
 
-# The environment whose API logs are alerted on, and the jobs it runs. Match
-# api/copilot/api/manifest.yml for that environment.
+# The Copilot API log group that api-logs.tf (queries, dashboard) and
+# moderation-alerts.tf (metric filters, alarms) both read. Match the
+# environment's *_ENABLED flags in api/copilot/api/manifest.yml with
+# api_jobs_enabled so heartbeats only watch jobs that actually run.
 # api_log_group_name = "/copilot/everglow-staging-api"
 # api_jobs_enabled = {
 #   account_deletion_reconciler = true
