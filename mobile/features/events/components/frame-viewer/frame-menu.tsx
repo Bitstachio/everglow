@@ -47,7 +47,7 @@ export const FrameMenu = ({
     <BottomSheet testID="frame-menu-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
       <View>
         <View className="flex-row items-center gap-3 pb-4">
-          <View className="size-12 overflow-hidden rounded-frame">
+          <View className="size-[52px] overflow-hidden rounded-frame">
             <RetryingPhoto
               uri={frame?.photo.thumbnailUrl}
               cacheKey={frame ? `photo:${frame.photo.id}:thumbnail` : undefined}
@@ -56,7 +56,7 @@ export const FrameMenu = ({
             />
           </View>
           <View className="flex-1 gap-1">
-            <Text className="font-sans-medium text-name text-text">
+            <Text className="font-display text-title-sheet text-text">
               {isOwn
                 ? t("viewer.ownFrame")
                 : frame?.deleted

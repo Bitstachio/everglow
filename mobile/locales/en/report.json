@@ -83,7 +83,7 @@
     "unblocked": "{{name}} is unblocked",
     "reportPerson": "Report {{name}}",
     "reportRoll": "Report this roll",
-    "remove": "Remove {{name}} from the roll",
+    "remove": "Remove from the roll",
     "reports": "Reports",
     "reportsToCheck": "Reports · {{count}} to check"
   },
