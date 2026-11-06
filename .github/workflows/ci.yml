@@ -38,6 +38,8 @@ jobs:
               - '.github/workflows/**'
             functions:
               - 'functions/**'
+              # The job also validates the Terraform, which deploys the function.
+              - 'api/infra/**'
               - 'api/infra/**'
               - '.github/workflows/**'
             mobile:

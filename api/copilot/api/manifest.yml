@@ -46,14 +46,34 @@ variables:
   # tokens whose azp is this client are accepted. Not a secret.
   # AUTH0_NATIVE_CLIENT_ID: <native app client id>
 
+# The log group /copilot/everglow-<env>-api. Its lines carry user and report
+# ids, so they are kept 90 days (Copilot's default is 30): long enough to
+# answer a moderation or deletion question about last quarter, short enough
+# not to become an archive. The alerts on it are api/infra/moderation-alerts.tf.
+logging:
+  retention: 90
+
 secrets:
   AWS_SECRET_ACCESS_KEY: /copilot/${COPILOT_APPLICATION_NAME}/${COPILOT_ENVIRONMENT_NAME}/secrets/AWS_SECRET_ACCESS_KEY
   # Hosted Postgres (e.g. Neon) — set via: copilot secret init (name DATABASE_URL)
   DATABASE_URL: /copilot/${COPILOT_APPLICATION_NAME}/${COPILOT_ENVIRONMENT_NAME}/secrets/DATABASE_URL
 
-# You can override any of the values defined above by environment.
-#environments:
-#  test:
-#    count: 2               # Number of tasks to run for the "test" environment.
-#    deployment:            # The deployment strategy for the "test" environment.
-#       rolling: 'recreate' # Stops existing tasks before new ones are started for faster deployments.
+# Values per environment, overriding the ones above.
+#
+# The scheduled jobs below act on AWS_S3_BUCKET or the Auth0 tenant for the
+# rows in DATABASE_URL, and most delete what those rows do not explain. Switch
+# them on only in the one environment whose database owns that bucket and
+# tenant (docs/photos-architecture.md §11, api/docs/local-setup.md). Staging
+# owns neither yet: its bucket is a placeholder and its tenant is the shared
+# dev tenant, whose logins belong to every developer's database. So they are
+# off here, stated rather than left to the code's defaults, and each one
+# turned on needs the matching api_jobs_enabled flag in api/infra so its
+# heartbeat is watched.
+environments:
+  staging:
+    variables:
+      ACCOUNT_DELETION_RECONCILER_ENABLED: "false"
+      PHOTO_ORPHAN_RECONCILER_ENABLED: "false"
+      GALLERY_CLOSE_ENABLED: "false"
+      MODERATION_EVIDENCE_JOB_ENABLED: "false"
+      PHOTO_HASH_BACKFILL_ENABLED: "false"
