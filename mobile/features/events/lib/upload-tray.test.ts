@@ -7,6 +7,7 @@ import {
   cancelTray,
   clearUploadTrays,
   dismissClosed,
+  forgetTray,
   getTray,
   getTraySession,
   openTraySession,
@@ -319,6 +320,36 @@ test("Cancel the rest stops the upload and drops what hadn't gone", async () => 
 
   expect(getTray("event-1").items).toEqual([]);
   expect(mockUpload).toHaveBeenCalledTimes(1);
+});
+
+test("leaving the roll stops its tray without refreshing it and forgets what was on it", async () => {
+  let release: () => void = () => undefined;
+  mockUpload.mockImplementationOnce(
+    (_eventId, _files, { onFile, signal }) =>
+      new Promise<void>((resolve) => {
+        onFile(0, { kind: "sending", bytesSent: 50 });
+        release = () => {
+          onFile(0, { kind: "failed", reason: signal.aborted ? "cancelled" : "refused" });
+          resolve();
+        };
+      }),
+  );
+  const settleLeft = jest.fn().mockResolvedValue(undefined);
+  activateUploadTrays("user-1", settle);
+  addToTray("event-1", [item("a"), item("b"), item("clip", { kind: "rejected", reason: "video" })], settleLeft);
+  addToTray("event-2", [item("c", { kind: "rejected", reason: "video" })], settle);
+  mockPersist.mockClear();
+
+  forgetTray("event-1");
+  release();
+  await flush();
+
+  expect(getTray("event-1")).toEqual({ items: [], running: false, closed: null });
+  expect(getTray("event-2").items.map((entry) => entry.key)).toEqual(["c"]);
+  expect(settleLeft).not.toHaveBeenCalled();
+  expect(mockUpload).toHaveBeenCalledTimes(1);
+  const written = mockPersist.mock.calls.at(-1)?.[1] as Map<string, unknown>;
+  expect([...written.keys()]).toEqual(["event-2"]);
 });
 
 test("removes a file that can't be added", () => {

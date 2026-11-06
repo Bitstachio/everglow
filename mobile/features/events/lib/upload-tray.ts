@@ -345,6 +345,32 @@ export const cancelTray = (eventId: string) => {
   });
 };
 
+/**
+ * After leaving a roll: nothing more can land on it, so its tray stops without
+ * settling and is forgotten, on disk too. A slot already minted is released by
+ * the API's sweeper.
+ */
+export const forgetTray = (eventId: string) => {
+  clearRetry(eventId);
+  retryAttempts.delete(eventId);
+  controllers.get(eventId)?.abort();
+  controllers.delete(eventId);
+  requestControllers.get(eventId)?.abort();
+  requestControllers.delete(eventId);
+  settlers.delete(eventId);
+  sessions.delete(eventId);
+  const userId = activeUserId;
+  if (userId) getTray(eventId).items.forEach((item) => releaseUploadFile(userId, item.uri));
+  if (trays.delete(eventId) && userId) {
+    try {
+      persistUploadTrays(userId, trays);
+    } catch {
+      // The next write of any tray leaves this one out.
+    }
+  }
+  emit();
+};
+
 /** Takes one file off the tray: a rejected one (08.5), or one that won't go. */
 export const removeFromTray = (eventId: string, key: string) => {
   mapItems(eventId, (item) => {
