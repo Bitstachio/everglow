@@ -9,14 +9,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
-import {
-  useDeactivateEventMutation,
-  useLeaveEventMutation,
-  useRefreshRollAfterUpload,
-  useRemoveEventParticipantMutation,
-} from "../api/mutations";
+import { useLeaveEventMutation, useRefreshRollAfterUpload, useRemoveEventParticipantMutation } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
+import type { CutParam } from "./use-cut-roll-screen";
 import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
 import {
   roomShortfall,
@@ -108,7 +104,7 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
 };
 
 /** What the sheet over the roll shows: the menu, people, or a slip. */
-export type RollSheet = "menu" | "people" | "person" | "block" | "leave" | "cut" | "remove" | "room" | "closedSending";
+export type RollSheet = "menu" | "people" | "person" | "block" | "leave" | "remove" | "room" | "closedSending";
 
 /** Who is about to be blocked (10.11), and whether the slip is over the roll or the viewer. */
 type BlockTarget = { userId: string; name: string; over: "roll" | "viewer" };
@@ -127,7 +123,7 @@ const NOTICE_MS = 4000;
 export const useEventDetailScreen = () => {
   const { t } = useTranslation(["roll", "report"]);
   const router = useRouter();
-  const { id, reported, resume } = useLocalSearchParams<{ id: string } & ReportReturn>();
+  const { id, reported, resume, cut } = useLocalSearchParams<{ id: string } & ReportReturn & CutParam>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
   // The roll as it was when Leave was confirmed. Leaving evicts its caches
@@ -144,7 +140,6 @@ export const useEventDetailScreen = () => {
   const participantsQuery = useEventParticipantsQuery(eventId, !leavingRoll);
 
   const leaveEventMutation = useLeaveEventMutation();
-  const deactivateMutation = useDeactivateEventMutation();
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
   const refreshRoll = useRefreshRollAfterUpload();
   const tray = useUploadTray(eventId);
@@ -362,18 +357,16 @@ export const useEventDetailScreen = () => {
     );
   };
 
-  const onConfirmCut = () => {
+  // Cut the roll is a screen of its own over the roll; it can't open over a closing sheet.
+  const onCut = () => {
     if (!eventId) return;
-    deactivateMutation.mutate(eventId, {
-      onSuccess: () => {
-        closeSheet();
-        showNotice(t("result.cut"));
-      },
-      onError: (error) => {
-        closeSheet();
-        showNotice(getErrorMessage(error));
-      },
-    });
+    const openCut = () => router.push({ pathname: "/events/[id]/cut", params: { id: eventId } });
+    if (sheet === null) {
+      openCut();
+      return;
+    }
+    closeSheet();
+    afterSheetCloses.current = openCut;
   };
 
   const onConfirmRemove = (photos: MemberPhotos) => {
@@ -433,6 +426,19 @@ export const useEventDetailScreen = () => {
     const timer = setTimeout(() => router.setParams({ reported: undefined }), NOTICE_MS);
     return () => clearTimeout(timer);
   }, [reported, router]);
+  // Once cut, the roll says how many photos went for a few seconds, then the
+  // param goes as the report's does. The closed roll keeps saying it closed
+  // just now for the rest of this visit.
+  const cutCount = cut === undefined ? null : Number(cut);
+  const cutNotice =
+    cutCount === null ? null : cutCount > 0 ? t("result.cutPhotos", { count: cutCount }) : t("result.cut");
+  const [justCut, setJustCut] = useState(false);
+  if (cutCount !== null && !justCut) setJustCut(true);
+  useEffect(() => {
+    if (cut === undefined) return;
+    const timer = setTimeout(() => router.setParams({ cut: undefined }), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [cut, router]);
   // A cancelled frame report reopens the frame it came from.
   const [resumed, setResumed] = useState<string | undefined>(undefined);
   if (resume !== resumed) {
@@ -524,7 +530,8 @@ export const useEventDetailScreen = () => {
     leftBytes,
     roomCheck,
     preparing,
-    notice: tray.storageError ? t("result.localStorage") : (notice ?? sentNotice),
+    notice: tray.storageError ? t("result.localStorage") : (notice ?? sentNotice ?? cutNotice),
+    justCut,
     openedVisible,
     sheet: shownSheet,
     arrivalNote,
@@ -533,7 +540,6 @@ export const useEventDetailScreen = () => {
     leaveFrameCount,
     leaveClosed,
     leaveError,
-    isCutting: deactivateMutation.isPending,
     removing,
     isRemoving: removeParticipantMutation.isPending,
     person,
@@ -578,8 +584,7 @@ export const useEventDetailScreen = () => {
     },
     onChooseLeavePhotos: setLeavePhotos,
     onConfirmLeave,
-    onCut: () => setSheet("cut"),
-    onConfirmCut,
+    onCut,
     // 11.2 / 11.8: someone else on the roll call.
     onOpenPerson: (participant: EventParticipantResponseDto) => {
       setPerson(participant);
