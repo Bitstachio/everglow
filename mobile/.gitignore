@@ -41,6 +41,7 @@ yarn-error.*
 # testing
 coverage/
 .maestro/results/
+.maestro/attempt-staging/
 
 # generated native folders
 /ios
