@@ -24,12 +24,19 @@ import {
   TIME_SLOTS,
   WEEKDAY_INITIALS,
 } from "../lib/new-roll";
-import { closedOn, formatEnvelopeDay } from "../lib/envelope";
+import { closedOn, envelopeCount, envelopeState, formatEnvelopeDay } from "../lib/envelope";
 import { formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
 import { formatClosedOn } from "../lib/rolls";
 import { useChangeEventCover } from "./use-change-event-cover";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
+
+// A roll has at most two envelopes: adds photos and view only.
+const ENVELOPE_COUNT_KEYS = [
+  "roll:settings.envelopeCount.0",
+  "roll:settings.envelopeCount.1",
+  "roll:settings.envelopeCount.2",
+] as const;
 
 /** Roll settings for upcoming and open galleries. */
 export const useEventSettingsScreen = () => {
@@ -89,6 +96,22 @@ export const useEventSettingsScreen = () => {
       : { used: "0", limit: "" };
 
   const note = event?.description?.trim() ?? "";
+
+  // The envelopes as the API lists them: how many, and whether they can be
+  // reset now. A closed roll lists none, since nobody can join it.
+  const envelopesValue = (() => {
+    if (!event) return "";
+    const state = envelopeState(event);
+    if (state === "closed") return t("roll:settings.envelopesClosed");
+    if (state === "suspended") return t("roll:settings.envelopesSuspended");
+    const held = envelopeCount(event);
+    const count = t(ENVELOPE_COUNT_KEYS[Math.min(held, ENVELOPE_COUNT_KEYS.length - 1)]);
+    // No envelope, nothing to reset.
+    if (held === 0) return count;
+    return state === "onHold"
+      ? t("roll:settings.envelopesOnHold", { count })
+      : t("roll:settings.envelopesReset", { count });
+  })();
 
   const now = new Date();
   const latest = new Date(limitsQuery.data?.newEvent.latestDate ?? now);
@@ -241,7 +264,7 @@ export const useEventSettingsScreen = () => {
     whenValue: scheduleLocked ? t("roll:settings.locked", { value: whenValue }) : whenValue,
     filmValue: scheduleLocked ? t("roll:settings.locked", { value: filmValue }) : filmValue,
     storageValue: t("roll:settings.storageUsed", { used: storage.used, limit: storage.limit }),
-    envelopesValue: t("roll:settings.envelopesTwo"),
+    envelopesValue,
     deleteValue: isClosed ? undefined : t("roll:settings.deleteAfter"),
     onBack: () => router.back(),
     onOpenName: () => {

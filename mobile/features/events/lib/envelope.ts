@@ -31,6 +31,10 @@ export const closedOn = (event: Pick<EventResponseDto, "deactivatedAt" | "galler
 export const envelopeUrl = (event: Pick<EventResponseDto, "invites">, kind: EnvelopeKind): string | null =>
   event.invites.find((invite) => invite.accessLevel === ACCESS_LEVELS[kind])?.invitationUrl ?? null;
 
+/** How many envelopes the host holds: one per kind the API listed an invite for. A closed roll has none. */
+export const envelopeCount = (event: Pick<EventResponseDto, "invites">): number =>
+  ENVELOPE_KINDS.filter((kind) => envelopeUrl(event, kind) !== null).length;
+
 // Some ICU versions shorten September to "Sept"; the lab writes three letters.
 const shortMonth = (date: Date): string => date.toLocaleDateString("en-GB", { month: "short" }).slice(0, 3);
 

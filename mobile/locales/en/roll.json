@@ -143,7 +143,15 @@
     "storage": "Storage",
     "storageUsed": "{{used}} of {{limit}}",
     "envelopes": "Envelopes",
-    "envelopesTwo": "Two · reset",
+    "envelopeCount": {
+      "0": "None",
+      "1": "One",
+      "2": "Two"
+    },
+    "envelopesReset": "{{count}} · reset",
+    "envelopesOnHold": "{{count}} · on hold",
+    "envelopesClosed": "Closed",
+    "envelopesSuspended": "Suspended",
     "delete": "Delete the roll",
     "deleteAfter": "After it closes",
     "deleteRoll": {
