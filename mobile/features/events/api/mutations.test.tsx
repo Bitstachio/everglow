@@ -99,12 +99,13 @@ test("creation stays pending until the active event list has refreshed", async (
   client.clear();
 });
 
-test("refreshing after an upload invalidates the photos and the event's storage", async () => {
+test("refreshing after an upload invalidates the photos, the event's storage and the roll call's counts", async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
   });
   client.setQueryData(eventsKeys.photos("event-1"), []);
   client.setQueryData(eventsKeys.detail("event-1"), buildEvent());
+  client.setQueryData(eventsKeys.participants("event-1"), []);
   const wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
@@ -114,5 +115,6 @@ test("refreshing after an upload invalidates the photos and the event's storage"
 
   expect(client.getQueryState(eventsKeys.photos("event-1"))?.isInvalidated).toBe(true);
   expect(client.getQueryState(eventsKeys.detail("event-1"))?.isInvalidated).toBe(true);
+  expect(client.getQueryState(eventsKeys.participants("event-1"))?.isInvalidated).toBe(true);
   client.clear();
 });

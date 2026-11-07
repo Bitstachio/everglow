@@ -1,0 +1,141 @@
+#!/usr/bin/env node
+
+/**
+ * Runs the iOS login smoke once, then retries once when the failure is a flake
+ * or ambiguous. Clear failures stop immediately. Does not rebuild the app.
+ *
+ * Maestro replaces `.maestro/results/report.xml` on every run, and may replace
+ * the debug output next to it. Attempt logs and the first attempt's results
+ * are staged outside that directory and copied back after the last run so the
+ * CI artifact still contains both.
+ */
+
+const { spawn } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const { classifyMaestroFailure, shouldRetryMaestroFailure } = require("./maestro-failure-class");
+
+const mobileRoot = path.resolve(__dirname, "..");
+const resultsDir = path.join(mobileRoot, ".maestro", "results");
+const stagingDir = path.join(mobileRoot, ".maestro", "attempt-staging");
+const MAX_ATTEMPTS = 2;
+
+/**
+ * @param {string} logPath
+ * @returns {Promise<{ code: number, text: string }>}
+ */
+const runLoginSmoke = (logPath) =>
+  new Promise((resolve) => {
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    const log = fs.createWriteStream(logPath);
+    let text = "";
+    let settled = false;
+    const finish = (code) => {
+      if (settled) return;
+      settled = true;
+      log.end(() => resolve({ code, text }));
+    };
+    const child = spawn("pnpm", ["run", "test:e2e:login:ios"], {
+      cwd: mobileRoot,
+      env: process.env,
+      stdio: ["inherit", "pipe", "pipe"],
+    });
+    const capture = (stream) => (chunk) => {
+      text += chunk.toString();
+      stream.write(chunk);
+      log.write(chunk);
+    };
+    child.stdout.on("data", capture(process.stdout));
+    child.stderr.on("data", capture(process.stderr));
+    child.on("error", (error) => {
+      const message = error.code === "ENOENT" ? "pnpm: command not found" : String(error);
+      text += `\n${message}\n`;
+      log.write(`\n${message}\n`);
+      finish(127);
+    });
+    child.on("close", (code) => finish(code ?? 1));
+  });
+
+const failureText = (stdio) => {
+  const reportPath = path.join(resultsDir, "report.xml");
+  const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, "utf8") : "";
+  return `${stdio}\n${report}`;
+};
+
+/** Drop attempt artifacts from a previous local run so this run's copies are the only ones. */
+const clearPreviousAttemptArtifacts = () => {
+  if (!fs.existsSync(resultsDir)) return;
+  for (const name of fs.readdirSync(resultsDir)) {
+    if (!name.startsWith("attempt-")) continue;
+    fs.rmSync(path.join(resultsDir, name), { recursive: true, force: true });
+  }
+};
+
+const snapshotResults = (dest) => {
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(dest, { recursive: true });
+  if (!fs.existsSync(resultsDir)) return;
+  for (const entry of fs.readdirSync(resultsDir, { withFileTypes: true })) {
+    if (entry.name.startsWith("attempt-")) continue;
+    fs.cpSync(path.join(resultsDir, entry.name), path.join(dest, entry.name), { recursive: true });
+  }
+};
+
+const publishStaging = () => {
+  if (!fs.existsSync(stagingDir)) return;
+  fs.mkdirSync(resultsDir, { recursive: true });
+  for (const entry of fs.readdirSync(stagingDir, { withFileTypes: true })) {
+    const target = path.join(resultsDir, entry.name);
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.cpSync(path.join(stagingDir, entry.name), target, { recursive: true });
+  }
+};
+
+const main = async () => {
+  let exitCode = 1;
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+  fs.mkdirSync(stagingDir, { recursive: true });
+  clearPreviousAttemptArtifacts();
+  let firstFailureClass = null;
+  try {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      console.log(`Maestro login smoke attempt ${attempt}`);
+      const result = await runLoginSmoke(path.join(stagingDir, `attempt-${attempt}.log`));
+      exitCode = result.code;
+      if (exitCode === 0) {
+        if (attempt > 1) {
+          console.log(`Maestro login smoke passed on attempt ${attempt} after a ${firstFailureClass} failure.`);
+        }
+        return;
+      }
+      const failureClass = classifyMaestroFailure(failureText(result.text));
+      if (firstFailureClass === null) firstFailureClass = failureClass;
+      if (shouldRetryMaestroFailure(failureClass, attempt, MAX_ATTEMPTS)) {
+        console.error(
+          `Maestro login smoke attempt ${attempt} failed (${failureClass}). Retrying once without rebuilding.`,
+        );
+        snapshotResults(path.join(stagingDir, `attempt-${attempt}`));
+        continue;
+      }
+      const why = failureClass === "clear" ? " Not retrying." : "";
+      console.error(`Maestro login smoke attempt ${attempt} failed (${failureClass}).${why}`);
+      return;
+    }
+  } finally {
+    try {
+      publishStaging();
+    } catch (error) {
+      console.error("Failed to keep Maestro attempt logs:", error);
+      exitCode = 1;
+    }
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    process.exitCode = exitCode;
+  }
+};
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
