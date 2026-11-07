@@ -321,8 +321,6 @@
     "gone_one": "That frame was deleted.",
     "gone_other": "Those frames were deleted.",
     "cut": "Roll cut",
-    "cutPhotos_one": "Roll cut · 1 photo removed",
-    "cutPhotos_other": "Roll cut · {{count}} photos removed",
     "removed": "{{name}} is off the roll."
   },
   "loadFailed": "Couldn’t load this roll",

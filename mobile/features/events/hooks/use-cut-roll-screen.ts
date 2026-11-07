@@ -9,9 +9,6 @@ import { useEventParticipantsQuery, useEventQuery, useRollPreviewQuery } from ".
 import { rollRole } from "../lib/roll-page";
 import { ROLL_FRAMES, toRollPhotos } from "../lib/rolls";
 
-/** What the roll shows once it has been cut: how many photos went, read from this param. */
-export type CutParam = { cut?: string };
-
 /** The latest photos on the left of the cut, dimmed on the right; blank numbered frames when there are fewer. */
 const cutFrames = (photos: { uri: string; cacheKey: string }[], photoCount: number): StripFrame[] => {
   const shown = [...photos].reverse();
@@ -27,7 +24,7 @@ const cutFrames = (photos: { uri: string; cacheKey: string }[], photoCount: numb
 /**
  * Cut the roll: what goes now and what stays, before a host closes it for
  * everyone. Ends in the same deactivate call and refreshes the roll menu's cut
- * always made; the roll then shows it closed, with how many photos went.
+ * always made; the roll then shows it closed just now.
  */
 export const useCutRollScreen = () => {
   const { t } = useTranslation("roll");
@@ -75,8 +72,8 @@ export const useCutRollScreen = () => {
     if (!eventId || deactivate.isPending) return;
     setError(null);
     deactivate.mutate(eventId, {
-      // Back to the roll, which is closed now and says how many photos went.
-      onSuccess: () => router.dismissTo({ pathname: "/events/[id]", params: { id: eventId, cut: String(photoCount) } }),
+      // Back to the roll, which shows it closed just now.
+      onSuccess: () => router.back(),
       onError: (failure) => setError(getErrorMessage(failure, t("cut.failed"))),
     });
   };

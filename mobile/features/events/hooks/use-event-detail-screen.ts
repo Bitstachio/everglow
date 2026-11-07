@@ -12,7 +12,6 @@ import { Alert } from "react-native";
 import { useLeaveEventMutation, useRefreshRollAfterUpload, useRemoveEventParticipantMutation } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
-import type { CutParam } from "./use-cut-roll-screen";
 import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
 import {
   roomShortfall,
@@ -21,6 +20,7 @@ import {
   type PickedFile,
   type RoomShortfall,
 } from "../lib/picked-photos";
+import { closedOn } from "../lib/envelope";
 import { asksAboutFrames } from "../lib/leave-roll";
 import { handOverLeftRoll } from "../lib/left-roll";
 import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
@@ -119,11 +119,14 @@ type RoomCheck = RoomShortfall & { items: TrayItem[]; leftBytes: number };
 /** How long a result stays in the footer. */
 const NOTICE_MS = 4000;
 
+/** How recently a roll closed for it to say "Closed just now". */
+const JUST_NOW_MS = 60 * 1000;
+
 /** 07.1–07.11: the roll, through its whole life, for each role. */
 export const useEventDetailScreen = () => {
   const { t } = useTranslation(["roll", "report"]);
   const router = useRouter();
-  const { id, reported, resume, cut } = useLocalSearchParams<{ id: string } & ReportReturn & CutParam>();
+  const { id, reported, resume } = useLocalSearchParams<{ id: string } & ReportReturn>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
   // The roll as it was when Leave was confirmed. Leaving evicts its caches
@@ -426,19 +429,22 @@ export const useEventDetailScreen = () => {
     const timer = setTimeout(() => router.setParams({ reported: undefined }), NOTICE_MS);
     return () => clearTimeout(timer);
   }, [reported, router]);
-  // Once cut, the roll says how many photos went for a few seconds, then the
-  // param goes as the report's does. The closed roll keeps saying it closed
-  // just now for the rest of this visit.
-  const cutCount = cut === undefined ? null : Number(cut);
-  const cutNotice =
-    cutCount === null ? null : cutCount > 0 ? t("result.cutPhotos", { count: cutCount }) : t("result.cut");
-  const [justCut, setJustCut] = useState(false);
-  if (cutCount !== null && !justCut) setJustCut(true);
+  // A roll that closed in the last minute, by a cut or at the end of its film,
+  // says it closed just now for the rest of this visit. A suspended roll shows
+  // no closed state, so there the cut says so in the notice.
+  const closedRecently =
+    event?.galleryState === "CLOSED" && now.getTime() - new Date(closedOn(event)).getTime() < JUST_NOW_MS;
+  const [closedJustNow, setClosedJustNow] = useState(false);
+  const [suspendedCutNotice, setSuspendedCutNotice] = useState(false);
+  if (closedRecently && !closedJustNow) {
+    setClosedJustNow(true);
+    if (event?.status === "SUSPENDED") setSuspendedCutNotice(true);
+  }
   useEffect(() => {
-    if (cut === undefined) return;
-    const timer = setTimeout(() => router.setParams({ cut: undefined }), NOTICE_MS);
+    if (!suspendedCutNotice) return;
+    const timer = setTimeout(() => setSuspendedCutNotice(false), NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [cut, router]);
+  }, [suspendedCutNotice]);
   // A cancelled frame report reopens the frame it came from.
   const [resumed, setResumed] = useState<string | undefined>(undefined);
   if (resume !== resumed) {
@@ -530,8 +536,10 @@ export const useEventDetailScreen = () => {
     leftBytes,
     roomCheck,
     preparing,
-    notice: tray.storageError ? t("result.localStorage") : (notice ?? sentNotice ?? cutNotice),
-    justCut,
+    notice: tray.storageError
+      ? t("result.localStorage")
+      : (notice ?? sentNotice ?? (suspendedCutNotice ? t("result.cut") : null)),
+    closedJustNow,
     openedVisible,
     sheet: shownSheet,
     arrivalNote,

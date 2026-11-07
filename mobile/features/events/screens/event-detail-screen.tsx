@@ -77,29 +77,6 @@ const Notice = ({ message, className = "", style }: { message: string; className
   </View>
 );
 
-/** The result of a cut, in a light bar across the crossed-out strips, ticked. */
-const CutToast = ({ message }: { message: string }) => (
-  <View
-    pointerEvents="none"
-    className="absolute left-5 right-5 top-full h-13 flex-row items-center justify-between rounded-leader bg-leader px-4"
-  >
-    <Text
-      accessibilityLiveRegion="polite"
-      numberOfLines={1}
-      className="shrink font-mono-semibold text-text-button uppercase text-on-leader"
-    >
-      {message}
-    </Text>
-    <Text
-      importantForAccessibility="no"
-      accessibilityElementsHidden
-      className="font-mono-semibold text-text-button text-on-leader"
-    >
-      ✓
-    </Text>
-  </View>
-);
-
 /** A round button over the cover, darkened so it reads on any photo. */
 const CoverButton = ({ children }: { children: ReactNode }) => (
   <View className="rounded-full bg-scrim">{children}</View>
@@ -159,15 +136,15 @@ const EventDetailScreen = () => {
         ? t("duration.hoursMinutes", { hours: duration.hours, minutes: duration.minutes })
         : t("duration.minutes", { minutes: duration.minutes });
 
-  // 07.9 Closed: the photos are gone; the roll and its people stay. Straight
-  // after a cut it says so, and how many photos went.
+  // 07.9 Closed: the photos are gone; the roll and its people stay. Just
+  // closed, it says so over two crossed-out strips.
   if (stage === "closed") {
     const removedOn = closedOn(event);
     const edgeValues = { range: formatRange(event.galleryOpensAt, removedOn), count: event.usage.members };
     return (
       <SafeAreaView className="flex-1 bg-ground">
         <TopBar
-          title={screen.justCut ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
+          title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
             <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
@@ -189,16 +166,12 @@ const EventDetailScreen = () => {
                   {event.deactivatedAt ? t("closed.edgeCut", edgeValues) : t("closed.edge", edgeValues)}
                 </EdgePrint>
               </View>
-              {screen.justCut ? (
-                <View className="z-10">
-                  <UnexposedRoll
-                    strips={2}
-                    crossed
-                    accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
-                  />
-                  {/* The cut's result, just under the strips it crossed out. */}
-                  {screen.notice ? <CutToast message={screen.notice} /> : null}
-                </View>
+              {screen.closedJustNow ? (
+                <UnexposedRoll
+                  strips={2}
+                  crossed
+                  accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
+                />
               ) : (
                 <UnexposedRoll
                   strips={3}
@@ -228,7 +201,7 @@ const EventDetailScreen = () => {
           </View>
         ) : null}
         {/* A failed Leave, or someone a host took off the roll. */}
-        {screen.notice && !screen.justCut ? <Notice message={screen.notice} className="bottom-8" /> : null}
+        {screen.notice ? <Notice message={screen.notice} className="bottom-8" /> : null}
         <Sheets screen={screen} />
         <FilmGrain />
       </SafeAreaView>
