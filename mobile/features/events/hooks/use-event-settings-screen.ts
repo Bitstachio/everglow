@@ -211,6 +211,7 @@ export const useEventSettingsScreen = () => {
   };
 
   // A roll can be deleted once it has closed (EVENT_STILL_ACTIVE before then).
+  // Before that, Delete the roll explains why instead of calling the API.
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -257,12 +258,15 @@ export const useEventSettingsScreen = () => {
     onOpenEnvelopes: () => {
       if (eventId) router.push(`/events/${eventId}/envelope`);
     },
-    onOpenDelete: isClosed
-      ? () => {
-          setDeleteError(null);
-          setDeleteVisible(true);
-        }
-      : undefined,
+    // Closed, the delete slip; before then, why it can't go yet (EVENT_STILL_ACTIVE).
+    onOpenDelete: () => {
+      if (!isClosed) {
+        if (eventId) router.push(`/events/${eventId}/cant-delete`);
+        return;
+      }
+      setDeleteError(null);
+      setDeleteVisible(true);
+    },
     deleteRoll: {
       visible: deleteVisible,
       onClosed: () => {

@@ -238,6 +238,20 @@
     "close": "Close",
     "failed": "Couldn’t cut the roll. Try again."
   },
+  "cantDelete": {
+    "title": "Can’t delete",
+    "titleDim": "this roll yet.",
+    "stillOpen": "Still open",
+    "notOpenYet": "Not open yet",
+    "waitUntil": "Cut it or wait until {{date}}",
+    "cutFirst": "Cut it first",
+    "reports_one": "{{count}} report",
+    "reports_other": "{{count}} reports",
+    "checkReports": "Check them first",
+    "underReview": "Under review",
+    "waitForEverglow": "Wait for Everglow",
+    "body": "A roll is deleted only after it closes, so nobody loses photos mid-party, and only when nothing is waiting on a decision."
+  },
   "people": {
     "edge": "On the roll · {{count}}",
     "host": "Host",
