@@ -1,17 +1,17 @@
 # Search and a dashboard for the API's CloudWatch logs.
 #
-# Copilot ships the service's stdout to var.api_log_group_name. Production
-# writes one JSON object per line (api/src/common/logging/logging.config.ts).
-# These resources only read that group: they do not create it, and they do
-# not alarm. Metric filters and alarms for the same lines are EV-199.
+# Pair with moderation-alerts.tf: same var.api_log_group_name, same short name
+# in api-log-group.tf. This file only reads the group (saved queries and a
+# dashboard). Metric filters and alarms for the same lines live next door.
 # Apply still succeeds before the group exists; a query against a missing
 # group returns no rows.
 #
-# Saved queries filter on the JSON fields, never on the message
-# (api/docs/alerting.md §1). REQUEST_ID and EVENT_NAME are placeholders: replace
-# them in the console before running. The request id is `req.id`
-# (logging.config.ts serializes the request to { id, method, url }). Pino's
-# `level` is a number; 50 is error.
+# Production writes one JSON object per line
+# (api/src/common/logging/logging.config.ts). Saved queries filter on the JSON
+# fields, never on the message (api/docs/alerting.md §1). REQUEST_ID and
+# EVENT_NAME are placeholders: replace them in the console before running.
+# The request id is `req.id` (logging.config.ts serializes the request to
+# { id, method, url }). Pino's `level` is a number; 50 is error.
 
 locals {
   api_log_source = "SOURCE ${jsonencode(var.api_log_group_name)}"
@@ -57,10 +57,6 @@ locals {
       )
     }
   }
-
-  # Dashboard name cannot contain "/". The group name is the identity, so two
-  # environments applied from this stack do not share a dashboard.
-  api_log_dashboard_name = trimprefix(replace(var.api_log_group_name, "/", "-"), "-")
 }
 
 resource "aws_cloudwatch_query_definition" "api" {
@@ -72,7 +68,9 @@ resource "aws_cloudwatch_query_definition" "api" {
 }
 
 resource "aws_cloudwatch_dashboard" "api" {
-  dashboard_name = local.api_log_dashboard_name
+  # Same short name as the alarm prefix (api-log-group.tf), e.g.
+  # everglow-staging-api. Dashboard names cannot contain "/".
+  dashboard_name = local.api_log_name_prefix
 
   dashboard_body = jsonencode({
     widgets = [
@@ -87,7 +85,7 @@ resource "aws_cloudwatch_dashboard" "api" {
             "# API logs",
             "",
             "Group `${var.api_log_group_name}`. Saved queries: lines for one request (`REQUEST_ID`), lines for one event (`EVENT_NAME`), errors, scheduler heartbeats.",
-            "Alarms on these lines are separate. See `api/docs/alerting.md`.",
+            "Alarms on these lines: `api/infra/moderation-alerts.tf` (see `api/docs/alerting.md`).",
           ])
         }
       },
