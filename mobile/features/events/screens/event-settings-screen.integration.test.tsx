@@ -1,7 +1,7 @@
 import "../testing/native-mocks";
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 // eslint-disable-next-line no-restricted-imports
 import { Alert } from "react-native";
 import EventSettingsScreen from "./event-settings-screen";
@@ -295,13 +295,19 @@ describe("a closed roll", () => {
 
     expect(await screen.findByText("Closed 21.09 · 11 people")).toBeOnTheScreen();
     expect(screen.getByText(/for all 11 people/)).toBeOnTheScreen();
+    // iOS reports the dismissal through the Modal once the sheet has gone, and
+    // the sheet leaves the tree when its close animation ends, so take the
+    // callback while the slip is open rather than racing that animation.
+    const { onDismiss } = screen.getByTestId("delete-roll-dialog").props as { onDismiss: () => void };
     await user.press(screen.getByRole("button", { name: "Delete Lake weekend" }));
 
     await waitFor(() => expect(mockRemove).toHaveBeenCalled());
-    // Home only once the slip has gone.
+    // Home only once the slip has gone: a dismissal while it is still open does nothing.
     expect(mockReplace).not.toHaveBeenCalled();
-    await act(async () => screen.getByTestId("delete-roll-dialog", { includeHiddenElements: true }).props.onDismiss());
-    expect(mockDismissAll).toHaveBeenCalled();
+    await waitFor(() => {
+      onDismiss();
+      expect(mockDismissAll).toHaveBeenCalled();
+    });
     expect(mockReplace).toHaveBeenCalledWith("/events");
     expect(mockRemove).toHaveBeenCalledWith(expect.objectContaining({ path: { eventId: "event-1" } }));
   });
