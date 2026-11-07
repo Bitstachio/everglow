@@ -6,8 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 // Observe the native alert boundary without replacing screen hooks.
 // eslint-disable-next-line no-restricted-imports
-import { Alert } from "react-native";
+import { AccessibilityInfo, Alert } from "react-native";
 import EventsScreen from "./events-screen";
+import { LEAVE_MOTION, LEAVE_SETTLE_MS, handOverLeftRoll, takeLeftRoll } from "../lib/left-roll";
 import { buildEvent, deferred } from "../testing/fixtures";
 
 const mockFindAll = jest.fn();
@@ -50,6 +51,7 @@ const renderScreen = async () => {
 const openJoin = async () => userEvent.setup().press(screen.getByRole("button", { name: "Scan an envelope" }));
 
 beforeEach(() => {
+  takeLeftRoll();
   mockUser = { id: "user-1" };
   mockFocused = true;
   mockFindAll.mockReset().mockResolvedValue({ data: { data: [] } });
@@ -158,6 +160,71 @@ test("keeps the saved rolls on screen when the connection drops", async () => {
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
   // Each roll says when it was loaded, in place of its time (03.5).
   expect(screen.getByText(/ppl · as of \d\d:\d\d$/)).toBeOnTheScreen();
+});
+
+const leftWedding = () => ({
+  event: buildEvent({ id: "event-left", title: "Sam & Jo’s wedding" }),
+  photos: [{ uri: "https://example.com/left.jpg", cacheKey: "photo:left:thumbnail" }],
+});
+/** Until the card has gone and the list has settled, with room for a slow runner. */
+const SETTLED = { timeout: LEAVE_MOTION.holdMs + LEAVE_SETTLE_MS + 2000 };
+
+test("the roll you left keeps its place, then goes, once", async () => {
+  handOverLeftRoll(leftWedding());
+  // The list no longer has the roll: leaving refetched it before Home came back.
+  mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "event-2", title: "Nadia turns 30" })] } });
+  const view = await renderScreen();
+  const card = await screen.findByRole("button", { name: /^Sam & Jo’s wedding, / });
+  expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
+  // It can't be opened while it goes, and its strip isn't fetched again.
+  await userEvent.setup().press(card);
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(mockListPhotos).not.toHaveBeenCalledWith(expect.objectContaining({ path: { eventId: "event-left" } }));
+
+  await waitFor(() => expect(screen.queryByText("Sam & Jo’s wedding")).not.toBeOnTheScreen(), SETTLED);
+  expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
+  // Its going is the confirmation: no note follows.
+  expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
+
+  // Once: coming back to Home again doesn't bring the card back.
+  mockFocused = false;
+  await view.rerender();
+  mockFocused = true;
+  await view.rerender();
+  expect(screen.queryByRole("button", { name: /^Sam & Jo’s wedding, / })).not.toBeOnTheScreen();
+});
+
+test("with Reduce Motion the roll you left is simply gone", async () => {
+  jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
+  mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "event-2", title: "Nadia turns 30" })] } });
+  const view = await renderScreen();
+  await screen.findByText("Nadia turns 30");
+  // Home was already on screen, with the setting read, before you came back to it.
+  handOverLeftRoll(leftWedding());
+  mockFocused = false;
+  await view.rerender();
+  mockFocused = true;
+  await view.rerender();
+
+  expect(screen.queryByRole("button", { name: /^Sam & Jo’s wedding, / })).not.toBeOnTheScreen();
+  await new Promise((resolve) => setTimeout(resolve, LEAVE_MOTION.holdMs + LEAVE_SETTLE_MS));
+  expect(screen.queryByRole("button", { name: /^Sam & Jo’s wedding, / })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
+  expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
+});
+
+test("Home reached any other way has no roll going", async () => {
+  mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ id: "event-2", title: "Nadia turns 30" })] } });
+  const view = await renderScreen();
+  await screen.findByText("Nadia turns 30");
+  mockFocused = false;
+  await view.rerender();
+  mockFocused = true;
+  await view.rerender();
+  await fireEvent(screen.getByTestId("home-refresh"), "refresh");
+  await new Promise((resolve) => setTimeout(resolve, LEAVE_MOTION.holdMs + LEAVE_SETTLE_MS));
+  expect(screen.queryByText("Sam & Jo’s wedding")).not.toBeOnTheScreen();
+  expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
 });
 
 test("opens the lab card from the header avatar", async () => {

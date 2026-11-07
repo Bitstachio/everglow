@@ -25,8 +25,10 @@ import {
   type PickedFile,
   type RoomShortfall,
 } from "../lib/picked-photos";
+import { asksAboutFrames } from "../lib/leave-roll";
+import { handOverLeftRoll } from "../lib/left-roll";
 import { hasOpened, isRollLastDay, rollRole, rollStage, sheetFrames, shouldShowOpened } from "../lib/roll-page";
-import { hasClosed } from "../lib/rolls";
+import { hasClosed, toRollPhotos } from "../lib/rolls";
 import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
   addToTray,
@@ -164,6 +166,8 @@ export const useEventDetailScreen = () => {
   // One sheet over the roll whose content changes, so one modal never opens
   // from another: iOS drops a modal presented while another is closing.
   const [sheet, setSheet] = useState<RollSheet | null>(null);
+  const [leavePhotos, setLeavePhotos] = useState<MemberPhotos>("KEEP");
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<EventParticipantResponseDto | null>(null);
   const [person, setPerson] = useState<EventParticipantResponseDto | null>(null);
   const [blockTarget, setBlockTarget] = useState<BlockTarget | null>(null);
@@ -329,22 +333,33 @@ export const useEventDetailScreen = () => {
     next?.();
   };
 
+  // 13.2: the frames you added, as the roll call counts them.
+  const leaveFrameCount = participants.find((participant) => participant.userId === user?.id)?.photoCount ?? 0;
+  const leaveClosed = event?.galleryState === "CLOSED";
+
   const onConfirmLeave = () => {
     if (!eventId || !event || leavingRoll) return;
+    const photosChoice = asksAboutFrames(leaveFrameCount, leaveClosed) ? leavePhotos : "KEEP";
+    setLeaveError(null);
     // Stop active readers before membership is revoked and their caches are
     // evicted, and keep the roll on screen until Home replaces it.
     setLeftRoll({ event, photos, participants });
-    leaveEventMutation.mutate(eventId, {
-      onSuccess: () => {
-        closeSheet();
-        router.replace("/events");
+    leaveEventMutation.mutate(
+      { eventId, photos: photosChoice },
+      {
+        onSuccess: () => {
+          // Home keeps its card, strip and all, while it goes (13.3).
+          handOverLeftRoll({ event, photos: toRollPhotos(photos) });
+          closeSheet();
+          router.replace("/events");
+        },
+        onError: (error) => {
+          // The slip stays up, with the choice still selected, so a refusal can be read and retried.
+          setLeftRoll(null);
+          setLeaveError(getErrorMessage(error, t("leave.failed")));
+        },
       },
-      onError: (error) => {
-        closeSheet();
-        setLeftRoll(null);
-        showNotice(getErrorMessage(error));
-      },
-    });
+    );
   };
 
   const onConfirmCut = () => {
@@ -384,6 +399,11 @@ export const useEventDetailScreen = () => {
   const shownSheet: RollSheet | null = sheet ?? (closedWhileSending ? "closedSending" : null);
   const onDismissClosed = () => {
     if (eventId) dismissClosed(eventId);
+  };
+  const onCloseSheet = () => {
+    if (shownSheet === "closedSending") onDismissClosed();
+    // A leave on its way can't be dismissed: its result, or why it was refused, shows on the slip.
+    else if (!(shownSheet === "leave" && leavingRoll)) closeSheet();
   };
 
   const openedVisible = !openedDismissed && event !== null && shouldShowOpened(event, lastVisit);
@@ -509,6 +529,10 @@ export const useEventDetailScreen = () => {
     sheet: shownSheet,
     arrivalNote,
     isLeaving: leaveEventMutation.isPending,
+    leavePhotos,
+    leaveFrameCount,
+    leaveClosed,
+    leaveError,
     isCutting: deactivateMutation.isPending,
     removing,
     isRemoving: removeParticipantMutation.isPending,
@@ -535,7 +559,7 @@ export const useEventDetailScreen = () => {
     onPickAgain,
     onDismissClosed,
     onOpenMenu: () => setSheet("menu"),
-    onCloseSheet: shownSheet === "closedSending" ? onDismissClosed : closeSheet,
+    onCloseSheet,
     onSheetClosed,
     onOpenPeople: () => setSheet("people"),
     // Host envelope screen: from Send the envelope and Invite on the roll.
@@ -547,7 +571,12 @@ export const useEventDetailScreen = () => {
       closeSheet();
       if (eventId) router.push(`/events/${eventId}/settings`);
     },
-    onLeave: () => setSheet("leave"),
+    onLeave: () => {
+      setLeavePhotos("KEEP");
+      setLeaveError(null);
+      setSheet("leave");
+    },
+    onChooseLeavePhotos: setLeavePhotos,
     onConfirmLeave,
     onCut: () => setSheet("cut"),
     onConfirmCut,

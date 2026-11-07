@@ -8,6 +8,8 @@ import { Text, View } from "react-native";
 export const ArrivalNote = ({ label }: { label: string }) => (
   <View
     accessible
+    // The label is drawn in capitals; read it as written.
+    accessibilityLabel={label}
     accessibilityRole="alert"
     accessibilityLiveRegion="polite"
     className="h-13 flex-row items-center justify-between rounded-leader bg-leader px-4"
