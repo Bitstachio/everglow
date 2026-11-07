@@ -139,6 +139,8 @@ model User {
   eventCoversSet    Event[]          @relation("EventCoversSet")
   eventsDeactivated Event[]          @relation("EventsDeactivated")
   eventBansIssued   EventBan[]       @relation("EventBansIssued")
+  // Push notifications (docs/notifications.md). Cascade with the account.
+  devices           UserDevice[]
 
   // Reconciler looks up users mid-deletion; only those rows are indexed.
   @@index([deletionStartedAt], where: { deletionStartedAt: { not: null } })
@@ -623,4 +625,33 @@ enum ReportEscalation {
 // A role on the platform itself, above any event (docs/moderation.md §8).
 enum PlatformRole {
   MODERATOR
+}
+
+// Which kind of phone a push token belongs to.
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
+// A phone that receives push notifications for the account signed in on it
+// (docs/notifications.md §2). One row per push token: when a phone signs in
+// to another account, its row moves to that account.
+model UserDevice {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  // The Expo push token (ExponentPushToken[…]). Never logged and never
+  // returned: whoever holds it can address the phone.
+  token      String         @unique @db.VarChar(255)
+  platform   DevicePlatform
+  // The phone's language as a BCP 47 tag (en-CA), for translated copy later.
+  locale     String?        @db.VarChar(35)
+  createdAt  DateTime       @default(now())
+  // Set on every registration. A phone registers each time the app opens
+  // signed in, so a token not seen for months belongs to a phone that is gone.
+  lastSeenAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // A user's devices, newest first: sending, and keeping the newest few.
+  @@index([userId, lastSeenAt])
 }
