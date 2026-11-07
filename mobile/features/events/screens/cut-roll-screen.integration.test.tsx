@@ -14,7 +14,6 @@ const mockGetParticipants = jest.fn();
 const mockListPhotos = jest.fn();
 const mockDeactivate = jest.fn();
 const mockBack = jest.fn();
-const mockDismissTo = jest.fn();
 
 let mockUser: { id: string } | null = { id: "user-1" };
 
@@ -27,7 +26,7 @@ jest.mock("@/lib/api/generated", () => ({
 }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, dismissTo: mockDismissTo }),
+  useRouter: () => ({ back: mockBack }),
   useLocalSearchParams: () => ({ id: "event-1" }),
 }));
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
@@ -64,7 +63,6 @@ beforeEach(() => {
   mockListPhotos.mockReset();
   mockDeactivate.mockReset();
   mockBack.mockReset();
-  mockDismissTo.mockReset();
 });
 
 afterEach(() => {
@@ -86,22 +84,20 @@ test("says what goes now and what stays", async () => {
   expect(mockListPhotos).toHaveBeenCalledWith(expect.objectContaining({ query: { limit: 4 } }));
 });
 
-test("cuts through the deactivate call, refreshes the roll and goes back to it with the count", async () => {
+test("cuts through the deactivate call, refreshes the roll and goes back to it", async () => {
   const client = await renderScreen();
   mockDeactivate.mockResolvedValue({ data: { data: openRoll({ galleryState: "CLOSED" }) } });
   const invalidate = jest.spyOn(client, "invalidateQueries");
   await userEvent.setup().press(await screen.findByRole("button", { name: "Cut it and remove 148 photos" }));
 
-  await waitFor(() =>
-    expect(mockDismissTo).toHaveBeenCalledWith({ pathname: "/events/[id]", params: { id: "event-1", cut: "148" } }),
-  );
+  await waitFor(() => expect(mockBack).toHaveBeenCalled());
   expect(mockDeactivate).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: eventsKeys.all });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: eventsKeys.detail("event-1") });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: eventsKeys.photos("event-1") });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: eventsKeys.participants("event-1") });
-  // The roll closes under the screen as the cut lands; that doesn't send it back.
-  expect(mockBack).not.toHaveBeenCalled();
+  // The roll closes under the screen as the cut lands; it goes back once, for the cut.
+  expect(mockBack).toHaveBeenCalledTimes(1);
 });
 
 test("while the cut is on its way it can't be dismissed", async () => {
@@ -113,8 +109,9 @@ test("while the cut is on its way it can't be dismissed", async () => {
 
   await waitFor(() => expect(screen.getByRole("button", { name: "Keep it open" })).toBeDisabled());
   expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(mockBack).not.toHaveBeenCalled();
   pending.resolve({ data: { data: openRoll({ galleryState: "CLOSED" }) } });
-  await waitFor(() => expect(mockDismissTo).toHaveBeenCalled());
+  await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
 });
 
 test("a refused cut says why and stays", async () => {
@@ -123,7 +120,6 @@ test("a refused cut says why and stays", async () => {
   await userEvent.setup().press(await screen.findByRole("button", { name: "Cut it and remove 148 photos" }));
 
   expect(await screen.findByText("Only hosts can do that.")).toBeOnTheScreen();
-  expect(mockDismissTo).not.toHaveBeenCalled();
   expect(mockBack).not.toHaveBeenCalled();
 });
 

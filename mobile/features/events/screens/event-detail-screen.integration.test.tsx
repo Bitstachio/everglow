@@ -44,9 +44,7 @@ const mockDeleteDownload = jest.fn();
 const mockVisits = new Map<string, string>();
 
 let mockUser: { id: string } | null = { id: "user-1" };
-let mockParams: { id: string | string[]; arrival?: string; place?: string; reported?: string; cut?: string } = {
-  id: "event-1",
-};
+let mockParams: { id: string | string[]; arrival?: string; place?: string; reported?: string } = { id: "event-1" };
 let mockTrayFocused = true;
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
@@ -71,13 +69,7 @@ jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
   router: { setParams: jest.fn() },
-  useRouter: () => ({
-    back: mockBack,
-    replace: mockReplace,
-    push: mockPush,
-    setParams: jest.fn(),
-    canGoBack: () => true,
-  }),
+  useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush, canGoBack: () => true }),
   useLocalSearchParams: () => mockParams,
   useFocusEffect: (callback: () => void | (() => void)) => {
     const { useEffect } = jest.requireActual<typeof import("react")>("react");
@@ -535,16 +527,18 @@ describe("closed (07.9)", () => {
       usage: { members: 24, storageBytes: "0" },
     });
 
-  test("straight after a cut it closed just now, with how many photos went", async () => {
-    mockParams = { id: "event-1", cut: "148" };
-    await renderScreen({ event: cutEvent(), participants: [host, guest] });
+  test("straight after a cut it closed just now, with nothing else to say so", async () => {
+    const justNow = new Date(Date.now() - 5000).toISOString();
+    await renderScreen({
+      event: { ...cutEvent(), galleryClosesAt: justNow, deactivatedAt: justNow },
+      participants: [host, guest],
+    });
 
     expect(await screen.findByText("Closed just now")).toBeOnTheScreen();
-    expect(screen.getByText("Oct 18 – Nov 3 · cut early · 24 people")).toBeOnTheScreen();
-    expect(screen.getByText("Roll cut · 148 photos removed")).toBeOnTheScreen();
-    // The result takes the pencil note's place.
+    expect(screen.getByText(/^Oct 18 – .* · cut early · 24 people$/)).toBeOnTheScreen();
+    expect(screen.getByLabelText(/^The photos were removed on /)).toBeOnTheScreen();
     expect(screen.queryByText(/^photos removed/)).toBeNull();
-    expect(screen.getByLabelText("The photos were removed on 3 Nov.")).toBeOnTheScreen();
+    expect(screen.queryByText(/^Roll cut/)).toBeNull();
   });
 
   test("a roll cut earlier says it was cut early, under the day it closed", async () => {
@@ -609,9 +603,11 @@ describe("held by Everglow (07.10, 07.11)", () => {
     expect(mockDeactivate).not.toHaveBeenCalled();
   });
 
-  test("suspended: once cut, the roll says so", async () => {
-    mockParams = { id: "event-1", cut: "0" };
-    await renderScreen({ event: openEvent({ status: "SUSPENDED", galleryState: "CLOSED" }) });
+  test("suspended: just cut, the roll says so, since it shows no closed state", async () => {
+    const now = new Date().toISOString();
+    await renderScreen({
+      event: openEvent({ status: "SUSPENDED", galleryState: "CLOSED", galleryClosesAt: now, deactivatedAt: now }),
+    });
 
     expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
     expect(screen.getByText("Roll cut")).toBeOnTheScreen();
