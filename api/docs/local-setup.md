@@ -37,14 +37,14 @@ Get these from the API owner through the team password manager, never through ch
 | Variable                                                       | Secret  | What it is                                                                 | Without it                                             |
 | -------------------------------------------------------------- | ------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`                               | no      | The dev Auth0 tenant and API identifier, the same ones the mobile app uses | The API does not start                                 |
+| `AUTH0_NATIVE_CLIENT_ID`                                       | no      | The mobile app's Auth0 client ID (`EXPO_PUBLIC_AUTH0_CLIENT_ID`)           | The API does not start                                 |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`                   | **yes** | The dev API's S3 key                                                       | The API does not start                                 |
 | `AWS_S3_BUCKET`, `AWS_REGION`                                  | no      | The shared dev bucket and its region                                       | The API does not start                                 |
 | `AUTH0_MANAGEMENT_CLIENT_ID`, `AUTH0_MANAGEMENT_CLIENT_SECRET` | **yes** | The Auth0 M2M app                                                          | Deleting an account and changing a password answer 500 |
-| `AUTH0_NATIVE_CLIENT_ID`                                       | no      | The mobile app's Auth0 client ID (`EXPO_PUBLIC_AUTH0_CLIENT_ID`)           | Changing a password answers 500                        |
 
 The `APPLE_SIWA_*` values are not needed locally. Without them, deleting an account that signed in with Apple still works and logs an error.
 
-`mobile/.env` needs the matching values: `EXPO_PUBLIC_AUTH0_DOMAIN` and `EXPO_PUBLIC_AUTH0_AUDIENCE` equal `AUTH0_DOMAIN` and `AUTH0_AUDIENCE`, or every request is a 401.
+`mobile/.env` needs the matching values: `EXPO_PUBLIC_AUTH0_DOMAIN`, `EXPO_PUBLIC_AUTH0_AUDIENCE` and `EXPO_PUBLIC_AUTH0_CLIENT_ID` equal `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` and `AUTH0_NATIVE_CLIENT_ID`, or every request is a 401.
 
 ## The shared dev resources
 
@@ -66,7 +66,7 @@ The API listens on every interface, so a phone on the same network can reach it.
 
 ## Troubleshooting
 
-- **Every request is 401**: `AUTH0_AUDIENCE` in `api/.env` differs from `EXPO_PUBLIC_AUTH0_AUDIENCE` in `mobile/.env`, or the app signed in against another tenant. The request's log line says which: its `errorReason` gives the reason the token was refused and the issuer and audience it claims.
+- **Every request is 401**: `AUTH0_AUDIENCE` in `api/.env` differs from `EXPO_PUBLIC_AUTH0_AUDIENCE` in `mobile/.env`, `AUTH0_NATIVE_CLIENT_ID` differs from `EXPO_PUBLIC_AUTH0_CLIENT_ID` (the reason then says "issued to client …, not the app"), or the app signed in against another tenant. The request's log line says which: its `errorReason` gives the reason the token was refused and the issuer and audience it claims.
 - **Port 5433 is taken**: set `POSTGRES_HOST_PORT` in `.env` and use the same port in `DATABASE_URL`.
 - **Start over with an empty database**: `docker compose down -v` deletes the Compose database; run `pnpm run setup:local` again.
 - **Uploads fail with 403 from S3**: the AWS key or bucket is wrong; the script's S3 check says the same.

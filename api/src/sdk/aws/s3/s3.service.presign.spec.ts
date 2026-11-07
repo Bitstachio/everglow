@@ -43,7 +43,7 @@ describe("S3Service presigned URLs (real signer)", () => {
     service = module.get(S3Service);
   });
 
-  it("signs the content type and length into an upload URL", async () => {
+  it("signs the content type, the length and a write-once condition into an upload URL", async () => {
     const url = await service.getPresignedUploadUrl({
       key: "photos/a/b/c",
       contentType: "image/jpeg",
@@ -55,7 +55,11 @@ describe("S3Service presigned URLs (real signer)", () => {
     expect(parsed.hostname).toBe(`${bucket}.s3.us-east-1.amazonaws.com`);
     expect(parsed.pathname).toBe("/photos/a/b/c");
     expect(parsed.searchParams.get("X-Amz-Expires")).toBe("60");
-    expect(signedHeaders(url)).toEqual(["content-length", "content-type", "host"]);
+    // if-none-match is signed, so the PUT must send `If-None-Match: *`, and S3
+    // then refuses a second PUT to the key with 412 (EV-201 and the auth review).
+    expect(signedHeaders(url)).toEqual(["content-length", "content-type", "host", "if-none-match"]);
+    // A header, not a query parameter: a PUT without it fails the signature.
+    expect(parsed.searchParams.has("If-None-Match")).toBe(false);
   });
 
   it("signs only the host into a download URL", async () => {

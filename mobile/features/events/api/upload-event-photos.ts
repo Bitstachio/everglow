@@ -2,6 +2,7 @@ import { photosControllerConfirmUploads, photosControllerCreateUploadUrls } from
 import type { ConfirmPhotoResultDto, UploadFileDto, UploadSlotResponseDto } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
 import { getErrorCode, isApiError, isConnectionError } from "@/lib/api/errors";
+import { PUT_ALREADY_LANDED_STATUS, WRITE_ONCE_HEADERS } from "@/lib/api/upload-file";
 import { File, UploadTask, UploadType } from "expo-file-system";
 
 /** The API's `MAX_UPLOAD_BATCH_SIZE`: files per mint and per confirm. */
@@ -37,6 +38,8 @@ export type EventPhotoFile = {
  * - interrupted: the app stopped mid-upload; set when the tray is restored, and
  *   Retry reconciles its reservation before minting again
  * - missing: the local file can no longer be read; it can only be removed
+ * - cantAdd: the API refused these bytes for good (PHOTO_REJECTED_MATCHES_REMOVED_IMAGE);
+ *   it can only be removed, and nothing more is said about why
  * - cancelled: "Cancel the rest" stopped it
  */
 export type EventPhotoFailure =
@@ -46,6 +49,7 @@ export type EventPhotoFailure =
   | "closed"
   | "interrupted"
   | "missing"
+  | "cantAdd"
   | "cancelled";
 
 /** What happened to one file, by its index in the list passed in. */
@@ -114,6 +118,8 @@ class MissingUploadFile extends Error {}
 /**
  * Streams the file from disk with byte progress. iOS keeps the transfer going
  * while the app is in the background, so leaving the roll doesn't stop it.
+ * The URL writes its key once (`If-None-Match: *`): a 412 means an earlier
+ * attempt already landed these bytes, so confirm can go ahead.
  */
 export const putEventPhoto: PutEventPhoto = async (file, slot, { onBytes, signal }) => {
   if (slot.expiresAt && Date.parse(slot.expiresAt) <= Date.now()) throw new RefusedUpload("Upload link expired");
@@ -127,12 +133,13 @@ export const putEventPhoto: PutEventPhoto = async (file, slot, { onBytes, signal
     httpMethod: "PUT",
     sessionType: "background",
     uploadType: UploadType.BINARY_CONTENT,
-    headers: { "Content-Type": file.contentType },
+    headers: { "Content-Type": file.contentType, ...WRITE_ONCE_HEADERS },
     mimeType: file.contentType,
     onProgress: ({ bytesSent }) => onBytes(bytesSent),
     signal,
   });
   const result = await task.uploadAsync();
+  if (result.status === PUT_ALREADY_LANDED_STATUS) return;
   if (result.status < 200 || result.status >= 300) throw new RefusedUpload(`Storage refused (${result.status})`);
 };
 
@@ -194,12 +201,22 @@ const mintSlots = async (
   }
 };
 
-/** Confirm is idempotent, so a lost response is retried once. Ids it cannot confirm count as failed. */
-const confirmSlots = async (
-  eventId: string,
-  photoIds: string[],
-  signal?: AbortSignal,
-): Promise<ConfirmPhotoResultDto[]> => {
+type ConfirmOutcome = {
+  results: ConfirmPhotoResultDto[];
+  /** Photos the API refused for good: they can't be added (PHOTO_REJECTED_MATCHES_REMOVED_IMAGE). */
+  cantAdd: Set<string>;
+};
+
+const REMOVED_IMAGE_CODE = "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE";
+
+/**
+ * Confirm is idempotent, so a lost response is retried once. Ids it cannot
+ * confirm count as failed. A 422 PHOTO_REJECTED_MATCHES_REMOVED_IMAGE
+ * discarded the refused uploads and left the rest pending
+ * (`docs/uploads.md`): the retry gives the rest their verdicts, and the
+ * refused ones now answer NOT_FOUND.
+ */
+const confirmSlots = async (eventId: string, photoIds: string[], signal?: AbortSignal): Promise<ConfirmOutcome> => {
   const confirm = async () => {
     checkAborted(signal);
     const { data } = await photosControllerConfirmUploads({
@@ -211,11 +228,19 @@ const confirmSlots = async (
     return toList(unwrapEnvelope(data));
   };
 
+  let firstError: unknown;
   try {
-    return await confirm();
-  } catch {
-    return confirm();
+    return { results: await confirm(), cantAdd: new Set() };
+  } catch (error) {
+    firstError = error;
   }
+  const results = await confirm();
+  const cantAdd = new Set(
+    getErrorCode(firstError) === REMOVED_IMAGE_CODE
+      ? results.filter((result) => result.status === "NOT_FOUND").map((result) => result.photoId)
+      : [],
+  );
+  return { results, cantAdd };
 };
 
 const runPooled = async (tasks: (() => Promise<void>)[], concurrency: number) => {
@@ -291,11 +316,16 @@ const uploadFreshEventPhotos = async (
 
     if (landed.size > 0 && !requestSignal?.aborted) {
       try {
-        const results = await confirmSlots(eventId, [...landed.keys()], requestSignal);
+        const { results, cantAdd } = await confirmSlots(eventId, [...landed.keys()], requestSignal);
         const ready = new Set(results.filter((result) => result.status === "READY").map((result) => result.photoId));
         uploaded += ready.size;
         for (const [photoId, index] of landed) {
-          onFile?.(index, ready.has(photoId) ? { kind: "developed", photoId } : { kind: "failed", reason: "refused" });
+          onFile?.(
+            index,
+            ready.has(photoId)
+              ? { kind: "developed", photoId }
+              : { kind: "failed", reason: cantAdd.has(photoId) ? "cantAdd" : "refused" },
+          );
         }
       } catch (error) {
         for (const index of landed.values()) onFile?.(index, { kind: "failed", reason: failureFor(error) });
@@ -321,7 +351,7 @@ export const uploadEventPhotos = async (
     const batch = resumed.slice(start, start + PHOTO_UPLOAD_BATCH_SIZE);
     try {
       checkAborted(options.signal);
-      const results = await confirmSlots(
+      const { results, cantAdd } = await confirmSlots(
         eventId,
         batch.map((item) => item.photoId),
         options.requestSignal ?? options.signal,
@@ -332,7 +362,8 @@ export const uploadEventPhotos = async (
         if (verdict === "READY") {
           uploaded += 1;
           options.onFile?.(index, { kind: "developed", photoId });
-        } else if (verdict) pending.push(index);
+        } else if (cantAdd.has(photoId)) options.onFile?.(index, { kind: "failed", reason: "cantAdd" });
+        else if (verdict) pending.push(index);
         else options.onFile?.(index, { kind: "failed", reason: "connection" });
       }
     } catch (error) {

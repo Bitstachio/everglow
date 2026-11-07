@@ -14,6 +14,7 @@ import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { ConfigService } from "@nestjs/config";
 import { PinoLogger } from "nestjs-pino";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { IdenticalCopiesService } from "src/moderation/evidence/identical-copies.service";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ClaimedDeletion } from "src/users/account-deletion-claim";
 import { AccountDeletionReconcilerService } from "src/users/account-deletion-reconciler.service";
@@ -1699,6 +1700,7 @@ describe("UsersController (integration)", () => {
         s3Service as unknown as S3Service,
         app.get(ConfigService),
         { setContext: jest.fn(), info: jest.fn(), error: jest.fn() } as unknown as PinoLogger,
+        app.get(IdenticalCopiesService),
       );
       await evidenceService.runEvidenceJob();
 

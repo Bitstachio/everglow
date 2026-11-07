@@ -10,4 +10,10 @@ export const PHOTO_API_ERRORS = {
     status: HttpStatus.CONFLICT,
     message: "Storage reservation conflicted with a concurrent upload",
   },
+  // Refused at confirm: the bytes are those of an intimate image the platform
+  // removed (docs/moderation.md §7). Says nothing more, on purpose.
+  PHOTO_REJECTED_MATCHES_REMOVED_IMAGE: {
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    message: "The upload matches an image that was removed and can't be added",
+  },
 } as const satisfies Record<string, ApiErrorDefinition>;

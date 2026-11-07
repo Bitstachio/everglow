@@ -49,13 +49,15 @@ const UploadTrayScreen = () => {
             ? "tray.row.offline"
             : s.reason === "missing"
               ? "tray.row.missing"
-              : s.reason === "interrupted"
-                ? "tray.row.interrupted"
-                : s.reason === "noRoom"
-                  ? "tray.row.noRoom"
-                  : s.reason === "closed"
-                    ? "tray.row.closed"
-                    : "tray.row.refused",
+              : s.reason === "cantAdd"
+                ? "tray.row.cantAdd"
+                : s.reason === "interrupted"
+                  ? "tray.row.interrupted"
+                  : s.reason === "noRoom"
+                    ? "tray.row.noRoom"
+                    : s.reason === "closed"
+                      ? "tray.row.closed"
+                      : "tray.row.refused",
         );
       case "rejected":
         return t(s.reason === "video" ? "tray.row.video" : "tray.row.tooLarge");

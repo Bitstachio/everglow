@@ -30,8 +30,27 @@ test("an action done on the spot has no arrow", async () => {
   expect(screen.queryByText("›")).not.toBeOnTheScreen();
 });
 
-test("a long label keeps to one line and leaves the value whole", async () => {
-  await render(<IndexRow label="Leo’s first birthday at the lake house" value="Deleted · no one else on it" />);
+test("a long value truncates and keeps the label whole", async () => {
+  await render(
+    <IndexRow
+      label="Note for guests"
+      value="Bring a jacket! This is a very long text and it keeps going"
+      onPress={jest.fn()}
+    />,
+  );
+  expect(screen.getByText("Note for guests")).toHaveProp("numberOfLines", 1);
+  expect(screen.getByText("Note for guests")).toHaveProp("className", expect.stringContaining("shrink-0"));
+  expect(screen.getByText(/Bring a jacket!/)).toHaveProp("className", expect.stringContaining("flex-1"));
+});
+
+test("a row named by a roll's title shortens the title and leaves its state whole", async () => {
+  await render(
+    <IndexRow truncate="label" label="Leo’s first birthday at the lake house" value="Deleted · no one else on it" />,
+  );
   expect(screen.getByText("Leo’s first birthday at the lake house")).toHaveProp("numberOfLines", 1);
-  expect(screen.getByText("Deleted · no one else on it")).toBeOnTheScreen();
+  expect(screen.getByText("Leo’s first birthday at the lake house")).toHaveProp(
+    "className",
+    expect.stringContaining("flex-1"),
+  );
+  expect(screen.getByText("Deleted · no one else on it")).toHaveProp("className", expect.stringContaining("shrink"));
 });

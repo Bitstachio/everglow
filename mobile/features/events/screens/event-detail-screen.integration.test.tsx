@@ -13,9 +13,10 @@ import { buildEvent, buildParticipant, buildPhoto, deferred } from "../testing/f
 // Seed and inspect caches at the integration boundary.
 // eslint-disable-next-line no-restricted-imports
 import { eventsKeys } from "../api/keys";
+import { takeLeftRoll } from "../lib/left-roll";
 import { createApiError } from "@/lib/api/errors";
 import UploadTrayScreen from "./upload-tray-screen";
-import { addToTray, activateUploadTrays } from "../lib/upload-tray";
+import { addToTray, activateUploadTrays, getTray } from "../lib/upload-tray";
 import { runAccountCleared } from "@/lib/account-cleared";
 
 const mockFindOne = jest.fn();
@@ -43,10 +44,12 @@ const mockDeleteDownload = jest.fn();
 const mockVisits = new Map<string, string>();
 
 let mockUser: { id: string } | null = { id: "user-1" };
-let mockParams: { id: string | string[]; arrival?: string; place?: string } = { id: "event-1" };
+let mockParams: { id: string | string[]; arrival?: string; place?: string; reported?: string } = { id: "event-1" };
 let mockTrayFocused = true;
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
+const mockBlock = jest.fn().mockResolvedValue({});
+const mockUnblock = jest.fn().mockResolvedValue({});
 jest.mock("@/lib/api/generated", () => ({
   eventsControllerFindOne: (...args: unknown[]) => mockFindOne(...args),
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
@@ -58,6 +61,9 @@ jest.mock("@/lib/api/generated", () => ({
   photosControllerConfirmUploads: (...args: unknown[]) => mockConfirmUploads(...args),
   photosControllerRemove: (...args: unknown[]) => mockRemovePhoto(...args),
   photosControllerFindOne: (...args: unknown[]) => mockFindPhoto(...args),
+  reportsControllerListReports: () => Promise.resolve({ data: { data: { items: [], nextCursor: null } } }),
+  blocksControllerBlock: (...args: unknown[]) => mockBlock(...args),
+  blocksControllerUnblock: (...args: unknown[]) => mockUnblock(...args),
 }));
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -520,7 +526,7 @@ describe("closed (07.9)", () => {
     await user.press(screen.getByRole("button", { name: "Leave the roll" }));
     // A closed roll can't be joined again, so the slip doesn't offer the envelope.
     expect(await screen.findByText("It has closed, so you can’t join it again.")).toBeOnTheScreen();
-    await user.press(screen.getByRole("button", { name: "Leave" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
 
     expect(await screen.findByText("Couldn’t leave this roll.")).toBeOnTheScreen();
     expect(screen.getByText("Closed 21.09")).toBeOnTheScreen();
@@ -531,9 +537,10 @@ describe("closed (07.9)", () => {
     await renderScreen({ event: closedEvent(), participants: [host, guest] });
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
-    await user.press(screen.getByRole("button", { name: "People" }));
+    await user.press(screen.getByRole("button", { name: "Roll call" }));
     await user.press(await screen.findByRole("button", { name: "Grace Hopper, Adds photos" }));
     await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Remove Grace" }));
 
     expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
   });
@@ -1318,6 +1325,22 @@ describe("saving and deleting frames", () => {
     expect(screen.getByRole("button", { name: "Save to Photos" })).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Delete for everyone" })).not.toBeOnTheScreen();
   });
+
+  test.each([
+    { who: "someone on the roll", participants: [host, guest], block: "Block Ada" },
+    { who: "someone who left the roll", participants: [guest], block: null },
+    { who: "someone already blocked", participants: [{ ...host, isBlockedByCaller: true }, guest], block: null },
+  ])("a guest can report a frame by $who, and block only someone on the roll", async ({ participants, block }) => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants, photos: [buildPhoto({ addedById: "user-1" })] });
+    const user = userEvent.setup();
+    await user.press(await screen.findByLabelText(/^Frame 1/));
+    await user.press(screen.getAllByRole("button", { name: "More" })[0]);
+
+    expect(await screen.findByRole("button", { name: "Report this frame" })).toBeOnTheScreen();
+    if (block) expect(screen.getByRole("button", { name: block })).toBeOnTheScreen();
+    else expect(screen.queryByRole("button", { name: /^Block/ })).not.toBeOnTheScreen();
+  });
 });
 
 describe("people and the menu", () => {
@@ -1339,10 +1362,21 @@ describe("people and the menu", () => {
       mockGetParticipants.mockRejectedValue(forbidden);
       return {};
     });
-    await user.press(await screen.findByRole("button", { name: "Leave" }));
+    await user.press(await screen.findByRole("button", { name: "Leave the roll" }));
 
-    await waitFor(() => expect(mockLeave).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }));
+    await waitFor(() =>
+      expect(mockLeave).toHaveBeenCalledWith({
+        path: { eventId: "event-1" },
+        query: { photos: "KEEP" },
+        throwOnError: true,
+      }),
+    );
     expect(mockReplace).toHaveBeenCalledWith("/events");
+    // Home keeps the card, with the strip it had, while it goes.
+    expect(takeLeftRoll()).toEqual({
+      event: expect.objectContaining({ title: "Weekend meetup" }),
+      photos: [{ uri: oneFrame[0]!.thumbnailUrl, cacheKey: `photo:${oneFrame[0]!.id}:thumbnail` }],
+    });
     expect([
       mockFindOne.mock.calls.length,
       mockListPhotos.mock.calls.length,
@@ -1358,15 +1392,55 @@ describe("people and the menu", () => {
     expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
   });
 
-  test("a failed Leave restores readers so the member can refresh and keep using the roll", async () => {
+  test("leaving stops the roll's tray, and the slip can't be dismissed while the leave is on its way", async () => {
     mockUser = { id: "user-2" };
-    await renderScreen({ participants: [host, guest], photos: oneFrame });
+    await renderScreen({ participants: [host, { ...guest, photoCount: 1 }], photos: oneFrame });
+    await act(async () => {
+      addToTray(
+        "event-1",
+        [
+          {
+            key: "left-behind",
+            name: "Left behind",
+            uri: "file://left-behind.jpg",
+            contentType: "image/jpeg",
+            sizeBytes: 3,
+            status: { kind: "failed", reason: "interrupted" },
+          },
+        ],
+        async () => undefined,
+      );
+    });
+    const leaving = deferred<object>();
+    mockLeave.mockReturnValueOnce(leaving.promise);
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    expect(screen.getByRole("header", { name: "What about your frame?" })).toBeOnTheScreen();
+    expect(screen.getByText("It’s removed for everyone. This can’t be undone.")).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.getByRole("header", { name: "What about your frame?" })).toBeOnTheScreen();
+    expect(mockLeave).toHaveBeenCalledTimes(1);
+    expect(getTray("event-1").items).toHaveLength(1);
+    await act(async () => leaving.resolve({}));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events"));
+    expect(getTray("event-1").items).toEqual([]);
+  });
+
+  test("a failed Leave stays on the slip so the member can retry or stay", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, { ...guest, photoCount: 12 }], photos: oneFrame });
     mockLeave.mockRejectedValueOnce(createApiError("Could not leave", { status: 500 }));
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
     await user.press(screen.getByRole("button", { name: "Leave the roll" }));
-    await user.press(await screen.findByRole("button", { name: "Leave" }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Leave" })).not.toBeOnTheScreen());
+    await user.press(screen.getByRole("radio", { name: /Take them with me/ }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Please try again.");
+    expect(screen.getByRole("radio", { name: /Take them with me/, checked: true })).toBeOnTheScreen();
     expect(mockReplace).not.toHaveBeenCalled();
     mockFindOne.mockResolvedValue({ data: { data: openEvent({ title: "Still joined" }) } });
     await fireEvent(screen.getByTestId("event-detail-refresh"), "refresh");
@@ -1374,12 +1448,70 @@ describe("people and the menu", () => {
     expect(screen.getByLabelText("Frame 1, by Ada")).toBeOnTheScreen();
   });
 
-  test("People from the menu swaps the same sheet to the roll call", async () => {
+  test("leaving with frames sends the choice, and staying sends nothing", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({ participants: [host, { ...guest, photoCount: 12 }], photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    expect(screen.getByRole("header", { name: "What about your 12 frames?" })).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Stay" }));
+    expect(mockLeave).not.toHaveBeenCalled();
+    expect(screen.queryByRole("header", { name: "What about your 12 frames?" })).not.toBeOnTheScreen();
+
+    await user.press(screen.getByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(screen.getByRole("radio", { name: /Take them with me/ }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await waitFor(() =>
+      expect(mockLeave).toHaveBeenCalledWith({
+        path: { eventId: "event-1" },
+        query: { photos: "DELETE" },
+        throwOnError: true,
+      }),
+    );
+  });
+
+  test("a closed roll does not ask about frames that are already gone", async () => {
+    mockUser = { id: "user-2" };
+    await renderScreen({
+      event: openEvent({ galleryState: "CLOSED" }),
+      participants: [host, { ...guest, photoCount: 12 }],
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    expect(screen.getByText("It has closed, so you can’t join it again.")).toBeOnTheScreen();
+    expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await waitFor(() =>
+      expect(mockLeave).toHaveBeenCalledWith({
+        path: { eventId: "event-1" },
+        query: { photos: "KEEP" },
+        throwOnError: true,
+      }),
+    );
+  });
+
+  test("the last host is told to hand the roll over, and the slip stays open", async () => {
+    await renderScreen({ participants: [host], photos: oneFrame });
+    mockLeave.mockRejectedValueOnce(createApiError("last host", { status: 422, code: "LAST_ORGANIZER" }));
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    await user.press(screen.getByRole("button", { name: "Leave the roll" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Every roll needs a host. Make someone else host first.",
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  test("Roll call from the menu swaps the same sheet to the roll call", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ participants: [host, guest], photos: oneFrame });
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Roll menu" }));
-    await user.press(screen.getByRole("button", { name: "People" }));
+    await user.press(screen.getByRole("button", { name: "Roll call" }));
 
     expect(await screen.findByTestId("roll-people")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Grace Hopper (you), Adds photos" })).toBeOnTheScreen();
@@ -1394,6 +1526,26 @@ describe("people and the menu", () => {
     expect(mockPush).toHaveBeenCalledWith("/events/event-1/settings");
   });
 
+  test("the host menu lists envelope, roll call, settings, cut and leave", async () => {
+    await renderScreen({ photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+
+    expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Roll call" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Roll settings" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Cut the roll now" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Leave the roll" })).toBeOnTheScreen();
+  });
+
+  test("a host sends the envelope from the menu", async () => {
+    await renderScreen({ photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    await user.press(screen.getByRole("button", { name: "Send the envelope" }));
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
+  });
+
   test("a host removes someone from the people sheet", async () => {
     await renderScreen({
       event: openEvent({ usage: { members: 2, storageBytes: "0" } }),
@@ -1404,6 +1556,8 @@ describe("people and the menu", () => {
     await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
     await user.press(screen.getByRole("button", { name: "Grace Hopper, Adds photos" }));
     await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+    expect(await screen.findByRole("header", { name: "Remove Grace?" })).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Remove Grace" }));
 
     await waitFor(() =>
       expect(mockRemoveParticipant).toHaveBeenCalledWith({
@@ -1412,6 +1566,73 @@ describe("people and the menu", () => {
       }),
     );
     expect(await screen.findByText("Grace Hopper is off the roll.")).toBeOnTheScreen();
+  });
+
+  test("a host removing someone with frames chooses what happens to them (11.4)", async () => {
+    await renderScreen({
+      event: openEvent({ usage: { members: 2, storageBytes: "0" } }),
+      participants: [host, { ...guest, photoCount: 31 }],
+      photos: oneFrame,
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
+    await user.press(screen.getByRole("button", { name: /Grace Hopper/ }));
+    await user.press(await screen.findByRole("button", { name: "Remove from the roll" }));
+    expect(await screen.findByRole("header", { name: "What about their 31 frames?" })).toBeOnTheScreen();
+    await user.press(screen.getByRole("radio", { name: /Delete them too/ }));
+    await user.press(screen.getByRole("button", { name: "Remove Grace" }));
+
+    await waitFor(() =>
+      expect(mockRemoveParticipant).toHaveBeenCalledWith({
+        path: { eventId: "event-1", targetUserId: "user-2" },
+        query: { photos: "DELETE" },
+        throwOnError: true,
+      }),
+    );
+  });
+
+  test("someone on the roll call can be reported or blocked (11.8, 10.11)", async () => {
+    await renderScreen({
+      event: openEvent({ usage: { members: 2, storageBytes: "0" } }),
+      participants: [host, guest],
+      photos: oneFrame,
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
+    await user.press(screen.getByRole("button", { name: "Grace Hopper, Adds photos" }));
+    await user.press(await screen.findByRole("button", { name: "Block Grace" }));
+    expect(await screen.findByText("You won’t see each other.")).toBeOnTheScreen();
+    await user.press(screen.getByRole("button", { name: "Block Grace" }));
+
+    await waitFor(() => expect(mockBlock).toHaveBeenCalledWith({ path: { userId: "user-2" }, throwOnError: true }));
+    expect(await screen.findByText("Grace Hopper is blocked")).toBeOnTheScreen();
+  });
+
+  test("someone already blocked can be unblocked from the roll call", async () => {
+    await renderScreen({
+      event: openEvent({ usage: { members: 2, storageBytes: "0" } }),
+      participants: [host, { ...guest, isBlockedByCaller: true }],
+      photos: oneFrame,
+    });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "2 people on the roll" }));
+    await user.press(screen.getByRole("button", { name: "Grace Hopper, Adds photos" }));
+    expect(screen.queryByRole("button", { name: "Block Grace" })).not.toBeOnTheScreen();
+    await user.press(await screen.findByRole("button", { name: "Unblock Grace" }));
+
+    await waitFor(() => expect(mockUnblock).toHaveBeenCalledWith({ path: { userId: "user-2" }, throwOnError: true }));
+    expect(await screen.findByText("Grace Hopper is unblocked")).toBeOnTheScreen();
+  });
+
+  test.each([
+    { who: "a guest", userId: "user-2", notice: "Report sent · frame hidden for you" },
+    { who: "a host, who still sees it", userId: "user-1", notice: "Report sent" },
+  ])("a sent frame report says so on the roll for $who (10.4)", async ({ userId, notice }) => {
+    mockUser = { id: userId };
+    mockParams = { id: "event-1", reported: "frame" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+
+    expect(await screen.findByText(notice)).toBeOnTheScreen();
   });
 });
 

@@ -30,6 +30,14 @@ export const createOpenApiDocument = (app: INestApplication): OpenAPIObject =>
     }),
   );
 
+/**
+ * Swagger UI is for building against the API, not for running it: production
+ * (and staging, which runs with NODE_ENV=production) does not serve it, so the
+ * full route map isn't handed to anyone who asks. The contract is
+ * `openapi/openapi.json` in the repository.
+ */
+export const servesSwagger = (nodeEnv: string | undefined): boolean => nodeEnv !== "production";
+
 export const setupSwagger = (app: INestApplication): OpenAPIObject => {
   const document = createOpenApiDocument(app);
   SwaggerModule.setup(SWAGGER_PATH, app, document);

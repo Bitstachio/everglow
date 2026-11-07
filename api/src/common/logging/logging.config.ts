@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import type { ConfigService } from "@nestjs/config";
 import type { Params } from "nestjs-pino";
 import { errorLogFieldsOf } from "./error-log-fields";
+import { redactUrl } from "./redact-url";
 
 /**
  * Centralized nestjs-pino configuration: the single "shared logging facade"
@@ -48,6 +49,8 @@ const REDACT_PATHS = [
   "*.email",
 ];
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const firstHeader = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
 
@@ -68,20 +71,24 @@ export const buildLoggerConfig = (config: ConfigService): Params => {
       // Honour an upstream correlation id when present (so a request keeps the
       // same id across services); otherwise mint one. The id is reflected back
       // on the response and auto-attached to every log within the request.
+      // Only a UUID is honoured: the header is the client's to set, and
+      // anything else (a forged id, a megabyte, a line break) is replaced.
       genReqId: (req: IncomingMessage, res: ServerResponse): string => {
-        const incoming = firstHeader(req.headers[REQUEST_ID_HEADER]) ?? firstHeader(req.headers[CORRELATION_ID_HEADER]);
+        const incoming = [REQUEST_ID_HEADER, CORRELATION_ID_HEADER]
+          .map((header) => firstHeader(req.headers[header]))
+          .find((value) => value !== undefined && UUID.test(value));
         const id = incoming ?? randomUUID();
         res.setHeader(REQUEST_ID_HEADER, id);
         return id;
       },
       redact: { paths: REDACT_PATHS, censor: "[REDACTED]" },
       // Lean ingress bookends: route + status only, never the full header bag,
-      // query string, or body.
+      // query string, or body. An invite token in the path is replaced by its hash.
       serializers: {
         req: (req: { id: string; method: string; url: string }) => ({
           id: req.id,
           method: req.method,
-          url: req.url,
+          url: redactUrl(req.url),
         }),
         res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
       },

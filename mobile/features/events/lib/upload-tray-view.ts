@@ -33,7 +33,8 @@ export const summarizeTray = (tray: Tray): TraySummary => {
       summary.rejected += 1;
       continue;
     }
-    if (status.kind === "failed" && status.reason === "missing") {
+    // Neither can go again: the file is gone, or the API refused its bytes for good.
+    if (status.kind === "failed" && (status.reason === "missing" || status.reason === "cantAdd")) {
       summary.rejected += 1;
       continue;
     }

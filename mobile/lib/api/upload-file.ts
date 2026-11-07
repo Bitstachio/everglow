@@ -1,5 +1,15 @@
 import { createApiError } from "@/lib/api/errors";
 
+/**
+ * Every upload URL is signed with `If-None-Match: *`, so storage writes its
+ * key once and refuses a second PUT (EV-201). The PUT must send the header,
+ * or the signature doesn't match.
+ */
+export const WRITE_ONCE_HEADERS = { "If-None-Match": "*" } as const;
+
+/** What storage answers a PUT to a key that already holds the bytes: an earlier attempt landed. */
+export const PUT_ALREADY_LANDED_STATUS = 412;
+
 /** What a mint endpoint is told about the file: the exact type and length the URL gets signed for. */
 export type UploadFileDeclaration<TContentType extends string = string> = {
   contentType: TContentType;
@@ -49,10 +59,12 @@ const putFile = async (blob: Blob, contentType: string, slot: UploadSlot): Promi
 
   const uploadResponse = await fetch(slot.uploadUrl, {
     body: typedBlob,
-    headers: { "Content-Type": contentType },
+    headers: { "Content-Type": contentType, ...WRITE_ONCE_HEADERS },
     method: "PUT",
   });
 
+  // A retried PUT whose first attempt landed: confirm checks what is stored.
+  if (uploadResponse.status === PUT_ALREADY_LANDED_STATUS) return;
   if (!uploadResponse.ok) {
     throw createApiError(`Upload to storage failed (${uploadResponse.status})`, { status: uploadResponse.status });
   }

@@ -73,22 +73,15 @@ const RootNavigator = () => {
         <Stack.Screen name="events/[id]/envelope" options={{ headerShown: false }} />
         {/* 08.3: the tray draws its own top bar. */}
         <Stack.Screen name="events/[id]/tray" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="events/[id]/settings"
-          options={{ title: t("screens.eventSettings"), headerBackTitle: backTitle }}
-        />
-        <Stack.Screen
-          name="events/[id]/edit-title"
-          options={{ title: t("screens.editTitle"), headerBackTitle: backTitle }}
-        />
-        <Stack.Screen
-          name="events/[id]/edit-description"
-          options={{ title: t("screens.editDescription"), headerBackTitle: backTitle }}
-        />
-        <Stack.Screen
-          name="events/[id]/edit-date"
-          options={{ title: t("screens.editDate"), headerBackTitle: backTitle }}
-        />
+        {/* Chapter 10: a report rises over the roll and closes with its X. */}
+        <Stack.Screen name="events/[id]/report" options={{ headerShown: false, presentation: "fullScreenModal" }} />
+        {/* 10.8–10.10: the hosts' reports draw their own top bars. */}
+        <Stack.Screen name="events/[id]/reports" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/report-check" options={{ headerShown: false }} />
+        {/* Roll settings draws its own top bar. */}
+        <Stack.Screen name="events/[id]/settings" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/edit-title" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/edit-description" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );

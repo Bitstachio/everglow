@@ -13,11 +13,12 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
-import { buildPhotoS3Key, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
+import { buildPhotoS3Key, PHOTO_HASH_TIMEOUT_MS, UPLOAD_URL_TTL_SECONDS } from "./photos.constants";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PhotosService } from "./photos.service";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
+import { IdenticalCopiesService } from "src/moderation/evidence/identical-copies.service";
 
 // An original and the image processor's two renditions of it, deleted in one batch.
 const withDerivatives = (key: string): string[] => [key, `derived/${key}/thumb.webp`, `derived/${key}/large.jpg`];
@@ -31,7 +32,9 @@ describe("PhotosService", () => {
     getPresignedDownloadUrl: jest.Mock;
     headObject: jest.Mock;
     deleteObjects: jest.Mock;
+    sha256OfObject: jest.Mock;
   };
+  let identicalCopiesService: { findRemovedImages: jest.Mock; removeCopies: jest.Mock };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
   let photoVisibilityService: { whereVisibleTo: jest.Mock; isVisibleTo: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
@@ -115,6 +118,12 @@ describe("PhotosService", () => {
     { contentType: "image/png", sizeBytes: 2048 },
   ];
 
+  const hashOf = (key: string) =>
+    key
+      .replace(/[^0-9a-f]/g, "")
+      .slice(-64)
+      .padStart(64, "0");
+
   const buildPhoto = (photoId: string, overrides: Partial<Photo> = {}): Photo => ({
     id: photoId,
     eventId,
@@ -123,6 +132,7 @@ describe("PhotosService", () => {
     contentType: "image/jpeg",
     sizeBytes: 1024,
     status: "PENDING",
+    sha256: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -139,7 +149,14 @@ describe("PhotosService", () => {
         ),
       headObject: jest.fn(),
       deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })),
+      // Each original hashes to a digest derived from its key, so tests can tell them apart.
+      sha256OfObject: jest.fn((key: string) => Promise.resolve(hashOf(key))),
     };
+    identicalCopiesService = {
+      findRemovedImages: jest.fn().mockResolvedValue(new Map()),
+      removeCopies: jest.fn().mockResolvedValue([]),
+    };
+    prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
     photoVisibilityService = {
       whereVisibleTo: jest.fn().mockResolvedValue(visibilityWhere),
@@ -156,6 +173,7 @@ describe("PhotosService", () => {
         { provide: PrismaService, useValue: prisma },
         { provide: S3Service, useValue: s3Service },
         { provide: EvidenceService, useValue: evidenceService },
+        { provide: IdenticalCopiesService, useValue: identicalCopiesService },
         { provide: PhotoStorageService, useValue: photoStorageService },
         { provide: PhotoVisibilityService, useValue: photoVisibilityService },
         { provide: PinoLogger, useValue: logger },
@@ -498,8 +516,8 @@ describe("PhotosService", () => {
         { photoId: mismatchedPhotoId, status: "MISMATCHED" },
       ]);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: [photoId] } },
-        data: { status: "READY" },
+        where: { id: photoId },
+        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
       expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
       expect(s3Service.deleteObjects).toHaveBeenCalledWith(
@@ -525,10 +543,123 @@ describe("PhotosService", () => {
       ]);
       expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: [photoId] } },
-        data: { status: "READY" },
+        where: { id: photoId },
+        data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
+      // Only the verified original is read and hashed.
+      expect(s3Service.sha256OfObject).toHaveBeenCalledTimes(1);
       expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId));
+    });
+
+    it("records each confirmed photo's own hash", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId), buildPhoto(otherPhotoId)]);
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
+
+      for (const id of [photoId, otherPhotoId]) {
+        const key = buildPhotoS3Key(eventId, id);
+        expect(s3Service.sha256OfObject).toHaveBeenCalledWith(key, { timeoutMs: PHOTO_HASH_TIMEOUT_MS });
+        expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+          where: { id },
+          data: { status: "READY", sha256: hashOf(key) },
+        });
+      }
+      expect(identicalCopiesService.findRemovedImages).toHaveBeenCalledWith([
+        hashOf(buildPhotoS3Key(eventId, photoId)),
+        hashOf(buildPhotoS3Key(eventId, otherPhotoId)),
+      ]);
+    });
+
+    it("confirms a photo without a hash when it can't be read, for the backfill to hash later", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
+      s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+      s3Service.sha256OfObject.mockRejectedValue(new Error("timeout"));
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+      const results = await service.confirmUploads(eventId, callerId, [photoId]);
+
+      expect(results).toEqual([{ photoId, status: "READY" }]);
+      expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+        where: { id: photoId },
+        data: { status: "READY", sha256: null },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "photo.hash_failed", eventId, callerId, unhashed: 1 }),
+        expect.any(String),
+      );
+    });
+
+    describe("an upload with the bytes of a removed intimate image", () => {
+      const matchingKey = () => buildPhotoS3Key(eventId, photoId);
+
+      beforeEach(() => {
+        prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+        prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId), buildPhoto(otherPhotoId)]);
+        s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
+        identicalCopiesService.findRemovedImages.mockResolvedValue(new Map([[hashOf(matchingKey()), "report-1"]]));
+      });
+
+      it("refuses the confirm with 422 and discards only that upload", async () => {
+        const error: unknown = await service
+          .confirmUploads(eventId, callerId, [photoId, otherPhotoId])
+          .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ApiException);
+        expect((error as ApiException).getStatus()).toBe(422);
+        expect(error).toMatchObject({ response: { code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE" } });
+        // The object and its renditions, then the slot.
+        expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives(matchingKey()));
+        expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(photoId));
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "photo.upload_refused.removed_image", refused: 1, audit: true }),
+          expect.any(String),
+        );
+      });
+
+      it("leaves the other photos PENDING, so confirming them again gives their own verdicts", async () => {
+        await expect(service.confirmUploads(eventId, callerId, [photoId, otherPhotoId])).rejects.toBeInstanceOf(
+          ApiException,
+        );
+
+        expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+        expect(prisma.photo.deleteMany).toHaveBeenCalledTimes(1);
+      });
+
+      it("removes a photo whose image was removed between the check and the READY flip", async () => {
+        identicalCopiesService.findRemovedImages
+          .mockReset()
+          .mockResolvedValueOnce(new Map())
+          .mockResolvedValueOnce(new Map([[hashOf(matchingKey()), "report-1"]]));
+        identicalCopiesService.removeCopies.mockResolvedValue(["linked-1"]);
+        prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+        await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
+
+        // Checked again after the flip: the removal's search ran before these were READY.
+        expect(identicalCopiesService.findRemovedImages).toHaveBeenCalledTimes(2);
+        expect(identicalCopiesService.removeCopies.mock.invocationCallOrder[0]).toBeGreaterThan(
+          prisma.photo.updateMany.mock.invocationCallOrder[1],
+        );
+        expect(identicalCopiesService.removeCopies).toHaveBeenCalledWith(["report-1"]);
+        expect(evidenceService.discardImages).toHaveBeenCalledWith(["linked-1"]);
+      });
+
+      it("keeps the row when the object can't be deleted, so it can never become READY", async () => {
+        s3Service.deleteObjects.mockRejectedValueOnce(new Error("s3 down"));
+
+        await expect(service.confirmUploads(eventId, callerId, [photoId])).rejects.toMatchObject({
+          response: { code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE" },
+        });
+        expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+        expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      });
     });
 
     it("touches no rows beyond the READY flip when every photo verifies", async () => {
@@ -856,6 +987,42 @@ describe("PhotosService", () => {
 
       expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
     });
+
+    it.each([
+      ["suspended", { suspendedAt: new Date() }, "EVENT_SUSPENDED"],
+      ["under review", { underReviewAt: new Date() }, "EVENT_UNDER_REVIEW"],
+      ["suspended and under review", { suspendedAt: new Date(), underReviewAt: new Date() }, "EVENT_SUSPENDED"],
+    ])("refuses an organizer deleting someone else's photo in a %s event", async (_state, eventState, code) => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.photo.findUnique.mockResolvedValue({
+        ...photoWithEvent([callerAccess("ORGANIZER")], { addedById: "22222222-2222-2222-2222-222222222222" }),
+        event: { ...event, ...eventState, eventAccesses: [callerAccess("ORGANIZER")] },
+      } as never);
+
+      await expect(service.deletePhoto(photoId, callerId)).rejects.toMatchObject({ response: { code } });
+      expect(evidenceService.preserveBeforeDelete).not.toHaveBeenCalled();
+      expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+      expect(prisma.photo.delete).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["suspended", { suspendedAt: new Date() }],
+      ["under review", { underReviewAt: new Date() }],
+    ])(
+      "lets an uploader delete their own photo in a %s event, through the evidence copy",
+      async (_state, eventState) => {
+        prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+        prisma.photo.findUnique.mockResolvedValue({
+          ...photoWithEvent([callerAccess("PARTICIPANT")]),
+          event: { ...event, ...eventState, eventAccesses: [callerAccess("PARTICIPANT")] },
+        } as never);
+
+        await service.deletePhoto(photoId, callerId);
+
+        expect(evidenceService.preserveBeforeDelete).toHaveBeenCalledWith([buildPhotoS3Key(eventId, photoId)]);
+        expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: photoId } });
+      },
+    );
 
     it("closes the photo's OPEN reports as TARGET_GONE when its uploader deletes it, and audits how many", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);

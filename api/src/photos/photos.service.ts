@@ -12,6 +12,7 @@ import { ApiException } from "src/common/errors/api.exception";
 import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
+import { IdenticalCopiesService } from "src/moderation/evidence/identical-copies.service";
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
@@ -21,6 +22,7 @@ import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
+import { hashPhotoOriginals } from "./photo-hashing";
 import { deleteObjectWithDerivatives } from "./photo-object-deletion";
 import { PhotoStorageService } from "./photo-storage.service";
 import { PHOTO_ACTIONS, PHOTO_SUBJECT } from "./photos.abilities";
@@ -56,6 +58,7 @@ export class PhotosService {
     private readonly photoStorageService: PhotoStorageService,
     private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly evidenceService: EvidenceService,
+    private readonly identicalCopiesService: IdenticalCopiesService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -185,7 +188,7 @@ export class PhotosService {
     });
     const photosById = new Map(photos.map((photo) => [photo.id, photo]));
 
-    const verifiedIds: string[] = [];
+    const verified: Photo[] = [];
     const missingIds: string[] = [];
     const mismatched: Photo[] = [];
     const results = await Promise.all(
@@ -206,25 +209,92 @@ export class PhotosService {
           return { photoId, status: CONFIRM_PHOTO_STATUSES.MISMATCHED };
         }
 
-        verifiedIds.push(photoId);
+        verified.push(photo);
         return { photoId, status: CONFIRM_PHOTO_STATUSES.READY };
       }),
     );
 
-    if (verifiedIds.length > 0) {
-      await this.prisma.photo.updateMany({
-        where: { id: { in: verifiedIds } },
-        data: { status: PhotoStatus.READY },
+    if (verified.length > 0) {
+      // Each original is read once and hashed, so identical copies of a
+      // removed intimate image can be found and refused (docs/moderation.md §7).
+      const hashes = await hashPhotoOriginals(this.s3Service, verified);
+      await this.refuseRemovedImages(eventId, callerId, verified, hashes);
+
+      // One update per photo, since each carries its own hash; together, so a
+      // batch flips READY as one.
+      await this.prisma.$transaction(async (tx) => {
+        for (const photo of verified) {
+          await tx.photo.updateMany({
+            where: { id: photo.id },
+            data: { status: PhotoStatus.READY, sha256: hashes.get(photo.id) ?? null },
+          });
+        }
       });
+      const unhashed = verified.filter((photo) => !hashes.get(photo.id)).length;
+      if (unhashed > 0) {
+        this.logger.warn(
+          { event: "photo.hash_failed", eventId, callerId, unhashed },
+          "Confirmed photos could not be hashed; the hash backfill will hash them",
+        );
+      }
       this.logger.info(
-        { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verifiedIds.length },
+        { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verified.length },
         "Photo uploads confirmed",
       );
+      await this.removeIfRemovedMeanwhile(hashes);
     }
 
     await this.releaseRejectedSlots(eventId, callerId, missingIds, mismatched);
 
     return results;
+  }
+
+  /**
+   * Refuses the whole confirm when any of its photos has the bytes of an
+   * intimate image the platform removed: those uploads are discarded and
+   * their slots released, and nothing else changes. The other photos stay
+   * PENDING with their objects, so confirming them again gives their own
+   * verdicts, and the discarded ones answer NOT_FOUND (docs/uploads.md).
+   */
+  private async refuseRemovedImages(
+    eventId: string,
+    callerId: string,
+    verified: Photo[],
+    hashes: Map<string, string | null>,
+  ): Promise<void> {
+    const hashed = [...hashes.values()].filter((hash): hash is string => Boolean(hash));
+    const removed = await this.identicalCopiesService.findRemovedImages(hashed);
+    const refused = verified.filter((photo) => removed.has(hashes.get(photo.id) ?? ""));
+    if (refused.length === 0) return;
+
+    const deletes = await Promise.allSettled(
+      refused.map((photo) => deleteObjectWithDerivatives(this.s3Service, photo.s3Key)),
+    );
+    // An object that could not be deleted keeps its row, which can't become
+    // READY: confirm refuses it again, and the sweeper deletes both.
+    const releasable = refused.filter((_, index) => deletes[index].status === "fulfilled").map((photo) => photo.id);
+    await this.releaseSlots(releasable, {
+      event: "photo.upload_refused.removed_image",
+      eventId,
+      callerId,
+      refused: refused.length,
+    });
+    throw new ApiException("PHOTO_REJECTED_MATCHES_REMOVED_IMAGE");
+  }
+
+  /**
+   * Checks the hashes again once the photos are READY. A removal that
+   * committed between the refusal check and the READY flip looked for copies
+   * before these were READY and missed them; this check, made after the
+   * flip, then sees its report. So one of the two always catches the photo.
+   */
+  private async removeIfRemovedMeanwhile(hashes: Map<string, string | null>): Promise<void> {
+    const hashed = [...hashes.values()].filter((hash): hash is string => Boolean(hash));
+    const removed = await this.identicalCopiesService.findRemovedImages(hashed);
+    if (removed.size === 0) return;
+
+    const closed = await this.identicalCopiesService.removeCopies([...new Set(removed.values())]);
+    await this.evidenceService.discardImages(closed);
   }
 
   /**
@@ -352,6 +422,14 @@ export class PhotosService {
       isMember: photo.event.eventAccesses.length > 0,
       refusal: "ORGANIZER_ONLY",
     });
+    // Nobody removes someone else's photo while the platform reviews the event
+    // or after it suspended it: an unreported photo has no evidence copy, so it
+    // would be gone before anyone looked. The uploader can still take back
+    // their own (docs/moderation.md §7, §8).
+    if (photo.addedById !== callerId) {
+      if (photo.event.suspendedAt) throw new ApiException("EVENT_SUSPENDED");
+      if (photo.event.underReviewAt) throw new ApiException("EVENT_UNDER_REVIEW");
+    }
 
     // S3 first: if it fails the row survives and the delete can be retried. A
     // reported photo is copied to evidence before it goes; if that copy fails

@@ -58,6 +58,8 @@ export const useFrameViewer = ({
   const [presentedFrameId, setPresentedFrameId] = useState(frameId);
   const closingFrameId = useRef<string | null>(null);
   const deferred = useRef<(() => void) | null>(null);
+  // Runs once the viewer is gone, for a screen that can't open over its modal.
+  const afterClose = useRef<(() => void) | null>(null);
   if (presentedFrameId !== frameId) {
     setPresentedFrameId(frameId);
     setClosing(false);
@@ -68,8 +70,9 @@ export const useFrameViewer = ({
     deferred.current = null;
   }, [frameId]);
 
-  const requestClose = () => {
+  const requestClose = (then: (() => void) | null = null) => {
     if (closing) return;
+    afterClose.current = then;
     deferred.current = null;
     setMenuVisible(false);
     // iOS keeps rendering children during its native fade. Clear the
@@ -77,7 +80,14 @@ export const useFrameViewer = ({
     if (Platform.OS === "ios") {
       closingFrameId.current = frameId;
       setClosing(true);
-    } else onClose();
+    } else finishClose();
+  };
+
+  const finishClose = () => {
+    const next = afterClose.current;
+    afterClose.current = null;
+    onClose();
+    next?.();
   };
 
   const pager = useFramePager({
@@ -87,7 +97,7 @@ export const useFrameViewer = ({
     width,
     reduceMotion,
     onSelect: onSelectPage,
-    onDismiss: requestClose,
+    onDismiss: () => requestClose(),
   });
 
   return {
@@ -107,11 +117,13 @@ export const useFrameViewer = ({
       action?.();
     },
     closing,
-    requestClose,
+    requestClose: () => requestClose(),
+    /** Close the viewer, then run `action`: iOS drops a screen presented while a modal is still fading. */
+    closeThen: (action: () => void) => requestClose(action),
     onDismiss: () => {
       if (frameId && closingFrameId.current === frameId) {
         closingFrameId.current = null;
-        onClose();
+        finishClose();
       }
     },
   };

@@ -5,6 +5,7 @@ import { EvidenceOrphanSource } from "./evidence-orphan-source";
 import { EvidenceScheduler } from "./evidence.scheduler";
 import { EvidenceService } from "./evidence.service";
 import { MemberlessEventPurgeService } from "./memberless-event-purge.service";
+import { IdenticalCopiesService } from "./identical-copies.service";
 
 /**
  * Evidence of reported content (docs/moderation.md §7). Global because every
@@ -17,7 +18,15 @@ import { MemberlessEventPurgeService } from "./memberless-event-purge.service";
   imports: [StorageModule],
   // PhotoPurgeService is stateless; provided here for the memberless-event
   // purge, as ModerationModule does, since importing PhotosModule would be a cycle.
-  providers: [EvidenceService, EvidenceOrphanSource, EvidenceScheduler, MemberlessEventPurgeService, PhotoPurgeService],
-  exports: [EvidenceService],
+  providers: [
+    EvidenceService,
+    IdenticalCopiesService,
+    EvidenceOrphanSource,
+    EvidenceScheduler,
+    MemberlessEventPurgeService,
+    PhotoPurgeService,
+  ],
+  // Confirm and the hash backfill ask IdenticalCopiesService about removed images.
+  exports: [EvidenceService, IdenticalCopiesService],
 })
 export class EvidenceModule {}

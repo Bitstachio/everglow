@@ -28,12 +28,15 @@ describe("defineEventAbilities", () => {
     expect(ability.can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT)).toBe(true);
   });
 
-  it("allows users to read events they created", () => {
+  it("denies read to the creator once they are no longer a member", () => {
     const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
-    expect(ability.can(EVENT_ACTIONS.READ, subject(EVENT_SUBJECT, { id: eventId, creatorId: userId } as never))).toBe(
-      true,
-    );
+    expect(
+      ability.can(
+        EVENT_ACTIONS.READ,
+        subject(EVENT_SUBJECT, { id: eventId, creatorId: userId, eventAccesses: [] } as never),
+      ),
+    ).toBe(false);
   });
 
   it("allows users to read events they were invited to", () => {

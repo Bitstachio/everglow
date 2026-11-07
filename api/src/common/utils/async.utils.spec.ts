@@ -1,4 +1,4 @@
-import { jitteredLinearBackoffMs, sleep } from "./async.utils";
+import { jitteredLinearBackoffMs, mapWithConcurrency, sleep } from "./async.utils";
 
 describe("sleep", () => {
   afterEach(() => {
@@ -67,5 +67,35 @@ describe("jitteredLinearBackoffMs", () => {
     const delays = new Set(Array.from({ length: 50 }, () => jitteredLinearBackoffMs(1, BASE)));
 
     expect(delays.size).toBeGreaterThan(1);
+  });
+});
+
+describe("mapWithConcurrency", () => {
+  it("keeps the input order and never runs more than the limit at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const results = await mapWithConcurrency([30, 10, 20, 5, 15], 2, async (ms, index) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await sleep(ms);
+      inFlight -= 1;
+      return `${index}:${ms}`;
+    });
+
+    expect(results).toEqual(["0:30", "1:10", "2:20", "3:5", "4:15"]);
+    expect(peak).toBe(2);
+  });
+
+  it("returns an empty list without calling the function", async () => {
+    const fn = jest.fn();
+
+    await expect(mapWithConcurrency([], 4, fn)).resolves.toEqual([]);
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("rejects when a call does", async () => {
+    await expect(
+      mapWithConcurrency([1, 2], 2, (item) => (item === 2 ? Promise.reject(new Error("boom")) : Promise.resolve(item))),
+    ).rejects.toThrow("boom");
   });
 });

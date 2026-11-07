@@ -4,6 +4,7 @@ export const S3_SERVICE_ERRORS = {
   DELETE_FAILED: (key: string) => `Failed to delete object from S3 at key "${key}"`,
   DELETE_BATCH_FAILED: (count: number) => `Failed to delete a batch of ${count} objects from S3`,
   COPY_FAILED: (key: string) => `Failed to copy object in S3 from key "${key}"`,
+  HASH_FAILED: (key: string) => `Failed to hash object in S3 at key "${key}"`,
   HEAD_FAILED: (key: string) => `Failed to fetch object metadata from S3 at key "${key}"`,
   GET_FAILED: (key: string) => `Failed to read object from S3 at key "${key}"`,
   LIST_FAILED: (prefix: string) => `Failed to list objects in S3 under prefix "${prefix}"`,

@@ -4,6 +4,7 @@ import {
   DEFAULT_GALLERY_CLOSE_BATCH_SIZE,
   DEFAULT_PENDING_PHOTO_CLEANUP_BATCH_SIZE,
   DEFAULT_PENDING_PHOTO_MAX_AGE_HOURS,
+  DEFAULT_PHOTO_HASH_BACKFILL_BATCH_SIZE,
 } from "src/photos/photos.constants";
 
 export default registerAs("photos", () => ({
@@ -25,4 +26,14 @@ export default registerAs("photos", () => ({
   // has no versioning. Enable it only where this database owns the bucket.
   galleryCloseEnabled: process.env.GALLERY_CLOSE_ENABLED === "true",
   galleryCloseBatchSize: parseIntegerEnv(process.env.GALLERY_CLOSE_BATCH_SIZE, DEFAULT_GALLERY_CLOSE_BATCH_SIZE, 1),
+  // Opt-in like the close job: the hash backfill reads every unhashed photo
+  // of DATABASE_URL from AWS_S3_BUCKET and removes identical copies of a
+  // removed intimate image, deleting their objects. Enable it only where this
+  // database owns the bucket.
+  hashBackfillEnabled: process.env.PHOTO_HASH_BACKFILL_ENABLED === "true",
+  hashBackfillBatchSize: parseIntegerEnv(
+    process.env.PHOTO_HASH_BACKFILL_BATCH_SIZE,
+    DEFAULT_PHOTO_HASH_BACKFILL_BATCH_SIZE,
+    1,
+  ),
 }));

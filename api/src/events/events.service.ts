@@ -19,7 +19,12 @@ import { userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { MEMBER_PHOTOS, MemberPhotos, removeMemberInTransaction } from "./event-membership";
-import { EVENT_INVITE_ACCESS_LEVELS, EventInviteAccessLevel, isInviteAccessLevel } from "./events.invitation";
+import {
+  EVENT_INVITE_ACCESS_LEVELS,
+  EventInviteAccessLevel,
+  inviteNotFound,
+  isInviteAccessLevel,
+} from "./events.invitation";
 import { deleteUploadsInTransaction } from "src/photos/photo-deletion";
 import { lockPendingModeration } from "src/moderation/pending-moderation";
 import { escalateToPlatform, logEscalations } from "src/moderation/report-escalation";
@@ -165,7 +170,7 @@ export class EventsService {
     // preview's order.
     const blocks = await this.findBlocksWithOrganizers(event.id, callerId);
     if (blocks.byOrganizer) {
-      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl));
+      throw inviteNotFound(invitationUrl);
     }
 
     // Suspended or under review: members keep access, but no one new comes in
@@ -245,11 +250,11 @@ export class EventsService {
     const invite = await this.prisma.eventInvite.findUnique({ where: { token } });
     // Organizer links no longer exist; one that slipped through reads as unknown.
     if (!invite || !isInviteAccessLevel(invite.accessLevel)) {
-      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", token));
+      throw inviteNotFound(token);
     }
 
     const event = await this.prisma.event.findUnique({ where: { id: invite.eventId } });
-    if (!event) throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", token));
+    if (!event) throw inviteNotFound(token);
 
     return { invite: { ...invite, accessLevel: invite.accessLevel }, event };
   }
@@ -283,7 +288,7 @@ export class EventsService {
     ]);
 
     if (!membership && blocks.byOrganizer) {
-      throw new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", token));
+      throw inviteNotFound(token);
     }
 
     // Organizers come oldest first, so the fallback is the longest-standing one.

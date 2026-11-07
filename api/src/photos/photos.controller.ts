@@ -37,7 +37,12 @@ export class PhotosController {
 
   @Post("events/:eventId/photos/upload-urls")
   @RateLimit("uploads")
-  @ApiOperation({ summary: "Mint presigned upload URLs for a batch of photos" })
+  @ApiOperation({
+    summary: "Mint presigned upload URLs for a batch of photos",
+    description:
+      "PUT each file to its uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key " +
+      "once: a later PUT gets 412 from storage, which means the file already landed.",
+  })
   @ApiWrappedResponse(UploadSlotResponseDto, "Upload slots with presigned S3 PUT URLs", 201)
   async createUploadUrls(
     @CurrentUser() user: AuthenticatedUser,
@@ -48,7 +53,13 @@ export class PhotosController {
   }
 
   @Post("events/:eventId/photos/confirm")
-  @ApiOperation({ summary: "Confirm uploaded photos and mark them ready" })
+  @ApiOperation({
+    summary: "Confirm uploaded photos and mark them ready",
+    description:
+      "Per-photo verdicts. 422 PHOTO_REJECTED_MATCHES_REMOVED_IMAGE when any photo has the bytes of an image the " +
+      "platform removed: those uploads are discarded and nothing else changes, so confirm the rest again (the " +
+      "discarded ids then answer NOT_FOUND).",
+  })
   @ApiWrappedResponse(ConfirmPhotoResultDto, "Per-photo verification result", 201)
   async confirmUploads(
     @CurrentUser() user: AuthenticatedUser,

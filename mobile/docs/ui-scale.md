@@ -238,6 +238,7 @@ Registered in `app/global.css` as `--text-*`, with line height and letter spacin
 | `text-title-event`    | 40   | 40   | -1.4     | display       | Event title over the cover                      |
 | `text-title-screen`   | 34   | 36   | -1       | display       | Screen titles; the second line in `text-text-2` |
 | `text-title-roll`     | 24   | 28   | -0.6     | display       | Event names on Home rolls                       |
+| `text-title-sheet`    | 18   | 22   | -0.36    | display       | Whose frame or who, atop a menu sheet           |
 | `text-wordmark`       | 22   | 24   | -0.4     | display       | "Everglow" in the header                        |
 | `text-name`           | 16   | 20   | 0        | sans-medium   | People in a roll call                           |
 | `text-body`           | 15   | 20   | 0        | sans          | Running text, list names                        |
@@ -284,6 +285,7 @@ The older `text-xs` … `text-3xl` steps still work for screens not rebuilt yet;
 | Reporting                   | `LabTicket`                                                                |
 | The account                 | `LabCard`                                                                  |
 | A confirmation              | `Slip` inside a `BottomSheet` with no sheet title                          |
+| A row in a ⋯ sheet menu     | `MenuAction` (`first` when no header sits above it)                        |
 | One choice among several    | `OptionRow`, grouped in a `radiogroup` view                                |
 | A person on the roll call   | `RollCallRow`                                                              |
 | Any photo                   | `Photo` (expo-image with `className` support)                              |

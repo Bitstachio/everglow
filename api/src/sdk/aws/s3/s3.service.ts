@@ -10,6 +10,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Injectable, InternalServerErrorException, OnModuleDestroy } from "@nestjs/common";
@@ -70,8 +71,13 @@ export interface DeleteObjectsResult {
 // accept a body of any type; naming it here puts it in X-Amz-SignedHeaders and
 // S3 then rejects a PUT whose Content-Type differs from what was signed.
 // content-length is signed as soon as ContentLength is set on the command and
-// is listed for the same clarity.
-const PRESIGNED_UPLOAD_SIGNED_HEADERS = new Set(["content-type", "content-length"]);
+// is listed for the same clarity. if-none-match carries `*`, an S3 conditional
+// write: the key can be written once, so bytes confirmed (and hashed) at
+// confirm can't be replaced by a second PUT while the URL is still valid.
+const PRESIGNED_UPLOAD_SIGNED_HEADERS = new Set(["content-type", "content-length", "if-none-match"]);
+
+/** The `If-None-Match` value every presigned PUT is signed with: write only if no object is at the key. */
+export const PRESIGNED_UPLOAD_IF_NONE_MATCH = "*";
 
 /**
  * When a URL presigned for `expiresInSeconds` stops being accepted. Computed
@@ -150,6 +156,26 @@ export class S3Service implements OnModuleDestroy {
     } catch (error) {
       this.logger.error({ err: error as Error, sourceKey, destinationKey }, "s3 copyObject failed");
       throw new InternalServerErrorException(S3_SERVICE_ERRORS.COPY_FAILED(sourceKey));
+    }
+  }
+
+  /**
+   * Hex SHA-256 of an object's bytes, streamed once through the hash and never
+   * held in memory. `timeoutMs` bounds the whole read. Throws when the object
+   * can't be read in time; callers decide whether that blocks them.
+   */
+  async sha256OfObject(key: string, { timeoutMs }: { timeoutMs: number }): Promise<string> {
+    try {
+      const response = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
+        abortSignal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!(response.Body instanceof Readable)) throw new Error("GetObject returned no readable body");
+      const hash = createHash("sha256");
+      for await (const chunk of response.Body) hash.update(chunk as Buffer);
+      return hash.digest("hex");
+    } catch (error) {
+      this.logger.error({ err: error as Error, key }, "s3 sha256OfObject failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.HASH_FAILED(key));
     }
   }
 
@@ -252,7 +278,9 @@ export class S3Service implements OnModuleDestroy {
    * A PUT URL tied to one key, and to the declared content type and length
    * when given: S3 refuses a body whose Content-Type or Content-Length differs
    * from what was signed, so the caller's validation of those values holds all
-   * the way to the bucket.
+   * the way to the bucket. The client must also send `If-None-Match: *`: S3
+   * writes the key only if it holds no object yet and answers any later PUT
+   * with 412, so what was confirmed stays what is stored (docs/uploads.md).
    */
   async getPresignedUploadUrl({
     key,
@@ -263,7 +291,13 @@ export class S3Service implements OnModuleDestroy {
     try {
       return await getSignedUrl(
         this.client,
-        new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType, ContentLength: contentLength }),
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          ContentType: contentType,
+          ContentLength: contentLength,
+          IfNoneMatch: PRESIGNED_UPLOAD_IF_NONE_MATCH,
+        }),
         { expiresIn: expiresInSeconds, signableHeaders: PRESIGNED_UPLOAD_SIGNED_HEADERS },
       );
     } catch (error) {

@@ -304,6 +304,8 @@ export const usersControllerGetMyLimits = <ThrowOnError extends boolean = false>
 
 /**
  * Mint a presigned upload URL for the current user's avatar
+ *
+ * PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.
  */
 export const usersControllerCreateAvatarUploadUrl = <ThrowOnError extends boolean = false>(
   options: Options<UsersControllerCreateAvatarUploadUrlData, ThrowOnError>,
@@ -400,6 +402,8 @@ export const usersControllerPreviewDeletion = <ThrowOnError extends boolean = fa
 
 /**
  * Mint presigned upload URLs for a batch of photos
+ *
+ * PUT each file to its uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.
  */
 export const photosControllerCreateUploadUrls = <ThrowOnError extends boolean = false>(
   options: Options<PhotosControllerCreateUploadUrlsData, ThrowOnError>,
@@ -420,6 +424,8 @@ export const photosControllerCreateUploadUrls = <ThrowOnError extends boolean = 
 
 /**
  * Confirm uploaded photos and mark them ready
+ *
+ * Per-photo verdicts. 422 PHOTO_REJECTED_MATCHES_REMOVED_IMAGE when any photo has the bytes of an image the platform removed: those uploads are discarded and nothing else changes, so confirm the rest again (the discarded ids then answer NOT_FOUND).
  */
 export const photosControllerConfirmUploads = <ThrowOnError extends boolean = false>(
   options: Options<PhotosControllerConfirmUploadsData, ThrowOnError>,
@@ -871,6 +877,8 @@ export const eventsControllerRegenerateInvite = <ThrowOnError extends boolean = 
 
 /**
  * Mint a presigned upload URL for the event cover image
+ *
+ * PUT the file to uploadUrl with the declared Content-Type and `If-None-Match: *`. The URL writes its key once: a later PUT gets 412 from storage, which means the file already landed.
  */
 export const eventsControllerCreateCoverUploadUrl = <ThrowOnError extends boolean = false>(
   options: Options<EventsControllerCreateCoverUploadUrlData, ThrowOnError>,

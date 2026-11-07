@@ -13,8 +13,11 @@ process.env.AWS_SECRET_ACCESS_KEY ??= "integration-secret-key";
 // rate-limit.integration.spec.ts opts back in by overriding the config provider.
 process.env.RATE_LIMIT_ENABLED = "false";
 
+// The suites authenticate through a stubbed guard; the key set's boot warm-up
+// must not reach a real tenant, so it gets an empty set.
 jest.mock("jwks-rsa", () => ({
-  passportJwtSecret: jest.fn().mockReturnValue(jest.fn()),
+  JwksClient: jest.fn().mockImplementation(() => ({ getSigningKeys: jest.fn().mockResolvedValue([]) })),
+  SigningKeyNotFoundError: class SigningKeyNotFoundError extends Error {},
 }));
 
 jest.mock("passport-jwt", () => {

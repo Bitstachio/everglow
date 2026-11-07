@@ -1,6 +1,6 @@
 import type { LegalSection } from "./components/legal-document";
 
-export const LEGAL_LAST_UPDATED = "November 1, 2026";
+export const LEGAL_LAST_UPDATED = "November 2, 2026";
 
 export const PRIVACY_POLICY_INTRO =
   "Everglow lets you share photos inside private events. This policy explains what we collect, why we collect it, and the choices you have.";
@@ -28,7 +28,7 @@ export const PRIVACY_POLICY_SECTIONS: LegalSection[] = [
   },
   {
     heading: "Contact us",
-    body: "If you have questions about this policy or about the data we hold, reach us at hello@everglow.social.",
+    body: "If you have questions about this policy or about the data we hold, reach us at privacy@everglow.social. The full policy, with how long we keep each kind of information and your rights, is at everglow.social/en/privacy.",
   },
 ];
 

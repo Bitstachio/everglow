@@ -23,6 +23,7 @@ export const buildPhoto = (overrides: Partial<Photo> = {}): Photo => ({
   contentType: "image/jpeg",
   sizeBytes: 1024,
   status: PhotoStatus.READY,
+  sha256: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,

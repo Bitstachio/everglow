@@ -2,7 +2,7 @@
 
 This document explains how Everglow authenticates API requests, why we outsource login to Auth0, how just-in-time (JIT) user provisioning works, and why we keep a tombstone of deleted identities. It is written for engineers who will touch auth or account deletion.
 
-Related: [Account deletion](./account-deletion.md) covers the dual-store delete saga (Auth0 + application database). [Credential changes](./credential-changes.md) covers password and email. This document covers the request path and the JWT resurrection hole that deletion alone does not close.
+Related: [Account deletion](./account-deletion.md) covers the dual-store delete saga (Auth0 + application database). [Credential changes](./credential-changes.md) covers password and email. This document covers the request path, the JWT resurrection hole that deletion alone does not close, and how the phone signs out (section 11).
 
 ---
 
@@ -31,28 +31,54 @@ Guarded routes use `JwtAuthGuard`. On each authenticated request:
 
 1. Extract the Bearer token from the `Authorization` header.
 2. Verify the JWT cryptographically:
-   - RS256 via Auth0 JWKS
+   - RS256, with the key the token's `kid` names in Auth0's key set (§2.1)
    - expected `audience` and `issuer`
    - `exp` must be respected (`ignoreExpiration: false`)
-3. Run `JwtStrategy.validate` with the payload (`sub`, and optionally `iat` / `exp`).
+3. Run `JwtStrategy.validate` with the payload. It first checks the token is the app's (§2.2): `azp` is the mobile app's client id and the grant is not client-credentials. Nothing is provisioned for a token that fails this.
 4. Resolve an application user via `UsersService.resolveByProviderSub(payload.sub)`.
 5. Attach `{ id, sub }` to the request (`AuthenticatedUser`): our UUID plus the Auth0 subject.
 
 Controllers then use `@CurrentUser()` for the app user id. Authorization (CASL, etc.) builds on that id, not on raw Auth0 claims alone.
 
-If any step fails, the answer is 401 `UNAUTHORIZED` and the app signs the user out. The request's log line says why in `errorReason`. It is either passport's reason, with the issuer and audience the token claims, or the account's reason from step 4. Passport's reasons are: no token, expired (and when), malformed, bad signature, a key id the key set doesn't have, wrong audience, or wrong issuer. The account's reason is a token issued before the deletion.
+If any step fails, the answer is 401 `UNAUTHORIZED` and the app signs the user out. The request's log line says why in `errorReason`. It is passport's reason, with the issuer and audience the token claims, the client check's reason from step 3, or the account's reason from step 4. Passport's reasons are: no token, expired (and when), malformed, bad signature, a key id the key set doesn't have (or none), wrong audience, or wrong issuer. The client check's are a machine-to-machine token, or a token issued to another client (named). The account's reason is a token issued before the deletion.
 
 An account whose deletion has started also answers 401, with the code `ACCOUNT_DELETION_IN_PROGRESS` instead of `UNAUTHORIZED`, on every route but `DELETE /users/me`, which lets it resume the deletion ([account-deletion.md §4](./account-deletion.md#retrying-and-who-runs-a-deletion)). `resolveByProviderSub` returns the row as it is and `JwtAuthGuard` refuses it unless the route is marked `@AllowDeletionInProgress()`. The status stays 401 so any client signs out; the code lets the app say why and clear the phone for good.
 
-The one exception is a token the API couldn't check at all, because Auth0's signing keys couldn't be fetched: Auth0 or the network is down, or jwks-rsa's limit of 5 key fetches a minute is spent. That answers 503 with the generic `INTERNAL_ERROR`, so the app keeps the session and offers a retry. A 401 there would sign everyone out during an Auth0 outage. The 503 is logged as `request.unhandled_error`, which pages (`api/docs/alerting.md`).
+The one exception is a token the API couldn't check at all, because Auth0's signing keys have never loaded since the process started: Auth0 or the network was down at boot and still is. That answers 503 with the generic `INTERNAL_ERROR`, so the app keeps the session and offers a retry. A 401 there would sign everyone out during an Auth0 outage. The 503 is logged as `request.unhandled_error`, which pages (`api/docs/alerting.md`). Once a key set has loaded, a failed refresh keeps it, so an Auth0 outage after boot is not a 503.
 
 ```text
 Request + Bearer JWT
-  → signature / aud / iss / exp checks
+  → key lookup by kid / signature / aud / iss / exp checks
+  → azp is the app, not client-credentials
   → resolveByProviderSub(sub)
   → request.user = { id, sub }
   → controller / policies
 ```
+
+### 2.1 Signing keys
+
+`SigningKeySet` (`api/src/auth/signing-key-set.ts`) holds Auth0's whole key set (JWKS) and looks a token's `kid` up locally, the semantics of jose's `createRemoteJWKSet`:
+
+- **Warm-up at boot.** The set is fetched when the app starts. A failure is logged (`auth.signing_keys.fetch_failed`) and does not stop the boot; the first token retries, at most every 5 seconds until a set has loaded.
+- **Unknown key id.** Refused with 401 and no fetch within the 30-second cooldown since the last fetch. After it, the first such token triggers one refetch (that is how a key Auth0 rotated in is picked up), and every token in flight shares it. A flood of forged key ids therefore costs at most one fetch per 30 seconds and never stops the real key from working.
+- **Freshness.** A set older than 10 minutes is refreshed in the background on the next request, so a key Auth0 revoked stops being accepted.
+- **Failure after load.** A refresh that fails keeps the loaded set and is logged at `warn`.
+- **No `kid`.** Refused with 401: Auth0 always names the key.
+
+This replaced jwks-rsa's per-`kid` cache and its limit of 5 fetches a minute. An unknown `kid` always missed that cache and spent a fetch, so about six forged tokens a minute were enough to answer 503 to every real request once the real key's entry expired. jwks-rsa still does the fetching and key import (`JwksClient.getSigningKeys`); jose itself is ESM-only, which the API's Jest setup can't load.
+
+### 2.2 Which tokens are the app's
+
+Any application in the tenant that is allowed to call our API audience can get a token for it, including machine-to-machine applications with the client-credentials grant (their `sub` ends in `@clients`). Signature, issuer and audience don't tell those apart from a person's session, and JIT provisioning (§4) would give each one a `User` row. So `JwtStrategy.validate` refuses with 401, before resolving anyone:
+
+- a token whose `gty` is `client-credentials`;
+- a token whose `azp` (the client it was issued to) is not `AUTH0_NATIVE_CLIENT_ID`, the mobile app's client id (the app's `EXPO_PUBLIC_AUTH0_CLIENT_ID`). The API does not start without it.
+
+The management client the API itself uses (`AUTH0_MANAGEMENT_CLIENT_ID`) calls Auth0, not us, so it is unaffected.
+
+**Owner step: separate the environments.** The `azp` check does not separate environments. Staging's Copilot manifest (`api/copilot/api/manifest.yml`) uses the same tenant and API identifier as local development, so a token minted for a developer's build is valid on staging, and one native app id would pass both. Before real users, give each deployed environment its own API identifier (Auth0 → Applications → APIs → Create API, for example `https://api-staging.everglow.social`) or its own tenant. Set that environment's `AUTH0_AUDIENCE` (and `AUTH0_DOMAIN` and `AUTH0_NATIVE_CLIENT_ID` for a separate tenant) together with the matching `EXPO_PUBLIC_AUTH0_*` values of the build that talks to it. In each API's Machine to Machine Applications tab, authorize none. A separate tenant is the stronger option: users, connections and keys are then not shared either.
+
+Related and not built: the password-change ticket is minted on the bearer token alone. Requiring a recent `auth_time` is an open decision in [credential-changes.md](./credential-changes.md) §2.1.
 
 ---
 
@@ -250,3 +276,23 @@ Apple Developer portal:
 5. Optional, not required for review: register a server-to-server notification endpoint so Apple's `consent-revoked` and `account-delete` events can start the deletion saga when the person unlinks the app from their Apple ID settings instead of from within the app. Not implemented yet.
 
 Verifying a deployment: delete an Apple-signed-in test account, then check the device's Settings → Apple ID → Sign in with Apple. The app must no longer be listed, and the next sign-in must show Apple's full consent screen again.
+
+---
+
+## 11. Signing out on the phone
+
+The mobile app keeps its Auth0 tokens in react-native-auth0's credentials manager (`mobile/lib/auth0.ts`). The refresh token there renews the access token without a new sign-in, so it is the credential worth stealing. Clearing the credentials manager only forgets it on this phone. A copy taken off the device would keep working until Auth0 expires it.
+
+So a deliberate sign-out (`logout` in `mobile/context/auth-context.tsx`, which `logoutFromAuth0` serves) does three things in order:
+
+```text
+revoke the refresh token (POST /oauth/revoke) → clear the Auth0 web session → clear the credentials manager
+```
+
+1. **Revoke.** `logoutFromAuth0` reads the stored credentials and calls `auth0.auth.revoke({ refreshToken })`. This is best effort. When it fails (offline, Auth0 unreachable, the token already revoked, or credentials that cannot be read), the app logs `auth.sign_out.revoke_failed` with the error code, never the token, and carries on. The person is not told: they asked to sign out, and the phone signs out either way.
+2. **Clear the web session** with `webAuth.clearSession`, so the next Universal Login does not sign the same person straight back in.
+3. **Clear the credentials manager**, in a `finally`, so a cancelled or failed step above never leaves tokens on the phone.
+
+The auth context then clears the account (`clearAccount("signedOut")`: the query cache, `user`, `identity`, a waiting invite, and the upload trays registered in `mobile/lib/account-cleared.ts`). Account deletion signs out the same way, onto Deleted (14.12).
+
+A session that ends on its own takes a shorter path, `handleSessionExpired`: a 401 from the API (section 2) or a password change that killed the refresh token ([Credential changes](./credential-changes.md), section 2.1). It clears the credentials manager and the account with reason `sessionExpired`, which keeps unfinished uploads on the phone for the same person, and does not revoke. After a password change Auth0 has already revoked the token. After a 401 the stored tokens are only dropped from the phone.

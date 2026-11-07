@@ -27,7 +27,8 @@ test("mints for the bytes read from the file, PUTs them typed, and returns the s
   const [url, init] = fetchMock.mock.calls[1];
   expect(url).toBe("https://upload.example.com/avatar");
   expect(init.method).toBe("PUT");
-  expect(init.headers).toEqual({ "Content-Type": "image/jpeg" });
+  // Signed into the URL: storage writes the key once and refuses a second PUT (EV-201).
+  expect(init.headers).toEqual({ "Content-Type": "image/jpeg", "If-None-Match": "*" });
   expect(init.body.type).toBe("image/jpeg");
   expect(init.body.size).toBe(fileBlob.size);
 });
@@ -43,6 +44,17 @@ test("does not PUT to a URL that has already expired", async () => {
     "The upload link expired",
   );
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("treats 412 as an earlier attempt having landed the bytes, so confirm can go ahead", async () => {
+  fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(["x"]) }).mockResolvedValueOnce({
+    ok: false,
+    status: 412,
+  });
+  const slot = { uploadUrl: "https://upload.example.com/avatar", expiresAt: future() };
+  const mint = jest.fn().mockResolvedValue(slot);
+
+  await expect(uploadFile({ uri: "file://avatar.jpg", contentType: "image/jpeg", mint })).resolves.toBe(slot);
 });
 
 test("reports the storage status when the PUT is refused", async () => {
