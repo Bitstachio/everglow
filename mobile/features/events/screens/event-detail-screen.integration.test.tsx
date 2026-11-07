@@ -44,7 +44,9 @@ const mockDeleteDownload = jest.fn();
 const mockVisits = new Map<string, string>();
 
 let mockUser: { id: string } | null = { id: "user-1" };
-let mockParams: { id: string | string[]; arrival?: string; place?: string; reported?: string } = { id: "event-1" };
+let mockParams: { id: string | string[]; arrival?: string; place?: string; reported?: string; cut?: string } = {
+  id: "event-1",
+};
 let mockTrayFocused = true;
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
@@ -69,7 +71,13 @@ jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("expo-router", () => ({
   router: { setParams: jest.fn() },
-  useRouter: () => ({ back: mockBack, replace: mockReplace, push: mockPush, canGoBack: () => true }),
+  useRouter: () => ({
+    back: mockBack,
+    replace: mockReplace,
+    push: mockPush,
+    setParams: jest.fn(),
+    canGoBack: () => true,
+  }),
   useLocalSearchParams: () => mockParams,
   useFocusEffect: (callback: () => void | (() => void)) => {
     const { useEffect } = jest.requireActual<typeof import("react")>("react");
@@ -517,6 +525,37 @@ describe("closed (07.9)", () => {
       galleryClosesAt: "2026-09-21T10:00:00.000Z",
     });
 
+  const cutEvent = () =>
+    buildEvent({
+      galleryState: "CLOSED",
+      galleryOpensAt: new Date(2026, 9, 18, 16, 0).toISOString(),
+      galleryClosesAt: new Date(2026, 10, 3, 12, 0).toISOString(),
+      deactivatedAt: new Date(2026, 10, 3, 12, 0).toISOString(),
+      deactivatedById: "user-1",
+      usage: { members: 24, storageBytes: "0" },
+    });
+
+  test("straight after a cut it closed just now, with how many photos went", async () => {
+    mockParams = { id: "event-1", cut: "148" };
+    await renderScreen({ event: cutEvent(), participants: [host, guest] });
+
+    expect(await screen.findByText("Closed just now")).toBeOnTheScreen();
+    expect(screen.getByText("Oct 18 – Nov 3 · cut early · 24 people")).toBeOnTheScreen();
+    expect(screen.getByText("Roll cut · 148 photos removed")).toBeOnTheScreen();
+    // The result takes the pencil note's place.
+    expect(screen.queryByText(/^photos removed/)).toBeNull();
+    expect(screen.getByLabelText("The photos were removed on 3 Nov.")).toBeOnTheScreen();
+  });
+
+  test("a roll cut earlier says it was cut early, under the day it closed", async () => {
+    await renderScreen({ event: cutEvent(), participants: [host, guest] });
+
+    expect(await screen.findByText("Closed 03.11")).toBeOnTheScreen();
+    expect(screen.getByText("Oct 18 – Nov 3 · cut early · 24 people")).toBeOnTheScreen();
+    expect(screen.getByText("photos removed 3 Nov")).toBeOnTheScreen();
+    expect(screen.queryByText(/^Roll cut/)).toBeNull();
+  });
+
   test("a guest who can't leave is told why", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ event: closedEvent(), participants: [host, guest] });
@@ -559,29 +598,24 @@ describe("held by Everglow (07.10, 07.11)", () => {
 
   test("suspended: nothing is shown or fetched, and a host can cut the roll", async () => {
     await renderScreen({ event: openEvent({ status: "SUSPENDED" }) });
-    const cut = openEvent({ status: "SUSPENDED", galleryState: "CLOSED" });
-    mockDeactivate.mockResolvedValue({ data: { data: cut } });
-    mockFindOne.mockResolvedValue({ data: { data: cut } });
 
     expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
     expect(screen.getByText("Hidden")).toBeOnTheScreen();
     expect(mockListPhotos).not.toHaveBeenCalled();
 
-    const user = userEvent.setup();
-    await user.press(screen.getByRole("button", { name: "Cut the roll" }));
-    // Deletion copy says what goes and for whom (docs/voice.md).
-    expect(
-      await screen.findByText(
-        "Its frames are removed for everyone now, and it stops counting toward your rolls. This can’t be undone.",
-      ),
-    ).toBeOnTheScreen();
-    await user.press(screen.getByRole("button", { name: "Cut it" }));
-    await waitFor(() =>
-      expect(mockDeactivate).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true }),
-    );
-    expect(await screen.findByText("Roll cut.")).toBeOnTheScreen();
+    // No sheet is open, so the cut screen opens straight away.
+    await userEvent.setup().press(screen.getByRole("button", { name: "Cut the roll" }));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/events/[id]/cut", params: { id: "event-1" } });
+    expect(mockDeactivate).not.toHaveBeenCalled();
+  });
+
+  test("suspended: once cut, the roll says so", async () => {
+    mockParams = { id: "event-1", cut: "0" };
+    await renderScreen({ event: openEvent({ status: "SUSPENDED", galleryState: "CLOSED" }) });
+
+    expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
+    expect(screen.getByText("Roll cut")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Cut the roll" })).not.toBeOnTheScreen();
-    expect(screen.getByText("Suspended by Everglow")).toBeOnTheScreen();
   });
 
   test("suspended: a guest can only read why", async () => {
@@ -1536,6 +1570,21 @@ describe("people and the menu", () => {
     expect(screen.getByRole("button", { name: "Roll settings" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Cut the roll now" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Leave the roll" })).toBeOnTheScreen();
+  });
+
+  test("Cut the roll now opens the cut screen once the menu has gone", async () => {
+    await renderScreen({ photos: oneFrame });
+    const user = userEvent.setup();
+    await user.press(await screen.findByRole("button", { name: "Roll menu" }));
+    // iOS drops a modal presented over one that is still closing.
+    const nativeDismiss = screen.getByTestId("roll-dialog", { includeHiddenElements: true }).props.onDismiss;
+    await user.press(screen.getByRole("button", { name: "Cut the roll now" }));
+
+    await waitFor(() => expect(screen.queryByTestId("roll-dialog", { includeHiddenElements: true })).toBeNull());
+    expect(mockPush).not.toHaveBeenCalled();
+    await act(async () => nativeDismiss());
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/events/[id]/cut", params: { id: "event-1" } });
+    expect(mockDeactivate).not.toHaveBeenCalled();
   });
 
   test("a host sends the envelope from the menu", async () => {
