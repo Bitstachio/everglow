@@ -175,3 +175,15 @@ Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xa
   ```
 
   It sends a `TEST` notification to every phone the account has registered and prints what Expo answered.
+- **Against a real Postgres.** The unit and integration suites mock Prisma, so the claim, `SKIP LOCKED`, the lease
+  match on `timestamp(3)`, the single-replica locks and the device cap under concurrency are tested by an opt-in
+  suite, `api/test/db/notifications.db.spec.ts`: two senders on separate pools never claim the same row, a pass
+  that died is recovered once its lease runs out, a pass that lost its lease writes nothing, receipts run on one
+  instance, and concurrent registrations keep exactly 10 phones. From `api/`, against an empty migrated database
+  (never a shared one; [testing.md](../api/docs/testing.md#database-suite)):
+
+  ```bash
+  DB_TEST_DATABASE_URL=postgresql://…/everglow_dbtest pnpm run test:db
+  ```
+
+  Without `DB_TEST_DATABASE_URL` it is skipped with a message. It is not in CI yet.
