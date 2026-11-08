@@ -118,6 +118,11 @@ jest.mock("expo-file-system", () => ({
   UploadType: { BINARY_CONTENT: 0 },
 }));
 jest.mock("@react-native-community/netinfo", () => ({ addEventListener: () => () => undefined }));
+// 06.6 asks about notes only while the system hasn't asked; most tests here are past that.
+const mockReadPushPermission = jest.fn();
+jest.mock("@/features/notifications/lib/push", () => ({
+  readPushPermission: (...args: unknown[]) => mockReadPushPermission(...args),
+}));
 
 const DAY = 24 * 60 * 60 * 1000;
 const MB = 1024 * 1024;
@@ -211,6 +216,7 @@ const saveAll = async (user: ReturnType<typeof userEvent.setup>, { includeMine =
 beforeEach(() => {
   mockUser = { id: "user-1" };
   mockParams = { id: "event-1" };
+  mockReadPushPermission.mockReset().mockResolvedValue("granted");
   mockTrayFocused = true;
   mockVisits.clear();
   mockFindOne.mockReset();
@@ -465,6 +471,17 @@ describe("arriving from an envelope (06.6, 06.7)", () => {
     mockParams = { id: "event-1", arrival: "joined", place: "2" };
     await renderScreen({ participants: [host, guest], photos: oneFrame });
     expect(await screen.findByRole("alert")).toHaveTextContent("You’re on the roll · 2nd", { exact: false });
+  });
+
+  test("asks about notes after joining, with the note on the slip's edge instead of under it", async () => {
+    mockReadPushPermission.mockResolvedValue("undetermined");
+    mockUser = { id: "user-2" };
+    mockParams = { id: "event-1", arrival: "joined", place: "2" };
+    await renderScreen({ participants: [host, guest], photos: oneFrame });
+
+    expect(await screen.findByText("Want a note when photos land?")).toBeOnTheScreen();
+    expect(screen.getByText("You’re on the roll · 2nd")).toBeOnTheScreen();
+    expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
   });
 
   test("says you were already on it", async () => {

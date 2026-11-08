@@ -114,7 +114,7 @@ const NOTICE_MS = 4000;
 export const useEventDetailScreen = () => {
   const { t } = useTranslation("roll");
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, arrival } = useLocalSearchParams<{ id: string; arrival?: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
   // The roll as it was when Leave was confirmed. Leaving evicts its caches
@@ -137,6 +137,8 @@ export const useEventDetailScreen = () => {
   const tray = useUploadTray(eventId);
   // After joining, or opening an envelope you're already on (06.6, 06.7).
   const arrivalNote = useArrivalNote();
+  // 06.6 asks about notes after a join, with the arrival note on its edge instead of under it.
+  const [notesAskOpen, setNotesAskOpen] = useState(false);
 
   // When this device last looked, read once: the ticks stay for this visit.
   const [lastVisit] = useState(() => (eventId && user ? readLastVisit(user.id, eventId) : null));
@@ -411,7 +413,8 @@ export const useEventDetailScreen = () => {
     notice: tray.storageError ? t("result.localStorage") : notice,
     openedVisible,
     sheet: shownSheet,
-    arrivalNote,
+    arrivalNote: notesAskOpen ? null : arrivalNote,
+    notesAsk: { justJoined: arrival === "joined", edge: arrivalNote, onVisibleChange: setNotesAskOpen },
     isLeaving: leaveEventMutation.isPending,
     isCutting: deactivateMutation.isPending,
     removing,

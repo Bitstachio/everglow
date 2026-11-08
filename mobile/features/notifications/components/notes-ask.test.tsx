@@ -1,97 +1,157 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { renderWithI18n } from "@/testing/render";
-import { registerThisDevice } from "../lib/device-registration";
-import { askPushPermission, readPushPermission } from "../lib/push";
+import { requestNotificationPermission } from "../lib/notification-permission";
+import { NOTES_OFFER_AGAIN_AFTER_MS } from "../lib/notes-offer";
+import { readPushPermission } from "../lib/push";
 import { NotesAsk } from "./notes-ask";
 
-let mockParams: { arrival?: string } = {};
-const mockStore = new Map<string, string>();
+/** The app's documents folder: gone with the app, unlike the Keychain. */
+const mockFiles = new Map<string, string>();
 
-jest.mock("expo-router", () => ({ useLocalSearchParams: () => mockParams }));
-jest.mock("expo-secure-store", () => ({
-  getItem: (key: string) => mockStore.get(key) ?? null,
-  setItem: (key: string, value: string) => mockStore.set(key, value),
+jest.mock("expo-file-system", () => ({
+  Paths: { document: "file://documents" },
+  File: jest.fn().mockImplementation((directory: string, name: string) => {
+    const uri = `${directory}/${name}`;
+    return {
+      exists: mockFiles.has(uri),
+      textSync: () => mockFiles.get(uri),
+      write: (text: string) => mockFiles.set(uri, text),
+    };
+  }),
 }));
 // The sheet's own animation is tested with it; here only what it holds matters.
 jest.mock("@/components/ui/bottom-sheet/bottom-sheet", () => ({
   BottomSheet: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (visible ? children : null),
 }));
-jest.mock("../lib/push", () => ({ readPushPermission: jest.fn(), askPushPermission: jest.fn() }));
-jest.mock("../lib/device-registration", () => ({ registerThisDevice: jest.fn() }));
+jest.mock("../lib/push", () => ({ readPushPermission: jest.fn() }));
+jest.mock("../lib/notification-permission", () => ({ requestNotificationPermission: jest.fn() }));
 
 const readPermission = jest.mocked(readPushPermission);
-const askPermission = jest.mocked(askPushPermission);
-const register = jest.mocked(registerThisDevice);
+const requestPermission = jest.mocked(requestNotificationPermission);
+const NOT_NOW = "file://documents/notes-not-now.json";
+const EDGE = "You’re on the roll · 25th";
 
 beforeEach(() => {
-  mockParams = { arrival: "joined" };
-  mockStore.clear();
+  mockFiles.clear();
   jest.clearAllMocks();
   readPermission.mockResolvedValue("undetermined");
-  askPermission.mockResolvedValue(true);
-  register.mockResolvedValue(true);
+  requestPermission.mockResolvedValue(true);
 });
 
-const renderAsk = () => renderWithI18n(<NotesAsk />);
+const renderAsk = (props: Partial<React.ComponentProps<typeof NotesAsk>> = {}) =>
+  renderWithI18n(<NotesAsk justJoined edge={EDGE} {...props} />);
 
 const question = () => screen.queryByText("Want a note when photos land?");
 
+/** Let the permission check settle before looking for nothing. */
+const settle = async () => {
+  await waitFor(() => expect(readPermission.mock.results.every((result) => result.type === "return")).toBe(true));
+  await Promise.resolve();
+};
+
 describe("NotesAsk (06.6)", () => {
-  it("asks once someone has just joined and the system hasn't asked yet", async () => {
-    await renderAsk();
+  it("asks once someone has just joined, with the arrival note on its edge", async () => {
+    const onVisibleChange = jest.fn();
+    await renderAsk({ onVisibleChange });
 
     await waitFor(() => expect(question()).toBeTruthy());
+    expect(screen.getByText(EDGE)).toBeTruthy();
+    expect(screen.getByText("A note when the gallery opens, and the day before photos are removed.")).toBeTruthy();
+    expect(onVisibleChange).toHaveBeenLastCalledWith(true);
   });
 
-  it("turns notes on: the system prompt, then this phone is registered", async () => {
+  it("keeps its edge once the roll's arrival note has gone", async () => {
+    const { rerender } = await renderAsk();
+    await waitFor(() => expect(question()).toBeTruthy());
+
+    await rerender(<NotesAsk justJoined={false} edge={null} />);
+
+    expect(question()).toBeTruthy();
+    expect(screen.getByText(EDGE)).toBeTruthy();
+  });
+
+  it("turns notes on with the system prompt, and closes", async () => {
+    const onVisibleChange = jest.fn();
+    await renderAsk({ onVisibleChange });
+    await waitFor(() => expect(question()).toBeTruthy());
+
+    await fireEvent.press(screen.getByText("Turn on notes"));
+
+    expect(requestPermission).toHaveBeenCalled();
+    await waitFor(() => expect(question()).toBeNull());
+    expect(onVisibleChange).toHaveBeenLastCalledWith(false);
+    expect(mockFiles.has(NOT_NOW)).toBe(false);
+  });
+
+  it("closes when the system prompt can't be shown", async () => {
+    requestPermission.mockRejectedValue(new Error("unavailable"));
     await renderAsk();
     await waitFor(() => expect(question()).toBeTruthy());
 
     await fireEvent.press(screen.getByText("Turn on notes"));
 
-    await waitFor(() => expect(mockStore.get("push.notes-asked")).toBe("1"));
-    expect(askPermission).toHaveBeenCalled();
-    expect(register).toHaveBeenCalled();
     await waitFor(() => expect(question()).toBeNull());
   });
 
-  it("registers nothing when the person says no to the system prompt", async () => {
-    askPermission.mockResolvedValue(false);
-    await renderAsk();
-    await waitFor(() => expect(question()).toBeTruthy());
-
-    await fireEvent.press(screen.getByText("Turn on notes"));
-
-    await waitFor(() => expect(mockStore.get("push.notes-asked")).toBe("1"));
-    expect(register).not.toHaveBeenCalled();
-    await waitFor(() => expect(question()).toBeNull());
-  });
-
-  it("Not now closes it without the system prompt, for good", async () => {
+  it("Not now closes it without the system prompt, and remembers when", async () => {
     await renderAsk();
     await waitFor(() => expect(question()).toBeTruthy());
 
     await fireEvent.press(screen.getByText("Not now"));
 
-    expect(askPermission).not.toHaveBeenCalled();
-    expect(mockStore.get("push.notes-asked")).toBe("1");
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(question()).toBeNull();
+    expect(JSON.parse(mockFiles.get(NOT_NOW) ?? "{}").at).toEqual(expect.any(String));
   });
 
-  it.each([
-    ["the roll was opened another way", { arrival: undefined }, "undetermined", false],
-    ["the person was already on the roll", { arrival: "already" }, "undetermined", false],
-    ["the system already asked", { arrival: "joined" }, "denied", false],
-    ["this phone was asked before", { arrival: "joined" }, "undetermined", true],
-  ])("does not ask when %s", async (_label, params, permission, askedBefore) => {
-    mockParams = params;
-    readPermission.mockResolvedValue(permission as "undetermined" | "denied");
-    if (askedBefore) mockStore.set("push.notes-asked", "1");
+  it("doesn't ask on a join within 30 days of Not now", async () => {
+    mockFiles.set(
+      NOT_NOW,
+      JSON.stringify({ at: new Date(Date.now() - NOTES_OFFER_AGAIN_AFTER_MS + 60_000).toISOString() }),
+    );
 
     await renderAsk();
 
-    // Let the permission check settle before looking.
-    await waitFor(() => expect(readPermission.mock.results.every((r) => r.type === "return")).toBe(true));
     await Promise.resolve();
+    expect(readPermission).not.toHaveBeenCalled();
+    expect(question()).toBeNull();
+  });
+
+  it("asks again on a join 30 days after Not now, while the system still hasn't asked", async () => {
+    mockFiles.set(NOT_NOW, JSON.stringify({ at: new Date(Date.now() - NOTES_OFFER_AGAIN_AFTER_MS).toISOString() }));
+
+    await renderAsk();
+
+    await waitFor(() => expect(question()).toBeTruthy());
+  });
+
+  it("asks when what it remembered can't be read", async () => {
+    mockFiles.set(NOT_NOW, "not json");
+
+    await renderAsk();
+
+    await waitFor(() => expect(question()).toBeTruthy());
+  });
+
+  it.each([
+    ["the person didn't just join", false, "undetermined"],
+    ["the system already asked and was refused", true, "denied"],
+    ["notifications are already allowed", true, "granted"],
+  ] as const)("does not ask when %s", async (_label, justJoined, permission) => {
+    readPermission.mockResolvedValue(permission);
+
+    await renderAsk({ justJoined });
+
+    await settle();
+    expect(question()).toBeNull();
+  });
+
+  it("does not ask when the permission can't be read", async () => {
+    readPermission.mockRejectedValue(new Error("unavailable"));
+
+    await renderAsk();
+
+    await settle();
     expect(question()).toBeNull();
   });
 });

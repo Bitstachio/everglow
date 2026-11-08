@@ -193,7 +193,7 @@ const EventDetailScreen = () => {
         {/* A failed Leave, or someone a host took off the roll. */}
         {screen.notice ? <Notice message={screen.notice} className="bottom-8" /> : null}
         <Sheets screen={screen} />
-        <NotesAsk />
+        <NotesAsk {...screen.notesAsk} />
         <FilmGrain />
       </SafeAreaView>
     );
@@ -578,7 +578,7 @@ const EventDetailScreen = () => {
 
       <FilmGrain />
       <Sheets screen={screen} />
-      <NotesAsk />
+      <NotesAsk {...screen.notesAsk} />
     </View>
   );
 };
