@@ -29,6 +29,21 @@ The Terraform is in `api/infra/`: the bucket policy in `main.tf`, the rest in `p
 
 Each one is itself alerted. Applying Terraform that redeploys the image processor calls `UpdateFunctionCode`, so a deploy raises the same alert as a bucket policy change.
 
+## What is kept about photos and their readers, and for how long
+
+Logs and alerts name people by opaque ids, object keys (which contain the uploader's user id) and, in a few places, IP addresses. None of them holds a photo or free text a user wrote.
+
+| Record | Where | Holds | Kept | Set in |
+| --- | --- | --- | --- | --- |
+| API logs | CloudWatch Logs, `/copilot/everglow-<env>-api` | User, event, report and photo ids, request method and path, error details. No headers, bodies, emails or tokens ([logging conventions](../api/docs/logging-conventions.md)). | 90 days | `logging.retention` in `api/copilot/api/manifest.yml` |
+| Image processor logs | CloudWatch Logs, `/aws/lambda/everglow-image-processor-dev` | Bucket and object keys of the photos it processed, and its errors | 14 days | `aws_cloudwatch_log_group.image_processor` |
+| Failed photo notifications | SQS, `everglow-photo-uploads-dlq-dev` | The S3 notification: bucket, object key, and the uploader's IP address as S3 recorded it | 14 days | `aws_sqs_queue.photo_uploads_dlq` |
+| CloudTrail | S3, `everglow-audit-logs-dev` | Every read and write of a photo object (key, caller, IP address, time) and every configuration write in the account | 365 days, then expired | `aws_s3_bucket_lifecycle_configuration.audit_logs` |
+| Alert email | The mailboxes in `alert_emails` | Photo read alerts: the object key, the caller and their IP address. Control change alerts: the caller and their IP address. API log alarms: the alarm name, its meaning and a console link, no ids. | Not enforced: as long as the mailbox keeps it. SNS keeps nothing once delivered. Delete an alert once what it raised is closed. | `aws_sns_topic.security_alerts` |
+| Alarm metrics and history | CloudWatch | Counts and alarm state changes, no ids | 15 months (metrics), 30 days (history), both fixed by AWS | `api/infra/moderation-alerts.tf` |
+
+**The audit bucket's protections.** Public access is blocked, non-TLS requests are refused, only CloudTrail may write to it and only for this trail, and log file validation writes signed digests, so a changed or deleted log file can be detected (`aws cloudtrail validate-logs`). Turning the trail off or changing it is alerted. It is encrypted with S3-managed keys, not KMS, and has no versioning or Object Lock: someone with S3 rights in the account can delete the logs, and that is not alerted. The production plan below moves them to a separate account with Object Lock.
+
 ## When an alert is not a known action
 
 An alert that nobody can match to an approved action (a deploy, a Terraform apply, a break-glass read) is a confidentiality incident. Contain it first, then enter it in the [confidentiality incident register](./incident-register.md), which says what each entry records and who must be told.
