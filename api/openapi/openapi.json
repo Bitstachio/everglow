@@ -732,6 +732,16 @@
               "default": 50,
               "type": "number"
             }
+          },
+          {
+            "name": "addedById",
+            "required": false,
+            "in": "query",
+            "description": "Only photos this person added, with the same visibility, order and paging as the full list. Works for former members whose photos were kept. A blocked uploader, or anyone with no photos the caller can see, gets an empty page.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
           }
         ],
         "responses": {

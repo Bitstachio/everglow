@@ -358,7 +358,9 @@ export class PhotosService {
     const photos = await this.prisma.photo.findMany({
       where: {
         AND: [
-          { eventId, status: PhotoStatus.READY },
+          // addedById narrows to one person's frames, members or not; the
+          // filters below still apply, so a blocked uploader yields nothing.
+          { eventId, status: PhotoStatus.READY, ...(query.addedById && { addedById: query.addedById }) },
           accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
           // Reported and blocked photos drop out here (docs/moderation.md).
           await this.photoVisibilityService.whereVisibleTo(callerId, event),

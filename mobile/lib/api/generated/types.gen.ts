@@ -1468,6 +1468,10 @@ export type PhotosControllerListPhotosData = {
      */
     cursor?: string;
     limit?: number;
+    /**
+     * Only photos this person added, with the same visibility, order and paging as the full list. Works for former members whose photos were kept. A blocked uploader, or anyone with no photos the caller can see, gets an empty page.
+     */
+    addedById?: string;
   };
   url: "/api/v2/events/{eventId}/photos";
 };
