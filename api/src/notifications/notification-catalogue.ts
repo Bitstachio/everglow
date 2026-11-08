@@ -135,8 +135,7 @@ export const NOTIFICATION_CATALOGUE: Catalogue = {
     required: false,
     channel: "reports",
     ttlSeconds: 7 * 24 * 60 * 60,
-    isData: (data): data is NotificationDataByType["REPORT_TO_CHECK"] =>
-      hasStringFields(data, "eventId", "targetKey"),
+    isData: (data): data is NotificationDataByType["REPORT_TO_CHECK"] => hasStringFields(data, "eventId", "targetKey"),
     dedupeKey: (userId, { eventId, targetKey }) => `report_to_check:${eventId}:${targetKey}:${userId}`,
     render: ({ eventId }, locale) => ({
       ...REPORT_TO_CHECK_COPY[locale],
@@ -167,8 +166,7 @@ export const NOTIFICATION_CATALOGUE: Catalogue = {
   MEMBER_REMOVED: {
     required: true,
     channel: "account",
-    isData: (data): data is NotificationDataByType["MEMBER_REMOVED"] =>
-      hasStringFields(data, "eventId", "reportId"),
+    isData: (data): data is NotificationDataByType["MEMBER_REMOVED"] => hasStringFields(data, "eventId", "reportId"),
     dedupeKey: (userId, { eventId, reportId }) => `member_removed:${eventId}:${reportId}:${userId}`,
     render: ({ eventId }, locale) => ({
       ...MEMBER_REMOVED_COPY[locale],

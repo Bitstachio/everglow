@@ -1025,11 +1025,7 @@ export class ReportsService {
       });
     }
 
-    if (
-      consequences.includes(ReportEscalation.HIDE_THRESHOLD_REACHED) &&
-      report.photoId &&
-      organizers.length > 0
-    ) {
+    if (consequences.includes(ReportEscalation.HIDE_THRESHOLD_REACHED) && report.photoId && organizers.length > 0) {
       queued += await this.notifications.notifyNow(NotificationType.PHOTO_HIDDEN, organizers, {
         eventId: report.eventId,
         photoId: report.photoId,
