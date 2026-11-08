@@ -115,7 +115,7 @@ test("upcoming: every schedule row can still change", async () => {
   expect(screen.getByRole("button", { name: "Film, 7-day roll" })).toBeOnTheScreen();
   expect(screen.getByLabelText("Storage, 0 of 3 GB")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Envelopes, Two · reset" })).toBeOnTheScreen();
-  expect(screen.getByLabelText("Delete the roll, After it closes")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Delete the roll, After it closes" })).toBeOnTheScreen();
   expect(screen.queryByText(/locked once the gallery opens/)).toBeNull();
 });
 
@@ -265,6 +265,38 @@ test("when waits for the account's latest date before it opens", async () => {
   expect(when).not.toHaveProp("accessibilityRole", "button");
 });
 
+describe("the envelopes value comes from the roll's invites", () => {
+  test("two while both envelopes can be reset", async () => {
+    await renderScreen(buildEvent({ galleryState: "OPEN" }));
+    expect(await screen.findByRole("button", { name: "Envelopes, Two · reset" })).toBeOnTheScreen();
+  });
+
+  test("one when the API lists only one", async () => {
+    await renderScreen(
+      buildEvent({
+        galleryState: "UPCOMING",
+        invites: [{ accessLevel: "PARTICIPANT", invitationUrl: "https://events.everglow.app/invite/weekend" }],
+      }),
+    );
+    expect(await screen.findByRole("button", { name: "Envelopes, One · reset" })).toBeOnTheScreen();
+  });
+
+  test("none, with nothing to reset", async () => {
+    await renderScreen(buildEvent({ galleryState: "OPEN", invites: [] }));
+    expect(await screen.findByRole("button", { name: "Envelopes, None" })).toBeOnTheScreen();
+  });
+
+  test("on hold while Everglow reviews the roll", async () => {
+    await renderScreen(buildEvent({ galleryState: "OPEN", status: "UNDER_REVIEW" }));
+    expect(await screen.findByRole("button", { name: "Envelopes, Two · on hold" })).toBeOnTheScreen();
+  });
+
+  test("closed once the roll has closed, when the API lists none", async () => {
+    await renderScreen(buildEvent({ galleryState: "CLOSED", invites: [] }));
+    expect(await screen.findByRole("button", { name: "Envelopes, Closed" })).toBeOnTheScreen();
+  });
+});
+
 test("envelopes opens the roll's envelopes", async () => {
   await renderScreen(buildEvent({ galleryState: "OPEN" }));
   await userEvent.setup().press(await screen.findByRole("button", { name: "Envelopes, Two · reset" }));
@@ -324,11 +356,17 @@ describe("a closed roll", () => {
   });
 });
 
-test("an open roll can't be deleted from settings yet", async () => {
-  await renderScreen(buildEvent({ galleryState: "OPEN" }));
-  expect(await screen.findByLabelText("Delete the roll, After it closes")).toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: /Delete the roll/ })).toBeNull();
-});
+test.each(["UPCOMING", "OPEN"] as const)(
+  "an %s roll says why it can't be deleted yet, without asking the API",
+  async (galleryState) => {
+    await renderScreen(buildEvent({ galleryState }));
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Delete the roll, After it closes" }));
+
+    expect(mockPush).toHaveBeenCalledWith("/events/event-1/cant-delete");
+    expect(screen.queryByTestId("delete-roll-dialog")).toBeNull();
+    expect(mockRemove).not.toHaveBeenCalled();
+  },
+);
 
 test("a film change refused because the roll opened says so and reloads the roll", async () => {
   const event = buildEvent({ galleryState: "UPCOMING", galleryWindowDays: 7, galleryWindowOptions: [3, 7, 14, 30] });

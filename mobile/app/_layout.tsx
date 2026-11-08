@@ -82,6 +82,9 @@ const RootNavigator = () => {
         <Stack.Screen name="events/[id]/settings" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/edit-title" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/edit-description" options={{ headerShown: false }} />
+        {/* Cut the roll rises over the roll and closes with its X. */}
+        <Stack.Screen name="events/[id]/cut" options={{ headerShown: false, presentation: "fullScreenModal" }} />
+        <Stack.Screen name="events/[id]/cant-delete" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );

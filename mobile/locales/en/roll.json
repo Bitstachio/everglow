@@ -80,8 +80,11 @@
   },
   "closed": {
     "top": "Closed {{date}}",
+    "justNow": "Closed just now",
     "edge_one": "{{range}} · {{count}} person",
     "edge_other": "{{range}} · {{count}} people",
+    "edgeCut_one": "{{range}} · cut early · {{count}} person",
+    "edgeCut_other": "{{range}} · cut early · {{count}} people",
     "removed": "photos removed {{date}}",
     "removedLabel": "The photos were removed on {{date}}.",
     "whoWasThere": "Who was there · {{count}}",
@@ -99,6 +102,7 @@
     "rollCall": "Roll call",
     "settings": "Roll settings",
     "cut": "Cut the roll now",
+    "delete": "Delete the roll",
     "leave": "Leave the roll"
   },
   "settings": {
@@ -140,7 +144,15 @@
     "storage": "Storage",
     "storageUsed": "{{used}} of {{limit}}",
     "envelopes": "Envelopes",
-    "envelopesTwo": "Two · reset",
+    "envelopeCount": {
+      "0": "None",
+      "1": "One",
+      "2": "Two"
+    },
+    "envelopesReset": "{{count}} · reset",
+    "envelopesOnHold": "{{count}} · on hold",
+    "envelopesClosed": "Closed",
+    "envelopesSuspended": "Suspended",
     "delete": "Delete the roll",
     "deleteAfter": "After it closes",
     "deleteRoll": {
@@ -212,10 +224,42 @@
     "failed": "Couldn’t leave the roll. Try again."
   },
   "cut": {
-    "title": "Cut the roll?",
-    "body": "Its frames are removed for everyone now, and it stops counting toward your rolls. This can’t be undone.",
-    "confirm": "Cut it",
-    "cancel": "Keep it"
+    "edge": "Hosts only",
+    "title": "Cut the roll",
+    "titleDim": "now?",
+    "now": "Now",
+    "nowValue": "Nobody can add photos or join",
+    "atOnce": "At once",
+    "removed_one": "Its one photo is removed",
+    "removed_other": "All {{count}} photos are removed",
+    "removedHidden": "Its hidden photos are removed",
+    "removedNone": "No photos to remove",
+    "stays": "Stays",
+    "staysValue_one": "The event and its {{count}} person",
+    "staysValue_other": "The event and its {{count}} people",
+    "undone": "Can’t be undone",
+    "undoneSave": "Can’t be undone · save the roll first ↓",
+    "confirm_one": "Cut it and remove 1 photo",
+    "confirm_other": "Cut it and remove {{count}} photos",
+    "confirmHidden": "Cut it and remove the photos",
+    "confirmNone": "Cut it now",
+    "cancel": "Keep it open",
+    "close": "Close",
+    "failed": "Couldn’t cut the roll. Try again."
+  },
+  "cantDelete": {
+    "title": "Can’t delete",
+    "titleDim": "this roll yet.",
+    "stillOpen": "Still open",
+    "notOpenYet": "Not open yet",
+    "waitUntil": "Cut it or wait until {{date}}",
+    "cutFirst": "Cut it first",
+    "reports_one": "{{count}} report",
+    "reports_other": "{{count}} reports",
+    "checkReports": "Check them first",
+    "underReview": "Under review",
+    "waitForEverglow": "Wait for Everglow",
+    "body": "A roll is deleted only after it closes, so nobody loses photos mid-party, and only when nothing is waiting on a decision."
   },
   "people": {
     "edge": "On the roll · {{count}}",
@@ -277,7 +321,7 @@
     "deleted": "Frame deleted.",
     "gone_one": "That frame was deleted.",
     "gone_other": "Those frames were deleted.",
-    "cut": "Roll cut.",
+    "cut": "Roll cut",
     "removed": "{{name}} is off the roll."
   },
   "loadFailed": "Couldn’t load this roll",
