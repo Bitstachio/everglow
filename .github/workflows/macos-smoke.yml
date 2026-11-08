@@ -9,6 +9,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   login-ios:
@@ -27,6 +28,8 @@ jobs:
       EXPO_PUBLIC_AUTH0_AUDIENCE: ${{ secrets.EXPO_PUBLIC_AUTH0_AUDIENCE }}
       EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL: everglowmobile://password-change/result
       MAESTRO_VERSION: "2.10.0"
+      # Bump to invalidate every Mac smoke cache this workflow keeps.
+      CACHE_EPOCH: v1
 
     steps:
       - uses: actions/checkout@v4
@@ -111,6 +114,17 @@ jobs:
           xcrun simctl bootstatus "$DEVICE_ID" -b
           # Reduce Auth0 password-field fights with iOS AutoFill.
           xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false || true
+
+      # CocoaPods download cache only (not ios/Pods). ios/ is gitignored CNG
+      # output, so Podfile.lock does not exist until after prebuild; the key
+      # stands in for what decides pod versions (JS lockfile + Expo config).
+      - name: Cache CocoaPods downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-
 
       - name: Prebuild native iOS project
         run: pnpm exec expo prebuild --platform ios --non-interactive
