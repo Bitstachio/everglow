@@ -129,12 +129,54 @@ jobs:
       - name: Prebuild native iOS project
         run: pnpm exec expo prebuild --platform ios --non-interactive
 
+      # expo run:ios does not pass -derivedDataPath, so a restored default
+      # DerivedData tree is easy to poison across Xcode image updates. Drive
+      # xcodebuild ourselves into a fixed path we can cache, then simctl install.
+      - name: Record Xcode version
+        id: xcode
+        working-directory: ${{ github.workspace }}
+        run: |
+          xcodebuild -version
+          echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/everglow-deriveddata
+          # Exact key only: a partial DerivedData hit against a different native
+          # graph is often slower than a cold compile.
+          key: ${{ runner.os }}-deriveddata-${{ env.CACHE_EPOCH }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
+
       - name: Build and install Release (no Metro)
-        run: >
-          pnpm exec expo run:ios
-          --configuration Release
-          --device "$DEVICE_ID"
-          --no-bundler
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          WORKSPACE="$(ls -d ios/*.xcworkspace | head -1)"
+          SCHEME="$(basename "$WORKSPACE" .xcworkspace)"
+          DERIVED_DATA="${HOME}/everglow-deriveddata"
+          ARCH="$(uname -m)"
+          mkdir -p "$DERIVED_DATA"
+          # Hosted macos runners are Apple Silicon; Release otherwise builds
+          # arm64+x86_64 for the simulator and roughly doubles compile work.
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -derivedDataPath "$DERIVED_DATA" \
+            -destination "platform=iOS Simulator,id=${DEVICE_ID}" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            ARCHS="$ARCH" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          APP_PATH="$(find "$DERIVED_DATA/Build/Products/Release-iphonesimulator" -maxdepth 2 -name '*.app' | head -1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app under $DERIVED_DATA/Build/Products/Release-iphonesimulator"
+            exit 1
+          fi
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
 
       - name: Maestro login smoke
         run: pnpm run test:e2e:login:ios:ci
