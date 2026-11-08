@@ -81,6 +81,7 @@ const RootNavigator = () => {
         {/* Chapter 11: the roll call and the people removed from it draw their own top bars. */}
         <Stack.Screen name="events/[id]/people" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/removed" options={{ headerShown: false }} />
+        <Stack.Screen name="events/[id]/frames" options={{ headerShown: false }} />
         {/* Roll settings draws its own top bar. */}
         <Stack.Screen name="events/[id]/settings" options={{ headerShown: false }} />
         <Stack.Screen name="events/[id]/edit-title" options={{ headerShown: false }} />

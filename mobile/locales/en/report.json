@@ -84,6 +84,7 @@
     "reportPerson": "Report {{name}}",
     "reportRoll": "Report this roll",
     "changeRole": "Change role",
+    "seeFrames": "See their frames",
     "remove": "Remove from the roll",
     "reports": "Reports",
     "reportsToCheck": "Reports · {{count}} to check"

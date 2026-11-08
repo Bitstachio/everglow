@@ -2,7 +2,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { MenuAction } from "@/components/ui/menu-action";
 import { Monochrome } from "@/components/ui/monochrome";
-import { Flag, Prohibit, UserMinus, Users } from "phosphor-react-native";
+import { Flag, Image, Prohibit, UserMinus, Users } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { firstName } from "../lib/roll-page";
@@ -17,13 +17,15 @@ type PersonMenuProps = {
   onReport: () => void;
   onBlock: () => void;
   onUnblock: () => void;
+  /** Opens only their frames; omitted on a roll with no frames to show. */
+  onSeeFrames?: () => void;
   /** Hosts only (11.3). */
   onChangeRole?: () => void;
   /** Hosts only (11.4). */
   onRemove?: () => void;
 };
 
-/** 11.2 / 11.8 A person on the roll call: report or block them, and for hosts change their role or remove them. */
+/** A person on the roll call: see their frames, report or block them, and for hosts change their role or remove them. */
 export const PersonMenu = ({
   person,
   roleLabel,
@@ -31,6 +33,7 @@ export const PersonMenu = ({
   onReport,
   onBlock,
   onUnblock,
+  onSeeFrames,
   onChangeRole,
   onRemove,
 }: PersonMenuProps) => {
@@ -57,6 +60,7 @@ export const PersonMenu = ({
         </View>
       </View>
       {onChangeRole ? <MenuAction label={t("menu.changeRole")} icon={Users} onPress={onChangeRole} /> : null}
+      {onSeeFrames ? <MenuAction label={t("menu.seeFrames")} icon={Image} onPress={onSeeFrames} /> : null}
       <MenuAction label={t("menu.reportPerson", { name: firstName(name) })} icon={Flag} onPress={onReport} />
       {person.isBlockedByCaller ? (
         <MenuAction label={t("menu.unblock", { name: firstName(name) })} icon={Prohibit} onPress={onUnblock} />

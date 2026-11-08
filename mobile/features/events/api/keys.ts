@@ -16,6 +16,8 @@ export const eventsKeys = {
   bans: (eventId: string) => eventsControllerListBansQueryKey({ path: { eventId } }),
   photos: (eventId: string) => photosControllerListPhotosQueryKey({ path: { eventId } }),
   gallery: (eventId: string) => [...eventsKeys.photos(eventId), "gallery"] as const,
+  /** One person's frames on a roll. Nested under `photos`, so invalidating those refreshes it. */
+  personFrames: (eventId: string, userId: string) => [...eventsKeys.photos(eventId), "person", userId] as const,
   /** The envelope behind an invite token (06.4–06.13). */
   invitePreview: (token: string) => eventsControllerPreviewInviteQueryKey({ path: { token } }),
   /** A roll's first frames on Home. Nested under `photos`, so invalidating those refreshes it. */

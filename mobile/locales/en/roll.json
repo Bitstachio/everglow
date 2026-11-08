@@ -483,5 +483,15 @@
     "loadFailed": "Couldn’t load the people removed from this roll.",
     "retry": "Try again",
     "failedTitle": "Couldn’t let them back in"
+  },
+  "personFrames": {
+    "title": "{{name}}’s frames",
+    "edge_one": "{{count}} frame on the roll",
+    "edge_other": "{{count}} frames on the roll",
+    "loading": "Loading {{name}}’s frames",
+    "empty": "{{name}} has no frames you can see.",
+    "noFrames": "This roll has no frames to show.",
+    "loadFailed": "Couldn’t load these frames.",
+    "retry": "Try again"
   }
 }

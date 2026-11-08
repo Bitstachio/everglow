@@ -105,6 +105,10 @@ export const storagePair = (usedBytes: number, limitBytes: number): { used: stri
   return { used: usedUnit === limit.split(" ")[1] ? (usedValue ?? used) : used, limit };
 };
 
+/** Only an open roll that isn't suspended has frames to show. */
+export const rollShowsFrames = (event: Pick<EventResponseDto, "status" | "galleryState"> | null) =>
+  event !== null && event.status !== "SUSPENDED" && event.galleryState === "OPEN";
+
 /** First token of a display name. e.g. "Maya" from "Maya Chen". */
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
 
