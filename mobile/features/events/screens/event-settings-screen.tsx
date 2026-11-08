@@ -5,12 +5,12 @@ import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IndexRow } from "@/components/ui/index-row";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
-import { Slip } from "@/components/ui/slip";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
 import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
 import { CoverCrop } from "../components/cover-crop";
+import { DeleteRollSlip } from "../components/delete-roll-slip";
 import { FilmChoice } from "../components/film-choice";
 import { WhenSlip } from "../components/when-slip";
 import { useEventSettingsScreen } from "../hooks/use-event-settings-screen";
@@ -147,26 +147,15 @@ const EventSettingsScreen = () => {
         onClose={deleteRoll.onClose}
         onClosed={deleteRoll.onClosed}
       >
-        <Slip edge={deleteRoll.edge} title={t("roll:settings.deleteRoll.title")} body={deleteRoll.body}>
-          {deleteRoll.error ? (
-            <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
-              {deleteRoll.error}
-            </Text>
-          ) : null}
-          <Button
-            title={deleteRoll.confirmLabel}
-            variant="danger"
-            mark="✕"
-            onPress={deleteRoll.onConfirm}
-            isLoading={deleteRoll.isDeleting}
-          />
-          <Button
-            title={t("roll:settings.deleteRoll.cancel")}
-            variant="secondary"
-            mark="‹"
-            onPress={deleteRoll.onClose}
-          />
-        </Slip>
+        <DeleteRollSlip
+          edge={deleteRoll.edge}
+          body={deleteRoll.body}
+          confirmLabel={deleteRoll.confirmLabel}
+          error={deleteRoll.error}
+          isDeleting={deleteRoll.isDeleting}
+          onConfirm={deleteRoll.onConfirm}
+          onKeep={deleteRoll.onClose}
+        />
       </BottomSheet>
     </SafeAreaView>
   );

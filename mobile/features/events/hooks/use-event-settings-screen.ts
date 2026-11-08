@@ -2,10 +2,10 @@ import { useAuth } from "@/context/auth-context";
 import { useMyLimitsQuery } from "@/features/profile/api/queries";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
-import { useDeleteEventMutation, useUpdateEventMutation } from "../api/mutations";
+import { useUpdateEventMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import {
   addMonths,
@@ -28,6 +28,7 @@ import { closedOn, envelopeCount, envelopeState, formatEnvelopeDay } from "../li
 import { formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
 import { formatClosedOn } from "../lib/rolls";
 import { useChangeEventCover } from "./use-change-event-cover";
+import { useDeleteRoll } from "./use-delete-roll";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
 
@@ -50,11 +51,13 @@ export const useEventSettingsScreen = () => {
   const participantsQuery = useEventParticipantsQuery(eventId);
   const limitsQuery = useMyLimitsQuery();
   const updateMutation = useUpdateEventMutation(eventId ?? "");
-  const deleteMutation = useDeleteEventMutation();
-  // Once the roll is deleted its queries fail on the way out; that's not a load error.
-  const deleted = useRef(false);
 
   const event = eventQuery.data ?? null;
+  // A roll can be deleted once it has closed (EVENT_STILL_ACTIVE before then).
+  // Before that, Delete the roll explains why instead of calling the API.
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const deleteRoll = useDeleteRoll(event, { onDeleted: () => setDeleteVisible(false) });
+  const isRollDeleted = deleteRoll.isDeleted;
   const cover = useChangeEventCover(eventId ?? "", Boolean(event?.coverUrl));
   const participants = participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
@@ -62,10 +65,10 @@ export const useEventSettingsScreen = () => {
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
 
   useEffect(() => {
-    if (!eventQuery.isError || deleted.current) return;
+    if (!eventQuery.isError || isRollDeleted()) return;
     Alert.alert(t("roll:settings.loadFailed"), getErrorMessage(eventQuery.error));
     router.back();
-  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, router, t]);
+  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, isRollDeleted, router, t]);
 
   useEffect(() => {
     if (isLoading || !event) return;
@@ -233,25 +236,6 @@ export const useEventSettingsScreen = () => {
     }
   };
 
-  // A roll can be deleted once it has closed (EVENT_STILL_ACTIVE before then).
-  // Before that, Delete the roll explains why instead of calling the API.
-  const [deleteVisible, setDeleteVisible] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const confirmDelete = () => {
-    if (!eventId || deleteMutation.isPending) return;
-    setDeleteError(null);
-    deleted.current = true;
-    deleteMutation.mutate(eventId, {
-      // Home once the slip has gone (see onClosed below).
-      onSuccess: () => setDeleteVisible(false),
-      onError: (error) => {
-        deleted.current = false;
-        setDeleteError(getErrorMessage(error, t("roll:settings.deleteRoll.failed")));
-      },
-    });
-  };
-
   return {
     event,
     isLoading: isLoading || !event || !isHost,
@@ -287,32 +271,18 @@ export const useEventSettingsScreen = () => {
         if (eventId) router.push(`/events/${eventId}/cant-delete`);
         return;
       }
-      setDeleteError(null);
+      deleteRoll.reset();
       setDeleteVisible(true);
     },
     deleteRoll: {
+      ...deleteRoll.slip,
       visible: deleteVisible,
-      onClosed: () => {
-        if (!deleted.current) return;
-        // Home, past the roll underneath, which would only fail to load now.
-        router.dismissAll();
-        router.replace("/events");
-      },
+      // Home once the slip has gone.
+      onClosed: deleteRoll.leaveIfDeleted,
       onClose: () => {
-        if (deleteMutation.isPending) return;
+        if (deleteRoll.isDeleting) return;
         setDeleteVisible(false);
       },
-      edge: event
-        ? t("roll:settings.deleteRoll.edge", {
-            date: formatClosedOn(closedOn(event)),
-            count: event.usage.members,
-          })
-        : "",
-      body: t("roll:settings.deleteRoll.body", { count: event?.usage.members ?? 0 }),
-      confirmLabel: t("roll:settings.deleteRoll.confirm", { title: event?.title ?? "" }),
-      onConfirm: confirmDelete,
-      isDeleting: deleteMutation.isPending,
-      error: deleteError,
     },
     when: {
       visible: whenVisible,
