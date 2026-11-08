@@ -31,6 +31,7 @@ export const ALERT_EVENTS = {
 
   NOTIFICATION_GIVEN_UP: "notification.given_up",
   NOTIFICATION_SENDER_DISABLED: "notification.sender.disabled",
+  NOTIFICATION_CREDENTIALS_INVALID: "notification.credentials_invalid",
 
   REPORT_ESCALATED: "report.escalated",
   REPORT_STALE: "report.stale",

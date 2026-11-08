@@ -89,6 +89,10 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
 - **Per row.** No phones, or the account's deletion has started: `SKIPPED`. Otherwise one message per phone, up to
   100 per Expo request. At least one phone accepted: `SENT`. Every phone refused: `FAILED`, with Expo's code.
   Each phone's answer is a `NotificationDelivery` row with its ticket.
+- **Broken credentials.** `InvalidCredentials` or `MismatchSenderId`, at send or in a receipt, means the APNs key
+  or FCM credentials in EAS no longer work, so every push on that platform fails. Each Expo request or receipt
+  page that sees one logs a single `notification.credentials_invalid` error, which alarms
+  ([alerting.md](../api/docs/alerting.md)).
 - **Retries.** When Expo refuses or does not answer the whole request, its rows go back to `PENDING` with a backoff
   of 1 minute doubling up to an hour: 1, 2, 4, 8, 16, 32, then 60 minutes. After `NOTIFICATION_MAX_ATTEMPTS` (8)
   they are `FAILED` and logged as `notification.given_up` ([alerting.md](../api/docs/alerting.md)), so the last

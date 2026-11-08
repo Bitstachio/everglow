@@ -24,8 +24,8 @@ describe("NotificationSenderService", () => {
 
   const userId = "11111111-1111-1111-1111-111111111111";
   const lease = new Date("2026-11-05T12:05:00.000Z");
-  const phoneA = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", token: "ExponentPushToken[a]" };
-  const phoneB = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", token: "ExponentPushToken[b]" };
+  const phoneA = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", token: "ExponentPushToken[a]", platform: "IOS" };
+  const phoneB = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", token: "ExponentPushToken[b]", platform: "ANDROID" };
 
   const claim = (overrides: Partial<ClaimedNotification> = {}): ClaimedNotification => ({
     id: "99999999-9999-4999-8999-999999999999",
@@ -138,6 +138,31 @@ describe("NotificationSenderService", () => {
 
       expect(settledAs()).toMatchObject({ status: NotificationStatus.FAILED, lastError: "MessageTooBig" });
       expect(result).toMatchObject({ failed: 1 });
+    });
+
+    it("raises one credentials alert per request when Apple or Google refuse our credentials", async () => {
+      claimOnce(claim());
+      withUser([phoneA, phoneB]);
+      expo.send.mockResolvedValue([
+        { status: "error", message: "bad key", details: { error: "InvalidCredentials" } },
+        { status: "error", message: "wrong sender", details: { error: "MismatchSenderId" } },
+      ]);
+
+      await service.sendPending();
+
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(
+        {
+          event: ALERT_EVENTS.NOTIFICATION_CREDENTIALS_INVALID,
+          severity: "ticket",
+          source: "ticket",
+          messages: 2,
+          codes: { InvalidCredentials: 1, MismatchSenderId: 1 },
+          platforms: ["IOS", "ANDROID"],
+        },
+        expect.any(String),
+      );
+      expect(JSON.stringify(logger.error.mock.calls)).not.toContain(phoneA.token);
     });
 
     it("skips an account with no phones without calling Expo", async () => {
@@ -353,6 +378,30 @@ describe("NotificationSenderService", () => {
       expect(prisma.userDevice.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [phoneB.id] } } });
       // t3 has no receipt yet: left TICKETED for the next run.
       expect(result).toEqual({ checked: 2, delivered: 1, failed: 1, invalidatedDevices: 1, rateLimited: 0 });
+    });
+
+    it("raises the credentials alert for receipts that say our credentials are broken", async () => {
+      prisma.notificationDelivery.findMany.mockResolvedValueOnce([
+        { id: "d1", ticketId: "t1", deviceId: phoneA.id },
+        { id: "d2", ticketId: "t2", deviceId: phoneB.id },
+      ] as never);
+      expo.getReceipts.mockResolvedValue({
+        t1: { status: "error", message: "bad key", details: { error: "InvalidCredentials" } },
+        t2: { status: "error", message: "bad key", details: { error: "InvalidCredentials" } },
+      });
+
+      await service.checkReceipts(now);
+
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: ALERT_EVENTS.NOTIFICATION_CREDENTIALS_INVALID,
+          source: "receipt",
+          messages: 2,
+          codes: { InvalidCredentials: 2 },
+        }),
+        expect.any(String),
+      );
     });
 
     it("marks a rate-limited receipt FAILED and warns, without resending", async () => {
