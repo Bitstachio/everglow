@@ -54,6 +54,34 @@ test("settings and cut leave the menu when they don't apply", async () => {
   expect(screen.queryByRole("button", { name: "Cut the roll now" })).not.toBeOnTheScreen();
 });
 
+test("a closed roll's host deletes it in Cut's place", async () => {
+  const onDelete = jest.fn();
+  await renderWithI18n(
+    <RollMenu role="host" canOpenSettings canCut={false} canDelete onDelete={onDelete} {...handlers()} />,
+  );
+
+  expect(screen.queryByRole("button", { name: "Cut the roll now" })).not.toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Leave the roll" })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Delete the roll" }));
+  expect(onDelete).toHaveBeenCalledTimes(1);
+});
+
+test("Leave goes when it can't apply", async () => {
+  await renderWithI18n(
+    <RollMenu
+      role="host"
+      canOpenSettings
+      canCut={false}
+      canDelete
+      canLeave={false}
+      onDelete={jest.fn()}
+      {...handlers()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Delete the roll" })).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Leave the roll" })).not.toBeOnTheScreen();
+});
+
 test("a guest gets the roll call, a report and leave", async () => {
   const on = handlers();
   await renderWithI18n(<RollMenu role="guest" canOpenSettings={false} canCut={false} {...on} />);
