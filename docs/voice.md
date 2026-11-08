@@ -52,3 +52,12 @@ Screens stay light. Before adding a line, check what the screen already says.
 - No hints for what people will see for themselves ("Shows on Home, the envelope and the top of the roll").
 - Keep the one fact people need to decide: "Photos removed Sat 14.11".
 - The drawings can be wordier than this; cut to this rule and note the difference in the PR.
+
+## Push notifications
+
+Copy lives in `api/src/notifications/notification-catalogue.ts`. Same tone as the rest of this doc: short, dry, no
+exclamation marks, no event title or other text a person typed (the push carries ids only; the tap opens the roll).
+
+| Type             | Title (en)     | Body (en)              |
+| ---------------- | -------------- | ---------------------- |
+| `GALLERY_OPENED` | A roll is open | Take the first shot.   |

@@ -28,6 +28,6 @@
     "myEvents": "My Events"
   },
   "notes": {
-    "channels": { "account": "Account" }
+    "channels": { "account": "Account", "roll_opens": "A roll opens" }
   }
 }
