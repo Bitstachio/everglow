@@ -138,7 +138,7 @@ const privacy: LegalDocument = {
     },
     {
       id: "where-it-is-kept",
-      source: "api/infra/main.tf (region us-east-1); docs/photo-privacy.md",
+      source: "infra/main.tf (region us-east-1); docs/photo-privacy.md",
       heading: "Where it is kept",
       blocks: [
         {

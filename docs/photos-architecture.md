@@ -388,7 +388,7 @@ The job is not specific to photos. It lives in `api/src/storage` and walks a reg
   so an on-by-default sweep would delete another environment's live photos. The bucket has no
   versioning, so those deletes are final. Gating on `NODE_ENV` would not help: compose sets it to
   `production`.
-- **IAM:** needs `s3:ListBucket` on the bucket, which Terraform already grants (`api/infra/main.tf`).
+- **IAM:** needs `s3:ListBucket` on the bucket, which Terraform already grants (`infra/main.tf`).
 
 Every deletion logs `storage.orphan_reconcile.deleted` with `audit: true` and the `prefix` it came from; every run ends with `storage.orphan_reconcile.completed` carrying the counts, so a quiet bucket still leaves a daily trace. (These events were named `photo.orphan_reconcile.*` while the job only walked `photos/`.)
 

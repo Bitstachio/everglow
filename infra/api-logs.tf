@@ -85,7 +85,7 @@ resource "aws_cloudwatch_dashboard" "api" {
             "# API logs",
             "",
             "Group `${var.api_log_group_name}`. Saved queries: lines for one request (`REQUEST_ID`), lines for one event (`EVENT_NAME`), errors, scheduler heartbeats.",
-            "Alarms on these lines: `api/infra/moderation-alerts.tf` (see `api/docs/alerting.md`).",
+            "Alarms on these lines: `infra/moderation-alerts.tf` (see `api/docs/alerting.md`).",
           ])
         }
       },

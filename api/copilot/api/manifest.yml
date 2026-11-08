@@ -49,7 +49,7 @@ variables:
 # The log group /copilot/everglow-<env>-api. Its lines carry user and report
 # ids, so they are kept 90 days (Copilot's default is 30): long enough to
 # answer a moderation or deletion question about last quarter, short enough
-# not to become an archive. The alerts on it are api/infra/moderation-alerts.tf.
+# not to become an archive. The alerts on it are infra/moderation-alerts.tf.
 logging:
   retention: 90
 
@@ -67,7 +67,7 @@ secrets:
 # owns neither yet: its bucket is a placeholder and its tenant is the shared
 # dev tenant, whose logins belong to every developer's database. So they are
 # off here, stated rather than left to the code's defaults, and each one
-# turned on needs the matching api_jobs_enabled flag in api/infra so its
+# turned on needs the matching api_jobs_enabled flag in infra/ so its
 # heartbeat is watched.
 environments:
   staging:
