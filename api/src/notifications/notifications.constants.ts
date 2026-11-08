@@ -52,6 +52,3 @@ export const NOTIFICATION_RETRY_MAX_SECONDS = 3600;
  */
 export const NOTIFICATION_RECEIPT_MIN_AGE_MINUTES = 15;
 export const NOTIFICATION_RECEIPT_MAX_AGE_HOURS = 24;
-
-/** The Android channel the app creates, and every push goes to. */
-export const NOTIFICATION_ANDROID_CHANNEL_ID = "default";

@@ -6,8 +6,10 @@ export interface ExpoPushMessage {
   /** Read by the app when the notification is tapped. */
   data: Record<string, string>;
   sound?: "default" | null;
-  /** Android channel; the app creates "default". */
+  /** Android channel; the app creates one per kind of notification. */
   channelId?: string;
+  /** Seconds Apple and Google keep trying a phone that is off. Unset: the platforms' default. */
+  ttl?: number;
 }
 
 /** Expo's answer per message, in the order sent. */

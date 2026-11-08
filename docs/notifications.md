@@ -63,20 +63,50 @@ this.notifications.kick();
 
 ### Types
 
-Every type lives in `api/src/notifications/notification-catalogue.ts`: the ids its data carries, its copy, the
-app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
+Every type lives in `api/src/notifications/notification-catalogue.ts`: the ids its data carries and a type guard
+that checks them, its copy per language, the app path a tap opens, its dedupe key, its Android channel, an optional
+`ttlSeconds`, and whether it is `required`. Adding one:
 
 1. Add the value to the `NotificationType` enum in `schema.prisma`, with a migration.
 2. Add its data to `NotificationDataByType` and its entry to `NOTIFICATION_CATALOGUE`. The compiler refuses a type
    missing from either.
-3. Add a sample to `notification-catalogue.spec.ts`.
-4. Write the copy to [voice.md](./voice.md): short, no exclamation marks, plain words for safety and deletion.
-5. If the tap should open a screen that needs more than a path, handle it in the app's notification response
-   handler (`mobile/features/notifications/`).
+3. Write `isData` for its data. Rows outlive the code that wrote them: a row whose data no longer passes is
+   `FAILED` with `invalid_data` and logged as `notification.render_failed`, never sent with broken copy.
+4. Pick its channel (below). A new kind of notification gets a new channel id.
+5. Set `ttlSeconds` if the notice is pointless late ("closes tomorrow"): Expo passes it on as `ttl`, so a phone
+   that was off for days does not get it then. Leave it unset for notices that stay true (`TEST`, account notices).
+6. Add a sample to `notification-catalogue.spec.ts`.
+7. Write the copy to [voice.md](./voice.md): short, no exclamation marks, plain words for safety and deletion.
+8. If the tap should open a screen that needs more than a path, handle it in the app's notification tap handler,
+   which arrives with the app's side of EV-73.
 
-| Type   | Sent when                                                       | Opens | Required |
-| ------ | --------------------------------------------------------------- | ----- | -------- |
-| `TEST` | `pnpm run notifications:send-test` (§6). Never sent by the app. | `/`   | no       |
+| Type   | Sent when                                                       | Opens | Required | Channel   | ttl  |
+| ------ | --------------------------------------------------------------- | ----- | -------- | --------- | ---- |
+| `TEST` | `pnpm run notifications:send-test` (§6). Never sent by the app. | `/`   | no       | `account` | none |
+
+### Languages
+
+`render(data, locale)` takes the language of the phone it is for. Each phone's `UserDevice.locale` (a BCP 47 tag)
+picks a language in `NOTIFICATION_LOCALES` by its first part, and anything not listed gets English. The sender
+renders once per language among the recipient's phones and sends each phone its own copy. Only English exists
+today; translating means adding the language to `NOTIFICATION_LOCALES` and its copy to each entry.
+
+### Android channels
+
+Each kind of notification posts to its own Android channel (Expo's `channelId`), because Android fixes a
+channel's importance once the phone has created it, and each kind gets its own switch in the phone's settings and
+in the app's notification settings ("A roll opens", "New photos, in batches", "The day before it closes", "Someone
+joins your roll", "Reports to check"). The ids are `NOTIFICATION_CHANNELS` in the catalogue, typed, so an entry
+cannot name a channel that does not exist.
+
+| Channel   | For                         |
+| --------- | --------------------------- |
+| `account` | Account notices, and `TEST` |
+
+A new kind adds its channel id to `NOTIFICATION_CHANNELS` here **and** to the matching list the app creates its
+channels from, in the same release. That list arrives with the app's side of EV-73
+(`mobile/features/notifications/lib/push.ts`), which creates `account`. A push to a channel the phone never created
+falls back to Expo's default channel.
 
 ## 4. The sender
 

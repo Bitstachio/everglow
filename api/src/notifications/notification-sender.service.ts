@@ -18,11 +18,16 @@ import {
   ExpoPushMessage,
   ExpoPushTicket,
 } from "src/sdk/expo/expo-push.types";
-import { NotificationDataByType, RenderedNotification, renderNotification } from "./notification-catalogue";
+import {
+  NotificationChannel,
+  NotificationLocale,
+  RenderedNotification,
+  notificationDefinitionOf,
+  resolveNotificationLocale,
+} from "./notification-catalogue";
 import { ClaimedNotification, claimDueNotifications } from "./notification-claim";
 import {
   DEFAULT_NOTIFICATION_MAX_ATTEMPTS,
-  NOTIFICATION_ANDROID_CHANNEL_ID,
   NOTIFICATION_RECEIPT_MAX_AGE_HOURS,
   NOTIFICATION_RECEIPT_MIN_AGE_MINUTES,
   NOTIFICATION_RETRY_BASE_SECONDS,
@@ -61,11 +66,19 @@ export interface RetentionRunResult {
   ranElsewhere?: true;
 }
 
-/** A claimed notification with what to send and where. */
+interface Device {
+  id: string;
+  token: string;
+  platform: DevicePlatform;
+  locale: string | null;
+}
+
+/** A claimed notification with what to send and where: one message per phone, in its language. */
 interface Outgoing {
   claim: ClaimedNotification;
-  rendered: RenderedNotification;
-  devices: { id: string; token: string; platform: DevicePlatform }[];
+  devices: (Device & { rendered: RenderedNotification })[];
+  channel: NotificationChannel;
+  ttlSeconds?: number;
 }
 
 /** Expo's ticket for one message, or why its request got none. */
@@ -200,7 +213,7 @@ export class NotificationSenderService {
       select: {
         id: true,
         deletionStartedAt: true,
-        devices: { select: { id: true, token: true, platform: true } },
+        devices: { select: { id: true, token: true, platform: true, locale: true } },
       },
     });
     const usersById = new Map(users.map((user) => [user.id, user]));
@@ -217,9 +230,9 @@ export class NotificationSenderService {
       } else if (user.devices.length === 0) {
         settled.push({ claim, kind: "skipped", reason: "no_devices" });
       } else {
-        const rendered = this.render(claim);
-        if (rendered) outgoing.push({ claim, rendered, devices: user.devices });
-        else settled.push({ claim, kind: "failed", reason: "render_failed" });
+        const rendered = this.render(claim, user.devices);
+        if (typeof rendered === "string") settled.push({ claim, kind: "failed", reason: rendered });
+        else outgoing.push(rendered);
       }
     }
     await this.settle(settled, result);
@@ -229,26 +242,60 @@ export class NotificationSenderService {
     }
   }
 
-  private render(claim: ClaimedNotification): RenderedNotification | null {
+  /**
+   * Builds each phone's copy, once per language. Returns why not instead
+   * when the stored data no longer has the type's shape (written by older
+   * code) or rendering throws: the notification is then FAILED, not sent.
+   */
+  private render(claim: ClaimedNotification, devices: Device[]): Outgoing | "invalid_data" | "render_failed" {
+    const definition = notificationDefinitionOf(claim.type);
+    const { data } = claim;
+    if (!definition.isData(data)) {
+      this.logger.error(
+        { event: "notification.render_failed", reason: "invalid_data", notificationId: claim.id, type: claim.type },
+        "A notification's stored data no longer matches its type; it will not be sent",
+      );
+      return "invalid_data";
+    }
     try {
-      return renderNotification(claim.type, claim.data as NotificationDataByType[typeof claim.type]);
+      const byLocale = new Map<NotificationLocale, RenderedNotification>();
+      const copyFor = (locale: NotificationLocale): RenderedNotification => {
+        const cached = byLocale.get(locale);
+        if (cached) return cached;
+        const rendered = definition.render(data, locale);
+        byLocale.set(locale, rendered);
+        return rendered;
+      };
+      return {
+        claim,
+        devices: devices.map((device) => ({ ...device, rendered: copyFor(resolveNotificationLocale(device.locale)) })),
+        channel: definition.channel,
+        ttlSeconds: definition.ttlSeconds,
+      };
     } catch (error) {
       this.logger.error(
-        { err: error as Error, event: "notification.render_failed", notificationId: claim.id, type: claim.type },
+        {
+          err: error as Error,
+          event: "notification.render_failed",
+          reason: "render_failed",
+          notificationId: claim.id,
+          type: claim.type,
+        },
         "A notification's data does not render; it will not be sent",
       );
-      return null;
+      return "render_failed";
     }
   }
 
   private async sendChunk(chunk: Outgoing[], result: SendRunResult): Promise<void> {
-    const messages: ExpoPushMessage[] = chunk.flatMap(({ claim, rendered, devices }) =>
-      devices.map((device) => ({
-        to: device.token,
+    const messages: ExpoPushMessage[] = chunk.flatMap(({ claim, devices, channel, ttlSeconds }) =>
+      devices.map(({ token, rendered }) => ({
+        to: token,
         title: rendered.title,
         body: rendered.body,
         sound: "default" as const,
-        channelId: NOTIFICATION_ANDROID_CHANNEL_ID,
+        channelId: channel,
+        ...(ttlSeconds === undefined ? {} : { ttl: ttlSeconds }),
         data: { url: rendered.url, type: claim.type, notificationId: claim.id },
       })),
     );
