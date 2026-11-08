@@ -44,7 +44,12 @@ Expo directly:
 ```ts
 await this.prisma.$transaction(async (tx) => {
   // ...the change the notification is about...
-  await this.notifications.notify(tx, NotificationType.GALLERY_OPENED, memberIds, { eventId });
+  await this.notifications.notify(
+    tx,
+    NotificationType.GALLERY_OPENED,
+    memberIds,
+    { eventId },
+  );
 });
 this.notifications.kick();
 ```
@@ -95,11 +100,11 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
   and before the result is written, the lease runs out and that request is sent again. Expo offers no idempotency
   key to close this.
 
-| Job                    | When           | Enabled by                                     |
-| ---------------------- | -------------- | ---------------------------------------------- |
-| Notification send      | every minute   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
-| Notification receipts  | every 15 min   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
-| Notification retention | daily, 05:00   | always                                         |
+| Job                    | When         | Enabled by                                     |
+| ---------------------- | ------------ | ---------------------------------------------- |
+| Notification send      | every minute | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
+| Notification receipts  | every 15 min | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
+| Notification retention | daily, 05:00 | always                                         |
 
 ## 5. Retention
 
@@ -126,16 +131,39 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
 
 The mobile side lives in `mobile/features/notifications/`.
 
-- **Asking.** Once per phone, the first time someone joins a roll (06.6, "Want a note when photos land?"), and only
-  while the system has not asked yet. Never at launch. "Not now" is final; after that the person decides in the
-  system settings. The copy drops the drawing's "when people add a batch": no such notification is planned yet.
-- **Registering.** Each time an account is ready on the phone (launch, sign-in) and whenever the push token
-  changes, but only where notifications are already allowed. A simulator, or an app without an EAS project id,
-  has no token and registers nothing.
+- **Asking.** When someone joins a roll (06.6, "Want a note when photos land?"), and only while the system has not
+  asked yet. Never at launch. The slip carries the arrival note ("You're on the roll · 25th") on its edge, and the
+  roll hides its own strip meanwhile. Once the system has asked, the slip never shows again: the person decides in
+  the system settings. "Not now" holds for 30 days, then a later join offers it again, because iOS shows no
+  Notifications row in Settings until the app has asked. The "Not now" time is kept in the app's documents, not
+  the Keychain, so a reinstall (which resets the permission) resets it too. The copy drops the drawing's "when
+  people add a batch": no such notification is planned yet.
+- **The Notes screen.** 14.9 ([EV-142](https://linear.app/mehrshadfb/issue/EV-142)) asks with
+  `requestNotificationPermission()` (`lib/notification-permission.ts`). When the person allows it, the phone
+  registers on its own.
+- **Registering.** Each time an account is ready on the phone (launch, sign-in), when the push token changes, when
+  the person allows notifications in the app, and on coming back to the app (notifications turned on in Settings),
+  but only where notifications are allowed. A simulator, or an app without an EAS project id, has no token and
+  registers nothing. The token listener passes its device token to `getExpoPushTokenAsync`: fetching the token
+  again fires the listener again, so calling it bare from there loops. Registrations run one at a time, and a
+  device token the API already accepted for the account is not sent again in the same session.
 - **Signing out.** The app unregisters the phone before it clears the session (`lib/before-sign-out.ts`), giving
-  up after 3 seconds. After deleting the account it skips this: the API removed the phones with the account. If
-  the request never arrives, the phone keeps that account's pushes until someone signs in on it, which moves the
-  token, or until Expo reports it gone.
-- **Tapping.** Opens the notification's `url` once an account is ready and the launch redirect has landed, so the
-  screen opens on top of Home. Only app paths are followed.
-- **In the foreground.** A notification shows as a banner, without sound.
+  up after 3 seconds. It first waits for a registration in flight, so a quick sign-out still removes it, and a
+  registration that lands after the account left keeps no id. After deleting the account it skips this: the API
+  removed the phones with the account. If the request never arrives, the phone keeps that account's pushes until
+  someone signs in on it, which moves the token, or until Expo reports it gone. A failing handler never stops the
+  Auth0 sign-out.
+- **Tapping.** Opens the notification's `url` once an account is signed in and onboarded and the app is past the
+  launch redirect, sign-in and onboarding, so the screen opens on top of Home. Only `/events/<id>`,
+  `/events/<id>/envelope` and `/events/<id>/tray` open, without any query string or hash. A notification opens
+  once, by its `notificationId`, whether it woke the app or reached it running. A tap the account had not opened
+  yet is dropped when the account is cleared.
+- **In the foreground.** A notification shows as a banner, without sound, and stays in the list. No banner while
+  its roll is on screen.
+- **Android.** One channel per kind of notification, matching the 14.9 toggles, created from
+  `NOTIFICATION_CHANNELS` in `lib/push.ts`: so far only `account` (account notices and `TEST`), at high
+  importance. A type's catalogue `channel` must be one of these ids. Android fixes a channel's importance once the
+  phone has created it, so changing one needs a new id. The old `default` channel is deleted. The small icon is
+  tinted with the stamp colour (`app.json`). It has no `icon` of its own yet: the only monochrome asset,
+  `assets/images/android-icon-monochrome.png`, is the Expo template's stand-in, so add one with the Everglow mark
+  (96×96, white on transparent) when it exists.
