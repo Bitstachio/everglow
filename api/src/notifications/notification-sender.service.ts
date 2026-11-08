@@ -31,6 +31,8 @@ export interface SendRunResult {
   retried: number;
   givenUp: number;
   invalidatedDevices: number;
+  /** Claims another pass took over after this one's lease ran out; nothing was written for them. */
+  leaseLost: number;
 }
 
 export interface ReceiptRunResult {
@@ -50,6 +52,24 @@ interface Outgoing {
   claim: ClaimedNotification;
   rendered: RenderedNotification;
   devices: { id: string; token: string }[];
+}
+
+/**
+ * How one claimed notification ends this pass, and what that writes. Nothing
+ * is written unless the pass still holds the lease (`settle`).
+ */
+interface Outcome {
+  claim: ClaimedNotification;
+  kind: "sent" | "failed" | "skipped" | "retried" | "given_up";
+  /** Stored as lastError: an Expo code or a short reason. Null when sent cleanly. */
+  reason: string | null;
+  /** For "retried": when to try again. */
+  nextAttemptAt?: Date;
+  deliveries?: Prisma.NotificationDeliveryCreateManyInput[];
+  invalidDeviceIds?: string[];
+  /** For the sent/failed log line. */
+  devices?: number;
+  accepted?: number;
 }
 
 const MAX_RECEIPT_PAGES_PER_RUN = 10;
@@ -124,6 +144,7 @@ export class NotificationSenderService {
       retried: 0,
       givenUp: 0,
       invalidatedDevices: 0,
+      leaseLost: 0,
     };
     for (let batch = 0; batch < NOTIFICATION_SEND_MAX_BATCHES_PER_RUN; batch++) {
       const claimed = await claimDueNotifications(this.prisma, NOTIFICATION_SEND_BATCH_SIZE);
@@ -144,21 +165,23 @@ export class NotificationSenderService {
     const usersById = new Map(users.map((user) => [user.id, user]));
 
     const outgoing: Outgoing[] = [];
+    const settled: Outcome[] = [];
     for (const claim of claimed) {
       const user = usersById.get(claim.userId);
       if (claim.attempts > maxAttempts) {
         // Claimed again after passes that died mid-send: stop here rather than loop.
-        await this.giveUp(claim, "attempts_exhausted", result);
+        settled.push({ claim, kind: "given_up", reason: "attempts_exhausted" });
       } else if (!user || user.deletionStartedAt) {
-        await this.settle(claim, NotificationStatus.SKIPPED, "account_deleting", result);
+        settled.push({ claim, kind: "skipped", reason: "account_deleting" });
       } else if (user.devices.length === 0) {
-        await this.settle(claim, NotificationStatus.SKIPPED, "no_devices", result);
+        settled.push({ claim, kind: "skipped", reason: "no_devices" });
       } else {
         const rendered = this.render(claim);
         if (rendered) outgoing.push({ claim, rendered, devices: user.devices });
-        else await this.settle(claim, NotificationStatus.FAILED, "render_failed", result);
+        else settled.push({ claim, kind: "failed", reason: "render_failed" });
       }
     }
+    await this.settle(settled, result);
 
     for (const chunk of chunkByMessages(outgoing)) {
       await this.sendChunk(chunk, result);
@@ -198,20 +221,22 @@ export class NotificationSenderService {
         { err: error, event: "notification.expo.request_failed", status: error.status, notifications: chunk.length },
         "Expo refused or did not answer a push request; the notifications in it are retried",
       );
-      for (const { claim } of chunk)
-        await this.retryOrGiveUp(claim, error.status ? `http_${error.status}` : "network", result);
+      const reason = error.status ? `http_${error.status}` : "network";
+      await this.settle(
+        chunk.map(({ claim }) => this.retryOrGiveUp(claim, reason)),
+        result,
+      );
       return;
     }
 
-    const now = new Date();
-    const operations: Prisma.PrismaPromise<unknown>[] = [];
-    const invalidDeviceIds: string[] = [];
+    const outcomes: Outcome[] = [];
     let offset = 0;
     for (const { claim, devices } of chunk) {
       const own = tickets.slice(offset, offset + devices.length);
       offset += devices.length;
 
-      const deliveries = devices.map((device, index) => {
+      const invalidDeviceIds: string[] = [];
+      const deliveries = devices.map((device, index): Prisma.NotificationDeliveryCreateManyInput => {
         const ticket = own[index];
         if (ticket.status === "ok") {
           return {
@@ -232,87 +257,122 @@ export class NotificationSenderService {
       });
       const accepted = deliveries.filter((delivery) => delivery.status === NotificationDeliveryStatus.TICKETED).length;
       const firstError = deliveries.find((delivery) => delivery.error)?.error ?? null;
-
-      operations.push(this.prisma.notificationDelivery.createMany({ data: deliveries }));
-      operations.push(
-        this.prisma.notification.updateMany({
-          where: { id: claim.id, claimedUntil: claim.claimedUntil },
-          data:
-            accepted > 0
-              ? { status: NotificationStatus.SENT, sentAt: now, claimedUntil: null, lastError: null }
-              : { status: NotificationStatus.FAILED, claimedUntil: null, lastError: firstError },
-        }),
-      );
-      if (accepted > 0) result.sent++;
-      else result.failed++;
-      this.logger.info(
-        {
-          event: accepted > 0 ? "notification.sent" : "notification.failed",
-          notificationId: claim.id,
-          userId: claim.userId,
-          type: claim.type,
-          devices: devices.length,
-          accepted,
-          ...(firstError ? { error: firstError } : {}),
-        },
-        accepted > 0 ? "Notification sent" : "Every phone refused a notification",
-      );
+      outcomes.push({
+        claim,
+        kind: accepted > 0 ? "sent" : "failed",
+        reason: accepted > 0 ? null : firstError,
+        deliveries,
+        invalidDeviceIds,
+        devices: devices.length,
+        accepted,
+      });
     }
-    if (invalidDeviceIds.length > 0) {
-      operations.push(this.prisma.userDevice.deleteMany({ where: { id: { in: invalidDeviceIds } } }));
-      result.invalidatedDevices += invalidDeviceIds.length;
-      this.logInvalidated(invalidDeviceIds);
-    }
-    await this.prisma.$transaction(operations);
+    await this.settle(outcomes, result);
   }
 
-  private async retryOrGiveUp(claim: ClaimedNotification, reason: string, result: SendRunResult): Promise<void> {
-    if (claim.attempts >= this.maxAttempts()) {
-      await this.giveUp(claim, reason, result);
-      return;
-    }
-    await this.prisma.notification.updateMany({
-      where: { id: claim.id, claimedUntil: claim.claimedUntil },
-      data: {
-        claimedUntil: null,
-        lastError: reason,
-        nextAttemptAt: new Date(Date.now() + retryDelaySeconds(claim.attempts) * 1000),
-      },
-    });
-    result.retried++;
+  /** Back to PENDING with a backoff, or FAILED once the attempts are used up. */
+  private retryOrGiveUp(claim: ClaimedNotification, reason: string): Outcome {
+    if (claim.attempts >= this.maxAttempts()) return { claim, kind: "given_up", reason };
+    return {
+      claim,
+      kind: "retried",
+      reason,
+      nextAttemptAt: new Date(Date.now() + retryDelaySeconds(claim.attempts) * 1000),
+    };
   }
 
-  private async giveUp(claim: ClaimedNotification, reason: string, result: SendRunResult): Promise<void> {
-    await this.prisma.notification.updateMany({
-      where: { id: claim.id, claimedUntil: claim.claimedUntil },
-      data: { status: NotificationStatus.FAILED, claimedUntil: null, lastError: reason },
+  /**
+   * Writes each outcome only if this pass still holds the claim. The status
+   * update is matched on the lease and runs first; a notification whose lease
+   * another pass took over (count 0) gets no deliveries, deletes no phones
+   * and is not counted, so a pass that overran its lease cannot record a send
+   * twice. Counts and log lines follow the commit.
+   */
+  private async settle(outcomes: Outcome[], result: SendRunResult): Promise<void> {
+    if (outcomes.length === 0) return;
+    const now = new Date();
+    const held = await this.prisma.$transaction(async (tx) => {
+      const won: Outcome[] = [];
+      for (const outcome of outcomes) {
+        const { count } = await tx.notification.updateMany({
+          where: { id: outcome.claim.id, claimedUntil: outcome.claim.claimedUntil },
+          data: settledData(outcome, now),
+        });
+        if (count === 1) won.push(outcome);
+      }
+      const deliveries = won.flatMap((outcome) => outcome.deliveries ?? []);
+      if (deliveries.length > 0) await tx.notificationDelivery.createMany({ data: deliveries });
+      const invalidDeviceIds = [...new Set(won.flatMap((outcome) => outcome.invalidDeviceIds ?? []))];
+      if (invalidDeviceIds.length > 0) await tx.userDevice.deleteMany({ where: { id: { in: invalidDeviceIds } } });
+      return { won, invalidDeviceIds };
     });
-    result.givenUp++;
-    this.logger.error(
+
+    const won = new Set(held.won);
+    for (const outcome of outcomes) {
+      if (won.has(outcome)) this.record(outcome, result);
+      else this.recordLeaseLost(outcome, result);
+    }
+    if (held.invalidDeviceIds.length > 0) {
+      result.invalidatedDevices += held.invalidDeviceIds.length;
+      this.logInvalidated(held.invalidDeviceIds);
+    }
+  }
+
+  private record(outcome: Outcome, result: SendRunResult): void {
+    const { claim } = outcome;
+    switch (outcome.kind) {
+      case "skipped":
+        result.skipped++;
+        return;
+      case "retried":
+        result.retried++;
+        return;
+      case "given_up":
+        result.givenUp++;
+        this.logger.error(
+          {
+            event: ALERT_EVENTS.NOTIFICATION_GIVEN_UP,
+            severity: ALERT_SEVERITY.TICKET,
+            notificationId: claim.id,
+            type: claim.type,
+            attempts: claim.attempts,
+            reason: outcome.reason,
+          },
+          "A notification ran out of attempts and will not be sent",
+        );
+        return;
+      case "sent":
+      case "failed": {
+        if (outcome.kind === "sent") result.sent++;
+        else result.failed++;
+        if (outcome.devices === undefined) return; // Failed before any send (render_failed).
+        this.logger.info(
+          {
+            event: outcome.kind === "sent" ? "notification.sent" : "notification.failed",
+            notificationId: claim.id,
+            userId: claim.userId,
+            type: claim.type,
+            devices: outcome.devices,
+            accepted: outcome.accepted,
+            ...(outcome.reason ? { error: outcome.reason } : {}),
+          },
+          outcome.kind === "sent" ? "Notification sent" : "Every phone refused a notification",
+        );
+      }
+    }
+  }
+
+  private recordLeaseLost(outcome: Outcome, result: SendRunResult): void {
+    result.leaseLost++;
+    this.logger.warn(
       {
-        event: ALERT_EVENTS.NOTIFICATION_GIVEN_UP,
-        severity: ALERT_SEVERITY.TICKET,
-        notificationId: claim.id,
-        type: claim.type,
-        attempts: claim.attempts,
-        reason,
+        event: "notification.lease_lost",
+        notificationId: outcome.claim.id,
+        type: outcome.claim.type,
+        outcome: outcome.kind,
       },
-      "A notification ran out of attempts and will not be sent",
+      "Another pass took this notification over after its lease ran out; this pass wrote nothing for it",
     );
-  }
-
-  private async settle(
-    claim: ClaimedNotification,
-    status: NotificationStatus,
-    reason: string,
-    result: SendRunResult,
-  ): Promise<void> {
-    await this.prisma.notification.updateMany({
-      where: { id: claim.id, claimedUntil: claim.claimedUntil },
-      data: { status, claimedUntil: null, lastError: reason },
-    });
-    if (status === NotificationStatus.SKIPPED) result.skipped++;
-    else result.failed++;
   }
 
   /**
@@ -415,6 +475,21 @@ export class NotificationSenderService {
     return this.configService.get<number>("notifications.maxAttempts") ?? 5;
   }
 }
+
+/** The status write for an outcome. Every outcome releases the lease. */
+const settledData = (outcome: Outcome, now: Date): Prisma.NotificationUpdateManyMutationInput => {
+  switch (outcome.kind) {
+    case "sent":
+      return { status: NotificationStatus.SENT, sentAt: now, claimedUntil: null, lastError: outcome.reason };
+    case "failed":
+    case "given_up":
+      return { status: NotificationStatus.FAILED, claimedUntil: null, lastError: outcome.reason };
+    case "skipped":
+      return { status: NotificationStatus.SKIPPED, claimedUntil: null, lastError: outcome.reason };
+    case "retried":
+      return { claimedUntil: null, lastError: outcome.reason, nextAttemptAt: outcome.nextAttemptAt };
+  }
+};
 
 /** Groups outgoing notifications into Expo requests without splitting one across two. */
 export const chunkByMessages = (outgoing: Outgoing[]): Outgoing[][] => {
