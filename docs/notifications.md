@@ -90,11 +90,18 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
   100 per Expo request. At least one phone accepted: `SENT`. Every phone refused: `FAILED`, with Expo's code.
   Each phone's answer is a `NotificationDelivery` row with its ticket.
 - **Retries.** When Expo refuses or does not answer the whole request, its rows go back to `PENDING` with a backoff
-  of 30 s doubling up to an hour. After `NOTIFICATION_MAX_ATTEMPTS` (5) they are `FAILED` and logged as
-  `notification.given_up` ([alerting.md](../api/docs/alerting.md)).
+  of 1 minute doubling up to an hour: 1, 2, 4, 8, 16, 32, then 60 minutes. After `NOTIFICATION_MAX_ATTEMPTS` (8)
+  they are `FAILED` and logged as `notification.given_up` ([alerting.md](../api/docs/alerting.md)), so the last
+  attempt comes about 2 hours after the first: an Expo outage, or a revoked access token fixed within that window,
+  loses nothing. A 429 waits at least Expo's `Retry-After` (capped at an hour), and the run claims no more rows
+  until then. A notification every phone refused with `MessageRateExceeded` (too many pushes to one phone too
+  fast) is retried the same way instead of `FAILED`.
 - **Receipts.** Every 15 minutes the receipts of tickets between 15 minutes and 24 hours old are checked:
   `DELIVERED` or `FAILED`. A phone Expo answers with `DeviceNotRegistered`, at send or in a receipt, is
-  unregistered.
+  unregistered. A receipt that says `MessageRateExceeded` is marked `FAILED` and logged as
+  `notification.receipt.rate_limited`, but not resent: the notification is already `SENT` and its other phones
+  have it, and resending one phone's copy would need per-phone retries the outbox does not have. At our volume
+  this should not happen; if the warning shows up regularly, that is the time to add them.
 - **Once.** Each notification is sent once, except in one case: if the process dies after Expo accepted a request
   and before the result is written, the lease runs out and that request is sent again. Expo offers no idempotency
   key to close this.

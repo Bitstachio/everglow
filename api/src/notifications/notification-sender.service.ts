@@ -10,10 +10,16 @@ import {
   ExpoPushRequestError,
   ExpoPushService,
 } from "src/sdk/expo/expo-push.service";
-import { EXPO_DEVICE_NOT_REGISTERED, ExpoPushMessage, ExpoPushTicket } from "src/sdk/expo/expo-push.types";
+import {
+  EXPO_DEVICE_NOT_REGISTERED,
+  EXPO_MESSAGE_RATE_EXCEEDED,
+  ExpoPushMessage,
+  ExpoPushTicket,
+} from "src/sdk/expo/expo-push.types";
 import { NotificationDataByType, RenderedNotification, renderNotification } from "./notification-catalogue";
 import { ClaimedNotification, claimDueNotifications } from "./notification-claim";
 import {
+  DEFAULT_NOTIFICATION_MAX_ATTEMPTS,
   NOTIFICATION_ANDROID_CHANNEL_ID,
   NOTIFICATION_RECEIPT_MAX_AGE_HOURS,
   NOTIFICATION_RECEIPT_MIN_AGE_MINUTES,
@@ -40,6 +46,8 @@ export interface ReceiptRunResult {
   delivered: number;
   failed: number;
   invalidatedDevices: number;
+  /** Receipts that said MessageRateExceeded. Logged, not resent (docs/notifications.md §4). */
+  rateLimited: number;
 }
 
 export interface RetentionRunResult {
@@ -78,6 +86,7 @@ const MAX_ERROR_LENGTH = 64;
 const errorCode = (ticket: { message: string; details?: { error?: string } }): string =>
   (ticket.details?.error ?? "Unknown").slice(0, MAX_ERROR_LENGTH);
 
+/** Seconds to wait after a failed attempt: 1, 2, 4, 8, 16, 32 minutes, then an hour each. */
 export const retryDelaySeconds = (attempts: number): number =>
   Math.min(NOTIFICATION_RETRY_BASE_SECONDS * 2 ** Math.max(0, attempts - 1), NOTIFICATION_RETRY_MAX_SECONDS);
 
@@ -94,6 +103,8 @@ export const retryDelaySeconds = (attempts: number): number =>
 export class NotificationSenderService {
   private running: Promise<SendRunResult> | null = null;
   private rerun = false;
+  /** Set by a 429: no new batch is claimed before then, so the rest waits in the outbox, unattempted. */
+  private pausedUntil = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -147,6 +158,7 @@ export class NotificationSenderService {
       leaseLost: 0,
     };
     for (let batch = 0; batch < NOTIFICATION_SEND_MAX_BATCHES_PER_RUN; batch++) {
+      if (Date.now() < this.pausedUntil) break;
       const claimed = await claimDueNotifications(this.prisma, NOTIFICATION_SEND_BATCH_SIZE);
       if (claimed.length === 0) break;
       result.claimed += claimed.length;
@@ -222,8 +234,12 @@ export class NotificationSenderService {
         "Expo refused or did not answer a push request; the notifications in it are retried",
       );
       const reason = error.status ? `http_${error.status}` : "network";
+      const waitSeconds =
+        error.retryAfterSeconds === null ? 0 : Math.min(error.retryAfterSeconds, NOTIFICATION_RETRY_MAX_SECONDS);
+      if (error.status === 429)
+        this.pausedUntil = Date.now() + Math.max(waitSeconds, NOTIFICATION_RETRY_BASE_SECONDS) * 1000;
       await this.settle(
-        chunk.map(({ claim }) => this.retryOrGiveUp(claim, reason)),
+        chunk.map(({ claim }) => this.retryOrGiveUp(claim, reason, waitSeconds)),
         result,
       );
       return;
@@ -257,6 +273,17 @@ export class NotificationSenderService {
       });
       const accepted = deliveries.filter((delivery) => delivery.status === NotificationDeliveryStatus.TICKETED).length;
       const firstError = deliveries.find((delivery) => delivery.error)?.error ?? null;
+      if (accepted === 0 && deliveries.some((delivery) => delivery.error === EXPO_MESSAGE_RATE_EXCEEDED)) {
+        // Too fast for a phone, not a refusal: try the notification again later.
+        outcomes.push({
+          ...this.retryOrGiveUp(claim, EXPO_MESSAGE_RATE_EXCEEDED),
+          deliveries,
+          invalidDeviceIds,
+          devices: devices.length,
+          accepted,
+        });
+        continue;
+      }
       outcomes.push({
         claim,
         kind: accepted > 0 ? "sent" : "failed",
@@ -270,15 +297,14 @@ export class NotificationSenderService {
     await this.settle(outcomes, result);
   }
 
-  /** Back to PENDING with a backoff, or FAILED once the attempts are used up. */
-  private retryOrGiveUp(claim: ClaimedNotification, reason: string): Outcome {
+  /**
+   * Back to PENDING with a backoff, or FAILED once the attempts are used up.
+   * `minDelaySeconds` is Expo's Retry-After, when it sent one.
+   */
+  private retryOrGiveUp(claim: ClaimedNotification, reason: string, minDelaySeconds = 0): Outcome {
     if (claim.attempts >= this.maxAttempts()) return { claim, kind: "given_up", reason };
-    return {
-      claim,
-      kind: "retried",
-      reason,
-      nextAttemptAt: new Date(Date.now() + retryDelaySeconds(claim.attempts) * 1000),
-    };
+    const delaySeconds = Math.max(retryDelaySeconds(claim.attempts), minDelaySeconds);
+    return { claim, kind: "retried", reason, nextAttemptAt: new Date(Date.now() + delaySeconds * 1000) };
   }
 
   /**
@@ -382,7 +408,7 @@ export class NotificationSenderService {
    * read twice in one run.
    */
   async checkReceipts(now: Date = new Date()): Promise<ReceiptRunResult> {
-    const result: ReceiptRunResult = { checked: 0, delivered: 0, failed: 0, invalidatedDevices: 0 };
+    const result: ReceiptRunResult = { checked: 0, delivered: 0, failed: 0, invalidatedDevices: 0, rateLimited: 0 };
     const createdAt = {
       lte: new Date(now.getTime() - NOTIFICATION_RECEIPT_MIN_AGE_MINUTES * 60_000),
       gte: new Date(now.getTime() - NOTIFICATION_RECEIPT_MAX_AGE_HOURS * 3_600_000),
@@ -417,6 +443,17 @@ export class NotificationSenderService {
         const code = errorCode(receipt);
         failedByCode.set(code, [...(failedByCode.get(code) ?? []), delivery.id]);
         if (code === EXPO_DEVICE_NOT_REGISTERED) invalidDeviceIds.push(delivery.deviceId);
+      }
+      // Not resent: the notification is SENT and its other phones have it, and
+      // resending one phone's copy would need per-phone retries the outbox does
+      // not have. Rare at our volume; the warning shows if that changes.
+      const rateLimited = failedByCode.get(EXPO_MESSAGE_RATE_EXCEEDED)?.length ?? 0;
+      if (rateLimited > 0) {
+        result.rateLimited += rateLimited;
+        this.logger.warn(
+          { event: "notification.receipt.rate_limited", deliveries: rateLimited },
+          "Apple or Google refused pushes sent too fast to the same phone; they are not resent",
+        );
       }
 
       const operations: Prisma.PrismaPromise<unknown>[] = [];
@@ -472,7 +509,7 @@ export class NotificationSenderService {
   }
 
   private maxAttempts(): number {
-    return this.configService.get<number>("notifications.maxAttempts") ?? 5;
+    return this.configService.get<number>("notifications.maxAttempts") ?? DEFAULT_NOTIFICATION_MAX_ATTEMPTS;
   }
 }
 

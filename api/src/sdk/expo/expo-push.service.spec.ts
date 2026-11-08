@@ -1,5 +1,5 @@
 import { ConfigService } from "@nestjs/config";
-import { ExpoPushRequestError, ExpoPushService } from "./expo-push.service";
+import { ExpoPushRequestError, ExpoPushService, parseRetryAfter } from "./expo-push.service";
 
 describe("ExpoPushService", () => {
   const message = { to: "ExponentPushToken[a]", title: "t", body: "b", data: { url: "/" } };
@@ -57,6 +57,21 @@ describe("ExpoPushService", () => {
     expect(error.status).toBe(status);
   });
 
+  it("passes Expo's Retry-After on with a 429", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ errors: [{ code: "TOO_MANY_REQUESTS" }] }), {
+        status: 429,
+        headers: { "Retry-After": "30" },
+      }),
+    );
+
+    const error = (await service()
+      .send([message])
+      .catch((e: unknown) => e)) as ExpoPushRequestError;
+    expect(error.status).toBe(429);
+    expect(error.retryAfterSeconds).toBe(30);
+  });
+
   it("looks receipts up by ticket id", async () => {
     answer(200, { data: { t1: { status: "ok" } } });
 
@@ -64,5 +79,20 @@ describe("ExpoPushService", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://exp.host/--/api/v2/push/getReceipts");
     expect(JSON.parse(init.body as string)).toEqual({ ids: ["t1"] });
+  });
+});
+
+describe("parseRetryAfter", () => {
+  const now = Date.parse("2026-11-05T12:00:00.000Z");
+
+  it.each([
+    [null, null],
+    ["", null],
+    ["120", 120],
+    ["Thu, 05 Nov 2026 12:01:30 GMT", 90],
+    ["Thu, 05 Nov 2026 11:00:00 GMT", 0],
+    ["soon", null],
+  ])("reads %p as %p seconds", (header, seconds) => {
+    expect(parseRetryAfter(header, now)).toBe(seconds);
   });
 });

@@ -12,6 +12,7 @@ import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ExpoPushRequestError, ExpoPushService } from "src/sdk/expo/expo-push.service";
 import { ClaimedNotification } from "./notification-claim";
+import { DEFAULT_NOTIFICATION_MAX_ATTEMPTS } from "./notifications.constants";
 import { NotificationSenderService, chunkByMessages, retryDelaySeconds } from "./notification-sender.service";
 
 describe("NotificationSenderService", () => {
@@ -175,6 +176,52 @@ describe("NotificationSenderService", () => {
       expect(prisma.notificationDelivery.createMany).not.toHaveBeenCalled();
     });
 
+    it("waits at least Expo's Retry-After on a 429, and claims no more batches this run", async () => {
+      claimOnce(claim({ attempts: 1 }));
+      withUser();
+      expo.send.mockRejectedValue(new ExpoPushRequestError("slow down", 429, 600));
+
+      const before = Date.now();
+      const result = await service.sendPending();
+
+      const data = settledAs() as { lastError: string; nextAttemptAt: Date };
+      expect(data.lastError).toBe("http_429");
+      expect(data.nextAttemptAt.getTime()).toBeGreaterThanOrEqual(before + 600_000);
+      expect(result).toMatchObject({ retried: 1 });
+
+      prisma.$queryRaw.mockClear();
+      await service.sendPending();
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it("caps a Retry-After at the longest backoff", async () => {
+      claimOnce(claim({ attempts: 1 }));
+      withUser();
+      expo.send.mockRejectedValue(new ExpoPushRequestError("slow down", 429, 86_400));
+
+      const before = Date.now();
+      await service.sendPending();
+
+      const data = settledAs() as { nextAttemptAt: Date };
+      expect(data.nextAttemptAt.getTime()).toBeLessThanOrEqual(before + 3600_000 + 1000);
+    });
+
+    it("retries a notification every phone refused only for sending too fast", async () => {
+      claimOnce(claim({ attempts: 1 }));
+      withUser([phoneA, phoneB]);
+      expo.send.mockResolvedValue([
+        { status: "error", message: "slow down", details: { error: "MessageRateExceeded" } },
+        { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } },
+      ]);
+
+      const result = await service.sendPending();
+
+      expect(settledAs()).toMatchObject({ claimedUntil: null, lastError: "MessageRateExceeded" });
+      expect(settledAs()).not.toHaveProperty("status");
+      expect(prisma.userDevice.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [phoneB.id] } } });
+      expect(result).toMatchObject({ retried: 1, failed: 0, sent: 0 });
+    });
+
     it("gives up after the last attempt and raises the alert", async () => {
       claimOnce(claim({ attempts: 3 }));
       withUser();
@@ -305,7 +352,29 @@ describe("NotificationSenderService", () => {
       });
       expect(prisma.userDevice.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [phoneB.id] } } });
       // t3 has no receipt yet: left TICKETED for the next run.
-      expect(result).toEqual({ checked: 2, delivered: 1, failed: 1, invalidatedDevices: 1 });
+      expect(result).toEqual({ checked: 2, delivered: 1, failed: 1, invalidatedDevices: 1, rateLimited: 0 });
+    });
+
+    it("marks a rate-limited receipt FAILED and warns, without resending", async () => {
+      prisma.notificationDelivery.findMany.mockResolvedValueOnce([
+        { id: "d1", ticketId: "t1", deviceId: phoneA.id },
+      ] as never);
+      expo.getReceipts.mockResolvedValue({
+        t1: { status: "error", message: "slow down", details: { error: "MessageRateExceeded" } },
+      });
+
+      const result = await service.checkReceipts(now);
+
+      expect(prisma.notificationDelivery.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["d1"] } },
+        data: { status: NotificationDeliveryStatus.FAILED, error: "MessageRateExceeded" },
+      });
+      expect(prisma.notification.updateMany).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "notification.receipt.rate_limited", deliveries: 1 }),
+        expect.any(String),
+      );
+      expect(result).toMatchObject({ failed: 1, rateLimited: 1 });
     });
 
     it("only reads tickets old enough to have a receipt and young enough that Expo still has it", async () => {
@@ -347,9 +416,18 @@ describe("NotificationSenderService", () => {
 });
 
 describe("retryDelaySeconds", () => {
-  it("doubles from 30 seconds and stops at an hour", () => {
-    expect([1, 2, 3, 4].map(retryDelaySeconds)).toEqual([30, 60, 120, 240]);
+  it("doubles from a minute and stops at an hour", () => {
+    expect([1, 2, 3, 4, 5, 6, 7].map(retryDelaySeconds)).toEqual([60, 120, 240, 480, 960, 1920, 3600]);
     expect(retryDelaySeconds(20)).toBe(3600);
+  });
+
+  // docs/notifications.md §4 promises about 2 hours of retries. The waits
+  // between the first and the last of the default attempts are that window.
+  it("spreads the default attempts over about two hours", () => {
+    const waits = Array.from({ length: DEFAULT_NOTIFICATION_MAX_ATTEMPTS - 1 }, (_, i) => retryDelaySeconds(i + 1));
+
+    expect(DEFAULT_NOTIFICATION_MAX_ATTEMPTS).toBe(8);
+    expect(waits.reduce((sum, wait) => sum + wait, 0)).toBe(123 * 60);
   });
 });
 
