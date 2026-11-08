@@ -102,7 +102,7 @@ Add further test YAML files under `flows/`. Keep reusable subflows in a sibling 
 
 ## CI
 
-GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) (`workflow_dispatch`) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios`.
+GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) (`workflow_dispatch`) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios:ci`. That script runs the login smoke against the app already on the simulator. It does not prebuild or rebuild.
 
 Required repository secrets:
 
@@ -119,3 +119,17 @@ gh workflow run macos-smoke.yml --ref <branch-with-workflow>
 ```
 
 Artifacts upload `.maestro/results/` (including failures).
+
+### Mac smoke retries
+
+`pnpm test:e2e:login:ios` on a laptop runs once. The CI script (`scripts/run-maestro-login-ios.js`) classifies a failed attempt from the Maestro log and `report.xml`, then retries **once** or stops:
+
+| Class     | What it looks like                                                                                                                                                         | What the job does          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| flake     | XCTest driver unreachable, connection refused to `127.0.0.1`, `kAXErrorInvalidUIElement`, failed to get the view hierarchy                                                 | Retry the Maestro run once |
+| ambiguous | Element not found, assertion timeout, Auth0 web view still loading, empty output, any other failure that is not clearly deterministic                                      | Retry the Maestro run once |
+| clear     | Wrong email or password, required Auth0 fields, account being deleted, Auth0 not configured, onboarding failed, flow parse error, Maestro invocation error, `pnpm` missing | Fail immediately           |
+
+A clear pattern wins when the same log also contains a driver error, so a rejected password is not retried. A second failure fails the job even if it still looks transient. The class is printed on its own line, for example `Maestro login smoke attempt 1 failed (flake). Retrying once without rebuilding.` or `Maestro login smoke passed on attempt 2 after a flake failure.` Those lines are not counted yet ([EV-213](https://linear.app/mehrshadfb/issue/EV-213/record-mac-smoke-maestro-retries-so-flakes-can-be-investigated)).
+
+Maestro replaces `report.xml` on each run. Before a retry, the first attempt is copied to `.maestro/results/attempt-1/`. Logs are `attempt-1.log` and, when a retry ran, `attempt-2.log`. The root `report.xml` is the last attempt. Routine startup text such as `XCTest driver started` does not count as a flake.

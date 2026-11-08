@@ -16,6 +16,12 @@ type IndexRowProps = {
   lit?: boolean;
   /** Done on the spot, such as Sign out: no "›", since it opens nothing. */
   action?: boolean;
+  /**
+   * Which side gives way when both don't fit. A setting's value (a name, a
+   * note) shortens by default; `label` for a row named by a roll's title, so
+   * its state stays whole.
+   */
+  truncate?: "label" | "value";
 };
 
 /**
@@ -31,6 +37,7 @@ export const IndexRow = ({
   muted = false,
   lit = false,
   action = false,
+  truncate = "value",
 }: IndexRowProps) => {
   const arrow = Boolean(onPress) && !action;
   const className = [
@@ -43,12 +50,19 @@ export const IndexRow = ({
     .join(" ");
   const content = (
     <>
-      {/* The label gets what the value leaves, so a long roll title shortens before its state does. */}
-      <EdgePrint tone={muted ? "edge" : "text"} numberOfLines={1} className="flex-1">
+      <EdgePrint
+        tone={muted ? "edge" : "text"}
+        numberOfLines={1}
+        className={truncate === "value" ? "max-w-[50%] shrink-0" : "flex-1"}
+      >
         {label}
       </EdgePrint>
       {value || arrow ? (
-        <EdgePrint tone={lit ? "text" : "edge"} numberOfLines={1} className="shrink">
+        <EdgePrint
+          tone={lit ? "text" : "edge"}
+          numberOfLines={1}
+          className={truncate === "value" ? "min-w-0 flex-1 text-right" : "shrink"}
+        >
           {[value, arrow ? "›" : null].filter(Boolean).join(" ")}
         </EdgePrint>
       ) : null}

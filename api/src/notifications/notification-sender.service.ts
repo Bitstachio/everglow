@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { NotificationDeliveryStatus, NotificationStatus, Prisma } from "generated/prisma/client";
+import { DevicePlatform, NotificationDeliveryStatus, NotificationStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
+import { runExclusively } from "src/prisma/advisory-lock";
 import { PrismaService } from "src/prisma/prisma.service";
 import {
   EXPO_MAX_MESSAGES_PER_REQUEST,
@@ -10,11 +11,25 @@ import {
   ExpoPushRequestError,
   ExpoPushService,
 } from "src/sdk/expo/expo-push.service";
-import { EXPO_DEVICE_NOT_REGISTERED, ExpoPushMessage, ExpoPushTicket } from "src/sdk/expo/expo-push.types";
-import { NotificationDataByType, RenderedNotification, renderNotification } from "./notification-catalogue";
+import {
+  EXPO_CREDENTIAL_ERRORS,
+  EXPO_DEVICE_NOT_REGISTERED,
+  EXPO_MESSAGE_RATE_EXCEEDED,
+  ExpoPushMessage,
+  ExpoPushTicket,
+} from "src/sdk/expo/expo-push.types";
+import {
+  NotificationChannel,
+  NotificationLocale,
+  RenderedNotification,
+  notificationDefinitionOf,
+  resolveNotificationLocale,
+} from "./notification-catalogue";
 import { ClaimedNotification, claimDueNotifications } from "./notification-claim";
 import {
-  NOTIFICATION_ANDROID_CHANNEL_ID,
+  DEFAULT_NOTIFICATION_DEVICE_STALE_DAYS,
+  DEFAULT_NOTIFICATION_MAX_ATTEMPTS,
+  DEFAULT_NOTIFICATION_RETENTION_DAYS,
   NOTIFICATION_RECEIPT_MAX_AGE_HOURS,
   NOTIFICATION_RECEIPT_MIN_AGE_MINUTES,
   NOTIFICATION_RETRY_BASE_SECONDS,
@@ -31,6 +46,8 @@ export interface SendRunResult {
   retried: number;
   givenUp: number;
   invalidatedDevices: number;
+  /** Claims another pass took over after this one's lease ran out; nothing was written for them. */
+  leaseLost: number;
 }
 
 export interface ReceiptRunResult {
@@ -38,26 +55,78 @@ export interface ReceiptRunResult {
   delivered: number;
   failed: number;
   invalidatedDevices: number;
+  /** Receipts that said MessageRateExceeded. Logged, not resent (docs/notifications.md §4). */
+  rateLimited: number;
+  /** Another replica held the receipts lock, so this one did nothing. */
+  ranElsewhere?: true;
 }
 
 export interface RetentionRunResult {
   notifications: number;
   devices: number;
+  /** Another replica held the retention lock, so this one did nothing. */
+  ranElsewhere?: true;
 }
 
-/** A claimed notification with what to send and where. */
+interface Device {
+  id: string;
+  token: string;
+  platform: DevicePlatform;
+  locale: string | null;
+}
+
+/** A claimed notification with what to send and where: one message per phone, in its language. */
 interface Outgoing {
   claim: ClaimedNotification;
-  rendered: RenderedNotification;
-  devices: { id: string; token: string }[];
+  devices: (Device & { rendered: RenderedNotification })[];
+  channel: NotificationChannel;
+  ttlSeconds?: number;
+}
+
+/** Expo's ticket for one message, or why its request got none. */
+type Answer = ExpoPushTicket | { status: "request_failed"; reason: string; retryAfterSeconds: number };
+
+/**
+ * How one claimed notification ends this pass, and what that writes. Nothing
+ * is written unless the pass still holds the lease (`settle`).
+ */
+interface Outcome {
+  claim: ClaimedNotification;
+  kind: "sent" | "failed" | "skipped" | "retried" | "given_up";
+  /** Stored as lastError: an Expo code or a short reason. Null when sent cleanly. */
+  reason: string | null;
+  /** For "retried": when to try again. */
+  nextAttemptAt?: Date;
+  deliveries?: Prisma.NotificationDeliveryCreateManyInput[];
+  invalidDeviceIds?: string[];
+  /** For the sent/failed log line. */
+  devices?: number;
+  accepted?: number;
 }
 
 const MAX_RECEIPT_PAGES_PER_RUN = 10;
+
+// Receipts and retention run on one replica at a time (runExclusively). The
+// timeouts are well past a run's length: 10 receipt pages at Expo's 10 s
+// request timeout, and two deletes.
+const RECEIPTS_LOCK_KEY = "notifications:receipts";
+const RECEIPTS_LOCK_TIMEOUT_MS = 10 * 60_000;
+const RETENTION_LOCK_KEY = "notifications:retention";
+const RETENTION_LOCK_TIMEOUT_MS = 30 * 60_000;
+
+const emptyReceiptResult = (): ReceiptRunResult => ({
+  checked: 0,
+  delivered: 0,
+  failed: 0,
+  invalidatedDevices: 0,
+  rateLimited: 0,
+});
 const MAX_ERROR_LENGTH = 64;
 
 const errorCode = (ticket: { message: string; details?: { error?: string } }): string =>
   (ticket.details?.error ?? "Unknown").slice(0, MAX_ERROR_LENGTH);
 
+/** Seconds to wait after a failed attempt: 1, 2, 4, 8, 16, 32 minutes, then an hour each. */
 export const retryDelaySeconds = (attempts: number): number =>
   Math.min(NOTIFICATION_RETRY_BASE_SECONDS * 2 ** Math.max(0, attempts - 1), NOTIFICATION_RETRY_MAX_SECONDS);
 
@@ -74,6 +143,8 @@ export const retryDelaySeconds = (attempts: number): number =>
 export class NotificationSenderService {
   private running: Promise<SendRunResult> | null = null;
   private rerun = false;
+  /** Set by a 429: no new batch is claimed before then, so the rest waits in the outbox, unattempted. */
+  private pausedUntil = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -97,6 +168,17 @@ export class NotificationSenderService {
         "Sending notifications after a commit failed; the next run retries",
       );
     });
+  }
+
+  /**
+   * Resolves once no run is in progress, including the run a kick during
+   * the last one asked for. For scripts that must not close the database
+   * under a run.
+   */
+  async whenIdle(): Promise<void> {
+    while (this.running) {
+      await this.running.catch(() => undefined);
+    }
   }
 
   /** One run at a time per process; a call during a run joins it and asks for another. */
@@ -124,8 +206,10 @@ export class NotificationSenderService {
       retried: 0,
       givenUp: 0,
       invalidatedDevices: 0,
+      leaseLost: 0,
     };
     for (let batch = 0; batch < NOTIFICATION_SEND_MAX_BATCHES_PER_RUN; batch++) {
+      if (Date.now() < this.pausedUntil) break;
       const claimed = await claimDueNotifications(this.prisma, NOTIFICATION_SEND_BATCH_SIZE);
       if (claimed.length === 0) break;
       result.claimed += claimed.length;
@@ -139,180 +223,343 @@ export class NotificationSenderService {
     const maxAttempts = this.maxAttempts();
     const users = await this.prisma.user.findMany({
       where: { id: { in: [...new Set(claimed.map((claim) => claim.userId))] } },
-      select: { id: true, deletionStartedAt: true, devices: { select: { id: true, token: true } } },
+      select: {
+        id: true,
+        deletionStartedAt: true,
+        devices: { select: { id: true, token: true, platform: true, locale: true } },
+      },
     });
     const usersById = new Map(users.map((user) => [user.id, user]));
 
     const outgoing: Outgoing[] = [];
+    const settled: Outcome[] = [];
     for (const claim of claimed) {
       const user = usersById.get(claim.userId);
       if (claim.attempts > maxAttempts) {
         // Claimed again after passes that died mid-send: stop here rather than loop.
-        await this.giveUp(claim, "attempts_exhausted", result);
+        settled.push({ claim, kind: "given_up", reason: "attempts_exhausted" });
       } else if (!user || user.deletionStartedAt) {
-        await this.settle(claim, NotificationStatus.SKIPPED, "account_deleting", result);
+        settled.push({ claim, kind: "skipped", reason: "account_deleting" });
       } else if (user.devices.length === 0) {
-        await this.settle(claim, NotificationStatus.SKIPPED, "no_devices", result);
+        settled.push({ claim, kind: "skipped", reason: "no_devices" });
       } else {
-        const rendered = this.render(claim);
-        if (rendered) outgoing.push({ claim, rendered, devices: user.devices });
-        else await this.settle(claim, NotificationStatus.FAILED, "render_failed", result);
+        const rendered = this.render(claim, user.devices);
+        if (typeof rendered === "string") settled.push({ claim, kind: "failed", reason: rendered });
+        else outgoing.push(rendered);
       }
     }
+    await this.settle(settled, result);
 
     for (const chunk of chunkByMessages(outgoing)) {
       await this.sendChunk(chunk, result);
     }
   }
 
-  private render(claim: ClaimedNotification): RenderedNotification | null {
+  /**
+   * Builds each phone's copy, once per language. Returns why not instead
+   * when the stored data no longer has the type's shape (written by older
+   * code) or rendering throws: the notification is then FAILED, not sent.
+   */
+  private render(claim: ClaimedNotification, devices: Device[]): Outgoing | "invalid_data" | "render_failed" {
+    const definition = notificationDefinitionOf(claim.type);
+    const { data } = claim;
+    if (!definition.isData(data)) {
+      this.logger.error(
+        { event: "notification.render_failed", reason: "invalid_data", notificationId: claim.id, type: claim.type },
+        "A notification's stored data no longer matches its type; it will not be sent",
+      );
+      return "invalid_data";
+    }
     try {
-      return renderNotification(claim.type, claim.data as NotificationDataByType[typeof claim.type]);
+      const byLocale = new Map<NotificationLocale, RenderedNotification>();
+      const copyFor = (locale: NotificationLocale): RenderedNotification => {
+        const cached = byLocale.get(locale);
+        if (cached) return cached;
+        const rendered = definition.render(data, locale);
+        byLocale.set(locale, rendered);
+        return rendered;
+      };
+      return {
+        claim,
+        devices: devices.map((device) => ({ ...device, rendered: copyFor(resolveNotificationLocale(device.locale)) })),
+        channel: definition.channel,
+        ttlSeconds: definition.ttlSeconds,
+      };
     } catch (error) {
       this.logger.error(
-        { err: error as Error, event: "notification.render_failed", notificationId: claim.id, type: claim.type },
+        {
+          err: error as Error,
+          event: "notification.render_failed",
+          reason: "render_failed",
+          notificationId: claim.id,
+          type: claim.type,
+        },
         "A notification's data does not render; it will not be sent",
       );
-      return null;
+      return "render_failed";
     }
   }
 
   private async sendChunk(chunk: Outgoing[], result: SendRunResult): Promise<void> {
-    const messages: ExpoPushMessage[] = chunk.flatMap(({ claim, rendered, devices }) =>
-      devices.map((device) => ({
-        to: device.token,
+    const messages: ExpoPushMessage[] = chunk.flatMap(({ claim, devices, channel, ttlSeconds }) =>
+      devices.map(({ token, rendered }) => ({
+        to: token,
         title: rendered.title,
         body: rendered.body,
         sound: "default" as const,
-        channelId: NOTIFICATION_ANDROID_CHANNEL_ID,
+        channelId: channel,
+        ...(ttlSeconds === undefined ? {} : { ttl: ttlSeconds }),
         data: { url: rendered.url, type: claim.type, notificationId: claim.id },
       })),
     );
 
-    let tickets: ExpoPushTicket[];
-    try {
-      tickets = await this.expo.send(messages);
-    } catch (error) {
-      if (!(error instanceof ExpoPushRequestError)) throw error;
-      this.logger.warn(
-        { err: error, event: "notification.expo.request_failed", status: error.status, notifications: chunk.length },
-        "Expo refused or did not answer a push request; the notifications in it are retried",
-      );
-      for (const { claim } of chunk)
-        await this.retryOrGiveUp(claim, error.status ? `http_${error.status}` : "network", result);
-      return;
-    }
+    const answers = await this.sendMessages(messages);
 
-    const now = new Date();
-    const operations: Prisma.PrismaPromise<unknown>[] = [];
-    const invalidDeviceIds: string[] = [];
+    const outcomes: Outcome[] = [];
+    const credentialErrors: { code: string; platform: DevicePlatform | null }[] = [];
     let offset = 0;
     for (const { claim, devices } of chunk) {
-      const own = tickets.slice(offset, offset + devices.length);
+      const own = answers.slice(offset, offset + devices.length);
       offset += devices.length;
 
-      const deliveries = devices.map((device, index) => {
+      const unanswered = own.filter((answer) => answer.status === "request_failed");
+      if (unanswered.length > 0 && !own.some((answer) => answer.status === "ok")) {
+        // Expo refused or did not answer the request: nothing is known to be sent.
+        const [{ reason, retryAfterSeconds }] = unanswered;
+        outcomes.push(this.retryOrGiveUp(claim, reason, retryAfterSeconds));
+        continue;
+      }
+
+      const invalidDeviceIds: string[] = [];
+      const deliveries = devices.flatMap((device, index): Prisma.NotificationDeliveryCreateManyInput[] => {
         const ticket = own[index];
+        // Only after a split request, where another part was answered: this phone misses it.
+        if (ticket.status === "request_failed") return [];
         if (ticket.status === "ok") {
-          return {
-            notificationId: claim.id,
-            deviceId: device.id,
-            status: NotificationDeliveryStatus.TICKETED,
-            ticketId: ticket.id,
-          };
+          return [
+            {
+              notificationId: claim.id,
+              deviceId: device.id,
+              status: NotificationDeliveryStatus.TICKETED,
+              ticketId: ticket.id,
+            },
+          ];
         }
         const code = errorCode(ticket);
         if (code === EXPO_DEVICE_NOT_REGISTERED) invalidDeviceIds.push(device.id);
-        return {
-          notificationId: claim.id,
-          deviceId: device.id,
-          status: NotificationDeliveryStatus.FAILED,
-          error: code,
-        };
+        if (EXPO_CREDENTIAL_ERRORS.includes(code)) credentialErrors.push({ code, platform: device.platform });
+        return [
+          {
+            notificationId: claim.id,
+            deviceId: device.id,
+            status: NotificationDeliveryStatus.FAILED,
+            error: code,
+          },
+        ];
       });
       const accepted = deliveries.filter((delivery) => delivery.status === NotificationDeliveryStatus.TICKETED).length;
       const firstError = deliveries.find((delivery) => delivery.error)?.error ?? null;
-
-      operations.push(this.prisma.notificationDelivery.createMany({ data: deliveries }));
-      operations.push(
-        this.prisma.notification.updateMany({
-          where: { id: claim.id, claimedUntil: claim.claimedUntil },
-          data:
-            accepted > 0
-              ? { status: NotificationStatus.SENT, sentAt: now, claimedUntil: null, lastError: null }
-              : { status: NotificationStatus.FAILED, claimedUntil: null, lastError: firstError },
-        }),
-      );
-      if (accepted > 0) result.sent++;
-      else result.failed++;
-      this.logger.info(
-        {
-          event: accepted > 0 ? "notification.sent" : "notification.failed",
-          notificationId: claim.id,
-          userId: claim.userId,
-          type: claim.type,
+      if (accepted === 0 && deliveries.some((delivery) => delivery.error === EXPO_MESSAGE_RATE_EXCEEDED)) {
+        // Too fast for a phone, not a refusal: try the notification again later.
+        outcomes.push({
+          ...this.retryOrGiveUp(claim, EXPO_MESSAGE_RATE_EXCEEDED),
+          deliveries,
+          invalidDeviceIds,
           devices: devices.length,
           accepted,
-          ...(firstError ? { error: firstError } : {}),
+        });
+        continue;
+      }
+      outcomes.push({
+        claim,
+        kind: accepted > 0 ? "sent" : "failed",
+        reason: accepted > 0 ? null : firstError,
+        deliveries,
+        invalidDeviceIds,
+        devices: devices.length,
+        accepted,
+      });
+    }
+    this.alertCredentials("ticket", credentialErrors);
+    await this.settle(outcomes, result);
+  }
+
+  /**
+   * Sends messages in one Expo request and answers each one in order. A 400
+   * on a request of several messages is one bad message failing them all, so
+   * it is split in halves until the bad one is alone; that one gets an error
+   * ticket with Expo's code and the rest go out. A 429, a 5xx or no answer
+   * fails the whole request, to be retried; a 429 also pauses claiming.
+   */
+  private async sendMessages(messages: ExpoPushMessage[]): Promise<Answer[]> {
+    try {
+      return await this.expo.send(messages);
+    } catch (error) {
+      if (!(error instanceof ExpoPushRequestError)) throw error;
+      const split = error.status === 400 && messages.length > 1;
+      this.logger.warn(
+        {
+          err: error,
+          event: "notification.expo.request_failed",
+          status: error.status,
+          messages: messages.length,
+          ...(split ? { split: true } : {}),
         },
-        accepted > 0 ? "Notification sent" : "Every phone refused a notification",
+        split
+          ? "Expo refused a push request; it is split to find the message it refused"
+          : "Expo refused or did not answer a push request; the notifications in it are retried",
       );
+      if (split) {
+        const half = Math.ceil(messages.length / 2);
+        return [
+          ...(await this.sendMessages(messages.slice(0, half))),
+          ...(await this.sendMessages(messages.slice(half))),
+        ];
+      }
+      if (error.status === 400) {
+        return [{ status: "error", message: error.message, details: { error: error.code ?? "http_400" } }];
+      }
+      const retryAfterSeconds =
+        error.retryAfterSeconds === null ? 0 : Math.min(error.retryAfterSeconds, NOTIFICATION_RETRY_MAX_SECONDS);
+      if (error.status === 429) {
+        this.pausedUntil = Date.now() + Math.max(retryAfterSeconds, NOTIFICATION_RETRY_BASE_SECONDS) * 1000;
+      }
+      const failed: Answer = {
+        status: "request_failed",
+        reason: error.status ? `http_${error.status}` : "network",
+        retryAfterSeconds,
+      };
+      return messages.map(() => failed);
     }
-    if (invalidDeviceIds.length > 0) {
-      operations.push(this.prisma.userDevice.deleteMany({ where: { id: { in: invalidDeviceIds } } }));
-      result.invalidatedDevices += invalidDeviceIds.length;
-      this.logInvalidated(invalidDeviceIds);
-    }
-    await this.prisma.$transaction(operations);
   }
 
-  private async retryOrGiveUp(claim: ClaimedNotification, reason: string, result: SendRunResult): Promise<void> {
-    if (claim.attempts >= this.maxAttempts()) {
-      await this.giveUp(claim, reason, result);
-      return;
-    }
-    await this.prisma.notification.updateMany({
-      where: { id: claim.id, claimedUntil: claim.claimedUntil },
-      data: {
-        claimedUntil: null,
-        lastError: reason,
-        nextAttemptAt: new Date(Date.now() + retryDelaySeconds(claim.attempts) * 1000),
-      },
-    });
-    result.retried++;
-  }
-
-  private async giveUp(claim: ClaimedNotification, reason: string, result: SendRunResult): Promise<void> {
-    await this.prisma.notification.updateMany({
-      where: { id: claim.id, claimedUntil: claim.claimedUntil },
-      data: { status: NotificationStatus.FAILED, claimedUntil: null, lastError: reason },
-    });
-    result.givenUp++;
+  /**
+   * Apple or Google refused our credentials, so every push on that platform
+   * fails: one error line per request or receipt page, never per message.
+   */
+  private alertCredentials(
+    source: "ticket" | "receipt",
+    errors: { code: string; platform: DevicePlatform | null }[],
+  ): void {
+    if (errors.length === 0) return;
+    const codes: Record<string, number> = {};
+    for (const { code } of errors) codes[code] = (codes[code] ?? 0) + 1;
+    const platforms = [...new Set(errors.map(({ platform }) => platform).filter((platform) => platform !== null))];
     this.logger.error(
       {
-        event: ALERT_EVENTS.NOTIFICATION_GIVEN_UP,
+        event: ALERT_EVENTS.NOTIFICATION_CREDENTIALS_INVALID,
         severity: ALERT_SEVERITY.TICKET,
-        notificationId: claim.id,
-        type: claim.type,
-        attempts: claim.attempts,
-        reason,
+        source,
+        messages: errors.length,
+        codes,
+        ...(platforms.length > 0 ? { platforms } : {}),
       },
-      "A notification ran out of attempts and will not be sent",
+      "Apple or Google refused our push credentials: pushes to these phones fail until they are fixed in EAS",
     );
   }
 
-  private async settle(
-    claim: ClaimedNotification,
-    status: NotificationStatus,
-    reason: string,
-    result: SendRunResult,
-  ): Promise<void> {
-    await this.prisma.notification.updateMany({
-      where: { id: claim.id, claimedUntil: claim.claimedUntil },
-      data: { status, claimedUntil: null, lastError: reason },
+  /**
+   * Back to PENDING with a backoff, or FAILED once the attempts are used up.
+   * `minDelaySeconds` is Expo's Retry-After, when it sent one.
+   */
+  private retryOrGiveUp(claim: ClaimedNotification, reason: string, minDelaySeconds = 0): Outcome {
+    if (claim.attempts >= this.maxAttempts()) return { claim, kind: "given_up", reason };
+    const delaySeconds = Math.max(retryDelaySeconds(claim.attempts), minDelaySeconds);
+    return { claim, kind: "retried", reason, nextAttemptAt: new Date(Date.now() + delaySeconds * 1000) };
+  }
+
+  /**
+   * Writes each outcome only if this pass still holds the claim. The status
+   * update is matched on the lease and runs first; a notification whose lease
+   * another pass took over (count 0) gets no deliveries, deletes no phones
+   * and is not counted, so a pass that overran its lease cannot record a send
+   * twice. Counts and log lines follow the commit.
+   */
+  private async settle(outcomes: Outcome[], result: SendRunResult): Promise<void> {
+    if (outcomes.length === 0) return;
+    const now = new Date();
+    const held = await this.prisma.$transaction(async (tx) => {
+      const won: Outcome[] = [];
+      for (const outcome of outcomes) {
+        const { count } = await tx.notification.updateMany({
+          where: { id: outcome.claim.id, claimedUntil: outcome.claim.claimedUntil },
+          data: settledData(outcome, now),
+        });
+        if (count === 1) won.push(outcome);
+      }
+      const deliveries = won.flatMap((outcome) => outcome.deliveries ?? []);
+      if (deliveries.length > 0) await tx.notificationDelivery.createMany({ data: deliveries });
+      const invalidDeviceIds = [...new Set(won.flatMap((outcome) => outcome.invalidDeviceIds ?? []))];
+      if (invalidDeviceIds.length > 0) await tx.userDevice.deleteMany({ where: { id: { in: invalidDeviceIds } } });
+      return { won, invalidDeviceIds };
     });
-    if (status === NotificationStatus.SKIPPED) result.skipped++;
-    else result.failed++;
+
+    const won = new Set(held.won);
+    for (const outcome of outcomes) {
+      if (won.has(outcome)) this.record(outcome, result);
+      else this.recordLeaseLost(outcome, result);
+    }
+    if (held.invalidDeviceIds.length > 0) {
+      result.invalidatedDevices += held.invalidDeviceIds.length;
+      this.logInvalidated(held.invalidDeviceIds);
+    }
+  }
+
+  private record(outcome: Outcome, result: SendRunResult): void {
+    const { claim } = outcome;
+    switch (outcome.kind) {
+      case "skipped":
+        result.skipped++;
+        return;
+      case "retried":
+        result.retried++;
+        return;
+      case "given_up":
+        result.givenUp++;
+        this.logger.error(
+          {
+            event: ALERT_EVENTS.NOTIFICATION_GIVEN_UP,
+            severity: ALERT_SEVERITY.TICKET,
+            notificationId: claim.id,
+            type: claim.type,
+            attempts: claim.attempts,
+            reason: outcome.reason,
+          },
+          "A notification ran out of attempts and will not be sent",
+        );
+        return;
+      case "sent":
+      case "failed": {
+        if (outcome.kind === "sent") result.sent++;
+        else result.failed++;
+        if (outcome.devices === undefined) return; // Failed before any send (render_failed).
+        this.logger.info(
+          {
+            event: outcome.kind === "sent" ? "notification.sent" : "notification.failed",
+            notificationId: claim.id,
+            userId: claim.userId,
+            type: claim.type,
+            devices: outcome.devices,
+            accepted: outcome.accepted,
+            ...(outcome.reason ? { error: outcome.reason } : {}),
+          },
+          outcome.kind === "sent" ? "Notification sent" : "Every phone refused a notification",
+        );
+      }
+    }
+  }
+
+  private recordLeaseLost(outcome: Outcome, result: SendRunResult): void {
+    result.leaseLost++;
+    this.logger.warn(
+      {
+        event: "notification.lease_lost",
+        notificationId: outcome.claim.id,
+        type: outcome.claim.type,
+        outcome: outcome.kind,
+      },
+      "Another pass took this notification over after its lease ran out; this pass wrote nothing for it",
+    );
   }
 
   /**
@@ -322,7 +569,14 @@ export class NotificationSenderService {
    * read twice in one run.
    */
   async checkReceipts(now: Date = new Date()): Promise<ReceiptRunResult> {
-    const result: ReceiptRunResult = { checked: 0, delivered: 0, failed: 0, invalidatedDevices: 0 };
+    const run = await runExclusively(this.prisma, RECEIPTS_LOCK_KEY, RECEIPTS_LOCK_TIMEOUT_MS, () =>
+      this.checkReceiptsNow(now),
+    );
+    return run.ran ? run.result : { ...emptyReceiptResult(), ranElsewhere: true };
+  }
+
+  private async checkReceiptsNow(now: Date): Promise<ReceiptRunResult> {
+    const result = emptyReceiptResult();
     const createdAt = {
       lte: new Date(now.getTime() - NOTIFICATION_RECEIPT_MIN_AGE_MINUTES * 60_000),
       gte: new Date(now.getTime() - NOTIFICATION_RECEIPT_MAX_AGE_HOURS * 3_600_000),
@@ -346,6 +600,7 @@ export class NotificationSenderService {
       const delivered: string[] = [];
       const failedByCode = new Map<string, string[]>();
       const invalidDeviceIds: string[] = [];
+      const credentialErrors: { code: string; platform: null }[] = [];
       for (const delivery of deliveries) {
         const receipt = receipts[delivery.ticketId as string];
         if (!receipt) continue;
@@ -357,6 +612,19 @@ export class NotificationSenderService {
         const code = errorCode(receipt);
         failedByCode.set(code, [...(failedByCode.get(code) ?? []), delivery.id]);
         if (code === EXPO_DEVICE_NOT_REGISTERED) invalidDeviceIds.push(delivery.deviceId);
+        if (EXPO_CREDENTIAL_ERRORS.includes(code)) credentialErrors.push({ code, platform: null });
+      }
+      this.alertCredentials("receipt", credentialErrors);
+      // Not resent: the notification is SENT and its other phones have it, and
+      // resending one phone's copy would need per-phone retries the outbox does
+      // not have. Rare at our volume; the warning shows if that changes.
+      const rateLimited = failedByCode.get(EXPO_MESSAGE_RATE_EXCEEDED)?.length ?? 0;
+      if (rateLimited > 0) {
+        result.rateLimited += rateLimited;
+        this.logger.warn(
+          { event: "notification.receipt.rate_limited", deliveries: rateLimited },
+          "Apple or Google refused pushes sent too fast to the same phone; they are not resent",
+        );
       }
 
       const operations: Prisma.PrismaPromise<unknown>[] = [];
@@ -390,10 +658,22 @@ export class NotificationSenderService {
     return result;
   }
 
-  /** Deletes notifications past retention, with their deliveries, and phones not seen for months. */
+  /**
+   * Deletes notifications past retention, with their deliveries, and phones
+   * not seen for months. One replica at a time, like receipts.
+   */
   async purgeExpired(now: Date = new Date()): Promise<RetentionRunResult> {
-    const retentionDays = this.configService.get<number>("notifications.retentionDays") ?? 90;
-    const deviceStaleDays = this.configService.get<number>("notifications.deviceStaleDays") ?? 270;
+    const run = await runExclusively(this.prisma, RETENTION_LOCK_KEY, RETENTION_LOCK_TIMEOUT_MS, () =>
+      this.purgeExpiredNow(now),
+    );
+    return run.ran ? run.result : { notifications: 0, devices: 0, ranElsewhere: true };
+  }
+
+  private async purgeExpiredNow(now: Date): Promise<RetentionRunResult> {
+    const retentionDays =
+      this.configService.get<number>("notifications.retentionDays") ?? DEFAULT_NOTIFICATION_RETENTION_DAYS;
+    const deviceStaleDays =
+      this.configService.get<number>("notifications.deviceStaleDays") ?? DEFAULT_NOTIFICATION_DEVICE_STALE_DAYS;
     const day = 86_400_000;
     const notifications = await this.prisma.notification.deleteMany({
       where: { createdAt: { lt: new Date(now.getTime() - retentionDays * day) } },
@@ -412,9 +692,24 @@ export class NotificationSenderService {
   }
 
   private maxAttempts(): number {
-    return this.configService.get<number>("notifications.maxAttempts") ?? 5;
+    return this.configService.get<number>("notifications.maxAttempts") ?? DEFAULT_NOTIFICATION_MAX_ATTEMPTS;
   }
 }
+
+/** The status write for an outcome. Every outcome releases the lease. */
+const settledData = (outcome: Outcome, now: Date): Prisma.NotificationUpdateManyMutationInput => {
+  switch (outcome.kind) {
+    case "sent":
+      return { status: NotificationStatus.SENT, sentAt: now, claimedUntil: null, lastError: outcome.reason };
+    case "failed":
+    case "given_up":
+      return { status: NotificationStatus.FAILED, claimedUntil: null, lastError: outcome.reason };
+    case "skipped":
+      return { status: NotificationStatus.SKIPPED, claimedUntil: null, lastError: outcome.reason };
+    case "retried":
+      return { claimedUntil: null, lastError: outcome.reason, nextAttemptAt: outcome.nextAttemptAt };
+  }
+};
 
 /** Groups outgoing notifications into Expo requests without splitting one across two. */
 export const chunkByMessages = (outgoing: Outgoing[]): Outgoing[][] => {

@@ -710,6 +710,7 @@ model Notification {
   @@index([status, nextAttemptAt])
   // Retention.
   @@index([createdAt])
+  // A user's notifications: the cascade when an account is deleted.
   @@index([userId, createdAt])
 }
 

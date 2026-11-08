@@ -20,8 +20,9 @@ import { isConflict, retryOnceOnConflict, uploadImage } from "@/lib/api/upload-i
 import type { CoverImage } from "../lib/cover-image";
 import { profileKeys } from "@/features/profile/api/keys";
 import { extractInvitationToken } from "../lib/invite";
+import { forgetTray } from "../lib/upload-tray";
 import { eventsKeys } from "./keys";
-import type { InviteAccessLevel } from "@/lib/api/generated";
+import type { InviteAccessLevel, MemberPhotos } from "@/lib/api/generated";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, UpdateEventDto } from "../types";
 
 const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClient>, eventId?: string) => {
@@ -91,8 +92,10 @@ export const useDeleteEventMutation = () => {
     mutationFn: async (eventId) => {
       await eventsControllerRemove({ path: { eventId }, throwOnError: true });
     },
-    onSuccess: async (_data, eventId) => {
-      await invalidateEventCaches(queryClient, eventId);
+    onSuccess: async () => {
+      // Only Home's list: the roll's own queries would refetch to a 404 on the
+      // screens still open over it. They go with those screens, to garbage collection.
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.all });
     },
   });
 };
@@ -112,14 +115,22 @@ export const useDeactivateEventMutation = () => {
   });
 };
 
+type LeaveEventInput = {
+  eventId: string;
+  /** What happens to the frames you added. A closed roll has already lost them, so it stays KEEP. */
+  photos: MemberPhotos;
+};
+
 export const useLeaveEventMutation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
-    mutationFn: async (eventId) => {
-      await eventsControllerLeave({ path: { eventId }, throwOnError: true });
+  return useMutation<void, Error, LeaveEventInput>({
+    mutationFn: async ({ eventId, photos }) => {
+      await eventsControllerLeave({ path: { eventId }, query: { photos }, throwOnError: true });
     },
-    onSuccess: async (_data, eventId) => {
+    onSuccess: async (_data, { eventId }) => {
+      // Frames still developing can no longer land on the roll.
+      forgetTray(eventId);
       // Membership is gone: refetching these active queries now only returns 403.
       // Cancel and evict them before refreshing Home and navigating away.
       const keys = [eventsKeys.detail(eventId), eventsKeys.photos(eventId), eventsKeys.participants(eventId)];
@@ -133,9 +144,14 @@ export const useLeaveEventMutation = () => {
 export const useRemoveEventParticipantMutation = (eventId: string) => {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
-    mutationFn: async (targetUserId) => {
-      await eventsControllerRemoveParticipant({ path: { eventId, targetUserId }, throwOnError: true });
+  return useMutation<void, Error, { targetUserId: string; photos: MemberPhotos }>({
+    // KEEP is the API's default, so only DELETE goes on the wire (11.4).
+    mutationFn: async ({ targetUserId, photos }) => {
+      await eventsControllerRemoveParticipant({
+        path: { eventId, targetUserId },
+        ...(photos === "DELETE" ? { query: { photos } } : {}),
+        throwOnError: true,
+      });
     },
     onSuccess: async () => {
       await invalidateEventCaches(queryClient, eventId);
@@ -156,6 +172,9 @@ export const useRefreshRollAfterUpload = () => {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) }, { throwOnError: true }),
         queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }, { throwOnError: true }),
+        // The roll call counts each member's frames, and leaving asks about yours (13.2).
+        // A failed refetch here keeps the tray's developed rows no longer than the others do.
+        queryClient.invalidateQueries({ queryKey: eventsKeys.participants(eventId) }),
       ]),
     [queryClient],
   );
@@ -178,11 +197,13 @@ export const useDeleteEventPhotoMutation = () => {
         if (!isApiError(error) || error.status !== 404) throw error;
       }
     },
-    // Refetch the event too: deleting a photo frees its storage. In the
-    // background, so deleting several frames doesn't reload the roll between each.
+    // Refetch the event too: deleting a photo frees its storage, and the roll
+    // call's frame counts. In the background, so deleting several frames
+    // doesn't reload the roll between each.
     onSuccess: (_data, { eventId }) => {
       void queryClient.invalidateQueries({ queryKey: eventsKeys.photos(eventId) });
       void queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
+      void queryClient.invalidateQueries({ queryKey: eventsKeys.participants(eventId) });
     },
   });
 };

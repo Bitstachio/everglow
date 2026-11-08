@@ -5,12 +5,14 @@ import { useChangePassword } from "./use-change-password";
 const mockMutateAsync = jest.fn();
 const mockOpenTicket = jest.fn();
 const mockSessionStillValid = jest.fn();
-const mockClearLocalCredentials = jest.fn();
-const mockReplace = jest.fn();
+const mockEndExpiredSession = jest.fn();
 let mockSub: string | undefined = "auth0|user-1";
 
 jest.mock("@/context/auth-context", () => ({
-  useAuth: () => ({ identity: mockSub ? { sub: mockSub } : null }),
+  useAuth: () => ({
+    identity: mockSub ? { sub: mockSub } : null,
+    endExpiredSession: () => mockEndExpiredSession(),
+  }),
 }));
 jest.mock("../api/mutations", () => ({
   useCreatePasswordChangeTicketMutation: () => ({
@@ -21,13 +23,9 @@ jest.mock("../api/mutations", () => ({
 jest.mock("@/lib/auth0", () => ({
   openPasswordChangeTicket: (...args: unknown[]) => mockOpenTicket(...args),
   sessionStillValid: (...args: unknown[]) => mockSessionStillValid(...args),
-  clearLocalCredentials: (...args: unknown[]) => mockClearLocalCredentials(...args),
 }));
 jest.mock("@/lib/auth0-identity", () => ({
   isDatabaseIdentity: (sub: string | null | undefined) => typeof sub === "string" && sub.startsWith("auth0|"),
-}));
-jest.mock("expo-router", () => ({
-  router: { replace: (...args: unknown[]) => mockReplace(...args) },
 }));
 
 const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
@@ -38,7 +36,7 @@ beforeEach(() => {
   mockMutateAsync.mockResolvedValue({ ticketUrl: "https://auth0.example/ticket" });
   mockOpenTicket.mockResolvedValue({ type: "success", url: "everglowmobile://password-change/result" });
   mockSessionStillValid.mockResolvedValue(true);
-  mockClearLocalCredentials.mockResolvedValue(undefined);
+  mockEndExpiredSession.mockResolvedValue(undefined);
 });
 
 test("opens the Auth0 ticket URL for a database identity", async () => {
@@ -51,11 +49,10 @@ test("opens the Auth0 ticket URL for a database identity", async () => {
 
   expect(mockMutateAsync).toHaveBeenCalledTimes(1);
   expect(mockOpenTicket).toHaveBeenCalledWith("https://auth0.example/ticket");
-  expect(mockClearLocalCredentials).not.toHaveBeenCalled();
-  expect(mockReplace).not.toHaveBeenCalled();
+  expect(mockEndExpiredSession).not.toHaveBeenCalled();
 });
 
-test("clears the session and routes to login when credentials die after the change", async () => {
+test("ends the session through the auth context when credentials die after the change", async () => {
   mockSessionStillValid.mockResolvedValue(false);
   const { result } = await renderHook(() => useChangePassword());
 
@@ -63,8 +60,8 @@ test("clears the session and routes to login when credentials die after the chan
     await result.current.handleChangePassword();
   });
 
-  expect(mockClearLocalCredentials).toHaveBeenCalledTimes(1);
-  expect(mockReplace).toHaveBeenCalledWith("/login");
+  expect(mockEndExpiredSession).toHaveBeenCalledTimes(1);
+  expect(alert).not.toHaveBeenCalled();
 });
 
 test("rejects social identities without calling the API", async () => {

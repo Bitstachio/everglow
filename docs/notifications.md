@@ -30,7 +30,9 @@ The app registers the phone it runs on, and the API keeps one `UserDevice` row p
 - **A token moves between accounts.** If a phone signs in to another account, its row moves to that account, so
   the previous account's pushes stop reaching it. This also covers a sign-out whose `DELETE` never arrived
   (offline): the next sign-in on that phone takes the token over.
-- **At most 10 phones per account.** Registering an eleventh drops the one seen least recently.
+- **At most 10 phones per account.** Registering an eleventh drops the one seen least recently. One account's
+  registrations take a transaction-scoped advisory lock on the account first, so concurrent registrations trim one
+  after the other and the cap is exact.
 - **Suspended accounts may register and unregister**, so account notices can still reach them.
 - **Account deletion** removes the rows by cascade ([account-deletion.md](./account-deletion.md)).
 - `locale` is the phone's BCP 47 tag. Copy is English for now; the tag is kept so translated copy needs no contract
@@ -66,45 +68,97 @@ this.notifications.kick();
 
 ### Types
 
-Every type lives in `api/src/notifications/notification-catalogue.ts`: the ids its data carries, its copy, the
-app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
+Every type lives in `api/src/notifications/notification-catalogue.ts`: the ids its data carries and a type guard
+that checks them, its copy per language, the app path a tap opens, its dedupe key, its Android channel, an optional
+`ttlSeconds`, and whether it is `required`. Adding one:
 
 1. Add the value to the `NotificationType` enum in `schema.prisma`, with a migration.
 2. Add its data to `NotificationDataByType` and its entry to `NOTIFICATION_CATALOGUE`. The compiler refuses a type
    missing from either.
-3. Add a sample to `notification-catalogue.spec.ts`.
-4. Write the copy to [voice.md](./voice.md): short, no exclamation marks, plain words for safety and deletion.
-5. If the tap should open a screen that needs more than a path, handle it in the app's notification response
-   handler (`mobile/features/notifications/`).
+3. Write `isData` for its data. Rows outlive the code that wrote them: a row whose data no longer passes is
+   `FAILED` with `invalid_data` and logged as `notification.render_failed`, never sent with broken copy.
+4. Pick its channel (below). A new kind of notification gets a new channel id.
+5. Set `ttlSeconds` if the notice is pointless late ("closes tomorrow"): Expo passes it on as `ttl`, so a phone
+   that was off for days does not get it then. Leave it unset for notices that stay true (`TEST`, account notices).
+6. Add a sample to `notification-catalogue.spec.ts`.
+7. Write the copy to [voice.md](./voice.md): short, no exclamation marks, plain words for safety and deletion.
+8. If the tap should open a screen that needs more than a path, handle it in the app's notification tap handler,
+   which arrives with the app's side of EV-73.
 
-| Type   | Sent when                                                       | Opens | Required |
-| ------ | --------------------------------------------------------------- | ----- | -------- |
-| `TEST` | `pnpm run notifications:send-test` (§6). Never sent by the app. | `/`   | no       |
+| Type   | Sent when                                                       | Opens | Required | Channel   | ttl  |
+| ------ | --------------------------------------------------------------- | ----- | -------- | --------- | ---- |
+| `TEST` | `pnpm run notifications:send-test` (§6). Never sent by the app. | `/`   | no       | `account` | none |
+
+### Languages
+
+`render(data, locale)` takes the language of the phone it is for. Each phone's `UserDevice.locale` (a BCP 47 tag)
+picks a language in `NOTIFICATION_LOCALES` by its first part, and anything not listed gets English. The sender
+renders once per language among the recipient's phones and sends each phone its own copy. Only English exists
+today; translating means adding the language to `NOTIFICATION_LOCALES` and its copy to each entry.
+
+### Android channels
+
+Each kind of notification posts to its own Android channel (Expo's `channelId`), because Android fixes a
+channel's importance once the phone has created it, and each kind gets its own switch in the phone's settings and
+in the app's notification settings ("A roll opens", "New photos, in batches", "The day before it closes", "Someone
+joins your roll", "Reports to check"). The ids are `NOTIFICATION_CHANNELS` in the catalogue, typed, so an entry
+cannot name a channel that does not exist.
+
+| Channel   | For                         |
+| --------- | --------------------------- |
+| `account` | Account notices, and `TEST` |
+
+A new kind adds its channel id to `NOTIFICATION_CHANNELS` here **and** to the matching list the app creates its
+channels from, in the same release. That list arrives with the app's side of EV-73
+(`mobile/features/notifications/lib/push.ts`), which creates `account`. A push to a channel the phone never created
+falls back to Expo's default channel.
 
 ## 4. The sender
 
 `NotificationSenderService` sends the outbox through the [Expo Push API](https://docs.expo.dev/push-notifications/sending-notifications/).
 
 - **Claims.** A run claims due `PENDING` rows with `FOR UPDATE SKIP LOCKED` and a 5-minute lease, so several API
-  instances never send the same row. Every write that settles a row matches on its lease.
+  instances never send the same row. Every write that settles a row matches on its lease, in one transaction
+  that runs the status update first: a pass that overran its lease (another pass claimed the row since) writes
+  no deliveries, unregisters no phones and counts nothing (`leaseLost`, logged as `notification.lease_lost`).
 - **Per row.** No phones, or the account's deletion has started: `SKIPPED`. Otherwise one message per phone, up to
   100 per Expo request. At least one phone accepted: `SENT`. Every phone refused: `FAILED`, with Expo's code.
   Each phone's answer is a `NotificationDelivery` row with its ticket.
+- **One bad message.** Expo answers a request with a 400 when one message in it is invalid, failing all of them.
+  The sender then splits that request in halves until the bad message is alone: it is `FAILED` with Expo's code,
+  and the rest go out. A 429, a 5xx or no answer is not split: the whole request is retried.
+- **Broken credentials.** `InvalidCredentials` or `MismatchSenderId`, at send or in a receipt, means the APNs key
+  or FCM credentials in EAS no longer work, so every push on that platform fails. Each Expo request or receipt
+  page that sees one logs a single `notification.credentials_invalid` error, which alarms
+  ([alerting.md](../api/docs/alerting.md)).
 - **Retries.** When Expo refuses or does not answer the whole request, its rows go back to `PENDING` with a backoff
-  of 30 s doubling up to an hour. After `NOTIFICATION_MAX_ATTEMPTS` (5) they are `FAILED` and logged as
-  `notification.given_up` ([alerting.md](../api/docs/alerting.md)).
+  of 1 minute doubling up to an hour: 1, 2, 4, 8, 16, 32, then 60 minutes. After `NOTIFICATION_MAX_ATTEMPTS` (8)
+  they are `FAILED` and logged as `notification.given_up` ([alerting.md](../api/docs/alerting.md)), so the last
+  attempt comes about 2 hours after the first: an Expo outage, or a revoked access token fixed within that window,
+  loses nothing. A 429 waits at least Expo's `Retry-After` (capped at an hour), and the run claims no more rows
+  until then. A notification every phone refused with `MessageRateExceeded` (too many pushes to one phone too
+  fast) is retried the same way instead of `FAILED`.
 - **Receipts.** Every 15 minutes the receipts of tickets between 15 minutes and 24 hours old are checked:
   `DELIVERED` or `FAILED`. A phone Expo answers with `DeviceNotRegistered`, at send or in a receipt, is
-  unregistered.
+  unregistered. A receipt that says `MessageRateExceeded` is marked `FAILED` and logged as
+  `notification.receipt.rate_limited`, but not resent: the notification is already `SENT` and its other phones
+  have it, and resending one phone's copy would need per-phone retries the outbox does not have. At our volume
+  this should not happen; if the warning shows up regularly, that is the time to add them.
 - **Once.** Each notification is sent once, except in one case: if the process dies after Expo accepted a request
   and before the result is written, the lease runs out and that request is sent again. Expo offers no idempotency
   key to close this.
 
-| Job                    | When         | Enabled by                                     |
-| ---------------------- | ------------ | ---------------------------------------------- |
-| Notification send      | every minute | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
-| Notification receipts  | every 15 min | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
-| Notification retention | daily, 05:00 | always                                         |
+| Job                    | When         | Enabled by                                     | Replicas               |
+| ---------------------- | ------------ | ---------------------------------------------- | ---------------------- |
+| Notification send      | every minute | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | all; claims split work |
+| Notification receipts  | every 15 min | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | one at a time          |
+| Notification retention | daily, 05:00 | always                                         | one at a time          |
+
+Every replica schedules all three. Send runs everywhere, and the claims keep replicas off each other's rows.
+Receipts and retention would repeat the same work on every replica (N replicas, N times the receipt calls to
+Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xact_lock` (`runExclusively` in
+`api/src/prisma/advisory-lock.ts`); a replica that finds it held skips that run and logs its heartbeat with
+`ranElsewhere: true`.
 
 ## 5. Retention
 
@@ -126,6 +180,19 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
   ```
 
   It sends a `TEST` notification to every phone the account has registered and prints what Expo answered.
+
+- **Against a real Postgres.** The unit and integration suites mock Prisma, so the claim, `SKIP LOCKED`, the lease
+  match on `timestamp(3)`, the single-replica locks and the device cap under concurrency are tested by an opt-in
+  suite, `api/test/db/notifications.db.spec.ts`: two senders on separate pools never claim the same row, a pass
+  that died is recovered once its lease runs out, a pass that lost its lease writes nothing, receipts run on one
+  instance, and concurrent registrations keep exactly 10 phones. From `api/`, against an empty migrated database
+  (never a shared one; [testing.md](../api/docs/testing.md#database-suite)):
+
+  ```bash
+  DB_TEST_DATABASE_URL=postgresql://…/everglow_dbtest pnpm run test:db
+  ```
+
+  Without `DB_TEST_DATABASE_URL` it is skipped with a message. It is not in CI yet.
 
 ## 7. The app
 

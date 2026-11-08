@@ -47,6 +47,9 @@ const props = (): ComponentProps<typeof FrameViewer> => {
     onDelete: jest.fn(),
     onCancelDelete: jest.fn(),
     onConfirmDelete: jest.fn(),
+    blocking: null,
+    onCancelBlock: jest.fn(),
+    onConfirmBlock: jest.fn(),
   };
 };
 

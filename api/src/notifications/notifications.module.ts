@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { ExpoPushService } from "src/sdk/expo/expo-push.service";
 import { DevicesController } from "./devices.controller";
 import { DevicesService } from "./devices.service";
 import { NotificationPreferencesService } from "./notification-preferences.service";
@@ -11,7 +10,6 @@ import { NotificationsService } from "./notifications.service";
   controllers: [DevicesController],
   providers: [
     DevicesService,
-    ExpoPushService,
     NotificationPreferencesService,
     NotificationSenderService,
     NotificationsService,

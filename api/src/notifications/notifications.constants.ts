@@ -11,8 +11,13 @@ export const MAX_DEVICES_PER_USER = 10;
  */
 export const EXPO_PUSH_TOKEN_PATTERN = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,200}\]$/;
 
-/** Sender passes one notification gets before it is FAILED and reported. */
-export const DEFAULT_NOTIFICATION_MAX_ATTEMPTS = 5;
+/**
+ * Sender passes one notification gets before it is FAILED and reported. With
+ * the backoff below, the 8th and last pass comes about 2 hours after the
+ * first (1 + 2 + 4 + 8 + 16 + 32 + 60 minutes), so an Expo outage or a
+ * credential fixed within that window loses nothing.
+ */
+export const DEFAULT_NOTIFICATION_MAX_ATTEMPTS = 8;
 
 /** Days a notification is kept, sent or not, before it and its deliveries are deleted. */
 export const DEFAULT_NOTIFICATION_RETENTION_DAYS = 90;
@@ -33,8 +38,11 @@ export const NOTIFICATION_SEND_MAX_BATCHES_PER_RUN = 20;
 /** How long a sender pass holds the notifications it claimed. Longer than any send. */
 export const NOTIFICATION_CLAIM_LEASE_SECONDS = 300;
 
-/** First retry after this many seconds, doubling per attempt up to the cap. */
-export const NOTIFICATION_RETRY_BASE_SECONDS = 30;
+/**
+ * First retry after this many seconds, doubling per attempt up to the cap. A
+ * Retry-After from Expo is honoured up to the same cap.
+ */
+export const NOTIFICATION_RETRY_BASE_SECONDS = 60;
 export const NOTIFICATION_RETRY_MAX_SECONDS = 3600;
 
 /**
@@ -44,6 +52,3 @@ export const NOTIFICATION_RETRY_MAX_SECONDS = 3600;
  */
 export const NOTIFICATION_RECEIPT_MIN_AGE_MINUTES = 15;
 export const NOTIFICATION_RECEIPT_MAX_AGE_HOURS = 24;
-
-/** The Android channel the app creates, and every push goes to. */
-export const NOTIFICATION_ANDROID_CHANNEL_ID = "default";

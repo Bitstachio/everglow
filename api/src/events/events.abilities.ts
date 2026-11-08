@@ -17,7 +17,8 @@ export const defineEventAbilities = (can: AbilityBuilder<AppAbility>["can"], use
   if (!user.isOnboarded) return;
 
   can(EVENT_ACTIONS.CREATE, EVENT_SUBJECT);
-  can(EVENT_ACTIONS.READ, EVENT_SUBJECT, { creatorId: user.id });
+  // Reading an event takes a membership. `creatorId` is attribution only: a
+  // creator who left or was removed reads nothing (docs/account-deletion.md).
   can(EVENT_ACTIONS.READ, EVENT_SUBJECT, { eventAccesses: { some: { userId: user.id } } });
   can(EVENT_ACTIONS.DELETE, EVENT_SUBJECT, {
     eventAccesses: { some: { userId: user.id, accessLevel: AccessLevel.ORGANIZER } },

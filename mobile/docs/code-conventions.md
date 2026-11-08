@@ -83,6 +83,15 @@ export default ProfileScreen;
 - Use `let` only when a binding is reassigned.
 - Never use `var`.
 
+### Comments
+
+Comments explain **what the code is for** in the product, not which drawing they came from.
+
+- Do **not** cite contact-sheet chapter or frame numbers in source comments, JSDoc, or test titles (`12.2`, `07.1`, “chapter 12”, …). The design HTML set is a working reference and will renumber; those indices become noise.
+- Prefer durable wording: “Roll settings for an upcoming or open roll”, “Host envelope screen from Send the envelope”.
+- Drawing numbers belong in Linear issues, PR descriptions, and chat — not in the codebase.
+- `TODO`s state the missing behavior, not a frame id (“Wire the date editor”, not “TODO: 12.3”).
+
 ### File and folder names
 
 Use **kebab-case** for source file and folder names under linted app directories. Export identifiers stay PascalCase (components, screens) or camelCase (hooks, helpers).

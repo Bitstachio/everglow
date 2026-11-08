@@ -6,7 +6,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import { colorTokens } from "@/theme/tokens";
 import { CaretLeft, CaretRight, type Icon } from "phosphor-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import type { CalendarDayState } from "../lib/new-roll";
 
@@ -49,9 +49,13 @@ type WhenSlipProps = {
   /** "S M T W T F S". */
   weekdays: readonly string[];
   times: WhenSlipTime[];
-  /** "Set Sat 7 Nov, 19:00". */
+  /** Optional line above the CTA, such as who will see the new date. */
+  note?: ReactNode;
+  /** "Set Sat 7 Nov, 19:00" / "Move to Sat 14 Nov, 19:00". */
   setLabel: string;
   onSet: () => void;
+  /** Disable the CTA while a move is saving. */
+  isSetting?: boolean;
 };
 
 // Four times fill the slip's width, 10pt apart inside its 20pt margins, and
@@ -122,8 +126,10 @@ export const WhenSlip = ({
   next,
   weekdays,
   times,
+  note,
   setLabel,
   onSet,
+  isSetting = false,
 }: WhenSlipProps) => {
   const reduceMotion = useReduceMotion();
   // The months sit side by side in a paged strip, so a part swipe shows the next one coming in.
@@ -242,8 +248,10 @@ export const WhenSlip = ({
         ))}
       </ScrollView>
 
+      {note ? <View className="mt-3.5">{note}</View> : null}
+
       <View className="mt-4">
-        <Button title={setLabel} mark="✓" onPress={onSet} />
+        <Button title={setLabel} mark="✓" onPress={onSet} isLoading={isSetting} disabled={isSetting} />
       </View>
     </View>
   );

@@ -2,14 +2,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useUpdateEventMutation } from "../api/mutations";
 
-const editEventDescriptionSchema = z.object({
-  description: z.string().trim().max(255, "Description must be 255 characters or fewer."),
-});
-
-export type EditEventDescriptionValues = z.infer<typeof editEventDescriptionSchema>;
+export type EditEventDescriptionValues = {
+  description: string;
+};
 
 type UseEditEventDescriptionFormParams = {
   eventId: string;
@@ -17,15 +16,20 @@ type UseEditEventDescriptionFormParams = {
   onSuccess: () => void;
 };
 
+/** Saves or clears the note for guests from settings. */
 export const useEditEventDescriptionForm = ({
   eventId,
   initialDescription,
   onSuccess,
 }: UseEditEventDescriptionFormParams) => {
+  const { t } = useTranslation("roll");
   const mutation = useUpdateEventMutation(eventId);
   const submitting = useRef(false);
+  const schema = z.object({
+    description: z.string().trim().max(255, t("settings.editNote.tooLong")),
+  });
   const form = useForm<EditEventDescriptionValues>({
-    resolver: zodResolver(editEventDescriptionSchema),
+    resolver: zodResolver(schema),
     defaultValues: { description: initialDescription },
     mode: "onTouched",
   });
@@ -50,7 +54,7 @@ export const useEditEventDescriptionForm = ({
         reset({ description });
         onSuccess();
       } catch (error) {
-        form.setError("root.server", { message: getErrorMessage(error, "Failed to update event description") });
+        form.setError("root.server", { message: getErrorMessage(error, t("settings.editNote.failed")) });
       } finally {
         submitting.current = false;
       }
