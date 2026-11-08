@@ -2,6 +2,7 @@ import { buildEvent } from "../testing/fixtures";
 import {
   closedOn,
   envelopeAccessLevel,
+  envelopeCount,
   envelopeState,
   envelopeUrl,
   formatEnvelopeDate,
@@ -46,4 +47,12 @@ test("a closed roll closed when a host cut it, or when its window ran out", () =
   expect(closedOn(event)).toBe("2026-09-21T10:00:00.000Z");
   expect(closedOn({ ...event, deactivatedAt: "2026-09-15T10:00:00.000Z" })).toBe("2026-09-15T10:00:00.000Z");
   expect(closedOn({ ...event, galleryClosesAt: null })).toBe(event.updatedAt);
+});
+
+test("counts the envelopes the API listed an invite for, leaving out any other role", () => {
+  expect(envelopeCount(buildEvent())).toBe(2);
+  expect(
+    envelopeCount(buildEvent({ invites: [{ accessLevel: "VIEWER", invitationUrl: "https://events.everglow.app/v" }] })),
+  ).toBe(1);
+  expect(envelopeCount(buildEvent({ invites: [] }))).toBe(0);
 });

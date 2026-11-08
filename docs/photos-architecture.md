@@ -183,7 +183,7 @@ Composite index supports the paginated list query (`WHERE eventId = ? AND status
 
 `DELETE /photos/:photoId`
 
-1. Verify caller can delete the photo (CASL: organizer any, uploader own, whether or not the uploader is still a member; see §9).
+1. Verify caller can delete the photo (CASL: organizer any, uploader own, whether or not the uploader is still a member; see §9). In an event under review or suspended, only the uploader may: anyone else gets 403 `EVENT_UNDER_REVIEW` or `EVENT_SUSPENDED` ([moderation.md](./moderation.md) §7).
 2. Delete the S3 object, with its thumbnail and display copy in the same `DeleteObjects` batch (§2, [derivative generation](#derivative-generation-ev-5)). A reported photo goes through the evidence check first; a retained original keeps its copies.
 3. Delete DB row.
 

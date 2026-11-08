@@ -3,7 +3,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import i18n from "@/i18n/instance";
 import { colorTokens } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import { type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Modal, Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomSheetPresentation } from "./use-bottom-sheet";
@@ -35,6 +35,12 @@ export const BottomSheet = ({
     visible,
     Platform.OS === "ios" ? undefined : onClosed,
   );
+  // iOS reports the dismissal after the sheet has gone, so read the latest
+  // `visible` rather than the one the Modal's callback was rendered with.
+  const visibleRef = useRef(visible);
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
   const dismissLabel = dismissAccessibilityLabel ?? i18n.t("actions.dismiss", { ns: "common" });
   const closeLabel = closeAccessibilityLabel ?? i18n.t("actions.close", { ns: "common" });
 
@@ -48,7 +54,7 @@ export const BottomSheet = ({
       onDismiss={
         Platform.OS === "ios"
           ? () => {
-              if (!visible) onClosed?.();
+              if (!visibleRef.current) onClosed?.();
             }
           : undefined
       }

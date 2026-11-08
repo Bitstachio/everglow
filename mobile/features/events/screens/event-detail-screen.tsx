@@ -9,7 +9,6 @@ import { Display } from "@/components/ui/display";
 import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { IconButton } from "@/components/ui/icon-button";
-import { IndexRow } from "@/components/ui/index-row";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Slip } from "@/components/ui/slip";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,9 +24,15 @@ import { FrameViewer } from "../components/frame-viewer/frame-viewer";
 import { RollBand } from "../components/roll-band";
 import { RollCover } from "../components/roll-cover";
 import { RollFooter, type FooterAction, type RollFooterProps } from "../components/roll-footer";
+import { DeleteRollSlip } from "../components/delete-roll-slip";
+import { LeaveRollSlip } from "../components/leave-roll-slip";
+import { RollMenu } from "../components/roll-menu";
 import { RollNotice } from "../components/roll-notice";
 import { RollOpened } from "../components/roll-opened";
-import { RollPeopleList } from "../components/roll-people-list";
+import { ROLE_KEY, RollPeopleList } from "../components/roll-people-list";
+import { PersonMenu } from "../components/person-menu";
+import { RemovePersonSlip } from "../components/remove-person-slip";
+import { BlockSlip } from "@/features/moderation/components/block-slip";
 import { RollTrayLine } from "../components/roll-tray-line";
 import { UnexposedRoll } from "../components/unexposed-roll";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
@@ -132,13 +137,15 @@ const EventDetailScreen = () => {
         ? t("duration.hoursMinutes", { hours: duration.hours, minutes: duration.minutes })
         : t("duration.minutes", { minutes: duration.minutes });
 
-  // 07.9 Closed: the photos are gone; the roll and its people stay.
+  // 07.9 Closed: the photos are gone; the roll and its people stay. Just
+  // closed, it says so over two crossed-out strips.
   if (stage === "closed") {
     const removedOn = closedOn(event);
+    const edgeValues = { range: formatRange(event.galleryOpensAt, removedOn), count: event.usage.members };
     return (
       <SafeAreaView className="flex-1 bg-ground">
         <TopBar
-          title={t("closed.top", { date: formatClosedOn(removedOn) })}
+          title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
             <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
@@ -157,18 +164,23 @@ const EventDetailScreen = () => {
               <View className="px-5 pt-6">
                 <Display className="text-text-2">{event.title}</Display>
                 <EdgePrint className="mt-2.5">
-                  {t("closed.edge", {
-                    range: formatRange(event.galleryOpensAt, removedOn),
-                    count: event.usage.members,
-                  })}
+                  {event.deactivatedAt ? t("closed.edgeCut", edgeValues) : t("closed.edge", edgeValues)}
                 </EdgePrint>
               </View>
-              <UnexposedRoll
-                strips={3}
-                crossed
-                note={t("closed.removed", { date: formatEnvelopeDay(removedOn) })}
-                accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
-              />
+              {screen.closedJustNow ? (
+                <UnexposedRoll
+                  strips={2}
+                  crossed
+                  accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
+                />
+              ) : (
+                <UnexposedRoll
+                  strips={3}
+                  crossed
+                  note={t("closed.removed", { date: formatEnvelopeDay(removedOn) })}
+                  accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
+                />
+              )}
               <EdgePrint className="mx-5 mt-8 border-b border-outline-soft pb-2.5">
                 {t("closed.whoWasThere", { count: participants.length })}
               </EdgePrint>
@@ -582,7 +594,7 @@ const EventDetailScreen = () => {
 
 /** Everything that opens over the roll: the menu, people, slips, the envelope, a frame. */
 const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation(["roll", "report"]);
   const { event, role } = screen;
   if (!event) return null;
 
@@ -612,44 +624,70 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         ) : null}
 
         {screen.sheet === "menu" ? (
-          <View>
-            <IndexRow label={t("menuSheet.people")} onPress={screen.onOpenPeople} />
-            {role === "host" && event.status !== "SUSPENDED" ? (
-              <IndexRow label={t("menuSheet.settings")} onPress={screen.onOpenSettings} />
-            ) : null}
-            {role !== "host" ? <IndexRow action muted label={t("menuSheet.leave")} onPress={screen.onLeave} /> : null}
-          </View>
+          <RollMenu
+            role={role}
+            canOpenSettings={role === "host" && event.status !== "SUSPENDED"}
+            canCut={role === "host" && event.galleryState !== "CLOSED"}
+            canDelete={screen.canDeleteRoll}
+            canLeave={screen.canLeave}
+            reports={
+              screen.canReviewReports ? { toCheck: screen.reportsToCheck, onOpen: screen.onOpenReports } : undefined
+            }
+            onSendEnvelope={screen.onOpenEnvelope}
+            onOpenRollCall={screen.onOpenPeople}
+            onOpenSettings={screen.onOpenSettings}
+            onCut={screen.onCut}
+            onDelete={screen.onDeleteRoll}
+            onReportRoll={screen.onReportRoll}
+            onLeave={screen.onLeave}
+          />
+        ) : null}
+
+        {screen.sheet === "deleteRoll" ? (
+          <DeleteRollSlip {...screen.deleteRollSlip} onKeep={screen.onCloseSheet} />
         ) : null}
 
         {screen.sheet === "people" ? (
           <RollPeopleList
             participants={screen.participants}
             currentUserId={screen.currentUserId}
-            onRemove={role === "host" && event.status === "ACTIVE" ? screen.onRemove : undefined}
+            onPerson={screen.onOpenPerson}
+          />
+        ) : null}
+
+        {screen.sheet === "person" && screen.person ? (
+          <PersonMenu
+            person={screen.person}
+            roleLabel={t(ROLE_KEY[screen.person.accessLevel])}
+            onReport={screen.onReportPerson}
+            onBlock={screen.onBlockPerson}
+            onUnblock={screen.onUnblockPerson}
+            onRemove={screen.canRemovePerson ? screen.onRemovePerson : undefined}
+          />
+        ) : null}
+
+        {screen.sheet === "block" && screen.rollBlocking ? (
+          <BlockSlip
+            name={screen.rollBlocking.name}
+            busy={screen.rollBlocking.busy}
+            error={screen.rollBlocking.error}
+            onConfirm={screen.onConfirmBlock}
+            onCancel={screen.onCancelBlock}
           />
         ) : null}
 
         {screen.sheet === "leave" ? (
-          <Slip
-            title={t("leave.title", { title: event.title })}
-            body={screen.stage === "closed" ? t("leave.bodyClosed") : t("leave.body")}
-          >
-            <Button title={t("leave.confirm")} mark="⇥" onPress={screen.onConfirmLeave} isLoading={screen.isLeaving} />
-            <Button title={t("leave.cancel")} variant="secondary" mark="‹" onPress={screen.onCloseSheet} />
-          </Slip>
-        ) : null}
-
-        {screen.sheet === "cut" ? (
-          <Slip edge={event.title} title={t("cut.title")} body={t("cut.body")}>
-            <Button
-              title={t("cut.confirm")}
-              variant="danger"
-              mark="✂"
-              onPress={screen.onConfirmCut}
-              isLoading={screen.isCutting}
-            />
-            <Button title={t("cut.cancel")} variant="secondary" mark="‹" onPress={screen.onCloseSheet} />
-          </Slip>
+          <LeaveRollSlip
+            rollTitle={event.title}
+            frameCount={screen.leaveFrameCount}
+            closed={screen.leaveClosed}
+            photos={screen.leavePhotos}
+            error={screen.leaveError}
+            isLeaving={screen.isLeaving}
+            onChoose={screen.onChooseLeavePhotos}
+            onConfirm={screen.onConfirmLeave}
+            onStay={screen.onCloseSheet}
+          />
         ) : null}
 
         {screen.sheet === "room" && room ? (
@@ -675,16 +713,14 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           </Slip>
         ) : null}
 
-        {screen.sheet === "remove" ? (
-          <Slip title={t("remove.title", { name: screen.removing?.name ?? "" })} body={t("remove.body")}>
-            <Button
-              title={t("remove.confirm")}
-              variant="danger"
-              onPress={screen.onConfirmRemove}
-              isLoading={screen.isRemoving}
-            />
-            <Button title={t("remove.cancel")} variant="secondary" mark="‹" onPress={screen.onBackToPeople} />
-          </Slip>
+        {screen.sheet === "remove" && screen.removing ? (
+          <RemovePersonSlip
+            name={screen.removing.name || t("people.unknown")}
+            frameCount={screen.removing.photoCount}
+            busy={screen.isRemoving}
+            onConfirm={screen.onConfirmRemove}
+            onCancel={screen.onBackToPeople}
+          />
         ) : null}
       </BottomSheet>
 
@@ -730,6 +766,11 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         isDeleting={screen.busy === "delete"}
         onCancelDelete={screen.onCancelDelete}
         onConfirmDelete={screen.onConfirmDelete}
+        onReport={screen.onReportFrame}
+        onBlock={screen.onBlockFrameOwner}
+        blocking={screen.viewerBlocking}
+        onCancelBlock={screen.onCancelBlock}
+        onConfirmBlock={screen.onConfirmBlock}
       />
     </>
   );

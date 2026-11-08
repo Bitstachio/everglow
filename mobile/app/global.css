@@ -99,6 +99,9 @@
   --text-title-roll: 24px;
   --text-title-roll--line-height: calc(28 / 24);
   --text-title-roll--letter-spacing: -0.6px;
+  --text-title-sheet: 18px;
+  --text-title-sheet--line-height: calc(22 / 18);
+  --text-title-sheet--letter-spacing: -0.36px;
   --text-wordmark: 22px;
   --text-wordmark--line-height: calc(24 / 22);
   --text-wordmark--letter-spacing: -0.4px;

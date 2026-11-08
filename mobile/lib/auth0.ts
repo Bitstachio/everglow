@@ -71,9 +71,25 @@ export const getSignedInIdentity = async (): Promise<SignedInIdentity | null> =>
   }
 };
 
-/** Clear the Auth0 web session and locally stored credentials. */
+/**
+ * Revoke the stored refresh token at Auth0, so a copy taken off the phone stops
+ * working: clearing the credentials manager only forgets it here. Best effort.
+ * Offline, or a token Auth0 already revoked, is logged and the sign-out goes on.
+ */
+const revokeRefreshToken = async (): Promise<void> => {
+  try {
+    const { refreshToken } = await auth0.credentialsManager.getCredentials();
+    if (refreshToken) await auth0.auth.revoke({ refreshToken });
+  } catch (error) {
+    const { code, name } = (error ?? {}) as { code?: string; name?: string };
+    console.warn("auth.sign_out.revoke_failed", { reason: code ?? name ?? "unknown" });
+  }
+};
+
+/** Revoke the refresh token, then clear the Auth0 web session and locally stored credentials. */
 export const logoutFromAuth0 = async (): Promise<void> => {
   try {
+    await revokeRefreshToken();
     await auth0.webAuth.clearSession(undefined, { customScheme: AUTH0_CUSTOM_SCHEME });
   } finally {
     await clearLocalCredentials();
@@ -122,8 +138,8 @@ export const openPasswordChangeTicket = async (ticketUrl: string): Promise<WebBr
 
 /**
  * After a password change the refresh token is often revoked. Returns false when
- * the local session can no longer be refreshed; callers should clear credentials
- * and send the user to login.
+ * the local session can no longer be refreshed; callers end it through the auth
+ * context (`endExpiredSession`), which also clears the account on this phone.
  */
 export const sessionStillValid = async (): Promise<boolean> => {
   try {

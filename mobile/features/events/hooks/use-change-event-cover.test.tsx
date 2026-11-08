@@ -1,7 +1,12 @@
+import { createApiError } from "@/lib/api/errors";
+import { I18nProvider } from "@/providers/i18n-provider";
 import { act, renderHook } from "@testing-library/react-native";
 import { Alert, type AlertButton } from "react-native";
-import { createApiError } from "@/lib/api/errors";
 import { useChangeEventCover } from "./use-change-event-cover";
+
+const wrapper = ({ children }: { children: React.ReactNode }) => <I18nProvider>{children}</I18nProvider>;
+const renderCover = (eventId: string, hasCover: boolean) =>
+  renderHook(() => useChangeEventCover(eventId, hasCover), { wrapper });
 
 const mockSetCover = jest.fn();
 const mockRemoveCover = jest.fn();
@@ -68,9 +73,9 @@ beforeEach(() => {
 });
 
 test("frames a library photo at 16:9, prepares it and uploads the result", async () => {
-  const { result } = await renderHook(() => useChangeEventCover("event-1", false));
+  const { result } = await renderCover("event-1", false);
 
-  await choose(result, "Choose from Library");
+  await choose(result, "Choose from Photos");
   // iOS's editor only crops square, so the picker leaves the photo whole for the cover crop.
   expect(mockLaunchLibrary).toHaveBeenCalledWith(expect.not.objectContaining({ allowsEditing: true }));
   expect(result.current.coverCrop.photo).toEqual(picked);
@@ -84,32 +89,32 @@ test("frames a library photo at 16:9, prepares it and uploads the result", async
 });
 
 test("uploads nothing when the crop is cancelled", async () => {
-  const { result } = await renderHook(() => useChangeEventCover("event-1", false));
+  const { result } = await renderCover("event-1", false);
 
-  await choose(result, "Choose from Library");
+  await choose(result, "Choose from Photos");
   await act(async () => result.current.coverCrop.onCancel());
 
   expect(result.current.coverCrop.photo).toBeNull();
   expect(mockSetCover).not.toHaveBeenCalled();
 });
 
-test("offers Remove Cover only when the event has one", async () => {
-  const withoutCover = await renderHook(() => useChangeEventCover("event-1", false));
-  expect((await menuButtons(withoutCover.result)).map((b) => b.text)).not.toContain("Remove Cover");
+test("offers to remove the cover only when the event has one", async () => {
+  const withoutCover = await renderCover("event-1", false);
+  expect((await menuButtons(withoutCover.result)).map((b) => b.text)).not.toContain("Remove the cover");
 
-  const withCover = await renderHook(() => useChangeEventCover("event-1", true));
-  await choose(withCover.result, "Remove Cover");
+  const withCover = await renderCover("event-1", true);
+  await choose(withCover.result, "Remove the cover");
   expect(mockRemoveCover).toHaveBeenCalled();
 });
 
 test("asks for camera permission and stops when it is denied", async () => {
   mockRequestCamera.mockResolvedValue({ granted: false });
-  const { result } = await renderHook(() => useChangeEventCover("event-1", false));
+  const { result } = await renderCover("event-1", false);
 
-  await choose(result, "Take Photo");
+  await choose(result, "Take a photo");
 
   expect(mockLaunchCamera).not.toHaveBeenCalled();
-  expect(alert).toHaveBeenCalledWith("Permission Required", expect.stringContaining("camera"));
+  expect(alert).toHaveBeenCalledWith("No access", expect.stringContaining("camera"));
 });
 
 test("explains a conflict with another host", async () => {
@@ -119,29 +124,26 @@ test("explains a conflict with another host", async () => {
       code: "COVER_CHANGED_CONCURRENTLY",
     }),
   );
-  const { result } = await renderHook(() => useChangeEventCover("event-1", false));
+  const { result } = await renderCover("event-1", false);
 
-  await choose(result, "Choose from Library");
+  await choose(result, "Choose from Photos");
   await useFrame(result);
 
-  expect(alert).toHaveBeenCalledWith("Could not update cover", expect.stringContaining("Another host"));
+  expect(alert).toHaveBeenCalledWith("Couldn’t change the cover", expect.stringContaining("Another host"));
 });
 
 test("backs off for Retry-After after a 429", async () => {
   mockSetCover.mockRejectedValue(
     createApiError("slow down", { status: 429, code: "RATE_LIMIT_EXCEEDED", retryAfterSeconds: 30 }),
   );
-  const { result } = await renderHook(() => useChangeEventCover("event-1", false));
+  const { result } = await renderCover("event-1", false);
 
-  await choose(result, "Choose from Library");
+  await choose(result, "Choose from Photos");
   await useFrame(result);
-  expect(alert).toHaveBeenCalledWith("Too many cover changes", "Please try again in 30 seconds.");
+  expect(alert).toHaveBeenCalledWith("Too many cover changes", "Try again in 30 seconds.");
 
   mockLaunchLibrary.mockClear();
-  await choose(result, "Choose from Library");
+  await choose(result, "Choose from Photos");
   expect(mockLaunchLibrary).not.toHaveBeenCalled();
-  expect(alert).toHaveBeenCalledWith(
-    "Too many cover changes",
-    expect.stringMatching(/^Please try again in \d+ seconds\.$/),
-  );
+  expect(alert).toHaveBeenCalledWith("Too many cover changes", expect.stringMatching(/^Try again in \d+ seconds\.$/));
 });

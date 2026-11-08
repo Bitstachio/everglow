@@ -17,6 +17,7 @@ import { UserWithDetails, userWithDetailsInclude } from "src/users/users.types";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EVENT_ACTIONS, EVENT_SUBJECT } from "./events.abilities";
+import { inviteNotFound } from "./events.invitation";
 import { EventsService } from "./events.service";
 import { eventAccessWithUserInclude, eventWithCallerAccessInclude } from "./events.types";
 
@@ -931,7 +932,7 @@ describe("EventsService", () => {
       setupSuccessfulJoin(AccessLevel.ORGANIZER, eventCreatedByUser, organizerInvite.token);
 
       await expect(service.joinByInvitationUrl(callerId, organizerInvite.token)).rejects.toThrow(
-        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", organizerInvite.token)),
+        inviteNotFound(organizerInvite.token),
       );
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1026,12 +1027,20 @@ describe("EventsService", () => {
       prisma.user.findUnique.mockResolvedValue(userWithDetails);
       prisma.eventInvite.findUnique.mockResolvedValue(null);
 
-      await expect(service.joinByInvitationUrl(callerId, invalidUrl)).rejects.toThrow(
-        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invalidUrl)),
-      );
+      await expect(service.joinByInvitationUrl(callerId, invalidUrl)).rejects.toThrow(inviteNotFound(invalidUrl));
 
       expect(prisma.event.findUnique).not.toHaveBeenCalled();
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
+    });
+
+    it("keeps the token out of the 404's reason, which reaches the access log", async () => {
+      prisma.user.findUnique.mockResolvedValue(userWithDetails);
+      prisma.eventInvite.findUnique.mockResolvedValue(null);
+
+      const thrown = await service.joinByInvitationUrl(callerId, invalidUrl).catch((error: unknown) => error);
+
+      expect(thrown).toBeInstanceOf(NotFoundException);
+      expect((thrown as NotFoundException).message).not.toContain(invalidUrl);
     });
 
     it("throws when the invite exists but the event does not", async () => {
@@ -1039,9 +1048,7 @@ describe("EventsService", () => {
       prisma.eventInvite.findUnique.mockResolvedValue(inviteFor(participantInvite));
       prisma.event.findUnique.mockResolvedValue(null);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
-      );
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(inviteNotFound(invitationUrl));
 
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
@@ -1129,9 +1136,7 @@ describe("EventsService", () => {
       setupSuccessfulJoin();
       prisma.userBlock.findMany.mockResolvedValue([{ blockerId: "organizer-id", blocked: { details: null } }] as never);
 
-      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
-      );
+      await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(inviteNotFound(invitationUrl));
       expect(prisma.eventAccess.create).not.toHaveBeenCalled();
     });
 
@@ -1148,7 +1153,7 @@ describe("EventsService", () => {
         ] as never);
 
         await expect(service.joinByInvitationUrl(callerId, invitationUrl)).rejects.toThrow(
-          new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
+          inviteNotFound(invitationUrl),
         );
       },
     );
@@ -1374,9 +1379,7 @@ describe("EventsService", () => {
     it("answers 404 for an unknown token", async () => {
       prisma.eventInvite.findUnique.mockResolvedValue(null);
 
-      await expect(service.previewInvite(callerId, invalidUrl)).rejects.toThrow(
-        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invalidUrl)),
-      );
+      await expect(service.previewInvite(callerId, invalidUrl)).rejects.toThrow(inviteNotFound(invalidUrl));
       expect(prisma.event.findUnique).not.toHaveBeenCalled();
     });
 
@@ -1401,9 +1404,7 @@ describe("EventsService", () => {
         { blockerId: otherUserId, blockedId: callerId, blocked: { details: null } },
       ] as never);
 
-      await expect(service.previewInvite(callerId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
-      );
+      await expect(service.previewInvite(callerId, invitationUrl)).rejects.toThrow(inviteNotFound(invitationUrl));
     });
 
     it("keeps the organizer's block hidden when the two have blocked each other", async () => {
@@ -1550,12 +1551,10 @@ describe("EventsService", () => {
       expect(result).not.toHaveProperty("eventAccesses");
     });
 
-    it("returns the event when the caller is the creator without loaded event access rows", async () => {
+    it("refuses the creator once they are no longer a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
 
-      const result = await service.findOne(eventId, callerId);
-
-      expect(result).toEqual(eventCreatedByUser);
+      await expect(service.findOne(eventId, callerId)).rejects.toThrow(ForbiddenException);
     });
 
     it("returns the event when the caller is an organizer", async () => {
@@ -2668,7 +2667,7 @@ describe("EventsService", () => {
       prisma.eventInvite.findUnique.mockResolvedValue(null);
 
       await expect(service.joinByInvitationUrl(otherUserId, invitationUrl)).rejects.toThrow(
-        new NotFoundException(RESPONSE_TEMPLATES.RESOURCE.NOT_FOUND("Event", "invitation URL", invitationUrl)),
+        inviteNotFound(invitationUrl),
       );
     });
   });
@@ -3028,23 +3027,11 @@ describe("EventsService", () => {
       expect(result).toHaveLength(2);
     });
 
-    it("returns members when the caller is the creator with read via creatorId", async () => {
+    it("refuses the creator once they are no longer a member", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(eventCreatedByUser, []));
-      prisma.eventAccess.findMany.mockResolvedValue([organizerRow]);
 
-      const result = await service.getEventParticipants(eventId, callerId);
-
-      expect(result).toEqual([
-        {
-          userId: callerId,
-          username: "jane",
-          name: "Jane Doe",
-          accessLevel: AccessLevel.ORGANIZER,
-          avatarUrl: null,
-          isBlockedByCaller: false,
-          photoCount: 0,
-        },
-      ]);
+      await expect(service.getEventParticipants(eventId, callerId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.eventAccess.findMany).not.toHaveBeenCalled();
     });
 
     it("orders participants by createdAt ascending", async () => {
