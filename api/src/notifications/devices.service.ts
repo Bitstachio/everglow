@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { UserDevice } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { lockForTransaction } from "src/prisma/advisory-lock";
 import { PrismaService } from "src/prisma/prisma.service";
 import { RegisterDeviceDto } from "./dto/register-device.dto";
 import { MAX_DEVICES_PER_USER } from "./notifications.constants";
@@ -23,9 +24,16 @@ export class DevicesService {
    * Idempotent. A token already registered to someone else moves to the
    * caller: the phone is signed in to the caller's account now, and pushes
    * for the previous account must stop reaching it.
+   *
+   * Registrations by one account run one after the other: the first statement
+   * takes a lock keyed on the account, so the trim below always sees the rows
+   * a concurrent registration just added and the cap holds exactly. Two
+   * accounts registering the same token still meet in the upsert, which is a
+   * single INSERT … ON CONFLICT.
    */
   async register(userId: string, dto: RegisterDeviceDto): Promise<UserDevice> {
     return this.prisma.$transaction(async (tx) => {
+      await lockForTransaction(tx, `user-devices:${userId}`);
       const previous = await tx.userDevice.findUnique({
         where: { token: dto.token },
         select: { id: true, userId: true },
