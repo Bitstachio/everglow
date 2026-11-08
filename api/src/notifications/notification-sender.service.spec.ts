@@ -11,6 +11,7 @@ import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ExpoPushRequestError, ExpoPushService } from "src/sdk/expo/expo-push.service";
+import { NOTIFICATION_CATALOGUE } from "./notification-catalogue";
 import { ClaimedNotification } from "./notification-claim";
 import { DEFAULT_NOTIFICATION_MAX_ATTEMPTS } from "./notifications.constants";
 import { NotificationSenderService, chunkByMessages, retryDelaySeconds } from "./notification-sender.service";
@@ -37,7 +38,7 @@ describe("NotificationSenderService", () => {
     ...overrides,
   });
 
-  const withUser = (devices = [phoneA], deletionStartedAt: Date | null = null) =>
+  const withUser = (devices: object[] = [phoneA], deletionStartedAt: Date | null = null) =>
     prisma.user.findMany.mockResolvedValue([{ id: userId, deletionStartedAt, devices }] as never);
 
   const claimOnce = (...claims: ClaimedNotification[]) =>
@@ -70,6 +71,9 @@ describe("NotificationSenderService", () => {
     }).compile();
     service = module.get(NotificationSenderService);
   });
+
+  // Puts back catalogue entries a test replaced.
+  afterEach(() => jest.restoreAllMocks());
 
   describe("sendPending", () => {
     it("sends one message per phone with the catalogue's copy and the link, and marks it SENT", async () => {
@@ -112,6 +116,66 @@ describe("NotificationSenderService", () => {
       });
       expect(result).toMatchObject({ claimed: 1, sent: 1, failed: 0 });
       expect(JSON.stringify(logger.info.mock.calls)).not.toContain(phoneA.token);
+    });
+
+    it("posts to the type's Android channel and sends no ttl when the type has none", async () => {
+      claimOnce(claim());
+      withUser();
+      expo.send.mockResolvedValue([{ status: "ok", id: "ticket-a" }]);
+
+      await service.sendPending();
+
+      const [[message]] = expo.send.mock.calls[0] as [Record<string, unknown>[]];
+      expect(message.channelId).toBe("account");
+      expect(message).not.toHaveProperty("ttl");
+    });
+
+    it("sends the type's ttl when it has one", async () => {
+      jest.replaceProperty(NOTIFICATION_CATALOGUE, "TEST", { ...NOTIFICATION_CATALOGUE.TEST, ttlSeconds: 3600 });
+      claimOnce(claim());
+      withUser();
+      expo.send.mockResolvedValue([{ status: "ok", id: "ticket-a" }]);
+
+      await service.sendPending();
+
+      const [[message]] = expo.send.mock.calls[0] as [Record<string, unknown>[]];
+      expect(message.ttl).toBe(3600);
+    });
+
+    it("renders once per language, falling back to English for a language with no copy", async () => {
+      const render = jest.fn(NOTIFICATION_CATALOGUE.TEST.render);
+      jest.replaceProperty(NOTIFICATION_CATALOGUE, "TEST", { ...NOTIFICATION_CATALOGUE.TEST, render });
+      claimOnce(claim());
+      withUser([
+        { ...phoneA, locale: "fr-CA" },
+        { ...phoneB, locale: "en-CA" },
+      ]);
+      expo.send.mockResolvedValue([
+        { status: "ok", id: "ticket-a" },
+        { status: "ok", id: "ticket-b" },
+      ]);
+
+      await service.sendPending();
+
+      expect(render).toHaveBeenCalledTimes(1);
+      expect(render).toHaveBeenCalledWith({ nonce: "n1" }, "en");
+      const [messages] = expo.send.mock.calls[0] as [{ body: string }[]];
+      expect(messages[0].body).toBe(messages[1].body);
+    });
+
+    it("FAILs a notification whose stored data no longer matches its type, without sending it", async () => {
+      claimOnce(claim({ data: { nonce: 42 } }));
+      withUser();
+
+      const result = await service.sendPending();
+
+      expect(expo.send).not.toHaveBeenCalled();
+      expect(settledAs()).toMatchObject({ status: NotificationStatus.FAILED, lastError: "invalid_data" });
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "notification.render_failed", reason: "invalid_data" }),
+        expect.any(String),
+      );
+      expect(result).toMatchObject({ failed: 1 });
     });
 
     it("counts it SENT when one phone takes it, and unregisters a phone Expo says is gone", async () => {
