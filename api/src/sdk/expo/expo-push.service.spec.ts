@@ -72,6 +72,16 @@ describe("ExpoPushService", () => {
     expect(error.retryAfterSeconds).toBe(30);
   });
 
+  it("carries Expo's error code for the request", async () => {
+    answer(400, { errors: [{ code: "VALIDATION_ERROR", message: "bad" }] });
+
+    const error = (await service()
+      .send([message])
+      .catch((e: unknown) => e)) as ExpoPushRequestError;
+    expect(error.status).toBe(400);
+    expect(error.code).toBe("VALIDATION_ERROR");
+  });
+
   it("looks receipts up by ticket id", async () => {
     answer(200, { data: { t1: { status: "ok" } } });
 

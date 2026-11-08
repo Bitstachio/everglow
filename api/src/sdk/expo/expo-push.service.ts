@@ -22,6 +22,8 @@ export class ExpoPushRequestError extends Error {
     message: string,
     readonly status: number | null,
     readonly retryAfterSeconds: number | null = null,
+    /** Expo's error code for the request (VALIDATION_ERROR, ...), when it sent one. */
+    readonly code: string | null = null,
   ) {
     super(message);
     this.name = "ExpoPushRequestError";
@@ -100,6 +102,7 @@ export class ExpoPushService {
         `Expo push answered ${response.status}${first?.code ? ` ${first.code}` : ""}`,
         response.status,
         parseRetryAfter(response.headers.get("retry-after")),
+        first?.code ?? null,
       );
     }
     return parsed.data;

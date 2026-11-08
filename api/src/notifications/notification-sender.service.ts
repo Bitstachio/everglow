@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { DevicePlatform, NotificationDeliveryStatus, NotificationStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
+import { runExclusively } from "src/prisma/advisory-lock";
 import { PrismaService } from "src/prisma/prisma.service";
 import {
   EXPO_MAX_MESSAGES_PER_REQUEST,
@@ -49,11 +50,15 @@ export interface ReceiptRunResult {
   invalidatedDevices: number;
   /** Receipts that said MessageRateExceeded. Logged, not resent (docs/notifications.md §4). */
   rateLimited: number;
+  /** Another replica held the receipts lock, so this one did nothing. */
+  ranElsewhere?: true;
 }
 
 export interface RetentionRunResult {
   notifications: number;
   devices: number;
+  /** Another replica held the retention lock, so this one did nothing. */
+  ranElsewhere?: true;
 }
 
 /** A claimed notification with what to send and where. */
@@ -62,6 +67,9 @@ interface Outgoing {
   rendered: RenderedNotification;
   devices: { id: string; token: string; platform: DevicePlatform }[];
 }
+
+/** Expo's ticket for one message, or why its request got none. */
+type Answer = ExpoPushTicket | { status: "request_failed"; reason: string; retryAfterSeconds: number };
 
 /**
  * How one claimed notification ends this pass, and what that writes. Nothing
@@ -82,6 +90,22 @@ interface Outcome {
 }
 
 const MAX_RECEIPT_PAGES_PER_RUN = 10;
+
+// Receipts and retention run on one replica at a time (runExclusively). The
+// timeouts are well past a run's length: 10 receipt pages at Expo's 10 s
+// request timeout, and two deletes.
+const RECEIPTS_LOCK_KEY = "notifications:receipts";
+const RECEIPTS_LOCK_TIMEOUT_MS = 10 * 60_000;
+const RETENTION_LOCK_KEY = "notifications:retention";
+const RETENTION_LOCK_TIMEOUT_MS = 30 * 60_000;
+
+const emptyReceiptResult = (): ReceiptRunResult => ({
+  checked: 0,
+  delivered: 0,
+  failed: 0,
+  invalidatedDevices: 0,
+  rateLimited: 0,
+});
 const MAX_ERROR_LENGTH = 64;
 
 const errorCode = (ticket: { message: string; details?: { error?: string } }): string =>
@@ -229,54 +253,49 @@ export class NotificationSenderService {
       })),
     );
 
-    let tickets: ExpoPushTicket[];
-    try {
-      tickets = await this.expo.send(messages);
-    } catch (error) {
-      if (!(error instanceof ExpoPushRequestError)) throw error;
-      this.logger.warn(
-        { err: error, event: "notification.expo.request_failed", status: error.status, notifications: chunk.length },
-        "Expo refused or did not answer a push request; the notifications in it are retried",
-      );
-      const reason = error.status ? `http_${error.status}` : "network";
-      const waitSeconds =
-        error.retryAfterSeconds === null ? 0 : Math.min(error.retryAfterSeconds, NOTIFICATION_RETRY_MAX_SECONDS);
-      if (error.status === 429)
-        this.pausedUntil = Date.now() + Math.max(waitSeconds, NOTIFICATION_RETRY_BASE_SECONDS) * 1000;
-      await this.settle(
-        chunk.map(({ claim }) => this.retryOrGiveUp(claim, reason, waitSeconds)),
-        result,
-      );
-      return;
-    }
+    const answers = await this.sendMessages(messages);
 
     const outcomes: Outcome[] = [];
     const credentialErrors: { code: string; platform: DevicePlatform | null }[] = [];
     let offset = 0;
     for (const { claim, devices } of chunk) {
-      const own = tickets.slice(offset, offset + devices.length);
+      const own = answers.slice(offset, offset + devices.length);
       offset += devices.length;
 
+      const unanswered = own.filter((answer) => answer.status === "request_failed");
+      if (unanswered.length > 0 && !own.some((answer) => answer.status === "ok")) {
+        // Expo refused or did not answer the request: nothing is known to be sent.
+        const [{ reason, retryAfterSeconds }] = unanswered;
+        outcomes.push(this.retryOrGiveUp(claim, reason, retryAfterSeconds));
+        continue;
+      }
+
       const invalidDeviceIds: string[] = [];
-      const deliveries = devices.map((device, index): Prisma.NotificationDeliveryCreateManyInput => {
+      const deliveries = devices.flatMap((device, index): Prisma.NotificationDeliveryCreateManyInput[] => {
         const ticket = own[index];
+        // Only after a split request, where another part was answered: this phone misses it.
+        if (ticket.status === "request_failed") return [];
         if (ticket.status === "ok") {
-          return {
-            notificationId: claim.id,
-            deviceId: device.id,
-            status: NotificationDeliveryStatus.TICKETED,
-            ticketId: ticket.id,
-          };
+          return [
+            {
+              notificationId: claim.id,
+              deviceId: device.id,
+              status: NotificationDeliveryStatus.TICKETED,
+              ticketId: ticket.id,
+            },
+          ];
         }
         const code = errorCode(ticket);
         if (code === EXPO_DEVICE_NOT_REGISTERED) invalidDeviceIds.push(device.id);
         if (EXPO_CREDENTIAL_ERRORS.includes(code)) credentialErrors.push({ code, platform: device.platform });
-        return {
-          notificationId: claim.id,
-          deviceId: device.id,
-          status: NotificationDeliveryStatus.FAILED,
-          error: code,
-        };
+        return [
+          {
+            notificationId: claim.id,
+            deviceId: device.id,
+            status: NotificationDeliveryStatus.FAILED,
+            error: code,
+          },
+        ];
       });
       const accepted = deliveries.filter((delivery) => delivery.status === NotificationDeliveryStatus.TICKETED).length;
       const firstError = deliveries.find((delivery) => delivery.error)?.error ?? null;
@@ -303,6 +322,55 @@ export class NotificationSenderService {
     }
     this.alertCredentials("ticket", credentialErrors);
     await this.settle(outcomes, result);
+  }
+
+  /**
+   * Sends messages in one Expo request and answers each one in order. A 400
+   * on a request of several messages is one bad message failing them all, so
+   * it is split in halves until the bad one is alone; that one gets an error
+   * ticket with Expo's code and the rest go out. A 429, a 5xx or no answer
+   * fails the whole request, to be retried; a 429 also pauses claiming.
+   */
+  private async sendMessages(messages: ExpoPushMessage[]): Promise<Answer[]> {
+    try {
+      return await this.expo.send(messages);
+    } catch (error) {
+      if (!(error instanceof ExpoPushRequestError)) throw error;
+      const split = error.status === 400 && messages.length > 1;
+      this.logger.warn(
+        {
+          err: error,
+          event: "notification.expo.request_failed",
+          status: error.status,
+          messages: messages.length,
+          ...(split ? { split: true } : {}),
+        },
+        split
+          ? "Expo refused a push request; it is split to find the message it refused"
+          : "Expo refused or did not answer a push request; the notifications in it are retried",
+      );
+      if (split) {
+        const half = Math.ceil(messages.length / 2);
+        return [
+          ...(await this.sendMessages(messages.slice(0, half))),
+          ...(await this.sendMessages(messages.slice(half))),
+        ];
+      }
+      if (error.status === 400) {
+        return [{ status: "error", message: error.message, details: { error: error.code ?? "http_400" } }];
+      }
+      const retryAfterSeconds =
+        error.retryAfterSeconds === null ? 0 : Math.min(error.retryAfterSeconds, NOTIFICATION_RETRY_MAX_SECONDS);
+      if (error.status === 429) {
+        this.pausedUntil = Date.now() + Math.max(retryAfterSeconds, NOTIFICATION_RETRY_BASE_SECONDS) * 1000;
+      }
+      const failed: Answer = {
+        status: "request_failed",
+        reason: error.status ? `http_${error.status}` : "network",
+        retryAfterSeconds,
+      };
+      return messages.map(() => failed);
+    }
   }
 
   /**
@@ -441,7 +509,14 @@ export class NotificationSenderService {
    * read twice in one run.
    */
   async checkReceipts(now: Date = new Date()): Promise<ReceiptRunResult> {
-    const result: ReceiptRunResult = { checked: 0, delivered: 0, failed: 0, invalidatedDevices: 0, rateLimited: 0 };
+    const run = await runExclusively(this.prisma, RECEIPTS_LOCK_KEY, RECEIPTS_LOCK_TIMEOUT_MS, () =>
+      this.checkReceiptsNow(now),
+    );
+    return run.ran ? run.result : { ...emptyReceiptResult(), ranElsewhere: true };
+  }
+
+  private async checkReceiptsNow(now: Date): Promise<ReceiptRunResult> {
+    const result = emptyReceiptResult();
     const createdAt = {
       lte: new Date(now.getTime() - NOTIFICATION_RECEIPT_MIN_AGE_MINUTES * 60_000),
       gte: new Date(now.getTime() - NOTIFICATION_RECEIPT_MAX_AGE_HOURS * 3_600_000),
@@ -523,8 +598,18 @@ export class NotificationSenderService {
     return result;
   }
 
-  /** Deletes notifications past retention, with their deliveries, and phones not seen for months. */
+  /**
+   * Deletes notifications past retention, with their deliveries, and phones
+   * not seen for months. One replica at a time, like receipts.
+   */
   async purgeExpired(now: Date = new Date()): Promise<RetentionRunResult> {
+    const run = await runExclusively(this.prisma, RETENTION_LOCK_KEY, RETENTION_LOCK_TIMEOUT_MS, () =>
+      this.purgeExpiredNow(now),
+    );
+    return run.ran ? run.result : { notifications: 0, devices: 0, ranElsewhere: true };
+  }
+
+  private async purgeExpiredNow(now: Date): Promise<RetentionRunResult> {
     const retentionDays = this.configService.get<number>("notifications.retentionDays") ?? 90;
     const deviceStaleDays = this.configService.get<number>("notifications.deviceStaleDays") ?? 270;
     const day = 86_400_000;
