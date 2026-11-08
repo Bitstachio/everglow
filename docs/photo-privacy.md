@@ -2,7 +2,7 @@
 
 Users' photos are theirs. The API needs to read them to serve the app, but no person with AWS access should be able to browse them. The owner of an AWS account can never be locked out completely, since they can always change the rules. So the goal is that **nobody reads a photo by accident, and every deliberate read is recorded and reported**.
 
-The Terraform is in `api/infra/`: the bucket policy in `main.tf`, the rest in `photo-privacy.tf`.
+The Terraform is in `infra/`: the bucket policy in `main.tf`, the rest in `photo-privacy.tf`.
 
 ## The layers
 
@@ -40,7 +40,7 @@ Logs and alerts name people by opaque ids, object keys (which contain the upload
 | Failed photo notifications | SQS, `everglow-photo-uploads-dlq-dev` | The S3 notification: bucket, object key, and the uploader's IP address as S3 recorded it | 14 days | `aws_sqs_queue.photo_uploads_dlq` |
 | CloudTrail | S3, `everglow-audit-logs-dev` | Every read and write of a photo object (key, caller, IP address, time) and every configuration write in the account | 365 days, then expired | `aws_s3_bucket_lifecycle_configuration.audit_logs` |
 | Alert email | The mailboxes in `alert_emails` | Photo read alerts: the object key, the caller and their IP address. Control change alerts: the caller and their IP address. API log alarms: the alarm name, its meaning and a console link, no ids. | Not enforced: as long as the mailbox keeps it. SNS keeps nothing once delivered. Delete an alert once what it raised is closed. | `aws_sns_topic.security_alerts` |
-| Alarm metrics and history | CloudWatch | Counts and alarm state changes, no ids | 15 months (metrics), 30 days (history), both fixed by AWS | `api/infra/moderation-alerts.tf` |
+| Alarm metrics and history | CloudWatch | Counts and alarm state changes, no ids | 15 months (metrics), 30 days (history), both fixed by AWS | `infra/moderation-alerts.tf` |
 
 **The audit bucket's protections.** Public access is blocked, non-TLS requests are refused, only CloudTrail may write to it and only for this trail, and log file validation writes signed digests, so a changed or deleted log file can be detected (`aws cloudtrail validate-logs`). Turning the trail off or changing it is alerted. It is encrypted with S3-managed keys, not KMS, and has no versioning or Object Lock: someone with S3 rights in the account can delete the logs, and that is not alerted. The production plan below moves them to a separate account with Object Lock.
 
@@ -68,7 +68,7 @@ Production, before launch (EV-37):
 ## Applying
 
 ```sh
-cd api/infra
+cd infra
 cp terraform.tfvars.example terraform.tfvars   # set alert_emails; the repo is public, keep it out of git
 # Build the image-processor artifact first from the repository root:
 # (cd functions/image-processor && pnpm install --frozen-lockfile && pnpm build)

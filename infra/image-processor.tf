@@ -8,7 +8,7 @@
 #   cd functions/image-processor && pnpm build
 
 locals {
-  image_processor_zip = "${path.module}/../../functions/image-processor/dist/function.zip"
+  image_processor_zip = "${path.module}/../functions/image-processor/dist/function.zip"
 }
 
 # --- Queue: S3 notifications, with an alarmed DLQ for repeated failures -------

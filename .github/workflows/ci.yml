@@ -39,8 +39,7 @@ jobs:
             functions:
               - 'functions/**'
               # The job also validates the Terraform, which deploys the function.
-              - 'api/infra/**'
-              - 'api/infra/**'
+              - 'infra/**'
               - '.github/workflows/**'
             mobile:
               - 'mobile/**'
@@ -200,7 +199,7 @@ jobs:
         with:
           terraform_version: "1.13.3"
       - run: terraform fmt -check && terraform init -backend=false && terraform validate
-        working-directory: api/infra
+        working-directory: infra
 
   ci-success:
     name: CI

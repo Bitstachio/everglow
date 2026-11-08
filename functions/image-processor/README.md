@@ -17,7 +17,7 @@ The Nest API owns authorization, upload reservations and confirmation, Prisma ro
 | `src/*.spec.ts`                                    | Colocated unit and worker-boundary regression tests                              |
 | `scripts/build-lambda.mjs`                         | Deployment ZIP with Linux ARM64 Sharp binaries                                   |
 | `api/src/photos/photo-derivative-orphan-source.ts` | API-owned cleanup backstop; uses the existing source registry                    |
-| `api/infra/image-processor.tf`                     | Queue, role, Lambda and S3 notification resources                                |
+| `infra/image-processor.tf`                         | Queue, role, Lambda and S3 notification resources                                |
 
 Paths in the final two rows are relative to the repository root. The Lambda does not import API source files. The handler reuses its SDK client across warm invocations; each message gets a service with a correlated logger. Domain processing throws failures, and each is logged once:
 
@@ -54,6 +54,6 @@ Pino is configured here because this runtime has no Nest HTTP middleware. The AP
 
 ## Deployment
 
-Build `dist/function.zip` before planning the Terraform in `api/infra/`, using the latest shared dev state. The build installs Sharp's Linux ARM64 (glibc) binaries from `pnpm-lock.yaml` with `--frozen-lockfile` and writes a deterministic ZIP (sorted entries, fixed timestamps and modes), then prints its SHA-256. Two builds of the same commit produce the same bytes, so Terraform's `source_code_hash` changes only with the code or lockfile. Building is local; deploying requires a separate Terraform apply. Ship the API orphan source with its reconciler enabled as well as the worker/removal notification changes to activate both cleanup paths.
+Build `dist/function.zip` before planning the Terraform in `infra/`, using the latest shared dev state. The build installs Sharp's Linux ARM64 (glibc) binaries from `pnpm-lock.yaml` with `--frozen-lockfile` and writes a deterministic ZIP (sorted entries, fixed timestamps and modes), then prints its SHA-256. Two builds of the same commit produce the same bytes, so Terraform's `source_code_hash` changes only with the code or lockfile. Building is local; deploying requires a separate Terraform apply. Ship the API orphan source with its reconciler enabled as well as the worker/removal notification changes to activate both cleanup paths.
 
 Generation runs on S3 object creation, before upload confirmation, and does not make an image visible in the API. API derivative URL fields, mobile use, HEIC decoding and backfill remain part of EV-5.

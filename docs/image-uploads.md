@@ -179,4 +179,4 @@ What the event cover (§5) did, as the recipe for the next one:
 
 8. **Deletion of the owning row:** collect the key before the row goes and purge it after the commit, next to the keys that path already purges (`PhotoPurgeService.purgeObjects`).
 
-No infrastructure change is needed: the IAM policy, CORS rule, and lifecycle rule in `api/infra/main.tf` all cover the whole bucket.
+No infrastructure change is needed: the IAM policy, CORS rule, and lifecycle rule in `infra/main.tf` all cover the whole bucket.
