@@ -89,6 +89,9 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
 - **Per row.** No phones, or the account's deletion has started: `SKIPPED`. Otherwise one message per phone, up to
   100 per Expo request. At least one phone accepted: `SENT`. Every phone refused: `FAILED`, with Expo's code.
   Each phone's answer is a `NotificationDelivery` row with its ticket.
+- **One bad message.** Expo answers a request with a 400 when one message in it is invalid, failing all of them.
+  The sender then splits that request in halves until the bad message is alone: it is `FAILED` with Expo's code,
+  and the rest go out. A 429, a 5xx or no answer is not split: the whole request is retried.
 - **Broken credentials.** `InvalidCredentials` or `MismatchSenderId`, at send or in a receipt, means the APNs key
   or FCM credentials in EAS no longer work, so every push on that platform fails. Each Expo request or receipt
   page that sees one logs a single `notification.credentials_invalid` error, which alarms
@@ -110,11 +113,17 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
   and before the result is written, the lease runs out and that request is sent again. Expo offers no idempotency
   key to close this.
 
-| Job                    | When           | Enabled by                                     |
-| ---------------------- | -------------- | ---------------------------------------------- |
-| Notification send      | every minute   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
-| Notification receipts  | every 15 min   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` |
-| Notification retention | daily, 05:00   | always                                         |
+| Job                    | When           | Enabled by                                     | Replicas                |
+| ---------------------- | -------------- | ---------------------------------------------- | ----------------------- |
+| Notification send      | every minute   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | all; claims split work  |
+| Notification receipts  | every 15 min   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | one at a time           |
+| Notification retention | daily, 05:00   | always                                         | one at a time           |
+
+Every replica schedules all three. Send runs everywhere, and the claims keep replicas off each other's rows.
+Receipts and retention would repeat the same work on every replica (N replicas, N times the receipt calls to
+Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xact_lock` (`runExclusively` in
+`api/src/prisma/advisory-lock.ts`); a replica that finds it held skips that run and logs its heartbeat with
+`ranElsewhere: true`.
 
 ## 5. Retention
 

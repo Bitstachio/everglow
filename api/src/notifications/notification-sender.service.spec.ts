@@ -247,6 +247,42 @@ describe("NotificationSenderService", () => {
       expect(result).toMatchObject({ retried: 1, failed: 0, sent: 0 });
     });
 
+    it("splits a request Expo refuses with a 400 until only the bad message fails", async () => {
+      const good1 = claim({ id: "11111111-0000-4000-8000-000000000001" });
+      const bad = claim({ id: "11111111-0000-4000-8000-000000000002" });
+      const good2 = claim({ id: "11111111-0000-4000-8000-000000000003" });
+      claimOnce(good1, bad, good2);
+      withUser([phoneA]);
+      expo.send.mockImplementation((messages: { data: { notificationId: string } }[]) =>
+        messages.some((message) => message.data.notificationId === bad.id)
+          ? Promise.reject(new ExpoPushRequestError("invalid", 400, null, "VALIDATION_ERROR"))
+          : Promise.resolve(messages.map((message) => ({ status: "ok", id: `t-${message.data.notificationId}` }))),
+      );
+
+      const result = await service.sendPending();
+
+      // [g1, bad, g2] -> [g1, bad] -> [g1], [bad]; then [g2].
+      expect(expo.send.mock.calls.map(([messages]) => (messages as unknown[]).length)).toEqual([3, 2, 1, 1, 1]);
+      expect(settledAs(good1.id)).toMatchObject({ status: NotificationStatus.SENT });
+      expect(settledAs(good2.id)).toMatchObject({ status: NotificationStatus.SENT });
+      expect(settledAs(bad.id)).toMatchObject({ status: NotificationStatus.FAILED, lastError: "VALIDATION_ERROR" });
+      expect(result).toMatchObject({ sent: 2, failed: 1, retried: 0, givenUp: 0 });
+    });
+
+    it("retries the whole request on a 5xx, without splitting it", async () => {
+      claimOnce(
+        claim({ id: "11111111-0000-4000-8000-000000000001" }),
+        claim({ id: "11111111-0000-4000-8000-000000000002" }),
+      );
+      withUser([phoneA]);
+      expo.send.mockRejectedValue(new ExpoPushRequestError("down", 502));
+
+      const result = await service.sendPending();
+
+      expect(expo.send).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({ retried: 2 });
+    });
+
     it("gives up after the last attempt and raises the alert", async () => {
       claimOnce(claim({ attempts: 3 }));
       withUser();
@@ -353,6 +389,22 @@ describe("NotificationSenderService", () => {
   describe("checkReceipts", () => {
     const now = new Date("2026-11-05T12:00:00.000Z");
 
+    // pg_try_advisory_xact_lock: this replica gets the run.
+    beforeEach(() => prisma.$queryRaw.mockResolvedValue([{ locked: true }] as never));
+
+    it("does nothing while another replica holds the receipts lock", async () => {
+      prisma.$queryRaw.mockResolvedValue([{ locked: false }] as never);
+
+      const result = await service.checkReceipts(now);
+
+      expect(prisma.notificationDelivery.findMany).not.toHaveBeenCalled();
+      expect(expo.getReceipts).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ checked: 0, ranElsewhere: true });
+      const [strings, key] = prisma.$queryRaw.mock.calls[0] as unknown as [TemplateStringsArray, string];
+      expect(strings.join("?")).toContain("pg_try_advisory_xact_lock");
+      expect(key).toBe("notifications:receipts");
+    });
+
     it("marks delivered and failed receipts and unregisters phones that are gone", async () => {
       prisma.notificationDelivery.findMany.mockResolvedValueOnce([
         { id: "d1", ticketId: "t1", deviceId: phoneA.id },
@@ -444,6 +496,17 @@ describe("NotificationSenderService", () => {
   });
 
   describe("purgeExpired", () => {
+    beforeEach(() => prisma.$queryRaw.mockResolvedValue([{ locked: true }] as never));
+
+    it("does nothing while another replica holds the retention lock", async () => {
+      prisma.$queryRaw.mockResolvedValue([{ locked: false }] as never);
+
+      const result = await service.purgeExpired();
+
+      expect(prisma.notification.deleteMany).not.toHaveBeenCalled();
+      expect(result).toEqual({ notifications: 0, devices: 0, ranElsewhere: true });
+    });
+
     it("deletes notifications past retention and phones not seen for months", async () => {
       config["notifications.retentionDays"] = 90;
       config["notifications.deviceStaleDays"] = 270;
