@@ -29,6 +29,10 @@ describe("ALERT_EVENTS", () => {
       UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",
       PHOTO_HASH_BACKFILL_DISABLED: "photo.hash_backfill.disabled",
 
+      NOTIFICATION_GIVEN_UP: "notification.given_up",
+      NOTIFICATION_SENDER_DISABLED: "notification.sender.disabled",
+      NOTIFICATION_CREDENTIALS_INVALID: "notification.credentials_invalid",
+
       REPORT_ESCALATED: "report.escalated",
       REPORT_STALE: "report.stale",
       REPORT_REMOVAL_DUE_SOON: "report.removal_due_soon",
@@ -52,6 +56,12 @@ describe("ALERT_EVENTS", () => {
       REPORT_EVIDENCE_RUN_FAILED: "report.evidence_job.run_failed",
       PHOTO_HASH_BACKFILL_RUN_COMPLETED: "photo.hash_backfill.run_completed",
       PHOTO_HASH_BACKFILL_RUN_FAILED: "photo.hash_backfill.run_failed",
+      NOTIFICATION_SEND_RUN_COMPLETED: "notification.send.run_completed",
+      NOTIFICATION_SEND_RUN_FAILED: "notification.send.run_failed",
+      NOTIFICATION_RECEIPTS_RUN_COMPLETED: "notification.receipts.run_completed",
+      NOTIFICATION_RECEIPTS_RUN_FAILED: "notification.receipts.run_failed",
+      NOTIFICATION_RETENTION_RUN_COMPLETED: "notification.retention.run_completed",
+      NOTIFICATION_RETENTION_RUN_FAILED: "notification.retention.run_failed",
     });
   });
 

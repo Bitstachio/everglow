@@ -12,6 +12,9 @@ process.env.AWS_SECRET_ACCESS_KEY ??= "integration-secret-key";
 // rather than defaulted so a developer's shell or .env cannot turn it back on.
 // rate-limit.integration.spec.ts opts back in by overriding the config provider.
 process.env.RATE_LIMIT_ENABLED = "false";
+// Same for the notification sender, which is on by default: no suite sends
+// pushes, and ExpoPushService refuses to under NODE_ENV=test anyway.
+process.env.NOTIFICATIONS_SENDER_ENABLED = "false";
 
 // The suites authenticate through a stubbed guard; the key set's boot warm-up
 // must not reach a real tenant, so it gets an empty set.

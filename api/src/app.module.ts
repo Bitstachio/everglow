@@ -12,6 +12,7 @@ import appleConfig from "./config/apple.config";
 import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
 import moderationConfig from "./config/moderation.config";
+import notificationsConfig from "./config/notifications.config";
 import photosConfig from "./config/photos.config";
 import storageConfig from "./config/storage.config";
 import rateLimitConfig from "./config/rate-limit.config";
@@ -26,6 +27,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { AppleSiwaModule } from "./sdk/apple/apple-siwa.module";
 import { Auth0ManagementModule } from "./sdk/auth0/auth0-management.module";
 import { S3Module } from "./sdk/aws/s3/s3.module";
+import { ExpoPushModule } from "./sdk/expo/expo-push.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -37,6 +39,7 @@ import { UsersModule } from "./users/users.module";
         auth0Config,
         awsConfig,
         moderationConfig,
+        notificationsConfig,
         photosConfig,
         rateLimitConfig,
         storageConfig,
@@ -58,6 +61,7 @@ import { UsersModule } from "./users/users.module";
     S3Module,
     AppleSiwaModule,
     Auth0ManagementModule,
+    ExpoPushModule,
     PhotosModule,
     NotificationsModule,
     ModerationModule,

@@ -27,6 +27,7 @@ variable "api_jobs_enabled" {
     gallery_close               = optional(bool, false) # GALLERY_CLOSE_ENABLED
     moderation_evidence_job     = optional(bool, false) # MODERATION_EVIDENCE_JOB_ENABLED
     photo_hash_backfill         = optional(bool, false) # PHOTO_HASH_BACKFILL_ENABLED
+    notification_sender         = optional(bool, true)  # NOTIFICATIONS_SENDER_ENABLED (on unless "false")
   })
   default = {}
 }

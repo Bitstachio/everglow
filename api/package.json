@@ -13,6 +13,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "openapi:generate": "ts-node --project scripts/tsconfig.json -r tsconfig-paths/register scripts/generate-openapi.ts",
     "auth0:sync-theme": "ts-node --project scripts/tsconfig.json -r tsconfig-paths/register -r dotenv/config scripts/sync-auth0-universal-login-theme.ts",
+    "notifications:send-test": "ts-node --project scripts/tsconfig.json -r tsconfig-paths/register -r dotenv/config scripts/send-test-notification.ts",
     "seed:staging-e2e": "ts-node --project scripts/tsconfig.json -r tsconfig-paths/register -r dotenv/config scripts/seed-staging-e2e-user.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
     "openapi:check": "pnpm run openapi:generate && git diff --exit-code openapi/openapi.json",
@@ -27,7 +28,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:integration": "jest --config ./test/integration/jest-integration.json"
+    "test:integration": "jest --config ./test/integration/jest-integration.json",
+    "test:db": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/db/jest-db.json --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.962.0",

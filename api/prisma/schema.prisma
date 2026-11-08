@@ -141,6 +141,7 @@ model User {
   eventBansIssued   EventBan[]       @relation("EventBansIssued")
   // Push notifications (docs/notifications.md). Cascade with the account.
   devices           UserDevice[]
+  notifications     Notification[]
 
   // Reconciler looks up users mid-deletion; only those rows are indexed.
   @@index([deletionStartedAt], where: { deletionStartedAt: { not: null } })
@@ -652,6 +653,93 @@ model UserDevice {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Phones nobody has opened the app on for months (docs/notifications.md §5).
+  @@index([lastSeenAt])
   // A user's devices, newest first: sending, and keeping the newest few.
   @@index([userId, lastSeenAt])
+}
+
+// What a notification is about. Its copy, link and dedupe key live in
+// src/notifications/notification-catalogue.ts, which must cover every value.
+enum NotificationType {
+  // Internal: checks the whole path from the API to a phone
+  // (pnpm run notifications:send-test).
+  TEST
+}
+
+enum NotificationStatus {
+  // Waiting for the sender, or for its next attempt.
+  PENDING
+  // Expo accepted it for at least one phone.
+  SENT
+  // Not sent, and will not be: every phone refused it, or attempts ran out.
+  FAILED
+  // Nothing to send to: no phones, or the account is being deleted.
+  SKIPPED
+}
+
+// The outbox and the history in one table (docs/notifications.md §3).
+// NotificationsService.notify writes rows in the caller's transaction; the
+// sender sends them after the commit, and a job retries what is left. Kept
+// for NOTIFICATION_RETENTION_DAYS, then deleted with its deliveries.
+model Notification {
+  id            String             @id @default(uuid()) @db.Uuid
+  userId        String             @db.Uuid
+  type          NotificationType
+  // The ids the copy and link are built from, typed per type in the
+  // catalogue. Never text a person wrote.
+  data          Json
+  // One notification per key: notifying twice with the same key is a no-op.
+  dedupeKey     String             @unique @db.VarChar(255)
+  status        NotificationStatus @default(PENDING)
+  // Sender passes that claimed it. Bounded by NOTIFICATION_MAX_ATTEMPTS.
+  attempts      Int                @default(0)
+  // Not sent before this: retries back off.
+  nextAttemptAt DateTime           @default(now())
+  // Lease of the sender pass holding it, so two instances never send it twice.
+  claimedUntil  DateTime?
+  sentAt        DateTime?
+  // Why it is not SENT: an Expo error code or a short reason, never a token.
+  lastError     String?            @db.VarChar(255)
+  createdAt     DateTime           @default(now())
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  // The sender's queue: due PENDING rows.
+  @@index([status, nextAttemptAt])
+  // Retention.
+  @@index([createdAt])
+  // A user's notifications: the cascade when an account is deleted.
+  @@index([userId, createdAt])
+}
+
+enum NotificationDeliveryStatus {
+  // Expo accepted it and gave a ticket; the receipt is not checked yet.
+  TICKETED
+  // The receipt says Apple or Google accepted it.
+  DELIVERED
+  // Expo or the receipt refused it.
+  FAILED
+}
+
+// One phone's copy of a notification: the Expo ticket, then its receipt.
+model NotificationDelivery {
+  id             String                     @id @default(uuid()) @db.Uuid
+  notificationId String                     @db.Uuid
+  // No foreign key: the phone may be unregistered before the receipt arrives.
+  deviceId       String                     @db.Uuid
+  status         NotificationDeliveryStatus
+  // Expo's ticket id, which its receipt is looked up by. Null when refused.
+  ticketId       String?                    @unique @db.VarChar(64)
+  // Expo's error code (DeviceNotRegistered, MessageTooBig, ...).
+  error          String?                    @db.VarChar(64)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  // Receipts to check.
+  @@index([status, createdAt])
 }

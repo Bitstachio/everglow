@@ -11,4 +11,5 @@ alert_emails = ["you@example.com"]
 #   photo_orphan_reconciler     = true
 #   gallery_close               = true
 #   moderation_evidence_job     = true
+#   notification_sender         = true # on unless NOTIFICATIONS_SENDER_ENABLED=false
 # }

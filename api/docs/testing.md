@@ -8,15 +8,32 @@ This document covers **unit** and **integration** tests for the Everglow API (Je
 | --------------- | ---------------------------------- | -------------------------- | ------------------------------------------------------ | -------------------------------------- |
 | Unit            | Colocated under `src/`             | `*.spec.ts`                | One class or pure function                             | Mocked (Prisma, S3, logger, …)         |
 | Integration     | `test/integration/`                | `*.integration.spec.ts`    | Full Nest app over HTTP (routing, pipes, guards, CASL) | Prisma/Auth/S3 still mocked            |
+| Database (opt-in) | `test/db/`                       | `*.db.spec.ts`             | Raw SQL and concurrency: claims, `SKIP LOCKED`, leases, advisory locks | A real, empty Postgres; Expo faked |
 | E2E (planned)   | TBD under `test/`                  | TBD                        | Critical workflows only                                | Real services — **no mocks**           |
 
 ```sh
 pnpm test                 # unit (src/**/*.spec.ts)
 pnpm run test:cov         # unit + coverage
 pnpm run test:integration # integration suite
+DB_TEST_DATABASE_URL=postgresql://… pnpm run test:db # database suite (opt-in)
 ```
 
-CI runs `test:cov`, then `test:integration`, then build. See `.github/workflows/ci.yml`.
+CI runs `test:cov`, then `test:integration`, then build. See `.github/workflows/ci.yml`. The database suite is not in
+CI: it needs a Postgres, and without `DB_TEST_DATABASE_URL` it skips and says so.
+
+### Database suite
+
+Every other suite mocks Prisma, so SQL that only a real Postgres can judge (`FOR UPDATE SKIP LOCKED`, lease
+equality on `timestamp(3)`, advisory locks, two instances racing) is checked here, with separate connection pools
+standing in for separate API instances. Run it before changing the notification sender's claims or settles, or
+device registration ([notifications.md](../../docs/notifications.md) §6).
+
+1. Create an **empty** database, never a dev or shared one: the suite sends (to a fake Expo) every due
+   notification in it, and refuses to start if it holds any account it did not create.
+2. `DATABASE_URL=<that url> pnpm exec prisma migrate deploy`
+3. `DB_TEST_DATABASE_URL=<that url> pnpm run test:db`
+
+The script runs Jest with `--experimental-vm-modules`, which the Prisma client needs to load its query compiler.
 
 ---
 
