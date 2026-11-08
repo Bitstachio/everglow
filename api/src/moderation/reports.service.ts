@@ -1062,7 +1062,7 @@ export class ReportsService {
       where: { eventId, accessLevel: AccessLevel.ORGANIZER },
       select: { userId: true },
     });
-    return rows.map((row) => row.userId).filter((id) => !excluded.has(id));
+    return (rows ?? []).map((row) => row.userId).filter((id) => !excluded.has(id));
   }
 
   /** The reasons known before the report exists: they decide its queue. */
