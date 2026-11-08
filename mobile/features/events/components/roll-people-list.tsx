@@ -8,18 +8,18 @@ import type { AccessLevel, EventParticipantResponseDto } from "../types";
 type RollPeopleListProps = {
   participants: EventParticipantResponseDto[];
   currentUserId?: string;
-  /** Hosts can take someone off the roll; others only look. */
-  onRemove?: (participant: EventParticipantResponseDto) => void;
+  /** Opens someone else's actions: report, block, and for hosts remove (11.2, 11.8). */
+  onPerson: (participant: EventParticipantResponseDto) => void;
 };
 
-const ROLE_KEY = {
+export const ROLE_KEY = {
   ORGANIZER: "people.host",
   PARTICIPANT: "people.addsPhotos",
   VIEWER: "people.viewOnly",
 } as const satisfies Record<AccessLevel, string>;
 
 /** Who's on the roll, for the sheet over the roll: hosts first, then everyone else as they appear. */
-export const RollPeopleList = ({ participants, currentUserId, onRemove }: RollPeopleListProps) => {
+export const RollPeopleList = ({ participants, currentUserId, onPerson }: RollPeopleListProps) => {
   const { t } = useTranslation("roll");
   const ordered = [
     ...participants.filter((participant) => participant.accessLevel === "ORGANIZER"),
@@ -33,7 +33,6 @@ export const RollPeopleList = ({ participants, currentUserId, onRemove }: RollPe
         {ordered.map((participant, index) => {
           const isYou = participant.userId === currentUserId;
           const name = participant.name || t("people.unknown");
-          const removable = Boolean(onRemove) && !isYou && participant.accessLevel !== "ORGANIZER";
           return (
             <RollCallRow
               key={participant.userId}
@@ -41,8 +40,8 @@ export const RollPeopleList = ({ participants, currentUserId, onRemove }: RollPe
               avatar={<Avatar userId={participant.userId} name={participant.name} uri={participant.avatarUrl} />}
               name={isYou ? t("people.you", { name }) : name}
               roleLabel={t(ROLE_KEY[participant.accessLevel])}
-              disabled={!removable}
-              onPress={removable ? () => onRemove?.(participant) : undefined}
+              disabled={isYou}
+              onPress={isYou ? undefined : () => onPerson(participant)}
             />
           );
         })}

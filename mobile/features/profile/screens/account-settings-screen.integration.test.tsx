@@ -12,7 +12,7 @@ import AccountSettingsScreen from "./account-settings-screen";
 const mockCreateTicket = jest.fn();
 const mockOpenTicket = jest.fn();
 const mockSessionStillValid = jest.fn();
-const mockClearLocalCredentials = jest.fn();
+const mockEndExpiredSession = jest.fn();
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
 let mockAuth0Sub: string | undefined = "auth0|user-1";
@@ -38,6 +38,7 @@ jest.mock("@/context/auth-context", () => ({
     user: mockUser,
     identity: mockAuth0Sub ? { sub: mockAuth0Sub, email: "ada@example.com" } : null,
     logout: jest.fn(),
+    endExpiredSession: () => mockEndExpiredSession(),
     isLoading: false,
     updateUser: jest.fn(),
   }),
@@ -45,7 +46,6 @@ jest.mock("@/context/auth-context", () => ({
 jest.mock("@/lib/auth0", () => ({
   openPasswordChangeTicket: (...args: unknown[]) => mockOpenTicket(...args),
   sessionStillValid: (...args: unknown[]) => mockSessionStillValid(...args),
-  clearLocalCredentials: (...args: unknown[]) => mockClearLocalCredentials(...args),
 }));
 jest.mock("@/lib/auth0-identity", () => ({
   isDatabaseIdentity: (sub: string | null | undefined) => typeof sub === "string" && sub.startsWith("auth0|"),
@@ -86,7 +86,7 @@ beforeEach(() => {
   });
   mockOpenTicket.mockResolvedValue({ type: "success", url: "everglowmobile://password-change/result" });
   mockSessionStillValid.mockResolvedValue(true);
-  mockClearLocalCredentials.mockResolvedValue(undefined);
+  mockEndExpiredSession.mockResolvedValue(undefined);
 });
 
 test("Change Password mints a ticket and opens the Auth0 hosted page", async () => {
@@ -100,20 +100,19 @@ test("Change Password mints a ticket and opens the Auth0 hosted page", async () 
   await waitFor(() => {
     expect(mockOpenTicket).toHaveBeenCalledWith("https://auth0.example/ticket");
   });
-  expect(mockClearLocalCredentials).not.toHaveBeenCalled();
+  expect(mockEndExpiredSession).not.toHaveBeenCalled();
   expect(mockReplace).not.toHaveBeenCalled();
 });
 
-test("expired credentials after the change clear the session and route to login", async () => {
+test("expired credentials after the change end the session through the auth context", async () => {
   mockSessionStillValid.mockResolvedValue(false);
   await renderScreen();
 
   await userEvent.setup().press(screen.getByRole("button", { name: "Password" }));
 
   await waitFor(() => {
-    expect(mockClearLocalCredentials).toHaveBeenCalledTimes(1);
+    expect(mockEndExpiredSession).toHaveBeenCalledTimes(1);
   });
-  expect(mockReplace).toHaveBeenCalledWith("/login");
 });
 
 test("social identities are told there is no Everglow password", async () => {

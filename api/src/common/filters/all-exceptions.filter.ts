@@ -11,6 +11,7 @@ import {
 } from "src/common/errors/http.errors";
 import { ALERT_EVENTS } from "src/common/logging/alert-events.constants";
 import { recordErrorLogFields } from "src/common/logging/error-log-fields";
+import { redactUrl } from "src/common/logging/redact-url";
 
 /** Body this filter writes; same shape as the published `ApiErrorDto` contract. */
 export type ErrorResponse = ApiErrorDto;
@@ -123,7 +124,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (!catalogued && exception instanceof HttpException && statusCode >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) {
       this.logger.error(
-        { event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR, err: exception, statusCode, path, message: exception.message },
+        {
+          event: ALERT_EVENTS.REQUEST_UNHANDLED_ERROR,
+          err: exception,
+          statusCode,
+          path: redactUrl(path),
+          message: exception.message,
+        },
         "Uncoded 5xx HttpException",
       );
     }
@@ -138,7 +145,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         {
           event: "request.body_rejected",
           method: ctx.getRequest<Request>().method,
-          path,
+          path: redactUrl(path),
           statusCode,
           errorCode: code,
           errorReason,

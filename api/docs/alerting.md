@@ -9,8 +9,8 @@ which lines an alert rule is built on.
 ## 1. Approach
 
 - **Alerts are rules over log events.** The API already writes structured JSON with a stable `event` field
-  (conventions §5). Whatever log platform is chosen at deploy time evaluates the rules in §3 against those lines.
-  The API holds no alerting code and no vendor SDK, and nothing here depends on the choice of platform.
+  (conventions §5). CloudWatch Logs evaluates the rules in §3 against those lines and emails the result (§6). The
+  API holds no alerting code and no vendor SDK, and nothing here depends on the choice of platform.
 - **Error tracking is a separate, later decision.** Grouping and triaging unexpected 5xx (stack traces, release
   tagging) is a different tool for a different job. Until it exists, the `request.unhandled_error` rule below is
   the coarse substitute.
@@ -102,7 +102,7 @@ already existed as `<job>.run_failed` and must not change, the pair reads as one
 | `report.hold.lapsed` | warn | `moderation/evidence/evidence.service.ts` | Holds that ran out in the day before the daily evidence job: `lapsed`, up to 20 `reportIds`, `holdReasons`. The retention purge may now take those reports, and an actioned intimate-image report among them has lost its evidence copy. | Any occurrence. **Ticket.** | Renew any hold a preservation request or legal advice still needs (`PUT /admin/reports/:reportId/hold`); otherwise nothing. |
 | `report.stale` | warn | `moderation/reports.service.ts`, `moderation/report-deadlines.ts` | Reports have waited in the platform's queue for more than 24 hours since they got there. Each report is announced once at 24 hours (`overdueAlertedAt`); `stale` counts the newly overdue, `reportIds` and `eventIds` name the 20 oldest, and `ageDays` is the oldest one's age since filing. A report still OPEN a week after filing is announced again every 7 days in a line with `reminder: true` (`stale` then counts the reminded reports). Logged by the hourly stale report check, which also moves reports organizers left for 24 hours to the platform. `severity = ticket`. | Any occurrence. **Ticket.** A `reminder: true` line with `ageDays` over 30 deserves a look from the owner. | Act on the listed reports in the platform queue. [`moderation.md`](../../docs/moderation.md) §8, §9. |
 | `rate_limit.exceeded`                                                                                                                                                                   | warn                                                | `common/rate-limit/rate-limit-rejection.logger.ts`                                                                                                                            | A caller exhausted a rate limit tier. One line per blocked bucket per window, so the count is buckets, not requests; `keyedBy`, `userId` and `route` say who and where.                                              | More than 20 in 10 minutes, or 3 on the `sensitive` tier from distinct `userId`s in 10 minutes. **Ticket.** Tune once there is real traffic.                                                                                          | One user or route: a client looping on a request, take it to the mobile team. Many addresses on `join`: invitation guessing, lower `RATE_LIMIT_SENSITIVE_LIMIT` and rotate exposed links. `default` rejections at a venue: one NAT, raise `RATE_LIMIT_DEFAULT_LIMIT`.                        |
-| `request.unhandled_error`                                                                                                                                                               | error                                               | `common/filters/all-exceptions.filter.ts`                                                                                                                                     | A 5xx response: a non-HTTP exception escaped to the global filter (a body the parser refuses keeps its 4xx and isn't one), or a 5xx `HttpException` without a catalogue code. That is an `InternalServerErrorException` (S3, Auth0, a missing plan row), or the 503 when Auth0's signing keys couldn't be fetched to check a token. The service may have logged its own line first; only this one has the event. | 5 or more in 5 minutes. **Page.** A lone one is a ticket.                                                                                                                                                                             | Use `reqId` to pull the request's other lines and read the stack in `err`. If `errorReason` starts with "Couldn't fetch Auth0's signing keys", nobody new can sign in: check Auth0's status and the instance's outbound network. A `JwksRateLimitError` there means the 5 key fetches a minute are spent, which forged tokens can do on purpose. This is the rule error tracking replaces. |
+| `request.unhandled_error`                                                                                                                                                               | error                                               | `common/filters/all-exceptions.filter.ts`                                                                                                                                     | A 5xx response: a non-HTTP exception escaped to the global filter (a body the parser refuses keeps its 4xx and isn't one), or a 5xx `HttpException` without a catalogue code. That is an `InternalServerErrorException` (S3, Auth0, a missing plan row), or the 503 when Auth0's signing keys have never loaded since boot, so a token couldn't be checked. The service may have logged its own line first; only this one has the event. | 5 or more in 5 minutes. **Page.** A lone one is a ticket.                                                                                                                                                                             | Use `reqId` to pull the request's other lines and read the stack in `err`. If `errorReason` starts with "Couldn't fetch Auth0's signing keys", nobody can sign in: the instance has had no key set since it started. Check Auth0's status and the instance's outbound network; `auth.signing_keys.fetch_failed` lines carry the fetch error. Forged key ids can no longer cause this (docs/authentication.md §2.1). This is the rule error tracking replaces. |
 
 ---
 
@@ -122,6 +122,7 @@ builds a rule on them and nobody wonders whether one is missing.
 | `storage.orphan_reconcile.deleted`                                                                                                                                    | info  | Audit record of one orphan removed. That is the job working.                                                                                                                    |
 | `event.gallery.closed`, `event.gallery.swept`                                                                                                                         | info  | Audit and usage records of the gallery close job, one per gallery. Its trouble shows in `event.gallery_close.failed` and its heartbeat.                                         |
 | `user.account.deletion_started`, `.deletion_resumed`, `.deletion_prepared`, `.apple_token_revoked`, `.auth0_deleted`, `.deleted`, `.deletion_vanished`                | info  | The steps of a healthy account deletion, kept for audit. `deletion_resumed` is the person tapping Delete again; `deletion_vanished` a pass that found the row already deleted by another. |
+| `auth.signing_keys.fetch_failed` | warn | Fetching Auth0's key set failed (`keySetLoaded` says whether one is already held, `err` why). With a set loaded, tokens keep being checked against it; without one, the 503s page through `request.unhandled_error`. A failed warm-up at boot is retried by the first token. |
 | `user.resolve.rejected_tombstone`, and requests answered 401 `ACCOUNT_DELETION_IN_PROGRESS` (their `errorCode` on the access log line)                                | info  | A deleted or deleting account tried to sign in and was refused, as designed.                                                                                                    |
 | `photo.upload_slots.rejected` at `info`                                                                                                                               | info  | A confirm found missing or mismatched uploads and released their slots: a client problem, handled.                                                                              |
 | `report.created`, `report.moved_to_platform`, `report.resolved`, `report.retention.open_closed`, `event.memberless.deleted`, `event.review.lifted`, `user.block.created`, `user.block.removed` | info  | Audit records of moderation working as designed, with the identities the alert lines leave out. The alerts are `report.escalated`, logged next to `report.created` or `report.moved_to_platform` when a report needs the platform owner, `report.stale` and the removal deadlines. |
@@ -137,4 +138,57 @@ builds a rule on them and nobody wonders whether one is missing.
 
 1. Add the event name to `ALERT_EVENTS` and to the pinned test next to it, and log it through the constant.
 2. Add a row to §3 with a condition and an action. An alert nobody knows how to act on is noise.
-3. Never rename an event in §3 without changing the platform's rule in the same release.
+3. Add the rule to [`api/infra/moderation-alerts.tf`](../infra/moderation-alerts.tf) (§6), in the same PR or in
+   one that lands before the event ships.
+4. Never rename an event in §3 without changing its rule there in the same release.
+
+---
+
+## 6. How alerts are delivered
+
+The API runs on ECS through Copilot ([`api/copilot/api/manifest.yml`](../copilot/api/manifest.yml)), so its lines
+are already in CloudWatch Logs, in the group Copilot creates for the service: `/copilot/everglow-<env>-api`. The
+rules in §3 are CloudWatch metric filters on that group with an alarm each, in
+[`api/infra/moderation-alerts.tf`](../infra/moderation-alerts.tf). Saved Logs Insights queries and a dashboard
+for the same group live in [`api/infra/api-logs.tf`](../infra/api-logs.tf); both files share
+`api_log_group_name` and the short name in [`api-log-group.tf`](../infra/api-log-group.tf). Every alarm
+publishes to the same SNS topic as the photo privacy alerts and the image processor's DLQ alarm
+(`everglow-security-alerts-dev`, [`photo-privacy.tf`](../infra/photo-privacy.tf)), which emails the addresses
+in `alert_emails`. No vendor and no code in the API.
+
+- **Page or ticket is in the alarm name**, `everglow-<env>-api-page-…` or `…-ticket-…`, so the email's subject says
+  how fast to act. Until a paging service is chosen both arrive as email; subscribing a phone or a pager to the
+  topic later needs no change to the rules.
+- **The email carries no user text.** The description is written in the Terraform: what the alarm means, the §3
+  event to read about, and a console link to the matching lines in the log group. The ids are read there, inside
+  the log platform's access control, never in the mail.
+- **Rules match the `event` field**, and `level` (pino writes it as a number, `50` for error) or another field
+  where §3 says so. Where the urgency depends on the content, the page rule also matches `severity = "page"`.
+- **Heartbeats exist only where the job runs.** `api_jobs_enabled` in `terraform.tfvars` lists the optional jobs
+  the environment switches on; keep it in step with that environment's `*_ENABLED` variables in the manifest. A
+  job switched on there that logs a `*.disabled` line at boot also gets an alarm on that line, so turning it off
+  by mistake is caught on the next deploy. The stale report check always runs and is always watched.
+- **Where a metric cannot say what §3 says**, the rule is the nearest count: `event.gallery_close.failed` alarms on
+  three hourly runs in a row with a failure, not on the same `eventId`; the `sensitive` rate limit rule counts
+  lines, not distinct users. The comment on each rule says so.
+- **Cost** is one custom metric and one alarm per rule, about $0.40 a rule a month.
+
+### Applying
+
+The log group belongs to Copilot's stack, so Terraform reads it and never creates it. In a new environment:
+
+1. `copilot svc deploy --env <env>` creates the log group (and sets its retention from the manifest).
+2. Set `api_log_group_name` and `api_jobs_enabled` in `api/infra/terraform.tfvars`, then `terraform plan` and
+   `terraform apply` from `api/infra`. Until the group exists, the plan holds no API alerts and warns
+   (`check "api_log_group_exists"`) instead of failing.
+
+A heartbeat alarm can fire once right after it is created, because its metric has no history yet; it returns to
+OK after the job's next run. To prove delivery end to end, force one alarm and wait for the email:
+
+```sh
+aws cloudwatch set-alarm-state --alarm-name everglow-staging-api-ticket-report-stale \
+  --state-value ALARM --state-reason "Delivery test"
+```
+
+The alarm returns to its real state at its next evaluation. Deleting the service with Copilot deletes the log
+group and the filters with it; the next `terraform apply` after a redeploy recreates them.

@@ -14,7 +14,7 @@ import { BAD_REQUEST_CODE, FORBIDDEN_CODE, NOT_FOUND_CODE } from "src/common/err
 import { TEST_OTHER_ACCESS_TOKEN, TEST_OTHER_USER_ID, TEST_TARGET_USER_ID, authHeader } from "./helpers/auth.fixtures";
 import { TEST_REPORT_ID } from "./helpers/moderation.fixtures";
 import { buildFreePlan } from "./helpers/plans.fixtures";
-import { createTestApp } from "./helpers/create-test-app";
+import { TestAppContext, createTestApp } from "./helpers/create-test-app";
 import {
   TEST_EVENT_ID,
   buildEvent,
@@ -65,6 +65,7 @@ type PhotoListBody = { items: PhotoBody[]; nextCursor: string | null };
 describe("PhotosController (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
+  let evidence: TestAppContext["evidence"];
   let httpServer: Server;
 
   const s3Service = {
@@ -96,6 +97,7 @@ describe("PhotosController (integration)", () => {
     const context = await createTestApp((builder) => builder.overrideProvider(S3Service).useValue(s3Service));
     app = context.app;
     prisma = context.prisma;
+    evidence = context.evidence;
     httpServer = app.getHttpServer() as Server;
   });
 
@@ -550,6 +552,15 @@ describe("PhotosController (integration)", () => {
       await request(httpServer).get(photosListPath()).expect(401);
     });
 
+    it("returns 403 to the event's creator once they are no longer a member", async () => {
+      prisma.event.findUnique.mockResolvedValue({ ...eventWithAccess([]), creatorId: TEST_USER_ID } as never);
+
+      const response = await request(httpServer).get(photosListPath()).set(authHeader()).expect(403);
+
+      expectApiError(response.body as ErrorResponse, FORBIDDEN_CODE);
+      expect(prisma.photo.findMany).not.toHaveBeenCalled();
+    });
+
     it("returns 403 when the caller is not a member of the event", async () => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([]) as never);
 
@@ -625,6 +636,18 @@ describe("PhotosController (integration)", () => {
 
     it("returns 401 when the access token is missing", async () => {
       await request(httpServer).get(photoPath()).expect(401);
+    });
+
+    it("returns 403 to the event's creator once they are no longer a member", async () => {
+      prisma.photo.findUnique.mockResolvedValue({
+        ...buildPhoto({ addedById: TEST_OTHER_USER_ID }),
+        event: { ...eventWithAccess([]), creatorId: TEST_USER_ID },
+      } as never);
+
+      const response = await request(httpServer).get(photoPath()).set(authHeader()).expect(403);
+
+      expectApiError(response.body as ErrorResponse, FORBIDDEN_CODE);
+      expect(s3Service.getPresignedDownloadUrl).not.toHaveBeenCalled();
     });
 
     it("returns 403 when the caller is not a member of the event", async () => {
@@ -712,6 +735,53 @@ describe("PhotosController (integration)", () => {
       const body = response.body as ErrorResponse;
       expectApiError(body, "ORGANIZER_ONLY", { action: "delete", subject: "Photo" });
       expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
+
+    describe("in a suspended or under-review event", () => {
+      const inEvent = (
+        access: ReturnType<typeof buildOrganizerAccess>[],
+        state: { suspendedAt?: Date; underReviewAt?: Date },
+        overrides: Parameters<typeof buildPhoto>[0] = {},
+      ) => ({
+        ...buildPhoto(overrides),
+        event: { ...eventWithAccess(access), ...buildEvent(state), eventAccesses: access },
+      });
+
+      it.each([
+        ["suspended", { suspendedAt: new Date("2026-11-01T00:00:00Z") }, "EVENT_SUSPENDED"],
+        ["under review", { underReviewAt: new Date("2026-11-01T00:00:00Z") }, "EVENT_UNDER_REVIEW"],
+      ] as const)(
+        "returns 403 when an organizer deletes another member's photo in a %s event",
+        async (_state, state, code) => {
+          prisma.photo.findUnique.mockResolvedValue(
+            inEvent([buildOrganizerAccess()], state, { addedById: TEST_OTHER_USER_ID }) as never,
+          );
+
+          const response = await request(httpServer).delete(photoPath()).set(authHeader()).expect(403);
+
+          expectApiError(response.body as ErrorResponse, code);
+          expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+          expect(prisma.photo.delete).not.toHaveBeenCalled();
+          expect(prisma.report.updateMany).not.toHaveBeenCalled();
+        },
+      );
+
+      it.each([
+        ["suspended", { suspendedAt: new Date("2026-11-01T00:00:00Z") }],
+        ["under review", { underReviewAt: new Date("2026-11-01T00:00:00Z") }],
+      ])("returns 204 when the uploader deletes their own photo in a %s event", async (_state, state) => {
+        evidence.preserveBeforeDelete.mockClear();
+        const photo = inEvent([buildParticipantAccess()], state);
+        prisma.photo.findUnique.mockResolvedValue(photo as never);
+        prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
+
+        await request(httpServer).delete(photoPath()).set(authHeader()).expect(204);
+
+        // The uploader's delete still makes the evidence copy first (docs/moderation.md §7).
+        expect(evidence.preserveBeforeDelete).toHaveBeenCalledWith([photo.s3Key]);
+        expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(photo.s3Key));
+        expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID } });
+      });
     });
 
     it("returns 404 when the photo does not exist", async () => {

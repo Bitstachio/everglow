@@ -42,7 +42,13 @@ Settings → Change Password. The user is already authenticated, so do not ask t
 
 The ticket is the authorization. Auth0 does not ask for the current password. That is intentional: the session proved who they are, and the password never lands in the app or the API.
 
-A password change often kills the refresh token. When the browser returns, if `getCredentials` fails, clear the local credentials and send the user to login. Do not try to keep the old session alive.
+The ticket lives five minutes (`ttl_sec: 300`, `PASSWORD_CHANGE_TICKET_TTL_SECONDS`), enough to open it straight away. Auth0's default is five days, which would let anyone holding a stolen access token for a few minutes mint a link that sets the password long after the token expired.
+
+**Open decision: require a recent sign-in.** The bearer token is still the only check before minting, so a stolen access token is a password change for as long as it lives. The follow-up is to refuse the ticket unless the token's `auth_time` is recent (for example within the last five minutes), and have the app re-authenticate first (`webAuth.authorize` with `max_age`, or `prompt: "login"`) when it is not. That needs `auth_time` in the access token (an Auth0 Action on the post-login trigger), a new error code the app answers by re-authenticating, and the mobile flow; it is not built yet.
+
+A password change often kills the refresh token. When the browser returns, if `getCredentials` fails, end the session through the auth context with `useAuth().endExpiredSession()` (`mobile/features/profile/hooks/use-change-password.ts`). It is the same path a 401 takes: it clears the local credentials and the account on this phone (the query cache, `user`, `identity`, a waiting invite, and the `lib/account-cleared.ts` handlers with reason `sessionExpired`), then opens the welcome with the signed-out slip (01.8). Do not clear the credentials and navigate from the screen: that leaves the old account's cache in memory for the next person who signs in on the phone. Do not try to keep the old session alive either.
+
+The reason is `sessionExpired`, not `signedOut`, so the person's unfinished uploads stay on the phone, scoped to their account, for when they sign back in with the new password. There is nothing to revoke: Auth0 already killed the refresh token. A deliberate sign-out does revoke it (see [Authentication](./authentication.md#11-signing-out-on-the-phone)).
 
 ### 2.2 Signed out
 

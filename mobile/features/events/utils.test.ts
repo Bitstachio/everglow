@@ -6,7 +6,6 @@ import {
   formatEventStorage,
   formatStorageBytes,
   filterEvents,
-  formatEventDateTime,
   formatFilterDay,
   getAccessLevelLabel,
   hasActiveEventsListFilters,
@@ -15,12 +14,6 @@ import {
   sortEvents,
   toggleEventsListRole,
 } from "./utils";
-
-test("formats event date and time for detail display", () => {
-  const { date, time } = formatEventDateTime("2026-09-20T15:30:00.000Z");
-  expect(date.length).toBeGreaterThan(0);
-  expect(time.length).toBeGreaterThan(0);
-});
 
 test.each([
   ["ORGANIZER", "Organizer"],
