@@ -13,6 +13,8 @@ import i18n from "@/i18n/instance";
 export const NOTIFICATION_CHANNELS = [
   // Account notices, and TEST.
   { id: "account", name: "notes.channels.account", importance: Notifications.AndroidImportance.HIGH },
+  // The day before a roll closes (and 7 days before for longer rolls).
+  { id: "roll_closing", name: "notes.channels.roll_closing", importance: Notifications.AndroidImportance.HIGH },
 ] as const;
 
 export type NotificationChannelId = (typeof NOTIFICATION_CHANNELS)[number]["id"];
