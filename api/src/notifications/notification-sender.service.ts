@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { NotificationDeliveryStatus, NotificationStatus, Prisma } from "generated/prisma/client";
+import { DevicePlatform, NotificationDeliveryStatus, NotificationStatus, Prisma } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -11,6 +11,7 @@ import {
   ExpoPushService,
 } from "src/sdk/expo/expo-push.service";
 import {
+  EXPO_CREDENTIAL_ERRORS,
   EXPO_DEVICE_NOT_REGISTERED,
   EXPO_MESSAGE_RATE_EXCEEDED,
   ExpoPushMessage,
@@ -59,7 +60,7 @@ export interface RetentionRunResult {
 interface Outgoing {
   claim: ClaimedNotification;
   rendered: RenderedNotification;
-  devices: { id: string; token: string }[];
+  devices: { id: string; token: string; platform: DevicePlatform }[];
 }
 
 /**
@@ -172,7 +173,11 @@ export class NotificationSenderService {
     const maxAttempts = this.maxAttempts();
     const users = await this.prisma.user.findMany({
       where: { id: { in: [...new Set(claimed.map((claim) => claim.userId))] } },
-      select: { id: true, deletionStartedAt: true, devices: { select: { id: true, token: true } } },
+      select: {
+        id: true,
+        deletionStartedAt: true,
+        devices: { select: { id: true, token: true, platform: true } },
+      },
     });
     const usersById = new Map(users.map((user) => [user.id, user]));
 
@@ -246,6 +251,7 @@ export class NotificationSenderService {
     }
 
     const outcomes: Outcome[] = [];
+    const credentialErrors: { code: string; platform: DevicePlatform | null }[] = [];
     let offset = 0;
     for (const { claim, devices } of chunk) {
       const own = tickets.slice(offset, offset + devices.length);
@@ -264,6 +270,7 @@ export class NotificationSenderService {
         }
         const code = errorCode(ticket);
         if (code === EXPO_DEVICE_NOT_REGISTERED) invalidDeviceIds.push(device.id);
+        if (EXPO_CREDENTIAL_ERRORS.includes(code)) credentialErrors.push({ code, platform: device.platform });
         return {
           notificationId: claim.id,
           deviceId: device.id,
@@ -294,7 +301,33 @@ export class NotificationSenderService {
         accepted,
       });
     }
+    this.alertCredentials("ticket", credentialErrors);
     await this.settle(outcomes, result);
+  }
+
+  /**
+   * Apple or Google refused our credentials, so every push on that platform
+   * fails: one error line per request or receipt page, never per message.
+   */
+  private alertCredentials(
+    source: "ticket" | "receipt",
+    errors: { code: string; platform: DevicePlatform | null }[],
+  ): void {
+    if (errors.length === 0) return;
+    const codes: Record<string, number> = {};
+    for (const { code } of errors) codes[code] = (codes[code] ?? 0) + 1;
+    const platforms = [...new Set(errors.map(({ platform }) => platform).filter((platform) => platform !== null))];
+    this.logger.error(
+      {
+        event: ALERT_EVENTS.NOTIFICATION_CREDENTIALS_INVALID,
+        severity: ALERT_SEVERITY.TICKET,
+        source,
+        messages: errors.length,
+        codes,
+        ...(platforms.length > 0 ? { platforms } : {}),
+      },
+      "Apple or Google refused our push credentials: pushes to these phones fail until they are fixed in EAS",
+    );
   }
 
   /**
@@ -432,6 +465,7 @@ export class NotificationSenderService {
       const delivered: string[] = [];
       const failedByCode = new Map<string, string[]>();
       const invalidDeviceIds: string[] = [];
+      const credentialErrors: { code: string; platform: null }[] = [];
       for (const delivery of deliveries) {
         const receipt = receipts[delivery.ticketId as string];
         if (!receipt) continue;
@@ -443,7 +477,9 @@ export class NotificationSenderService {
         const code = errorCode(receipt);
         failedByCode.set(code, [...(failedByCode.get(code) ?? []), delivery.id]);
         if (code === EXPO_DEVICE_NOT_REGISTERED) invalidDeviceIds.push(delivery.deviceId);
+        if (EXPO_CREDENTIAL_ERRORS.includes(code)) credentialErrors.push({ code, platform: null });
       }
+      this.alertCredentials("receipt", credentialErrors);
       // Not resent: the notification is SENT and its other phones have it, and
       // resending one phone's copy would need per-phone retries the outbox does
       // not have. Rare at our volume; the warning shows if that changes.

@@ -230,6 +230,27 @@ locals {
       enabled            = var.api_jobs_enabled.photo_orphan_reconciler
     }
 
+    # --- Notifications (docs/notifications.md §4) ----------------------------
+
+    # Retries span about 2 hours, so a given-up notification means Expo was
+    # down or refusing us for that long. A lone one is noise.
+    notification_given_up = {
+      severity  = "ticket"
+      event     = "notification.given_up"
+      summary   = "Five or more notifications ran out of attempts in an hour. Expo is down or refusing our requests."
+      pattern   = "{ $.event = \"notification.given_up\" }"
+      period    = 3600
+      threshold = 5
+    }
+    # Logged once per Expo request or receipt page, not per message.
+    notification_credentials_invalid = {
+      severity = "ticket"
+      event    = "notification.credentials_invalid"
+      summary  = "Apple or Google refused our push credentials. Pushes on that platform fail until the APNs key or FCM credentials in EAS are fixed."
+      pattern  = "{ $.event = \"notification.credentials_invalid\" }"
+      enabled  = var.api_jobs_enabled.notification_sender
+    }
+
     # --- Requests --------------------------------------------------------------
 
     request_unhandled_errors = {
@@ -324,6 +345,32 @@ locals {
       enabled        = var.api_jobs_enabled.photo_hash_backfill
       disabled_event = "photo.hash_backfill.disabled"
     }
+    # The send and receipts jobs share NOTIFICATIONS_SENDER_ENABLED; the
+    # disabled line is logged once, so only the send job alarms on it.
+    notification_send = {
+      event_prefix   = "notification.send"
+      name           = "notification sender"
+      interval       = 60
+      severity       = "ticket"
+      enabled        = var.api_jobs_enabled.notification_sender
+      disabled_event = "notification.sender.disabled"
+    }
+    notification_receipts = {
+      event_prefix   = "notification.receipts"
+      name           = "notification receipts job"
+      interval       = 900
+      severity       = "ticket"
+      enabled        = var.api_jobs_enabled.notification_sender
+      disabled_event = null
+    }
+    notification_retention = {
+      event_prefix   = "notification.retention"
+      name           = "notification retention job"
+      interval       = 86400
+      severity       = "ticket"
+      enabled        = true
+      disabled_event = null
+    }
   }
 
   # Two failed runs in a row, for every job: a disabled job logs nothing.
@@ -338,7 +385,8 @@ locals {
     }
   }
 
-  # No run_completed for two intervals (2 h hourly, 48 h daily), where the job is on.
+  # No run_completed for two intervals (2 min for the notification sender,
+  # 30 min for receipts, 2 h hourly, 48 h daily), where the job is on.
   api_job_heartbeat_alerts = {
     for key, job in local.api_jobs : "${key}_heartbeat" => {
       severity            = job.severity
