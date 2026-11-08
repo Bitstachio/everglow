@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { useLeaveEventMutation, useRefreshRollAfterUpload, useRemoveEventParticipantMutation } from "../api/mutations";
 import type { EventPhotoFile } from "../api/upload-event-photos";
+import { useDeleteRoll } from "./use-delete-roll";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
 import { retainUploadFiles, releaseUploadFile } from "../lib/upload-tray-storage";
 import {
@@ -104,7 +105,16 @@ const photoSizeBytes = (asset: ImagePicker.ImagePickerAsset): number => {
 };
 
 /** What the sheet over the roll shows: the menu, people, or a slip. */
-export type RollSheet = "menu" | "people" | "person" | "block" | "leave" | "remove" | "room" | "closedSending";
+export type RollSheet =
+  | "menu"
+  | "people"
+  | "person"
+  | "block"
+  | "leave"
+  | "remove"
+  | "room"
+  | "closedSending"
+  | "deleteRoll";
 
 /** Who is about to be blocked (10.11), and whether the slip is over the roll or the viewer. */
 type BlockTarget = { userId: string; name: string; over: "roll" | "viewer" };
@@ -175,6 +185,14 @@ export const useEventDetailScreen = () => {
   // What waits for the sheet to be fully gone: the library picker can't open over it.
   const afterSheetCloses = useRef<(() => void) | null>(null);
   const closeSheet = () => setSheet(null);
+  // A closed roll's host deletes it from the menu, through the same slip as in its settings.
+  const deleteRoll = useDeleteRoll(eventQuery.data ?? null, {
+    onDeleted: () => {
+      afterSheetCloses.current = deleteRoll.leaveIfDeleted;
+      closeSheet();
+    },
+  });
+  const isRollDeleted = deleteRoll.isDeleted;
 
   // Access taken away (403) or the roll gone (404): its frames go too.
   const photosRevoked = isApiError(photosQuery.error) && [403, 404].includes(photosQuery.error.status ?? 0);
@@ -229,10 +247,10 @@ export const useEventDetailScreen = () => {
   );
 
   useEffect(() => {
-    if (!eventQuery.isError) return;
+    if (!eventQuery.isError || isRollDeleted()) return;
     Alert.alert(t("loadFailed"), getErrorMessage(eventQuery.error));
     router.back();
-  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, router, t]);
+  }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, isRollDeleted, router, t]);
 
   const showNotice = (message: string) => {
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
@@ -398,8 +416,9 @@ export const useEventDetailScreen = () => {
   };
   const onCloseSheet = () => {
     if (shownSheet === "closedSending") onDismissClosed();
-    // A leave on its way can't be dismissed: its result, or why it was refused, shows on the slip.
-    else if (!(shownSheet === "leave" && leavingRoll)) closeSheet();
+    // A leave or delete on its way can't be dismissed: its result, or why it was refused, shows on the slip.
+    else if (!(shownSheet === "leave" && leavingRoll) && !(shownSheet === "deleteRoll" && deleteRoll.isDeleting))
+      closeSheet();
   };
 
   const openedVisible = !openedDismissed && event !== null && shouldShowOpened(event, lastVisit);
@@ -593,6 +612,18 @@ export const useEventDetailScreen = () => {
     onChooseLeavePhotos: setLeavePhotos,
     onConfirmLeave,
     onCut,
+    // Only a host's closed roll can be deleted; a sole host there can't leave it (LAST_ORGANIZER).
+    canDeleteRoll: role === "host" && event?.galleryState === "CLOSED" && event.status !== "SUSPENDED",
+    canLeave: !(
+      role === "host" &&
+      event?.galleryState === "CLOSED" &&
+      participants.filter((participant) => participant.accessLevel === "ORGANIZER").length <= 1
+    ),
+    onDeleteRoll: () => {
+      deleteRoll.reset();
+      setSheet("deleteRoll");
+    },
+    deleteRollSlip: deleteRoll.slip,
     // 11.2 / 11.8: someone else on the roll call.
     onOpenPerson: (participant: EventParticipantResponseDto) => {
       setPerson(participant);

@@ -102,6 +102,7 @@
     "rollCall": "Roll call",
     "settings": "Roll settings",
     "cut": "Cut the roll now",
+    "delete": "Delete the roll",
     "leave": "Leave the roll"
   },
   "settings": {

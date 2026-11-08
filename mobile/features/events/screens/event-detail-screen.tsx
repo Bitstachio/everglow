@@ -24,6 +24,7 @@ import { FrameViewer } from "../components/frame-viewer/frame-viewer";
 import { RollBand } from "../components/roll-band";
 import { RollCover } from "../components/roll-cover";
 import { RollFooter, type FooterAction, type RollFooterProps } from "../components/roll-footer";
+import { DeleteRollSlip } from "../components/delete-roll-slip";
 import { LeaveRollSlip } from "../components/leave-roll-slip";
 import { RollMenu } from "../components/roll-menu";
 import { RollNotice } from "../components/roll-notice";
@@ -627,6 +628,8 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
             role={role}
             canOpenSettings={role === "host" && event.status !== "SUSPENDED"}
             canCut={role === "host" && event.galleryState !== "CLOSED"}
+            canDelete={screen.canDeleteRoll}
+            canLeave={screen.canLeave}
             reports={
               screen.canReviewReports ? { toCheck: screen.reportsToCheck, onOpen: screen.onOpenReports } : undefined
             }
@@ -634,9 +637,14 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
             onOpenRollCall={screen.onOpenPeople}
             onOpenSettings={screen.onOpenSettings}
             onCut={screen.onCut}
+            onDelete={screen.onDeleteRoll}
             onReportRoll={screen.onReportRoll}
             onLeave={screen.onLeave}
           />
+        ) : null}
+
+        {screen.sheet === "deleteRoll" ? (
+          <DeleteRollSlip {...screen.deleteRollSlip} onKeep={screen.onCloseSheet} />
         ) : null}
 
         {screen.sheet === "people" ? (
