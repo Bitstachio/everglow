@@ -45,7 +45,10 @@ const main = async (): Promise<void> => {
 
     const nonce = randomUUID();
     await app.get(NotificationsService).notifyNow(NotificationType.TEST, [user.id], { nonce });
+    // notifyNow kicked a run; this joins it. Wait for every run to finish,
+    // the one the join asked for included, before the database is closed.
     const result = await sender.sendPending();
+    await sender.whenIdle();
     console.log("Sender run:", result);
 
     const notification = await prisma.notification.findUnique({

@@ -27,7 +27,9 @@ import {
 } from "./notification-catalogue";
 import { ClaimedNotification, claimDueNotifications } from "./notification-claim";
 import {
+  DEFAULT_NOTIFICATION_DEVICE_STALE_DAYS,
   DEFAULT_NOTIFICATION_MAX_ATTEMPTS,
+  DEFAULT_NOTIFICATION_RETENTION_DAYS,
   NOTIFICATION_RECEIPT_MAX_AGE_HOURS,
   NOTIFICATION_RECEIPT_MIN_AGE_MINUTES,
   NOTIFICATION_RETRY_BASE_SECONDS,
@@ -166,6 +168,17 @@ export class NotificationSenderService {
         "Sending notifications after a commit failed; the next run retries",
       );
     });
+  }
+
+  /**
+   * Resolves once no run is in progress, including the run a kick during
+   * the last one asked for. For scripts that must not close the database
+   * under a run.
+   */
+  async whenIdle(): Promise<void> {
+    while (this.running) {
+      await this.running.catch(() => undefined);
+    }
   }
 
   /** One run at a time per process; a call during a run joins it and asks for another. */
@@ -657,8 +670,10 @@ export class NotificationSenderService {
   }
 
   private async purgeExpiredNow(now: Date): Promise<RetentionRunResult> {
-    const retentionDays = this.configService.get<number>("notifications.retentionDays") ?? 90;
-    const deviceStaleDays = this.configService.get<number>("notifications.deviceStaleDays") ?? 270;
+    const retentionDays =
+      this.configService.get<number>("notifications.retentionDays") ?? DEFAULT_NOTIFICATION_RETENTION_DAYS;
+    const deviceStaleDays =
+      this.configService.get<number>("notifications.deviceStaleDays") ?? DEFAULT_NOTIFICATION_DEVICE_STALE_DAYS;
     const day = 86_400_000;
     const notifications = await this.prisma.notification.deleteMany({
       where: { createdAt: { lt: new Date(now.getTime() - retentionDays * day) } },
