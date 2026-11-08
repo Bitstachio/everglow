@@ -106,7 +106,7 @@ test.each(["KEEP", "DELETE"] as const)("deletes with %s, then signs out onto Del
     result.current.onDelete();
   });
   expect(mockDelete).toHaveBeenCalledWith(choice);
-  expect(mockLogout).toHaveBeenCalledWith("/account-deleted");
+  expect(mockLogout).toHaveBeenCalledWith("/account-deleted", "accountDeleted");
 });
 
 test("an Apple account lands on Deleted told where to remove Everglow from its Apple ID", async () => {
@@ -116,7 +116,7 @@ test("an Apple account lands on Deleted told where to remove Everglow from its A
   await act(async () => {
     result.current.onDelete();
   });
-  expect(mockLogout).toHaveBeenCalledWith("/account-deleted?apple=1");
+  expect(mockLogout).toHaveBeenCalledWith("/account-deleted?apple=1", "accountDeleted");
 });
 
 test("deletion being unavailable says nothing was deleted, and the button works again", async () => {

@@ -11,9 +11,9 @@ describe("runBeforeSignOut", () => {
     const handler = jest.fn().mockResolvedValue(undefined);
     cleanups.push(onBeforeSignOut(handler));
 
-    await runBeforeSignOut({ accountDeleted: false });
+    await runBeforeSignOut({ reason: "signedOut" });
 
-    expect(handler).toHaveBeenCalledWith({ accountDeleted: false });
+    expect(handler).toHaveBeenCalledWith({ reason: "signedOut" });
   });
 
   it("is not stopped by a handler that fails", async () => {
@@ -21,8 +21,21 @@ describe("runBeforeSignOut", () => {
     cleanups.push(onBeforeSignOut(() => Promise.reject(new Error("offline"))));
     cleanups.push(onBeforeSignOut(after));
 
-    await expect(runBeforeSignOut({ accountDeleted: false })).resolves.toBeUndefined();
+    await expect(runBeforeSignOut({ reason: "signedOut" })).resolves.toBeUndefined();
     expect(after).toHaveBeenCalled();
+  });
+
+  it("is not stopped by a handler that throws before it returns a promise", async () => {
+    const after = jest.fn().mockResolvedValue(undefined);
+    cleanups.push(
+      onBeforeSignOut(() => {
+        throw new Error("not async");
+      }),
+    );
+    cleanups.push(onBeforeSignOut(after));
+
+    await expect(runBeforeSignOut({ reason: "signedOut" })).resolves.toBeUndefined();
+    expect(after).toHaveBeenCalledWith({ reason: "signedOut" });
   });
 
   it("stops waiting for a handler that hangs", async () => {
@@ -30,7 +43,7 @@ describe("runBeforeSignOut", () => {
     cleanups.push(onBeforeSignOut(() => new Promise<void>(() => undefined)));
 
     const done = jest.fn();
-    void runBeforeSignOut({ accountDeleted: false }).then(done);
+    void runBeforeSignOut({ reason: "signedOut" }).then(done);
     await jest.advanceTimersByTimeAsync(BEFORE_SIGN_OUT_TIMEOUT_MS);
 
     expect(done).toHaveBeenCalled();
@@ -40,7 +53,7 @@ describe("runBeforeSignOut", () => {
     const handler = jest.fn().mockResolvedValue(undefined);
     onBeforeSignOut(handler)();
 
-    await runBeforeSignOut({ accountDeleted: false });
+    await runBeforeSignOut({ reason: "signedOut" });
 
     expect(handler).not.toHaveBeenCalled();
   });

@@ -8,7 +8,7 @@ import { authService, OnboardingData, User } from "@/lib/auth";
 import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-instance";
 import { isConnectionError } from "@/lib/api/errors";
 import { runAccountCleared, type AccountClearedReason } from "@/lib/account-cleared";
-import { runBeforeSignOut } from "@/lib/before-sign-out";
+import { runBeforeSignOut, type SignOutReason } from "@/lib/before-sign-out";
 import { clearPendingInvite, takeLandingRoute } from "@/lib/pending-invite";
 import { View } from "react-native";
 import {
@@ -33,8 +33,8 @@ interface AuthContextType {
   isSuspended: boolean;
   login: () => Promise<void>;
   signup: () => Promise<void>;
-  /** Signs out and goes to `to`, the welcome by default. */
-  logout: (to?: SignedOutRoute) => Promise<void>;
+  /** Signs out and goes to `to`, the welcome by default. `reason` says whether the account was just deleted. */
+  logout: (to?: SignedOutRoute, reason?: SignOutReason) => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   refreshProfile: () => Promise<User | null>;
   updateUser: (user: User) => void;
@@ -259,12 +259,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const logout = useCallback(
-    async (to: SignedOutRoute = LOGIN_ROUTE) => {
+    async (to: SignedOutRoute = LOGIN_ROUTE, reason: SignOutReason = "signedOut") => {
       signedOutRef.current = true;
       try {
         setIsLoading(true);
-        // While the token still works: stop this phone's pushes for the account, for example.
-        await runBeforeSignOut({ accountDeleted: to !== LOGIN_ROUTE });
+        try {
+          // While the token still works: stop this phone's pushes for the account, for example.
+          await runBeforeSignOut({ reason });
+        } catch (err) {
+          // Never in the way of revoking the session below.
+          console.error("Before sign-out error:", err);
+        }
         await logoutFromAuth0();
       } catch (err) {
         console.error("Logout error:", err);
