@@ -7,11 +7,13 @@ import {
   eventsControllerDeactivate,
   eventsControllerJoin,
   eventsControllerLeave,
+  eventsControllerLiftBan,
   eventsControllerRegenerateInvite,
   eventsControllerRemove,
   eventsControllerRemoveCover,
   eventsControllerRemoveParticipant,
   eventsControllerUpdate,
+  eventsControllerUpdateParticipantAccess,
   photosControllerRemove,
 } from "@/lib/api/generated";
 import { unwrapEnvelope } from "@/lib/api/envelope";
@@ -22,7 +24,7 @@ import { profileKeys } from "@/features/profile/api/keys";
 import { extractInvitationToken } from "../lib/invite";
 import { forgetTray } from "../lib/upload-tray";
 import { eventsKeys } from "./keys";
-import type { InviteAccessLevel, MemberPhotos } from "@/lib/api/generated";
+import type { AccessLevel, InviteAccessLevel, MemberPhotos } from "@/lib/api/generated";
 import type { CreateEventDto, EventResponseDto, JoinEventDto, UpdateEventDto } from "../types";
 
 const invalidateEventCaches = async (queryClient: ReturnType<typeof useQueryClient>, eventId?: string) => {
@@ -154,7 +156,45 @@ export const useRemoveEventParticipantMutation = (eventId: string) => {
       });
     },
     onSuccess: async () => {
-      await invalidateEventCaches(queryClient, eventId);
+      await Promise.all([
+        invalidateEventCaches(queryClient, eventId),
+        queryClient.invalidateQueries({ queryKey: eventsKeys.bans(eventId) }),
+      ]);
+    },
+  });
+};
+
+/** 11.3 A host changes someone else's role. The roll call refreshes with it. */
+export const useChangeParticipantRoleMutation = (eventId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, { targetUserId: string; accessLevel: AccessLevel }>({
+    mutationFn: async ({ targetUserId, accessLevel }) => {
+      await eventsControllerUpdateParticipantAccess({
+        path: { eventId, targetUserId },
+        body: { accessLevel },
+        throwOnError: true,
+      });
+    },
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.participants(eventId) }),
+        queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) }),
+      ]);
+    },
+  });
+};
+
+/** 11.5 Let someone a host removed back in: any envelope works for them again. They aren't re-added. */
+export const useLiftBanMutation = (eventId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: async (userId) => {
+      await eventsControllerLiftBan({ path: { eventId, userId }, throwOnError: true });
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: eventsKeys.bans(eventId) });
     },
   });
 };

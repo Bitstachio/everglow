@@ -3,6 +3,7 @@ import {
   eventsControllerFindAll,
   eventsControllerFindOne,
   eventsControllerGetParticipants,
+  eventsControllerListBans,
   eventsControllerPreviewInvite,
   photosControllerFindOne,
   photosControllerListPhotos,
@@ -12,6 +13,7 @@ import { isApiError } from "@/lib/api/errors";
 import type { GalleryPage } from "./gallery";
 import { eventsKeys } from "./keys";
 import type {
+  EventBanResponseDto,
   EventParticipantResponseDto,
   EventResponseDto,
   InvitePreviewResponseDto,
@@ -154,5 +156,16 @@ export const useInvitePreviewQuery = (token: string | undefined) =>
     queryFn: async ({ signal }): Promise<InvitePreviewResponseDto> => {
       const { data } = await eventsControllerPreviewInvite({ path: { token: token! }, signal, throwOnError: true });
       return unwrapEnvelope(data);
+    },
+  });
+
+/** 11.5 The people hosts removed, newest first. Hosts only. */
+export const useEventBansQuery = (eventId: string | undefined, enabled = true) =>
+  useQuery({
+    queryKey: eventsKeys.bans(eventId ?? ""),
+    enabled: Boolean(eventId) && enabled,
+    queryFn: async ({ signal }): Promise<EventBanResponseDto[]> => {
+      const { data } = await eventsControllerListBans({ path: { eventId: eventId! }, signal, throwOnError: true });
+      return unwrapEnvelope(data).items;
     },
   });

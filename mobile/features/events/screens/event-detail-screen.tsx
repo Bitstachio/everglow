@@ -29,10 +29,7 @@ import { LeaveRollSlip } from "../components/leave-roll-slip";
 import { RollMenu } from "../components/roll-menu";
 import { RollNotice } from "../components/roll-notice";
 import { RollOpened } from "../components/roll-opened";
-import { ROLE_KEY, RollPeopleList } from "../components/roll-people-list";
-import { PersonMenu } from "../components/person-menu";
-import { RemovePersonSlip } from "../components/remove-person-slip";
-import { BlockSlip } from "@/features/moderation/components/block-slip";
+import { LastHostSlip } from "../components/last-host-slip";
 import { RollTrayLine } from "../components/roll-tray-line";
 import { UnexposedRoll } from "../components/unexposed-roll";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
@@ -647,33 +644,8 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           <DeleteRollSlip {...screen.deleteRollSlip} onKeep={screen.onCloseSheet} />
         ) : null}
 
-        {screen.sheet === "people" ? (
-          <RollPeopleList
-            participants={screen.participants}
-            currentUserId={screen.currentUserId}
-            onPerson={screen.onOpenPerson}
-          />
-        ) : null}
-
-        {screen.sheet === "person" && screen.person ? (
-          <PersonMenu
-            person={screen.person}
-            roleLabel={t(ROLE_KEY[screen.person.accessLevel])}
-            onReport={screen.onReportPerson}
-            onBlock={screen.onBlockPerson}
-            onUnblock={screen.onUnblockPerson}
-            onRemove={screen.canRemovePerson ? screen.onRemovePerson : undefined}
-          />
-        ) : null}
-
-        {screen.sheet === "block" && screen.rollBlocking ? (
-          <BlockSlip
-            name={screen.rollBlocking.name}
-            busy={screen.rollBlocking.busy}
-            error={screen.rollBlocking.error}
-            onConfirm={screen.onConfirmBlock}
-            onCancel={screen.onCancelBlock}
-          />
+        {screen.sheet === "lastHost" ? (
+          <LastHostSlip onChooseHost={screen.onChooseHost} onCancel={screen.onCloseSheet} />
         ) : null}
 
         {screen.sheet === "leave" ? (
@@ -711,16 +683,6 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
               onPress={screen.onPickAgain}
             />
           </Slip>
-        ) : null}
-
-        {screen.sheet === "remove" && screen.removing ? (
-          <RemovePersonSlip
-            name={screen.removing.name || t("people.unknown")}
-            frameCount={screen.removing.photoCount}
-            busy={screen.isRemoving}
-            onConfirm={screen.onConfirmRemove}
-            onCancel={screen.onBackToPeople}
-          />
         ) : null}
       </BottomSheet>
 

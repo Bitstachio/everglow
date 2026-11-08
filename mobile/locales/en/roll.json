@@ -267,7 +267,27 @@
     "addsPhotos": "Adds photos",
     "viewOnly": "View only",
     "you": "{{name}} (you)",
-    "unknown": "Someone"
+    "unknown": "Someone",
+    "title": "Roll call",
+    "loading": "Loading the roll call",
+    "loadFailed": "Couldn’t load the roll call.",
+    "retry": "Try again",
+    "youMark": "· you",
+    "youLabel": "{{name}} (you)",
+    "invite": "Send the envelope",
+    "capacity": "<value>{{count}}</value> of {{limit}} on the {{plan}}",
+    "capacityNoLimit": "<value>{{count}}</value> on the roll",
+    "plan": {
+      "FREE": "free roll"
+    },
+    "spots_one": "{{count}} spot",
+    "spots_other": "{{count}} spots",
+    "full": "Full",
+    "capacityLabel_one": "{{count}} of {{limit}} on the roll, {{spots}} left",
+    "capacityLabel_other": "{{count}} of {{limit}} on the roll, {{spots}} left",
+    "removed": "Removed · {{count}} ›",
+    "removedLabel_one": "{{count}} person removed",
+    "removedLabel_other": "{{count}} people removed"
   },
   "remove": {
     "edge": "Remove {{name}}",
@@ -427,5 +447,41 @@
     "markHint": "Use actions to mark it.",
     "saveTitle_one": "Save this frame?",
     "saveTitle_other": "Save {{count}} frames?"
+  },
+  "role": {
+    "title": "Their role on this roll",
+    "hostBody": "Invites, changes roles, removes people, deletes any frame",
+    "addsPhotosBody": "Adds, saves and deletes their own frames",
+    "viewOnlyBody": "Looks and saves",
+    "save": "Save",
+    "confirmTitle": "Make {{name}} a host?",
+    "confirmBody": "A host can do everything you can: invite and remove people, change roles, and delete any frame or the roll.",
+    "confirm": "Make {{name}} host",
+    "back": "Back",
+    "done_ORGANIZER": "{{name}} is a host now.",
+    "done_PARTICIPANT": "{{name}} adds photos now.",
+    "done_VIEWER": "{{name}} is view only now.",
+    "failed": "Didn’t change. Try again."
+  },
+  "lastHost": {
+    "edge": "You’re the only host",
+    "title": "Make someone else host first.",
+    "body": "Every roll needs a host. Pick who takes over, then you can step down or leave.",
+    "choose": "Choose a new host",
+    "cancel": "Cancel"
+  },
+  "removedPeople": {
+    "edge": "Removed",
+    "edgeCount": "Removed · {{count}}",
+    "title": "Removed",
+    "body": "They can’t join with any envelope until you let them back in.",
+    "loading": "Loading the people you removed",
+    "empty": "Nobody is removed from this roll.",
+    "noProfile": "No lab card",
+    "letBack": "Let back in",
+    "letBackA11y": "Let {{name}} back in",
+    "loadFailed": "Couldn’t load the people removed from this roll.",
+    "retry": "Try again",
+    "failedTitle": "Couldn’t let them back in"
   }
 }
