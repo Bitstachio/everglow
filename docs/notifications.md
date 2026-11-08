@@ -83,7 +83,9 @@ app path a tap opens, its dedupe key, and whether it is `required`. Adding one:
 `NotificationSenderService` sends the outbox through the [Expo Push API](https://docs.expo.dev/push-notifications/sending-notifications/).
 
 - **Claims.** A run claims due `PENDING` rows with `FOR UPDATE SKIP LOCKED` and a 5-minute lease, so several API
-  instances never send the same row. Every write that settles a row matches on its lease.
+  instances never send the same row. Every write that settles a row matches on its lease, in one transaction
+  that runs the status update first: a pass that overran its lease (another pass claimed the row since) writes
+  no deliveries, unregisters no phones and counts nothing (`leaseLost`, logged as `notification.lease_lost`).
 - **Per row.** No phones, or the account's deletion has started: `SKIPPED`. Otherwise one message per phone, up to
   100 per Expo request. At least one phone accepted: `SENT`. Every phone refused: `FAILED`, with Expo's code.
   Each phone's answer is a `NotificationDelivery` row with its ticket.

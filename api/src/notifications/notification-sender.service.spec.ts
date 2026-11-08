@@ -51,7 +51,12 @@ describe("NotificationSenderService", () => {
     expo = { send: jest.fn(), getReceipts: jest.fn() };
     config = { "notifications.senderEnabled": true, "notifications.maxAttempts": 3 };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-    prisma.$transaction.mockResolvedValue([] as never);
+    // Interactive transactions run on the same mock; array ones resolve their operations.
+    prisma.$transaction.mockImplementation(((arg: unknown) =>
+      typeof arg === "function"
+        ? (arg as (tx: unknown) => Promise<unknown>)(prisma)
+        : Promise.all(arg as unknown[])) as never);
+    prisma.notification.updateMany.mockResolvedValue({ count: 1 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -193,6 +198,54 @@ describe("NotificationSenderService", () => {
 
       expect(expo.send).not.toHaveBeenCalled();
       expect(settledAs()).toMatchObject({ status: NotificationStatus.FAILED, lastError: "attempts_exhausted" });
+    });
+
+    it("writes nothing and counts nothing for a notification whose lease another pass took over", async () => {
+      const lost = claim();
+      const kept = claim({ id: "88888888-8888-4888-8888-888888888888" });
+      claimOnce(lost, kept);
+      withUser([phoneA, phoneB]);
+      expo.send.mockResolvedValue([
+        { status: "ok", id: "ticket-1" },
+        { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } },
+        { status: "ok", id: "ticket-3" },
+        { status: "ok", id: "ticket-4" },
+      ]);
+      prisma.notification.updateMany.mockImplementation(((args: { where: { id: string } }) =>
+        Promise.resolve({ count: args.where.id === lost.id ? 0 : 1 })) as never);
+
+      const result = await service.sendPending();
+
+      // The status write comes first, and only the notification still held gets its deliveries.
+      expect(prisma.notification.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.notificationDelivery.createMany.mock.invocationCallOrder[0],
+      );
+      expect(prisma.notificationDelivery.createMany).toHaveBeenCalledTimes(1);
+      expect(prisma.notificationDelivery.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({ notificationId: kept.id, ticketId: "ticket-3" }),
+          expect.objectContaining({ notificationId: kept.id, ticketId: "ticket-4" }),
+        ],
+      });
+      // The lost pass's DeviceNotRegistered is the new holder's to act on.
+      expect(prisma.userDevice.deleteMany).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ sent: 1, leaseLost: 1, invalidatedDevices: 0 });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "notification.lease_lost", notificationId: lost.id }),
+        expect.any(String),
+      );
+    });
+
+    it("does not raise the given-up alert when the lease was lost", async () => {
+      claimOnce(claim({ attempts: 3 }));
+      withUser();
+      expo.send.mockRejectedValue(new ExpoPushRequestError("down", 503));
+      prisma.notification.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.sendPending();
+
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ givenUp: 0, leaseLost: 1 });
     });
 
     it("lets an unexpected error fail the run, leaving the claim to expire and be retried", async () => {
