@@ -104,6 +104,29 @@ Add further test YAML files under `flows/`. Keep reusable subflows in a sibling 
 
 GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) (`workflow_dispatch`) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios:ci`. That script runs the login smoke against the app already on the simulator. It does not prebuild or rebuild.
 
+### Mac smoke caches
+
+The hosted runner is ephemeral. Cross-run speedups come from Actions caches. Bump `CACHE_EPOCH` in the workflow to invalidate every layer at once.
+
+| Layer | Path | Key inputs | Notes |
+| ----- | ---- | ---------- | ----- |
+| pnpm store | via `actions/setup-node` | `mobile/pnpm-lock.yaml` | Already present before EV-210 |
+| CocoaPods downloads | `~/Library/Caches/CocoaPods` | epoch + lockfile + Expo config | Speeds `pod install` fetches during prebuild; does not cache `ios/Pods` |
+| Xcode DerivedData | `~/everglow-deriveddata` | epoch + Xcode version + lockfile + Expo config | Exact key only (no `restore-keys`). Build uses `xcodebuild -derivedDataPath` (not `expo run:ios`) so the tree stays under that path |
+| Maestro CLI | `~/.maestro` | `MAESTRO_VERSION` | Skips the curl install on a hit |
+
+Caches written from a branch are readable from that branch and from `main`. A warm run after merge to `main` is what later `workflow_dispatch` runs on other refs can reuse.
+
+Not in this workflow: caching a built `.app` to skip compile when native/JS inputs are unchanged. That is a separate follow-up from EV-210.
+
+Record cold vs warm wall times here after measuring on `macos-latest` (job wall time excluding queue):
+
+| Run | Approx wall | Build step |
+| --- | ----------- | ---------- |
+| Before caches (baseline, e.g. run `41856393315`) | ~62 min | ~29 min |
+| Cold (all cache misses) | _TBD_ | _TBD_ |
+| Warm (DerivedData + CocoaPods + Maestro hits) | _TBD_ | _TBD_ |
+
 Required repository secrets:
 
 | Secret                        | Purpose                                                                            |
