@@ -665,6 +665,14 @@ enum NotificationType {
   // Internal: checks the whole path from the API to a phone
   // (pnpm run notifications:send-test).
   TEST
+  // Organizers: a new report in their queue. EV-33.
+  REPORT_TO_CHECK
+  // Organizers: a photo crossed the hide threshold. EV-33.
+  PHOTO_HIDDEN
+  // Uploader: their photo was removed. Required. EV-33.
+  PHOTO_REMOVED
+  // Member: removed from a roll. Required. EV-33.
+  MEMBER_REMOVED
 }
 
 enum NotificationStatus {

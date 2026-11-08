@@ -7,6 +7,7 @@ describe("notificationRoute", () => {
     [`/events/${ID}`, `/events/${ID}`],
     [`/events/${ID}/envelope`, `/events/${ID}/envelope`],
     [`/events/${ID}/tray`, `/events/${ID}/tray`],
+    [`/events/${ID}/reports`, `/events/${ID}/reports`],
     [`/events/${ID.toUpperCase()}`, `/events/${ID.toUpperCase()}`],
     // Screen params are the app's own: a payload can't pass them.
     [`/events/${ID}?arrival=joined&place=1`, `/events/${ID}`],
