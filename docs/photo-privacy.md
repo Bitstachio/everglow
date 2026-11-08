@@ -73,10 +73,11 @@ cp terraform.tfvars.example terraform.tfvars   # set alert_emails; the repo is p
 # Build the image-processor artifact first from the repository root:
 # (cd functions/image-processor && pnpm install --frozen-lockfile && pnpm build)
 # Use your own admin AWS profile; Terraform no longer selects one.
+terraform init
 terraform plan
 terraform apply
 ```
 
 AWS then emails a confirmation link to each address in `alert_emails`. Alerts arrive only after it is clicked. CloudTrail delivers events a few minutes after they happen, so an alert can take up to about 15 minutes.
 
-The state is local and gitignored. Before planning, obtain the latest shared dev state from whoever last applied. Back up the existing state and verify that the incoming file has the same lineage and a newer serial. Replacing this file updates local bookkeeping only; it does not deploy code or change AWS resources.
+The state is shared in S3 and locked while anyone plans or applies; who applies and how is in [infra/README.md](../infra/README.md).

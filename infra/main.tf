@@ -4,13 +4,24 @@
 #   terraform plan   → shows the diff between this file and reality
 #   terraform apply  → makes reality match the file
 #
-# State is local for now (terraform.tfstate, gitignored) — moves to a shared
-# backend when deployment work starts. The API's access key is deliberately
-# NOT managed here: Terraform state would store the secret in plaintext. It
-# was created with `aws iam create-access-key` and lives only in api/.env.
+# State is shared in S3 (terraform-state.tf), locked while anyone plans or
+# applies; see README.md. The API's access key is deliberately NOT managed
+# here: Terraform state would store the secret in plaintext. It was created
+# with `aws iam create-access-key` and lives only in api/.env.
 
 terraform {
-  required_version = ">= 1.5"
+  # 1.10 is the first with S3 lock files (use_lockfile).
+  required_version = ">= 1.10"
+
+  # The bucket is defined in terraform-state.tf. A backend block can't use
+  # variables, so the names are repeated here.
+  backend "s3" {
+    bucket       = "everglow-terraform-state"
+    key          = "dev/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 
   required_providers {
     aws = {
