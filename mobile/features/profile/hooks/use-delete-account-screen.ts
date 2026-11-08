@@ -66,7 +66,10 @@ export const useDeleteAccountScreen = () => {
     }
     // Apple keeps Everglow listed under the Apple ID when the token couldn't
     // be revoked; the last screen says where to remove it.
-    await logout(identity?.sub.startsWith("apple|") ? "/account-deleted?apple=1" : "/account-deleted");
+    await logout(
+      identity?.sub.startsWith("apple|") ? "/account-deleted?apple=1" : "/account-deleted",
+      "accountDeleted",
+    );
   };
 
   return {

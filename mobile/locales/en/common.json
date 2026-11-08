@@ -26,5 +26,8 @@
     "privacyPolicy": "Privacy Policy",
     "termsOfUse": "Terms of Use",
     "myEvents": "My Events"
+  },
+  "notes": {
+    "channels": { "account": "Account" }
   }
 }

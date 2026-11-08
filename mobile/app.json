@@ -110,7 +110,8 @@
             "enableSceneSupport": true
           }
         }
-      ]
+      ],
+      ["expo-notifications", { "color": "#E11D48" }]
     ],
     "experiments": {
       "typedRoutes": true,

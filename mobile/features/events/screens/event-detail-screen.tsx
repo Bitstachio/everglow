@@ -20,6 +20,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { FlatList, RefreshControl, Text, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrivalNote } from "../components/arrival-note";
+import { NotesAsk } from "@/features/notifications/components/notes-ask";
 import { FrameViewer } from "../components/frame-viewer/frame-viewer";
 import { RollBand } from "../components/roll-band";
 import { RollCover } from "../components/roll-cover";
@@ -204,6 +205,7 @@ const EventDetailScreen = () => {
         {/* A failed Leave, or someone a host took off the roll. */}
         {screen.notice ? <Notice message={screen.notice} className="bottom-8" /> : null}
         <Sheets screen={screen} />
+        <NotesAsk {...screen.notesAsk} />
         <FilmGrain />
       </SafeAreaView>
     );
@@ -588,6 +590,7 @@ const EventDetailScreen = () => {
 
       <FilmGrain />
       <Sheets screen={screen} />
+      <NotesAsk {...screen.notesAsk} />
     </View>
   );
 };

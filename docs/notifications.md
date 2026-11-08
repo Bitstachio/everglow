@@ -21,10 +21,10 @@ own issues: the gallery opening ([EV-141](https://linear.app/mehrshadfb/issue/EV
 
 The app registers the phone it runs on, and the API keeps one `UserDevice` row per Expo push token.
 
-| Endpoint                              | When the app calls it                                                                      |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `PUT /users/me/devices`               | On every launch while signed in, and when the push token changes. Returns the device `id`. |
-| `DELETE /users/me/devices/:deviceId`  | On sign-out, before the access token is cleared.                                           |
+| Endpoint                             | When the app calls it                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `PUT /users/me/devices`              | On every launch while signed in, and when the push token changes. Returns the device `id`. |
+| `DELETE /users/me/devices/:deviceId` | On sign-out, before the access token is cleared.                                           |
 
 - **Idempotent per token.** A phone that registers again only updates `lastSeenAt`, `platform` and `locale`.
 - **A token moves between accounts.** If a phone signs in to another account, its row moves to that account, so
@@ -46,7 +46,12 @@ Expo directly:
 ```ts
 await this.prisma.$transaction(async (tx) => {
   // ...the change the notification is about...
-  await this.notifications.notify(tx, NotificationType.GALLERY_OPENED, memberIds, { eventId });
+  await this.notifications.notify(
+    tx,
+    NotificationType.GALLERY_OPENED,
+    memberIds,
+    { eventId },
+  );
 });
 this.notifications.kick();
 ```
@@ -143,11 +148,11 @@ falls back to Expo's default channel.
   and before the result is written, the lease runs out and that request is sent again. Expo offers no idempotency
   key to close this.
 
-| Job                    | When           | Enabled by                                     | Replicas                |
-| ---------------------- | -------------- | ---------------------------------------------- | ----------------------- |
-| Notification send      | every minute   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | all; claims split work  |
-| Notification receipts  | every 15 min   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | one at a time           |
-| Notification retention | daily, 05:00   | always                                         | one at a time           |
+| Job                    | When         | Enabled by                                     | Replicas               |
+| ---------------------- | ------------ | ---------------------------------------------- | ---------------------- |
+| Notification send      | every minute | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | all; claims split work |
+| Notification receipts  | every 15 min | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | one at a time          |
+| Notification retention | daily, 05:00 | always                                         | one at a time          |
 
 Every replica schedules all three. Send runs everywhere, and the claims keep replicas off each other's rows.
 Receipts and retention would repeat the same work on every replica (N replicas, N times the receipt calls to
@@ -175,6 +180,7 @@ Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xa
   ```
 
   It sends a `TEST` notification to every phone the account has registered and prints what Expo answered.
+
 - **Against a real Postgres.** The unit and integration suites mock Prisma, so the claim, `SKIP LOCKED`, the lease
   match on `timestamp(3)`, the single-replica locks and the device cap under concurrency are tested by an opt-in
   suite, `api/test/db/notifications.db.spec.ts`: two senders on separate pools never claim the same row, a pass
@@ -187,3 +193,44 @@ Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xa
   ```
 
   Without `DB_TEST_DATABASE_URL` it is skipped with a message. It is not in CI yet.
+
+## 7. The app
+
+The mobile side lives in `mobile/features/notifications/`.
+
+- **Asking.** When someone joins a roll (06.6, "Want a note when photos land?"), and only while the system has not
+  asked yet. Never at launch. The slip carries the arrival note ("You're on the roll · 25th") on its edge, and the
+  roll hides its own strip meanwhile. Once the system has asked, the slip never shows again: the person decides in
+  the system settings. "Not now" holds for 30 days, then a later join offers it again, because iOS shows no
+  Notifications row in Settings until the app has asked. The "Not now" time is kept in the app's documents, not
+  the Keychain, so a reinstall (which resets the permission) resets it too. The copy drops the drawing's "when
+  people add a batch": no such notification is planned yet.
+- **The Notes screen.** 14.9 ([EV-142](https://linear.app/mehrshadfb/issue/EV-142)) asks with
+  `requestNotificationPermission()` (`lib/notification-permission.ts`). When the person allows it, the phone
+  registers on its own.
+- **Registering.** Each time an account is ready on the phone (launch, sign-in), when the push token changes, when
+  the person allows notifications in the app, and on coming back to the app (notifications turned on in Settings),
+  but only where notifications are allowed. A simulator, or an app without an EAS project id, has no token and
+  registers nothing. The token listener passes its device token to `getExpoPushTokenAsync`: fetching the token
+  again fires the listener again, so calling it bare from there loops. Registrations run one at a time, and a
+  device token the API already accepted for the account is not sent again in the same session.
+- **Signing out.** The app unregisters the phone before it clears the session (`lib/before-sign-out.ts`), giving
+  up after 3 seconds. It first waits for a registration in flight, so a quick sign-out still removes it, and a
+  registration that lands after the account left keeps no id. After deleting the account it skips this: the API
+  removed the phones with the account. If the request never arrives, the phone keeps that account's pushes until
+  someone signs in on it, which moves the token, or until Expo reports it gone. A failing handler never stops the
+  Auth0 sign-out.
+- **Tapping.** Opens the notification's `url` once an account is signed in and onboarded and the app is past the
+  launch redirect, sign-in and onboarding, so the screen opens on top of Home. Only `/events/<id>`,
+  `/events/<id>/envelope` and `/events/<id>/tray` open, without any query string or hash. A notification opens
+  once, by its `notificationId`, whether it woke the app or reached it running. A tap the account had not opened
+  yet is dropped when the account is cleared.
+- **In the foreground.** A notification shows as a banner, without sound, and stays in the list. No banner while
+  its roll is on screen.
+- **Android.** One channel per kind of notification, matching the 14.9 toggles, created from
+  `NOTIFICATION_CHANNELS` in `lib/push.ts`: so far only `account` (account notices and `TEST`), at high
+  importance. A type's catalogue `channel` must be one of these ids. Android fixes a channel's importance once the
+  phone has created it, so changing one needs a new id. The old `default` channel is deleted. The small icon is
+  tinted with the stamp colour (`app.json`). It has no `icon` of its own yet: the only monochrome asset,
+  `assets/images/android-icon-monochrome.png`, is the Expo template's stand-in, so add one with the Everglow mark
+  (96×96, white on transparent) when it exists.

@@ -1,4 +1,6 @@
 import { onAccountCleared } from "@/lib/account-cleared";
+import * as beforeSignOut from "@/lib/before-sign-out";
+import { onBeforeSignOut } from "@/lib/before-sign-out";
 import { toApiError } from "@/lib/api/errors";
 import { clearPendingInvite, savePendingInvite, takePendingInvite } from "@/lib/pending-invite";
 import { renderWithI18n } from "@/testing/render";
@@ -348,6 +350,57 @@ test("signing out forgets who was signed in, and the next sign-in is someone els
 
   await act(async () => result.current.login());
   expect(result.current.identity).toEqual(ben);
+});
+
+test("signing out runs the before-sign-out work while the session still works", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const order: string[] = [];
+  const unsubscribe = onBeforeSignOut(({ reason }) => {
+    order.push(`before:${reason}`);
+    return Promise.resolve();
+  });
+  mockLogoutFromAuth0.mockImplementation(() => {
+    order.push("auth0");
+    return Promise.resolve();
+  });
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => result.current.logout());
+  await act(async () => result.current.logout("/account-deleted", "accountDeleted"));
+  unsubscribe();
+
+  expect(order).toEqual(["before:signedOut", "auth0", "before:accountDeleted", "auth0"]);
+});
+
+test("a before-sign-out handler that throws at once still lets Auth0 sign out", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const unsubscribe = onBeforeSignOut(() => {
+    throw new Error("not async");
+  });
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => result.current.logout());
+  unsubscribe();
+
+  expect(mockLogoutFromAuth0).toHaveBeenCalledTimes(1);
+  expect(result.current.identity).toBeNull();
+});
+
+test("Auth0 signs out even when the before-sign-out work itself fails", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  const run = jest.spyOn(beforeSignOut, "runBeforeSignOut").mockRejectedValueOnce(new Error("broken"));
+  const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+  const { result } = await renderAuth();
+  await waitFor(() => expect(result.current.identity).toEqual(ada));
+
+  await act(async () => result.current.logout());
+  run.mockRestore();
+  error.mockRestore();
+
+  expect(mockLogoutFromAuth0).toHaveBeenCalledTimes(1);
+  expect(mockReplace).toHaveBeenLastCalledWith("/login");
 });
 
 test("a 401 forgets who was signed in", async () => {
