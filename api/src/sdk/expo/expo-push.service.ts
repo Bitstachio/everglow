@@ -14,17 +14,28 @@ export const EXPO_MAX_RECEIPT_IDS_PER_REQUEST = 1000;
 /**
  * The whole request failed (network, timeout, 4xx/5xx, malformed answer), so
  * nothing in it is known to have been sent. `status` is the HTTP status, or
- * null when no response arrived.
+ * null when no response arrived. `retryAfterSeconds` is Expo's Retry-After,
+ * when it sent one.
  */
 export class ExpoPushRequestError extends Error {
   constructor(
     message: string,
     readonly status: number | null,
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = "ExpoPushRequestError";
   }
 }
+
+/** Retry-After as seconds from now: either delta-seconds or an HTTP date. Null when absent or unreadable. */
+export const parseRetryAfter = (header: string | null, now: number = Date.now()): number | null => {
+  if (!header) return null;
+  const trimmed = header.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const at = Date.parse(trimmed);
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - now) / 1000));
+};
 
 /**
  * The Expo Push API (https://docs.expo.dev/push-notifications/sending-notifications/).
@@ -77,13 +88,18 @@ export class ExpoPushService {
     try {
       parsed = (await response.json()) as typeof parsed;
     } catch {
-      throw new ExpoPushRequestError(`Expo push answered ${response.status} without JSON`, response.status);
+      throw new ExpoPushRequestError(
+        `Expo push answered ${response.status} without JSON`,
+        response.status,
+        parseRetryAfter(response.headers.get("retry-after")),
+      );
     }
     if (!response.ok || parsed.errors?.length || parsed.data === undefined) {
       const first = parsed.errors?.[0];
       throw new ExpoPushRequestError(
         `Expo push answered ${response.status}${first?.code ? ` ${first.code}` : ""}`,
         response.status,
+        parseRetryAfter(response.headers.get("retry-after")),
       );
     }
     return parsed.data;
