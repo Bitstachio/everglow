@@ -34,9 +34,7 @@ describe("GalleryClosingReminderService", () => {
   });
 
   it("notifies members for the 1-day window and the 7-day window on long rolls", async () => {
-    prisma.event.findMany
-      .mockResolvedValueOnce([event1d, event7d])
-      .mockResolvedValueOnce([event7d, shortIn7d]);
+    prisma.event.findMany.mockResolvedValueOnce([event1d, event7d]).mockResolvedValueOnce([event7d, shortIn7d]);
 
     const result = await service.remindClosingGalleries(now);
 

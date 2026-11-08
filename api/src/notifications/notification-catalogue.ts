@@ -109,8 +109,7 @@ const GALLERY_CLOSING_COPY: Record<
   },
 };
 
-const isGalleryClosingWindow = (value: unknown): value is "1d" | "7d" =>
-  value === "1d" || value === "7d";
+const isGalleryClosingWindow = (value: unknown): value is "1d" | "7d" => value === "1d" || value === "7d";
 
 /**
  * Every notification type, in one place, like the API's error codes. Adding a

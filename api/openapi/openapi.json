@@ -1347,6 +1347,98 @@
         ]
       }
     },
+    "/api/v2/users/me/devices": {
+      "put": {
+        "description": "Call on every launch while signed in, and whenever the push token changes. Idempotent per token. A token registered to another account moves to the caller. Each account keeps its 10 most recently seen phones.",
+        "operationId": "DevicesController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The registered phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeviceResponseDto"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMetaDto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Register this phone for push notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v2/users/me/devices/{deviceId}": {
+      "delete": {
+        "description": "Call on sign-out, before the access token is cleared. Idempotent: an unknown id is not an error.",
+        "operationId": "DevicesController_unregister",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The phone gets no more pushes (empty data envelope at runtime)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Stop push notifications to a phone",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/v2/events": {
       "post": {
         "operationId": "EventsController_create",
@@ -2360,98 +2452,6 @@
         "summary": "Remove the event cover image",
         "tags": [
           "events"
-        ]
-      }
-    },
-    "/api/v2/users/me/devices": {
-      "put": {
-        "description": "Call on every launch while signed in, and whenever the push token changes. Idempotent per token. A token registered to another account moves to the caller. Each account keeps its 10 most recently seen phones.",
-        "operationId": "DevicesController_register",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterDeviceDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The registered phone",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data",
-                    "meta"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/DeviceResponseDto"
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/ResponseMetaDto"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Register this phone for push notifications",
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v2/users/me/devices/{deviceId}": {
-      "delete": {
-        "description": "Call on sign-out, before the access token is cleared. Idempotent: an unknown id is not an error.",
-        "operationId": "DevicesController_unregister",
-        "parameters": [
-          {
-            "name": "deviceId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "The phone gets no more pushes (empty data envelope at runtime)"
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Stop push notifications to a phone",
-        "tags": [
-          "notifications"
         ]
       }
     },
@@ -4242,6 +4242,72 @@
           "items"
         ]
       },
+      "DevicePlatform": {
+        "type": "string",
+        "enum": [
+          "IOS",
+          "ANDROID"
+        ]
+      },
+      "DeviceResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Keep it to unregister this phone on sign-out."
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DevicePlatform"
+              }
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "platform",
+          "locale",
+          "lastSeenAt"
+        ]
+      },
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The Expo push token from getExpoPushTokenAsync, e.g. ExponentPushToken[xxxx]. Sent in the body, not the path, so it never lands in access logs.",
+            "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+            "maxLength": 255
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DevicePlatform"
+              }
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "description": "The phone's language as a BCP 47 tag, e.g. en-CA. Kept for translated notifications.",
+            "example": "en-CA",
+            "maxLength": 35
+          }
+        },
+        "required": [
+          "token",
+          "platform"
+        ]
+      },
       "AccessLevel": {
         "type": "string",
         "enum": [
@@ -4775,72 +4841,6 @@
         },
         "required": [
           "items"
-        ]
-      },
-      "DevicePlatform": {
-        "type": "string",
-        "enum": [
-          "IOS",
-          "ANDROID"
-        ]
-      },
-      "DeviceResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Keep it to unregister this phone on sign-out."
-          },
-          "platform": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/DevicePlatform"
-              }
-            ]
-          },
-          "locale": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastSeenAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "platform",
-          "locale",
-          "lastSeenAt"
-        ]
-      },
-      "RegisterDeviceDto": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "description": "The Expo push token from getExpoPushTokenAsync, e.g. ExponentPushToken[xxxx]. Sent in the body, not the path, so it never lands in access logs.",
-            "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
-            "maxLength": 255
-          },
-          "platform": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/DevicePlatform"
-              }
-            ]
-          },
-          "locale": {
-            "type": "string",
-            "description": "The phone's language as a BCP 47 tag, e.g. en-CA. Kept for translated notifications.",
-            "example": "en-CA",
-            "maxLength": 35
-          }
-        },
-        "required": [
-          "token",
-          "platform"
         ]
       },
       "ReportEscalation": {

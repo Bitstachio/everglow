@@ -57,10 +57,7 @@ export class GalleryClosingReminderService {
     };
   }
 
-  private async findClosing(
-    now: Date,
-    days: number,
-  ): Promise<Array<{ id: string; galleryWindowDays: number | null }>> {
+  private async findClosing(now: Date, days: number): Promise<Array<{ id: string; galleryWindowDays: number | null }>> {
     const until = new Date(now.getTime() + days * MS_PER_DAY);
     return this.prisma.event.findMany({
       where: {
