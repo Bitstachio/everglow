@@ -31,6 +31,6 @@
     "editDate": "Edit Date & Time"
   },
   "notes": {
-    "channel": "Notes"
+    "channels": { "account": "Account" }
   }
 }

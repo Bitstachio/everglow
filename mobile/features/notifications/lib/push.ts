@@ -4,8 +4,21 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import i18n from "@/i18n/instance";
 
-/** The Android channel every push goes to. Must match NOTIFICATION_ANDROID_CHANNEL_ID in the API. */
-export const ANDROID_CHANNEL_ID = "default";
+/**
+ * The Android channels pushes go to, one per kind of notification, matching
+ * the 14.9 Notes toggles. The API sends a type's catalogue `channel` as
+ * Expo's `channelId`, so ids must match it. Android fixes a channel's
+ * importance once the phone has created it: a new importance needs a new id.
+ */
+export const NOTIFICATION_CHANNELS = [
+  // Account notices, and TEST.
+  { id: "account", name: "notes.channels.account", importance: Notifications.AndroidImportance.HIGH },
+] as const;
+
+export type NotificationChannelId = (typeof NOTIFICATION_CHANNELS)[number]["id"];
+
+/** Channels earlier builds created. Deleting a missing one is harmless. */
+const RETIRED_CHANNEL_IDS = ["default"];
 
 export type PushPermission = "granted" | "denied" | "undetermined";
 
@@ -15,38 +28,57 @@ export const pushProjectId = (): string | null => {
   return extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? null;
 };
 
+/** Where the system stands. Provisional (quiet) delivery on iOS counts as allowed. */
 export const readPushPermission = async (): Promise<PushPermission> => {
-  const { status } = await Notifications.getPermissionsAsync();
-  return status as PushPermission;
+  const { granted, status, ios } = await Notifications.getPermissionsAsync();
+  if (granted || ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) return "granted";
+  return status === Notifications.PermissionStatus.DENIED ? "denied" : "undetermined";
 };
 
-/** Shows the system prompt (06.6). True when the person allowed notifications. */
+/** Shows the system prompt. True when the person allowed notifications. */
 export const askPushPermission = async (): Promise<boolean> => {
-  await ensureAndroidChannel();
+  await ensureAndroidChannels();
   const { granted } = await Notifications.requestPermissionsAsync();
   return granted;
 };
 
 /** Android 13+ asks for permission only once a channel exists. */
-const ensureAndroidChannel = async (): Promise<void> => {
+export const ensureAndroidChannels = async (): Promise<void> => {
   if (Platform.OS !== "android") return;
-  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-    name: i18n.t("notes.channel", { ns: "common" }),
-    importance: Notifications.AndroidImportance.DEFAULT,
-  });
+  await Promise.all(
+    NOTIFICATION_CHANNELS.map(({ id, name, importance }) =>
+      Notifications.setNotificationChannelAsync(id, { name: i18n.t(name, { ns: "common" }), importance }),
+    ),
+  );
+  await Promise.all(RETIRED_CHANNEL_IDS.map((id) => Notifications.deleteNotificationChannelAsync(id)));
 };
 
 /**
- * This phone's Expo push token, or null where it can't have one: a
- * simulator, an app without an EAS project yet, or notifications not allowed.
+ * The EAS project id when this phone can have a push token: a real device,
+ * an app with an EAS project, and notifications allowed. Null otherwise.
  * Never asks for permission.
  */
-export const getPushToken = async (): Promise<string | null> => {
+export const pushProjectIfAllowed = async (): Promise<string | null> => {
   if (!Device.isDevice) return null;
   const projectId = pushProjectId();
   if (!projectId) return null;
-  if ((await readPushPermission()) !== "granted") return null;
-  await ensureAndroidChannel();
-  const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+  return (await readPushPermission()) === "granted" ? projectId : null;
+};
+
+/**
+ * This phone's APNs or FCM token. Natively, every fetch also fires the push
+ * token listeners, so never call it from one: pass the listener's token on.
+ */
+export const getDevicePushToken = async (): Promise<Notifications.DevicePushToken> => {
+  await ensureAndroidChannels();
+  return Notifications.getDevicePushTokenAsync();
+};
+
+/** The Expo push token for a device token. Handing it over keeps Expo from fetching (and emitting) it again. */
+export const getExpoPushToken = async (
+  projectId: string,
+  devicePushToken: Notifications.DevicePushToken,
+): Promise<string> => {
+  const { data } = await Notifications.getExpoPushTokenAsync({ projectId, devicePushToken });
   return data;
 };
