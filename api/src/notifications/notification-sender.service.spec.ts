@@ -429,6 +429,17 @@ describe("NotificationSenderService", () => {
       expect(prisma.notification.updateMany).not.toHaveBeenCalled();
     });
 
+    it("waits for the run a call during the last one asked for, before saying it is idle", async () => {
+      prisma.$queryRaw.mockResolvedValue([] as never);
+
+      void service.sendPending();
+      void service.sendPending(); // Joins, and asks for one more run.
+      await service.whenIdle();
+
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+      await expect(service.whenIdle()).resolves.toBeUndefined();
+    });
+
     it("runs once at a time: a second call joins the run in progress", async () => {
       prisma.$queryRaw.mockResolvedValue([] as never);
 

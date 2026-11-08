@@ -10,12 +10,27 @@ describe("ExpoPushService", () => {
   const answer = (status: number, body: unknown) =>
     fetchMock.mockResolvedValue(new Response(JSON.stringify(body), { status }));
 
+  // The service refuses to call Expo under NODE_ENV=test; fetch is mocked here.
+  const nodeEnv = process.env.NODE_ENV;
+
   beforeEach(() => {
     accessToken = undefined;
     fetchMock = jest.spyOn(global, "fetch");
+    process.env.NODE_ENV = "development";
   });
 
-  afterEach(() => fetchMock.mockRestore());
+  afterEach(() => {
+    fetchMock.mockRestore();
+    process.env.NODE_ENV = nodeEnv;
+  });
+
+  it("refuses to call Expo under NODE_ENV=test", async () => {
+    process.env.NODE_ENV = "test";
+
+    await expect(service().send([message])).rejects.toThrow("NODE_ENV=test");
+    await expect(service().getReceipts(["t1"])).rejects.toThrow("NODE_ENV=test");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   it("posts the messages and returns Expo's tickets", async () => {
     answer(200, { data: [{ status: "ok", id: "t1" }] });

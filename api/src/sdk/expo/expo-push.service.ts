@@ -68,6 +68,11 @@ export class ExpoPushService {
   }
 
   private async post<T>(url: string, body: unknown): Promise<T> {
+    // A test that forgot to mock this would push to whatever tokens are in
+    // its database. Not an ExpoPushRequestError, so the sender run fails loudly.
+    if (process.env.NODE_ENV === "test") {
+      throw new Error("ExpoPushService does not call the real Expo API under NODE_ENV=test; mock it");
+    }
     const accessToken = this.configService.get<string>("notifications.expoAccessToken");
     let response: Response;
     try {
