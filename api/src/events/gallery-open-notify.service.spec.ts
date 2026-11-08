@@ -36,12 +36,9 @@ describe("GalleryOpenNotifyService", () => {
       where: { eventId: "e1", createdAt: { lte: opensAt } },
       select: { userId: true },
     });
-    expect(notifications.notify).toHaveBeenCalledWith(
-      expect.anything(),
-      NotificationType.GALLERY_OPENED,
-      ["u1"],
-      { eventId: "e1" },
-    );
+    expect(notifications.notify).toHaveBeenCalledWith(expect.anything(), NotificationType.GALLERY_OPENED, ["u1"], {
+      eventId: "e1",
+    });
     expect(notifications.kick).toHaveBeenCalledTimes(1);
   });
 
