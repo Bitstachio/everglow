@@ -119,6 +119,7 @@ const RollCallSheets = ({ screen }: { screen: ReturnType<typeof useRollCallScree
           roleLabel={t(ROLE_KEY[person.accessLevel])}
           showFrames={screen.countsFrames}
           onChangeRole={screen.canChangeRole ? screen.onChangeRole : undefined}
+          onSeeFrames={screen.canSeeFrames ? screen.onSeeFrames : undefined}
           onReport={screen.onReport}
           onBlock={screen.onBlock}
           onUnblock={screen.onUnblock}

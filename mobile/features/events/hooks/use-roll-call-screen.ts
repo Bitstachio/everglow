@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChangeParticipantRoleMutation, useRemoveEventParticipantMutation } from "../api/mutations";
 import { useEventBansQuery, useEventParticipantsQuery, useEventQuery } from "../api/queries";
-import { firstName, rollRole } from "../lib/roll-page";
+import { firstName, rollRole, rollShowsFrames } from "../lib/roll-page";
 import type { AccessLevel, EventParticipantResponseDto, MemberPhotos } from "../types";
 
 /** What opens over the roll call: someone's actions, or a slip about them. */
@@ -206,7 +206,16 @@ export const useRollCallScreen = () => {
     onBlock: () => openSlip("block"),
     onConfirmBlock,
     onUnblock,
+    // A closed or suspended roll has no frames to show.
+    canSeeFrames: rollShowsFrames(event),
     // After the sheet has gone: iOS drops a screen presented over a closing sheet.
+    onSeeFrames: () => {
+      if (!person || !eventId) return;
+      const userId = person.userId;
+      setSheet(null);
+      afterSheetCloses.current = () =>
+        router.push({ pathname: "/events/[id]/frames", params: { id: eventId, userId } });
+    },
     onReport: () => {
       if (!person || !eventId) return;
       const userId = person.userId;

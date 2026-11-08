@@ -13,11 +13,16 @@ export type GalleryPage = { items: PhotoResponseDto[]; nextCursor: string | null
 /** A frame and when its links were signed, so a download knows whether to renew them first. */
 export type SignedPhoto = { photo: PhotoResponseDto; signedAt: number };
 
-const readPage = async (eventId: string, cursor?: string, signal?: AbortSignal): Promise<GalleryPage> => {
+const readPage = async (
+  eventId: string,
+  cursor?: string,
+  signal?: AbortSignal,
+  addedById?: string,
+): Promise<GalleryPage> => {
   const signedAt = Date.now();
   const { data } = await photosControllerListPhotos({
     path: { eventId },
-    query: { limit: GALLERY_PAGE_SIZE, ...(cursor ? { cursor } : {}) },
+    query: { limit: GALLERY_PAGE_SIZE, ...(cursor ? { cursor } : {}), ...(addedById ? { addedById } : {}) },
     signal,
     throwOnError: true,
   });
@@ -31,6 +36,19 @@ export const useGalleryQuery = (eventId: string, enabled: boolean) =>
     enabled,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) => readPage(eventId, pageParam, signal),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+
+/**
+ * One person's frames, paged like the contact sheet. Someone the caller
+ * blocked, or who has nothing the caller can see, comes back empty.
+ */
+export const usePersonFramesQuery = (eventId: string, userId: string, enabled: boolean) =>
+  useInfiniteQuery({
+    queryKey: eventsKeys.personFrames(eventId, userId),
+    enabled,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) => readPage(eventId, pageParam, signal, userId),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 

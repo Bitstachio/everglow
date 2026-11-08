@@ -141,7 +141,7 @@ describe("11.2–11.4 a person, as a host", () => {
 
     const menu = await screen.findByTestId("person-menu");
     expect(within(menu).getByText("@leila.h · Adds photos · 31 frames")).toBeOnTheScreen();
-    for (const action of ["Change role", "Report Leila", "Block Leila", "Remove from the roll"]) {
+    for (const action of ["Change role", "See their frames", "Report Leila", "Block Leila", "Remove from the roll"]) {
       expect(within(menu).getByRole("button", { name: action })).toBeOnTheScreen();
     }
   });
@@ -286,6 +286,34 @@ describe("blocking and reporting from the roll call (11.8, 10.11)", () => {
   });
 });
 
+describe("seeing someone's frames from the roll call", () => {
+  test("opens only their frames once the sheet has gone", async () => {
+    await renderScreen();
+    const user = await openPerson(/Leila Haddad/);
+    const nativeDismiss = screen.getByTestId("roll-call-dialog", { includeHiddenElements: true }).props.onDismiss;
+    await user.press(await screen.findByRole("button", { name: "See their frames" }));
+
+    expect(mockPush).not.toHaveBeenCalled();
+    await act(async () => nativeDismiss());
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/events/[id]/frames",
+      params: { id: "event-1", userId: "user-2" },
+    });
+  });
+
+  test.each([
+    ["closed", { galleryState: "CLOSED" as const }],
+    ["suspended", { status: "SUSPENDED" as const }],
+  ])("a %s roll has no frames to see", async (_, overrides) => {
+    await renderScreen({ event: wedding(overrides) });
+    await openPerson(/Leila Haddad/);
+
+    const menu = await screen.findByTestId("person-menu");
+    expect(within(menu).getByRole("button", { name: "Report Leila" })).toBeOnTheScreen();
+    expect(within(menu).queryByRole("button", { name: "See their frames" })).not.toBeOnTheScreen();
+  });
+});
+
 describe("11.7 the roll call, as a guest", () => {
   beforeEach(() => {
     mockUser = { id: "user-2" };
@@ -305,6 +333,7 @@ describe("11.7 the roll call, as a guest", () => {
     await openPerson(/Sam Rivera/);
 
     const menu = await screen.findByTestId("person-menu");
+    expect(within(menu).getByRole("button", { name: "See their frames" })).toBeOnTheScreen();
     expect(within(menu).getByRole("button", { name: "Report Sam" })).toBeOnTheScreen();
     expect(within(menu).getByRole("button", { name: "Block Sam" })).toBeOnTheScreen();
     expect(within(menu).queryByRole("button", { name: "Change role" })).not.toBeOnTheScreen();
