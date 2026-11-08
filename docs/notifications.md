@@ -30,7 +30,9 @@ The app registers the phone it runs on, and the API keeps one `UserDevice` row p
 - **A token moves between accounts.** If a phone signs in to another account, its row moves to that account, so
   the previous account's pushes stop reaching it. This also covers a sign-out whose `DELETE` never arrived
   (offline): the next sign-in on that phone takes the token over.
-- **At most 10 phones per account.** Registering an eleventh drops the one seen least recently.
+- **At most 10 phones per account.** Registering an eleventh drops the one seen least recently. One account's
+  registrations take a transaction-scoped advisory lock on the account first, so concurrent registrations trim one
+  after the other and the cap is exact.
 - **Suspended accounts may register and unregister**, so account notices can still reach them.
 - **Account deletion** removes the rows by cascade ([account-deletion.md](./account-deletion.md)).
 - `locale` is the phone's BCP 47 tag. Copy is English for now; the tag is kept so translated copy needs no contract

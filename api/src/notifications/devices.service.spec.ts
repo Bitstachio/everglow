@@ -110,6 +110,19 @@ describe("DevicesService", () => {
       expect(prisma.userDevice.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["old-1", "old-2"] } } });
     });
 
+    it("takes the caller's device lock before reading or writing any device", async () => {
+      await service.register(userId, dto);
+
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const [strings, key] = prisma.$executeRaw.mock.calls[0] as unknown as [TemplateStringsArray, string];
+      expect(strings.join("?")).toContain("pg_advisory_xact_lock");
+      expect(key).toBe(`user-devices:${userId}`);
+      const lockedAt = prisma.$executeRaw.mock.invocationCallOrder[0];
+      expect(lockedAt).toBeLessThan(prisma.userDevice.findUnique.mock.invocationCallOrder[0]);
+      expect(lockedAt).toBeLessThan(prisma.userDevice.upsert.mock.invocationCallOrder[0]);
+      expect(lockedAt).toBeLessThan(prisma.userDevice.findMany.mock.invocationCallOrder[0]);
+    });
+
     it("deletes nothing while the caller is under the cap", async () => {
       await service.register(userId, dto);
 
