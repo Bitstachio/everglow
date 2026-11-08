@@ -84,11 +84,22 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Maestro CLI
+        id: maestro-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.maestro
+          key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
+
       - name: Install Maestro
+        if: steps.maestro-cache.outputs.cache-hit != 'true'
         working-directory: ${{ github.workspace }}
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | MAESTRO_VERSION="$MAESTRO_VERSION" bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Add Maestro to PATH
+        working-directory: ${{ github.workspace }}
+        run: echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
       - name: Boot iPhone simulator
         id: sim
