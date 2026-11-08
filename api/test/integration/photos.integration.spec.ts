@@ -548,6 +548,101 @@ describe("PhotosController (integration)", () => {
       expect(JSON.stringify(args?.where)).toContain(JSON.stringify({ id: { in: [] } }));
     });
 
+    describe("filtered to one person's frames with addedById", () => {
+      it("returns 200 with a former member's kept photos, paged like the full list", async () => {
+        // The uploader is not among the event's members any more; their photos stayed.
+        const first = buildPhoto({ addedById: TEST_TARGET_USER_ID });
+        const second = buildPhoto({ id: TEST_OTHER_PHOTO_ID, addedById: TEST_TARGET_USER_ID });
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+        prisma.photo.findMany.mockResolvedValue([first, second]);
+
+        const response = await request(httpServer)
+          .get(photosListPath())
+          .query({ addedById: TEST_TARGET_USER_ID, limit: 1 })
+          .set(authHeader())
+          .expect(200);
+
+        const body = response.body as WrappedResponse<PhotoListBody>;
+        expect(body.data.items.map((item) => item.id)).toEqual([TEST_PHOTO_ID]);
+        expect(body.data.items[0].addedById).toBe(TEST_TARGET_USER_ID);
+        expect(body.data.nextCursor).toBe(encodeKeysetCursor(first));
+        expect(prisma.photo.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              AND: [
+                // Only the uploader narrows the query, never whether they are still a member.
+                { eventId: TEST_EVENT_ID, status: "READY", addedById: TEST_TARGET_USER_ID },
+                expect.anything(),
+                expect.anything(),
+              ],
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 2,
+          }),
+        );
+      });
+
+      it("applies the cursor on the next page of one person's frames", async () => {
+        const last = buildPhoto({ addedById: TEST_TARGET_USER_ID });
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+        prisma.photo.findMany.mockResolvedValue([]);
+
+        await request(httpServer)
+          .get(photosListPath())
+          .query({ addedById: TEST_TARGET_USER_ID, cursor: encodeKeysetCursor(last) })
+          .set(authHeader())
+          .expect(200);
+
+        const [args] = prisma.photo.findMany.mock.calls[0];
+        expect(args?.where?.AND).toContainEqual({
+          OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }],
+        });
+      });
+
+      it("returns 200 with an empty page, not a 404, for an uploader the caller has blocked", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+        // The block filter drops every one of their photos.
+        prisma.photo.findMany.mockResolvedValue([]);
+
+        const response = await request(httpServer)
+          .get(photosListPath())
+          .query({ addedById: TEST_TARGET_USER_ID })
+          .set(authHeader())
+          .expect(200);
+
+        expect((response.body as WrappedResponse<PhotoListBody>).data).toEqual({ items: [], nextCursor: null });
+        const [args] = prisma.photo.findMany.mock.calls[0];
+        const filters = JSON.stringify(args?.where);
+        expect(filters).toContain(JSON.stringify({ addedById: TEST_TARGET_USER_ID }).slice(1, -1));
+        expect(filters).toContain(JSON.stringify({ blocksReceived: { some: { blockerId: TEST_USER_ID } } }));
+        expect(filters).toContain(JSON.stringify({ blocksInitiated: { some: { blockedId: TEST_USER_ID } } }));
+      });
+
+      it("returns 200 with an empty page for an id that added nothing", async () => {
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildViewerAccess()]) as never);
+        prisma.photo.findMany.mockResolvedValue([]);
+
+        const response = await request(httpServer)
+          .get(photosListPath())
+          .query({ addedById: TEST_OTHER_USER_ID })
+          .set(authHeader())
+          .expect(200);
+
+        expect((response.body as WrappedResponse<PhotoListBody>).data).toEqual({ items: [], nextCursor: null });
+      });
+
+      it("returns 400 when addedById is not a UUID", async () => {
+        const response = await request(httpServer)
+          .get(photosListPath())
+          .query({ addedById: "someone" })
+          .set(authHeader())
+          .expect(400);
+
+        expectApiError(response.body as ErrorResponse, BAD_REQUEST_CODE);
+        expect(prisma.photo.findMany).not.toHaveBeenCalled();
+      });
+    });
+
     it("returns 401 when the access token is missing", async () => {
       await request(httpServer).get(photosListPath()).expect(401);
     });
