@@ -108,28 +108,31 @@ GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/work
 
 The hosted runner is ephemeral. Cross-run speedups come from Actions caches. Bump `CACHE_EPOCH` in the workflow to invalidate every layer at once.
 
-| Layer               | Path                         | Key inputs                                     | Notes                                                                                                                               |
-| ------------------- | ---------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| pnpm store          | via `actions/setup-node`     | `mobile/pnpm-lock.yaml`                        | Already present before EV-210                                                                                                       |
-| CocoaPods downloads | `~/Library/Caches/CocoaPods` | epoch + lockfile + Expo config                 | Speeds `pod install` fetches during prebuild; does not cache `ios/Pods`                                                             |
-| Xcode DerivedData   | `~/everglow-deriveddata`     | epoch + Xcode version + lockfile + Expo config | Exact key only (no `restore-keys`). Build uses `xcodebuild -derivedDataPath` (not `expo run:ios`) so the tree stays under that path |
-| Maestro CLI         | `~/.maestro`                 | `MAESTRO_VERSION`                              | Skips the curl install on a hit                                                                                                     |
+| Layer               | Path                         | Key inputs                     | Notes                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | ---------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pnpm store          | via `actions/setup-node`     | `mobile/pnpm-lock.yaml`        | Already present before EV-210                                                                                                                                                                                                                                                                                                    |
+| CocoaPods downloads | `~/Library/Caches/CocoaPods` | epoch + lockfile + Expo config | Speeds `pod install` fetches during prebuild; does not cache `ios/Pods`                                                                                                                                                                                                                                                          |
+| Maestro CLI         | `~/.maestro`                 | `MAESTRO_VERSION`              | Skips the curl install on a hit                                                                                                                                                                                                                                                                                                  |
+| Xcode DerivedData   | not cached                   |                                | Measured and dropped: prebuild regenerates `ios/` and `pnpm install` writes `node_modules` fresh each run, so Xcode recompiled a restored tree anyway (warm run `42901234610`). Reusing the built `.app` is [EV-230](https://linear.app/mehrshadfb/issue/EV-230/reuse-the-built-mac-smoke-app-when-its-native-and-js-inputs-are) |
 
 A run restores caches saved on its own branch or on `main` (and, for a pull request, on its base branch), never from a sibling branch ([GitHub docs](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)). Caches saved on a feature branch only speed up later runs of that branch; caches saved by a run on `main` speed up every branch.
 
-The workflow restores each cache with `actions/cache/restore` and saves it with `actions/cache/save`, so a cold run keeps its caches even when the smoke fails. The Maestro CLI is saved right after install, before any flow can write session files under `~/.maestro`. CocoaPods downloads are saved after a successful prebuild and DerivedData after a successful build, in `always()` steps at the end of the job. An exact-key hit is not saved again. Saving needs no extra `permissions`: the cache service uses the job's cache token, whose access comes from the trigger's `cache-mode` (write for `workflow_dispatch`, `schedule` and `push`), not from `GITHUB_TOKEN` scopes.
+The workflow restores each cache with `actions/cache/restore` and saves it with `actions/cache/save`, so a cold run keeps its caches even when the smoke fails. The Maestro CLI is saved right after install, before any flow can write session files under `~/.maestro`. CocoaPods downloads are saved after a successful prebuild, in an `always()` step at the end of the job. An exact-key hit is not saved again. Saving needs no extra `permissions`: the cache service uses the job's cache token, whose access comes from the trigger's `cache-mode` (write for `workflow_dispatch`, `schedule` and `push`), not from `GITHUB_TOKEN` scopes.
 
 The simulator build keeps Xcode's ad hoc signing. Do not pass `CODE_SIGNING_ALLOWED=NO`: an unsigned app has no Keychain entitlement, and Auth0 sign-in then fails in the app with `OSStatus -34018`. The build step fails if the `.app` is not signed.
 
-Not in this workflow: caching a built `.app` to skip compile when native/JS inputs are unchanged. That is a separate follow-up from EV-210.
+The build uses `xcodebuild` with a fixed `-derivedDataPath` instead of `expo run:ios`, and builds only the runner's architecture (`ARCHS=$(uname -m)`, `ONLY_ACTIVE_ARCH=YES`). That, not a cache, is where most of the build time went. Not in this workflow: reusing a built `.app` when native and JS inputs are unchanged ([EV-230](https://linear.app/mehrshadfb/issue/EV-230/reuse-the-built-mac-smoke-app-when-its-native-and-js-inputs-are)).
 
-Record cold vs warm wall times here after measuring on `macos-latest` (job wall time excluding queue):
+Measured on `macos-latest` (`macos-26-arm64`, Xcode 26.6). Job time runs from job start to end and excludes the queue. Hosted Mac runners vary a lot from run to run (the simulator boot alone took 1 to 3.5 min in these runs).
 
-| Run                                              | Approx wall | Build step |
-| ------------------------------------------------ | ----------- | ---------- |
-| Before caches (baseline, e.g. run `41856393315`) | ~62 min     | ~29 min    |
-| Cold (all cache misses)                          | _TBD_       | _TBD_      |
-| Warm (DerivedData + CocoaPods + Maestro hits)    | _TBD_       | _TBD_      |
+| Run                                                                    | Job                      | Build step  | Notes                                                                              |
+| ---------------------------------------------------------------------- | ------------------------ | ----------- | ---------------------------------------------------------------------------------- |
+| `41856393315`, baseline: `expo run:ios`, both simulator architectures  | 41 min                   | 28.6 min    | Login passed                                                                       |
+| `42893320031`, cold: single-arch `xcodebuild`, all caches missed       | 16 min                   | 6.5 min     | Smoke failed at Auth0 sign-in, a rejected password, after the build                |
+| `42901234610`, warm: Maestro, CocoaPods and DerivedData caches all hit | not measured (cancelled) | over 10 min | Cancelled during the build; DerivedData restore took 36 s and the build recompiled |
+| `42904800710`, cold on another branch (stack top, more flows)          | 37 min                   | 14.5 min    | Login passed; most of the job is the extra flows                                   |
+
+A warm run without the DerivedData cache was not measured separately.
 
 Required repository secrets:
 
