@@ -5,7 +5,7 @@ import { Text, TextInput, View, type TextInputProps } from "react-native";
 
 type RollLabelProps = Pick<
   TextInputProps,
-  "value" | "onChangeText" | "onBlur" | "onSubmitEditing" | "editable" | "placeholder"
+  "value" | "onChangeText" | "onBlur" | "onSubmitEditing" | "editable" | "placeholder" | "testID"
 > & {
   /** The film stock printed on the label, "Everglow 400". */
   stock: string;

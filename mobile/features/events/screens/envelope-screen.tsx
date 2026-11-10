@@ -44,7 +44,7 @@ const EnvelopeScreen = () => {
       <TopBar
         title={edge ?? undefined}
         left={
-          <IconButton accessibilityLabel={t("close")} onPress={onClose}>
+          <IconButton testID="envelope-close" accessibilityLabel={t("close")} onPress={onClose}>
             <AppIcon icon={X} size="sm" color={colorTokens.text} />
           </IconButton>
         }

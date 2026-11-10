@@ -149,7 +149,7 @@ const EventDetailScreen = () => {
           title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           }
@@ -386,6 +386,7 @@ const EventDetailScreen = () => {
     <View className="w-1/3 px-0.5 pb-3.5">
       {item.kind === "photo" ? (
         <ContactFrame
+          testID="roll-frame"
           uri={item.frame.photo.thumbnailUrl}
           cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
@@ -413,6 +414,7 @@ const EventDetailScreen = () => {
         />
       ) : (
         <ContactFrame
+          testID="roll-frame-developing"
           uri={item.frame.item.uri}
           number={item.frame.number}
           by={t("frame.you")}
@@ -541,7 +543,7 @@ const EventDetailScreen = () => {
             <BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />
           </CoverButton>
           <CoverButton>
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           </CoverButton>

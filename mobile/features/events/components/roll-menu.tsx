@@ -60,8 +60,12 @@ export const RollMenu = ({
         {canOpenSettings ? (
           <MenuAction label={t("menuSheet.settings")} icon={SlidersHorizontal} onPress={onOpenSettings} />
         ) : null}
-        {canCut ? <MenuAction label={t("menuSheet.cut")} icon={Scissors} onPress={onCut} /> : null}
-        {canDelete && onDelete ? <MenuAction label={t("menuSheet.delete")} icon={Trash} onPress={onDelete} /> : null}
+        {canCut ? (
+          <MenuAction testID="roll-menu-cut" label={t("menuSheet.cut")} icon={Scissors} onPress={onCut} />
+        ) : null}
+        {canDelete && onDelete ? (
+          <MenuAction testID="roll-menu-delete" label={t("menuSheet.delete")} icon={Trash} onPress={onDelete} />
+        ) : null}
         {canLeave ? <MenuAction muted label={t("menuSheet.leave")} icon={SignOut} onPress={onLeave} /> : null}
       </View>
     );
