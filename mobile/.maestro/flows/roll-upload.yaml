@@ -22,14 +22,19 @@ onFlowComplete:
     visible:
       id: "events-profile-button"
     timeout: 60000
+- takeScreenshot: roll-upload-home
 - evalScript: ${output.rollName = 'Smoke-' + Date.now()}
 
 - tapOn:
     id: "home-new-roll"
+# The account's plan runs a limited number of rolls at a time. When every one
+# is in use, New roll says so instead of showing the label.
 - extendedWaitUntil:
     visible:
-      id: "new-roll-name"
+      id: "new-roll-name|new-roll-full-back"
     timeout: 30000
+- assertNotVisible:
+    id: "new-roll-full-back"
 - tapOn:
     id: "new-roll-name"
 - inputText: ${output.rollName}
