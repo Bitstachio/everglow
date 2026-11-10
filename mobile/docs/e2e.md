@@ -182,6 +182,29 @@ Artifacts upload `.maestro/results/` (including failures). The repository is pub
 | ambiguous | Element not found, assertion timeout, Auth0 web view still loading, empty output, any other failure that is not clearly deterministic                                                                                                       | Retry the Maestro run once |
 | clear     | Wrong email or password, the app's "Couldn’t sign in" alert, a Keychain `OSStatus` error, required Auth0 fields, account being deleted, Auth0 not configured, onboarding failed, flow parse error, Maestro invocation error, `pnpm` missing | Fail immediately           |
 
-A clear pattern wins when the same log also contains a driver error, so a rejected password is not retried. A second failure fails the job even if it still looks transient. The class is printed on its own line, for example `Maestro login smoke attempt 1 failed (flake). Retrying once without rebuilding.` or `Maestro login smoke passed on attempt 2 after a flake failure.` Those lines are not counted yet ([EV-213](https://linear.app/mehrshadfb/issue/EV-213/record-mac-smoke-maestro-retries-so-flakes-can-be-investigated)).
+A clear pattern wins when the same log also contains a driver error, so a rejected password is not retried. A second failure fails the job even if it still looks transient. The class is printed on its own line, for example `Maestro login smoke attempt 1 failed (flake). Retrying once without rebuilding.` or `Maestro login smoke passed on attempt 2 after a flake failure.`
 
 Maestro replaces `report.xml` on each run. Before a retry, the first attempt is copied to `.maestro/results/attempt-1/`. Logs are `attempt-1.log` and, when a retry ran, `attempt-2.log`. The root `report.xml` is the last attempt. Routine startup text such as `XCTest driver started` does not count as a flake.
+
+### Where retries are recorded
+
+`scripts/maestro-attempt-summary.js` keeps each attempt's result, failure class and duration in three places:
+
+| Where                                | What                                                                                                         | Kept               |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------ |
+| Job summary (the run's Summary page) | Simulator and runtime, one row per attempt, the results artifact name and download link                      | As long as the run |
+| `Mac smoke retry` warning annotation | Only when a retry rescued the run: `Login smoke passed on attempt 2 after a flake failure.` (or `ambiguous`) | As long as the run |
+| `attempts.json` in the artifact      | `outcome`, `rescuedFrom`, device, runtime and the attempts array                                             | Artifact, 7 days   |
+
+A first-try pass records no warning. A clear failure is never retried, so it is never counted as a rescued flake. To list rescued runs, query the annotations; the job id is also its check run id:
+
+```sh
+gh run list --workflow macos-smoke.yml --limit 50 --json databaseId -q '.[].databaseId' |
+  while read -r run; do
+    gh api "repos/Bitstachio/everglow/actions/runs/$run/jobs" -q '.jobs[].id' |
+      while read -r job; do
+        gh api "repos/Bitstachio/everglow/check-runs/$job/annotations" \
+          -q ".[] | select(.title == \"Mac smoke retry\") | \"$run \(.message)\""
+      done
+  done
+```
