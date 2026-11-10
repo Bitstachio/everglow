@@ -1,0 +1,101 @@
+appId: ${APP_ID}
+name: Load a roll, add a photo, then delete the roll
+tags:
+  - smoke
+  - roll
+# Staging is shared, so the roll this flow loads never stays behind: rolls left
+# by an earlier run are deleted first, and this run's roll is deleted when the
+# flow ends, whether it passed or not.
+onFlowStart:
+  - runFlow: ../helpers/delete-smoke-rolls.yaml
+onFlowComplete:
+  - runFlow: ../helpers/delete-smoke-rolls.yaml
+---
+# Needs a signed-in session (the login flow runs first in the smoke suite) and
+# a photo in the simulator's library (CI adds .maestro/fixtures/smoke-photo.jpg
+# with `xcrun simctl addmedia`).
+- launchApp:
+    clearState: false
+    permissions:
+      photos: allow
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 60000
+- evalScript: ${output.rollName = 'Smoke-' + Date.now()}
+
+- tapOn:
+    id: "home-new-roll"
+- extendedWaitUntil:
+    visible:
+      id: "new-roll-name"
+    timeout: 30000
+- tapOn:
+    id: "new-roll-name"
+- inputText: ${output.rollName}
+
+# Photos can be added only once the roll has opened. A new roll starts tonight
+# by default, so move it to midnight today: a time already past opens it at once.
+- tapOn:
+    id: "new-roll-when"
+- extendedWaitUntil:
+    visible:
+      id: "when-slip-times"
+    timeout: 10000
+- repeat:
+    times: 15
+    commands:
+      - swipe:
+          from:
+            id: "when-slip-times"
+          direction: RIGHT
+- tapOn:
+    id: "when-slip-time-0"
+- tapOn:
+    id: "when-slip-set"
+- tapOn:
+    id: "new-roll-load"
+
+# A new roll opens on its envelope; closing it shows the roll.
+- extendedWaitUntil:
+    visible:
+      id: "envelope-close"
+    timeout: 30000
+- tapOn:
+    id: "envelope-close"
+- extendedWaitUntil:
+    visible:
+      id: "roll-opened-action|roll-add-photos"
+    timeout: 30000
+- runFlow:
+    when:
+      visible:
+        id: "roll-opened-action"
+    commands:
+      - tapOn:
+          id: "roll-opened-action"
+- runFlow:
+    when:
+      visible:
+        id: "roll-add-photos"
+    commands:
+      - tapOn:
+          id: "roll-add-photos"
+
+# The system photo picker.
+- extendedWaitUntil:
+    visible:
+      text: "Photo, .*"
+    timeout: 30000
+- takeScreenshot: roll-upload-picker
+- tapOn:
+    text: "Photo, .*"
+    index: 0
+- tapOn:
+    text: "(Add|Done)"
+
+- extendedWaitUntil:
+    visible:
+      id: "roll-frame"
+    timeout: 120000
+- takeScreenshot: roll-upload-frame
