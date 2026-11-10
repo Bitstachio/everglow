@@ -117,7 +117,7 @@ The flow keeps app data (`clearState: false`): it needs a signed-in, onboarded s
 `flows/roll-upload.yaml` runs against the shared staging API, as the E2E user:
 
 1. Taps New event (`home-new-roll`) and names the roll `Smoke-<timestamp>`.
-2. Moves the roll to 00:00 today in the When slip. A new roll starts tonight by default, and photos can only be added once it has opened; a time already past opens it at once.
+2. Moves the roll to the half hour under way now in the When slip, swiping the times strip until that time shows (the strip lists only the times on screen). A new roll starts tonight by default, and photos can only be added once it has opened; a time already past opens it at once.
 3. Loads the roll, closes the envelope, and taps the shutter (`roll-add-photos`, or the first-visit button `roll-opened-action`).
 4. Picks the fixture photo in the system photo picker by its date label (`Photo, January 01, 2001, …`), taps Done (Add on older iOS), and waits up to two minutes for a frame on the roll (`roll-frame`).
 

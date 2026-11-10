@@ -40,7 +40,11 @@ onFlowComplete:
 - inputText: ${output.rollName}
 
 # Photos can be added only once the roll has opened. A new roll starts tonight
-# by default, so move it to midnight today: a time already past opens it at once.
+# by default, so move it to the half hour under way now: a time already past
+# opens it at once. The times strip lists only the times on screen, earlier
+# ones to the left, so swipe until that one shows.
+- evalScript: ${output.pastSlot = String(Math.floor((new Date().getHours() * 60 + new Date().getMinutes()) / 30) * 30)}
+- evalScript: ${output.swiped = false}
 - tapOn:
     id: "new-roll-when"
 - extendedWaitUntil:
@@ -48,14 +52,27 @@ onFlowComplete:
       id: "when-slip-times"
     timeout: 10000
 - repeat:
-    times: 15
+    times: 40
+    while:
+      notVisible:
+        id: "when-slip-time-${output.pastSlot}"
+    commands:
+      - swipe:
+          from:
+            id: "when-slip-times"
+          direction: RIGHT
+      - evalScript: ${output.swiped = true}
+# It can stop with that time half off the left edge; one more swipe brings it in.
+- runFlow:
+    when:
+      true: ${output.swiped}
     commands:
       - swipe:
           from:
             id: "when-slip-times"
           direction: RIGHT
 - tapOn:
-    id: "when-slip-time-0"
+    id: "when-slip-time-${output.pastSlot}"
 - tapOn:
     id: "when-slip-set"
 - tapOn:
