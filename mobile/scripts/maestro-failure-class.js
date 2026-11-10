@@ -6,9 +6,10 @@
  * text. Routine lines such as "XCTest driver started" must not count, or every
  * iOS failure would look like a flake.
  *
- * Maestro's stdout does not show what was on screen. `failedScreenText` pulls
- * the visible text out of the failed command's view hierarchy in Maestro's
- * debug output, so an in-app error alert can be classified too.
+ * Maestro's stdout does not show what was on screen. `failedHierarchyPaths`
+ * and `hierarchyText` read the visible text from the screen hierarchy Maestro
+ * saves for a failed command in its debug output, so an in-app error alert or
+ * an Auth0 form error can be classified too.
  */
 
 /** @typedef {"flake" | "ambiguous" | "clear"} MaestroFailureClass */
@@ -73,35 +74,41 @@ const classifyMaestroFailure = (log) => {
 const HIERARCHY_TEXT_KEYS = ["text", "accessibilityText", "hintText"];
 
 /**
- * Visible text in a Maestro view hierarchy node and its children, in order.
- * @param {unknown} node
- * @param {Set<string>} out
- */
-const collectHierarchyText = (node, out) => {
-  if (!node || typeof node !== "object") return;
-  const attributes = /** @type {{ attributes?: Record<string, unknown> }} */ (node).attributes ?? {};
-  for (const key of HIERARCHY_TEXT_KEYS) {
-    const value = attributes[key];
-    if (typeof value === "string" && value.trim() !== "") out.add(value.trim());
-  }
-  const children = /** @type {{ children?: unknown[] }} */ (node).children;
-  if (Array.isArray(children)) for (const child of children) collectHierarchyText(child, out);
-};
-
-/**
- * Text that was on screen when a Maestro command failed, from one parsed
- * `commands-*.json` debug file (an array of `{ command, metadata }`).
+ * Paths of the screen hierarchies Maestro saved for failed commands, from one
+ * parsed `commands.json` (an array of `{ command, metadata }`). Paths are
+ * relative to the folder that holds `commands.json`.
  * @param {unknown} commands
  * @returns {string[]}
  */
-const failedScreenText = (commands) => {
+const failedHierarchyPaths = (commands) => {
   if (!Array.isArray(commands)) return [];
-  const out = new Set();
+  const paths = [];
   for (const entry of commands) {
     const metadata = entry?.metadata;
-    if (metadata?.status !== "FAILED") continue;
-    collectHierarchyText(metadata.hierarchy, out);
-    collectHierarchyText(metadata.error?.hierarchyRoot, out);
+    if (metadata?.status !== "FAILED" || !Array.isArray(metadata.artifacts)) continue;
+    for (const artifact of metadata.artifacts) {
+      if (artifact?.type === "SCREEN_HIERARCHY" && typeof artifact.path === "string") paths.push(artifact.path);
+    }
+  }
+  return paths;
+};
+
+/**
+ * Visible text in a Maestro screen hierarchy (`screen-hierarchy/*.json`), in
+ * order and without repeats.
+ * @param {unknown} root
+ * @param {Set<string>} [out]
+ * @returns {string[]}
+ */
+const hierarchyText = (root, out = new Set()) => {
+  if (root && typeof root === "object") {
+    const attributes = /** @type {{ attributes?: Record<string, unknown> }} */ (root).attributes ?? {};
+    for (const key of HIERARCHY_TEXT_KEYS) {
+      const value = attributes[key];
+      if (typeof value === "string" && value.trim() !== "") out.add(value.trim());
+    }
+    const children = /** @type {{ children?: unknown[] }} */ (root).children;
+    if (Array.isArray(children)) for (const child of children) hierarchyText(child, out);
   }
   return [...out];
 };
@@ -115,4 +122,4 @@ const failedScreenText = (commands) => {
 const shouldRetryMaestroFailure = (failureClass, attempt, maxAttempts = 2) =>
   failureClass !== "clear" && attempt < maxAttempts;
 
-module.exports = { classifyMaestroFailure, failedScreenText, shouldRetryMaestroFailure };
+module.exports = { classifyMaestroFailure, failedHierarchyPaths, hierarchyText, shouldRetryMaestroFailure };

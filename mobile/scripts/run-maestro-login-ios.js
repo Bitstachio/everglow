@@ -13,7 +13,12 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { classifyMaestroFailure, failedScreenText, shouldRetryMaestroFailure } = require("./maestro-failure-class");
+const {
+  classifyMaestroFailure,
+  failedHierarchyPaths,
+  hierarchyText,
+  shouldRetryMaestroFailure,
+} = require("./maestro-failure-class");
 
 const mobileRoot = path.resolve(__dirname, "..");
 const resultsDir = path.join(mobileRoot, ".maestro", "results");
@@ -57,8 +62,8 @@ const runLoginSmoke = (logPath) =>
   });
 
 /**
- * Maestro debug files (`commands-*.json`) written by this attempt. Earlier
- * attempts' files are older than `sinceMs`, and staged copies are skipped.
+ * Maestro debug files (`commands.json`, one per flow) written by this attempt.
+ * Earlier attempts' files are older than `sinceMs`, and staged copies are skipped.
  * @param {string} dir
  * @param {number} sinceMs
  * @param {number} [depth]
@@ -72,21 +77,31 @@ const debugCommandFiles = (dir, sinceMs, depth = 3) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       found.push(...debugCommandFiles(full, sinceMs, depth - 1));
-    } else if (/^commands-.*\.json$/.test(entry.name) && fs.statSync(full).mtimeMs >= sinceMs) {
+    } else if (entry.name === "commands.json" && fs.statSync(full).mtimeMs >= sinceMs) {
       found.push(full);
     }
   }
   return found;
 };
 
-/** Text on screen when this attempt's failing command ran, from Maestro's debug output. */
+/**
+ * Text on screen when this attempt's failing command ran, from the screen
+ * hierarchy Maestro saved for it. Secret values (the E2E email typed into the
+ * Auth0 form) are left out so they never reach the log.
+ */
 const screenTextAtFailure = (sinceMs) => {
+  const secrets = new Set([process.env.E2E_EMAIL, process.env.E2E_PASSWORD].filter(Boolean));
   const text = new Set();
   for (const file of debugCommandFiles(resultsDir, sinceMs)) {
     try {
-      for (const line of failedScreenText(JSON.parse(fs.readFileSync(file, "utf8")))) text.add(line);
+      for (const relative of failedHierarchyPaths(JSON.parse(fs.readFileSync(file, "utf8")))) {
+        const root = JSON.parse(fs.readFileSync(path.join(path.dirname(file), relative), "utf8"));
+        for (const line of hierarchyText(root)) {
+          if (![...secrets].some((secret) => line.includes(secret))) text.add(line);
+        }
+      }
     } catch {
-      // A truncated debug file only costs the screen text, not the classification.
+      // A missing or truncated debug file only costs the screen text, not the classification.
     }
   }
   return [...text];

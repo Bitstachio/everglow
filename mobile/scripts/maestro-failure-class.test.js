@@ -1,4 +1,9 @@
-const { classifyMaestroFailure, failedScreenText, shouldRetryMaestroFailure } = require("./maestro-failure-class");
+const {
+  classifyMaestroFailure,
+  failedHierarchyPaths,
+  hierarchyText,
+  shouldRetryMaestroFailure,
+} = require("./maestro-failure-class");
 
 test("retries an unreachable XCTest driver", () => {
   const failureClass = classifyMaestroFailure(
@@ -93,33 +98,52 @@ test("does not treat Maestro's clear-keychain launch option as a Keychain error"
   );
 });
 
-test("reads the text on screen from a failed command's hierarchy", () => {
+// Shapes below match Maestro 2.10 debug output (`commands.json` plus
+// `screen-hierarchy/step-NNN-*.json`), with made-up values.
+test("finds the screen hierarchy saved for a failed command", () => {
   const commands = [
     { command: { tapOnElement: {} }, metadata: { status: "COMPLETED" } },
     {
       command: { assertConditionCommand: {} },
       metadata: {
         status: "FAILED",
-        error: { message: "Element not found: Text matching regex: Email address" },
-        hierarchy: {
-          attributes: { text: "" },
-          children: [
-            { attributes: { text: "Couldn’t sign in" }, children: [] },
-            {
-              attributes: {
-                accessibilityText:
-                  "Unable to retrieve the private key representation from the Keychain. OSStatus: -34018",
-              },
-            },
-            { attributes: { text: "OK" } },
-            { attributes: { text: "OK" } },
-          ],
-        },
+        error: { message: "Assertion is false: id: events-profile-button is visible" },
+        artifacts: [
+          { type: "SCREEN_HIERARCHY", path: "screen-hierarchy/step-016-assertCondition-events-profile-button.json" },
+          { type: "SCREENSHOT", path: "screenshots/step-016-assertCondition-events-profile-button.png" },
+        ],
       },
     },
   ];
-  const text = failedScreenText(commands);
+  expect(failedHierarchyPaths(commands)).toEqual([
+    "screen-hierarchy/step-016-assertCondition-events-profile-button.json",
+  ]);
+});
+
+test("ignores debug files without a failed command", () => {
+  expect(failedHierarchyPaths([{ metadata: { status: "COMPLETED", artifacts: [] } }])).toEqual([]);
+  expect(failedHierarchyPaths({ not: "an array" })).toEqual([]);
+  expect(failedHierarchyPaths(null)).toEqual([]);
+});
+
+test("reads the visible text from a screen hierarchy", () => {
+  const root = {
+    attributes: { bounds: "[0,0][390,844]" },
+    children: [
+      { attributes: { accessibilityText: "Welcome", text: "Welcome" } },
+      { attributes: { text: "Couldn’t sign in" }, children: [] },
+      {
+        attributes: {
+          accessibilityText: "Unable to retrieve the private key representation from the Keychain. OSStatus: -34018",
+        },
+      },
+      { attributes: { text: "OK" } },
+      { attributes: { text: " " } },
+    ],
+  };
+  const text = hierarchyText(root);
   expect(text).toEqual([
+    "Welcome",
     "Couldn’t sign in",
     "Unable to retrieve the private key representation from the Keychain. OSStatus: -34018",
     "OK",
@@ -127,22 +151,19 @@ test("reads the text on screen from a failed command's hierarchy", () => {
   expect(classifyMaestroFailure(text.join("\n"))).toBe("clear");
 });
 
-test("also reads the hierarchy Maestro attaches to the error", () => {
-  const commands = [
-    {
-      metadata: {
-        status: "FAILED",
-        error: { hierarchyRoot: { attributes: {}, children: [{ attributes: { hintText: "Email address" } }] } },
-      },
-    },
-  ];
-  expect(failedScreenText(commands)).toEqual(["Email address"]);
+test("classifies an Auth0 wrong-password page from the hierarchy, which stdout never shows", () => {
+  const root = {
+    attributes: {},
+    children: [
+      { attributes: { accessibilityText: "Email address" } },
+      { attributes: { text: "Wrong email or password", accessibilityText: "Wrong email or password" } },
+    ],
+  };
+  expect(classifyMaestroFailure("Assertion is false: id: events-profile-button is visible")).toBe("ambiguous");
+  expect(classifyMaestroFailure(hierarchyText(root).join("\n"))).toBe("clear");
 });
 
-test("ignores debug files without a failed command", () => {
-  expect(failedScreenText([{ metadata: { status: "COMPLETED", hierarchy: { attributes: { text: "Hi" } } } }])).toEqual(
-    [],
-  );
-  expect(failedScreenText({ not: "an array" })).toEqual([]);
-  expect(failedScreenText(null)).toEqual([]);
+test("returns no text for an empty hierarchy", () => {
+  expect(hierarchyText(null)).toEqual([]);
+  expect(hierarchyText({ attributes: {} })).toEqual([]);
 });
