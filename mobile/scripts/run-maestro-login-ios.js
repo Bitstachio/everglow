@@ -8,11 +8,18 @@
  * the debug output next to it. Attempt logs and the first attempt's results
  * are staged outside that directory and copied back after the last run so the
  * CI artifact still contains both.
+ *
+ * Each attempt's result, failure class and duration go to `attempts.json` in
+ * the results, to the GitHub job summary, and, when a retry rescued the run,
+ * to a `::warning::` annotation (see `maestro-attempt-summary.js`). The device
+ * and artifact name come from `SIM_NAME`, `SIM_RUNTIME_USED` and
+ * `MAESTRO_ARTIFACT_NAME`, which the workflow sets.
  */
 
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { attemptsRecord, rescueWarning, summaryMarkdown } = require("./maestro-attempt-summary");
 const {
   classifyMaestroFailure,
   failedHierarchyPaths,
@@ -142,8 +149,34 @@ const publishStaging = () => {
   }
 };
 
+/**
+ * Writes `attempts.json`, the job summary and the rescue warning. Failures here
+ * are logged but never change the smoke's result.
+ * @param {import("./maestro-attempt-summary").MaestroAttempt[]} attempts
+ */
+const recordAttempts = (attempts) => {
+  if (attempts.length === 0) return;
+  const run = {
+    device: process.env.SIM_NAME || undefined,
+    runtime: process.env.SIM_RUNTIME_USED || undefined,
+    artifact: process.env.MAESTRO_ARTIFACT_NAME || undefined,
+    attempts,
+  };
+  try {
+    fs.mkdirSync(resultsDir, { recursive: true });
+    fs.writeFileSync(path.join(resultsDir, "attempts.json"), `${JSON.stringify(attemptsRecord(run), null, 2)}\n`);
+    const warning = rescueWarning(attempts, run.artifact);
+    if (warning) console.log(warning);
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summaryMarkdown(run));
+  } catch (error) {
+    console.error("Failed to record Maestro attempts:", error);
+  }
+};
+
 const main = async () => {
   let exitCode = 1;
+  /** @type {import("./maestro-attempt-summary").MaestroAttempt[]} */
+  const attempts = [];
   fs.rmSync(stagingDir, { recursive: true, force: true });
   fs.mkdirSync(stagingDir, { recursive: true });
   clearPreviousAttemptArtifacts();
@@ -154,8 +187,10 @@ const main = async () => {
       // Whole seconds: some file systems store coarse mtimes.
       const startedMs = Math.floor(Date.now() / 1000) * 1000;
       const result = await runLoginSmoke(path.join(stagingDir, `attempt-${attempt}.log`));
+      const durationMs = Date.now() - startedMs;
       exitCode = result.code;
       if (exitCode === 0) {
+        attempts.push({ attempt, passed: true, failureClass: null, durationMs, retried: false });
         if (attempt > 1) {
           console.log(`Maestro login smoke passed on attempt ${attempt} after a ${firstFailureClass} failure.`);
         }
@@ -167,7 +202,9 @@ const main = async () => {
       }
       const failureClass = classifyMaestroFailure(failureText(result.text, screenText));
       if (firstFailureClass === null) firstFailureClass = failureClass;
-      if (shouldRetryMaestroFailure(failureClass, attempt, MAX_ATTEMPTS)) {
+      const retry = shouldRetryMaestroFailure(failureClass, attempt, MAX_ATTEMPTS);
+      attempts.push({ attempt, passed: false, failureClass, durationMs, retried: retry });
+      if (retry) {
         console.error(
           `Maestro login smoke attempt ${attempt} failed (${failureClass}). Retrying once without rebuilding.`,
         );
@@ -186,6 +223,7 @@ const main = async () => {
       exitCode = 1;
     }
     fs.rmSync(stagingDir, { recursive: true, force: true });
+    recordAttempts(attempts);
     process.exitCode = exitCode;
   }
 };
