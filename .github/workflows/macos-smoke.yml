@@ -122,6 +122,9 @@ jobs:
           --device "$DEVICE_ID"
           --no-bundler
 
+      - name: Add the smoke photo to the simulator library
+        run: xcrun simctl addmedia "$DEVICE_ID" .maestro/fixtures/smoke-photo.jpg
+
       - name: Maestro login smoke
         run: pnpm run test:e2e:login:ios:ci
 
