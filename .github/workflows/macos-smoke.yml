@@ -9,7 +9,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   login-ios:
@@ -84,18 +83,30 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Cache Maestro CLI
+      # Build caches are restored here and saved in the always() steps at the
+      # end of the job, so a failing smoke still keeps a cold build's caches.
+      - name: Restore Maestro CLI
         id: maestro-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.maestro
           key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
 
       - name: Install Maestro
+        id: maestro-install
         if: steps.maestro-cache.outputs.cache-hit != 'true'
         working-directory: ${{ github.workspace }}
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | MAESTRO_VERSION="$MAESTRO_VERSION" bash
+
+      # Saved straight after install, before any flow runs: Maestro can write
+      # session files under ~/.maestro, and a cache must never hold a secret.
+      - name: Save Maestro CLI
+        if: steps.maestro-install.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.maestro
+          key: ${{ steps.maestro-cache.outputs.cache-primary-key }}
 
       - name: Add Maestro to PATH
         working-directory: ${{ github.workspace }}
@@ -129,8 +140,9 @@ jobs:
       # CocoaPods download cache only (not ios/Pods). ios/ is gitignored CNG
       # output, so Podfile.lock does not exist until after prebuild; the key
       # stands in for what decides pod versions (JS lockfile + Expo config).
-      - name: Cache CocoaPods downloads
-        uses: actions/cache@v4
+      - name: Restore CocoaPods downloads
+        id: pods-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/Library/Caches/CocoaPods
           key: ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
@@ -138,6 +150,7 @@ jobs:
             ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-
 
       - name: Prebuild native iOS project
+        id: prebuild
         run: pnpm exec expo prebuild --platform ios --non-interactive
 
       # expo run:ios does not pass -derivedDataPath, so a restored default
@@ -150,19 +163,21 @@ jobs:
           xcodebuild -version
           echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Xcode DerivedData
-        uses: actions/cache@v4
+      - name: Restore Xcode DerivedData
+        id: deriveddata-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/everglow-deriveddata
           # Exact key only: a partial DerivedData hit against a different native
           # graph is often slower than a cold compile.
-          key: ${{ runner.os }}-deriveddata-${{ env.CACHE_EPOCH }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-deriveddata-${{ env.CACHE_EPOCH }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
 
       - name: Build and install Release (no Metro)
+        id: build
         working-directory: mobile
         run: |
           set -euo pipefail
-          WORKSPACE="$(ls -d ios/*.xcworkspace | head -1)"
+          WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)"
           SCHEME="$(basename "$WORKSPACE" .xcworkspace)"
           DERIVED_DATA="${HOME}/everglow-deriveddata"
           ARCH="$(uname -m)"
@@ -215,3 +230,20 @@ jobs:
             mobile/.maestro/results/
           if-no-files-found: ignore
           retention-days: 7
+
+      # Save only what this run produced, and skip exact-key hits (that entry
+      # already exists). DerivedData is saved only after a successful build so
+      # a half-compiled tree is never cached.
+      - name: Save CocoaPods downloads
+        if: always() && steps.pods-cache.outputs.cache-hit != 'true' && steps.prebuild.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: ${{ steps.pods-cache.outputs.cache-primary-key }}
+
+      - name: Save Xcode DerivedData
+        if: always() && steps.deriveddata-cache.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/everglow-deriveddata
+          key: ${{ steps.deriveddata-cache.outputs.cache-primary-key }}
