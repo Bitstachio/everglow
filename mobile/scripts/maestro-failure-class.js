@@ -5,6 +5,10 @@
  * driver error should not be retried. Flake patterns are specific exception
  * text. Routine lines such as "XCTest driver started" must not count, or every
  * iOS failure would look like a flake.
+ *
+ * Maestro's stdout does not show what was on screen. `failedScreenText` pulls
+ * the visible text out of the failed command's view hierarchy in Maestro's
+ * debug output, so an in-app error alert can be classified too.
  */
 
 /** @typedef {"flake" | "ambiguous" | "clear"} MaestroFailureClass */
@@ -20,6 +24,12 @@ const CLEAR_PATTERNS = [
   /auth0 is not configured/i,
   /you can't sign in to this account/i,
   /could not complete onboarding/i,
+  // The app's sign-in error alert, with either apostrophe, and the Keychain
+  // errors behind it (for example OSStatus -34018 from an unsigned build).
+  /couldn.t sign in/i,
+  /\bOSStatus\b/i,
+  /\berrSec[A-Z]\w*/,
+  /(from|in|to) the keychain/i,
   /command not found/i,
   /no flows? found/i,
   /no flows to run/i,
@@ -60,6 +70,42 @@ const classifyMaestroFailure = (log) => {
   return "ambiguous";
 };
 
+const HIERARCHY_TEXT_KEYS = ["text", "accessibilityText", "hintText"];
+
+/**
+ * Visible text in a Maestro view hierarchy node and its children, in order.
+ * @param {unknown} node
+ * @param {Set<string>} out
+ */
+const collectHierarchyText = (node, out) => {
+  if (!node || typeof node !== "object") return;
+  const attributes = /** @type {{ attributes?: Record<string, unknown> }} */ (node).attributes ?? {};
+  for (const key of HIERARCHY_TEXT_KEYS) {
+    const value = attributes[key];
+    if (typeof value === "string" && value.trim() !== "") out.add(value.trim());
+  }
+  const children = /** @type {{ children?: unknown[] }} */ (node).children;
+  if (Array.isArray(children)) for (const child of children) collectHierarchyText(child, out);
+};
+
+/**
+ * Text that was on screen when a Maestro command failed, from one parsed
+ * `commands-*.json` debug file (an array of `{ command, metadata }`).
+ * @param {unknown} commands
+ * @returns {string[]}
+ */
+const failedScreenText = (commands) => {
+  if (!Array.isArray(commands)) return [];
+  const out = new Set();
+  for (const entry of commands) {
+    const metadata = entry?.metadata;
+    if (metadata?.status !== "FAILED") continue;
+    collectHierarchyText(metadata.hierarchy, out);
+    collectHierarchyText(metadata.error?.hierarchyRoot, out);
+  }
+  return [...out];
+};
+
 /**
  * One retry, and only when the failure is not clearly deterministic.
  * @param {MaestroFailureClass} failureClass
@@ -69,4 +115,4 @@ const classifyMaestroFailure = (log) => {
 const shouldRetryMaestroFailure = (failureClass, attempt, maxAttempts = 2) =>
   failureClass !== "clear" && attempt < maxAttempts;
 
-module.exports = { classifyMaestroFailure, shouldRetryMaestroFailure };
+module.exports = { classifyMaestroFailure, failedScreenText, shouldRetryMaestroFailure };

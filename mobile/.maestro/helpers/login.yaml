@@ -14,6 +14,9 @@ appId: ${APP_ID}
 - tapOn:
     text: "Continue"
     optional: true
+# Fail fast when the app shows its sign-in error (for example a Keychain
+# OSStatus) instead of opening Auth0. "." matches either apostrophe.
+- assertNotVisible: "Couldn.t sign in"
 # Auth0 New UL: email + password on one page. Do not tap Continue until both are filled —
 # early Continue shows "Password is required", and (?i)password then matches that error text.
 - extendedWaitUntil:

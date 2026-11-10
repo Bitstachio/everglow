@@ -1,4 +1,4 @@
-const { classifyMaestroFailure, shouldRetryMaestroFailure } = require("./maestro-failure-class");
+const { classifyMaestroFailure, failedScreenText, shouldRetryMaestroFailure } = require("./maestro-failure-class");
 
 test("retries an unreachable XCTest driver", () => {
   const failureClass = classifyMaestroFailure(
@@ -72,4 +72,77 @@ test("prefers a clear credential failure over a driver error in the same log", (
 test("does not retry a second time", () => {
   expect(shouldRetryMaestroFailure("flake", 2)).toBe(false);
   expect(shouldRetryMaestroFailure("ambiguous", 2)).toBe(false);
+});
+
+test("does not retry the app's sign-in error alert", () => {
+  expect(classifyMaestroFailure("Couldn’t sign in")).toBe("clear");
+  expect(classifyMaestroFailure("Couldn't sign in")).toBe("clear");
+  expect(classifyMaestroFailure('Assertion is false: "Couldn.t sign in" is not visible')).toBe("clear");
+});
+
+test("does not retry a Keychain error from an unsigned or misconfigured build", () => {
+  const alert = "Unable to retrieve the private key representation from the Keychain. OSStatus: -34018";
+  expect(classifyMaestroFailure(alert)).toBe("clear");
+  expect(classifyMaestroFailure("OSStatus error -25300")).toBe("clear");
+  expect(classifyMaestroFailure("errSecMissingEntitlement")).toBe("clear");
+});
+
+test("does not treat Maestro's clear-keychain launch option as a Keychain error", () => {
+  expect(classifyMaestroFailure("Launch app with clear state and clear keychain\nAssertion is false")).toBe(
+    "ambiguous",
+  );
+});
+
+test("reads the text on screen from a failed command's hierarchy", () => {
+  const commands = [
+    { command: { tapOnElement: {} }, metadata: { status: "COMPLETED" } },
+    {
+      command: { assertConditionCommand: {} },
+      metadata: {
+        status: "FAILED",
+        error: { message: "Element not found: Text matching regex: Email address" },
+        hierarchy: {
+          attributes: { text: "" },
+          children: [
+            { attributes: { text: "Couldn’t sign in" }, children: [] },
+            {
+              attributes: {
+                accessibilityText:
+                  "Unable to retrieve the private key representation from the Keychain. OSStatus: -34018",
+              },
+            },
+            { attributes: { text: "OK" } },
+            { attributes: { text: "OK" } },
+          ],
+        },
+      },
+    },
+  ];
+  const text = failedScreenText(commands);
+  expect(text).toEqual([
+    "Couldn’t sign in",
+    "Unable to retrieve the private key representation from the Keychain. OSStatus: -34018",
+    "OK",
+  ]);
+  expect(classifyMaestroFailure(text.join("\n"))).toBe("clear");
+});
+
+test("also reads the hierarchy Maestro attaches to the error", () => {
+  const commands = [
+    {
+      metadata: {
+        status: "FAILED",
+        error: { hierarchyRoot: { attributes: {}, children: [{ attributes: { hintText: "Email address" } }] } },
+      },
+    },
+  ];
+  expect(failedScreenText(commands)).toEqual(["Email address"]);
+});
+
+test("ignores debug files without a failed command", () => {
+  expect(failedScreenText([{ metadata: { status: "COMPLETED", hierarchy: { attributes: { text: "Hi" } } } }])).toEqual(
+    [],
+  );
+  expect(failedScreenText({ not: "an array" })).toEqual([]);
+  expect(failedScreenText(null)).toEqual([]);
 });

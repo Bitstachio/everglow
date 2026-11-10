@@ -13,7 +13,7 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { classifyMaestroFailure, shouldRetryMaestroFailure } = require("./maestro-failure-class");
+const { classifyMaestroFailure, failedScreenText, shouldRetryMaestroFailure } = require("./maestro-failure-class");
 
 const mobileRoot = path.resolve(__dirname, "..");
 const resultsDir = path.join(mobileRoot, ".maestro", "results");
@@ -56,10 +56,46 @@ const runLoginSmoke = (logPath) =>
     child.on("close", (code) => finish(code ?? 1));
   });
 
-const failureText = (stdio) => {
+/**
+ * Maestro debug files (`commands-*.json`) written by this attempt. Earlier
+ * attempts' files are older than `sinceMs`, and staged copies are skipped.
+ * @param {string} dir
+ * @param {number} sinceMs
+ * @param {number} [depth]
+ * @returns {string[]}
+ */
+const debugCommandFiles = (dir, sinceMs, depth = 3) => {
+  if (depth < 0 || !fs.existsSync(dir)) return [];
+  const found = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith("attempt-")) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...debugCommandFiles(full, sinceMs, depth - 1));
+    } else if (/^commands-.*\.json$/.test(entry.name) && fs.statSync(full).mtimeMs >= sinceMs) {
+      found.push(full);
+    }
+  }
+  return found;
+};
+
+/** Text on screen when this attempt's failing command ran, from Maestro's debug output. */
+const screenTextAtFailure = (sinceMs) => {
+  const text = new Set();
+  for (const file of debugCommandFiles(resultsDir, sinceMs)) {
+    try {
+      for (const line of failedScreenText(JSON.parse(fs.readFileSync(file, "utf8")))) text.add(line);
+    } catch {
+      // A truncated debug file only costs the screen text, not the classification.
+    }
+  }
+  return [...text];
+};
+
+const failureText = (stdio, screenText) => {
   const reportPath = path.join(resultsDir, "report.xml");
   const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, "utf8") : "";
-  return `${stdio}\n${report}`;
+  return `${stdio}\n${report}\n${screenText.join("\n")}`;
 };
 
 /** Drop attempt artifacts from a previous local run so this run's copies are the only ones. */
@@ -100,6 +136,8 @@ const main = async () => {
   try {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       console.log(`Maestro login smoke attempt ${attempt}`);
+      // Whole seconds: some file systems store coarse mtimes.
+      const startedMs = Math.floor(Date.now() / 1000) * 1000;
       const result = await runLoginSmoke(path.join(stagingDir, `attempt-${attempt}.log`));
       exitCode = result.code;
       if (exitCode === 0) {
@@ -108,7 +146,11 @@ const main = async () => {
         }
         return;
       }
-      const failureClass = classifyMaestroFailure(failureText(result.text));
+      const screenText = screenTextAtFailure(startedMs);
+      if (screenText.length > 0) {
+        console.error(`Screen at failure (attempt ${attempt}): ${screenText.join(" | ").slice(0, 600)}`);
+      }
+      const failureClass = classifyMaestroFailure(failureText(result.text, screenText));
       if (firstFailureClass === null) firstFailureClass = failureClass;
       if (shouldRetryMaestroFailure(failureClass, attempt, MAX_ATTEMPTS)) {
         console.error(
