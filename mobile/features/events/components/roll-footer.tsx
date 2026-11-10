@@ -119,7 +119,12 @@ export const RollFooter = ({ bottomInset, status, ...props }: RollFooterProps & 
               left={<TextAction action={props.save} />}
               middle={
                 <CircledShutter circled={props.circled ?? false}>
-                  <Shutter accessibilityLabel={props.shutterLabel} disabled={props.busy} onPress={props.onShutter} />
+                  <Shutter
+                    testID="roll-add-photos"
+                    accessibilityLabel={props.shutterLabel}
+                    disabled={props.busy}
+                    onPress={props.onShutter}
+                  />
                 </CircledShutter>
               }
               right={<TextAction action={props.right} />}

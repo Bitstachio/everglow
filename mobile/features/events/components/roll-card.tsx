@@ -73,6 +73,7 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date(), savedA
 
   return (
     <Pressable
+      testID="roll-card"
       accessibilityRole="button"
       accessibilityLabel={t("roll.label", { title: event.title, status: timeText })}
       onPress={onPress}
