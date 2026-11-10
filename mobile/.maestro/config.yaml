@@ -1,3 +1,12 @@
-# Only discover test flows; keep helpers and generated artifacts out of the suite.
+# Only discover test flows; keep helpers, fixtures and generated artifacts out of the suite.
 flows:
   - "flows/**"
+
+# Signed-in flows reuse the session the login flow leaves on the device, so
+# login runs first and a failure stops the rest. Entries are each flow's `name`.
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - "Log in reaches Events home"
+    - "Events avatar opens the lab card and Back returns home"
+    - "Load a roll, add a photo, then delete the roll"
