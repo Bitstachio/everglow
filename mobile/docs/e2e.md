@@ -125,7 +125,7 @@ The flow keeps app data (`clearState: false`): it needs a signed-in, onboarded s
 
 **Cleanup.** `helpers/delete-smoke-rolls.yaml` deletes every roll on Home named `Smoke-…`: it opens the roll, cuts it if it is still open (only a closed roll can be deleted), then deletes it from the roll menu. The flow runs it in `onFlowStart`, for rolls an earlier run left behind, and in `onFlowComplete`, so its own roll goes whether the flow passed or failed. If cleanup fails, the flow fails. The E2E account runs on the free plan, which allows a limited number of rolls at a time, so leftover rolls would otherwise block the next run. Don't name your own rolls `Smoke-…` on the E2E account.
 
-Two runs at the same time with the same E2E account can delete each other's roll.
+Mac smoke runs one at a time (see [When it runs](#when-it-runs)), so two CI runs never delete each other's roll. A local run at the same time as CI still can.
 
 Add further test YAML files under `flows/`. Keep reusable subflows in a sibling `helpers/` directory and call them with `runFlow` so they are not discovered as standalone tests.
 
