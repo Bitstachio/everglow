@@ -1,11 +1,16 @@
 name: Mac smoke
 
 on:
+  # Nightly on main. 08:00 UTC is the middle of the night in North America,
+  # when staging is quiet.
+  schedule:
+    - cron: "0 8 * * *"
   workflow_dispatch:
-
-concurrency:
-  group: macos-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  # Pull requests only run the smoke while they carry the `mac-smoke` label
+  # (see the job's `if`). This is `pull_request`, never `pull_request_target`:
+  # the repository is public, and fork pull requests must not get secrets.
+  pull_request:
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
@@ -13,8 +18,22 @@ permissions:
 jobs:
   login-ios:
     name: Maestro login (iOS)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.repository == 'Bitstachio/everglow') ||
+      (github.event_name == 'pull_request' &&
+        ((github.event.action == 'labeled' && github.event.label.name == 'mac-smoke') ||
+         (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'mac-smoke'))))
     runs-on: macos-latest
     timeout-minutes: 75
+    # Every run signs in as the same seeded staging user, so one run at a time
+    # across the repository. A running smoke is never cancelled. GitHub keeps
+    # one pending run per group: a newer run that queues replaces the pending
+    # one, so a nightly can be displaced only when two runs queue behind a
+    # running one. Job-level, so a skipped (unlabelled) PR run takes no slot.
+    concurrency:
+      group: macos-smoke-e2e-user
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: mobile
@@ -27,6 +46,13 @@ jobs:
       EXPO_PUBLIC_AUTH0_AUDIENCE: ${{ secrets.EXPO_PUBLIC_AUTH0_AUDIENCE }}
       EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL: everglowmobile://password-change/result
       MAESTRO_VERSION: "2.10.0"
+      # Pinned simulator. macos-latest (macos-26-arm64) has iPhone 17 on iOS
+      # 26.2, 26.4 and 26.5; 26.5 matches the default Xcode 26.6 SDK. When the
+      # image drops the runtime, the job falls back to the newest iOS runtime
+      # with this model and warns; it fails when no runtime has the model.
+      SIM_DEVICE: iPhone 17
+      SIM_RUNTIME: iOS 26.5
+      IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
       # Bump to invalidate every Mac smoke cache this workflow keeps.
       CACHE_EPOCH: v1
 
@@ -44,6 +70,10 @@ jobs:
             fi
           done
           if [ "$missing" -ne 0 ]; then
+            if [ "$IS_FORK_PR" = "true" ]; then
+              echo "::error::Pull requests from forks get no repository secrets, so the smoke cannot sign in. A maintainer can push the branch to this repository and run the workflow there."
+              exit 1
+            fi
             echo "Set secrets with: gh secret set <NAME>"
             echo "EXPO_PUBLIC_API_URL must be a public HTTPS API (not localhost)."
             exit 1
@@ -54,6 +84,10 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Check the staging API answers
+        timeout-minutes: 2
+        run: ./scripts/check-maestro-api.sh "$EXPO_PUBLIC_API_URL"
 
       - name: Write mobile/.env for the Release build
         run: |
@@ -74,6 +108,32 @@ jobs:
           node-version: "22"
           cache: pnpm
           cache-dependency-path: mobile/pnpm-lock.yaml
+
+      # Boot starts here and finishes while dependencies install and the app
+      # builds. "Wait for the simulator" blocks on it before install.
+      - name: Pick and start booting the simulator
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/simulators.json"
+          node mobile/scripts/pick-maestro-simulator.js < "$RUNNER_TEMP/simulators.json" > "$RUNNER_TEMP/simulator.txt"
+          DEVICE_ID="$(sed -n 's/^udid=//p' "$RUNNER_TEMP/simulator.txt")"
+          SIM_NAME="$(sed -n 's/^name=//p' "$RUNNER_TEMP/simulator.txt")"
+          SIM_RUNTIME_USED="$(sed -n 's/^runtime=//p' "$RUNNER_TEMP/simulator.txt")"
+          echo "Simulator: $SIM_NAME on $SIM_RUNTIME_USED ($DEVICE_ID); pinned $SIM_DEVICE on $SIM_RUNTIME"
+          {
+            echo "DEVICE_ID=$DEVICE_ID"
+            echo "SIM_NAME=$SIM_NAME"
+            echo "SIM_RUNTIME_USED=$SIM_RUNTIME_USED"
+          } >> "$GITHUB_ENV"
+          # simctl boot returns once the boot has started. Already booted is fine;
+          # anything else is a real failure.
+          if ! out="$(xcrun simctl boot "$DEVICE_ID" 2>&1)"; then
+            case "$out" in
+              *"current state: Booted"*) echo "Simulator was already booted." ;;
+              *) echo "$out"; exit 1 ;;
+            esac
+          fi
 
       - uses: actions/setup-java@v4
         with:
@@ -112,31 +172,6 @@ jobs:
       - name: Add Maestro to PATH
         working-directory: ${{ github.workspace }}
         run: echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
-      - name: Boot iPhone simulator
-        id: sim
-        working-directory: ${{ github.workspace }}
-        run: |
-          set -euo pipefail
-          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          data = json.load(sys.stdin)
-          devices = []
-          for runtime, items in data.get("devices", {}).items():
-              for d in items:
-                  if d.get("isAvailable") and d.get("name", "").startswith("iPhone"):
-                      devices.append(d["udid"])
-          if not devices:
-              sys.exit("No available iPhone simulator")
-          print(devices[-1])
-          ')"
-          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
-          echo "udid=$DEVICE_ID" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$DEVICE_ID" || true
-          open -a Simulator
-          xcrun simctl bootstatus "$DEVICE_ID" -b
-          # Reduce Auth0 password-field fights with iOS AutoFill.
-          xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false || true
 
       # CocoaPods download cache only (not ios/Pods). ios/ is gitignored CNG
       # output, so Podfile.lock does not exist until after prebuild; the key
@@ -196,6 +231,17 @@ jobs:
             exit 1
           fi
           codesign --display --verbose=2 "$APP_PATH"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Wait for the simulator and install the app
+        timeout-minutes: 10
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          open -a Simulator
+          # Reduce Auth0 password-field fights with iOS AutoFill.
+          xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false
           xcrun simctl install "$DEVICE_ID" "$APP_PATH"
 
       - name: Maestro login smoke
