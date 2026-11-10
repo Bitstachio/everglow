@@ -119,9 +119,9 @@ The flow keeps app data (`clearState: false`): it needs a signed-in, onboarded s
 1. Taps New event (`home-new-roll`) and names the roll `Smoke-<timestamp>`.
 2. Moves the roll to 00:00 today in the When slip. A new roll starts tonight by default, and photos can only be added once it has opened; a time already past opens it at once.
 3. Loads the roll, closes the envelope, and taps the shutter (`roll-add-photos`, or the first-visit button `roll-opened-action`).
-4. Picks the first photo in the system photo picker, taps Add, and waits up to two minutes for a frame on the roll (`roll-frame`).
+4. Picks the fixture photo in the system photo picker by its date label (`Photo, January 01, 2001, …`), taps Done (Add on older iOS), and waits up to two minutes for a frame on the roll (`roll-frame`).
 
-`launchApp` grants Photos access, so no permission alert shows. The photo is `.maestro/fixtures/smoke-photo.jpg`, a 15 KB generated image dated 1 January 2001 so it sorts first in the picker. CI adds it with `xcrun simctl addmedia` before Maestro runs.
+`launchApp` grants Photos access, so no permission alert shows. The photo is `.maestro/fixtures/smoke-photo.jpg`, a 15 KB generated image. Its EXIF date, 1 January 2001, is older than every sample photo the simulator ships with, so its label in the picker is unique. CI adds it with `xcrun simctl addmedia` before Maestro runs.
 
 **Cleanup.** `helpers/delete-smoke-rolls.yaml` deletes every roll on Home named `Smoke-…`: it opens the roll, cuts it if it is still open (only a closed roll can be deleted), then deletes it from the roll menu. The flow runs it in `onFlowStart`, for rolls an earlier run left behind, and in `onFlowComplete`, so its own roll goes whether the flow passed or failed. If cleanup fails, the flow fails. The E2E account runs on the free plan, which allows a limited number of rolls at a time, so leftover rolls would otherwise block the next run. Don't name your own rolls `Smoke-…` on the E2E account.
 
