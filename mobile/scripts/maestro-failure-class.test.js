@@ -13,6 +13,13 @@ test("retries an unreachable XCTest driver", () => {
   expect(shouldRetryMaestroFailure(failureClass, 1)).toBe(true);
 });
 
+test("retries a simulator that became unreachable", () => {
+  expect(
+    classifyMaestroFailure("maestro.DeviceUnreachableException: Device became unreachable during deviceInfo"),
+  ).toBe("flake");
+  expect(classifyMaestroFailure("Device became unreachable during deviceInfo")).toBe("flake");
+});
+
 test("retries a dead local driver port", () => {
   const failureClass = classifyMaestroFailure(
     "java.net.ConnectException: Failed to connect to /127.0.0.1:49889\nCaused by: java.net.ConnectException: Connection refused",

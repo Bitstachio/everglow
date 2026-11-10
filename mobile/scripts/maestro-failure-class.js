@@ -55,6 +55,8 @@ const FLAKE_PATTERNS = [
   /StatusRuntimeException/,
   /UNAVAILABLE: io exception/i,
   /driver unreachable/i,
+  /DeviceUnreachableException/,
+  /device became unreachable/i,
   /unable to connect to .{0,80}driver/i,
   /failed to (get|obtain|fetch) (the )?(view )?hierarchy/i,
   /error getting hierarchy/i,
