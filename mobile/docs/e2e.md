@@ -6,7 +6,15 @@ This document covers end-to-end testing for the Everglow mobile app: what we use
 
 **Tool:** [Maestro](https://maestro.dev/) — a separate CLI (not an npm dependency). Flows are YAML under `.maestro/`; `config.yaml` controls discovery.
 
-**Sample flows:** `.maestro/flows/login-smoke.yaml` (Auth0 login → Events), `.maestro/flows/profile.yaml` (Account Settings smoke; needs an existing session unless login ran first).
+**Flows:**
+
+| Flow                     | Tags               | What it checks                                                                                       |
+| ------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------- |
+| `flows/login-smoke.yaml` | `smoke`, `login`   | Fresh install, Auth0 login, lands on Home                                                            |
+| `flows/profile.yaml`     | `smoke`, `profile` | Home avatar opens your lab card (account settings), Back returns Home                                |
+| `flows/roll-upload.yaml` | `smoke`, `roll`    | Loads a roll, adds a photo from the photo library, sees the frame on the roll, then deletes the roll |
+
+`config.yaml` runs them in that order (`executionOrder`), and stops at the first failure. Profile and roll upload reuse the session the login flow leaves on the device.
 
 ## Layout
 
@@ -15,6 +23,7 @@ This document covers end-to-end testing for the Everglow mobile app: what we use
 | `.maestro/config.yaml` | Flow discovery (`flows/**`)                            |
 | `.maestro/flows/`      | Runnable YAML tests                                    |
 | `.maestro/helpers/`    | Optional reusable subflows (`runFlow`); not standalone |
+| `.maestro/fixtures/`   | Files the flows need on the device, such as the photo  |
 | `.maestro/results/`    | Generated reports and debug output (gitignored)        |
 
 Keep the Maestro workspace under `mobile/` because it targets this Expo app (bundle IDs, `testID`s, native builds). Needing a running API does not move the suite to the monorepo root.
@@ -53,10 +62,17 @@ pnpm test:e2e:ios
 # Android emulator
 pnpm test:e2e:android
 
-# Login smoke only (clears app state, runs helpers/login.yaml). Export Auth0
-# creds in the shell — nested pnpm `--` breaks Maestro's argv:
+# Smoke suite: login (clears app state, runs helpers/login.yaml), then profile,
+# then roll upload. Export Auth0 creds in the shell — nested pnpm `--` breaks
+# Maestro's argv:
 E2E_EMAIL=user1@everglow.social E2E_PASSWORD='your-test-password' \
   pnpm test:e2e:login:ios
+```
+
+The roll upload flow needs a photo in the simulator's library. Add the fixture once per simulator:
+
+```sh
+xcrun simctl addmedia booted .maestro/fixtures/smoke-photo.jpg
 ```
 
 Point `EXPO_PUBLIC_API_URL` at staging when exercising seeded Neon users. Staging API Auth0 (`AUTH0_DOMAIN` / `AUTH0_AUDIENCE`) must match the mobile tenant or login succeeds in Auth0 and then fails on API calls. On iOS Simulator, disable Password AutoFill if Maestro cannot type into the Auth0 password field.
@@ -68,11 +84,13 @@ The platform scripts supply the different identifiers from `app.json`:
 | iOS      | `com.anonymous.everglow-mobile` |
 | Android  | `com.anonymous.everglowmobile`  |
 
-For another build identifier or a subset of flows:
+For another build identifier, or to run one flow, pass the flow file. Its session must already be signed in:
 
 ```sh
-pnpm test:e2e -e APP_ID=com.example.app --include-tags profile
+maestro test -e APP_ID=com.example.app .maestro/flows/profile.yaml
 ```
+
+A tag filter on the whole workspace must keep the login flow. Maestro refuses an `executionOrder` whose first flow was filtered out ("Could not find flows needed for execution in order").
 
 With multiple devices connected, select one explicitly:
 
@@ -85,14 +103,29 @@ The package scripts write JUnit output to `.maestro/results/report.xml` and diag
 Validate the sample's syntax without a device:
 
 ```sh
-maestro check-syntax .maestro/flows/profile.yaml
+maestro check-syntax .maestro/flows/roll-upload.yaml
 ```
 
-## Sample: Events → Account Settings
+## Profile: Home → lab card
 
-`flows/profile.yaml` relaunches the app, waits for authenticated navigation, taps the Events avatar, checks the Account Settings stub, and uses Back to return to Events. It uses native `testID` selectors for interactions and Maestro's built-in waits rather than fixed sleeps. It does not save profile changes.
+`flows/profile.yaml` relaunches the app, waits for Home, taps the avatar, checks the lab card screen (`account-settings`, with its Username row), and uses its Back button (`account-settings-back`) to return Home. It does not save profile changes.
 
-The flow deliberately preserves app data with `clearState: false`: it requires an existing authenticated, onboarded session. If it times out waiting for `events-profile-button`, check the API connection, sign in again, complete onboarding, and ensure Metro is serving the app. This smoke test does not cover login or onboarding.
+The flow keeps app data (`clearState: false`): it needs a signed-in, onboarded session. If it times out waiting for `events-profile-button`, check the API connection, sign in again, complete onboarding, and ensure Metro is serving the app.
+
+## Roll upload: load a roll, add a photo, delete it
+
+`flows/roll-upload.yaml` runs against the shared staging API, as the E2E user:
+
+1. Taps New event (`home-new-roll`) and names the roll `Smoke-<timestamp>`.
+2. Moves the roll to 00:00 today in the When slip. A new roll starts tonight by default, and photos can only be added once it has opened; a time already past opens it at once.
+3. Loads the roll, closes the envelope, and taps the shutter (`roll-add-photos`, or the first-visit button `roll-opened-action`).
+4. Picks the first photo in the system photo picker, taps Add, and waits up to two minutes for a frame on the roll (`roll-frame`).
+
+`launchApp` grants Photos access, so no permission alert shows. The photo is `.maestro/fixtures/smoke-photo.jpg`, a 15 KB generated image dated 1 January 2001 so it sorts first in the picker. CI adds it with `xcrun simctl addmedia` before Maestro runs.
+
+**Cleanup.** `helpers/delete-smoke-rolls.yaml` deletes every roll on Home named `Smoke-…`: it opens the roll, cuts it if it is still open (only a closed roll can be deleted), then deletes it from the roll menu. The flow runs it in `onFlowStart`, for rolls an earlier run left behind, and in `onFlowComplete`, so its own roll goes whether the flow passed or failed. If cleanup fails, the flow fails. The E2E account runs on the free plan, which allows a limited number of rolls at a time, so leftover rolls would otherwise block the next run. Don't name your own rolls `Smoke-…` on the E2E account.
+
+Two runs at the same time with the same E2E account can delete each other's roll.
 
 Add further test YAML files under `flows/`. Keep reusable subflows in a sibling `helpers/` directory and call them with `runFlow` so they are not discovered as standalone tests.
 
@@ -102,7 +135,7 @@ Add further test YAML files under `flows/`. Keep reusable subflows in a sibling 
 
 ## CI
 
-GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios:ci`. That script runs the login smoke against the app already on the simulator. It does not prebuild or rebuild.
+GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) builds a Release iOS simulator binary (no Metro), adds `.maestro/fixtures/smoke-photo.jpg` to the simulator's photo library, then runs `pnpm test:e2e:login:ios:ci`. That script runs the smoke suite (login, profile, roll upload; `--include-tags smoke`) against the app already on the simulator. It does not prebuild or rebuild. A retry runs the whole suite again, from login.
 
 ### When it runs
 
