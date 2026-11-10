@@ -102,7 +102,26 @@ Add further test YAML files under `flows/`. Keep reusable subflows in a sibling 
 
 ## CI
 
-GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) (`workflow_dispatch`) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios:ci`. That script runs the login smoke against the app already on the simulator. It does not prebuild or rebuild.
+GitHub Actions workflow [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml) builds a Release iOS simulator binary (no Metro), then runs `pnpm test:e2e:login:ios:ci`. That script runs the login smoke against the app already on the simulator. It does not prebuild or rebuild.
+
+### When it runs
+
+| Trigger             | When                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `schedule`          | Nightly at 08:00 UTC, on `main`                                                         |
+| `workflow_dispatch` | By hand on any branch: `gh workflow run macos-smoke.yml --ref <branch>`                 |
+| `pull_request`      | When the `mac-smoke` label is added, and on each push or reopen while the PR carries it |
+
+Without the label, a pull request's run shows the job as skipped and costs no Mac minutes. The workflow uses `pull_request`, never `pull_request_target`, because the repository is public. Pull requests from forks get no secrets, so their run fails at the secrets check with a message saying so; push the branch to this repository and dispatch it instead.
+
+Every run signs in as the same seeded staging user, so the job uses one concurrency group for the whole repository (`macos-smoke-e2e-user`). A running smoke is never cancelled; later runs wait. GitHub keeps one pending run per group, so when a third run queues, the older pending one is cancelled. A nightly can be displaced that way only when two runs queue behind a running one; the next night runs again.
+
+### Fail fast
+
+- **Staging preflight.** Right after the secrets check, `scripts/check-maestro-api.sh` calls the API's liveness route `GET /` (`api/src/app.controller.ts`) up to four times with a 10 s timeout. If staging does not answer, the job fails in under a minute instead of after the build.
+- **Pinned simulator.** `SIM_DEVICE` and `SIM_RUNTIME` in the workflow pin the iPhone model and iOS runtime (`iPhone 17` on `iOS 26.5`, from the `macos-26-arm64` image). `scripts/pick-maestro-simulator.js` prints the device it chose. When the image no longer has that runtime, it uses the newest iOS runtime with the same model and adds a warning annotation to the run; when no runtime has the model, it fails and lists every available iPhone.
+- **Boot overlaps the build.** The simulator starts booting before `pnpm install` and finishes while the app compiles. The job waits on `simctl bootstatus` only before installing the app. An already booted simulator is fine; any other boot error fails the step.
+- **Sign-in errors in the app.** `helpers/login.yaml` asserts that the app's "Couldn’t sign in" alert is not showing once the sign-in tap has had time to open Auth0, so an app error fails in seconds instead of after the 60 s wait for the Auth0 page. When any later step fails, the CI script reads the failing command's view hierarchy from Maestro's debug output (`commands-*.json`), prints it as `Screen at failure (attempt N): …`, and classifies it with the log. "Couldn’t sign in", `OSStatus`, `errSec…` and "… the Keychain" are clear failures, so they are not retried.
 
 ### Mac smoke caches
 
@@ -148,19 +167,20 @@ Required repository secrets:
 
 ```sh
 gh workflow run macos-smoke.yml --ref <branch-with-workflow>
+gh pr edit <number> --add-label mac-smoke   # or run it on a pull request
 ```
 
 Artifacts upload `.maestro/results/` (including failures). The repository is public, so its workflow artifacts are too. Maestro writes every `-e` value into `commands.json`, including `E2E_PASSWORD`, so the workflow runs `scripts/scrub-maestro-results.js` first. It replaces the password with `***` in text files, deletes any binary file that holds it, and fails the step if the password is still present. The upload is skipped when the scrub step fails. Pass any new secret you add as a Maestro `-e` value to that step too.
 
 ### Mac smoke retries
 
-`pnpm test:e2e:login:ios` on a laptop runs once. The CI script (`scripts/run-maestro-login-ios.js`) classifies a failed attempt from the Maestro log and `report.xml`, then retries **once** or stops:
+`pnpm test:e2e:login:ios` on a laptop runs once. The CI script (`scripts/run-maestro-login-ios.js`) classifies a failed attempt from the Maestro log, `report.xml` and the text on screen when the failing command ran, then retries **once** or stops:
 
-| Class     | What it looks like                                                                                                                                                         | What the job does          |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| flake     | XCTest driver unreachable, connection refused to `127.0.0.1`, `kAXErrorInvalidUIElement`, failed to get the view hierarchy                                                 | Retry the Maestro run once |
-| ambiguous | Element not found, assertion timeout, Auth0 web view still loading, empty output, any other failure that is not clearly deterministic                                      | Retry the Maestro run once |
-| clear     | Wrong email or password, required Auth0 fields, account being deleted, Auth0 not configured, onboarding failed, flow parse error, Maestro invocation error, `pnpm` missing | Fail immediately           |
+| Class     | What it looks like                                                                                                                                                                                                                          | What the job does          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| flake     | XCTest driver unreachable, connection refused to `127.0.0.1`, `kAXErrorInvalidUIElement`, failed to get the view hierarchy                                                                                                                  | Retry the Maestro run once |
+| ambiguous | Element not found, assertion timeout, Auth0 web view still loading, empty output, any other failure that is not clearly deterministic                                                                                                       | Retry the Maestro run once |
+| clear     | Wrong email or password, the app's "Couldn’t sign in" alert, a Keychain `OSStatus` error, required Auth0 fields, account being deleted, Auth0 not configured, onboarding failed, flow parse error, Maestro invocation error, `pnpm` missing | Fail immediately           |
 
 A clear pattern wins when the same log also contains a driver error, so a rejected password is not retried. A second failure fails the job even if it still looks transient. The class is printed on its own line, for example `Maestro login smoke attempt 1 failed (flake). Retrying once without rebuilding.` or `Maestro login smoke passed on attempt 2 after a flake failure.` Those lines are not counted yet ([EV-213](https://linear.app/mehrshadfb/issue/EV-213/record-mac-smoke-maestro-retries-so-flakes-can-be-investigated)).
 
