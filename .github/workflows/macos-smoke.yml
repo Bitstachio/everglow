@@ -83,8 +83,9 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      # Build caches are restored here and saved in the always() steps at the
-      # end of the job, so a failing smoke still keeps a cold build's caches.
+      # Caches are restored before the step that uses them and saved after it
+      # or in the always() steps at the end of the job, so a failing smoke still
+      # keeps a cold run's caches.
       - name: Restore Maestro CLI
         id: maestro-cache
         uses: actions/cache/restore@v4
@@ -153,30 +154,16 @@ jobs:
         id: prebuild
         run: pnpm exec expo prebuild --platform ios --non-interactive
 
-      # expo run:ios does not pass -derivedDataPath, so a restored default
-      # DerivedData tree is easy to poison across Xcode image updates. Drive
-      # xcodebuild ourselves into a fixed path we can cache, then simctl install.
-      - name: Record Xcode version
-        id: xcode
-        working-directory: ${{ github.workspace }}
-        run: |
-          xcodebuild -version
-          echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
-
-      - name: Restore Xcode DerivedData
-        id: deriveddata-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/everglow-deriveddata
-          # Exact key only: a partial DerivedData hit against a different native
-          # graph is often slower than a cold compile.
-          key: ${{ runner.os }}-${{ runner.arch }}-deriveddata-${{ env.CACHE_EPOCH }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
-
+      # Drive xcodebuild directly (not expo run:ios) so the build is single-arch
+      # and lands in a fixed -derivedDataPath where the .app is easy to find.
+      # DerivedData is not cached: prebuild regenerates ios/ and pnpm reinstalls
+      # node_modules every run, so Xcode recompiles a restored tree anyway.
       - name: Build and install Release (no Metro)
         id: build
         working-directory: mobile
         run: |
           set -euo pipefail
+          xcodebuild -version
           WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)"
           SCHEME="$(basename "$WORKSPACE" .xcworkspace)"
           DERIVED_DATA="${HOME}/everglow-deriveddata"
@@ -232,18 +219,10 @@ jobs:
           retention-days: 7
 
       # Save only what this run produced, and skip exact-key hits (that entry
-      # already exists). DerivedData is saved only after a successful build so
-      # a half-compiled tree is never cached.
+      # already exists).
       - name: Save CocoaPods downloads
         if: always() && steps.pods-cache.outputs.cache-hit != 'true' && steps.prebuild.outcome == 'success'
         uses: actions/cache/save@v4
         with:
           path: ~/Library/Caches/CocoaPods
           key: ${{ steps.pods-cache.outputs.cache-primary-key }}
-
-      - name: Save Xcode DerivedData
-        if: always() && steps.deriveddata-cache.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/everglow-deriveddata
-          key: ${{ steps.deriveddata-cache.outputs.cache-primary-key }}
