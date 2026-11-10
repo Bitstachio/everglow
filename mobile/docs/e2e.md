@@ -118,7 +118,7 @@ Required repository secrets:
 gh workflow run macos-smoke.yml --ref <branch-with-workflow>
 ```
 
-Artifacts upload `.maestro/results/` (including failures).
+Artifacts upload `.maestro/results/` (including failures). The repository is public, so its workflow artifacts are too. Maestro writes every `-e` value into `commands.json`, including `E2E_PASSWORD`, so the workflow runs `scripts/scrub-maestro-results.js` first. It replaces the password with `***` in text files, deletes any binary file that holds it, and fails the step if the password is still present. The upload is skipped when the scrub step fails. Pass any new secret you add as a Maestro `-e` value to that step too.
 
 ### Mac smoke retries
 

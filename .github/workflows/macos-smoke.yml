@@ -125,8 +125,15 @@ jobs:
       - name: Maestro login smoke
         run: pnpm run test:e2e:login:ios:ci
 
-      - name: Upload Maestro results
+      # Maestro writes every -e value into commands.json, and this repo's
+      # artifacts are public. Never upload results that still hold a secret.
+      - name: Scrub secrets from Maestro results
+        id: scrub
         if: always()
+        run: node ./scripts/scrub-maestro-results.js .maestro/results E2E_PASSWORD
+
+      - name: Upload Maestro results
+        if: always() && steps.scrub.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: maestro-login-ios-${{ github.run_id }}
