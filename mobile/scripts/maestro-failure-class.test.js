@@ -167,3 +167,16 @@ test("returns no text for an empty hierarchy", () => {
   expect(hierarchyText(null)).toEqual([]);
   expect(hierarchyText({ attributes: {} })).toEqual([]);
 });
+
+test("retries a run stuck on Auth0's consent page, which the login helper accepts on the next attempt", () => {
+  const root = {
+    attributes: {},
+    children: [
+      { attributes: { accessibilityText: "Authorize Everglow Mobile" } },
+      { attributes: { text: "Everglow Mobile is requesting access to your dev-tenant account." } },
+      { attributes: { text: "Decline" } },
+      { attributes: { text: "Accept" } },
+    ],
+  };
+  expect(classifyMaestroFailure(hierarchyText(root).join("\n"))).toBe("ambiguous");
+});

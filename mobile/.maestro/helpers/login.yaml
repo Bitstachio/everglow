@@ -17,19 +17,32 @@ appId: ${APP_ID}
 # Fail fast when the app shows its sign-in error (for example a Keychain
 # OSStatus) instead of opening Auth0. "." matches either apostrophe.
 - assertNotVisible: "Couldn.t sign in"
+# Auth0 shows one of two pages. A fresh simulator gets the login form. A retry on
+# the same simulator gets the "Authorize App" consent page instead: the Auth0 web
+# session from the earlier attempt lives in the system web view's cookies, which
+# clearState and clearKeychain do not remove, so Universal Login skips the form.
+- extendedWaitUntil:
+    visible: "Email address|Accept"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Accept"
+    commands:
+      - tapOn: "Accept"
 # Auth0 New UL: email + password on one page. Do not tap Continue until both are filled —
 # early Continue shows "Password is required", and (?i)password then matches that error text.
-- extendedWaitUntil:
-    visible: "Email address"
-    timeout: 60000
-- tapOn: "Email address"
-- inputText: ${E2E_EMAIL}
-- extendedWaitUntil:
-    visible: "Password"
-    timeout: 30000
-- tapOn: "Password"
-- inputText: ${E2E_PASSWORD}
-- tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Email address"
+    commands:
+      - tapOn: "Email address"
+      - inputText: ${E2E_EMAIL}
+      - extendedWaitUntil:
+          visible: "Password"
+          timeout: 30000
+      - tapOn: "Password"
+      - inputText: ${E2E_PASSWORD}
+      - tapOn: "Continue"
 # Seeded staging users skip onboarding and land on Events.
 - extendedWaitUntil:
     visible:
