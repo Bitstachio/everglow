@@ -115,7 +115,11 @@ The hosted runner is ephemeral. Cross-run speedups come from Actions caches. Bum
 | Xcode DerivedData   | `~/everglow-deriveddata`     | epoch + Xcode version + lockfile + Expo config | Exact key only (no `restore-keys`). Build uses `xcodebuild -derivedDataPath` (not `expo run:ios`) so the tree stays under that path |
 | Maestro CLI         | `~/.maestro`                 | `MAESTRO_VERSION`                              | Skips the curl install on a hit                                                                                                     |
 
-Caches written from a branch are readable from that branch and from `main`. A warm run after merge to `main` is what later `workflow_dispatch` runs on other refs can reuse.
+A run restores caches saved on its own branch or on `main` (and, for a pull request, on its base branch), never from a sibling branch ([GitHub docs](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)). Caches saved on a feature branch only speed up later runs of that branch; caches saved by a run on `main` speed up every branch.
+
+The workflow restores each cache with `actions/cache/restore` and saves it with `actions/cache/save`, so a cold run keeps its caches even when the smoke fails. The Maestro CLI is saved right after install, before any flow can write session files under `~/.maestro`. CocoaPods downloads are saved after a successful prebuild and DerivedData after a successful build, in `always()` steps at the end of the job. An exact-key hit is not saved again. Saving needs no extra `permissions`: the cache service uses the job's cache token, whose access comes from the trigger's `cache-mode` (write for `workflow_dispatch`, `schedule` and `push`), not from `GITHUB_TOKEN` scopes.
+
+The simulator build keeps Xcode's ad hoc signing. Do not pass `CODE_SIGNING_ALLOWED=NO`: an unsigned app has no Keychain entitlement, and Auth0 sign-in then fails in the app with `OSStatus -34018`. The build step fails if the `.app` is not signed.
 
 Not in this workflow: caching a built `.app` to skip compile when native/JS inputs are unchanged. That is a separate follow-up from EV-210.
 
