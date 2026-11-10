@@ -118,7 +118,7 @@ const NewRollScreen = () => {
             ))}
           </RollsInUse>
           <View className="px-5 pb-1 pt-3">
-            <Button title={t("full.back")} mark="‹" onPress={onBackToRolls} />
+            <Button testID="new-roll-full-back" title={t("full.back")} mark="‹" onPress={onBackToRolls} />
           </View>
         </>
       ) : status === "notReady" ? (
