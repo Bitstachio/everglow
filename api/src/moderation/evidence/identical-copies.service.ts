@@ -9,6 +9,7 @@ import {
   ReportHoldReason,
   ReportQueue,
   ReportReason,
+  ReportSource,
   ReportStatus,
   ReportTargetType,
 } from "generated/prisma/client";
@@ -217,6 +218,8 @@ export class IdenticalCopiesService {
           eventId: copy.eventId,
           eventTitle: copy.event.title,
           reporterId: null,
+          // Nobody filed it: the platform found the copy (Report_user_source_has_reporter_check).
+          source: ReportSource.AUTOMATED,
           targetType: ReportTargetType.PHOTO,
           photoId: copy.id,
           reportedUserId: copy.addedById,

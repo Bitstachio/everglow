@@ -6,6 +6,7 @@ import {
   AlertSeverity,
   PAGING_ESCALATION_REASONS,
 } from "src/common/logging/alert-events.constants";
+import { SEVERE_REPORT_REASONS } from "./moderation.constants";
 
 /** A report that just moved to the platform's queue, as `report.escalated` logs it. */
 export interface EscalatedReport {
@@ -31,6 +32,18 @@ export const PLATFORM_ESCALATIONS: readonly ReportEscalation[] = [
   ReportEscalation.TARGET_DELETED,
   ReportEscalation.CHILD_SAFETY,
   ReportEscalation.INTIMATE_IMAGE,
+  ReportEscalation.AUTOMATED_FLAG,
+];
+
+/**
+ * The escalation reasons a report's reason sets on its own, at filing
+ * (docs/moderation.md §3): severe reasons alert the platform, and child
+ * safety and intimate images go straight to it.
+ */
+export const reasonEscalations = (reason: ReportReason): ReportEscalation[] => [
+  ...(SEVERE_REPORT_REASONS.includes(reason) ? [ReportEscalation.SEVERE_REASON] : []),
+  ...(reason === ReportReason.CHILD_SAFETY ? [ReportEscalation.CHILD_SAFETY] : []),
+  ...(reason === ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE ? [ReportEscalation.INTIMATE_IMAGE] : []),
 ];
 
 /** The name a reason is logged under: the `escalationReasons` values alert rules match (docs/alerting.md). */

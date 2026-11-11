@@ -3988,6 +3988,14 @@
           "reason"
         ]
       },
+      "ReportSource": {
+        "type": "string",
+        "enum": [
+          "USER",
+          "AUTOMATED"
+        ],
+        "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers."
+      },
       "ReportQueue": {
         "type": "string",
         "enum": [
@@ -4037,6 +4045,14 @@
           "eventTitle": {
             "type": "string",
             "description": "The event's title when the report was filed."
+          },
+          "source": {
+            "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportSource"
+              }
+            ]
           },
           "targetType": {
             "allOf": [
@@ -4123,6 +4139,7 @@
           "id",
           "eventId",
           "eventTitle",
+          "source",
           "targetType",
           "photoId",
           "reportedUserId",
@@ -4857,7 +4874,8 @@
           "SEVERE_DISMISSED",
           "TARGET_DELETED",
           "CHILD_SAFETY",
-          "INTIMATE_IMAGE"
+          "INTIMATE_IMAGE",
+          "AUTOMATED_FLAG"
         ]
       },
       "ReportHoldReason": {
@@ -4927,6 +4945,14 @@
             "type": "string",
             "description": "The event's title when the report was filed."
           },
+          "source": {
+            "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportSource"
+              }
+            ]
+          },
           "targetType": {
             "allOf": [
               {
@@ -5011,7 +5037,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Null once that account is deleted."
+            "description": "Null once that account is deleted, and always for an AUTOMATED report."
           },
           "escalationReasons": {
             "type": "array",
@@ -5064,6 +5090,7 @@
           "id",
           "eventId",
           "eventTitle",
+          "source",
           "targetType",
           "photoId",
           "reportedUserId",
@@ -5123,6 +5150,14 @@
             "type": "string",
             "description": "The event's title when the report was filed."
           },
+          "source": {
+            "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportSource"
+              }
+            ]
+          },
           "targetType": {
             "allOf": [
               {
@@ -5207,7 +5242,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Null once that account is deleted."
+            "description": "Null once that account is deleted, and always for an AUTOMATED report."
           },
           "escalationReasons": {
             "type": "array",
@@ -5265,6 +5300,7 @@
           "id",
           "eventId",
           "eventTitle",
+          "source",
           "targetType",
           "photoId",
           "reportedUserId",

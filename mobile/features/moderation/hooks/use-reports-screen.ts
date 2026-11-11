@@ -41,6 +41,7 @@ export const useReportsScreen = () => {
           : t("check.frameRowNoNumber", { name: byName });
     const edge = [
       t("check.edge", { count: group.reports.length, reason: t(`reasonShort.${group.reason}`) }),
+      group.automated ? t("check.automated") : null,
       group.withEverglow ? t("check.withEverglow") : group.hidden ? t("check.hidden") : null,
     ]
       .filter(Boolean)

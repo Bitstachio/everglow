@@ -108,6 +108,7 @@
     "edge_one": "{{count}} report · {{reason}}",
     "edge_other": "{{count}} reports · {{reason}}",
     "hidden": "hidden",
+    "automated": "flagged automatically",
     "withEverglow": "with Everglow",
     "done": "Done · {{count}} this week"
   },

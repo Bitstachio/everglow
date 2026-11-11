@@ -1,7 +1,7 @@
-import { Prisma, ReportReason, ReportStatus } from "generated/prisma/client";
+import { Prisma, ReportHoldReason, ReportReason, ReportStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { ALERT_EVENTS, ALERT_SEVERITY } from "src/common/logging/alert-events.constants";
-import { STALE_REPORT_SAMPLE_SIZE } from "./moderation.constants";
+import { CHILD_SAFETY_HOLD_DAYS, STALE_REPORT_SAMPLE_SIZE } from "./moderation.constants";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -23,6 +23,23 @@ export const removalDueAtFor = (reason: ReportReason, filedAt: Date): Date | nul
   reason === ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE
     ? new Date(filedAt.getTime() + REMOVAL_DEADLINE_HOURS * HOUR_MS)
     : null;
+
+/**
+ * The hold a new report starts with: a child-safety report is held from the
+ * start, so its evidence outlives any delete until the platform has decided
+ * (docs/moderation.md §7). Every other report starts with none: nothing to
+ * spread into its data.
+ */
+export const initialHoldFor = (
+  reason: ReportReason,
+  filedAt: Date,
+): { holdUntil?: Date; holdReason?: ReportHoldReason } =>
+  reason === ReportReason.CHILD_SAFETY
+    ? {
+        holdUntil: new Date(filedAt.getTime() + CHILD_SAFETY_HOLD_DAYS * DAY_MS),
+        holdReason: ReportHoldReason.CHILD_SAFETY,
+      }
+    : {};
 
 /** Whole days from `since` to `now`. */
 export const ageInDays = (since: Date, now: Date): number => Math.floor((now.getTime() - since.getTime()) / DAY_MS);

@@ -23,6 +23,8 @@ export type ReportGroup = {
   reasonCount: number;
   /** Members no longer see the frame until someone decides. */
   hidden: boolean;
+  /** One of Everglow's own checks flagged it (upload screening), rather than a person. */
+  automated: boolean;
   /** Every report on it is with Everglow: hosts can only look (10.10). */
   withEverglow: boolean;
   /**
@@ -71,6 +73,7 @@ export const groupOpenReports = (reports: ReportResponseDto[], memberCount: numb
       const [reason, reasonCount] = topReason(items);
       const first = items[0];
       const isFrame = first.targetType === "PHOTO";
+      const automated = items.some((item) => item.source === "AUTOMATED");
       return {
         key,
         kind: isFrame ? "frame" : "person",
@@ -79,9 +82,13 @@ export const groupOpenReports = (reports: ReportResponseDto[], memberCount: numb
         reports: items,
         reason,
         reasonCount,
+        // An automated report hides the frame whatever its reason (§5, rule 3).
         hidden:
           isFrame &&
-          (items.length >= hideThreshold(memberCount) || items.some((item) => SEVERE_REASONS.includes(item.reason))),
+          (automated ||
+            items.length >= hideThreshold(memberCount) ||
+            items.some((item) => SEVERE_REASONS.includes(item.reason))),
+        automated,
         withEverglow: items.every((item) => item.queue === "PLATFORM"),
         decidable: items.filter((item) => item.queue === "ORGANIZERS"),
         newestAt: items.reduce((newest, item) => (item.createdAt > newest ? item.createdAt : newest), first.createdAt),

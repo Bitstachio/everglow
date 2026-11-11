@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { AccessLevel, PhotoStatus, Prisma, ReportStatus } from "generated/prisma/client";
+import { AccessLevel, PhotoStatus, Prisma, ReportSource, ReportStatus } from "generated/prisma/client";
 import { GALLERY_STATES, galleryStateOf } from "src/plans/plans.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { PLATFORM_ONLY_REPORT_REASONS, SEVERE_REPORT_REASONS, reportHideThreshold } from "./moderation.constants";
@@ -24,6 +24,8 @@ const memberFilter = (callerId: string, hiddenPhotoIds: string[]): Prisma.PhotoW
   AND: [
     { reports: { none: { reporterId: callerId, status: ReportStatus.OPEN } } },
     { reports: { none: { status: ReportStatus.OPEN, reason: { in: [...SEVERE_REPORT_REASONS] } } } },
+    // Flagged by one of the platform's checks: hidden until the platform has looked.
+    { reports: { none: { status: ReportStatus.OPEN, source: ReportSource.AUTOMATED } } },
     { id: { notIn: hiddenPhotoIds } },
     {
       // A photo whose uploader is gone (addedById null) matches no block.
@@ -61,7 +63,8 @@ export class PhotoVisibilityService {
    * loses
    *
    * 1. photos they have an OPEN report on,
-   * 2. photos with an OPEN report for a severe reason (nudity, violence),
+   * 2. photos with an OPEN report for a severe reason (nudity, violence), or
+   *    an OPEN automated report (upload screening),
    * 3. photos whose OPEN reports reached the event's hide threshold,
    * 4. photos of anyone they blocked or who blocked them.
    *
