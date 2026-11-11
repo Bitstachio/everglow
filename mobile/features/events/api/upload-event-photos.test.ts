@@ -434,3 +434,48 @@ describe("a photo the API refuses for good (PHOTO_REJECTED_MATCHES_REMOVED_IMAGE
     expect(lastUpdates(onFile)).toEqual([{ kind: "failed", reason: "refused" }]);
   });
 });
+
+describe("a photo already on the roll (DUPLICATE)", () => {
+  test("is on the roll as the frame kept, while the rest of its batch develops", async () => {
+    mockConfirmUploads.mockImplementationOnce(({ body }: { body: { photoIds: string[] } }) =>
+      Promise.resolve({
+        data: {
+          data: body.photoIds.map((photoId) =>
+            photoId === "photo-1"
+              ? { photoId, status: "DUPLICATE", existingPhotoId: "photo-0" }
+              : { photoId, status: "READY" },
+          ),
+        },
+      }),
+    );
+    const onFile = jest.fn();
+
+    const result = await uploadEventPhotos("event-1", photoFiles(3), { onFile, put });
+
+    // A copy is not a new frame, and not a failure to retry.
+    expect(result).toEqual({ total: 3, uploaded: 2, error: null });
+    expect(lastUpdates(onFile)).toEqual([
+      { kind: "developed", photoId: "photo-0" },
+      { kind: "onRoll", photoId: "photo-0" },
+      { kind: "developed", photoId: "photo-2" },
+    ]);
+    expect(mockConfirmUploads).toHaveBeenCalledTimes(1);
+  });
+
+  test("is never minted and sent again when an interrupted upload is reconciled", async () => {
+    mockConfirmUploads.mockResolvedValueOnce({
+      data: { data: [{ photoId: "previous", status: "DUPLICATE", existingPhotoId: "kept" }] },
+    });
+    const onFile = jest.fn();
+
+    const result = await uploadEventPhotos(
+      "event-1",
+      photoFiles(1).map((file) => ({ ...file, resumePhotoId: "previous" })),
+      { onFile, put },
+    );
+
+    expect(result).toEqual({ total: 1, uploaded: 0, error: null });
+    expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+    expect(lastUpdates(onFile)).toEqual([{ kind: "onRoll", photoId: "kept" }]);
+  });
+});
