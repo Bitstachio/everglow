@@ -117,6 +117,16 @@ test("an unavailable picked file keeps its failure after restart without blockin
   expect(mockFiles.get(restored.items[1]!.uri)).toBe("jpg");
 });
 
+test("restores a photo the roll already had, without the snapshot being thrown away", async () => {
+  const files = await retainUploadFiles("account-a", [picked()]);
+  persistUploadTrays(
+    "account-a",
+    new Map([["event", tray([{ ...files[0]!, status: { kind: "onRoll", photoId: "kept" } }])]]),
+  );
+  const restored = restoreUploadTrays("account-a").get("event")!;
+  expect(restored.items).toEqual([expect.objectContaining({ status: { kind: "onRoll", photoId: "kept" } })]);
+});
+
 test("does not serialize signed URLs, skips byte-only writes and deletes only the signed-out account", async () => {
   const files = await retainUploadFiles("account-a", [picked()]);
   persistUploadTrays(

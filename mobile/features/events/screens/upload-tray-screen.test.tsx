@@ -120,6 +120,30 @@ test("a photo the roll refused for good says only that it can't be added, and ca
   expect(mockRemove).toHaveBeenCalledWith("IMG_2240");
 });
 
+test("a photo the roll already has says so, as done, with nothing to retry or remove", async () => {
+  mockEntries = [entry("IMG_2231", { kind: "onRoll", photoId: "p1" })];
+  await renderScreen();
+
+  expect(title()).toHaveTextContent("In the tray\n1 already on the roll.");
+  expect(screen.getByLabelText("IMG_2231, Already on the roll")).toBeOnTheScreen();
+  expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Retry IMG_2231" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Retry ↻" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Remove IMG_2231 from the tray" })).not.toBeOnTheScreen();
+});
+
+test("a photo the roll already has doesn't count as developed next to new ones", async () => {
+  mockEntries = [
+    entry("IMG_2231", { kind: "developed", photoId: "p1" }),
+    entry("IMG_2232", { kind: "onRoll", photoId: "p0" }),
+    entry("IMG_2234", { kind: "sending", bytesSent: 1.7 * MB }, 0.5),
+  ];
+  await renderScreen();
+
+  expect(title()).toHaveTextContent("In the tray\n1 of 2 developed");
+  expect(screen.getByLabelText("IMG_2232, Already on the roll")).toBeOnTheScreen();
+});
+
 test("offers Retry for files that didn't take, not Cancel", async () => {
   mockEntries = [entry("IMG_2231", { kind: "failed", reason: "connection" })];
   await renderScreen();

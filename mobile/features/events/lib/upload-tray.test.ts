@@ -16,6 +16,7 @@ import {
   retryTray,
   type TrayItem,
 } from "./upload-tray";
+import { releaseUploadFile } from "./upload-tray-storage";
 import { runAccountCleared } from "@/lib/account-cleared";
 
 type Upload = (
@@ -598,4 +599,55 @@ test("Cancel removes pending connection retries so reconnecting cannot resume ca
   await flush();
   expect(mockUpload).toHaveBeenCalledTimes(1);
   expect(getTray("event-1").items).toEqual([]);
+});
+
+describe("a photo the roll already has from this person", () => {
+  const sameBytes: Upload = async (_eventId, _files, { onFile }) => {
+    onFile(0, { kind: "developed", photoId: "kept" });
+    onFile(1, { kind: "onRoll", photoId: "kept" });
+  };
+
+  test("leaves the tray like a developed frame, and its picked copy is released at once", async () => {
+    activateUploadTrays("account-a", settle);
+    mockUpload.mockImplementationOnce(sameBytes);
+    const close = openTraySession("event-1");
+    addToTray("event-1", [item("first"), item("again")], settle);
+    await flush();
+
+    expect(getTraySession("event-1").items.map(({ key, status }) => [key, status])).toEqual([
+      ["first", { kind: "developed", photoId: "kept" }],
+      ["again", { kind: "onRoll", photoId: "kept" }],
+    ]);
+    expect(getTray("event-1").items).toEqual([]);
+    expect(jest.mocked(releaseUploadFile)).toHaveBeenCalledWith("account-a", "file://again.jpg");
+    expect(localFileFor("kept")).toBe("file://first.jpg");
+    close();
+  });
+
+  test("is never sent again by Retry", async () => {
+    let refreshed: () => void = () => undefined;
+    settle.mockImplementationOnce(() => new Promise<void>((resolve) => (refreshed = resolve)));
+    mockUpload.mockImplementationOnce(sameBytes);
+    addToTray("event-1", [item("first"), item("again")], settle);
+    await flush();
+
+    retryTray("event-1");
+    refreshed();
+    await flush();
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+  });
+
+  test("adds no developing frame to the sheet, and counts apart from developed", () => {
+    const items = [item("again", { kind: "onRoll", photoId: "kept" }), item("b", { kind: "sending", bytesSent: 25 })];
+
+    expect(developingFrames(items, [{ id: "kept" }], 1).map(({ item: frame }) => frame.key)).toEqual(["b"]);
+    expect(summarizeTray({ items, running: true, closed: null })).toMatchObject({
+      developed: 0,
+      onRoll: 1,
+      inFlight: 1,
+      retryable: 0,
+      rejected: 0,
+    });
+  });
 });
