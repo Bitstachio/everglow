@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
+    "reset-project": "pnpm exec tsx ./scripts/reset-project.ts",
     "android": "expo prebuild --platform android --no-install && expo run:android",
     "ios": "expo prebuild --platform ios --no-install && expo run:ios",
     "web": "expo start --web",
