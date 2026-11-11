@@ -216,7 +216,7 @@ export class PhotosService {
 
     if (verified.length > 0) {
       // Each original is read once and hashed, so identical copies of a
-      // removed intimate image can be found and refused (docs/moderation.md §7).
+      // removed intimate or child-safety image can be found and refused (docs/moderation.md §7).
       const hashes = await hashPhotoOriginals(this.s3Service, verified);
       await this.refuseRemovedImages(eventId, callerId, verified, hashes);
 
@@ -251,7 +251,8 @@ export class PhotosService {
 
   /**
    * Refuses the whole confirm when any of its photos has the bytes of an
-   * intimate image the platform removed: those uploads are discarded and
+   * intimate or child-safety image the platform removed, with the same 422
+   * for both so the answer never says which: those uploads are discarded and
    * their slots released, and nothing else changes. The other photos stay
    * PENDING with their objects, so confirming them again gives their own
    * verdicts, and the discarded ones answer NOT_FOUND (docs/uploads.md).

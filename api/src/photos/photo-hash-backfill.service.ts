@@ -12,7 +12,7 @@ export interface PhotoHashBackfillResult {
   hashed: number;
   /** Photos whose original couldn't be read; they go to the back of the queue. */
   failed: number;
-  /** Hashes that turned out to be of a removed intimate image; their photos were removed. */
+  /** Hashes that turned out to be of a removed intimate or child-safety image; their photos were removed. */
   removedImageMatches: number;
 }
 
@@ -20,8 +20,9 @@ export interface PhotoHashBackfillResult {
  * Hashes READY photos that have no SHA-256 yet: those confirmed before
  * hashes were recorded, and those whose read failed at confirm
  * (docs/moderation.md §7). A batch per run, oldest untouched first. A photo
- * that turns out to be an identical copy of an intimate image the platform
- * already removed is removed with it, as it would have been at the time.
+ * that turns out to be an identical copy of an intimate or child-safety image
+ * the platform already removed is removed with it, as it would have been at
+ * the time: under its own report, held and paging for child safety.
  */
 @Injectable()
 export class PhotoHashBackfillService {

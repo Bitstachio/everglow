@@ -1,8 +1,10 @@
+import { prismaQuery } from "@casl/prisma";
 import { INestApplication, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
+import { REMOVED_IMAGE_REPORTS } from "src/moderation/evidence/identical-copies.service";
 import { PhotoHashBackfillService } from "src/photos/photo-hash-backfill.service";
 import { STORAGE_RESERVATION_MAX_ATTEMPTS } from "src/photos/photos.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
@@ -336,14 +338,17 @@ describe("PhotosController (integration)", () => {
         .expect(422);
 
       expect(response.body).toMatchObject({ code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE" });
-      // Matched against actioned intimate-image reports closed within REPORT_RETENTION_DAYS, or held.
+      // Matched against removed-image reports closed within REPORT_RETENTION_DAYS, or held.
       const [lookup] = prisma.reportEvidence.findMany.mock.calls[0] as [
-        { where: { report: { OR: [{ resolvedAt: { gte: Date } }, unknown] } } },
+        { where: { report: { AND: [unknown, { OR: [{ resolvedAt: { gte: Date } }, unknown] }] } } },
       ];
       expect(lookup).toMatchObject({
-        where: { sha256: { in: [sha256] }, report: { reason: "NON_CONSENSUAL_INTIMATE_IMAGE", status: "ACTIONED" } },
+        where: {
+          sha256: { in: [sha256] },
+          report: { AND: expect.arrayContaining([REMOVED_IMAGE_REPORTS]) as unknown },
+        },
       });
-      const cutoff = lookup.where.report.OR[0].resolvedAt.gte.getTime();
+      const cutoff = lookup.where.report.AND[1].OR[0].resolvedAt.gte.getTime();
       expect(before - cutoff).toBeGreaterThanOrEqual(365 * 24 * 60 * 60 * 1000 - 1000);
       expect(before - cutoff).toBeLessThan(366 * 24 * 60 * 60 * 1000);
       // The upload is discarded with its renditions and its slot released; nothing becomes READY.
@@ -352,6 +357,75 @@ describe("PhotosController (integration)", () => {
         where: { id: { in: [TEST_PHOTO_ID] }, status: "PENDING" },
       });
       expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+    });
+
+    describe("the bytes of a removed child-safety photo", () => {
+      /** Serves the evidence lookup from one kept report, applying the query's report filter as Postgres would. */
+      const removedUnder = (report: Record<string, unknown>) =>
+        prisma.reportEvidence.findMany.mockImplementation(((args: { where: { report: object } }) =>
+          Promise.resolve(
+            prismaQuery(args.where.report as never)(report as never) ? [{ sha256, reportId: TEST_REPORT_ID }] : [],
+          )) as never);
+      const childSafety = {
+        reason: "CHILD_SAFETY",
+        targetType: "PHOTO",
+        status: "ACTIONED",
+        closedByRole: "PLATFORM",
+        closedReason: "PHOTO_REMOVED",
+        resolvedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        holdUntil: new Date(Date.now() + 300 * 24 * 60 * 60 * 1000),
+      };
+
+      beforeEach(() => {
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+        prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
+        prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      });
+
+      it("are refused with the same 422 as an intimate image's, and discarded", async () => {
+        removedUnder(childSafety);
+
+        const response = await request(httpServer)
+          .post(confirmPath())
+          .set(authHeader())
+          .send({ photoIds: [TEST_PHOTO_ID] })
+          .expect(422);
+
+        // Nothing in the answer says which kind of image it matched.
+        expect(response.body).toMatchObject({
+          code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE",
+          message: resolveApiErrorMessage("PHOTO_REJECTED_MATCHES_REMOVED_IMAGE"),
+        });
+        expect(JSON.stringify(response.body)).not.toMatch(/child|CHILD|report/i);
+        expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(buildPhoto().s3Key));
+        expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      });
+
+      it("go through when the platform deleted the whole event rather than judging the photo", async () => {
+        removedUnder({ ...childSafety, closedReason: "EVENT_DELETED" });
+        prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+        const response = await request(httpServer)
+          .post(confirmPath())
+          .set(authHeader())
+          .send({ photoIds: [TEST_PHOTO_ID] })
+          .expect(201);
+
+        expect((response.body as WrappedResponse<ConfirmResultBody[]>).data).toEqual([
+          { photoId: TEST_PHOTO_ID, status: "READY" },
+        ]);
+      });
+
+      it("go through while the child-safety report is still open", async () => {
+        removedUnder({ ...childSafety, status: "OPEN", closedReason: null, closedByRole: null, resolvedAt: null });
+        prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+
+        await request(httpServer)
+          .post(confirmPath())
+          .set(authHeader())
+          .send({ photoIds: [TEST_PHOTO_ID] })
+          .expect(201);
+      });
     });
 
     it("returns 201 with MISSING and releases the slot when nothing was uploaded", async () => {
@@ -814,6 +888,62 @@ describe("PhotosController (integration)", () => {
       });
       // Nothing it hashed is a removed image, so nothing is removed.
       expect(prisma.report.create).not.toHaveBeenCalled();
+    });
+
+    it("removes a photo that turns out to be a removed child-safety image, under a held child-safety report", async () => {
+      const photo = buildPhoto();
+      const copy = {
+        id: photo.id,
+        eventId: photo.eventId,
+        s3Key: photo.s3Key,
+        contentType: photo.contentType,
+        sizeBytes: photo.sizeBytes,
+        addedById: photo.addedById,
+        event: { title: "Test Event" },
+      };
+      prisma.photo.findMany
+        .mockResolvedValueOnce([{ id: photo.id, s3Key: photo.s3Key }] as never)
+        .mockResolvedValueOnce([copy] as never);
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+      prisma.reportEvidence.findMany.mockResolvedValue([{ sha256, reportId: TEST_REPORT_ID }] as never);
+      prisma.report.findMany.mockResolvedValue([
+        {
+          id: TEST_REPORT_ID,
+          reason: "CHILD_SAFETY",
+          resolvedById: TEST_OTHER_USER_ID,
+          holdUntil: null,
+          holdReason: null,
+          evidence: { id: "ev-1", sha256, objectS3Key: null },
+        },
+      ] as never);
+      prisma.report.create.mockResolvedValue({ id: "linked-report" } as never);
+      prisma.report.updateManyAndReturn.mockResolvedValue([]);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+      const now = new Date();
+
+      const result = await app.get(PhotoHashBackfillService).runBackfill(now);
+
+      expect(result).toEqual({ hashed: 1, failed: 0, removedImageMatches: 1 });
+      expect(prisma.report.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { AND: [{ id: { in: [TEST_REPORT_ID] } }, REMOVED_IMAGE_REPORTS] },
+        }),
+      );
+      expect(prisma.report.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          photoId: photo.id,
+          reportedUserId: photo.addedById,
+          reason: "CHILD_SAFETY",
+          status: "ACTIONED",
+          holdUntil: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000),
+          holdReason: "CHILD_SAFETY",
+        }) as unknown,
+        select: { id: true },
+      });
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [photo.id] } } });
+      // Copied to evidence before its object goes; the discard keeps a child-safety image's copy.
+      expect(evidence.preserveBeforeDelete).toHaveBeenCalledWith([photo.s3Key]);
+      expect(evidence.discardImages).toHaveBeenCalledWith(["linked-report"], now);
     });
   });
 });
