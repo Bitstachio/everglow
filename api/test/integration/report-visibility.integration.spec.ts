@@ -124,6 +124,29 @@ describe("Report visibility (integration)", () => {
       ]);
     });
 
+    it("never lists the report of a removed child-safety image's identical copy, actioned or not", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventFor(hostAccess));
+      // A copy's report as IdenticalCopiesService writes it: no reporter, the copy's uploader as subject.
+      const copyReport = {
+        reporterId: null,
+        reportedUserId: "77777777-7777-4777-8777-777777777777",
+        reason: ReportReason.CHILD_SAFETY,
+        queue: "PLATFORM" as const,
+        escalationReasons: ["CHILD_SAFETY" as const],
+        photoId: null,
+        holdReason: "CHILD_SAFETY" as const,
+      };
+      serveReports([
+        buildReport({ id: "dddddddd-eeee-4222-8333-dddddddddddd", ...copyReport, status: ReportStatus.ACTIONED }),
+        buildReport({ id: "dddddddd-ffff-4222-8333-dddddddddddd", ...copyReport }),
+        buildReport({ id: ABOUT_SOMEONE_ELSE_ID, reporterId: TEST_TARGET_USER_ID }),
+      ]);
+
+      expect(await listIds()).toEqual([ABOUT_SOMEONE_ELSE_ID]);
+      prisma.event.findUnique.mockResolvedValue(eventFor(coHostAccess));
+      expect(await listIds(TEST_OTHER_ACCESS_TOKEN)).toEqual([ABOUT_SOMEONE_ELSE_ID]);
+    });
+
     it("keeps a report whose subject deleted their account", async () => {
       prisma.event.findUnique.mockResolvedValue(eventFor(hostAccess));
       serveReports([buildMemberReport({ reporterId: TEST_TARGET_USER_ID, reportedUserId: null })]);
