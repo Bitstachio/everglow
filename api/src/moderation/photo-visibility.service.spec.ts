@@ -57,6 +57,11 @@ describe("PhotoVisibilityService", () => {
       photoIds.map((id) => ({ eventId, photoId: id, _count: { _all: 3 } })) as never,
     );
 
+  // The screening hold compares against the time of the call: freeze it, so a
+  // filter rebuilt in an assertion is the same one the service built.
+  beforeEach(() => jest.useFakeTimers({ now: Date.now() }));
+  afterEach(() => jest.useRealTimers());
+
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
 
@@ -332,11 +337,6 @@ describe("PhotoVisibilityService", () => {
   });
 
   describe("countVisibleByUploader", () => {
-    // The screening hold compares against the time of the call: pin it, so
-    // the filter rebuilt below is the same one.
-    beforeEach(() => jest.useFakeTimers({ now: new Date("2026-11-11T12:00:00.000Z") }));
-    afterEach(() => jest.useRealTimers());
-
     it("counts the photos the caller sees from each uploader, leaving out departed ones", async () => {
       prisma.event.findUnique.mockResolvedValue(eventFor(AccessLevel.VIEWER) as never);
       mockPhotosOverThreshold([]);
