@@ -1,4 +1,6 @@
+import type { PhotoPreview } from "@/components/ui/retrying-photo";
 import type { EventResponseDto, PhotoResponseDto } from "../types";
+import { photoPreview } from "./photo-preview";
 
 /**
  * Home groups every roll by its gallery state (03.3–03.4): the live rolls
@@ -13,15 +15,17 @@ export type GroupedRolls = {
   closed: EventResponseDto[];
 };
 
-/** A photo on a roll's strip. Its URL is presigned, so the cache key names it instead. */
-export type RollPhoto = { uri: string; cacheKey: string };
+/** A photo on a roll's strip: its thumbnail, or the photo when that's missing. Its cache key names it. */
+export type RollPhoto = PhotoPreview & { cacheKey: string };
 
 /** Frames in a roll's strip on Home. */
 export const ROLL_FRAMES = 4;
 
 /** A roll's latest photos, newest first, as its strip on Home shows them. */
-export const toRollPhotos = (photos: Pick<PhotoResponseDto, "id" | "thumbnailUrl">[]): RollPhoto[] =>
-  photos.slice(0, ROLL_FRAMES).map((photo) => ({ uri: photo.thumbnailUrl, cacheKey: `photo:${photo.id}:thumbnail` }));
+export const toRollPhotos = (
+  photos: Pick<PhotoResponseDto, "id" | "url" | "thumbnailUrl" | "createdAt">[],
+  now: number = Date.now(),
+): RollPhoto[] => photos.slice(0, ROLL_FRAMES).map((photo) => photoPreview(photo, now));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

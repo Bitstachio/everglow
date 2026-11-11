@@ -6,13 +6,20 @@ import { AppIcon } from "./app-icon";
 import { EdgePrint } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
-import { RetryingPhoto } from "./retrying-photo";
+import { RetryingPhoto, type PhotoVariant } from "./retrying-photo";
 
 type ContactFrameProps = Omit<PressableProps, "children"> & {
   /** Photo URL; omit for an empty frame. */
   uri?: string;
   /** Stable identity for this photo variant, independent of URL signatures. */
   cacheKey?: string;
+  /**
+   * Shown when `uri` fails for good: the photo itself, for a frame whose
+   * thumbnail was never written. Without it the frame stays empty.
+   */
+  fallback?: PhotoVariant;
+  /** `uri` may not be written yet, so a failure is retried before `fallback`. Defaults to true. */
+  mayBeLate?: boolean;
   /**
    * Shown under `uri` while it loads or retries, for example the local file of
    * a photo just added whose thumbnail isn't written yet.
@@ -58,6 +65,8 @@ export const developLook = (amount: number) => {
 export const ContactFrame = ({
   uri,
   cacheKey,
+  fallback,
+  mayBeLate,
   placeholderUri,
   onPreviewReady,
   number,
@@ -98,6 +107,8 @@ export const ContactFrame = ({
             uri={uri}
             onDisplay={onPreviewReady}
             cacheKey={cacheKey}
+            fallback={fallback}
+            mayBeLate={mayBeLate}
             contentFit="cover"
             blurRadius={developing ? developLook(amount).blurRadius : undefined}
             className="h-full w-full"

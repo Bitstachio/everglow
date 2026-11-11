@@ -6,9 +6,16 @@ const mockPreviewQuery = jest.fn();
 jest.mock("../api/queries", () => ({ useRollPreviewQuery: (...args: unknown[]) => mockPreviewQuery(...args) }));
 beforeEach(() => mockPreviewQuery.mockReset().mockReturnValue({ data: [buildPhoto()] }));
 
-test("Home previews request thumbnails with a distinct cache identity", async () => {
+test("Home previews request thumbnails with a distinct cache identity, and the photo when one is missing", async () => {
   const { result } = await renderHook(() => useRollPreview(buildEvent({ galleryState: "OPEN" })));
-  expect(result.current).toEqual([{ uri: buildPhoto().thumbnailUrl, cacheKey: "photo:photo-1:thumbnail" }]);
+  expect(result.current).toEqual([
+    {
+      uri: buildPhoto().thumbnailUrl,
+      cacheKey: "photo:photo-1:thumbnail",
+      fallback: { uri: buildPhoto().url, cacheKey: "photo:photo-1:original" },
+      mayBeLate: false,
+    },
+  ]);
   expect(mockPreviewQuery).toHaveBeenCalledWith("event-1", 4, true);
 });
 
