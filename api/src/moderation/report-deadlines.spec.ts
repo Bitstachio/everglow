@@ -5,6 +5,7 @@ import {
   REMOVAL_DEADLINE_HOURS,
   ageInDays,
   alertRemovalDeadlines,
+  initialHoldFor,
   remindLongOpenReports,
   removalDueAtFor,
 } from "./report-deadlines";
@@ -56,6 +57,17 @@ describe("report deadlines", () => {
       expect(removalDueAtFor("NON_CONSENSUAL_INTIMATE_IMAGE", filedAt)).toEqual(dueAt);
       expect(removalDueAtFor("CHILD_SAFETY", filedAt)).toBeNull();
       expect(removalDueAtFor("SPAM", filedAt)).toBeNull();
+    });
+  });
+
+  describe("initialHoldFor", () => {
+    it("holds a child-safety report for a year from filing, and nothing else", () => {
+      expect(initialHoldFor("CHILD_SAFETY", filedAt)).toEqual({
+        holdUntil: new Date(filedAt.getTime() + 365 * DAY_MS),
+        holdReason: "CHILD_SAFETY",
+      });
+      expect(initialHoldFor("NON_CONSENSUAL_INTIMATE_IMAGE", filedAt)).toEqual({});
+      expect(initialHoldFor("NUDITY_OR_SEXUAL", filedAt)).toEqual({});
     });
   });
 
