@@ -36,9 +36,12 @@ The OS can continue native transfers while the app is backgrounded. Native
 transfer scheduling remains under OS control; later JavaScript phases such
 as another batch and confirmation can wait for the app to resume.
 
-After process termination, restore unfinished jobs as **Interrupted** with
-failure marks and Retry on the event page. Do not silently declare success or
-immediately restart restored jobs. Before retrying an existing reservation,
+After process termination, restore jobs that had started (sending, or waiting
+with a reservation) as **Interrupted** with failure marks and Retry on the
+event page. Do not silently declare success or immediately restart those.
+Files that never got a reservation never started a PUT: they come back
+**waiting** and, like connection failures, send by themselves once NetInfo
+says the phone is online. Before retrying an existing reservation,
 confirm its ID: READY completes it without another PUT or mint; MISSING,
 MISMATCHED or NOT_FOUND permits a new reservation. A missing confirmation
 response remains recoverable and never authorizes another mint. Photos
@@ -59,6 +62,26 @@ References: [Apple background sessions](<https://developer.apple.com/documentati
 [Apple background transfers](https://developer.apple.com/documentation/foundation/downloading-files-in-the-background),
 [Android persistent work](https://developer.android.com/develop/background-work/background-tasks/persistent).
 These are platform references, not claims about another app's internals.
+
+## Offline
+
+- Photos picked while NetInfo says the phone is offline are copied into the
+  account's tray folder as usual and stay **waiting**: nothing is minted. The
+  roll's line reads "{n} waiting · offline" and the tray's rows "Waiting ·
+  offline". When the connection returns, every tray with waiting files runs
+  through the same `run` and `uploadEventPhotos` path, in the order picked.
+- Retry while offline puts files back in the queue instead of failing them
+  again.
+- What may wait offline is capped across all rolls at
+  `OFFLINE_QUEUE_LIMIT` (200 files or 2 GB of local copies). Past it, the
+  pick is refused with "The tray is full. Let what’s waiting go first." and
+  nothing is copied. Online picks are bounded by the roll's room instead.
+- Once online, the usual refusals apply: a closed roll gives the closed-roll
+  message and doesn't retry; a full roll keeps its "didn't fit" rows. A roll
+  the person was taken off (`REMOVED_FROM_EVENT`, `NOT_A_MEMBER`) or that is
+  gone (404) drops its tray, as leaving it does.
+- The room check uses the roll as last loaded, minus what the tray already
+  holds; the API stays the authority when the files are minted.
 
 ## Failures and cancellation
 
