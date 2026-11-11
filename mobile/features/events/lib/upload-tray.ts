@@ -1,7 +1,7 @@
 import { onAccountCleared, type AccountClearedReason } from "@/lib/account-cleared";
 import NetInfo from "@react-native-community/netinfo";
 import { useSyncExternalStore } from "react";
-import { retainCompletedTrayRows } from "./upload-tray-session";
+import { isFinished, retainCompletedTrayRows } from "./upload-tray-session";
 import { persistUploadTrays, restoreUploadTrays, removeUploadStorage, releaseUploadFile } from "./upload-tray-storage";
 import type { PhotoResponseDto } from "../types";
 import {
@@ -22,6 +22,8 @@ import {
  * - waiting: not sent yet
  * - sending: bytes on their way
  * - developed: confirmed and on the roll
+ * - onRoll: this person already had these bytes on the roll, so the API kept
+ *   that frame (`photoId`) and discarded this copy; nothing to retry
  * - failed: sent but didn't make it, and why
  * - rejected: never sent: a video, or over 25 MB (08.5)
  */
@@ -29,6 +31,7 @@ export type TrayStatus =
   | { kind: "waiting" }
   | { kind: "sending"; bytesSent: number }
   | { kind: "developed"; photoId: string }
+  | { kind: "onRoll"; photoId: string }
   | { kind: "failed"; reason: Exclude<EventPhotoFailure, "cancelled"> }
   | { kind: "rejected"; reason: "video" | "tooLarge" };
 
@@ -178,6 +181,11 @@ const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => 
         localFiles.set(update.photoId, item.uri);
         return { ...item, status: { kind: "developed", photoId: update.photoId } };
       }
+      // The roll already has this frame: the picked copy has nothing left to send.
+      if (update.kind === "onRoll") {
+        if (activeUserId) releaseUploadFile(activeUserId, item.uri);
+        return { ...item, status: { kind: "onRoll", photoId: update.photoId } };
+      }
       // A cancelled file leaves the tray: it was never on the roll.
       if (update.reason === "cancelled") {
         if (activeUserId) releaseUploadFile(activeUserId, item.uri);
@@ -250,12 +258,13 @@ const run = async (eventId: string) => {
     if (!isCurrent()) return;
     controllers.delete(eventId);
     requestControllers.delete(eventId);
-    // Developed frames are on the sheet now; what's left is what needs a word.
+    // Developed frames are on the sheet now, as are the ones it already had;
+    // what's left is what needs a word.
     if (trays.has(eventId)) {
       setTray(eventId, (tray) => ({
         ...tray,
         running: false,
-        items: refreshed ? tray.items.filter((item) => item.status.kind !== "developed") : tray.items,
+        items: refreshed ? tray.items.filter((item) => !isFinished(item)) : tray.items,
       }));
       // Photos picked while the roll was refreshing found it still running; they go now.
       if (getTray(eventId).items.some((item) => item.status.kind === "waiting")) void run(eventId);

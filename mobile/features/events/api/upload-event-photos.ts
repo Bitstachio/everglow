@@ -52,10 +52,15 @@ export type EventPhotoFailure =
   | "cantAdd"
   | "cancelled";
 
-/** What happened to one file, by its index in the list passed in. */
+/**
+ * What happened to one file, by its index in the list passed in. `onRoll`
+ * means the uploader already has these bytes on the roll (a DUPLICATE
+ * verdict): the API discarded this copy, and `photoId` is the frame kept.
+ */
 export type EventPhotoUpdate =
   | { kind: "sending"; bytesSent: number }
   | { kind: "developed"; photoId: string }
+  | { kind: "onRoll"; photoId: string }
   | { kind: "failed"; reason: EventPhotoFailure };
 
 type EventPhotoUploadResult = {
@@ -243,6 +248,10 @@ const confirmSlots = async (eventId: string, photoIds: string[], signal?: AbortS
   return { results, cantAdd };
 };
 
+/** The frame already on the roll for a DUPLICATE verdict, or undefined for any other. */
+const frameOnRoll = (result: ConfirmPhotoResultDto | undefined): string | undefined =>
+  result?.status === "DUPLICATE" ? result.existingPhotoId : undefined;
+
 const runPooled = async (tasks: (() => Promise<void>)[], concurrency: number) => {
   let next = 0;
   const worker = async () => {
@@ -258,7 +267,7 @@ const runPooled = async (tasks: (() => Promise<void>)[], concurrency: number) =>
 /**
  * Uploads event photos in batches of PHOTO_UPLOAD_BATCH_SIZE, one batch after
  * another (`docs/uploads.md`): mint the batch, PUT each file, confirm the ones
- * that landed. Every file ends with one `developed` or `failed` update. A file
+ * that landed. Every file ends with one `developed`, `onRoll` or `failed` update. A file
  * that fails its PUT or confirm is reported and the rest go on; a mint that
  * fails after its retries stops the upload, since every later batch would be
  * refused the same way (a full or closed gallery).
@@ -317,15 +326,15 @@ const uploadFreshEventPhotos = async (
     if (landed.size > 0 && !requestSignal?.aborted) {
       try {
         const { results, cantAdd } = await confirmSlots(eventId, [...landed.keys()], requestSignal);
-        const ready = new Set(results.filter((result) => result.status === "READY").map((result) => result.photoId));
-        uploaded += ready.size;
+        const verdicts = new Map(results.map((result) => [result.photoId, result]));
         for (const [photoId, index] of landed) {
-          onFile?.(
-            index,
-            ready.has(photoId)
-              ? { kind: "developed", photoId }
-              : { kind: "failed", reason: cantAdd.has(photoId) ? "cantAdd" : "refused" },
-          );
+          const verdict = verdicts.get(photoId);
+          const kept = frameOnRoll(verdict);
+          if (verdict?.status === "READY") {
+            uploaded += 1;
+            onFile?.(index, { kind: "developed", photoId });
+          } else if (kept) onFile?.(index, { kind: "onRoll", photoId: kept });
+          else onFile?.(index, { kind: "failed", reason: cantAdd.has(photoId) ? "cantAdd" : "refused" });
         }
       } catch (error) {
         for (const index of landed.values()) onFile?.(index, { kind: "failed", reason: failureFor(error) });
@@ -356,13 +365,15 @@ export const uploadEventPhotos = async (
         batch.map((item) => item.photoId),
         options.requestSignal ?? options.signal,
       );
-      const verdicts = new Map(results.map((result) => [result.photoId, result.status]));
+      const verdicts = new Map(results.map((result) => [result.photoId, result]));
       for (const { index, photoId } of batch) {
-        const verdict = verdicts.get(photoId);
+        const verdict = verdicts.get(photoId)?.status;
+        const kept = frameOnRoll(verdicts.get(photoId));
         if (verdict === "READY") {
           uploaded += 1;
           options.onFile?.(index, { kind: "developed", photoId });
-        } else if (cantAdd.has(photoId)) options.onFile?.(index, { kind: "failed", reason: "cantAdd" });
+        } else if (kept) options.onFile?.(index, { kind: "onRoll", photoId: kept });
+        else if (cantAdd.has(photoId)) options.onFile?.(index, { kind: "failed", reason: "cantAdd" });
         else if (verdict) pending.push(index);
         else options.onFile?.(index, { kind: "failed", reason: "connection" });
       }
