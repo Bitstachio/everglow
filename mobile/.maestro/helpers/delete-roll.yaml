@@ -1,0 +1,57 @@
+# From a roll you host: cut it if it is still open, then delete it, and land on
+# Home. Only a closed roll can be deleted. Not discovered as a standalone test.
+appId: ${APP_ID}
+---
+# The first visit after a roll opens shows "it opens" before the roll itself.
+- extendedWaitUntil:
+    visible:
+      id: "roll-opened-back|roll-menu-button"
+    timeout: 30000
+- runFlow:
+    when:
+      visible:
+        id: "roll-opened-back"
+    commands:
+      - tapOn:
+          id: "roll-opened-back"
+- tapOn:
+    id: "roll-menu-button"
+- extendedWaitUntil:
+    visible:
+      id: "roll-menu-cut|roll-menu-delete"
+    timeout: 10000
+- runFlow:
+    when:
+      visible:
+        id: "roll-menu-cut"
+    commands:
+      - tapOn:
+          id: "roll-menu-cut"
+      - extendedWaitUntil:
+          visible:
+            id: "cut-roll-confirm"
+          timeout: 30000
+      - tapOn:
+          id: "cut-roll-confirm"
+      - extendedWaitUntil:
+          visible:
+            id: "roll-menu-button"
+          timeout: 30000
+      - tapOn:
+          id: "roll-menu-button"
+- extendedWaitUntil:
+    visible:
+      id: "roll-menu-delete"
+    timeout: 30000
+- tapOn:
+    id: "roll-menu-delete"
+- extendedWaitUntil:
+    visible:
+      id: "delete-roll-confirm"
+    timeout: 10000
+- tapOn:
+    id: "delete-roll-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 30000

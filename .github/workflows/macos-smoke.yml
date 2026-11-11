@@ -244,6 +244,9 @@ jobs:
           xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false
           xcrun simctl install "$DEVICE_ID" "$APP_PATH"
 
+      - name: Add the smoke photo to the simulator library
+        run: xcrun simctl addmedia "$DEVICE_ID" .maestro/fixtures/smoke-photo.jpg
+
       # Writes attempts.json and the job summary, and a warning annotation when
       # a retry rescued the run (scripts/maestro-attempt-summary.js).
       - name: Maestro login smoke

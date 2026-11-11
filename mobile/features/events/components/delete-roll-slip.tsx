@@ -33,7 +33,14 @@ export const DeleteRollSlip = ({
           {error}
         </Text>
       ) : null}
-      <Button title={confirmLabel} variant="danger" mark="✕" onPress={onConfirm} isLoading={isDeleting} />
+      <Button
+        testID="delete-roll-confirm"
+        title={confirmLabel}
+        variant="danger"
+        mark="✕"
+        onPress={onConfirm}
+        isLoading={isDeleting}
+      />
       <Button title={t("settings.deleteRoll.cancel")} variant="secondary" mark="‹" onPress={onKeep} />
     </Slip>
   );

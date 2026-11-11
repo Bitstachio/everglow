@@ -168,12 +168,12 @@ const EventsScreen = () => {
       <View className="gap-3 px-5 pb-1">
         {showFirstRun ? (
           <>
-            <Button title={t("firstRun.startRoll")} mark="+" onPress={onNewEvent} />
+            <Button testID="home-new-roll" title={t("firstRun.startRoll")} mark="+" onPress={onNewEvent} />
             <Button title={t("firstRun.joinEnvelope")} variant="secondary" mark="▸" onPress={onScan} />
           </>
         ) : (
           <>
-            <Button title={t("newEvent")} mark="+" onPress={onNewEvent} disabled={isOffline} />
+            <Button testID="home-new-roll" title={t("newEvent")} mark="+" onPress={onNewEvent} disabled={isOffline} />
             {isOffline ? <EdgePrint className="self-center">{t("offline.waiting")}</EdgePrint> : null}
           </>
         )}
