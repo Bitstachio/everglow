@@ -2,7 +2,7 @@
  * Records what each Mac smoke Maestro attempt did, so a run that passed only
  * on its retry stays visible after the log scrolls away.
  *
- * `scripts/run-maestro-login-ios.js` uses these to write the GitHub job summary,
+ * `scripts/run-maestro-login-ios.ts` uses these to write the GitHub job summary,
  * `attempts.json` in the results artifact, and a `::warning::` annotation when
  * a retry rescued the run. Annotations stay on the run and can be queried with
  * the checks API (see `mobile/docs/mac-smoke.md`).

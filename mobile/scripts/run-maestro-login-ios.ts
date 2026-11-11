@@ -16,33 +16,32 @@
  * `MAESTRO_ARTIFACT_NAME`, which the workflow sets.
  */
 
-const { spawn } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const { attemptsRecord, rescueWarning, summaryMarkdown } = require("./maestro-attempt-summary.ts");
-const {
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { attemptsRecord, rescueWarning, summaryMarkdown, type MaestroAttempt } from "./maestro-attempt-summary";
+import {
   classifyMaestroFailure,
   failedHierarchyPaths,
   hierarchyText,
   shouldRetryMaestroFailure,
-} = require("./maestro-failure-class.ts");
+  type MaestroFailureClass,
+} from "./maestro-failure-class";
 
-const mobileRoot = path.resolve(__dirname, "..");
+const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const resultsDir = path.join(mobileRoot, ".maestro", "results");
 const stagingDir = path.join(mobileRoot, ".maestro", "attempt-staging");
 const MAX_ATTEMPTS = 2;
 
-/**
- * @param {string} logPath
- * @returns {Promise<{ code: number, text: string }>}
- */
-const runLoginSmoke = (logPath) =>
+const runLoginSmoke = (logPath: string): Promise<{ code: number; text: string }> =>
   new Promise((resolve) => {
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
     const log = fs.createWriteStream(logPath);
     let text = "";
     let settled = false;
-    const finish = (code) => {
+    const finish = (code: number) => {
       if (settled) return;
       settled = true;
       log.end(() => resolve({ code, text }));
@@ -52,14 +51,18 @@ const runLoginSmoke = (logPath) =>
       env: process.env,
       stdio: ["inherit", "pipe", "pipe"],
     });
-    const capture = (stream) => (chunk) => {
+    const capture = (stream: NodeJS.WriteStream) => (chunk: Buffer) => {
       text += chunk.toString();
       stream.write(chunk);
       log.write(chunk);
     };
+    if (!child.stdout || !child.stderr) {
+      finish(1);
+      return;
+    }
     child.stdout.on("data", capture(process.stdout));
     child.stderr.on("data", capture(process.stderr));
-    child.on("error", (error) => {
+    child.on("error", (error: NodeJS.ErrnoException) => {
       const message = error.code === "ENOENT" ? "pnpm: command not found" : String(error);
       text += `\n${message}\n`;
       log.write(`\n${message}\n`);
@@ -71,14 +74,10 @@ const runLoginSmoke = (logPath) =>
 /**
  * Maestro debug files (`commands.json`, one per flow) written by this attempt.
  * Earlier attempts' files are older than `sinceMs`, and staged copies are skipped.
- * @param {string} dir
- * @param {number} sinceMs
- * @param {number} [depth]
- * @returns {string[]}
  */
-const debugCommandFiles = (dir, sinceMs, depth = 3) => {
+const debugCommandFiles = (dir: string, sinceMs: number, depth = 3): string[] => {
   if (depth < 0 || !fs.existsSync(dir)) return [];
-  const found = [];
+  const found: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith("attempt-")) continue;
     const full = path.join(dir, entry.name);
@@ -96,15 +95,15 @@ const debugCommandFiles = (dir, sinceMs, depth = 3) => {
  * hierarchy Maestro saved for it. Secret values (the E2E email typed into the
  * Auth0 form) are left out so they never reach the log.
  */
-const screenTextAtFailure = (sinceMs) => {
-  const secrets = new Set([process.env.E2E_EMAIL, process.env.E2E_PASSWORD].filter(Boolean));
-  const text = new Set();
+const screenTextAtFailure = (sinceMs: number): string[] => {
+  const secrets = [process.env.E2E_EMAIL, process.env.E2E_PASSWORD].filter((value): value is string => Boolean(value));
+  const text = new Set<string>();
   for (const file of debugCommandFiles(resultsDir, sinceMs)) {
     try {
       for (const relative of failedHierarchyPaths(JSON.parse(fs.readFileSync(file, "utf8")))) {
-        const root = JSON.parse(fs.readFileSync(path.join(path.dirname(file), relative), "utf8"));
+        const root = JSON.parse(fs.readFileSync(path.join(path.dirname(file), relative), "utf8")) as unknown;
         for (const line of hierarchyText(root)) {
-          if (![...secrets].some((secret) => line.includes(secret))) text.add(line);
+          if (!secrets.some((secret) => line.includes(secret))) text.add(line);
         }
       }
     } catch {
@@ -114,14 +113,14 @@ const screenTextAtFailure = (sinceMs) => {
   return [...text];
 };
 
-const failureText = (stdio, screenText) => {
+const failureText = (stdio: string, screenText: string[]): string => {
   const reportPath = path.join(resultsDir, "report.xml");
   const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, "utf8") : "";
   return `${stdio}\n${report}\n${screenText.join("\n")}`;
 };
 
 /** Drop attempt artifacts from a previous local run so this run's copies are the only ones. */
-const clearPreviousAttemptArtifacts = () => {
+const clearPreviousAttemptArtifacts = (): void => {
   if (!fs.existsSync(resultsDir)) return;
   for (const name of fs.readdirSync(resultsDir)) {
     if (!name.startsWith("attempt-")) continue;
@@ -129,7 +128,7 @@ const clearPreviousAttemptArtifacts = () => {
   }
 };
 
-const snapshotResults = (dest) => {
+const snapshotResults = (dest: string): void => {
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
   if (!fs.existsSync(resultsDir)) return;
@@ -139,7 +138,7 @@ const snapshotResults = (dest) => {
   }
 };
 
-const publishStaging = () => {
+const publishStaging = (): void => {
   if (!fs.existsSync(stagingDir)) return;
   fs.mkdirSync(resultsDir, { recursive: true });
   for (const entry of fs.readdirSync(stagingDir, { withFileTypes: true })) {
@@ -152,9 +151,8 @@ const publishStaging = () => {
 /**
  * Writes `attempts.json`, the job summary and the rescue warning. Failures here
  * are logged but never change the smoke's result.
- * @param {import("./maestro-attempt-summary.ts").MaestroAttempt[]} attempts
  */
-const recordAttempts = (attempts) => {
+const recordAttempts = (attempts: MaestroAttempt[]): void => {
   if (attempts.length === 0) return;
   const run = {
     device: process.env.SIM_NAME || undefined,
@@ -173,14 +171,13 @@ const recordAttempts = (attempts) => {
   }
 };
 
-const main = async () => {
+const main = async (): Promise<void> => {
   let exitCode = 1;
-  /** @type {import("./maestro-attempt-summary.ts").MaestroAttempt[]} */
-  const attempts = [];
+  const attempts: MaestroAttempt[] = [];
   fs.rmSync(stagingDir, { recursive: true, force: true });
   fs.mkdirSync(stagingDir, { recursive: true });
   clearPreviousAttemptArtifacts();
-  let firstFailureClass = null;
+  let firstFailureClass: MaestroFailureClass | null = null;
   try {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       console.log(`Maestro login smoke attempt ${attempt}`);
@@ -228,8 +225,10 @@ const main = async () => {
   }
 };
 
-if (require.main === module) {
-  main().catch((error) => {
+const invokedDirectly = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;
   });

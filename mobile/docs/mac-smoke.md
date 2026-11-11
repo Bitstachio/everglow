@@ -57,7 +57,7 @@ Artifacts upload `.maestro/results/` (including failures) and are kept for 7 day
 
 ## Retries
 
-`pnpm test:e2e:login:ios` on a laptop runs once. The CI script (`scripts/run-maestro-login-ios.js`) classifies a failed attempt from the Maestro log, `report.xml` and the text on screen when the failing command ran, then retries **once** or stops:
+`pnpm test:e2e:login:ios` on a laptop runs once. The CI script (`scripts/run-maestro-login-ios.ts`) classifies a failed attempt from the Maestro log, `report.xml` and the text on screen when the failing command ran, then retries **once** or stops:
 
 | Class     | What it looks like                                                                                                                                                                                                                          | What the job does          |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
