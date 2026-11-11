@@ -244,7 +244,11 @@ jobs:
           xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false
           xcrun simctl install "$DEVICE_ID" "$APP_PATH"
 
+      # Writes attempts.json and the job summary, and a warning annotation when
+      # a retry rescued the run (scripts/maestro-attempt-summary.js).
       - name: Maestro login smoke
+        env:
+          MAESTRO_ARTIFACT_NAME: maestro-login-ios-${{ github.run_id }}
         run: pnpm run test:e2e:login:ios:ci
 
       # Maestro writes every -e value into commands.json, and this repo's
@@ -255,6 +259,7 @@ jobs:
         run: node ./scripts/scrub-maestro-results.js .maestro/results E2E_PASSWORD
 
       - name: Upload Maestro results
+        id: upload
         if: always() && steps.scrub.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
@@ -263,6 +268,13 @@ jobs:
             mobile/.maestro/results/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Link the results in the job summary
+        if: always() && steps.upload.outputs.artifact-url != ''
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          echo "- Results download: [maestro-login-ios-${GITHUB_RUN_ID}]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
 
       # Save only what this run produced, and skip exact-key hits (that entry
       # already exists).
