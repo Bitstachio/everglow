@@ -32,7 +32,7 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 | Photo hashes at confirm, identical-copy removal, and refusing re-uploads of removed intimate images (§7) | Built                   | [EV-201](https://linear.app/mehrshadfb/issue/EV-201)                                                                                                                                                         |
 | Platform tools: act on any report, evidence links, holds, lift reviews (§8)                              | Built                   | [EV-59](https://linear.app/mehrshadfb/issue/EV-59)                                                                                                                                                           |
 | Suspending accounts and events, fixing and deleting events (§8)                                          | Built                   | [EV-58](https://linear.app/mehrshadfb/issue/EV-58)                                                                                                                                                           |
-| Upload screening (§11)                                                                                   | Planned                 | Filed once this design is agreed                                                                                                                                                                             |
+| Upload screening and automated reports (§11)                                                             | Built, off by default   | [EV-115](https://linear.app/mehrshadfb/issue/EV-115)                                                                                                                                                         |
 | Telling organizers about reports and uploaders about removals                                            | Planned                 | [EV-33](https://linear.app/mehrshadfb/issue/EV-33)                                                                                                                                                           |
 
 ## Who moderates
@@ -58,7 +58,7 @@ model Report {
   eventId?           // SET NULL
   eventTitle         // the event's title when the report was filed
   reporterId?        // SET NULL; null from the start on an automated report (§11)
-  source             // USER | AUTOMATED (planned, §11)
+  source             // USER | AUTOMATED: a member, or the platform's own checks (§11)
   targetType         // PHOTO | MEMBER | EVENT
   photoId?           // SET NULL, PHOTO reports only
   reportedUserId?    // SET NULL: the reported member, or the uploader of the reported photo
@@ -144,7 +144,7 @@ Added by hand in the migrations. Each is written so that a later `SET NULL` stil
 | `Report_reporter_is_not_reported_check`   | `reporterId <> reportedUserId`                                                                                                 |
 | `Report_resolution_matches_status_check`  | OPEN has no `resolvedAt` and no `resolvedById`; a closed report has a `resolvedAt`                                             |
 | `Report_closure_matches_status_check`     | OPEN has no `closedReason` and no `closedByRole`; a closed report has both, or neither if it closed before they were recorded  |
-| `Report_user_source_has_reporter_check`   | Planned. `source = 'AUTOMATED' OR reporterId IS NOT NULL` at insert (a trigger, not a CHECK, since `SET NULL` must still pass) |
+| `Report_user_source_has_reporter_check`   | `source = 'AUTOMATED' OR reporterId IS NOT NULL` at insert (a trigger, not a CHECK, since `SET NULL` must still pass)         |
 | `UserBlock_no_self_block_check`           | `blockerId <> blockedId`                                                                                                       |
 
 ### One OPEN report per reporter and target
@@ -159,7 +159,13 @@ UNIQUE ("reporterId", "eventId")                   WHERE status = 'OPEN' AND "ta
 
 They are the **only** duplicate check. `ReportsService` inserts with `skipDuplicates` (`ON CONFLICT DO NOTHING`), and when no row comes back it returns the caller's existing OPEN report. A lookup before the insert would still lose to a concurrent submission; the index cannot. Closed reports fall outside the indexes, which is what lets the same member report the same target again later.
 
-The photo index needs no `targetType` predicate: MEMBER reports have a null `photoId`, and nulls never collide. The member index does need it, because PHOTO reports carry the uploader in `reportedUserId` too, and reporting someone's photo must not stop you from reporting them. Automated reports have a null `reporterId`, so they never collide either.
+The photo index needs no `targetType` predicate: MEMBER reports have a null `photoId`, and nulls never collide. The member index does need it, because PHOTO reports carry the uploader in `reportedUserId` too, and reporting someone's photo must not stop you from reporting them. Automated reports have a null `reporterId`, so they never collide with these. A fourth index keeps them to one OPEN automated report per photo, so confirm and the screening job can't both file one (§11):
+
+```sql
+UNIQUE ("photoId") WHERE status = 'OPEN' AND source = 'AUTOMATED'
+```
+
+Automated reports are filed by `fileAutomatedReport` (`api/src/moderation/automated-report.ts`), which any of the platform's checks can call with its own reason, target, note and evidence. Identical-copy removal (§7) files its closed reports as `AUTOMATED` too.
 
 ### Indexes
 
@@ -223,6 +229,7 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 | Platform, list | `PlatformReportListItemDto` on `GET /admin/reports`: the organizers' fields plus the reporter, escalation, hold and evidence summary | `authorityReference`                                                                    |
 | Platform, one  | `PlatformReportResponseDto` on `GET /admin/reports/:reportId` and the action responses: the list fields plus `authorityReference`    | the evidence object's key or a URL (§7)                                                 |
 
+- **`source` says who filed it**, on `ReportResponseDto` and the platform's DTOs: `USER`, or `AUTOMATED` for the platform's own checks (§11). An automated report has no reporter to hide. The app lists it to hosts as "flagged automatically", with the platform, and doesn't show its note, which is the check's readout for the platform's reviewer.
 - **Reporting is allowed after the gallery closes**, for members and the event. Photos can't be reported then, since none can be seen (§5).
 - The list uses the same keyset pagination as the photo list (`api/src/common/pagination`).
 
@@ -230,7 +237,7 @@ The target is in the route, so all three `POST`s share one body: `{ reason, note
 
 ## 3. Who handles a report
 
-Built ([EV-114](https://linear.app/mehrshadfb/issue/EV-114)), except the reasons and the screening that are still planned (§2, §11). The routing is `ReportsService.createReport`; the moves are `escalateToPlatform` (`api/src/moderation/report-escalation.ts`), called from the hourly check, the gallery close job, a severe dismissal, a promotion and the delete paths.
+Built ([EV-114](https://linear.app/mehrshadfb/issue/EV-114), [EV-115](https://linear.app/mehrshadfb/issue/EV-115) for automated reports). The routing is `ReportsService.createReport`; the moves are `escalateToPlatform` (`api/src/moderation/report-escalation.ts`), called from the hourly check, the gallery close job, a severe dismissal, a promotion and the delete paths.
 
 ### Where a report starts
 
@@ -243,7 +250,7 @@ A report starts in `PLATFORM` when any of these hold at filing, and in `ORGANIZE
 | It is about the event itself                                      | `target_is_event`     |
 | The reported member, or the photo's uploader, organizes the event | `target_is_organizer` |
 | The gallery has closed                                            | `gallery_closed`      |
-| It came from upload screening                                     | `automated_flag`      |
+| The platform's own checks filed it (upload screening)             | `automated_flag`      |
 
 A severe report (`NUDITY_OR_SEXUAL`, `VIOLENCE`) starts in `ORGANIZERS`, so a host can take it down at once. The platform is alerted all the same (`severe_reason`), because Apple expects the developer to act within 24 hours either way.
 
@@ -396,6 +403,7 @@ Hiding is a **filter in the photo read paths**. `PhotoStatus` is untouched and n
 4. **A photo is hidden from everyone, organizers included, after one OPEN report with a reason in `PLATFORM_ONLY_REPORT_REASONS`.** Only the platform looks at it.
 5. **Resolving restores.** A dismissal brings the photo back for everyone, reporters included; a removal deletes it, so there is nothing to restore. **No other verdict un-hides a photo:** removing its uploader with `photos: KEEP` leaves the reports on it OPEN (§3), so it stays hidden until someone judges the photo itself.
 6. **Removed reporters stop counting.** Removing a member closes the non-severe `ORGANIZERS` reports they filed in the event as `REPORTER_REMOVED` (§6), so three accounts can't keep a host's photo hidden after the host has removed them. Their severe reports move to the platform instead, so a host can't clear a nudity report by removing whoever filed it.
+7. **A photo upload screening holds is seen only by its uploader and the event's organizers** (§11), until it is screened or `Photo.screeningHeldUntil` passes, whichever comes first. The filter compares the deadline with the time of the read, so a hold ends by itself even if nothing ever screens the photo.
 
 "Everyone" includes the uploader. Under rules 2 and 3, organizers still see the photo, because they are the ones who have to judge it.
 
@@ -414,9 +422,10 @@ The threshold is evaluated when photos are read, not stored on the photo. Member
 
 {
   AND: [
+    { OR: [{ screeningHeldUntil: null }, { screeningHeldUntil: { lte: now } }, { addedById: callerId }] }, // rule 7
     { reports: { none: { reporterId: callerId, status: OPEN } } },                          // rule 1
     { reports: { none: { status: OPEN, reason: { in: SEVERE_REPORT_REASONS } } } },         // rules 3 and 4
-    { reports: { none: { status: OPEN, source: AUTOMATED } } },                             // rule 3 (planned)
+    { reports: { none: { status: OPEN, source: AUTOMATED } } },                             // rule 3
     { id: { notIn: photoIdsOverThreshold } },                                               // rule 2
     { NOT: { addedBy: { is: { OR: [blockedByCaller, blockedTheCaller] } } } },              // blocks, §6
   ],
@@ -622,6 +631,8 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 | `report.evidence.viewed`                   | `warn`  | a moderator opened reported content (§8)                                                                                          | `reportId`, `eventId`, `moderatorId`, `reason`, `status`, `quarantined`, `severity` (`page` for `CHILD_SAFETY`), `audit`                                                                                                    |
 | `report.hold.lapsed`                       | `warn`  | daily, for holds that ran out in the past day (§7)                                                                                | `lapsed`, up to 20 `reportIds`, `holdReasons`, `severity: ticket`, `audit`                                                                                                                                                  |
 | `user.block.created`, `user.block.removed` | `info`  | the block list changed                                                                                                            | `callerId`, `blockedUserId`, `audit`                                                                                                                                                                                        |
+| `photo.screening.flagged`                  | `info`  | upload screening flagged a photo (§11); its automated report logs `report.created` with `source: AUTOMATED` and `report.escalated` | `photoId`, `eventId`, `reason`, `labels` (names and rounded confidences), `reportId`, `callerId` or `trigger`, `audit`                                                                                                      |
+| `photo.screening.skipped`                  | `warn`  | a photo was published without screening (§11); `info` for HEIC and HEIF                                                           | `photoId`, `eventId`, `reason` (`unsupported_format`, `invalid_image`, `hold_expired`), `contentType`                                                                                                                       |
 
 **`report.escalated`, `report.stale`, `report.removal_due_soon`, `report.removal_overdue`, `report.evidence.viewed` and `report.hold.lapsed` are the alerts** ([alerting.md §3](../api/docs/alerting.md#3-events-to-alert-on)); the rest are audit records. Alert lines name the report, never the reporter or the person reported, since alerts are copied out of the log platform.
 
@@ -646,7 +657,7 @@ Alerting keys off stable event names in the logs. **The alerts only work once th
 | `gallery_closed`           | The gallery closed with the report OPEN, or it was filed after close.                                                                    |
 | `severe_dismissed`         | An organizer dismissed a severe report, or its reporter was removed from the event (§6).                                                 |
 | `target_deleted`           | The photo or account was deleted without a verdict, and the report is severe or already with the platform.                               |
-| `automated_flag`           | Planned. Upload screening flagged the photo (§11).                                                                                       |
+| `automated_flag`           | The platform's own checks filed it: upload screening flagged the photo (§11). It starts in `PLATFORM`.                                  |
 
 A repeat that returns an existing report logs nothing, so each report is announced once. Only ids and enum values are logged. The `note` is free text written by a user and is never logged.
 
@@ -667,19 +678,53 @@ The app's onboarding screen shows an explicit consent control that links to the 
 
 ## 11. Upload screening
 
-**Planned** (filed once this design is agreed). Apple's guideline 1.2 asks for "a method for filtering objectionable material from being posted". Reports and hiding act only after a photo is up; screening catches the worst of it before anyone sees it.
+Built ([EV-115](https://linear.app/mehrshadfb/issue/EV-115)), **off until `MODERATION_SCREENING_ENABLED=true`**. Apple's guideline 1.2 asks for "a method for filtering objectionable material from being posted". Reports and hiding act only after a photo is up; screening catches the worst of it before guests see it.
 
-- **When.** Upload confirmation calls Amazon Rekognition `DetectModerationLabels` on the object already in S3. The photo becomes `READY` as today.
-- **Flagged photos.** A photo with a label above the configured confidence in the nudity, violence or exploitation categories gets an automated report:
-  - `source: AUTOMATED`, no reporter, a reason mapped from the label;
-  - in `PLATFORM` (`automated_flag`);
-  - hidden from everyone but organizers until it is judged (§5, rule 3).
+The code is `api/src/moderation/screening/`: `UploadScreeningService` (the check), `PhotoScreeningService` and its scheduler (the retries), and `screening.constants.ts` (the label mapping and the defaults).
 
-  The uploader isn't told.
+### When and what
 
-- **Failure is open.** If the call fails, the photo is published, a warning is logged, and nothing retries. Uploads never wait on the screen.
-- **Disclosure.** The privacy policy names image screening by a service provider, as Apple guideline 5.1.2(i) asks.
-- **Not in scope.** Matching against known child sexual abuse material (PhotoDNA, Thorn Safer) is for later. It needs an application and a contract, and the law doesn't require it at our size.
+- **At upload confirm, before the photos go live.** `PhotosService.confirmUploads` screens each verified photo alongside hashing (four at a time, `SCREENING_CONCURRENCY`), then writes each verdict (`Photo.screening`) with the `READY` flip. A flagged photo's automated report is filed in that same transaction, so no guest can list it in between.
+- **Bytes, not a bucket key.** The API reads the image processor's display copy (`derived/{key}/large.jpg`, a 2048 px JPEG) and sends its bytes to Amazon Rekognition `DetectModerationLabels`. While that isn't written yet, a JPEG or PNG original of 5 MB or less is sent instead. Every photo up to the 25 MB cap fits Rekognition's 5 MB limit this way, and Rekognition needs no S3 or KMS access: the photos key policy is unchanged ([photo-privacy.md](./photo-privacy.md)).
+- **WebP and large JPEGs** are screened through the display copy. **HEIC and HEIF** can't be yet: the image processor doesn't decode them and Rekognition reads only JPEG and PNG. They are published at once, `SKIPPED`, and logged as `photo.screening.skipped` with `reason: unsupported_format`. Adding them to `DERIVATIVE_CONTENT_TYPES` once the processor renders them ([EV-5](https://linear.app/mehrshadfb/issue/EV-5)) screens them too.
+- **Each photo has `SCREENING_TIMEOUT_MS`** (5 seconds) for the S3 read and the Rekognition call together, enforced with an abort signal.
+
+### Flagged photos
+
+A label at or above `SCREENING_MIN_CONFIDENCE` (80%), or a label under one of these, files an automated report (`SCREENING_CATEGORIES`; taxonomy v7, with v6 names kept). The first matching row wins.
+
+| Rekognition label, or its parent                                                                                                                                                   | Reason             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| Explicit, Explicit Nudity, Explicit Sexual Activity, Sex Toys, Sexual Activity                                                                                                     | `NUDITY_OR_SEXUAL` |
+| Graphic Violence, Weapon Violence, Physical Violence, Self-Harm, Blood & Gore, Death and Emaciation, Graphic Violence Or Gore, Self Injury, Corpses, Emaciated Bodies              | `VIOLENCE`         |
+| Hate Symbols, Nazi Party, White Supremacy, Extremist                                                                                                                               | `HARASSMENT`       |
+
+Swimwear and underwear, non-explicit nudity and kissing, weapons on their own, explosions and blasts (fireworks), alcohol, drugs and tobacco, rude gestures and gambling are ordinary at a party and file nothing. Rekognition doesn't detect child sexual abuse material, so nothing maps to `CHILD_SAFETY`.
+
+The report (`fileAutomatedReport`, §1) has `source: AUTOMATED`, no reporter, the uploader as `reportedUserId`, an evidence snapshot (§7), and a note listing the labels and confidences for the platform's reviewer. It goes straight to `PLATFORM` with `automated_flag`, plus `severe_reason` for nudity and violence. The photo is hidden from everyone but organizers until the platform judges it (§5, rule 3), and is `FLAGGED`. The uploader isn't told. A dismissal shows it again like any other.
+
+### When it can't screen: closed, then open after 30 minutes
+
+- **An upload never fails because of screening.** Confirm answers as it always has.
+- **A photo it can't screen yet is held.** The display copy isn't written yet, Rekognition timed out, was throttled or failed: the photo is `READY` but `PENDING`, with `screeningHeldUntil` 30 minutes out (`SCREENING_MAX_HOLD_MINUTES`). Only its uploader and the event's organizers see it (§5, rule 7). `photo.screening.held` is logged, and `photo.screening.failed` with the error's type for a failure.
+- **The screening job retries it.** `PhotoScreeningScheduler` runs every minute and screens `PENDING` photos, soonest deadline first (`SCREENING_BATCH_SIZE`, 50). Its heartbeat is `photo.screening.run_completed`.
+- **After the hold, the photo is published unchecked.** The read filter lets it through once `screeningHeldUntil` passes, whether or not the job ran, so a stopped job or switching screening off never hides photos for good. The job's next look marks it `SKIPPED` (`hold_expired`) and warns with `photo.screening.skipped`; five in an hour alert ([alerting.md](../api/docs/alerting.md)).
+- **An image Rekognition refuses** (`InvalidImageFormatException`, `ImageTooLargeException`) is published at once as `SKIPPED` (`invalid_image`): it would fail the same way every time.
+
+### Before switching it on
+
+Steps in [infra/README.md](../infra/README.md#before-turning-on-upload-screening):
+
+1. Opt the AWS account out of AI services content use with an AWS Organizations AI services opt-out policy. By default AWS may store and use images Rekognition processes to improve its services, and the privacy policy says we don't use photos to train AI models.
+2. Publish privacy policy wording that names image screening by a service provider, as Apple guideline 5.1.2(i) asks. Today's policy says photos aren't checked yet.
+3. Apply `infra/` for the dev IAM user's `rekognition:DetectModerationLabels`; staging's task role gets it from its Copilot addon on the next deploy.
+4. Set `MODERATION_SCREENING_ENABLED=true`, then `api_jobs_enabled.upload_screening = true` in Terraform so the job is watched.
+
+Turning it on before the image processor renders HEIC means iPhone HEIC uploads go out unscreened, and are logged as such.
+
+**Cost.** About $0.001 per screened photo (Rekognition image moderation), plus an S3 GET: about $1 for a full 3 GB free gallery. Failed calls aren't billed, and HEIC photos cost nothing until they can be screened.
+
+**Not in scope.** Matching against known child sexual abuse material (PhotoDNA, Thorn Safer) is for later. It needs an application and a contract, and the law doesn't require it at our size. Event covers and profile photos aren't screened yet.
 
 ---
 
