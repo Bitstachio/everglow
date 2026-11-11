@@ -16,6 +16,7 @@ import { IdenticalCopiesService } from "src/moderation/evidence/identical-copies
 import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types";
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 import { closeReportsOnDeletedPhotos } from "src/moderation/report-closure";
+import { UploadScreeningService } from "src/moderation/screening/upload-screening.service";
 import { logEscalations } from "src/moderation/report-escalation";
 import { PrismaService } from "src/prisma/prisma.service";
 import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
@@ -59,6 +60,7 @@ export class PhotosService {
     private readonly photoVisibilityService: PhotoVisibilityService,
     private readonly evidenceService: EvidenceService,
     private readonly identicalCopiesService: IdenticalCopiesService,
+    private readonly uploadScreeningService: UploadScreeningService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -217,19 +219,30 @@ export class PhotosService {
     if (verified.length > 0) {
       // Each original is read once and hashed, so identical copies of a
       // removed intimate image can be found and refused (docs/moderation.md §7).
-      const hashes = await hashPhotoOriginals(this.s3Service, verified);
+      // Upload screening runs alongside (§11); it is empty while it is off.
+      const [hashes, screening] = await Promise.all([
+        hashPhotoOriginals(this.s3Service, verified),
+        this.uploadScreeningService.screenAll(verified),
+      ]);
       await this.refuseRemovedImages(eventId, callerId, verified, hashes);
 
-      // One update per photo, since each carries its own hash; together, so a
-      // batch flips READY as one.
-      await this.prisma.$transaction(async (tx) => {
+      // One update per photo, since each carries its own hash and screening
+      // verdict; together, so a batch flips READY as one, and a flagged
+      // photo's automated report commits with it, before anyone can list it.
+      const flagged = await this.prisma.$transaction(async (tx) => {
         for (const photo of verified) {
           await tx.photo.updateMany({
             where: { id: photo.id },
-            data: { status: PhotoStatus.READY, sha256: hashes.get(photo.id) ?? null },
+            data: {
+              status: PhotoStatus.READY,
+              sha256: hashes.get(photo.id) ?? null,
+              ...this.uploadScreeningService.photoData(screening.get(photo.id)),
+            },
           });
         }
+        return this.uploadScreeningService.fileReports(tx, verified, event.title, screening);
       });
+      this.uploadScreeningService.logOutcomes(verified, screening, flagged, { callerId });
       const unhashed = verified.filter((photo) => !hashes.get(photo.id)).length;
       if (unhashed > 0) {
         this.logger.warn(

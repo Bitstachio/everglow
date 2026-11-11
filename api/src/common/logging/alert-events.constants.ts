@@ -28,6 +28,8 @@ export const ALERT_EVENTS = {
   UPLOAD_SLOTS_PRESIGN_FAILED: "photo.upload_slots.presign_failed",
   UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",
   PHOTO_HASH_BACKFILL_DISABLED: "photo.hash_backfill.disabled",
+  PHOTO_SCREENING_DISABLED: "photo.screening.disabled",
+  PHOTO_SCREENING_SKIPPED: "photo.screening.skipped",
 
   NOTIFICATION_GIVEN_UP: "notification.given_up",
   NOTIFICATION_SENDER_DISABLED: "notification.sender.disabled",
@@ -57,6 +59,8 @@ export const ALERT_EVENTS = {
   REPORT_EVIDENCE_RUN_FAILED: "report.evidence_job.run_failed",
   PHOTO_HASH_BACKFILL_RUN_COMPLETED: "photo.hash_backfill.run_completed",
   PHOTO_HASH_BACKFILL_RUN_FAILED: "photo.hash_backfill.run_failed",
+  PHOTO_SCREENING_RUN_COMPLETED: "photo.screening.run_completed",
+  PHOTO_SCREENING_RUN_FAILED: "photo.screening.run_failed",
   NOTIFICATION_SEND_RUN_COMPLETED: "notification.send.run_completed",
   NOTIFICATION_SEND_RUN_FAILED: "notification.send.run_failed",
   NOTIFICATION_RECEIPTS_RUN_COMPLETED: "notification.receipts.run_completed",
