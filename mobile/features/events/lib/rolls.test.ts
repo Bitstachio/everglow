@@ -1,5 +1,14 @@
 import { buildEvent } from "../testing/fixtures";
-import { formatClosedOn, formatClosesOn, formatOpensOn, groupRolls, hasClosed, isLastDay, rollTime } from "./rolls";
+import {
+  formatClosedOn,
+  formatClosesOn,
+  formatOpensOn,
+  groupRolls,
+  hasClosed,
+  isLastDay,
+  rollFrameCount,
+  rollTime,
+} from "./rolls";
 
 const NOW = new Date("2026-10-16T12:00:00.000Z");
 
@@ -103,6 +112,22 @@ describe("isLastDay", () => {
       false,
     );
     expect(isLastDay(buildEvent({ galleryState: "UPCOMING" }), NOW)).toBe(false);
+  });
+});
+
+describe("rollFrameCount", () => {
+  it("takes the roll's photo count when more frames exist than have loaded", () => {
+    expect(rollFrameCount(2, 148)).toBe(148);
+  });
+
+  it("takes the loaded frames when more have landed since the roll was read", () => {
+    expect(rollFrameCount(3, 2)).toBe(3);
+  });
+
+  it("falls back to the loaded frames when the roll has no photo count", () => {
+    expect(rollFrameCount(0, undefined)).toBe(0);
+    expect(rollFrameCount(4, undefined)).toBe(4);
+    expect(rollFrameCount(4, Number.NaN)).toBe(4);
   });
 });
 
