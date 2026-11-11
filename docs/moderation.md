@@ -28,6 +28,7 @@ Everything lives in `api/src/moderation/`. The `events` and `photos` modules gai
 | Deletes wait for moderation: an event with OPEN reports or under review can't be deleted (§7)            | Built                   | [EV-106](https://linear.app/mehrshadfb/issue/EV-106)                                                                                                                                                         |
 | Evidence snapshots, quarantine instead of purge, retention and holds (§7)                                | Built                   | [EV-61](https://linear.app/mehrshadfb/issue/EV-61)                                                                                                                                                           |
 | `CHILD_SAFETY` and `NON_CONSENSUAL_INTIMATE_IMAGE` reasons, hiding and holds (§2, §5, §7)                | Built                   | [EV-62](https://linear.app/mehrshadfb/issue/EV-62)                                                                                                                                                           |
+| Reporting a refused re-upload of a removed child-safety image (§7)                                       | Built                   | [EV-239](https://linear.app/mehrshadfb/issue/EV-239)                                                                                                                                                         |
 | NCMEC and Cybertip.ca registration, the runbooks, the TAKE IT DOWN web form (§7)                         | Planned                 | [EV-62](https://linear.app/mehrshadfb/issue/EV-62), [EV-116](https://linear.app/mehrshadfb/issue/EV-116)                                                                                                     |
 | Photo hashes at confirm, identical-copy removal, and refusing re-uploads of removed intimate images (§7) | Built                   | [EV-201](https://linear.app/mehrshadfb/issue/EV-201)                                                                                                                                                         |
 | Platform tools: act on any report, evidence links, holds, lift reviews (§8)                              | Built                   | [EV-59](https://linear.app/mehrshadfb/issue/EV-59)                                                                                                                                                           |
@@ -562,6 +563,15 @@ A `CHILD_SAFETY` report is handled only by the platform, by the runbook in [EV-6
 4. The photo is removed and the account suspended (§8). Nothing tells the account why, so nothing prejudices an investigation.
 
 Google Play also expects a public child-safety standards page and a named child-safety contact in Play Console. The page is [everglow.social/en/child-safety](https://everglow.social/en/child-safety), with `safety@everglow.social` as the contact ([EV-203](https://linear.app/mehrshadfb/issue/EV-203)); naming the contact in Play Console is the owner's task.
+
+**A re-upload attempt is reported** ([EV-239](https://linear.app/mehrshadfb/issue/EV-239)). When confirm refuses bytes that match a removed child-safety image, the refusal is the same 422 as for any removed image. In addition, the uploader is reported to the platform (`IdenticalCopiesService.reportRefusedUploads`). Trying to post a known image again is itself something the platform must see:
+
+- **The report.** An automated `CHILD_SAFETY` report (`source: AUTOMATED`, no reporter, §1) on the uploader as a **member** of the event they tried to post to. The refused photo has no row left to point at.
+- **Routing.** It goes into `PLATFORM` (`automated_flag`, `child_safety`), held a year from filing, and pages through `report.escalated` like any child-safety report (§9). Its note names the matched report, for the reviewer.
+- **Evidence.** The snapshot holds the uploader, their username, and the refused bytes' SHA-256, type and size. **The refused bytes are not kept:** they are identical to the matched report's evidence copy, which is already held, and that copy is what a CyberTipline report points at. The upload is deleted as any refused upload is.
+- **One report at a time.** While the uploader has an OPEN attempt report in that event, a repeat files nothing new (`report.removed_image_reupload.repeated`, audit only), so a retrying client doesn't page again and again.
+- **Failures.** If the report can't be written, the refusal still stands, and `report.removed_image_reupload.report_failed` is logged as an error.
+- Organizers never see it (§2). Nothing tells the uploader (step 4).
 
 ### Intimate images: the TAKE IT DOWN Act
 

@@ -130,6 +130,26 @@ describe("Report visibility (integration)", () => {
 
       expect(await listIds()).toEqual([TEST_REPORT_ID]);
     });
+
+    it("never lists the automated report on someone who tried to re-upload a removed child-safety image", async () => {
+      // As reportRefusedUploads files it: a MEMBER report on the uploader, with no reporter.
+      const attempt = buildMemberReport({
+        id: "dddddddd-9999-4222-8333-dddddddddddd",
+        reporterId: null,
+        source: "AUTOMATED",
+        reportedUserId: "77777777-7777-4777-8777-777777777777",
+        reason: ReportReason.CHILD_SAFETY,
+        queue: "PLATFORM",
+        escalationReasons: ["AUTOMATED_FLAG", "SEVERE_REASON", "CHILD_SAFETY"],
+        holdReason: "CHILD_SAFETY",
+      });
+      serveReports([attempt, buildReport({ id: ABOUT_SOMEONE_ELSE_ID, reporterId: TEST_TARGET_USER_ID })]);
+
+      prisma.event.findUnique.mockResolvedValue(eventFor(hostAccess));
+      expect(await listIds()).toEqual([ABOUT_SOMEONE_ELSE_ID]);
+      prisma.event.findUnique.mockResolvedValue(eventFor(coHostAccess));
+      expect(await listIds(TEST_OTHER_ACCESS_TOKEN)).toEqual([ABOUT_SOMEONE_ELSE_ID]);
+    });
   });
 
   describe("resolving", () => {

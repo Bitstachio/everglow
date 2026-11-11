@@ -8,6 +8,8 @@ import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { EvidenceService } from "./evidence.service";
 import { IDENTICAL_COPIES_CHUNK_SIZE, IdenticalCopiesService } from "./identical-copies.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "./testing/evidence-service.mock";
+// The re-upload attempt report's note, tested on its own below.
+import { refusedUploadNote } from "./identical-copies.service";
 
 describe("IdenticalCopiesService", () => {
   const reportId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
@@ -278,6 +280,176 @@ describe("IdenticalCopiesService", () => {
       await service.removeCopies([reportId], now);
 
       expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reportRefusedUploads", () => {
+    const eventId = "66666666-6666-4666-8666-666666666666";
+    const uploaderId = "22222222-2222-4222-8222-222222222222";
+    const attemptReportId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const upload = { sha256, contentType: "image/jpeg", sizeBytes: 2048 };
+    const matches = new Map([[sha256, reportId]]);
+    const attemptReport = {
+      id: attemptReportId,
+      eventId,
+      source: "AUTOMATED",
+      targetType: "MEMBER",
+      photoId: null,
+      reportedUserId: uploaderId,
+      reason: "CHILD_SAFETY",
+      queue: "PLATFORM",
+      escalationReasons: ["AUTOMATED_FLAG", "SEVERE_REASON", "CHILD_SAFETY"],
+    };
+
+    beforeEach(() => {
+      // The matched report is a child-safety one, and the uploader has no OPEN attempt report yet.
+      prisma.report.findMany.mockResolvedValue([{ id: reportId }] as never);
+      prisma.report.findFirst.mockResolvedValue(null);
+      prisma.event.findUnique.mockResolvedValue({ title: "Sam & Jo" } as never);
+      prisma.report.createManyAndReturn.mockResolvedValue([attemptReport] as never);
+    });
+
+    const report = () => service.reportRefusedUploads(eventId, uploaderId, [upload], matches, now);
+    const inserted = () => (prisma.report.createManyAndReturn.mock.calls[0][0]!.data as Record<string, unknown>[])[0];
+
+    it("files an automated child-safety report on the uploader, held a year, in the platform's queue", async () => {
+      await report();
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [reportId] }, reason: "CHILD_SAFETY" },
+        select: { id: true },
+      });
+      expect(inserted()).toMatchObject({
+        eventId,
+        eventTitle: "Sam & Jo",
+        reporterId: null,
+        source: "AUTOMATED",
+        targetType: "MEMBER",
+        photoId: null,
+        reportedUserId: uploaderId,
+        reason: "CHILD_SAFETY",
+        queue: "PLATFORM",
+        escalationReasons: expect.arrayContaining(["CHILD_SAFETY"]) as unknown,
+        holdUntil: new Date(now.getTime() + 365 * day),
+        holdReason: "CHILD_SAFETY",
+      });
+      // The note names the removal it matched, for the reviewer.
+      expect(inserted().note).toContain(reportId);
+    });
+
+    it("keeps the hash, type, size and uploader as evidence, and no bytes", async () => {
+      await report();
+
+      expect(evidence.writeSnapshot).toHaveBeenCalledWith(prisma, attemptReportId, {
+        objectS3Key: null,
+        contentType: "image/jpeg",
+        sizeBytes: 2048,
+        subjectUserId: uploaderId,
+      });
+      expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
+        where: { reportId: attemptReportId },
+        data: { sha256 },
+      });
+    });
+
+    it("pages like any child-safety report, naming the report and never a person", async () => {
+      await report();
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.escalated",
+          reportId: attemptReportId,
+          reason: "CHILD_SAFETY",
+          queue: "PLATFORM",
+          severity: "page",
+        }),
+        expect.any(String),
+      );
+      const page: unknown = logger.warn.mock.calls.find(
+        ([fields]) => (fields as { event: string }).event === "report.escalated",
+      );
+      expect(JSON.stringify(page)).not.toContain(uploaderId);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.created",
+          reportId: attemptReportId,
+          source: "AUTOMATED",
+          reportedUserId: uploaderId,
+          check: "removed_image_reupload",
+          matchedReportIds: [reportId],
+          audit: true,
+        }),
+        expect.any(String),
+      );
+    });
+
+    it("reports nothing for a match of an intimate image", async () => {
+      prisma.report.findMany.mockResolvedValue([]);
+
+      await report();
+
+      expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("asks nothing when nothing matched", async () => {
+      await service.reportRefusedUploads(eventId, uploaderId, [upload], new Map(), now);
+
+      expect(prisma.report.findMany).not.toHaveBeenCalled();
+    });
+
+    it("files nothing more while the uploader's attempt report in this event is OPEN", async () => {
+      prisma.report.findFirst.mockResolvedValue({ id: attemptReportId } as never);
+
+      await report();
+
+      expect(prisma.report.findFirst).toHaveBeenCalledWith({
+        where: {
+          eventId,
+          reportedUserId: uploaderId,
+          targetType: "MEMBER",
+          reason: "CHILD_SAFETY",
+          source: "AUTOMATED",
+          status: "OPEN",
+        },
+        select: { id: true },
+      });
+      expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "report.removed_image_reupload.repeated",
+          reportId: attemptReportId,
+          attempts: 1,
+          audit: true,
+        }),
+        expect.any(String),
+      );
+    });
+
+    it("never throws: a failure to file is logged, and the refusal stands", async () => {
+      prisma.report.createManyAndReturn.mockRejectedValue(new Error("db down"));
+
+      await expect(report()).resolves.toBeUndefined();
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.removed_image_reupload.report_failed", eventId }),
+        expect.any(String),
+      );
+    });
+  });
+
+  describe("refusedUploadNote", () => {
+    it("names the matched reports, up to eight, within the column", () => {
+      const ids = Array.from({ length: 12 }, (_, n) => `${String(n).padStart(8, "0")}-1111-4222-8333-444444444444`);
+
+      const note = refusedUploadNote(3, ids);
+
+      expect(note).toContain("3 photos");
+      expect(note).toContain(ids[7]);
+      expect(note).not.toContain(ids[8]);
+      expect(note).toContain("and 4 more");
+      expect(note.length).toBeLessThanOrEqual(500);
     });
   });
 });
