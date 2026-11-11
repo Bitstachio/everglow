@@ -208,12 +208,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!profileFromPhone) return;
     let reloading = false;
+    // Set once the account is cleared, so an answer arriving after a sign-out can't bring it back.
+    let stopped = false;
     const reload = async () => {
       if (reloading || !onlineManager.isOnline()) return;
       reloading = true;
       try {
         const signedIn = await getSignedInIdentity();
-        const profile = await refreshProfile();
+        const profile = await authService.getUserProfile();
+        if (stopped || signedOutRef.current) return;
+        setUser(profile);
         if (signedIn) setIdentity(signedIn);
         setProfileFromPhone(false);
         // Home is already open; only a change of standing moves the person on.
@@ -232,10 +236,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (focused) void reload();
     });
     return () => {
+      stopped = true;
       stopOnline();
       stopFocus();
     };
-  }, [profileFromPhone, refreshProfile, routeForUser]);
+  }, [profileFromPhone, routeForUser]);
 
   useEffect(() => {
     const bootstrap = async () => {

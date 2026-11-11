@@ -177,6 +177,25 @@ describe("opening the app offline", () => {
     expect(result.current.isSuspended).toBe(true);
   });
 
+  test("a profile that arrives after signing out doesn't sign the person back in", async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    mockGetUserProfile
+      .mockRejectedValueOnce(offline())
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    mockReadSnapshot.mockReturnValue(savedSession());
+    onlineManager.setOnline(false);
+    const { result } = await renderAuth();
+    await waitFor(() => expect(result.current.user).toEqual(profile));
+    await act(async () => onlineManager.setOnline(true));
+    await waitFor(() => expect(mockGetUserProfile).toHaveBeenCalledTimes(2));
+
+    await act(() => result.current.logout());
+    await act(async () => answer(profile));
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+  });
+
   test("back online, an unchanged profile stays where it is and is saved again", async () => {
     mockGetUserProfile.mockRejectedValueOnce(offline()).mockResolvedValue(profile);
     mockReadSnapshot.mockReturnValue(savedSession());
