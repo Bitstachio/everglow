@@ -25,7 +25,7 @@ const {
   failedHierarchyPaths,
   hierarchyText,
   shouldRetryMaestroFailure,
-} = require("./maestro-failure-class");
+} = require("./maestro-failure-class.ts");
 
 const mobileRoot = path.resolve(__dirname, "..");
 const resultsDir = path.join(mobileRoot, ".maestro", "results");

@@ -1,9 +1,9 @@
-const {
+import {
   classifyMaestroFailure,
   failedHierarchyPaths,
   hierarchyText,
   shouldRetryMaestroFailure,
-} = require("./maestro-failure-class");
+} from "./maestro-failure-class";
 
 test("retries an unreachable XCTest driver", () => {
   const failureClass = classifyMaestroFailure(
