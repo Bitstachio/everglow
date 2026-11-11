@@ -28,6 +28,7 @@ variable "api_jobs_enabled" {
     moderation_evidence_job     = optional(bool, false) # MODERATION_EVIDENCE_JOB_ENABLED
     photo_hash_backfill         = optional(bool, false) # PHOTO_HASH_BACKFILL_ENABLED
     notification_sender         = optional(bool, true)  # NOTIFICATIONS_SENDER_ENABLED (on unless "false")
+    upload_screening            = optional(bool, false) # MODERATION_SCREENING_ENABLED
   })
   default = {}
 }
