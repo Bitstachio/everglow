@@ -5,6 +5,15 @@ controls, the image processor, and the API's log alerts. What each file holds
 is in its header comment; why is in [docs/photo-privacy.md](../docs/photo-privacy.md)
 and [api/docs/alerting.md](../api/docs/alerting.md).
 
+Each environment's photo storage is one instance of
+[modules/photo-storage](modules/photo-storage): the bucket and its policy, the
+photos KMS key, the image processor and its queue, and the alert on reads by
+people. The instances are in [photos.tf](photos.tf). What they share (the
+trail, the alert topic, the alert on changes to the controls) is in
+[photo-privacy.tf](photo-privacy.tf), which lists every instance in
+`local.photo_storage`. [moved.tf](moved.tf) records where resources used to
+live in the state, so a refactor moves them instead of recreating them.
+
 ## State
 
 There is one copy of the state, in S3: `s3://everglow-terraform-state/dev/terraform.tfstate`
