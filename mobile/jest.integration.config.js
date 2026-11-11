@@ -4,7 +4,6 @@ const coverage = require("./jest.coverage");
 module.exports = {
   preset: "jest-expo",
   ...coverage("integration"),
-  setupFiles: ["<rootDir>/jest.setup-env.js"],
   testMatch: ["**/*.integration.(test|spec).(ts|tsx|js|jsx)"],
   // Screen-integration suites are CPU-heavy under RNTL userEvent.
   testTimeout: 15000,

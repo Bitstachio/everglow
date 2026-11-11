@@ -29,7 +29,6 @@ const identityFrom = (idToken: string): SignedInIdentity => {
   return { sub, email, name };
 };
 
-/** True when public Auth0 env is present. parseEnv already requires these. */
 export const isAuth0Configured = (): boolean => {
   return Boolean(AUTH0_DOMAIN && AUTH0_CLIENT_ID && AUTH0_AUDIENCE);
 };
