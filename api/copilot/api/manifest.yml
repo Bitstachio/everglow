@@ -32,9 +32,10 @@ variables:
   PORT: "3000"
   TRUST_PROXY: "1"
   AWS_REGION: us-east-1
-  # Replace with real staging values before photo features matter.
-  AWS_S3_BUCKET: everglow-staging-placeholder
-  AWS_ACCESS_KEY_ID: PLACEHOLDER
+  # No AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY: the API then signs as the
+  # ECS task role, which addons/photos-bucket-access.yml gives S3 rights on
+  # the environment's own bucket. AWS_S3_BUCKET is set per environment below.
+
   # Replace with your Auth0 tenant (same values as local mobile/API).
   # Staging still shares the development tenant and audience, so a development
   # token is accepted here. Give staging its own API identifier (or tenant)
@@ -54,7 +55,6 @@ logging:
   retention: 90
 
 secrets:
-  AWS_SECRET_ACCESS_KEY: /copilot/${COPILOT_APPLICATION_NAME}/${COPILOT_ENVIRONMENT_NAME}/secrets/AWS_SECRET_ACCESS_KEY
   # Hosted Postgres (e.g. Neon) — set via: copilot secret init (name DATABASE_URL)
   DATABASE_URL: /copilot/${COPILOT_APPLICATION_NAME}/${COPILOT_ENVIRONMENT_NAME}/secrets/DATABASE_URL
 
@@ -63,15 +63,20 @@ secrets:
 # The scheduled jobs below act on AWS_S3_BUCKET or the Auth0 tenant for the
 # rows in DATABASE_URL, and most delete what those rows do not explain. Switch
 # them on only in the one environment whose database owns that bucket and
-# tenant (docs/photos-architecture.md §11, api/docs/local-setup.md). Staging
-# owns neither yet: its bucket is a placeholder and its tenant is the shared
-# dev tenant, whose logins belong to every developer's database. So they are
-# off here, stated rather than left to the code's defaults, and each one
-# turned on needs the matching api_jobs_enabled flag in infra/ so its
-# heartbeat is watched.
+# tenant (docs/photos-architecture.md §11, api/docs/local-setup.md).
+#
+# Staging owns its bucket, everglow-photos-staging (infra/photos.tf), but its
+# tenant is still the shared dev tenant, whose logins belong to every
+# developer's database, so the account deletion reconciler stays off. The
+# jobs that act on the bucket (orphan reconciler, gallery close, evidence job,
+# hash backfill) may run here, but each one turned on needs the matching
+# api_jobs_enabled flag in infra/ so its heartbeat is watched; they stay off
+# until that lands together (EV-232). All are stated rather than left to the
+# code's defaults.
 environments:
   staging:
     variables:
+      AWS_S3_BUCKET: everglow-photos-staging
       ACCOUNT_DELETION_RECONCILER_ENABLED: "false"
       PHOTO_ORPHAN_RECONCILER_ENABLED: "false"
       GALLERY_CLOSE_ENABLED: "false"
