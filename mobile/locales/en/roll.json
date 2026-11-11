@@ -343,11 +343,13 @@
     "rejected": "{{count}} can’t be added.",
     "didntTake": "{{count}} didn’t take.",
     "didntTakeDim": "Retry sends them again.",
+    "onRoll": "{{count}} already on the roll.",
     "emptyTitle": "The tray is empty.",
     "emptyDim": "Nothing waiting here.",
     "rows": "Files in the tray",
     "row": {
       "developed": "Developed",
+      "onRoll": "Already on the roll",
       "waiting": "Waiting",
       "offline": "Didn’t take · offline",
       "interrupted": "Didn’t take · interrupted",
