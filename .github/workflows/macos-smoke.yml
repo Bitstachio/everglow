@@ -249,7 +249,7 @@ jobs:
         run: xcrun simctl addmedia "$DEVICE_ID" .maestro/fixtures/smoke-photo.jpg
 
       # Writes attempts.json and the job summary, and a warning annotation when
-      # a retry rescued the run (scripts/maestro-attempt-summary.js).
+      # a retry rescued the run (scripts/maestro-attempt-summary.ts).
       - name: Maestro login smoke
         env:
           MAESTRO_ARTIFACT_NAME: maestro-login-ios-${{ github.run_id }}

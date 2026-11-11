@@ -11,7 +11,7 @@
  *
  * Each attempt's result, failure class and duration go to `attempts.json` in
  * the results, to the GitHub job summary, and, when a retry rescued the run,
- * to a `::warning::` annotation (see `maestro-attempt-summary.js`). The device
+ * to a `::warning::` annotation (see `maestro-attempt-summary.ts`). The device
  * and artifact name come from `SIM_NAME`, `SIM_RUNTIME_USED` and
  * `MAESTRO_ARTIFACT_NAME`, which the workflow sets.
  */
@@ -19,7 +19,7 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { attemptsRecord, rescueWarning, summaryMarkdown } = require("./maestro-attempt-summary");
+const { attemptsRecord, rescueWarning, summaryMarkdown } = require("./maestro-attempt-summary.ts");
 const {
   classifyMaestroFailure,
   failedHierarchyPaths,
@@ -152,7 +152,7 @@ const publishStaging = () => {
 /**
  * Writes `attempts.json`, the job summary and the rescue warning. Failures here
  * are logged but never change the smoke's result.
- * @param {import("./maestro-attempt-summary").MaestroAttempt[]} attempts
+ * @param {import("./maestro-attempt-summary.ts").MaestroAttempt[]} attempts
  */
 const recordAttempts = (attempts) => {
   if (attempts.length === 0) return;
@@ -175,7 +175,7 @@ const recordAttempts = (attempts) => {
 
 const main = async () => {
   let exitCode = 1;
-  /** @type {import("./maestro-attempt-summary").MaestroAttempt[]} */
+  /** @type {import("./maestro-attempt-summary.ts").MaestroAttempt[]} */
   const attempts = [];
   fs.rmSync(stagingDir, { recursive: true, force: true });
   fs.mkdirSync(stagingDir, { recursive: true });

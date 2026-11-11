@@ -73,7 +73,7 @@ Maestro replaces `report.xml` on each run. Before a retry, the first attempt is 
 
 ### Where retries are recorded
 
-`scripts/maestro-attempt-summary.js` keeps each attempt's result, failure class and duration in three places:
+`scripts/maestro-attempt-summary.ts` keeps each attempt's result, failure class and duration in three places:
 
 | Where                                | What                                                                                                         | Kept               |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------ |
