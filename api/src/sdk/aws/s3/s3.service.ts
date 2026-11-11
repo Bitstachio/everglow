@@ -259,6 +259,27 @@ export class S3Service implements OnModuleDestroy {
   }
 
   /**
+   * An object's bytes, held in memory: only for small objects whose bytes go
+   * on to another service, such as a photo's display copy sent to upload
+   * screening. Null when the object does not exist. `abortSignal` cancels the
+   * read; an aborted read throws like any other failure.
+   */
+  async getObjectBytes(key: string, { abortSignal }: { abortSignal?: AbortSignal } = {}): Promise<Uint8Array | null> {
+    try {
+      const response = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
+        abortSignal,
+      });
+      if (!response.Body) throw new Error("GetObject returned no body");
+      return await response.Body.transformToByteArray();
+    } catch (error) {
+      if (error instanceof NoSuchKey) return null;
+      // An abort is the caller's own timeout, which it reports itself.
+      if (!abortSignal?.aborted) this.logger.error({ err: error as Error, key }, "s3 getObjectBytes failed");
+      throw new InternalServerErrorException(S3_SERVICE_ERRORS.GET_FAILED(key), { cause: error });
+    }
+  }
+
+  /**
    * One page (up to 1000 keys, in key order) of the objects under `prefix`.
    * Callers paginate with the returned continuation token.
    */
