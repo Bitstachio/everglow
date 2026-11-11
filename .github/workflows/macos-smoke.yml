@@ -1,3 +1,4 @@
+# How this job runs (triggers, secrets, retries, caches): mobile/docs/mac-smoke.md
 name: Mac smoke
 
 on:
