@@ -4,10 +4,13 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 /**
  * The screens a notification may open, and nothing else: a roll, its
- * envelope, its tray. A path outside these (sign-in, account deletion, a
- * route the app doesn't have) opens nothing.
+ * envelope, its tray, or its reports queue. A path outside these (sign-in,
+ * account deletion, a route the app doesn't have) opens nothing.
  */
-const ROUTES = [new RegExp(`^/events/(${UUID})$`, "i"), new RegExp(`^/events/(${UUID})/(?:envelope|tray)$`, "i")];
+const ROUTES = [
+  new RegExp(`^/events/(${UUID})$`, "i"),
+  new RegExp(`^/events/(${UUID})/(?:envelope|tray|reports)$`, "i"),
+];
 
 /** The roll a path is in, for /events/<id> and the screens under it. */
 export const rollIdOf = (path: string | null | undefined): string | null =>

@@ -17,6 +17,7 @@ import { AbilityFactory } from "src/casl/ability.factory";
 import { RESPONSE_TEMPLATES } from "src/common/constants/templates.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { PrismaService } from "src/prisma/prisma.service";
+import { NotificationsService } from "src/notifications/notifications.service";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { UserWithDetails } from "src/users/users.types";
@@ -42,6 +43,7 @@ describe("ReportsService", () => {
   let photoVisibilityService: { isVisibleTo: jest.Mock };
   let s3Service: { deleteObjects: jest.Mock };
   let photoPurgeService: { purgeObjects: jest.Mock };
+  let notifications: { notify: jest.Mock; notifyNow: jest.Mock; kick: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
 
   const callerId = "11111111-1111-1111-1111-111111111111";
@@ -174,6 +176,11 @@ describe("ReportsService", () => {
     photoVisibilityService = { isVisibleTo: jest.fn().mockResolvedValue(true) };
     s3Service = { deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })) };
     photoPurgeService = { purgeObjects: jest.fn().mockResolvedValue({ requested: 0, deleted: 0, failed: 0 }) };
+    notifications = {
+      notify: jest.fn().mockResolvedValue(0),
+      notifyNow: jest.fn().mockResolvedValue(0),
+      kick: jest.fn(),
+    };
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     evidenceService = buildEvidenceServiceMock();
@@ -187,6 +194,7 @@ describe("ReportsService", () => {
         { provide: S3Service, useValue: s3Service },
         { provide: EvidenceService, useValue: evidenceService },
         { provide: PhotoPurgeService, useValue: photoPurgeService },
+        { provide: NotificationsService, useValue: notifications },
         { provide: PinoLogger, useValue: logger },
       ],
     }).compile();
@@ -197,6 +205,7 @@ describe("ReportsService", () => {
     prisma.report.findFirst.mockResolvedValue(null);
     prisma.report.count.mockResolvedValue(1);
     prisma.eventAccess.findUnique.mockResolvedValue(access(uploaderId, AccessLevel.PARTICIPANT));
+    prisma.eventAccess.findMany.mockResolvedValue([]);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
   });

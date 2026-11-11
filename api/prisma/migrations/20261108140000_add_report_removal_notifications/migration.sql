@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "NotificationType" ADD VALUE 'REPORT_TO_CHECK';
+ALTER TYPE "NotificationType" ADD VALUE 'PHOTO_HIDDEN';
+ALTER TYPE "NotificationType" ADD VALUE 'PHOTO_REMOVED';
+ALTER TYPE "NotificationType" ADD VALUE 'MEMBER_REMOVED';
