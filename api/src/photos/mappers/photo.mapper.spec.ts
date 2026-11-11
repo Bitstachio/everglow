@@ -13,6 +13,8 @@ describe("PhotoMapper", () => {
     sizeBytes: 1024,
     status: "READY",
     sha256: null,
+    screening: "UNSCREENED",
+    screeningHeldUntil: null,
     createdAt: now,
     updatedAt: now,
     url: "https://signed-get",

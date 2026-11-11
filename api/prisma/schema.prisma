@@ -21,6 +21,22 @@ enum PhotoStatus {
   READY
 }
 
+/// What upload screening made of a photo (docs/moderation.md §11).
+enum PhotoScreening {
+  // Never sent: screening was off at confirm, or the photo predates it.
+  UNSCREENED
+  // Held until screened: confirm couldn't finish the check, and the
+  // screening job retries until screeningHeldUntil.
+  PENDING
+  // Screened; nothing above the threshold.
+  CLEARED
+  // Screened and flagged: it has (or had) an automated report.
+  FLAGGED
+  // Couldn't be screened (a format Rekognition can't read, or the hold ran
+  // out), so it was published unchecked.
+  SKIPPED
+}
+
 /// What happens to photos the account uploaded into events that outlive it.
 /// Chosen by the caller and stored on the row, so the reconciler resumes a
 /// saga with the choice the user actually made.
@@ -373,22 +389,29 @@ model EventAccess {
 }
 
 model Photo {
-  id          String      @id @default(uuid()) @db.Uuid
-  s3Key       String      @unique @db.VarChar(255)
-  contentType String      @db.VarChar(100)
-  sizeBytes   Int
-  status      PhotoStatus @default(PENDING)
+  id                 String         @id @default(uuid()) @db.Uuid
+  s3Key              String         @unique @db.VarChar(255)
+  contentType        String         @db.VarChar(100)
+  sizeBytes          Int
+  status             PhotoStatus    @default(PENDING)
   // Hex SHA-256 of the original's bytes, computed by the API at confirm. Null
   // while PENDING, for photos from before it was recorded until the hash
   // backfill reaches them, and when hashing failed at confirm. Identical
   // copies of a removed intimate image are found by it (docs/moderation.md §7).
-  sha256      String?     @db.Char(64)
+  sha256             String?        @db.Char(64)
+  // Upload screening (docs/moderation.md §11), decided at confirm. UNSCREENED
+  // when screening was off then, and for photos from before it existed.
+  screening          PhotoScreening @default(UNSCREENED)
+  // While PENDING: until when only the uploader and the event's organizers
+  // see the photo. The read filter lets it through after this even if it was
+  // never screened, so nothing stays hidden for good. Null otherwise.
+  screeningHeldUntil DateTime?
   // Null once the uploader's account is deleted and the photo was kept for the
   // event. It still counts toward the event's gallery storage.
-  addedById   String?     @db.Uuid
-  eventId     String      @db.Uuid
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  addedById          String?        @db.Uuid
+  eventId            String         @db.Uuid
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   addedBy User?    @relation(fields: [addedById], references: [id], onDelete: SetNull)
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -399,6 +422,8 @@ model Photo {
   @@index([status, createdAt])
   // Identical copies of a removed image, and the backfill's IS NULL scan.
   @@index([sha256])
+  // The screening job's queue of held photos, soonest deadline first.
+  @@index([screeningHeldUntil], where: { screening: "PENDING" })
 }
 
 // A member's report of a photo or of another member (see docs/moderation.md).
