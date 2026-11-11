@@ -5,7 +5,7 @@
  * `scripts/run-maestro-login-ios.js` uses these to write the GitHub job summary,
  * `attempts.json` in the results artifact, and a `::warning::` annotation when
  * a retry rescued the run. Annotations stay on the run and can be queried with
- * the checks API (see `mobile/docs/e2e.md`).
+ * the checks API (see `mobile/docs/mac-smoke.md`).
  */
 
 /** @typedef {import("./maestro-failure-class").MaestroFailureClass} MaestroFailureClass */
