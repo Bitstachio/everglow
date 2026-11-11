@@ -4,6 +4,7 @@ import {
   ReportClosedReason,
   ReportQueue,
   ReportReason,
+  ReportSource,
   ReportStatus,
   ReportTargetType,
 } from "generated/prisma/client";
@@ -28,6 +29,15 @@ export class ReportResponseDto {
 
   @ApiProperty({ description: "The event's title when the report was filed." })
   eventTitle: string;
+
+  @ApiProperty({
+    enum: ReportSource,
+    enumName: "ReportSource",
+    description:
+      "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; " +
+      "it is always in the PLATFORM queue and hides the photo from everyone but organizers.",
+  })
+  source: ReportSource;
 
   @ApiProperty({ enum: ReportTargetType, enumName: "ReportTargetType" })
   targetType: ReportTargetType;

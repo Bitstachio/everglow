@@ -34,7 +34,12 @@ export class ReportEvidenceSummaryDto {
  * report's own page (PlatformReportResponseDto).
  */
 export class PlatformReportListItemDto extends ReportResponseDto {
-  @ApiProperty({ format: "uuid", type: String, nullable: true, description: "Null once that account is deleted." })
+  @ApiProperty({
+    format: "uuid",
+    type: String,
+    nullable: true,
+    description: "Null once that account is deleted, and always for an AUTOMATED report.",
+  })
   reporterId: string | null;
 
   @ApiProperty({ enum: ReportEscalation, enumName: "ReportEscalation", isArray: true })
