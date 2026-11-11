@@ -5,6 +5,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { MenuAction } from "@/components/ui/menu-action";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
+import { photoPreview } from "../../lib/photo-preview";
 import { firstName, type SheetFrame } from "../../lib/roll-page";
 
 /**
@@ -48,12 +49,7 @@ export const FrameMenu = ({
       <View>
         <View className="flex-row items-center gap-3 pb-4">
           <View className="size-[52px] overflow-hidden rounded-frame">
-            <RetryingPhoto
-              uri={frame?.photo.thumbnailUrl}
-              cacheKey={frame ? `photo:${frame.photo.id}:thumbnail` : undefined}
-              className="h-full w-full"
-              contentFit="cover"
-            />
+            <RetryingPhoto {...(frame ? photoPreview(frame.photo) : {})} className="h-full w-full" contentFit="cover" />
           </View>
           <View className="flex-1 gap-1">
             <Text className="font-display text-title-sheet text-text">

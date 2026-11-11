@@ -1,3 +1,4 @@
+import { photoPreview } from "../lib/photo-preview";
 import { summarizeTray } from "../lib/upload-tray-view";
 import { useCallback, useEffect } from "react";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -22,7 +23,7 @@ export const useUploadTrayScreen = () => {
   const visible = event?.galleryState === "OPEN" && event.status !== "SUSPENDED";
   const photosQuery = useEventPhotosQuery(eventId, visible);
   const photos = visible ? (photosQuery.data ?? []) : [];
-  const thumbnails = new Map(photos.map((photo) => [photo.id, photo.thumbnailUrl]));
+  const developed = new Map(photos.map((photo) => [photo.id, photo]));
   useFocusEffect(useCallback(() => (eventId ? openTraySession(eventId) : undefined), [eventId]));
   const tray = useUploadTraySession(eventId);
   useEffect(() => {
@@ -33,18 +34,24 @@ export const useUploadTrayScreen = () => {
     title: event?.title ?? "",
     entries: tray.items.map((item) => {
       const status = item.status;
-      const thumbnail = status.kind === "developed" ? thumbnails.get(status.photoId) : undefined;
+      const photo = status.kind === "developed" ? developed.get(status.photoId) : undefined;
       // The roll can release a completed local file once its thumbnail loads.
       const previewable = visible && !(status.kind === "rejected" && status.reason === "video");
       const progress =
         status.kind === "sending"
           ? Math.max(0, Math.min(1, item.sizeBytes > 0 ? status.bytesSent / item.sizeBytes : 0))
           : undefined;
-      // The roll's thumbnail under the same stable key the sheet caches it by;
+      // The roll's preview under the same stable keys the sheet caches it by;
       // otherwise the local file, which the row decodes at its own small size.
-      const photoId = status.kind === "developed" ? status.photoId : undefined;
-      const cacheKey = previewable && thumbnail && photoId ? `photo:${photoId}:thumbnail` : undefined;
-      return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "", cacheKey, progress };
+      const preview = previewable && photo ? photoPreview(photo) : undefined;
+      return {
+        ...item,
+        uri: previewable ? (preview ? (preview.uri ?? "") : item.uri) : "",
+        cacheKey: preview?.cacheKey,
+        fallback: preview?.fallback,
+        mayBeLate: preview?.mayBeLate,
+        progress,
+      };
     }),
     summary: summarizeTray(tray),
     onBack: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),

@@ -11,6 +11,7 @@ import { RetryingPhoto } from "@/components/ui/retrying-photo";
 import { Sprockets } from "@/components/ui/film-strip";
 import { X, DotsThree } from "phosphor-react-native";
 import { colorTokens } from "@/theme/tokens";
+import { photoPreview } from "../../lib/photo-preview";
 import type { SheetFrame } from "../../lib/roll-page";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
 import { FilmGrain } from "@/components/ui/film-grain";
@@ -235,8 +236,8 @@ export const FrameViewer = (props: Props) => {
                     className={item.photo.id === frame?.photo.id ? "border-2 border-text" : "opacity-50"}
                   >
                     <RetryingPhoto
-                      uri={item.photo.thumbnailUrl}
-                      cacheKey={`photo:${item.photo.id}:thumbnail`}
+                      testID="viewer-strip-photo"
+                      {...photoPreview(item.photo)}
                       className="h-full w-full"
                       contentFit="cover"
                     />
