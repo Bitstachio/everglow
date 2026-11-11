@@ -24,6 +24,7 @@ export class ReportMapper {
       id: report.id,
       eventId: report.eventId,
       eventTitle: report.eventTitle,
+      source: report.source,
       targetType: report.targetType,
       photoId: report.photoId,
       reportedUserId: report.reportedUserId,

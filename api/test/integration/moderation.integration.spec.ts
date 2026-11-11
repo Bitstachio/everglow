@@ -421,6 +421,26 @@ describe("Moderation (integration)", () => {
       );
     });
 
+    it("lists an automated report as AUTOMATED, with the platform, and without a reporter", async () => {
+      const automated = buildReport({
+        reporterId: null,
+        source: "AUTOMATED",
+        queue: "PLATFORM",
+        reason: "NUDITY_OR_SEXUAL",
+        escalationReasons: ["AUTOMATED_FLAG", "SEVERE_REASON"],
+      });
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]));
+      prisma.report.findMany.mockResolvedValue([automated]);
+
+      const response = await request(httpServer).get(eventReportsPath()).set(authHeader()).expect(200);
+
+      const body = response.body as WrappedResponse<ReportListBody>;
+      expect(body.data.items).toEqual([expectedReportResponse(automated)]);
+      expect(body.data.items[0]).toMatchObject({ source: "AUTOMATED", queue: "PLATFORM" });
+      expect(body.data.items[0]).not.toHaveProperty("reporterId");
+      expect(body.data.items[0]).not.toHaveProperty("escalationReasons");
+    });
+
     it("returns 400 for an unknown status", async () => {
       await request(httpServer).get(eventReportsPath()).query({ status: "PENDING" }).set(authHeader()).expect(400);
     });
