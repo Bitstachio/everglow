@@ -6,6 +6,7 @@ const status = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("waiting") }),
   z.object({ kind: z.literal("sending"), bytesSent: z.number() }),
   z.object({ kind: z.literal("developed"), photoId: z.string() }),
+  z.object({ kind: z.literal("onRoll"), photoId: z.string() }),
   z.object({
     kind: z.literal("failed"),
     reason: z.enum(["connection", "refused", "noRoom", "closed", "interrupted", "missing", "cantAdd"]),
