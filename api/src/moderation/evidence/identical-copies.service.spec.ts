@@ -6,7 +6,7 @@ import { PHOTO_HASH_TIMEOUT_MS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { EvidenceService } from "./evidence.service";
-import { IDENTICAL_COPIES_CHUNK_SIZE, IdenticalCopiesService } from "./identical-copies.service";
+import { IDENTICAL_COPIES_CHUNK_SIZE, IdenticalCopiesService, REMOVED_IMAGE_REPORTS } from "./identical-copies.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "./testing/evidence-service.mock";
 
 describe("IdenticalCopiesService", () => {
@@ -24,6 +24,7 @@ describe("IdenticalCopiesService", () => {
 
   const removedImage = (overrides: Record<string, unknown> = {}) => ({
     id: reportId,
+    reason: "NON_CONSENSUAL_INTIMATE_IMAGE",
     resolvedById: moderatorId,
     holdUntil: null,
     holdReason: null,
@@ -95,17 +96,43 @@ describe("IdenticalCopiesService", () => {
   });
 
   describe("removeCopies", () => {
-    it("looks only at actioned intimate-image reports", async () => {
+    it("looks only at actioned intimate-image reports and photos the platform removed for child safety", async () => {
       prisma.report.findMany.mockResolvedValue([]);
 
       await expect(service.removeCopies([reportId], now)).resolves.toEqual([]);
 
       expect(prisma.report.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: { in: [reportId] }, reason: "NON_CONSENSUAL_INTIMATE_IMAGE", status: "ACTIONED" },
+          where: {
+            AND: [
+              { id: { in: [reportId] } },
+              {
+                status: "ACTIONED",
+                OR: [
+                  { reason: "NON_CONSENSUAL_INTIMATE_IMAGE" },
+                  {
+                    reason: "CHILD_SAFETY",
+                    targetType: "PHOTO",
+                    closedByRole: "PLATFORM",
+                    closedReason: { in: ["PHOTO_REMOVED", "MEMBER_REMOVED"] },
+                  },
+                ],
+              },
+            ],
+          },
         }),
       );
       expect(prisma.photo.findMany).not.toHaveBeenCalled();
+    });
+
+    it("is the same rule as REMOVED_IMAGE_REPORTS", async () => {
+      prisma.report.findMany.mockResolvedValue([]);
+
+      await service.removeCopies([reportId], now);
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { AND: [{ id: { in: [reportId] } }, REMOVED_IMAGE_REPORTS] } }),
+      );
     });
 
     it("removes every READY photo with the same hash, each under a linked report with evidence", async () => {
@@ -181,7 +208,18 @@ describe("IdenticalCopiesService", () => {
       expect(closed).toEqual([`linked-${copy(1).id}`, `linked-${copy(2).id}`, "open-on-copy-1"]);
       // A count only: no photo ids, no hash.
       expect(logger.info).toHaveBeenCalledWith(
-        { event: "report.identical_copies_removed", reportId, count: 2, audit: true },
+        {
+          event: "report.identical_copies_removed",
+          reportId,
+          reason: "NON_CONSENSUAL_INTIMATE_IMAGE",
+          count: 2,
+          audit: true,
+        },
+        expect.any(String),
+      );
+      // An intimate image's copies don't page one by one: the original already did.
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event: "report.escalated" }),
         expect.any(String),
       );
     });
@@ -213,6 +251,131 @@ describe("IdenticalCopiesService", () => {
           data: expect.objectContaining({ holdUntil, holdReason: "LAW_ENFORCEMENT" }) as unknown,
         }),
       );
+    });
+
+    describe("of a child-safety image", () => {
+      const childSafety = (overrides: Record<string, unknown> = {}) =>
+        removedImage({
+          reason: "CHILD_SAFETY",
+          // Held a year from filing, which was a while before the removal.
+          holdUntil: new Date(now.getTime() + 300 * day),
+          holdReason: "CHILD_SAFETY",
+          ...overrides,
+        });
+
+      it("removes each copy under a child-safety report, held a year from its own removal", async () => {
+        prisma.report.findMany.mockResolvedValue([childSafety()] as never);
+        prisma.photo.findMany.mockResolvedValueOnce([copy(1)] as never);
+
+        const closed = await service.removeCopies([reportId], now);
+
+        expect(prisma.report.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            photoId: copy(1).id,
+            reportedUserId: "uploader-1",
+            reason: "CHILD_SAFETY",
+            queue: "PLATFORM",
+            escalationReasons: ["CHILD_SAFETY"],
+            status: "ACTIONED",
+            closedReason: "PHOTO_REMOVED",
+            closedByRole: "PLATFORM",
+            resolvedById: moderatorId,
+            holdUntil: new Date(now.getTime() + 365 * day),
+            holdReason: "CHILD_SAFETY",
+          }) as unknown,
+          select: { id: true },
+        });
+        // Its evidence: a snapshot naming the uploader, the hash, and the object copied before the delete.
+        expect(evidence.writeSnapshot).toHaveBeenCalledWith(
+          prisma,
+          `linked-${copy(1).id}`,
+          expect.objectContaining({ objectS3Key: copy(1).s3Key, subjectUserId: "uploader-1" }),
+        );
+        expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
+          where: { reportId: `linked-${copy(1).id}` },
+          data: { sha256 },
+        });
+        expect(evidence.preserveBeforeDelete).toHaveBeenCalledWith([copy(1).s3Key]);
+        expect(closed).toEqual([`linked-${copy(1).id}`]);
+      });
+
+      it("keeps a longer hold on the removed image", async () => {
+        const holdUntil = new Date(now.getTime() + 700 * day);
+        prisma.report.findMany.mockResolvedValue([childSafety({ holdUntil, holdReason: "LAW_ENFORCEMENT" })] as never);
+        prisma.photo.findMany.mockResolvedValueOnce([copy(1)] as never);
+
+        await service.removeCopies([reportId], now);
+
+        expect(prisma.report.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ holdUntil, holdReason: "LAW_ENFORCEMENT" }) as unknown,
+          }),
+        );
+      });
+
+      it("holds the copies even when the removed image's hold was released", async () => {
+        prisma.report.findMany.mockResolvedValue([childSafety({ holdUntil: null, holdReason: null })] as never);
+        prisma.photo.findMany.mockResolvedValueOnce([copy(1)] as never);
+
+        await service.removeCopies([reportId], now);
+
+        expect(prisma.report.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              holdUntil: new Date(now.getTime() + 365 * day),
+              holdReason: "CHILD_SAFETY",
+            }) as unknown,
+          }),
+        );
+      });
+
+      it("pages once per copy, naming the report and never a person", async () => {
+        prisma.report.findMany.mockResolvedValue([childSafety()] as never);
+        prisma.photo.findMany.mockResolvedValueOnce([copy(1), copy(2)] as never);
+
+        await service.removeCopies([reportId], now);
+
+        const pages = logger.warn.mock.calls.filter(
+          ([fields]) => (fields as { event: string }).event === "report.escalated",
+        );
+        expect(pages.map(([fields]) => fields as unknown)).toEqual([
+          {
+            event: "report.escalated",
+            reportId: `linked-${copy(1).id}`,
+            eventId: "event-1",
+            reason: "CHILD_SAFETY",
+            queue: "PLATFORM",
+            escalationReasons: ["child_safety"],
+            severity: "page",
+          },
+          {
+            event: "report.escalated",
+            reportId: `linked-${copy(2).id}`,
+            eventId: "event-2",
+            reason: "CHILD_SAFETY",
+            queue: "PLATFORM",
+            escalationReasons: ["child_safety"],
+            severity: "page",
+          },
+        ]);
+        // Only after the rows are gone.
+        expect(logger.warn.mock.invocationCallOrder[0]).toBeGreaterThan(
+          prisma.photo.deleteMany.mock.invocationCallOrder[0],
+        );
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "report.identical_copies_removed", reason: "CHILD_SAFETY", count: 2 }),
+          expect.any(String),
+        );
+      });
+
+      it("pages nothing when there are no copies", async () => {
+        prisma.report.findMany.mockResolvedValue([childSafety()] as never);
+        prisma.photo.findMany.mockResolvedValueOnce([]);
+
+        await service.removeCopies([reportId], now);
+
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
     });
 
     it("logs a count of zero when there are no copies", async () => {

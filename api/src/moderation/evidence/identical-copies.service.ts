@@ -17,19 +17,55 @@ import { deleteObjectsWithDerivatives } from "src/photos/photo-object-deletion";
 import { PHOTO_HASH_TIMEOUT_MS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
+import { CHILD_SAFETY_HOLD_DAYS } from "../moderation.constants";
+import { escalationAlertFields, escalationLogName } from "../report-escalation";
 import { EvidenceService } from "./evidence.service";
 
 /** Copies removed per transaction: one linked report each, then one photo delete and one S3 batch. */
 export const IDENTICAL_COPIES_CHUNK_SIZE = 100;
 
-/** An actioned intimate-image report, the one its identical copies are removed under. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The actioned reports whose image counts as removed, so that its identical
+ * copies go with it (docs/moderation.md §7):
+ * - any actioned intimate-image report, as the TAKE IT DOWN Act asks;
+ * - a child-safety report on a photo the platform removed with a verdict on
+ *   it. Stricter, because a match is held and pages about the person who
+ *   uploaded it: a report closed because its whole event was deleted, or one
+ *   about an event's cover, never judged that image.
+ */
+export const REMOVED_IMAGE_REPORTS: Prisma.ReportWhereInput = {
+  status: ReportStatus.ACTIONED,
+  OR: [
+    { reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE },
+    {
+      reason: ReportReason.CHILD_SAFETY,
+      targetType: ReportTargetType.PHOTO,
+      closedByRole: ReportActorRole.PLATFORM,
+      closedReason: { in: [ReportClosedReason.PHOTO_REMOVED, ReportClosedReason.MEMBER_REMOVED] },
+    },
+  ],
+};
+
+/** The escalation reason a copy's report carries, by the removed image's reason. */
+const COPY_ESCALATION: Partial<Record<ReportReason, ReportEscalation>> = {
+  [ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE]: ReportEscalation.INTIMATE_IMAGE,
+  [ReportReason.CHILD_SAFETY]: ReportEscalation.CHILD_SAFETY,
+};
+
+/** An actioned report of a removed image, the one its identical copies are removed under. */
 interface RemovedImage {
   id: string;
+  reason: ReportReason;
   resolvedById: string | null;
   holdUntil: Date | null;
   holdReason: ReportHoldReason | null;
   evidence: { id: string; sha256: string | null; objectS3Key: string | null } | null;
 }
+
+/** A copy's linked report, as its alert names it. */
+type LinkedReport = { id: string; eventId: string };
 
 type Copy = {
   id: string;
@@ -42,12 +78,13 @@ type Copy = {
 };
 
 /**
- * Identical copies of a removed intimate image (docs/moderation.md §7). The
- * TAKE IT DOWN Act asks for reasonable efforts to remove them: every photo
- * records the SHA-256 of its bytes at confirm, so when the platform actions a
- * `NON_CONSENSUAL_INTIMATE_IMAGE` report, every READY photo with the same
- * hash, in any event, goes with it, and confirm refuses the same bytes for as
- * long as the report is kept.
+ * Identical copies of a removed image (docs/moderation.md §7): an intimate
+ * image, which the TAKE IT DOWN Act asks for reasonable efforts to remove, or
+ * a child-safety image, which must not stay up anywhere once the platform has
+ * removed it. Every photo records the SHA-256 of its bytes at confirm, so
+ * when the platform actions such a report (REMOVED_IMAGE_REPORTS), every
+ * READY photo with the same hash, in any event, goes with it, and confirm
+ * refuses the same bytes for as long as the report is kept.
  *
  * Each copy is removed under its own report, linked to the removal by its
  * hash and its moderator: an ACTIONED platform report written in the same
@@ -57,6 +94,11 @@ type Copy = {
  * row is deleted rather than hidden: an actioned photo is gone for everyone,
  * from lists, counts and thumbnails alike, without a new hidden state for
  * `PhotoVisibilityService` to learn.
+ *
+ * A child-safety copy's report is held for a year from its own removal, so
+ * its evidence copy is kept for NCMEC and Cybertip.ca, and it pages: whoever
+ * uploaded the copy is someone the platform has to look at, and may have to
+ * report.
  */
 @Injectable()
 export class IdenticalCopiesService {
@@ -102,23 +144,22 @@ export class IdenticalCopiesService {
   }
 
   /**
-   * For the actioned intimate-image reports among these, removes every READY
-   * photo with the same hash. Returns the ids of the reports this closed: the
-   * linked report of each copy and any OPEN report on it, so the caller
-   * discards their evidence as it does the original's. Reports for any other
-   * reason are left alone. A report whose hash is unknown removes nothing.
+   * For the reports among these whose image counts as removed
+   * (REMOVED_IMAGE_REPORTS), removes every READY photo with the same hash.
+   * Returns the ids of the reports this closed: the linked report of each
+   * copy and any OPEN report on it, so the caller discards their evidence as
+   * it does the original's (an intimate image's goes; a child-safety image's
+   * stays for its hold). Other reports are left alone. A report whose hash is
+   * unknown removes nothing.
    */
   async removeCopies(reportIds: string[], now: Date = new Date()): Promise<string[]> {
     if (reportIds.length === 0) return [];
 
     const removedImages: RemovedImage[] = await this.prisma.report.findMany({
-      where: {
-        id: { in: reportIds },
-        reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE,
-        status: ReportStatus.ACTIONED,
-      },
+      where: { AND: [{ id: { in: reportIds } }, REMOVED_IMAGE_REPORTS] },
       select: {
         id: true,
+        reason: true,
         resolvedById: true,
         holdUntil: true,
         holdReason: true,
@@ -152,7 +193,7 @@ export class IdenticalCopiesService {
     } catch (error) {
       this.logger.error(
         { err: error as Error, event: "report.identical_copies.hash_failed", reportId: removedImage.id },
-        "Removed intimate image could not be hashed; its identical copies were not looked for",
+        "Removed image could not be hashed; its identical copies were not looked for",
       );
       return null;
     }
@@ -180,15 +221,25 @@ export class IdenticalCopiesService {
       });
       if (copies.length === 0) break;
 
-      closed.push(...(await this.prisma.$transaction((tx) => this.removeRows(tx, removedImage, copies, sha256, now))));
+      const { linked, settled } = await this.prisma.$transaction((tx) =>
+        this.removeRows(tx, removedImage, copies, sha256, now),
+      );
+      closed.push(...linked.map((report) => report.id), ...settled);
+      this.alertOnChildSafetyCopies(removedImage, linked);
       await this.deleteObjects(copies, removedImage.id);
       count += copies.length;
       if (copies.length < IDENTICAL_COPIES_CHUNK_SIZE) break;
     }
 
     this.logger.info(
-      { event: "report.identical_copies_removed", reportId: removedImage.id, count, audit: true },
-      "Identical copies of a removed intimate image removed",
+      {
+        event: "report.identical_copies_removed",
+        reportId: removedImage.id,
+        reason: removedImage.reason,
+        count,
+        audit: true,
+      },
+      "Identical copies of a removed image removed",
     );
     return closed;
   }
@@ -204,13 +255,15 @@ export class IdenticalCopiesService {
     copies: Copy[],
     sha256: string,
     now: Date,
-  ): Promise<string[]> {
+  ): Promise<{ linked: LinkedReport[]; settled: string[] }> {
     const closedBy = {
       closedByRole: ReportActorRole.PLATFORM,
       resolvedById: removedImage.resolvedById,
       resolvedAt: now,
     };
-    const linked: string[] = [];
+    const escalation = COPY_ESCALATION[removedImage.reason];
+    const hold = this.copyHold(removedImage, now);
+    const linked: LinkedReport[] = [];
     for (const copy of copies) {
       const report = await tx.report.create({
         data: {
@@ -220,15 +273,13 @@ export class IdenticalCopiesService {
           targetType: ReportTargetType.PHOTO,
           photoId: copy.id,
           reportedUserId: copy.addedById,
-          reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE,
+          reason: removedImage.reason,
           queue: ReportQueue.PLATFORM,
-          escalationReasons: [ReportEscalation.INTIMATE_IMAGE],
+          escalationReasons: escalation ? [escalation] : [],
           escalatedAt: now,
           status: ReportStatus.ACTIONED,
           closedReason: ReportClosedReason.PHOTO_REMOVED,
-          // A hold on the removed image (law enforcement, child safety) holds its copies too.
-          holdUntil: removedImage.holdUntil,
-          holdReason: removedImage.holdReason,
+          ...hold,
           ...closedBy,
         },
         select: { id: true },
@@ -240,7 +291,7 @@ export class IdenticalCopiesService {
         subjectUserId: copy.addedById,
       });
       await tx.reportEvidence.update({ where: { reportId: report.id }, data: { sha256 } });
-      linked.push(report.id);
+      linked.push({ id: report.id, eventId: copy.eventId });
     }
 
     const copyIds = copies.map((copy) => copy.id);
@@ -251,7 +302,52 @@ export class IdenticalCopiesService {
     });
     await tx.photo.deleteMany({ where: { id: { in: copyIds } } });
 
-    return [...linked, ...settled.map((report) => report.id)];
+    return { linked, settled: settled.map((report) => report.id) };
+  }
+
+  /**
+   * The hold a copy's report gets. A child-safety copy is held a year from
+   * now, or for as long as the removed image is held if that is longer, so
+   * its evidence copy outlives the copy for the authorities
+   * (docs/moderation.md §7). Any other copy shares the removed image's hold
+   * (law enforcement, child safety, legal advice).
+   */
+  private copyHold(
+    removedImage: RemovedImage,
+    now: Date,
+  ): { holdUntil: Date | null; holdReason: ReportHoldReason | null } {
+    if (removedImage.reason !== ReportReason.CHILD_SAFETY) {
+      return { holdUntil: removedImage.holdUntil, holdReason: removedImage.holdReason };
+    }
+    const floor = new Date(now.getTime() + CHILD_SAFETY_HOLD_DAYS * DAY_MS);
+    if (removedImage.holdUntil && removedImage.holdUntil > floor) {
+      return {
+        holdUntil: removedImage.holdUntil,
+        holdReason: removedImage.holdReason ?? ReportHoldReason.CHILD_SAFETY,
+      };
+    }
+    return { holdUntil: floor, holdReason: ReportHoldReason.CHILD_SAFETY };
+  }
+
+  /**
+   * One `report.escalated` page per child-safety copy, as for any new
+   * child-safety report (docs/moderation.md §9): whoever uploaded it is
+   * someone the platform has to look at, and may have to report to NCMEC or
+   * Cybertip.ca. The copy is already removed; the decision about its
+   * uploader is still open. Logged once the transaction has committed.
+   */
+  private alertOnChildSafetyCopies(removedImage: RemovedImage, linked: LinkedReport[]): void {
+    if (removedImage.reason !== ReportReason.CHILD_SAFETY) return;
+    const escalationReasons = [escalationLogName(ReportEscalation.CHILD_SAFETY)];
+    for (const report of linked) {
+      this.logger.warn(
+        escalationAlertFields(
+          { id: report.id, eventId: report.eventId, reason: removedImage.reason, queue: ReportQueue.PLATFORM },
+          escalationReasons,
+        ),
+        "Identical copy of a removed child-safety image needs platform attention",
+      );
+    }
   }
 
   /**
