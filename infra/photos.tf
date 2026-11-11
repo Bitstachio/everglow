@@ -56,3 +56,43 @@ resource "aws_iam_user_policy" "api_s3" {
     ]
   })
 }
+
+# --- Staging: its own bucket, read only by the Copilot service's task role ---
+#
+# The staging API runs on Copilot (api/copilot) in this account, with no access
+# key: the ECS task role is its identity, and the addon in
+# api/copilot/api/addons/ gives that role S3 rights on this bucket. Copilot
+# creates the role and names it <app>-<env>-<svc>-TaskRole-<random>, so it is
+# looked up here. Deploy the service before the first apply. If the service is
+# ever recreated, its new role is not trusted until the next apply.
+data "aws_iam_roles" "staging_api_task" {
+  name_regex = "^everglow-staging-api-TaskRole-"
+
+  lifecycle {
+    postcondition {
+      condition     = length(self.names) == 1
+      error_message = "Expected exactly one everglow-staging-api-TaskRole-* role. Deploy the Copilot api service to staging first (copilot svc deploy --name api --env staging)."
+    }
+  }
+}
+
+data "aws_iam_role" "staging_api_task" {
+  name = one(data.aws_iam_roles.staging_api_task.names)
+}
+
+module "photos_staging" {
+  source = "./modules/photo-storage"
+
+  environment = "staging"
+  api_roles = [{
+    arn       = data.aws_iam_role.staging_api_task.arn
+    name      = data.aws_iam_role.staging_api_task.name
+    unique_id = data.aws_iam_role.staging_api_task.unique_id
+  }]
+  image_processor_zip = local.image_processor_zip
+  alert_topic_arn     = aws_sns_topic.security_alerts.arn
+
+  # Staging holds test data only. Its database keeps the photo rows, so a
+  # photo older than this shows as missing in the app.
+  expire_objects_after_days = 30
+}

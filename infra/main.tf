@@ -1,4 +1,4 @@
-# Everglow AWS infrastructure — dev.
+# Everglow AWS infrastructure — dev and staging, in one account and one state.
 #
 # This file *describes* what exists in AWS; it does not run anything by itself.
 #   terraform plan   → shows the diff between this file and reality

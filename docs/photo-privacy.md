@@ -57,6 +57,12 @@ In dev:
 - **Files can still be listed, and the bucket policy is not locked,** so Terraform can keep changing it.
 - **Photos uploaded before the KMS key existed** keep S3-managed encryption. The bucket policy still blocks reading them.
 
+In staging (`everglow-photos-staging`, the same module and controls as dev):
+
+- **The API has no access key.** It runs as the Copilot service's ECS task role, and the bucket policy and key trust that role under any session name (ECS names each session after its task). The role's S3 rights come from the addon in `api/copilot/api/addons/`. The read alert matches callers by the role that issued their session, so a person assuming any other role, or the processor's role outside Lambda, still alerts.
+- **Changes to the task role alert** like changes to the processor's role, since it is on the allowlist. A Copilot deploy that changes its policies sends one.
+- **Every object expires after 30 days.** Staging holds test data; its database keeps the rows, so an older photo shows as missing.
+
 Production, before launch (EV-37):
 
 - A separate AWS account, and an API role whose credentials never leave the server.

@@ -38,7 +38,9 @@ resource "aws_s3_bucket_policy" "photos" {
       # records and the alerts report. The app is unaffected: its download URLs
       # are presigned by the API, so AWS sees the API reading.
       # aws:userId is the reliable allowlist key for IAM users and assumed
-      # roles (ROLEID:session). See docs/photo-privacy.md.
+      # roles (ROLEID:session). See docs/photo-privacy.md. An API role is
+      # allowed under any session name (StringNotLike ROLEID:*); the two
+      # conditions must both hold for the Deny to apply.
       #
       # Lambda names the processor's session after the function, so only that
       # session is exempt, not any session of the role. A bucket policy cannot
@@ -53,14 +55,19 @@ resource "aws_s3_bucket_policy" "photos" {
           Principal = "*"
           Action    = ["s3:GetObject", "s3:GetObjectVersion"]
           Resource  = "${aws_s3_bucket.photos.arn}/*"
-          Condition = {
-            StringNotEquals = {
-              "aws:userId" = concat(
-                [for user in var.api_users : user.unique_id],
-                ["${aws_iam_role.image_processor.unique_id}:${aws_lambda_function.image_processor.function_name}"],
-              )
-            }
-          }
+          Condition = merge(
+            {
+              StringNotEquals = {
+                "aws:userId" = concat(
+                  [for user in var.api_users : user.unique_id],
+                  ["${aws_iam_role.image_processor.unique_id}:${aws_lambda_function.image_processor.function_name}"],
+                )
+              }
+            },
+            length(var.api_roles) == 0 ? {} : {
+              StringNotLike = { "aws:userId" = [for role in var.api_roles : "${role.unique_id}:*"] }
+            },
+          )
         },
       ],
     )
@@ -98,6 +105,7 @@ resource "aws_s3_bucket_cors_configuration" "photos" {
 }
 
 # Half-finished multipart uploads are invisible but billed — sweep them daily.
+# A test environment can also expire everything after a while.
 resource "aws_s3_bucket_lifecycle_configuration" "photos" {
   bucket = aws_s3_bucket.photos.id
 
@@ -111,6 +119,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "photos" {
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 1
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.expire_objects_after_days == null ? [] : [var.expire_objects_after_days]
+
+    content {
+      id     = "expire-test-data"
+      status = "Enabled"
+
+      filter {
+        prefix = ""
+      }
+
+      expiration {
+        days = rule.value
+      }
     }
   }
 }

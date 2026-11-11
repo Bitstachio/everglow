@@ -13,9 +13,9 @@ output "image_processor_function_name" {
   value       = aws_lambda_function.image_processor.function_name
 }
 
-output "image_processor_role_name" {
-  description = "The image processor's role. Changes to its trust or permissions are alerted (photo-privacy.tf)."
-  value       = aws_iam_role.image_processor.name
+output "trusted_role_names" {
+  description = "Roles allowed to read photos: the image processor's and the API's. Changes to their trust or permissions are alerted (photo-privacy.tf)."
+  value       = concat([aws_iam_role.image_processor.name], [for role in var.api_roles : role.name])
 }
 
 output "read_alert_rule_arn" {

@@ -26,7 +26,7 @@ locals {
 
   # Every photo-storage instance (photos.tf). The trail, the topic and the
   # control-change alert below cover each one listed here.
-  photo_storage = [module.photos_dev]
+  photo_storage = [module.photos_dev, module.photos_staging]
 
   alert_rules = concat(
     [for photos in local.photo_storage : photos.read_alert_rule_arn],
@@ -210,12 +210,16 @@ resource "aws_sns_topic_subscription" "security_alerts_email" {
 # under its name is CreateFunction. The SQS mapping invokes the unqualified
 # function, so versions and aliases cannot swap the code it runs.
 #
+# The roles allowed to read photos (each image processor's, and the staging
+# API's task role) count the same way: who can assume them and what they may
+# do. A Copilot deploy that changes the task role's policies alerts too.
+#
 # Lambda logs functionName as the caller passed it (a name, a full ARN or a
 # partial ARN), so it is matched by suffix. IAM takes only the role name.
 # Terraform deploys of the processor call UpdateFunctionCode and alert too.
 resource "aws_cloudwatch_event_rule" "privacy_controls_changed" {
   name        = "everglow-privacy-controls-changed-dev"
-  description = "A bucket policy, KMS key, CloudTrail trail, or the image processor function or role was changed"
+  description = "A bucket policy, KMS key, CloudTrail trail, an image processor function, or a role that may read photos was changed"
 
   event_pattern = jsonencode({
     "detail-type" = ["AWS API Call via CloudTrail"]
@@ -242,7 +246,7 @@ resource "aws_cloudwatch_event_rule" "privacy_controls_changed" {
             "UpdateAssumeRolePolicy", "PutRolePolicy", "DeleteRolePolicy", "AttachRolePolicy", "DetachRolePolicy",
             "PutRolePermissionsBoundary", "DeleteRolePermissionsBoundary",
           ]
-          requestParameters = { roleName = [for photos in local.photo_storage : photos.image_processor_role_name] }
+          requestParameters = { roleName = flatten([for photos in local.photo_storage : photos.trusted_role_names]) }
         },
       ]
     }
