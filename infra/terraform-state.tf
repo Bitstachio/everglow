@@ -31,7 +31,7 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 }
 
 # The state holds resource ids, ARNs and the alert addresses, no secrets (the
-# API's access key is deliberately not managed here; see main.tf).
+# API's access key is deliberately not managed here; see photos.tf).
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
