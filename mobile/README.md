@@ -43,4 +43,5 @@ Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run i
 | Forms                     | [docs/forms.md](docs/forms.md)                                                                       |
 | Theme / UI scale / icons  | [docs/theme.md](docs/theme.md), [docs/ui-scale.md](docs/ui-scale.md), [docs/icons.md](docs/icons.md) |
 | Testing / E2E             | [docs/testing.md](docs/testing.md), [docs/e2e.md](docs/e2e.md)                                       |
+| Manual QA                 | [docs/qa/](docs/qa/): test cases, smoke and regression suites, run reports                           |
 | Shared product docs       | [../docs/](../docs/)                                                                                 |
