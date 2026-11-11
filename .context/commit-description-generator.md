@@ -14,7 +14,7 @@ The PR body reviewers read while the PR is open is a different Markdown document
 
 # Branch commits (while the PR is open)
 
-Feature-branch commits are discarded on squash. Their subjects are for collaborators reading the PR, not for `main` history. Subject shape, agent stamps, and stripping a trailer the tool injects are in [pr-description-generator.md](./pr-description-generator.md). Do not treat the branch log as the story of the change; the squash body below is that story.
+Feature-branch commits are discarded on squash. Their subjects are for collaborators reading the PR, not for `main` history. Subject shape, no extended description on those commits, agent stamps, and stripping a trailer the tool injects are in [pr-description-generator.md](./pr-description-generator.md). Do not treat the branch log as the story of the change. The extended body below is only the squash commit on `main`.
 
 # Why this message matters
 

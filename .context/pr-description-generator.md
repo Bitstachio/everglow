@@ -21,6 +21,9 @@ This line is the permanent Conventional Commits subject on `main` after squash. 
 - The first character is a lowercase letter (`validate required api env with zod`, not `Validate required api env with zod`).
 - No trailing period (`drop email from profile DTOs`, not `drop email from profile DTOs.`).
 - No `feat:`, `fix:`, `docs:`, `chore:`, or a `(scope)`.
+- No extended description under the subject. The subject is the whole message. Each commit is one logical step a title can name; a short paragraph that restates the subject does not belong there.
+
+This is only for commits on the feature branch. The squash commit on `main` still gets the extended body from [commit-description-generator.md](./commit-description-generator.md). Reviewers read the PR body while the PR is open.
 
 After `git commit`, read `git log -1 --format=%B` before you push. If the tool appended `Co-authored-by:` for Cursor, Claude, Copilot, or any other agent, or a `Made with …` line, rewrite that commit so those lines are gone. Keep a human `Co-authored-by` only when a real GitHub user collaborated. Do not push until this check is clean.
 
@@ -139,7 +142,7 @@ The link has to go both ways. Also add **each** PR to the issue as a link attach
 Before posting, check:
 
 - The title follows Conventional Commits with the right scope, is ≤ 50 characters, imperative, lowercase after the colon, no trailing period.
-- Every branch commit subject on this PR starts with a lowercase letter and has no trailing period.
+- Every branch commit subject on this PR starts with a lowercase letter, has no trailing period, and has no extended description under it.
 - Summary, Why and Test plan exist; every other section present has real content.
 - Every ticked box was actually run on the final state; CI is unticked unless green.
 - A contract change is called out in Notes together with the mobile client regeneration.
