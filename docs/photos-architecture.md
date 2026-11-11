@@ -34,6 +34,7 @@ The three-step protocol this shares with avatars and event covers, and the per-p
    - an original with the bytes of a removed intimate image fails the whole confirm with 422 `PHOTO_REJECTED_MATCHES_REMOVED_IMAGE`: it is deleted and its slot released, and the rest stay `PENDING` ([moderation.md §7](./moderation.md#intimate-images-the-take-it-down-act))
    - missing → `MISSING`; the row is deleted, since nothing was uploaded
    - mismatched → `MISMATCHED`; the object and the row are deleted
+   - the same bytes as one of the caller's own `READY` photos in the event, or as an earlier id in the request → `DUPLICATE` with `existingPhotoId`; the object and the row are deleted ([uploads.md](./uploads.md#the-same-photo-twice))
    - both verdicts are final: the slot's quota is released on the spot and the client mints a new slot to retry
 7. **Done.** Photo shows up in the event on the next list call.
 
@@ -266,7 +267,7 @@ In order of implementation:
 - [x] **`S3Service.headObject`** — existence + size/contentType lookup used by confirm. (Prerequisite discovered during implementation.)
 - [x] **Photos module skeleton** — `photos.module.ts`, `photos.service.ts`, `photos.controller.ts`, DTOs. Mirror the existing `events` module shape.
 - [x] **`POST /events/:eventId/photos/upload-urls`** — batch mint presigned PUT URLs (1h TTL), create PENDING rows in one transaction. Enforce contentType allowlist + max size + max batch size.
-- [x] **`POST /events/:eventId/photos/confirm`** — batch HeadObject verify, flip to READY, return per-photoId result (`READY` / `MISSING` / `MISMATCHED` / `NOT_FOUND`).
+- [x] **`POST /events/:eventId/photos/confirm`** — batch HeadObject verify, flip to READY, return per-photoId result (`READY` / `MISSING` / `MISMATCHED` / `NOT_FOUND` / `DUPLICATE`).
 - [x] **`GET /events/:eventId/photos`** — cursor-paginated list of READY photos with presigned GET URLs.
 - [x] **`GET /photos/:photoId`** — single photo with presigned GET URL. Non-READY photos 404, matching list invisibility.
 - [x] **`DELETE /photos/:photoId`** — S3 delete then row delete.
@@ -334,7 +335,7 @@ The same interleaving happens across two API instances behind a load balancer. U
 - Multi-region deployments without a shared database — there is no cross-region serialization.
 - Cheaper reads — usage is still `SUM(sizeBytes)` on every reservation. If that becomes a hotspot, the follow-up is a denormalized `storageUsedBytes` counter on the event row, updated under `SELECT … FOR UPDATE` (§7), which replaces the `SUM` inside the same transaction shape.
 
-Because `PENDING` rows count toward usage, an upload slot holds gallery storage from the moment it is minted. Three things release it early: a confirm that reports `MISSING` or `MISMATCHED` (the verdict deletes the slot), a presign failure (the batch is rolled back), or the uploader calling `DELETE /photos/:photoId` with the id from `upload-urls`, which is allowed for their own `PENDING` rows even after they lose event access. A slot that is neither confirmed nor deleted waits for §10, which has two cutoffs: once the upload URL has expired, a slot with no object at its key is released on the next hourly run, since nothing can ever land on it; a slot whose object did land keeps its storage until the 24h cutoff, because the uploader may still confirm it. Reads still filter to `READY`, so a pending slot never shows up in a list.
+Because `PENDING` rows count toward usage, an upload slot holds gallery storage from the moment it is minted. Three things release it early: a confirm that reports `MISSING`, `MISMATCHED` or `DUPLICATE` (the verdict deletes the slot), a presign failure (the batch is rolled back), or the uploader calling `DELETE /photos/:photoId` with the id from `upload-urls`, which is allowed for their own `PENDING` rows even after they lose event access. A slot that is neither confirmed nor deleted waits for §10, which has two cutoffs: once the upload URL has expired, a slot with no object at its key is released on the next hourly run, since nothing can ever land on it; a slot whose object did land keeps its storage until the 24h cutoff, because the uploader may still confirm it. Reads still filter to `READY`, so a pending slot never shows up in a list.
 
 Charging at mint rather than at confirm is deliberate. Not counting pending rows would let a client mint slots past the cap and confirm them later; the reservation in the transaction above is what makes the cap hold. The cost is the window between an abandoned slot and its release, which the expired-slot tier keeps to about an hour and a quarter plus the wait for the next run.
 
