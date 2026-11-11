@@ -1,10 +1,9 @@
 import { ConfigContext, ExpoConfig } from "expo/config";
+import { AUTH0_CUSTOM_SCHEME, env } from "./lib/env";
 
 // The Auth0 domain is injected into the react-native-auth0 config plugin at
-// prebuild time so the native callback URLs are registered correctly. It is
-// read from the environment to keep tenant configuration out of source control.
-const AUTH0_DOMAIN = process.env.EXPO_PUBLIC_AUTH0_DOMAIN ?? "";
-const AUTH0_CUSTOM_SCHEME = "everglowmobile";
+// prebuild time so the native callback URLs are registered correctly. It comes
+// from the shared Zod env schema so prebuild and the app agree.
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -15,7 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "react-native-auth0",
       {
-        domain: AUTH0_DOMAIN,
+        domain: env.EXPO_PUBLIC_AUTH0_DOMAIN,
         customScheme: AUTH0_CUSTOM_SCHEME,
       },
     ],
