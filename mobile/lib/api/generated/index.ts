@@ -372,6 +372,7 @@ export type {
   ReportsControllerResolveReportErrors,
   ReportsControllerResolveReportResponse,
   ReportsControllerResolveReportResponses,
+  ReportSource,
   ReportStatus,
   ReportTargetType,
   ResolvePlatformReportDto,
