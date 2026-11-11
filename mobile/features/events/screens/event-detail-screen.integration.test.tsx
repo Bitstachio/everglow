@@ -16,7 +16,7 @@ import { eventsKeys } from "../api/keys";
 import { takeLeftRoll } from "../lib/left-roll";
 import { createApiError } from "@/lib/api/errors";
 import UploadTrayScreen from "./upload-tray-screen";
-import { addToTray, activateUploadTrays, getTray } from "../lib/upload-tray";
+import { addToTray, activateUploadTrays, getTray, OFFLINE_QUEUE_LIMIT } from "../lib/upload-tray";
 import { runAccountCleared } from "@/lib/account-cleared";
 
 const mockFindOne = jest.fn();
@@ -132,7 +132,14 @@ jest.mock("expo-file-system", () => ({
     ),
   UploadType: { BINARY_CONTENT: 0 },
 }));
-jest.mock("@react-native-community/netinfo", () => ({ addEventListener: () => () => undefined }));
+let mockConnectionListener: ((state: { isConnected: boolean }) => void) | null = null;
+jest.mock("@react-native-community/netinfo", () => ({
+  addEventListener: (listener: (state: { isConnected: boolean }) => void) => {
+    mockConnectionListener = listener;
+    return () => undefined;
+  },
+  fetch: async () => ({ isConnected: true, isInternetReachable: true }),
+}));
 // 06.6 asks about notes only while the system hasn't asked; most tests here are past that.
 const mockReadPushPermission = jest.fn();
 jest.mock("@/features/notifications/lib/push", () => ({
@@ -251,6 +258,7 @@ beforeEach(() => {
   mockUploadProgress.clear();
   runAccountCleared("signedOut");
   activateUploadTrays("user-1", async () => undefined);
+  mockConnectionListener?.({ isConnected: true });
   mockFindPhoto.mockClear();
   mockSharePhotos.mockClear();
   mockRemovePhoto.mockReset().mockResolvedValue({});
@@ -829,6 +837,51 @@ describe("adding photos (08)", () => {
     await waitFor(() => expect(screen.queryByText(/Developing/)).not.toBeOnTheScreen());
     expect(mockCreateUploadUrls.mock.calls.map(([request]) => request.body.files.length)).toEqual([20, 5]);
     expect(mockConfirmUploads).toHaveBeenCalledTimes(2);
+  });
+
+  test("photos added offline wait in the tray and develop once the connection is back", async () => {
+    const client = await renderScreen({ photos: oneFrame });
+    await screen.findByLabelText("Frame 1, by You");
+    await act(async () => mockConnectionListener?.({ isConnected: false }));
+    const user = userEvent.setup();
+
+    await user.press(screen.getByRole("button", { name: "Add photos" }));
+
+    expect(await screen.findByText("1 waiting · offline")).toBeOnTheScreen();
+    expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+    expect(mockUploadAsync).not.toHaveBeenCalled();
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <UploadTrayScreen />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Waiting · offline")).toBeOnTheScreen();
+
+    await act(async () => mockConnectionListener?.({ isConnected: true }));
+
+    await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalledTimes(1));
+    expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Developed")).toBeOnTheScreen();
+  });
+
+  test("offline, picks past what the phone may hold are refused with a note, and nothing is copied", async () => {
+    const queued = Array.from({ length: OFFLINE_QUEUE_LIMIT.files }, (_, index) => ({
+      key: `queued-${index}`,
+      name: `IMG_${index}`,
+      uri: `file://queued-${index}.jpg`,
+      contentType: "image/jpeg" as const,
+      sizeBytes: 1,
+      status: { kind: "waiting" as const },
+    }));
+    await renderScreen({ photos: oneFrame });
+    await screen.findByLabelText("Frame 1, by You");
+    await act(async () => mockConnectionListener?.({ isConnected: false }));
+    await act(async () => addToTray("event-2", queued, async () => undefined));
+
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+
+    expect(await screen.findByText("The tray is full. Let what’s waiting go first.")).toBeOnTheScreen();
+    expect(getTray("event-1").items).toEqual([]);
   });
 
   test("keeps a frame that didn't take crossed out where it was, and Retry sends it again (08.4)", async () => {
