@@ -1,0 +1,116 @@
+# The photos bucket and the rules on it (docs/photos-architecture.md,
+# docs/photo-privacy.md).
+
+resource "aws_s3_bucket" "photos" {
+  bucket = "everglow-photos-${var.environment}"
+}
+
+resource "aws_s3_bucket_public_access_block" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# One policy per bucket, so every rule for the photos bucket lives here.
+resource "aws_s3_bucket_policy" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [
+        {
+          # Refuse any non-HTTPS access.
+          Sid       = "DenyInsecureTransport"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = "s3:*"
+          Resource  = [aws_s3_bucket.photos.arn, "${aws_s3_bucket.photos.arn}/*"]
+          Condition = { Bool = { "aws:SecureTransport" = "false" } }
+        },
+      ],
+      # Photos are users' private data: only the API and the image processor
+      # read them. An explicit Deny beats any Allow, so this holds for admins
+      # too; opening a photo means changing this policy first, which CloudTrail
+      # records and the alerts report. The app is unaffected: its download URLs
+      # are presigned by the API, so AWS sees the API reading.
+      # aws:userId is the reliable allowlist key for IAM users and assumed
+      # roles (ROLEID:session). See docs/photo-privacy.md.
+      #
+      # Lambda names the processor's session after the function, so only that
+      # session is exempt, not any session of the role. A bucket policy cannot
+      # tell Lambda from a person who assumes the role with the same session
+      # name (lambda:SourceFunctionArn is not allowed in resource policies).
+      # That takes a trust policy change first, which is alerted, and the read
+      # alert checks where the credentials were issued (alerts.tf).
+      var.allow_human_photo_reads ? [] : [
+        {
+          Sid       = "OnlyTheApiReadsPhotos"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = ["s3:GetObject", "s3:GetObjectVersion"]
+          Resource  = "${aws_s3_bucket.photos.arn}/*"
+          Condition = {
+            StringNotEquals = {
+              "aws:userId" = concat(
+                [for user in var.api_users : user.unique_id],
+                ["${aws_iam_role.image_processor.unique_id}:${aws_lambda_function.image_processor.function_name}"],
+              )
+            }
+          }
+        },
+      ],
+    )
+  })
+}
+
+# New objects are encrypted with a key only the API may use, so S3 read
+# access alone is not enough to see a photo. Objects uploaded before the key
+# existed keep S3-managed encryption. Bucket keys cut the KMS calls (and cost)
+# per object; CloudTrail still records every object read.
+resource "aws_s3_bucket_server_side_encryption_configuration" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.photos.arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+# Browsers only — native mobile uploads ignore CORS. Tighten allowed_origins
+# to real web origins when a web client exists.
+resource "aws_s3_bucket_cors_configuration" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  cors_rule {
+    allowed_origins = ["*"]
+    allowed_methods = ["GET", "PUT", "HEAD"]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
+# Half-finished multipart uploads are invisible but billed — sweep them daily.
+resource "aws_s3_bucket_lifecycle_configuration" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}

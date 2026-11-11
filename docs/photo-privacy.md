@@ -2,7 +2,7 @@
 
 Users' photos are theirs. The API needs to read them to serve the app, but no person with AWS access should be able to browse them. The owner of an AWS account can never be locked out completely, since they can always change the rules. So the goal is that **nobody reads a photo by accident, and every deliberate read is recorded and reported**.
 
-The Terraform is in `infra/`: the bucket policy in `main.tf`, the rest in `photo-privacy.tf`.
+The Terraform is in `infra/`: each environment's bucket, bucket policy, key and read alert in `modules/photo-storage/` (one instance per environment in `photos.tf`), and what they share (the trail, the alert topic and the control-change alert) in `photo-privacy.tf`.
 
 ## The layers
 
