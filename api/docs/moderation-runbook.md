@@ -66,6 +66,8 @@ A `CHILD_SAFETY` report is hidden from everyone, organizers included, and held f
    6. Tell nobody involved why. Nothing the person sees may prejudice an investigation.
 3. **If it isn't:** `DISMISS` it. If it is still objectionable, use the ordinary verdicts instead.
 
+**A re-upload attempt** is an automated `CHILD_SAFETY` member report with no photo. Its note names the removed image's report. The upload was already refused, and its bytes are the same as that report's evidence copy, so don't look at the image again: the earlier verdict judged it. Report the uploader (steps 2.1 to 2.3, citing the earlier report) and suspend the account (step 2.5). The suspension closes the attempt report as `ACCOUNT_SUSPENDED`. If the match was wrong, `DISMISS` the report instead.
+
 ## Intimate image shared without consent (`intimate_image`): pages, 48 hours
 
 The TAKE IT DOWN Act requires removal within 48 hours of a valid request (47 U.S.C. §223a). The report hides the image from everyone at once; the deadline is the report's `removalDueAt`, 48 hours after filing. `report.removal_due_soon` pages at 36 hours and `report.removal_overdue` at 48 if it is still OPEN.
