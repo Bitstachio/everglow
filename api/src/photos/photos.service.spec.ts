@@ -19,6 +19,9 @@ import { PhotosService } from "./photos.service";
 import { EvidenceService } from "src/moderation/evidence/evidence.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "src/moderation/evidence/testing/evidence-service.mock";
 import { IdenticalCopiesService } from "src/moderation/evidence/identical-copies.service";
+import { ConfigService } from "@nestjs/config";
+import { UploadScreeningService } from "src/moderation/screening/upload-screening.service";
+import { RekognitionService } from "src/sdk/aws/rekognition/rekognition.service";
 
 // An original and the image processor's two renditions of it, deleted in one batch.
 const withDerivatives = (key: string): string[] => [key, `derived/${key}/thumb.webp`, `derived/${key}/large.jpg`];
@@ -33,11 +36,15 @@ describe("PhotosService", () => {
     headObject: jest.Mock;
     deleteObjects: jest.Mock;
     sha256OfObject: jest.Mock;
+    getObjectBytes: jest.Mock;
   };
   let identicalCopiesService: { findRemovedImages: jest.Mock; removeCopies: jest.Mock };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
   let photoVisibilityService: { whereVisibleTo: jest.Mock; isVisibleTo: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
+  let rekognition: { detectModerationLabels: jest.Mock };
+  // Upload screening is off unless a test turns it on.
+  let config: Record<string, unknown>;
 
   const callerId = "11111111-1111-1111-1111-111111111111";
   const eventId = "66666666-6666-6666-6666-666666666666";
@@ -133,6 +140,8 @@ describe("PhotosService", () => {
     sizeBytes: 1024,
     status: "PENDING",
     sha256: null,
+    screening: "UNSCREENED",
+    screeningHeldUntil: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -151,6 +160,7 @@ describe("PhotosService", () => {
       deleteObjects: jest.fn((keys: string[]) => Promise.resolve({ deleted: keys, failed: [] })),
       // Each original hashes to a digest derived from its key, so tests can tell them apart.
       sha256OfObject: jest.fn((key: string) => Promise.resolve(hashOf(key))),
+      getObjectBytes: jest.fn().mockResolvedValue(new Uint8Array([0xff, 0xd8])),
     };
     identicalCopiesService = {
       findRemovedImages: jest.fn().mockResolvedValue(new Map()),
@@ -165,6 +175,13 @@ describe("PhotosService", () => {
     logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
     evidenceService = buildEvidenceServiceMock();
+    rekognition = { detectModerationLabels: jest.fn().mockResolvedValue([]) };
+    config = {
+      "moderation.screeningEnabled": false,
+      "moderation.screeningMinConfidence": 80,
+      "moderation.screeningTimeoutMs": 5000,
+      "moderation.screeningMaxHoldMinutes": 30,
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -177,6 +194,12 @@ describe("PhotosService", () => {
         { provide: PhotoStorageService, useValue: photoStorageService },
         { provide: PhotoVisibilityService, useValue: photoVisibilityService },
         { provide: PinoLogger, useValue: logger },
+        UploadScreeningService,
+        { provide: RekognitionService, useValue: rekognition },
+        {
+          provide: ConfigService,
+          useValue: { get: (key: string) => config[key], getOrThrow: (key: string) => config[key] },
+        },
       ],
     }).compile();
 
@@ -686,6 +709,240 @@ describe("PhotosService", () => {
 
       expect(results).toEqual([{ photoId, status: "READY" }]);
       expect(s3Service.headObject).toHaveBeenCalledTimes(1);
+    });
+
+    describe("with upload screening", () => {
+      const key = buildPhotoS3Key(eventId, photoId);
+      const displayCopy = `derived/${key}/large.jpg`;
+      const screeningData = () => prisma.photo.updateMany.mock.calls.map(([args]) => args.data);
+
+      const confirmOne = async (photo: Partial<Photo> = {}) => {
+        const built = buildPhoto(photoId, photo);
+        prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+        prisma.photo.findMany.mockResolvedValue([built]);
+        s3Service.headObject.mockResolvedValue({
+          exists: true,
+          contentType: built.contentType,
+          sizeBytes: built.sizeBytes,
+        });
+        prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+        return service.confirmUploads(eventId, callerId, [photoId]);
+      };
+
+      beforeEach(() => {
+        config["moderation.screeningEnabled"] = true;
+        prisma.report.createManyAndReturn.mockResolvedValue([
+          { id: "report-1", eventId, photoId, source: "AUTOMATED", queue: "PLATFORM", escalationReasons: [] } as never,
+        ]);
+      });
+
+      it("screens nothing and writes no screening columns while it is off", async () => {
+        config["moderation.screeningEnabled"] = false;
+
+        await expect(confirmOne()).resolves.toEqual([{ photoId, status: "READY" }]);
+
+        expect(s3Service.getObjectBytes).not.toHaveBeenCalled();
+        expect(rekognition.detectModerationLabels).not.toHaveBeenCalled();
+        expect(screeningData()).toEqual([{ status: "READY", sha256: hashOf(key) }]);
+      });
+
+      it("sends the display copy's bytes and publishes a clean photo as CLEARED", async () => {
+        const bytes = new Uint8Array([1, 2, 3]);
+        s3Service.getObjectBytes.mockResolvedValue(bytes);
+
+        await expect(confirmOne()).resolves.toEqual([{ photoId, status: "READY" }]);
+
+        expect(s3Service.getObjectBytes).toHaveBeenCalledWith(displayCopy, {
+          abortSignal: expect.any(AbortSignal) as unknown,
+        });
+        expect(rekognition.detectModerationLabels).toHaveBeenCalledWith(bytes, 80, expect.any(AbortSignal));
+        expect(screeningData()).toEqual([
+          { status: "READY", sha256: hashOf(key), screening: "CLEARED", screeningHeldUntil: null },
+        ]);
+        expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+      });
+
+      it("files the automated report in the same transaction that makes a flagged photo READY", async () => {
+        rekognition.detectModerationLabels.mockResolvedValue([
+          { name: "Explicit Nudity", parentName: "Explicit", confidence: 97.4 },
+        ]);
+        const order: string[] = [];
+        prisma.$transaction.mockImplementation(async (fn) => {
+          order.push("begin");
+          const result = await (fn as (tx: unknown) => Promise<unknown>)(prisma);
+          order.push("commit");
+          return result;
+        });
+        prisma.report.createManyAndReturn.mockImplementation((() => {
+          order.push(`report after ${prisma.photo.updateMany.mock.calls.length} READY update`);
+          return Promise.resolve([
+            { id: "report-1", eventId, photoId, source: "AUTOMATED", queue: "PLATFORM", escalationReasons: [] },
+          ]);
+        }) as never);
+
+        await expect(confirmOne()).resolves.toEqual([{ photoId, status: "READY" }]);
+
+        expect(order).toEqual(["begin", "report after 1 READY update", "commit"]);
+        expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith({
+          skipDuplicates: true,
+          data: [
+            expect.objectContaining({
+              reporterId: null,
+              source: "AUTOMATED",
+              targetType: "PHOTO",
+              photoId,
+              reportedUserId: callerId,
+              reason: "NUDITY_OR_SEXUAL",
+              note: "Upload screening: Explicit Nudity (97%)",
+              queue: "PLATFORM",
+              escalationReasons: ["AUTOMATED_FLAG", "SEVERE_REASON"],
+            }),
+          ],
+        });
+        expect(evidenceService.writeSnapshot).toHaveBeenCalledWith(prisma, "report-1", {
+          objectS3Key: key,
+          contentType: "image/jpeg",
+          sizeBytes: 1024,
+          subjectUserId: callerId,
+        });
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "photo.screening.flagged",
+            photoId,
+            reason: "NUDITY_OR_SEXUAL",
+            labels: [{ name: "Explicit Nudity", confidence: 97 }],
+            reportId: "report-1",
+          }),
+          expect.any(String),
+        );
+      });
+
+      it("flags nothing for labels that are ordinary at a party", async () => {
+        rekognition.detectModerationLabels.mockResolvedValue([
+          { name: "Swimwear or Underwear", parentName: "", confidence: 99 },
+          { name: "Alcohol", parentName: "Drugs & Tobacco", confidence: 95 },
+          { name: "Explosions and Blasts", parentName: "Violence", confidence: 90 },
+        ]);
+
+        await confirmOne();
+
+        expect(screeningData()[0]).toMatchObject({ screening: "CLEARED" });
+        expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+      });
+
+      it("falls back to a small JPEG original while the display copy isn't written yet", async () => {
+        s3Service.getObjectBytes.mockImplementation((objectKey: string) =>
+          Promise.resolve(objectKey === key ? new Uint8Array([9]) : null),
+        );
+
+        await confirmOne();
+
+        expect(s3Service.getObjectBytes.mock.calls.map(([objectKey]) => objectKey as string)).toEqual([
+          displayCopy,
+          key,
+        ]);
+        expect(rekognition.detectModerationLabels).toHaveBeenCalledWith(
+          new Uint8Array([9]),
+          80,
+          expect.any(AbortSignal),
+        );
+        expect(screeningData()[0]).toMatchObject({ screening: "CLEARED" });
+      });
+
+      it("holds a large photo whose display copy isn't written yet, for 30 minutes at most", async () => {
+        jest.useFakeTimers({ now, doNotFake: ["setTimeout", "setImmediate", "nextTick"] });
+        try {
+          s3Service.getObjectBytes.mockResolvedValue(null);
+
+          await expect(confirmOne({ sizeBytes: 12 * 1024 * 1024 })).resolves.toEqual([{ photoId, status: "READY" }]);
+
+          // Over Rekognition's 5 MB: only the display copy may be sent.
+          expect(s3Service.getObjectBytes.mock.calls.map(([objectKey]) => objectKey as string)).toEqual([displayCopy]);
+          expect(rekognition.detectModerationLabels).not.toHaveBeenCalled();
+          expect(screeningData()[0]).toMatchObject({
+            status: "READY",
+            screening: "PENDING",
+            screeningHeldUntil: new Date(now.getTime() + 30 * 60_000),
+          });
+          expect(logger.info).toHaveBeenCalledWith(
+            expect.objectContaining({ event: "photo.screening.held", photoId, reason: "no_display_copy" }),
+            expect.any(String),
+          );
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it("publishes a HEIC photo unchecked at once, since nothing can screen it yet", async () => {
+        await confirmOne({ contentType: "image/heic" });
+
+        expect(s3Service.getObjectBytes).not.toHaveBeenCalled();
+        expect(rekognition.detectModerationLabels).not.toHaveBeenCalled();
+        expect(screeningData()[0]).toMatchObject({ screening: "SKIPPED", screeningHeldUntil: null });
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "photo.screening.skipped", reason: "unsupported_format" }),
+          expect.any(String),
+        );
+      });
+
+      it("screens a WebP photo through its display copy", async () => {
+        await confirmOne({ contentType: "image/webp" });
+
+        expect(s3Service.getObjectBytes).toHaveBeenCalledWith(displayCopy, expect.anything());
+        expect(screeningData()[0]).toMatchObject({ screening: "CLEARED" });
+      });
+
+      it("fails closed: holds the photo, and still confirms it, when Rekognition fails", async () => {
+        rekognition.detectModerationLabels.mockRejectedValue(
+          Object.assign(new Error("Rate exceeded"), { name: "ThrottlingException" }),
+        );
+
+        await expect(confirmOne()).resolves.toEqual([{ photoId, status: "READY" }]);
+
+        expect(screeningData()[0]).toMatchObject({ status: "READY", screening: "PENDING" });
+        expect(logger.warn).toHaveBeenCalledWith(
+          { event: "photo.screening.failed", photoId, eventId, errorType: "ThrottlingException" },
+          expect.any(String),
+        );
+      });
+
+      it("holds the photo when screening takes longer than the timeout", async () => {
+        config["moderation.screeningTimeoutMs"] = 20;
+        rekognition.detectModerationLabels.mockReturnValue(new Promise(() => undefined));
+
+        await expect(confirmOne()).resolves.toEqual([{ photoId, status: "READY" }]);
+
+        expect(screeningData()[0]).toMatchObject({ screening: "PENDING" });
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "photo.screening.held", reason: "timeout" }),
+          expect.any(String),
+        );
+      });
+
+      it("publishes an image Rekognition refuses as unreadable, instead of holding it", async () => {
+        rekognition.detectModerationLabels.mockRejectedValue(
+          Object.assign(new Error("bad image"), { name: "InvalidImageFormatException" }),
+        );
+
+        await confirmOne();
+
+        expect(screeningData()[0]).toMatchObject({ screening: "SKIPPED", screeningHeldUntil: null });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "photo.screening.skipped", reason: "invalid_image" }),
+          expect.any(String),
+        );
+      });
+
+      it("screens nothing for a refused re-upload of a removed image", async () => {
+        identicalCopiesService.findRemovedImages.mockResolvedValue(new Map([[hashOf(key), "removed-report"]]));
+
+        await expect(confirmOne()).rejects.toMatchObject({
+          response: { code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE" },
+        });
+        expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+        expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+      });
     });
   });
 

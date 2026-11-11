@@ -5,7 +5,16 @@ import {
 } from "src/moderation/evidence/evidence.constants";
 
 describe("moderationConfig", () => {
-  const MANAGED_VARS = ["MODERATION_EVIDENCE_JOB_ENABLED", "REPORT_RETENTION_DAYS", "EVIDENCE_JOB_BATCH_SIZE"] as const;
+  const MANAGED_VARS = [
+    "MODERATION_EVIDENCE_JOB_ENABLED",
+    "REPORT_RETENTION_DAYS",
+    "EVIDENCE_JOB_BATCH_SIZE",
+    "MODERATION_SCREENING_ENABLED",
+    "SCREENING_MIN_CONFIDENCE",
+    "SCREENING_TIMEOUT_MS",
+    "SCREENING_MAX_HOLD_MINUTES",
+    "SCREENING_BATCH_SIZE",
+  ] as const;
   const original = new Map(MANAGED_VARS.map((name) => [name, process.env[name]]));
 
   beforeEach(() => {
@@ -48,5 +57,43 @@ describe("moderationConfig", () => {
   it("reads the retention window from REPORT_RETENTION_DAYS", () => {
     process.env.REPORT_RETENTION_DAYS = "400";
     expect(moderationConfig().reportRetentionDays).toBe(400);
+  });
+
+  describe("upload screening", () => {
+    // It sends every new photo to Amazon Rekognition: off unless exactly "true".
+    it.each([undefined, "1", "yes", "TRUE", ""])("is off for %p", (value) => {
+      if (value !== undefined) process.env.MODERATION_SCREENING_ENABLED = value;
+      expect(moderationConfig().screeningEnabled).toBe(false);
+    });
+
+    it("is on for exactly true", () => {
+      process.env.MODERATION_SCREENING_ENABLED = "true";
+      expect(moderationConfig().screeningEnabled).toBe(true);
+    });
+
+    it("flags at 80%, gives up on a photo after 5 seconds, and holds it 30 minutes at most, by default", () => {
+      expect(moderationConfig()).toMatchObject({
+        screeningMinConfidence: 80,
+        screeningTimeoutMs: 5000,
+        screeningMaxHoldMinutes: 30,
+        screeningBatchSize: 50,
+      });
+    });
+
+    it("reads its overrides, and keeps the confidence a percentage", () => {
+      process.env.SCREENING_MIN_CONFIDENCE = "95";
+      process.env.SCREENING_TIMEOUT_MS = "3000";
+      process.env.SCREENING_MAX_HOLD_MINUTES = "10";
+      process.env.SCREENING_BATCH_SIZE = "20";
+      expect(moderationConfig()).toMatchObject({
+        screeningMinConfidence: 95,
+        screeningTimeoutMs: 3000,
+        screeningMaxHoldMinutes: 10,
+        screeningBatchSize: 20,
+      });
+
+      process.env.SCREENING_MIN_CONFIDENCE = "150";
+      expect(moderationConfig().screeningMinConfidence).toBe(100);
+    });
   });
 });
