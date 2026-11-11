@@ -117,6 +117,8 @@ The removal notification and the orphan reconciler stay as backstops. Original r
 
 The worker keeps SQS transport handling separate from the S3 lifecycle service and pure image processing, with injected SDK/logger dependencies. It has no Nest or Prisma dependency; HTTP rules and database ownership stay in the API. See the [worker README](../functions/image-processor/README.md) for structure, checks and deployment.
 
+**Upload screening reads the display copy.** When it is on, the API sends `large.jpg`'s bytes to Amazon Rekognition at confirm ([moderation.md §11](./moderation.md#11-upload-screening)): it is under Rekognition's 5 MB limit for any original, and it exists for WebP and large JPEGs that Rekognition can't read as they are. A photo whose display copy isn't written yet is held from guests until it is. Until the worker decodes HEIC, HEIC and HEIF photos have none and are published unscreened.
+
 The Lambda package uses the exact Sharp version installed from the lockfile. CI runs processor tests/build and Terraform validation before passing the aggregate check.
 
 Generation can finish after a new photo is listed. A signed thumbnail URL is not a guarantee that the object exists. Clients retry briefly and show a tappable placeholder if it remains missing; they never automatically download the original as a thumbnail fallback. Only opening a frame or an explicit save action retrieves `url`. Older or unsupported uploads may have only an original until HEIC decoding and backfill land.

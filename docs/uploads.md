@@ -23,6 +23,10 @@ The URL is signed with `If-None-Match: *`, an S3 conditional write ([EV-201](htt
 
 Confirm streams each verified photo original from S3 once through SHA-256 and stores it on `Photo.sha256`, a few photos at a time (`PHOTO_HASH_CONCURRENCY`), each read bounded by `PHOTO_HASH_TIMEOUT_MS`. The hash finds identical copies of a removed intimate image ([moderation.md §7](./moderation.md#intimate-images-the-take-it-down-act)). A read that fails or times out never fails the confirm: the photo goes live without a hash, and the hourly backfill job hashes it. The hashing itself costs about 1 ms for a 3 MB photo and 8 ms for 25 MB on the CPU; the read from S3 is most of the cost, roughly the time to download the photo inside the region.
 
+### Upload screening
+
+When `MODERATION_SCREENING_ENABLED=true`, confirm also screens each verified photo with Amazon Rekognition, alongside the hashing, before the batch goes live ([moderation.md §11](./moderation.md#11-upload-screening)). It sends the image processor's display copy (`large.jpg`), or a JPEG or PNG original of 5 MB or less while that isn't written yet. The verdict is written with the `READY` flip, and a flagged photo's automated report in the same transaction. A photo it can't screen yet (no display copy, Rekognition slow or failing) is `READY` but held: only its uploader and the event's organizers see it, and a job retries it every minute for up to 30 minutes. Screening never fails a confirm and never changes its response.
+
 If any photo in a confirm has the bytes of an intimate image the platform removed, the whole confirm answers 422 `PHOTO_REJECTED_MATCHES_REMOVED_IMAGE`. Those uploads are deleted with their renditions and their slots released. Nothing else changes: the other photos stay `PENDING`, so the client confirms the same ids again, gets their verdicts, and the refused ones answer `NOT_FOUND`. The app says only that the photo can't be added.
 
 ## What differs per kind
