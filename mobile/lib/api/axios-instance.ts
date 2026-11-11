@@ -1,8 +1,9 @@
 import { create, type AxiosInstance } from "axios";
 import { getAccessToken } from "@/lib/auth0";
 import { toApiError } from "@/lib/api/errors";
+import { env } from "@/lib/env";
 
-const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+const RAW_BASE_URL = env.EXPO_PUBLIC_API_URL;
 
 export const API_BASE_URL = `${RAW_BASE_URL.replace(/\/+$/, "")}/api/v2`;
 
