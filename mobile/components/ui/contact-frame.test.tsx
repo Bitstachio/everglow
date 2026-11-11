@@ -26,6 +26,28 @@ test("marks a frame that didn't make it with the warning icon, hidden from scree
   expect(screen.queryByText("!", { includeHiddenElements: true })).toBeNull();
 });
 
+test("shows the photo when its thumbnail is missing, keeping the uploader, and reports it ready", async () => {
+  const onPreviewReady = jest.fn();
+  const fallback = { uri: "https://bucket/photo.jpg", cacheKey: "photo:1:original" };
+  await render(
+    <ContactFrame
+      uri="https://bucket/thumb.webp"
+      cacheKey="photo:1:frame-thumbnail"
+      fallback={fallback}
+      mayBeLate={false}
+      onPreviewReady={onPreviewReady}
+      number={7}
+      by="Leila"
+      accessibilityLabel="Frame 7, by Leila"
+    />,
+  );
+  await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+  expect(screen.getByTestId("contact-frame-photo").props.source).toEqual([fallback]);
+  expect(screen.getByText("Leila", { includeHiddenElements: true })).toBeOnTheScreen();
+  await fireEvent(screen.getByTestId("contact-frame-photo"), "display");
+  expect(onPreviewReady).toHaveBeenCalledTimes(1);
+});
+
 test("reports the selected state", async () => {
   await render(<ContactFrame number={145} selected accessibilityLabel="Frame 145" />);
   expect(screen.getByLabelText("Frame 145")).toBeSelected();

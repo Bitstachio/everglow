@@ -92,6 +92,8 @@ const UploadTrayScreen = () => {
             <TrayRow
               uri={item.uri}
               cacheKey={item.cacheKey}
+              fallback={item.fallback}
+              mayBeLate={item.mayBeLate}
               status={text}
               accessibilityLabel={`${item.name}, ${text}`}
               done={rowStatus.kind === "developed"}

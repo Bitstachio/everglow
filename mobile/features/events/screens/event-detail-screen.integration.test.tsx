@@ -1405,21 +1405,74 @@ describe("saving and deleting frames", () => {
     expect(mockDownloadFile).toHaveBeenCalledTimes(2);
   });
 
-  test("a missing thumbnail stays a tappable placeholder and never preloads an original", async () => {
-    await renderScreen({ photos: [buildPhoto()] });
-    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "not ready" } });
-    expect(screen.queryByTestId("contact-frame-photo")).not.toBeOnTheScreen();
-    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
+  test("an older frame whose thumbnail was never written shows the photo instead, and keeps its uploader", async () => {
+    const legacy = buildPhoto({
+      id: "photo-legacy",
+      url: "https://cdn.example.com/legacy.jpg",
+      createdAt: fromNow(-DAY),
+    });
+    await renderScreen({ photos: [legacy] });
+    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+    // Under the viewer's key for the original, so opening the frame doesn't download it again.
+    expect(screen.getByTestId("contact-frame-photo").props.source).toEqual([
+      { uri: legacy.url, cacheKey: "photo:photo-legacy:original" },
+    ]);
+    expect(screen.getByTestId("contact-frame-photo").props.priority).toBe("low");
+    expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen();
+    expect(screen.getByText("You", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(mockDownloadFile).not.toHaveBeenCalled();
+
     await userEvent.setup().press(screen.getByLabelText("Frame 1, by You"));
-    expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(buildPhoto().url);
-    const dismissViewer = screen.getByTestId("frame-viewer-dialog").props.onDismiss;
-    await userEvent.setup().press(screen.getByRole("button", { name: "Close frame" }));
-    expect(screen.queryByTestId("frame-viewer-photo")).not.toBeOnTheScreen();
-    await act(async () => dismissViewer());
-    expect(screen.queryByTestId("frame-viewer-dialog", { includeHiddenElements: true })).not.toBeOnTheScreen();
+    expect(screen.getByTestId("frame-viewer-photo").props.source).toEqual([
+      { uri: legacy.url, cacheKey: "photo:photo-legacy:original" },
+    ]);
+    // The viewer's strip falls back the same way.
+    expect(screen.getAllByTestId("viewer-strip-photo")[0]!.props.source).toEqual([
+      { uri: legacy.url, cacheKey: "photo:photo-legacy:original" },
+    ]);
+  });
+
+  test("a frame with no thumbnail link goes straight to the photo", async () => {
+    const unlinked = buildPhoto({ id: "photo-unlinked", thumbnailUrl: "" });
+    await renderScreen({ photos: [unlinked] });
+    expect((await screen.findByTestId("contact-frame-photo")).props.source).toEqual([
+      { uri: unlinked.url, cacheKey: "photo:photo-unlinked:original" },
+    ]);
+  });
+
+  test("a new frame waits for its thumbnail before downloading the photo", async () => {
+    const fresh = buildPhoto({ id: "photo-fresh", createdAt: fromNow(-60_000) });
+    await renderScreen({ photos: [fresh] });
+    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "not ready" } });
+    // Still developing: the empty frame stays while the thumbnail is asked for again.
+    expect(screen.queryByTestId("contact-frame-photo")).not.toBeOnTheScreen();
+    expect(screen.getByLabelText("Frame 1, by You")).toBeOnTheScreen();
+  });
+
+  test("a frame whose thumbnail and photo both fail stays empty and still opens", async () => {
+    const broken = buildPhoto({ id: "photo-broken", createdAt: fromNow(-DAY) });
+    await renderScreen({ photos: [broken] });
+    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+    expect(screen.getByTestId("contact-frame-photo").props.source[0].cacheKey).toBe("photo:photo-broken:original");
+    jest.useFakeTimers();
+    try {
+      for (const delay of [2000, 5000, 10000]) {
+        await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "403" } });
+        expect(screen.queryByTestId("contact-frame-photo")).not.toBeOnTheScreen();
+        await act(async () => {
+          jest.advanceTimersByTime(delay);
+        });
+      }
+      await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "403" } });
+      await act(async () => {
+        jest.advanceTimersByTime(60_000);
+      });
+      expect(screen.queryByTestId("contact-frame-photo")).not.toBeOnTheScreen();
+    } finally {
+      jest.useRealTimers();
+    }
     await userEvent.setup().press(screen.getByLabelText("Frame 1, by You"));
-    expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(buildPhoto().url);
+    expect(screen.getByTestId("frame-viewer-photo").props.source[0].uri).toBe(broken.url);
   });
 
   test("a frame opens full size, saves, and deletes after the slip", async () => {
@@ -1515,7 +1568,14 @@ describe("people and the menu", () => {
     // Home keeps the card, with the strip it had, while it goes.
     expect(takeLeftRoll()).toEqual({
       event: expect.objectContaining({ title: "Weekend meetup" }),
-      photos: [{ uri: oneFrame[0]!.thumbnailUrl, cacheKey: `photo:${oneFrame[0]!.id}:thumbnail` }],
+      photos: [
+        {
+          uri: oneFrame[0]!.thumbnailUrl,
+          cacheKey: `photo:${oneFrame[0]!.id}:thumbnail`,
+          fallback: { uri: oneFrame[0]!.url, cacheKey: `photo:${oneFrame[0]!.id}:original` },
+          mayBeLate: false,
+        },
+      ],
     });
     expect([
       mockFindOne.mock.calls.length,

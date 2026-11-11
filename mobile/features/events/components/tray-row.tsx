@@ -1,7 +1,7 @@
 import { AppIcon } from "@/components/ui/app-icon";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { Sprockets } from "@/components/ui/film-strip";
-import { RetryingPhoto } from "@/components/ui/retrying-photo";
+import { RetryingPhoto, type PhotoVariant } from "@/components/ui/retrying-photo";
 import { colorTokens } from "@/theme/tokens";
 import { ImageSquare, type Icon } from "phosphor-react-native";
 import { Pressable, View } from "react-native";
@@ -10,6 +10,10 @@ type TrayRowProps = {
   uri: string;
   /** Stable identity of a server thumbnail, independent of its signed URL. */
   cacheKey?: string;
+  /** The photo, shown when its server thumbnail is missing. */
+  fallback?: PhotoVariant;
+  /** The server thumbnail may not be written yet, so a failure is retried before `fallback`. */
+  mayBeLate?: boolean;
   status: string;
   accessibilityLabel: string;
   done?: boolean;
@@ -22,6 +26,8 @@ type TrayRowProps = {
 export const TrayRow = ({
   uri,
   cacheKey,
+  fallback,
+  mayBeLate,
   status,
   accessibilityLabel,
   done = false,
@@ -36,13 +42,15 @@ export const TrayRow = ({
     >
       <Sprockets edge="top" count={5} />
       <View className="aspect-square w-full items-center justify-center overflow-hidden rounded-frame bg-frame-empty">
-        {uri ? (
+        {uri || fallback ? (
           // expo-image decodes at the 56pt frame's size (allowDownscaling), not
           // the original's, and a retry or recycled row never shows another file.
           <RetryingPhoto
             testID="tray-row-photo"
             uri={uri}
             cacheKey={cacheKey}
+            fallback={fallback}
+            mayBeLate={mayBeLate}
             contentFit="cover"
             allowDownscaling
             className="h-full w-full"
