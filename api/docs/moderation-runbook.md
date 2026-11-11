@@ -61,7 +61,7 @@ A `CHILD_SAFETY` report is hidden from everyone, organizers included, and held f
    1. Report it to the **NCMEC CyberTipline** "as soon as reasonably possible" (18 U.S.C. §2258A). Use the provider account set up for Everglow. Registration is a one-time task for the owner.
    2. For a Canadian user or event, report it to **Cybertip.ca**, and notify the police (S.C. 2011, c. 4).
    3. Record the reference: `PUT /admin/reports/:reportId/authority-report` with `{ reference, submittedAt }`. That stores `authorityReportedAt` and holds the report and its evidence until the later of its current hold and a year from the submission.
-   4. Remove the content: `PATCH` with `REMOVE_MEMBER` and `photos: DELETE`. The evidence copy is kept under the hold.
+   4. Remove the content: `PATCH` with `REMOVE_MEMBER` and `photos: DELETE`. The evidence copy is kept under the hold. Every identical copy of the photo in any event is removed with it, each under its own `CHILD_SAFETY` report that is already actioned, held for a year, and pages. Each page is a copy uploaded by someone else, or by the same person elsewhere. Find it with `GET /admin/reports?status=ACTIONED`, and handle its uploader with steps 2.1 to 2.3 and 2.5 on that report.
    5. Suspend the account: `POST /admin/users/:userId/suspend`. It closes their member reports; their photo reports stay open, so remove those photos with step 4 first.
    6. Tell nobody involved why. Nothing the person sees may prejudice an investigation.
 3. **If it isn't:** `DISMISS` it. If it is still objectionable, use the ordinary verdicts instead.
