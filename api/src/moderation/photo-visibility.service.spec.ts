@@ -128,7 +128,17 @@ describe("PhotoVisibilityService", () => {
 
       const where = await service.whereVisibleTo(callerId, eventFor(accessLevel));
 
-      expect(where.AND).toHaveLength(4);
+      expect(where.AND).toHaveLength(5);
+    });
+
+    it("hides a photo with an OPEN automated report from everyone but organizers, and only while it is OPEN", async () => {
+      mockPhotosOverThreshold([]);
+
+      const member = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+      const organizer = await service.whereVisibleTo(callerId, eventFor(AccessLevel.ORGANIZER));
+
+      expect(member.AND).toContainEqual({ reports: { none: { status: "OPEN", source: "AUTOMATED" } } });
+      expect(JSON.stringify(organizer)).not.toContain("AUTOMATED");
     });
 
     it("hides photos the caller has an OPEN report on, and only OPEN ones", async () => {

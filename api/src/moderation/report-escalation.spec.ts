@@ -1,5 +1,11 @@
 import { PinoLogger } from "nestjs-pino";
-import { escalationAlertFields, escalationSeverity, logEscalations } from "./report-escalation";
+import {
+  PLATFORM_ESCALATIONS,
+  escalationAlertFields,
+  escalationSeverity,
+  logEscalations,
+  reasonEscalations,
+} from "./report-escalation";
 
 describe("report escalation", () => {
   const moved = {
@@ -18,6 +24,21 @@ describe("report escalation", () => {
     [["target_is_event", "event_under_review"], "ticket"],
   ])("grades %j as a %s", (reasons, severity) => {
     expect(escalationSeverity(reasons)).toBe(severity);
+  });
+
+  it.each([
+    ["SPAM", []],
+    ["HARASSMENT", []],
+    ["NUDITY_OR_SEXUAL", ["SEVERE_REASON"]],
+    ["VIOLENCE", ["SEVERE_REASON"]],
+    ["CHILD_SAFETY", ["SEVERE_REASON", "CHILD_SAFETY"]],
+    ["NON_CONSENSUAL_INTIMATE_IMAGE", ["SEVERE_REASON", "INTIMATE_IMAGE"]],
+  ] as const)("escalates a %s report for its reason alone with %j", (reason, expected) => {
+    expect(reasonEscalations(reason)).toEqual(expected);
+  });
+
+  it("sends an automated report to the platform's queue", () => {
+    expect(PLATFORM_ESCALATIONS).toContain("AUTOMATED_FLAG");
   });
 
   it("builds an alert line that names the report and no person", () => {
