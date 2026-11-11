@@ -11,11 +11,13 @@ const emptyToUndefined = (value: unknown): unknown => {
   return value;
 };
 
+const nonEmptyString = z.string().min(1);
+
 const envSchema = z.object({
   EXPO_PUBLIC_API_URL: z.preprocess(emptyToUndefined, z.url().default(DEFAULT_API_URL)),
-  EXPO_PUBLIC_AUTH0_DOMAIN: z.string().default(""),
-  EXPO_PUBLIC_AUTH0_CLIENT_ID: z.string().default(""),
-  EXPO_PUBLIC_AUTH0_AUDIENCE: z.string().default(""),
+  EXPO_PUBLIC_AUTH0_DOMAIN: nonEmptyString,
+  EXPO_PUBLIC_AUTH0_CLIENT_ID: nonEmptyString,
+  EXPO_PUBLIC_AUTH0_AUDIENCE: nonEmptyString,
   EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL: z.preprocess(
     emptyToUndefined,
     z.url().default(DEFAULT_PASSWORD_CHANGE_RESULT_URL),

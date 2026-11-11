@@ -4,6 +4,7 @@ const coverage = require("./jest.coverage");
 module.exports = {
   preset: "jest-expo",
   ...coverage("unit"),
+  setupFiles: ["<rootDir>/jest.setup-env.js"],
   testMatch: ["**/*.(test|spec).(ts|tsx|js|jsx)"],
   testPathIgnorePatterns: ["\\.integration\\.(test|spec)\\.(ts|tsx|js|jsx)$"],
   // Same budget as the integration config. Rendering tests take several
