@@ -32,6 +32,7 @@
     "test:db": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/db/jest-db.json --runInBand"
   },
   "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.1166.0",
     "@aws-sdk/client-s3": "^3.962.0",
     "@aws-sdk/s3-request-presigner": "^3.962.0",
     "@casl/ability": "^7.0.0",
