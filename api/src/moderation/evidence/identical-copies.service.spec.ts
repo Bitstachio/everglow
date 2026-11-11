@@ -125,6 +125,7 @@ describe("IdenticalCopiesService", () => {
           eventId: "event-1",
           eventTitle: "Roll 1",
           reporterId: null,
+          source: "AUTOMATED",
           targetType: "PHOTO",
           photoId: copy(1).id,
           reportedUserId: "uploader-1",
