@@ -22,6 +22,8 @@ export const useEventsQuery = (userId: string | undefined) =>
   useQuery({
     queryKey: eventsKeys.list(userId),
     enabled: Boolean(userId),
+    // Home opens from this when the app starts offline.
+    meta: { persist: true },
     queryFn: async ({ signal }): Promise<EventResponseDto[]> => {
       const { data } = await eventsControllerFindAll({ signal, throwOnError: true });
       // The generated options type the envelope as one event; runtime returns an array.
@@ -114,6 +116,9 @@ export const useRollPreviewQuery = (eventId: string, limit: number, enabled: boo
   useQuery({
     queryKey: eventsKeys.preview(eventId, limit),
     enabled,
+    // The strip offline. Its thumbnail links expire within minutes; the frames
+    // show from the image cache by their `photo:<id>:thumbnail` key.
+    meta: { persist: true },
     queryFn: async ({ signal }): Promise<PhotoResponseDto[]> => {
       const { data } = await photosControllerListPhotos({
         path: { eventId },
