@@ -6,8 +6,10 @@ import { PHOTO_HASH_TIMEOUT_MS } from "src/photos/photos.constants";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { EvidenceService } from "./evidence.service";
-import { IDENTICAL_COPIES_CHUNK_SIZE, IdenticalCopiesService, refusedUploadNote } from "./identical-copies.service";
+import { IDENTICAL_COPIES_CHUNK_SIZE, IdenticalCopiesService } from "./identical-copies.service";
 import { buildEvidenceServiceMock, EvidenceServiceMock } from "./testing/evidence-service.mock";
+// The re-upload attempt report's note, tested on its own below.
+import { refusedUploadNote } from "./identical-copies.service";
 
 describe("IdenticalCopiesService", () => {
   const reportId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
