@@ -1,5 +1,3 @@
-/// <reference types="node" />
-
 /**
  * Removes secret values from Maestro results before CI uploads them.
  *
