@@ -52,6 +52,8 @@ describe("ALERT_EVENTS", () => {
       STALE_REPORT_CHECK_RUN_FAILED: "report.stale_check.run_failed",
       GALLERY_CLOSE_RUN_COMPLETED: "event.gallery_close.run_completed",
       GALLERY_CLOSE_RUN_FAILED: "event.gallery_close.run_failed",
+      GALLERY_OPEN_NOTIFY_RUN_COMPLETED: "event.gallery_open_notify.run_completed",
+      GALLERY_OPEN_NOTIFY_RUN_FAILED: "event.gallery_open_notify.run_failed",
       REPORT_EVIDENCE_RUN_COMPLETED: "report.evidence_job.run_completed",
       REPORT_EVIDENCE_RUN_FAILED: "report.evidence_job.run_failed",
       PHOTO_HASH_BACKFILL_RUN_COMPLETED: "photo.hash_backfill.run_completed",
