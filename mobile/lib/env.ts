@@ -11,11 +11,6 @@ const emptyToUndefined = (value: unknown): unknown => {
   return value;
 };
 
-/**
- * Public env baked into the app (`EXPO_PUBLIC_*`). Empty Auth0 values are
- * valid so the app can start and show the not-configured path; a malformed
- * API or password-change URL fails at parse time.
- */
 const envSchema = z.object({
   EXPO_PUBLIC_API_URL: z.preprocess(emptyToUndefined, z.url().default(DEFAULT_API_URL)),
   EXPO_PUBLIC_AUTH0_DOMAIN: z.string().default(""),
@@ -48,5 +43,4 @@ export const parseEnv = (raw: Record<string, string | undefined>): Env => {
   return result.data;
 };
 
-/** Validated public env for this process. Parsed once when the module loads. */
 export const env = parseEnv(process.env);
