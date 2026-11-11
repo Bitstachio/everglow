@@ -260,7 +260,7 @@ jobs:
       - name: Scrub secrets from Maestro results
         id: scrub
         if: always()
-        run: node ./scripts/scrub-maestro-results.js .maestro/results E2E_PASSWORD
+        run: pnpm exec tsx ./scripts/scrub-maestro-results.ts .maestro/results E2E_PASSWORD
 
       - name: Upload Maestro results
         id: upload

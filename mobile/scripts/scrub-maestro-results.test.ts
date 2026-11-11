@@ -1,11 +1,14 @@
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const { scrubDirectory, secretForms } = require("./scrub-maestro-results");
+/// <reference types="node" />
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { scrubDirectory, secretForms } from "./scrub-maestro-results";
 
 const SECRET = 'p@ss "word"/1';
 
-let dir;
+let dir: string;
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "maestro-scrub-"));
@@ -15,7 +18,7 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const write = (relative, content) => {
+const write = (relative: string, content: string | Buffer): string => {
   const file = path.join(dir, relative);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
