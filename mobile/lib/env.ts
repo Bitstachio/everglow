@@ -16,7 +16,7 @@ const emptyToUndefined = (value: unknown): unknown => {
  * valid so the app can start and show the not-configured path; a malformed
  * API or password-change URL fails at parse time.
  */
-export const clientEnvSchema = z.object({
+const envSchema = z.object({
   EXPO_PUBLIC_API_URL: z.preprocess(emptyToUndefined, z.url().default(DEFAULT_API_URL)),
   EXPO_PUBLIC_AUTH0_DOMAIN: z.string().default(""),
   EXPO_PUBLIC_AUTH0_CLIENT_ID: z.string().default(""),
@@ -27,10 +27,10 @@ export const clientEnvSchema = z.object({
   ),
 });
 
-export type ClientEnv = z.infer<typeof clientEnvSchema>;
+type Env = z.infer<typeof envSchema>;
 
-export const parseClientEnv = (raw: Record<string, string | undefined>): ClientEnv => {
-  const result = clientEnvSchema.safeParse({
+export const parseEnv = (raw: Record<string, string | undefined>): Env => {
+  const result = envSchema.safeParse({
     EXPO_PUBLIC_API_URL: raw.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_AUTH0_DOMAIN: raw.EXPO_PUBLIC_AUTH0_DOMAIN,
     EXPO_PUBLIC_AUTH0_CLIENT_ID: raw.EXPO_PUBLIC_AUTH0_CLIENT_ID,
@@ -49,4 +49,4 @@ export const parseClientEnv = (raw: Record<string, string | undefined>): ClientE
 };
 
 /** Validated public env for this process. Parsed once when the module loads. */
-export const env = parseClientEnv(process.env);
+export const env = parseEnv(process.env);
