@@ -9,17 +9,109 @@ own issues: the gallery opening ([EV-141](https://linear.app/mehrshadfb/issue/EV
 
 ---
 
-## 1. Rules
+## 1. How push works
 
-- **Push carries no user content.** No photo, no caption, no free text anyone typed. Copy is written per type in
-  the API, in the film voice ([voice.md](./voice.md)). A reporter is never named.
+**Pull** vs **push** is about who initiates getting news to the phone:
+
+- **Pull:** the app (or the person) asks our API for updates. A normal REST call is pull: the phone opens a
+  connection to us.
+- **Push:** the network sends a message _to_ the phone so a banner can appear even when the app is closed.
+
+Our API does not push the banner to the phone itself. We never open a connection to the device for that. We send an
+HTTPS request to the **Expo Push API**. Expo then talks to Apple (APNs) or Google (FCM) backend push services, and
+they deliver a notification to the install. Mental model: our API → Expo → APNs/FCM → phone.
+
+Two things have to be true before that works: the person allowed notifications, and the app has already registered
+an **Expo push token** with our API for that install.
+
+### The push token
+
+The **Expo push token** is a string the app gets after permission is granted, shaped like
+`ExponentPushToken[…]`. It is what we put in Expo's `to` field so Expo knows which install the banner is for.
+It is a delivery ID for the install, not a geographic location and not the person's account.
+
+- It is **not** the Auth0 access token used to call our API. Sign-in proves who you are; the push token is only for
+  delivery through Expo → APNs/FCM.
+- APNs and FCM each also issue their own **device token** for the install (how those backends know which phone to
+  reach). The app reads that with `getDevicePushTokenAsync`, then asks Expo for an Expo push token with
+  `getExpoPushTokenAsync`. Expo keeps the mapping to APNs/FCM; **our API stores only the Expo push token**, never
+  the raw Apple or Google device token.
+- Whoever holds the Expo push token can ask Expo to send to that install, which is why later sections treat it as a
+  secret.
+
+### Who delivers the banner
+
+End to end:
+
+```
+App gets Expo push token
+  → registers it with our API (PUT /users/me/devices)
+  → a feature queues a Notification row for a user
+  → our sender POSTs title/body/data + that user's tokens to Expo (not to the phone)
+  → Expo hands each message to APNs (iOS) or FCM (Android)
+  → the phone shows the notification
+```
+
+[Expo's push docs](https://docs.expo.dev/push-notifications/sending-notifications/) describe the Expo → store path.
+Credentials for APNs and FCM live in EAS; setup is in §7.
+
+### Tickets and receipts
+
+From the phone's point of view there is only one thing: APNs or FCM eventually delivers a notification for the OS to
+show. **Tickets and receipts are not pushed to the device.** They are ordinary HTTPS responses between our API and
+Expo about that send. Expo names them **push ticket** and **push receipt** because they belong to the
+push-notification flow; the word "push" here is a label for that system, not a second delivery to the phone.
+
+A successful POST to Expo is not yet "APNs/FCM has the message." Expo reports progress to us in two steps:
+
+1. **Push ticket:** immediate reply to our send request. Expo accepted the message for that token (or refused it
+   right away, e.g. unknown token). We store the ticket id on a `NotificationDelivery` row.
+2. **Push receipt:** later, when we ask Expo about that ticket ID (§5). Whether APNs/FCM accepted the message from
+   Expo. A receipt can still say the token is dead (`DeviceNotRegistered`); we then drop that phone.
+
+"Sent" in our database means Expo took the message for at least one phone. The stores may still delay the banner if
+the phone is off; `ttl` on some kinds of notice caps how long they keep trying.
+
+### Type and copy
+
+Two words this doc uses a lot:
+
+- **Type:** a kind of notification, as a `NotificationType` value in the API (today mainly `TEST`; later things like
+  gallery opened or a closing reminder). A feature picks a type when it queues a row; the sender looks up that type's
+  definition.
+- **Copy:** the title and body **text** shown on the banner. Publishing jargon for "the wording," not "a duplicate."
+  Each type has fixed copy in the **catalogue** (`notification-catalogue.ts`), written in the film voice
+  ([voice.md](./voice.md)). The banner never uses a caption, comment, or other free text a person typed.
+
+How to add a type and its copy is in §4.
+
+### What Everglow adds on top
+
+Expo is the last hop _we_ call (APNs/FCM come after). Before we call Expo:
+
+| Piece                 | Role                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `UserDevice`          | Which Expo push tokens belong to which account                                      |
+| `Notification` outbox | One row per recipient; written in the same DB transaction as the change it is about |
+| Catalogue             | Per-type copy, tap URL, Android channel, dedupe key                                 |
+| Sender                | Claims due rows, calls Expo, records deliveries, retries, checks receipts           |
+
+The rest of this doc is our rules and that architecture. §3 to §5 are the API side; §8 is the app.
+
+## 2. Rules
+
+- **Push carries no user content.** No photo, no caption, no free text anyone typed. Each type's copy lives in the
+  API catalogue, in the film voice ([voice.md](./voice.md)). A reporter is never named.
 - **A push token is a secret.** Whoever holds it can address the phone. It is never logged, never returned by the
   API, and travels in request bodies, not paths, so it stays out of access logs.
 - **Nothing reaches an account once its deletion has started.**
 
-## 2. Devices
+## 3. Devices
 
-The app registers the phone it runs on, and the API keeps one `UserDevice` row per Expo push token.
+Push delivery is keyed off a **`UserDevice`** model (`api/prisma/schema.prisma`): one row per Expo push token,
+with a `userId` foreign key to `User`. That is **one-to-many** (one account, many phones), not many-to-many. The
+token column is globally unique, so a given install is tied to at most one account at a time. The
+`/users/me/devices` routes are just the REST surface for that table under the signed-in user.
 
 | Endpoint                             | When the app calls it                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------ |
@@ -27,9 +119,10 @@ The app registers the phone it runs on, and the API keeps one `UserDevice` row p
 | `DELETE /users/me/devices/:deviceId` | On sign-out, before the access token is cleared.                                           |
 
 - **Idempotent per token.** A phone that registers again only updates `lastSeenAt`, `platform` and `locale`.
-- **A token moves between accounts.** If a phone signs in to another account, its row moves to that account, so
-  the previous account's pushes stop reaching it. This also covers a sign-out whose `DELETE` never arrived
-  (offline): the next sign-in on that phone takes the token over.
+- **Sign-in reassigns the row.** If that token was already stored for another account, `PUT` keeps the same
+  `UserDevice` row and updates its `userId` to the caller. The previous account's pushes stop reaching the phone.
+  We do not attach one device to two users. This also covers a sign-out whose `DELETE` never arrived (offline):
+  the next sign-in's `PUT` takes the token over.
 - **At most 10 phones per account.** Registering an eleventh drops the one seen least recently. One account's
   registrations take a transaction-scoped advisory lock on the account first, so concurrent registrations trim one
   after the other and the cap is exact.
@@ -38,7 +131,7 @@ The app registers the phone it runs on, and the API keeps one `UserDevice` row p
 - `locale` is the phone's BCP 47 tag. Copy is English for now; the tag is kept so translated copy needs no contract
   change.
 
-## 3. Sending
+## 4. Sending
 
 A feature sends through `NotificationsService` (`api/src/notifications/notifications.service.ts`), never through
 Expo directly:
@@ -74,20 +167,27 @@ that checks them, its copy per language, the app path a tap opens, its dedupe ke
 
 1. Add the value to the `NotificationType` enum in `schema.prisma`, with a migration.
 2. Add its data to `NotificationDataByType` and its entry to `NOTIFICATION_CATALOGUE`. The compiler refuses a type
+
    missing from either.
+
 3. Write `isData` for its data. Rows outlive the code that wrote them: a row whose data no longer passes is
+
    `FAILED` with `invalid_data` and logged as `notification.render_failed`, never sent with broken copy.
+
 4. Pick its channel (below). A new kind of notification gets a new channel id.
 5. Set `ttlSeconds` if the notice is pointless late ("closes tomorrow"): Expo passes it on as `ttl`, so a phone
+
    that was off for days does not get it then. Leave it unset for notices that stay true (`TEST`, account notices).
+
 6. Add a sample to `notification-catalogue.spec.ts`.
 7. Write the copy to [voice.md](./voice.md): short, no exclamation marks, plain words for safety and deletion.
 8. If the tap should open a screen that needs more than a path, handle it in the app's notification tap handler,
+
    which arrives with the app's side of EV-73.
 
 | Type   | Sent when                                                       | Opens | Required | Channel   | ttl  |
 | ------ | --------------------------------------------------------------- | ----- | -------- | --------- | ---- |
-| `TEST` | `pnpm run notifications:send-test` (§6). Never sent by the app. | `/`   | no       | `account` | none |
+| `TEST` | `pnpm run notifications:send-test` (§7). Never sent by the app. | `/`   | no       | `account` | none |
 
 ### Languages
 
@@ -113,7 +213,7 @@ channels from, in the same release. That list arrives with the app's side of EV-
 (`mobile/features/notifications/lib/push.ts`), which creates `account`. A push to a channel the phone never created
 falls back to Expo's default channel.
 
-## 4. The sender
+## 5. The sender
 
 `NotificationSenderService` sends the outbox through the [Expo Push API](https://docs.expo.dev/push-notifications/sending-notifications/).
 
@@ -160,13 +260,13 @@ Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xa
 `api/src/prisma/advisory-lock.ts`); a replica that finds it held skips that run and logs its heartbeat with
 `ranElsewhere: true`.
 
-## 5. Retention
+## 6. Retention
 
 - Notifications, sent or not, and their deliveries: deleted after `NOTIFICATION_RETENTION_DAYS` (90).
 - Phones that have not registered for `NOTIFICATION_DEVICE_STALE_DAYS` (270, FCM's staleness window): deleted.
 - An account's notifications and phones go with it, by cascade.
 
-## 6. Setup and testing
+## 7. Setup and testing
 
 - **Expo.** Sending needs no key while the Expo project's "enhanced push security" is off. Once it is on, set
   `EXPO_ACCESS_TOKEN` in the deploy config. It is a secret: never in the repo.
@@ -194,7 +294,7 @@ Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xa
 
   Without `DB_TEST_DATABASE_URL` it is skipped with a message. It is not in CI yet.
 
-## 7. The app
+## 8. The app
 
 The mobile side lives in `mobile/features/notifications/`.
 
