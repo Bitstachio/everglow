@@ -57,6 +57,11 @@ describe("PhotoVisibilityService", () => {
       photoIds.map((id) => ({ eventId, photoId: id, _count: { _all: 3 } })) as never,
     );
 
+  // The screening hold compares against the time of the call: freeze it, so a
+  // filter rebuilt in an assertion is the same one the service built.
+  beforeEach(() => jest.useFakeTimers({ now: Date.now() }));
+  afterEach(() => jest.useRealTimers());
+
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
 
@@ -128,7 +133,7 @@ describe("PhotoVisibilityService", () => {
 
       const where = await service.whereVisibleTo(callerId, eventFor(accessLevel));
 
-      expect(where.AND).toHaveLength(5);
+      expect(where.AND).toHaveLength(6);
     });
 
     it("hides a photo with an OPEN automated report from everyone but organizers, and only while it is OPEN", async () => {
@@ -139,6 +144,27 @@ describe("PhotoVisibilityService", () => {
 
       expect(member.AND).toContainEqual({ reports: { none: { status: "OPEN", source: "AUTOMATED" } } });
       expect(JSON.stringify(organizer)).not.toContain("AUTOMATED");
+    });
+
+    it("hides a photo upload screening holds from everyone but its uploader and organizers, until the hold runs out", async () => {
+      jest.useFakeTimers({ now: new Date("2026-11-11T12:00:00.000Z") });
+      try {
+        mockPhotosOverThreshold([]);
+
+        const member = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+        const organizer = await service.whereVisibleTo(callerId, eventFor(AccessLevel.ORGANIZER));
+
+        expect(member.AND).toContainEqual({
+          OR: [
+            { screeningHeldUntil: null },
+            { screeningHeldUntil: { lte: new Date("2026-11-11T12:00:00.000Z") } },
+            { addedById: callerId },
+          ],
+        });
+        expect(JSON.stringify(organizer)).not.toContain("screeningHeldUntil");
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("hides photos the caller has an OPEN report on, and only OPEN ones", async () => {

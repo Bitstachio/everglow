@@ -299,6 +299,38 @@ describe("S3Service", () => {
     });
   });
 
+  describe("getObjectBytes", () => {
+    it("reads the whole object into memory, passing the abort signal on", async () => {
+      const bytes = new Uint8Array([0xff, 0xd8, 0xff]);
+      sendSpy.mockResolvedValueOnce({ Body: { transformToByteArray: () => Promise.resolve(bytes) } } as never);
+      const signal = new AbortController().signal;
+
+      await expect(service.getObjectBytes("derived/photos/e/p/large.jpg", { abortSignal: signal })).resolves.toBe(
+        bytes,
+      );
+      const [command, options] = sendSpy.mock.calls[0] as [GetObjectCommand, { abortSignal: AbortSignal }];
+      expect(command.input).toEqual({ Bucket: bucket, Key: "derived/photos/e/p/large.jpg" });
+      expect(options.abortSignal).toBe(signal);
+    });
+
+    it("returns null when the object is missing", async () => {
+      sendSpy.mockRejectedValueOnce(new NoSuchKey({ $metadata: {}, message: "NoSuchKey" }));
+
+      await expect(service.getObjectBytes("derived/photos/e/p/large.jpg")).resolves.toBeNull();
+    });
+
+    it("wraps other failures in InternalServerErrorException", async () => {
+      sendSpy.mockRejectedValueOnce(new Error("boom"));
+
+      const failure = service.getObjectBytes("derived/photos/e/p/large.jpg");
+
+      await expect(failure).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(failure).rejects.toMatchObject({
+        message: S3_SERVICE_ERRORS.GET_FAILED("derived/photos/e/p/large.jpg"),
+      });
+    });
+  });
+
   describe("sha256OfObject", () => {
     it("streams the object through SHA-256 and returns the hex digest", async () => {
       const bytes = Buffer.from("the same bytes");

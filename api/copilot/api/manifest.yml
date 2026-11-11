@@ -82,3 +82,6 @@ environments:
       GALLERY_CLOSE_ENABLED: "false"
       MODERATION_EVIDENCE_JOB_ENABLED: "false"
       PHOTO_HASH_BACKFILL_ENABLED: "false"
+      # Upload screening sends photos to Rekognition. Off until the steps in
+      # infra/README.md ("Before turning on upload screening") are done.
+      MODERATION_SCREENING_ENABLED: "false"
