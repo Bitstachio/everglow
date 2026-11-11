@@ -1,19 +1,25 @@
-const {
+import {
   attemptsRecord,
   formatDuration,
   rescueWarning,
   rescuedFrom,
   summaryMarkdown,
-} = require("./maestro-attempt-summary");
+  type MaestroAttempt,
+} from "./maestro-attempt-summary";
 
-const pass = (attempt, durationMs = 90_000) => ({
+const pass = (attempt: number, durationMs = 90_000) => ({
   attempt,
   passed: true,
   failureClass: null,
   durationMs,
   retried: false,
 });
-const fail = (attempt, failureClass, retried, durationMs = 75_000) => ({
+const fail = (
+  attempt: number,
+  failureClass: "flake" | "ambiguous" | "clear",
+  retried: boolean,
+  durationMs = 75_000,
+) => ({
   attempt,
   passed: false,
   failureClass,
@@ -21,7 +27,12 @@ const fail = (attempt, failureClass, retried, durationMs = 75_000) => ({
   retried,
 });
 
-const run = (attempts) => ({ device: "iPhone 17", runtime: "iOS 26.5", artifact: "maestro-login-ios-42", attempts });
+const run = (attempts: MaestroAttempt[]) => ({
+  device: "iPhone 17",
+  runtime: "iOS 26.5",
+  artifact: "maestro-login-ios-42",
+  attempts,
+});
 
 test("formats durations in minutes and seconds", () => {
   expect(formatDuration(0)).toBe("0s");

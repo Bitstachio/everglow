@@ -51,13 +51,13 @@ Artifacts upload `.maestro/results/` (including failures) and are kept for 7 day
 ## Fail fast
 
 - **Staging preflight.** Right after the secrets check, `scripts/check-maestro-api.sh` calls the API's liveness route `GET /api/v2` (`api/src/app.controller.ts`, the same path as the load balancer health check) up to four times with a 10 s timeout. If staging does not answer, the job fails in under a minute instead of after the build.
-- **Pinned simulator.** `SIM_DEVICE` and `SIM_RUNTIME` in the workflow pin the iPhone model and iOS runtime (`iPhone 17` on `iOS 26.5`, from the `macos-26-arm64` image). `scripts/pick-maestro-simulator.js` prints the device it chose. When the image no longer has that runtime, it uses the newest iOS runtime with the same model and adds a warning annotation to the run; when no runtime has the model, it fails and lists every available iPhone.
+- **Pinned simulator.** `SIM_DEVICE` and `SIM_RUNTIME` in the workflow pin the iPhone model and iOS runtime (`iPhone 17` on `iOS 26.5`, from the `macos-26-arm64` image). `scripts/pick-maestro-simulator.ts` prints the device it chose. When the image no longer has that runtime, it uses the newest iOS runtime with the same model and adds a warning annotation to the run; when no runtime has the model, it fails and lists every available iPhone.
 - **Boot overlaps the build.** The simulator starts booting before `pnpm install` and finishes while the app compiles. The job waits on `simctl bootstatus` only before installing the app. An already booted simulator is fine; any other boot error fails the step.
 - **Sign-in errors in the app.** `helpers/login.yaml` asserts that the app's "Couldn’t sign in" alert is not showing once the sign-in tap has had time to open Auth0, so an app error fails in seconds instead of after the 60 s wait for the Auth0 page. When any later step fails, the CI script reads the screen hierarchy Maestro saved for the failing command (`commands.json` points at `screen-hierarchy/step-*.json`), prints it as `Screen at failure (attempt N): …`, and classifies it with the log. "Couldn’t sign in", `OSStatus`, `errSec…`, "… the Keychain" and Auth0's "Wrong email or password" on screen are clear failures, so they are not retried.
 
 ## Retries
 
-`pnpm test:e2e:login:ios` on a laptop runs once. The CI script (`scripts/run-maestro-login-ios.js`) classifies a failed attempt from the Maestro log, `report.xml` and the text on screen when the failing command ran, then retries **once** or stops:
+`pnpm test:e2e:login:ios` on a laptop runs once. The CI script (`scripts/run-maestro-login-ios.ts`) classifies a failed attempt from the Maestro log, `report.xml` and the text on screen when the failing command ran, then retries **once** or stops:
 
 | Class     | What it looks like                                                                                                                                                                                                                          | What the job does          |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
@@ -73,7 +73,7 @@ Maestro replaces `report.xml` on each run. Before a retry, the first attempt is 
 
 ### Where retries are recorded
 
-`scripts/maestro-attempt-summary.js` keeps each attempt's result, failure class and duration in three places:
+`scripts/maestro-attempt-summary.ts` keeps each attempt's result, failure class and duration in three places:
 
 | Where                                | What                                                                                                         | Kept               |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------ |

@@ -12,7 +12,7 @@
  * an Auth0 form error can be classified too.
  */
 
-/** @typedef {"flake" | "ambiguous" | "clear"} MaestroFailureClass */
+export type MaestroFailureClass = "flake" | "ambiguous" | "clear";
 
 const CLEAR_PATTERNS = [
   /wrong email or password/i,
@@ -63,65 +63,67 @@ const FLAKE_PATTERNS = [
 ];
 
 /**
- * @param {string} log Maestro stdout/stderr plus report.xml from the failed attempt.
- * @returns {MaestroFailureClass}
+ * @param log Maestro stdout/stderr plus report.xml from the failed attempt.
  */
-const classifyMaestroFailure = (log) => {
+export const classifyMaestroFailure = (log: string): MaestroFailureClass => {
   const text = log ?? "";
   if (CLEAR_PATTERNS.some((pattern) => pattern.test(text))) return "clear";
   if (FLAKE_PATTERNS.some((pattern) => pattern.test(text))) return "flake";
   return "ambiguous";
 };
 
-const HIERARCHY_TEXT_KEYS = ["text", "accessibilityText", "hintText"];
+const HIERARCHY_TEXT_KEYS = ["text", "accessibilityText", "hintText"] as const;
+
+type ScreenHierarchyArtifact = { type?: unknown; path?: unknown };
+type CommandMetadata = { status?: unknown; artifacts?: unknown };
+type CommandEntry = { metadata?: CommandMetadata };
 
 /**
  * Paths of the screen hierarchies Maestro saved for failed commands, from one
  * parsed `commands.json` (an array of `{ command, metadata }`). Paths are
  * relative to the folder that holds `commands.json`.
- * @param {unknown} commands
- * @returns {string[]}
  */
-const failedHierarchyPaths = (commands) => {
+export const failedHierarchyPaths = (commands: unknown): string[] => {
   if (!Array.isArray(commands)) return [];
-  const paths = [];
+  const paths: string[] = [];
   for (const entry of commands) {
-    const metadata = entry?.metadata;
+    const metadata = (entry as CommandEntry | null)?.metadata;
     if (metadata?.status !== "FAILED" || !Array.isArray(metadata.artifacts)) continue;
-    for (const artifact of metadata.artifacts) {
+    for (const artifact of metadata.artifacts as ScreenHierarchyArtifact[]) {
       if (artifact?.type === "SCREEN_HIERARCHY" && typeof artifact.path === "string") paths.push(artifact.path);
     }
   }
   return paths;
 };
 
+type HierarchyNode = {
+  attributes?: Record<string, unknown>;
+  children?: unknown[];
+};
+
 /**
  * Visible text in a Maestro screen hierarchy (`screen-hierarchy/*.json`), in
  * order and without repeats.
- * @param {unknown} root
- * @param {Set<string>} [out]
- * @returns {string[]}
  */
-const hierarchyText = (root, out = new Set()) => {
+export const hierarchyText = (root: unknown, out: Set<string> = new Set()): string[] => {
   if (root && typeof root === "object") {
-    const attributes = /** @type {{ attributes?: Record<string, unknown> }} */ (root).attributes ?? {};
+    const node = root as HierarchyNode;
+    const attributes = node.attributes ?? {};
     for (const key of HIERARCHY_TEXT_KEYS) {
       const value = attributes[key];
       if (typeof value === "string" && value.trim() !== "") out.add(value.trim());
     }
-    const children = /** @type {{ children?: unknown[] }} */ (root).children;
-    if (Array.isArray(children)) for (const child of children) hierarchyText(child, out);
+    if (Array.isArray(node.children)) for (const child of node.children) hierarchyText(child, out);
   }
   return [...out];
 };
 
 /**
  * One retry, and only when the failure is not clearly deterministic.
- * @param {MaestroFailureClass} failureClass
- * @param {number} attempt 1-based attempt that just failed
- * @param {number} [maxAttempts]
+ * @param attempt 1-based attempt that just failed
  */
-const shouldRetryMaestroFailure = (failureClass, attempt, maxAttempts = 2) =>
-  failureClass !== "clear" && attempt < maxAttempts;
-
-module.exports = { classifyMaestroFailure, failedHierarchyPaths, hierarchyText, shouldRetryMaestroFailure };
+export const shouldRetryMaestroFailure = (
+  failureClass: MaestroFailureClass,
+  attempt: number,
+  maxAttempts = 2,
+): boolean => failureClass !== "clear" && attempt < maxAttempts;

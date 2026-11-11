@@ -1,6 +1,6 @@
-const { parseRuntime, pickSimulator } = require("./pick-maestro-simulator");
+import { parseRuntime, pickSimulator } from "./pick-maestro-simulator";
 
-const runtimeKey = (version) => `com.apple.CoreSimulator.SimRuntime.iOS-${version.replace(/\./g, "-")}`;
+const runtimeKey = (version: string) => `com.apple.CoreSimulator.SimRuntime.iOS-${version.replace(/\./g, "-")}`;
 
 const list = {
   devices: {
@@ -35,8 +35,11 @@ test("picks the pinned model on the pinned runtime", () => {
 });
 
 test("matches the model name exactly", () => {
-  const picked = pickSimulator(list, { model: "iPhone 17", runtime: "iOS 26.5" });
-  expect(picked).toMatchObject({ ok: true, udid: "17-265", fallback: false });
+  expect(pickSimulator(list, { model: "iPhone 17", runtime: "iOS 26.5" })).toMatchObject({
+    ok: true,
+    udid: "17-265",
+    fallback: false,
+  });
 });
 
 test("falls back to the newest runtime that has the model", () => {

@@ -4,7 +4,7 @@
  * Picks the iOS simulator the Mac smoke runs on, so the device does not drift
  * with the order `simctl list` happens to return.
  *
- * Usage: xcrun simctl list devices available -j | node scripts/pick-maestro-simulator.js
+ * Usage: xcrun simctl list devices available -j | node scripts/pick-maestro-simulator.ts
  *
  * Reads the pinned model and runtime from `SIM_DEVICE` (for example
  * `iPhone 17`) and `SIM_RUNTIME` (for example `iOS 26.5`). When the runner
@@ -15,15 +15,41 @@
  *
  * On success it prints `udid=…`, `name=…` and `runtime=…` lines on stdout, in
  * the format `$GITHUB_OUTPUT` takes.
+ *
+ * The Mac smoke job runs this with `node` before `pnpm install`, so the
+ * simulator can boot while dependencies install. It stays free of packages
+ * for that reason.
  */
+
+import fs from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const RUNTIME_KEY = /SimRuntime\.iOS-(\d+)-(\d+)(?:-(\d+))?$/;
 
+export type SimulatorRuntime = { name: string; version: number[] };
+
+type SimDevice = { name: string; udid: string; isAvailable?: boolean };
+
+export type SimctlList = { devices?: Record<string, SimDevice[]> };
+
+type RuntimeDevices = { runtime: SimulatorRuntime; devices: SimDevice[] };
+
+export type SimulatorPin = { model: string; runtime: string };
+
+export type PickSuccess = {
+  ok: true;
+  udid: string;
+  name: string;
+  runtime: string;
+  fallback: boolean;
+};
+
+export type PickFailure = { ok: false; available: string[] };
+
 /**
- * @param {string} key simctl runtime identifier, e.g. `com.apple.CoreSimulator.SimRuntime.iOS-26-5`
- * @returns {{ name: string, version: number[] } | null}
+ * @param key simctl runtime identifier, e.g. `com.apple.CoreSimulator.SimRuntime.iOS-26-5`
  */
-const parseRuntime = (key) => {
+export const parseRuntime = (key: string): SimulatorRuntime | null => {
   const match = RUNTIME_KEY.exec(key);
   if (!match) return null;
   const version = match.slice(1).map((part) => Number(part ?? 0));
@@ -31,7 +57,7 @@ const parseRuntime = (key) => {
   return { name: `iOS ${shown}`, version };
 };
 
-const compareVersions = (a, b) => {
+const compareVersions = (a: number[], b: number[]): number => {
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
     const diff = (a[i] ?? 0) - (b[i] ?? 0);
     if (diff !== 0) return diff;
@@ -39,37 +65,34 @@ const compareVersions = (a, b) => {
   return 0;
 };
 
-/**
- * Available iPhones grouped by iOS runtime, newest runtime first.
- * @param {{ devices?: Record<string, { name: string, udid: string, isAvailable?: boolean }[]> }} list
- */
-const listIPhones = (list) =>
-  Object.entries(list?.devices ?? {})
-    .map(([key, devices]) => ({ runtime: parseRuntime(key), devices }))
-    .filter((entry) => entry.runtime !== null)
-    .map(({ runtime, devices }) => ({
-      runtime,
-      devices: devices.filter((device) => device.isAvailable !== false && device.name.startsWith("iPhone")),
-    }))
-    .filter((entry) => entry.devices.length > 0)
+/** Available iPhones grouped by iOS runtime, newest runtime first. */
+const listIPhones = (list: SimctlList): RuntimeDevices[] =>
+  Object.entries(list.devices ?? {})
+    .flatMap(([key, devices]) => {
+      const runtime = parseRuntime(key);
+      if (!runtime) return [];
+      const iphones = devices.filter((device) => device.isAvailable !== false && device.name.startsWith("iPhone"));
+      return iphones.length > 0 ? [{ runtime, devices: iphones }] : [];
+    })
     .sort((a, b) => compareVersions(b.runtime.version, a.runtime.version));
 
 /**
- * @param {Parameters<typeof listIPhones>[0]} list parsed `simctl list devices available -j`
- * @param {{ model: string, runtime: string }} pin
- * @returns {{ ok: true, udid: string, name: string, runtime: string, fallback: boolean } | { ok: false, available: string[] }}
+ * @param list parsed `simctl list devices available -j`
  */
-const pickSimulator = (list, pin) => {
+export const pickSimulator = (list: SimctlList, pin: SimulatorPin): PickSuccess | PickFailure => {
   const runtimes = listIPhones(list);
-  const withModel = runtimes
-    .map((entry) => ({ runtime: entry.runtime, device: entry.devices.find((device) => device.name === pin.model) }))
-    .filter((entry) => entry.device !== undefined);
+  const withModel = runtimes.flatMap((entry) => {
+    const device = entry.devices.find((item) => item.name === pin.model);
+    return device ? [{ runtime: entry.runtime, device }] : [];
+  });
   const pinned = withModel.find((entry) => entry.runtime.name === pin.runtime);
   const chosen = pinned ?? withModel[0];
   if (!chosen) {
     return {
       ok: false,
-      available: runtimes.map((entry) => `${entry.runtime.name}: ${entry.devices.map((d) => d.name).join(", ")}`),
+      available: runtimes.map(
+        (entry) => `${entry.runtime.name}: ${entry.devices.map((device) => device.name).join(", ")}`,
+      ),
     };
   }
   return {
@@ -81,7 +104,7 @@ const pickSimulator = (list, pin) => {
   };
 };
 
-const main = () => {
+const main = (): void => {
   const model = process.env.SIM_DEVICE;
   const runtime = process.env.SIM_RUNTIME;
   if (!model || !runtime) {
@@ -89,8 +112,8 @@ const main = () => {
     process.exitCode = 1;
     return;
   }
-  const input = require("fs").readFileSync(0, "utf8");
-  const result = pickSimulator(JSON.parse(input), { model, runtime });
+  const input = fs.readFileSync(0, "utf8");
+  const result = pickSimulator(JSON.parse(input) as SimctlList, { model, runtime });
   if (!result.ok) {
     console.error(`::error::No available '${model}' simulator on any iOS runtime. Update SIM_DEVICE in the workflow.`);
     console.error("Available iPhone simulators:");
@@ -109,6 +132,6 @@ const main = () => {
   console.log(`runtime=${result.runtime}`);
 };
 
-if (require.main === module) main();
+const invokedDirectly = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-module.exports = { parseRuntime, pickSimulator };
+if (invokedDirectly) main();

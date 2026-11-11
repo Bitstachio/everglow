@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
+    "reset-project": "pnpm exec tsx ./scripts/reset-project.ts",
     "android": "expo prebuild --platform android --no-install && expo run:android",
     "ios": "expo prebuild --platform ios --no-install && expo run:ios",
     "web": "expo start --web",
@@ -16,7 +16,7 @@
     "test:e2e:ios": "pnpm run test:e2e -- --platform ios -e APP_ID=com.anonymous.everglow-mobile .maestro",
     "test:e2e:android": "pnpm run test:e2e -- --platform android -e APP_ID=com.anonymous.everglowmobile .maestro",
     "test:e2e:login:ios": "maestro test --format junit --output .maestro/results/report.xml --test-output-dir .maestro/results --debug-output .maestro/results --platform ios -e APP_ID=com.anonymous.everglow-mobile --include-tags smoke -e E2E_EMAIL=\"$E2E_EMAIL\" -e E2E_PASSWORD=\"$E2E_PASSWORD\" .maestro",
-    "test:e2e:login:ios:ci": "node ./scripts/run-maestro-login-ios.js",
+    "test:e2e:login:ios:ci": "pnpm exec tsx ./scripts/run-maestro-login-ios.ts",
     "test:e2e:login:android": "maestro test --format junit --output .maestro/results/report.xml --test-output-dir .maestro/results --debug-output .maestro/results --platform android -e APP_ID=com.anonymous.everglowmobile --include-tags login -e E2E_EMAIL=\"$E2E_EMAIL\" -e E2E_PASSWORD=\"$E2E_PASSWORD\" .maestro",
     "lint": "eslint app components constants context features hooks i18n lib locales providers testing theme",
     "format": "prettier . --write",
