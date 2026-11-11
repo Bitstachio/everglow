@@ -105,11 +105,12 @@ onFlowComplete:
           id: "roll-add-photos"
 
 # The system photo picker labels each photo with its date. The fixture is the
-# only one dated 1 January 2001; the simulator's sample photos are later.
+# only one dated 1 January 2001; the simulator's sample photos are later. On a
+# fresh simulator the picker shows "Loading..." for a while before the photos.
 - extendedWaitUntil:
     visible:
       text: "Photo, January 0?1, 2001.*"
-    timeout: 30000
+    timeout: 120000
 - tapOn:
     text: "Photo, January 0?1, 2001.*"
 - tapOn:
