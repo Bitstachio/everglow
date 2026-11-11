@@ -7,7 +7,9 @@ jest.mock("../api/queries", () => ({ useRollPreviewQuery: (...args: unknown[]) =
 beforeEach(() => mockPreviewQuery.mockReset().mockReturnValue({ data: [buildPhoto()] }));
 
 test("Home previews request thumbnails with a distinct cache identity", async () => {
-  const { result } = await renderHook(() => useRollPreview(buildEvent({ galleryState: "OPEN" })));
+  const { result } = await renderHook(() =>
+    useRollPreview(buildEvent({ galleryState: "OPEN", galleryClosesAt: null })),
+  );
   expect(result.current).toEqual([{ uri: buildPhoto().thumbnailUrl, cacheKey: "photo:photo-1:thumbnail" }]);
   expect(mockPreviewQuery).toHaveBeenCalledWith("event-1", 4, true);
 });
@@ -16,6 +18,8 @@ test.each([
   { galleryState: "CLOSED" as const },
   { galleryState: "UPCOMING" as const },
   { galleryState: "OPEN" as const, status: "SUSPENDED" as const },
+  // Saved on the phone while open, but its closing time has passed since.
+  { galleryState: "OPEN" as const, galleryClosesAt: "2026-01-01T00:00:00.000Z" },
 ])("does not expose cached images when the roll is hidden: %o", async (state) => {
   const { result } = await renderHook(() => useRollPreview(buildEvent(state)));
   expect(result.current).toEqual([]);

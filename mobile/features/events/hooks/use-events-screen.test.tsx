@@ -1,5 +1,5 @@
 import { createApiError } from "@/lib/api/errors";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Alert, Button, Text, View } from "react-native";
 import { buildEvent } from "../testing/fixtures";
@@ -94,6 +94,18 @@ test("a connection failure shows the offline state without alerting", async () =
   await renderHome();
   await waitFor(() => expect(screen.getByTestId("offline")).toHaveTextContent("offline"));
   expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+test("without a network it is offline at once: the query waits instead of failing", async () => {
+  onlineManager.setOnline(false);
+  try {
+    await renderHome();
+    expect(screen.getByTestId("offline")).toHaveTextContent("offline");
+    expect(mockFindAll).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
+  } finally {
+    onlineManager.setOnline(true);
+  }
 });
 
 test("an unexpected failure is surfaced", async () => {

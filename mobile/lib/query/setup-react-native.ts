@@ -5,7 +5,8 @@ import type { AppStateStatus } from "react-native";
 
 export const setupReactNativeQueryManagers = () => {
   onlineManager.setEventListener((setOnline) => {
-    return NetInfo.addEventListener((state) => setOnline(!!state.isConnected));
+    // Unknown (null) right after launch counts as online, so Home doesn't flash "No connection".
+    return NetInfo.addEventListener((state) => setOnline(state.isConnected !== false));
   });
 
   const onAppStateChange = (status: AppStateStatus) => {
