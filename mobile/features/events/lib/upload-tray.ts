@@ -29,7 +29,7 @@ export type TrayStatus =
   | { kind: "waiting" }
   | { kind: "sending"; bytesSent: number }
   | { kind: "developed"; photoId: string }
-  | { kind: "failed"; reason: Exclude<EventPhotoFailure, "cancelled"> }
+  | { kind: "failed"; reason: Exclude<EventPhotoFailure, "cancelled" | "removed"> }
   | { kind: "rejected"; reason: "video" | "tooLarge" };
 
 export type TrayItem = EventPhotoFile & {
@@ -160,6 +160,12 @@ const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => 
   )
     return;
   const durable = update.kind !== "sending" || previous?.status.kind !== "sending";
+  // Taken off the roll while these waited, or the roll is gone: they can never
+  // land, so the tray goes as it does after leaving.
+  if (update.kind === "failed" && update.reason === "removed") {
+    forgetTray(eventId);
+    return;
+  }
   if (update.kind === "failed" && update.reason === "closed") {
     setTray(eventId, (tray) => ({
       ...tray,
@@ -179,7 +185,7 @@ const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => 
         return { ...item, status: { kind: "developed", photoId: update.photoId } };
       }
       // A cancelled file leaves the tray: it was never on the roll.
-      if (update.reason === "cancelled") {
+      if (update.reason === "cancelled" || update.reason === "removed") {
         if (activeUserId) releaseUploadFile(activeUserId, item.uri);
         return null;
       }
@@ -189,9 +195,13 @@ const applyUpdate = (eventId: string, key: string, update: EventPhotoUpdate) => 
   );
 };
 
-/** Sends whatever is waiting, until nothing is, then refreshes the roll. */
+/**
+ * Sends whatever is waiting, until nothing is, then refreshes the roll.
+ * Offline it doesn't start: the files stay waiting, nothing is minted, and
+ * they go once the connection is back (`resumeQueued`).
+ */
 const run = async (eventId: string) => {
-  if (getTray(eventId).running) return;
+  if (getTray(eventId).running || !connected) return;
   const controller = new AbortController();
   controllers.set(eventId, controller);
   const requests = new AbortController();
@@ -283,23 +293,61 @@ const run = async (eventId: string) => {
 
 let watchingConnection = false;
 
-/** 08.4: a file that didn't take because the connection dropped goes again once it's back. */
+const isConnectedState = (state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) =>
+  state.isConnected !== false && state.isInternetReachable !== false;
+
+/**
+ * With a connection: files picked offline, or left waiting when the app
+ * stopped, start sending; files that didn't take because the connection
+ * dropped (08.4) go again.
+ */
+const resumeQueued = () => {
+  for (const [eventId, tray] of trays) {
+    if (tray.running || tray.storageError) continue;
+    if (tray.items.some((item) => item.status.kind === "waiting")) void run(eventId);
+    else if (tray.items.some((item) => item.status.kind === "failed" && item.status.reason === "connection")) {
+      retryAttempts.delete(eventId);
+      retryTray(eventId, ["connection"], true);
+    }
+  }
+};
+
+const setConnected = (next: boolean) => {
+  const reconnected = next && !connected;
+  const changed = next !== connected;
+  connected = next;
+  if (changed) emit();
+  if (reconnected) resumeQueued();
+};
+
 const watchConnection = () => {
   if (watchingConnection) return;
   watchingConnection = true;
-  let wasConnected = true;
-  NetInfo.addEventListener((state) => {
-    connected = state.isConnected !== false && state.isInternetReachable !== false;
-    if (connected && !wasConnected) {
-      for (const [eventId, tray] of trays) {
-        if (tray.items.some((item) => item.status.kind === "failed" && item.status.reason === "connection")) {
-          retryAttempts.delete(eventId);
-          retryTray(eventId, ["connection"], true);
-        }
-      }
-    }
-    wasConnected = connected;
-  });
+  NetInfo.addEventListener((state) => setConnected(isConnectedState(state)));
+};
+
+/** Whether the tray can send now. Offline, picked photos wait in the tray instead. */
+export const isTrayOnline = () => connected;
+
+export const useTrayOnline = (): boolean => useSyncExternalStore(subscribe, isTrayOnline);
+
+/**
+ * The most that may wait on this phone for a connection, across every roll:
+ * each waiting file is a private copy on disk until it lands.
+ */
+export const OFFLINE_QUEUE_LIMIT = { files: 200, bytes: 2 * 1024 ** 3 };
+
+/** Still holding a local copy that hasn't reached the roll. */
+const holdsCopy = ({ status }: TrayItem) =>
+  status.kind === "waiting" ||
+  status.kind === "sending" ||
+  (status.kind === "failed" && status.reason !== "missing" && status.reason !== "cantAdd");
+
+/** Whether these picks fit beside what already waits, within `OFFLINE_QUEUE_LIMIT`. */
+export const fitsOfflineQueue = (items: TrayItem[]): boolean => {
+  const queued = [...[...trays.values()].flatMap((tray) => tray.items), ...items].filter(holdsCopy);
+  const bytes = queued.reduce((sum, item) => sum + item.sizeBytes, 0);
+  return queued.length <= OFFLINE_QUEUE_LIMIT.files && bytes <= OFFLINE_QUEUE_LIMIT.bytes;
 };
 
 /** Puts picked photos in the tray and starts sending the ones that can go. */
@@ -416,7 +464,7 @@ export const clearUploadTrays = (reason: AccountClearedReason = "signedOut") => 
   emit();
 };
 
-/** Restore only the authenticated account; interrupted jobs wait for explicit Retry. */
+/** Restore only the authenticated account; queued files resume, interrupted ones wait for explicit Retry. */
 export const activateUploadTrays = (userId: string, settle: (eventId: string) => Promise<unknown>) => {
   if (activeUserId === userId) return;
   // Not a sign-out: another account's queue stays on disk, scoped to it.
@@ -429,6 +477,19 @@ export const activateUploadTrays = (userId: string, settle: (eventId: string) =>
   }
   watchConnection();
   emit();
+  // What was queued before the app stopped goes by itself once the phone says it can.
+  void Promise.resolve()
+    .then(() => NetInfo.fetch())
+    .then((state) => {
+      if (activeUserId !== userId) return;
+      const online = isConnectedState(state);
+      if (online !== connected) {
+        connected = online;
+        emit();
+      }
+      if (online) resumeQueued();
+    })
+    .catch(() => undefined);
 };
 
 /** A completed server photo wins over a stale local failure after a lost response. */

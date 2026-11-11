@@ -75,7 +75,10 @@ export const persistUploadTrays = (userId: string, trays: Map<string, Tray>) => 
   }
 };
 
-/** A stopped JS runtime has no live progress callbacks: show interrupted frames with Retry. */
+/**
+ * A stopped JS runtime has no live progress callbacks: files that had started
+ * show as interrupted with Retry; files still queued stay waiting.
+ */
 export const restoreUploadTrays = (userId: string): Map<string, Tray> => {
   const directory = folder(userId);
   if (!directory.exists) return new Map();
@@ -101,8 +104,11 @@ export const restoreUploadTrays = (userId: string): Map<string, Tray> => {
                   (entry.status.kind === "failed" && entry.status.reason === "missing") ||
                   entry.uri.startsWith(`${directory.uri.replace(/\/+$/, "")}/`),
               )
+              // A file that never got a reservation never started a PUT: it is
+              // still queued and goes by itself. One that did may still be
+              // landing in the background, so it waits for Retry (EV-195).
               .map((entry) =>
-                entry.status.kind === "waiting" || entry.status.kind === "sending"
+                entry.status.kind === "sending" || (entry.status.kind === "waiting" && entry.minted)
                   ? { ...entry, status: { kind: "failed" as const, reason: "interrupted" as const } }
                   : entry,
               ),
