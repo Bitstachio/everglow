@@ -64,6 +64,7 @@ const report = (overrides: Partial<ReportResponseDto> = {}): ReportResponseDto =
   id: `report-${++next}`,
   eventId: "event-1",
   eventTitle: "Sam & Jo’s wedding",
+  source: "USER",
   targetType: "PHOTO",
   photoId: "photo-144",
   reportedUserId: "u-marcus",
@@ -194,6 +195,39 @@ test("10.8 counts only what hosts can decide, and names someone who left", async
     screen.getByRole("button", { name: "Frame 2 · by Marcus, 1 report · nudity · with Everglow" }),
   ).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Someone who left, 1 report · spam" })).toBeOnTheScreen();
+});
+
+test("a frame Everglow's check flagged says so in the list, and is with Everglow", async () => {
+  mockParams.mockReturnValue({ id: "event-1" });
+  mockListReports.mockImplementation(() =>
+    listed([report({ source: "AUTOMATED", queue: "PLATFORM", reason: "HARASSMENT", note: "Upload screening" })]),
+  );
+  await renderWithClient(<ReportsScreen />);
+
+  expect(
+    await screen.findByRole("button", {
+      name: "Frame 2 · by Marcus, 1 report · harassment · flagged automatically · with Everglow",
+    }),
+  ).toBeOnTheScreen();
+  expect(screen.queryByText(/Upload screening/)).not.toBeOnTheScreen();
+});
+
+test("the decision shows hosts what people wrote, never an automated report's readout", async () => {
+  mockListReports.mockImplementation(() =>
+    listed([
+      report({ reason: "SPAM", note: "Not from this party" }),
+      report({
+        source: "AUTOMATED",
+        queue: "PLATFORM",
+        reason: "NUDITY_OR_SEXUAL",
+        note: "Upload screening: Explicit",
+      }),
+    ]),
+  );
+  await renderWithClient(<ReportCheckScreen />);
+
+  expect(await screen.findByText(/Not from this party/)).toBeOnTheScreen();
+  expect(screen.queryByText(/Upload screening/)).not.toBeOnTheScreen();
 });
 
 test("10.8 a host-only list that fails to load says why, and tries again", async () => {
