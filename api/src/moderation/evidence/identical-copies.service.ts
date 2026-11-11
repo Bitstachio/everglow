@@ -116,23 +116,23 @@ export class IdenticalCopiesService {
   }
 
   /**
-   * Which of these hashes are of a removed intimate image, each with the
-   * report that removed it: an actioned report closed within the retention
-   * window, or one still held. The hash lives exactly as long as the report.
+   * Which of these hashes are of a removed image (REMOVED_IMAGE_REPORTS: an
+   * intimate image, or a child-safety photo the platform removed), each with
+   * the report that removed it: one closed within the retention window, or
+   * still held. The hash lives exactly as long as the report. Confirm refuses
+   * these bytes, and the hash backfill removes them as copies.
    */
   async findRemovedImages(hashes: string[], now: Date = new Date()): Promise<Map<string, string>> {
     const unique = [...new Set(hashes)];
     if (unique.length === 0) return new Map();
 
     const retentionDays = this.configService.getOrThrow<number>("moderation.reportRetentionDays");
-    const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+    const cutoff = new Date(now.getTime() - retentionDays * DAY_MS);
     const rows = await this.prisma.reportEvidence.findMany({
       where: {
         sha256: { in: unique },
         report: {
-          reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE,
-          status: ReportStatus.ACTIONED,
-          OR: [{ resolvedAt: { gte: cutoff } }, { holdUntil: { gt: now } }],
+          AND: [REMOVED_IMAGE_REPORTS, { OR: [{ resolvedAt: { gte: cutoff } }, { holdUntil: { gt: now } }] }],
         },
       },
       select: { sha256: true, reportId: true },

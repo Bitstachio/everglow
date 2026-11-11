@@ -1,3 +1,4 @@
+import { prismaQuery } from "@casl/prisma";
 import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "generated/prisma/client";
 import { DeepMockProxy, mockDeep } from "jest-mock-extended";
@@ -70,7 +71,7 @@ describe("IdenticalCopiesService", () => {
   });
 
   describe("findRemovedImages", () => {
-    it("matches hashes of actioned intimate-image reports closed within the window, or still held", async () => {
+    it("matches hashes of removed images closed within the window, or still held", async () => {
       prisma.reportEvidence.findMany.mockResolvedValue([{ sha256, reportId }] as never);
 
       const removed = await service.findRemovedImages([sha256, sha256, "cd".repeat(32)], now);
@@ -80,12 +81,63 @@ describe("IdenticalCopiesService", () => {
         where: {
           sha256: { in: [sha256, "cd".repeat(32)] },
           report: {
-            reason: "NON_CONSENSUAL_INTIMATE_IMAGE",
-            status: "ACTIONED",
-            OR: [{ resolvedAt: { gte: new Date(now.getTime() - 365 * day) } }, { holdUntil: { gt: now } }],
+            AND: [
+              REMOVED_IMAGE_REPORTS,
+              { OR: [{ resolvedAt: { gte: new Date(now.getTime() - 365 * day) } }, { holdUntil: { gt: now } }] },
+            ],
           },
         },
         select: { sha256: true, reportId: true },
+      });
+    });
+
+    describe("which reports count", () => {
+      const resolvedAt = new Date(now.getTime() - 30 * day);
+      const report = (overrides: Record<string, unknown>) => ({
+        reason: "CHILD_SAFETY",
+        targetType: "PHOTO",
+        status: "ACTIONED",
+        closedByRole: "PLATFORM",
+        closedReason: "PHOTO_REMOVED",
+        resolvedAt,
+        holdUntil: null,
+        ...overrides,
+      });
+
+      /** Whether the query's report filter keeps this report, as Postgres would. */
+      const counts = async (row: Record<string, unknown>): Promise<boolean> => {
+        prisma.reportEvidence.findMany.mockResolvedValue([]);
+        await service.findRemovedImages([sha256], now);
+        const [args] = prisma.reportEvidence.findMany.mock.calls[0] as [{ where: { report: object } }];
+        const matches = prismaQuery(args.where.report as never) as (value: unknown) => boolean;
+        return matches(row);
+      };
+
+      it.each([
+        ["a child-safety photo the platform removed", {}],
+        ["one removed with its uploader", { closedReason: "MEMBER_REMOVED" }],
+        [
+          "one closed long ago but still held",
+          { resolvedAt: new Date(now.getTime() - 400 * day), holdUntil: new Date(now.getTime() + day) },
+        ],
+        [
+          "an actioned intimate image, on any target",
+          { reason: "NON_CONSENSUAL_INTIMATE_IMAGE", targetType: "EVENT", closedReason: "EVENT_DELETED" },
+        ],
+      ])("counts %s", async (_, overrides) => {
+        await expect(counts(report(overrides))).resolves.toBe(true);
+      });
+
+      it.each([
+        ["an open child-safety report", { status: "OPEN", closedReason: null, closedByRole: null, resolvedAt: null }],
+        ["a dismissed one", { status: "DISMISSED", closedReason: "DISMISSED" }],
+        ["one closed because its event was deleted", { closedReason: "EVENT_DELETED" }],
+        ["one about an event or its cover", { targetType: "EVENT", closedReason: "EVENT_SUSPENDED" }],
+        ["one about a member", { targetType: "MEMBER", closedReason: "MEMBER_REMOVED" }],
+        ["one past the retention window and not held", { resolvedAt: new Date(now.getTime() - 400 * day) }],
+        ["any other reason", { reason: "NUDITY_OR_SEXUAL" }],
+      ])("doesn't count %s", async (_, overrides) => {
+        await expect(counts(report(overrides))).resolves.toBe(false);
       });
     });
 
