@@ -35,6 +35,7 @@ resource "aws_kms_key" "photos" {
         Principal = {
           AWS = concat(
             [for user in var.api_users : user.arn],
+            [for role in var.api_roles : role.arn],
             [aws_iam_role.image_processor.arn],
           )
         }
