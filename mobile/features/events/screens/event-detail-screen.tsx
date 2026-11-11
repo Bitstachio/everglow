@@ -51,7 +51,7 @@ import {
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
-import { formatClosedOn, formatOpensOn } from "../lib/rolls";
+import { formatClosedOn, formatOpensOn, rollFrameCount } from "../lib/rolls";
 import type { DevelopingFrame } from "../lib/upload-tray-view";
 import { formatEventStorage, formatStorageBytes } from "../utils";
 
@@ -100,7 +100,7 @@ const EventDetailScreen = () => {
 
   const host = hostName(event, participants);
   const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
-  const count = Math.max(frames.length, event.photoCount);
+  const count = rollFrameCount(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
     const opens = formatRollDate(event.galleryOpensAt);
