@@ -375,6 +375,81 @@ describe("PhotosController (integration)", () => {
       });
     });
 
+    describe("a refused re-upload of a removed child-safety image", () => {
+      const ATTEMPT_REPORT_ID = "eeeeeeee-2222-4222-8333-eeeeeeeeeeee";
+
+      beforeEach(() => {
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+        prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
+        prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+        // The bytes match a kept report, and that report is a child-safety one.
+        prisma.reportEvidence.findMany.mockResolvedValue([{ sha256, reportId: TEST_REPORT_ID }] as never);
+        prisma.report.findMany.mockResolvedValue([{ id: TEST_REPORT_ID }] as never);
+        prisma.report.findFirst.mockResolvedValue(null);
+        prisma.report.createManyAndReturn.mockImplementation(((args: { data: Record<string, unknown>[] }) =>
+          Promise.resolve([{ ...args.data[0], id: ATTEMPT_REPORT_ID }])) as never);
+      });
+
+      const confirm = () =>
+        request(httpServer)
+          .post(confirmPath())
+          .set(authHeader())
+          .send({ photoIds: [TEST_PHOTO_ID] });
+
+      it("answers the same 422 as any removed image, and reports the uploader to the platform", async () => {
+        const response = await confirm().expect(422);
+
+        expect(response.body).toMatchObject({
+          code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE",
+          message: resolveApiErrorMessage("PHOTO_REJECTED_MATCHES_REMOVED_IMAGE"),
+        });
+        expect(JSON.stringify(response.body)).not.toMatch(/child|report/i);
+        expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith({
+          skipDuplicates: true,
+          data: [
+            expect.objectContaining({
+              eventId: TEST_EVENT_ID,
+              reporterId: null,
+              source: "AUTOMATED",
+              targetType: "MEMBER",
+              photoId: null,
+              reportedUserId: TEST_USER_ID,
+              reason: "CHILD_SAFETY",
+              queue: "PLATFORM",
+              holdReason: "CHILD_SAFETY",
+            }),
+          ],
+        });
+        // The hash is the evidence; the refused bytes are deleted as any refused upload's are.
+        // The transaction client is the mocked Prisma client itself here.
+        expect(evidence.writeSnapshot.mock.calls[0].slice(1)).toEqual([
+          ATTEMPT_REPORT_ID,
+          { objectS3Key: null, contentType: "image/jpeg", sizeBytes: 1024, subjectUserId: TEST_USER_ID },
+        ]);
+        expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
+          where: { reportId: ATTEMPT_REPORT_ID },
+          data: { sha256 },
+        });
+        expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(buildPhoto().s3Key));
+      });
+
+      it("still refuses when the report can't be filed", async () => {
+        prisma.report.createManyAndReturn.mockRejectedValue(new Error("db down"));
+
+        const response = await confirm().expect(422);
+
+        expect(response.body).toMatchObject({ code: "PHOTO_REJECTED_MATCHES_REMOVED_IMAGE" });
+      });
+
+      it("files nothing for an intimate image's match", async () => {
+        prisma.report.findMany.mockResolvedValue([]);
+
+        await confirm().expect(422);
+
+        expect(prisma.report.createManyAndReturn).not.toHaveBeenCalled();
+      });
+    });
+
     it("returns 201 with MISMATCHED and removes the object and the slot when the upload differs", async () => {
       const photo = buildPhoto({ status: "PENDING" });
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
