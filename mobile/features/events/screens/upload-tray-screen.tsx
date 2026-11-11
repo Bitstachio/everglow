@@ -32,13 +32,17 @@ const UploadTrayScreen = () => {
               ? [t("room.noneTitle"), undefined]
               : summary.closed > 0
                 ? [t("closedSending.title", { count: summary.closed }), t("closedSending.bodyNone")]
-                : [t("tray.emptyTitle"), t("tray.emptyDim")];
+                : summary.onRoll > 0
+                  ? [t("tray.title"), t("tray.onRoll", { count: summary.onRoll })]
+                  : [t("tray.emptyTitle"), t("tray.emptyDim")];
 
   const status = (item: TrayItem): string => {
     const { status: s } = item;
     switch (s.kind) {
       case "developed":
         return t("tray.row.developed");
+      case "onRoll":
+        return t("tray.row.onRoll");
       case "sending":
         return t(item.sizeBytes > 0 && s.bytesSent >= item.sizeBytes ? "tray.row.finishing" : "tray.row.developing");
       case "waiting":
@@ -94,7 +98,7 @@ const UploadTrayScreen = () => {
               cacheKey={item.cacheKey}
               status={text}
               accessibilityLabel={`${item.name}, ${text}`}
-              done={rowStatus.kind === "developed"}
+              done={rowStatus.kind === "developed" || rowStatus.kind === "onRoll"}
               progress={item.progress}
               actions={
                 failed || rejected

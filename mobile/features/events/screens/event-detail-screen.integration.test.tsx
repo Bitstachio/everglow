@@ -856,6 +856,40 @@ describe("adding photos (08)", () => {
     await waitFor(() => expect(screen.queryByText(/didn’t take/)).not.toBeOnTheScreen());
   });
 
+  test("a photo already on the roll keeps its frame where it is, with nothing to retry", async () => {
+    pickPhotos(2);
+    mockCreateUploadUrls.mockImplementation(mintSlotPerFile());
+    const confirmed = deferred<unknown>();
+    mockConfirmUploads.mockImplementationOnce(async () => {
+      await confirmed.promise;
+      return {
+        data: {
+          data: [
+            { photoId: "photo-new-1", status: "READY" },
+            { photoId: "photo-new-2", status: "DUPLICATE", existingPhotoId: "photo-1" },
+          ],
+        },
+      };
+    });
+    await renderScreen({ photos: oneFrame });
+    await screen.findByLabelText("Frame 1, by You");
+    await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
+    expect(await screen.findByLabelText("Frame 3, developing")).toBeOnTheScreen();
+    mockListPhotos.mockResolvedValue({
+      data: { data: { items: [buildPhoto({ id: "photo-new-1" }), ...oneFrame], nextCursor: null } },
+    });
+
+    confirmed.resolve(undefined);
+
+    // One new frame, and the copy never takes a number of its own.
+    await waitFor(() => expect(screen.queryByText(/Developing/)).not.toBeOnTheScreen());
+    expect(screen.queryByLabelText(/developing|didn’t take/)).not.toBeOnTheScreen();
+    expect(screen.getAllByLabelText(/^Frame \d+, by You$/)).toHaveLength(2);
+    expect(screen.queryByLabelText("Frame 3, by You")).not.toBeOnTheScreen();
+    expect(screen.queryByText(/didn’t take|can’t be added/)).not.toBeOnTheScreen();
+    expect(screen.queryByTestId("tray-needs-attention", { includeHiddenElements: true })).not.toBeOnTheScreen();
+  });
+
   test("native bytes fill the tray bar, which finishes before confirmation marks it Developed", async () => {
     const uploaded = deferred<unknown>();
     const confirmed = deferred<unknown>();
