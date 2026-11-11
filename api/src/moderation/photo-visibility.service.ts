@@ -19,9 +19,12 @@ const showsPhotos = (event: EventForPhotoVisibility): boolean =>
 const isOrganizer = (event: EventForPhotoVisibility): boolean =>
   event.eventAccesses.some((access) => access.accessLevel === AccessLevel.ORGANIZER);
 
-/** Rules 1–4 of `whereVisibleTo`, for a caller who is not an organizer of the event. */
-const memberFilter = (callerId: string, hiddenPhotoIds: string[]): Prisma.PhotoWhereInput => ({
+/** Rules 1–5 of `whereVisibleTo`, for a caller who is not an organizer of the event. */
+const memberFilter = (callerId: string, hiddenPhotoIds: string[], now: Date): Prisma.PhotoWhereInput => ({
   AND: [
+    // Held by upload screening: only its uploader sees it until it is
+    // screened or the hold runs out, whichever comes first (§11).
+    { OR: [{ screeningHeldUntil: null }, { screeningHeldUntil: { lte: now } }, { addedById: callerId }] },
     { reports: { none: { reporterId: callerId, status: ReportStatus.OPEN } } },
     { reports: { none: { status: ReportStatus.OPEN, reason: { in: [...SEVERE_REPORT_REASONS] } } } },
     // Flagged by one of the platform's checks: hidden until the platform has looked.
@@ -66,7 +69,9 @@ export class PhotoVisibilityService {
    * 2. photos with an OPEN report for a severe reason (nudity, violence), or
    *    an OPEN automated report (upload screening),
    * 3. photos whose OPEN reports reached the event's hide threshold,
-   * 4. photos of anyone they blocked or who blocked them.
+   * 4. photos of anyone they blocked or who blocked them,
+   * 5. photos upload screening holds, unless they uploaded them, until the
+   *    photo is screened or its hold runs out.
    *
    * Costs one grouped query per call, never one per photo; 1, 2 and 4 are
    * subqueries inside the photo query itself.
@@ -75,7 +80,7 @@ export class PhotoVisibilityService {
     // A closed gallery, or a suspended event, shows nothing to anyone.
     if (!showsPhotos(event)) return NO_PHOTOS;
     if (isOrganizer(event)) return ORGANIZER_FILTER;
-    return memberFilter(callerId, await this.hiddenPhotoIds([event]));
+    return memberFilter(callerId, await this.hiddenPhotoIds([event]), new Date());
   }
 
   /**
@@ -100,7 +105,7 @@ export class PhotoVisibilityService {
 
     const groups = await Promise.all([
       this.countByEvent(hosted, ORGANIZER_FILTER),
-      this.countByEvent(others, memberFilter(callerId, hidden)),
+      this.countByEvent(others, memberFilter(callerId, hidden, new Date())),
     ]);
     for (const row of groups.flat()) counts.set(row.eventId, row._count._all);
     return counts;
