@@ -212,6 +212,7 @@ export const WhenSlip = ({
 
       <ScrollView
         ref={timesRef}
+        testID="when-slip-times"
         horizontal
         showsHorizontalScrollIndicator={false}
         className="-mx-5 mt-3.5"
@@ -229,6 +230,7 @@ export const WhenSlip = ({
         {times.map((time) => (
           <Pressable
             key={time.key}
+            testID={`when-slip-${time.key}`}
             accessibilityRole="button"
             accessibilityLabel={time.label}
             accessibilityState={{ selected: time.selected, disabled: time.disabled }}
@@ -251,7 +253,14 @@ export const WhenSlip = ({
       {note ? <View className="mt-3.5">{note}</View> : null}
 
       <View className="mt-4">
-        <Button title={setLabel} mark="✓" onPress={onSet} isLoading={isSetting} disabled={isSetting} />
+        <Button
+          testID="when-slip-set"
+          title={setLabel}
+          mark="✓"
+          onPress={onSet}
+          isLoading={isSetting}
+          disabled={isSetting}
+        />
       </View>
     </View>
   );

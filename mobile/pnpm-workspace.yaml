@@ -10,4 +10,5 @@ overrides:
 allowBuilds:
   "@parcel/watcher": true
   browser-tabs-lock: true
+  esbuild: true
   unrs-resolver: true

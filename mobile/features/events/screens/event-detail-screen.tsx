@@ -51,7 +51,7 @@ import {
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
-import { formatClosedOn, formatOpensOn } from "../lib/rolls";
+import { formatClosedOn, formatOpensOn, rollFrameCount } from "../lib/rolls";
 import type { DevelopingFrame } from "../lib/upload-tray-view";
 import { formatEventStorage, formatStorageBytes } from "../utils";
 
@@ -100,7 +100,7 @@ const EventDetailScreen = () => {
 
   const host = hostName(event, participants);
   const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
-  const count = Math.max(frames.length, event.photoCount);
+  const count = rollFrameCount(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
     const opens = formatRollDate(event.galleryOpensAt);
@@ -149,7 +149,7 @@ const EventDetailScreen = () => {
           title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           }
@@ -386,6 +386,7 @@ const EventDetailScreen = () => {
     <View className="w-1/3 px-0.5 pb-3.5">
       {item.kind === "photo" ? (
         <ContactFrame
+          testID="roll-frame"
           uri={item.frame.photo.thumbnailUrl}
           cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
@@ -413,6 +414,7 @@ const EventDetailScreen = () => {
         />
       ) : (
         <ContactFrame
+          testID="roll-frame-developing"
           uri={item.frame.item.uri}
           number={item.frame.number}
           by={t("frame.you")}
@@ -541,7 +543,7 @@ const EventDetailScreen = () => {
             <BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />
           </CoverButton>
           <CoverButton>
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           </CoverButton>

@@ -45,10 +45,12 @@ const AccountSettingsScreen = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-ground">
+    <SafeAreaView testID="account-settings" className="flex-1 bg-ground">
       <TopBar
         title={t("title")}
-        left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={onBack} />}
+        left={
+          <BackButton testID="account-settings-back" accessibilityLabel={t("common:actions.back")} onPress={onBack} />
+        }
         right={<Button title={t("edit")} variant="ghost" fullWidth={false} onPress={onEditCard} />}
       />
 

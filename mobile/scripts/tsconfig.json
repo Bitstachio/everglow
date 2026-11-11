@@ -1,0 +1,11 @@
+{
+  // Node programs. The app config only loads Jest types, so these files are excluded there.
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["ESNext"],
+    "types": ["node", "jest"],
+    "noEmit": true
+  },
+  "include": ["./**/*.ts"]
+}

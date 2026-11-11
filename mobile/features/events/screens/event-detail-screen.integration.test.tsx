@@ -426,6 +426,17 @@ describe("open (07.4–07.8)", () => {
     expect(departed.queryByTestId("deleted-avatar", { includeHiddenElements: true })).toBeNull();
   });
 
+  test("counts the frames on hand when the roll comes without a photo count", async () => {
+    // An API from before the roll carried `photoCount` leaves it out.
+    const fromOlderApi = openEvent();
+    Reflect.deleteProperty(fromOlderApi, "photoCount");
+    await renderScreen({ event: fromOlderApi, photos: oneFrame });
+
+    expect(await screen.findByText(/· roll of 1$/)).toBeOnTheScreen();
+    expect(screen.queryByText(/NaN/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Save all frames to Photos" })).toBeEnabled();
+  });
+
   test("a guest gets People instead of Invite", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ participants: [host, guest], photos: oneFrame });

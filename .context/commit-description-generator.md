@@ -14,12 +14,7 @@ The PR body reviewers read while the PR is open is a different Markdown document
 
 # Branch commits (while the PR is open)
 
-Feature-branch commits are discarded on squash. Their subjects are for collaborators reading the PR, not for `main` history.
-
-- Do **not** use Conventional Commits on branch commits (`feat:`, `fix:`, `docs:`, scopes, etc.). That format is reserved for the PR title.
-- Prefer a short plain imperative subject that names the change (`require username on onboarding`, `strip Cursor co-author trailer`).
-- Optional body: one or two sentences on why, still with no AI attribution or agent trailers.
-- Do not treat the branch log as the story of the change; the squash body below is that story.
+Feature-branch commits are discarded on squash. Their subjects are for collaborators reading the PR, not for `main` history. Subject shape, no extended description on those commits, agent stamps, and stripping a trailer the tool injects are in [pr-description-generator.md](./pr-description-generator.md). Do not treat the branch log as the story of the change. The extended body below is only the squash commit on `main`.
 
 # Why this message matters
 
@@ -47,7 +42,7 @@ After squash merge, feature-branch commits are discarded. The PR title plus this
    - Where the branch contains back-and-forth (e.g. a bug introduced then fixed on the same branch), describe only the final state.
    - Bullet points should represent logical units of the feature (e.g. "Add X," "Refactor Y to support X," "Update tests for X"), not a 1:1 mapping to individual commits.
    - Do not include Test plan, Screenshots, Linear magic words, stacking notes, or other review-only PR content.
-   - No AI attribution: no "Generated with" / "Created by" footers, no tool or model names as authorship, and no `Co-authored-by:` (or other trailers) for Cursor, Claude, Copilot, or any agent. Human co-authors only when a real person collaborated. Same rule as [AGENTS.md](../AGENTS.md) and the PR guide.
+   - No coding-agent stamp and no agent `Co-authored-by` in this body. Forbidden phrases are in [pr-description-generator.md](./pr-description-generator.md).
 4. **Style Alignment:**
    - Match the main branch merge-commit bodies for tone, vocabulary, and structure (paragraph then bullets, emphasis on why vs what, project jargon).
 
@@ -58,7 +53,7 @@ Before emitting the answer, silently audit your draft:
 - Confirm there is **no** Conventional Commits subject line in the output.
 - Walk every body line and confirm each is ≤ 72 characters. If any line is longer, break it at a word boundary and re-check.
 - Confirm the body describes the final net state of the branch, not chronological back-and-forth.
-- Confirm there is no AI attribution and no agent `Co-authored-by` trailer in the body.
+- Confirm there is no agent stamp and no agent `Co-authored-by` trailer in the body.
 - Confirm the whole body is wrapped in one fenced code block.
   Only output the final, verified body.
 

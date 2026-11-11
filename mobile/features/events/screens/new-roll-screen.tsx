@@ -118,7 +118,7 @@ const NewRollScreen = () => {
             ))}
           </RollsInUse>
           <View className="px-5 pb-1 pt-3">
-            <Button title={t("full.back")} mark="‹" onPress={onBackToRolls} />
+            <Button testID="new-roll-full-back" title={t("full.back")} mark="‹" onPress={onBackToRolls} />
           </View>
         </>
       ) : status === "notReady" ? (
@@ -137,6 +137,7 @@ const NewRollScreen = () => {
               name="title"
               render={({ field }) => (
                 <RollLabel
+                  testID="new-roll-name"
                   stock={t("label.stock")}
                   placeholder={t("label.namePlaceholder")}
                   nameA11y={t("label.nameA11y")}
@@ -172,7 +173,13 @@ const NewRollScreen = () => {
             ) : null}
 
             <View className="mt-10">
-              <WhenField heading={t("when.heading")} disabled={isLoading} onPress={when.onOpen} {...whenField} />
+              <WhenField
+                testID="new-roll-when"
+                heading={t("when.heading")}
+                disabled={isLoading}
+                onPress={when.onOpen}
+                {...whenField}
+              />
             </View>
 
             <View className="mt-10">
@@ -203,7 +210,14 @@ const NewRollScreen = () => {
                 {error}
               </Text>
             ) : null}
-            <Button title={t("load")} mark="▸" onPress={onLoad} isLoading={isLoading} disabled={!canLoad} />
+            <Button
+              testID="new-roll-load"
+              title={t("load")}
+              mark="▸"
+              onPress={onLoad}
+              isLoading={isLoading}
+              disabled={!canLoad}
+            />
           </View>
         </KeyboardAvoidingView>
       )}
