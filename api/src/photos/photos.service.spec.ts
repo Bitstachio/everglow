@@ -34,7 +34,11 @@ describe("PhotosService", () => {
     deleteObjects: jest.Mock;
     sha256OfObject: jest.Mock;
   };
-  let identicalCopiesService: { findRemovedImages: jest.Mock; removeCopies: jest.Mock };
+  let identicalCopiesService: {
+    findRemovedImages: jest.Mock;
+    removeCopies: jest.Mock;
+    reportRefusedUploads: jest.Mock;
+  };
   let photoStorageService: { reserveUploadBytes: jest.Mock };
   let photoVisibilityService: { whereVisibleTo: jest.Mock; isVisibleTo: jest.Mock };
   let logger: { setContext: jest.Mock; info: jest.Mock; warn: jest.Mock; error: jest.Mock; debug: jest.Mock };
@@ -155,6 +159,7 @@ describe("PhotosService", () => {
     identicalCopiesService = {
       findRemovedImages: jest.fn().mockResolvedValue(new Map()),
       removeCopies: jest.fn().mockResolvedValue([]),
+      reportRefusedUploads: jest.fn().mockResolvedValue(undefined),
     };
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     photoStorageService = { reserveUploadBytes: jest.fn().mockResolvedValue(undefined) };
@@ -620,6 +625,19 @@ describe("PhotosService", () => {
         expect(logger.info).toHaveBeenCalledWith(
           expect.objectContaining({ event: "photo.upload_refused.removed_image", refused: 1, audit: true }),
           expect.any(String),
+        );
+      });
+
+      it("hands the refused uploads to the attempt report before answering, with what matched", async () => {
+        await expect(service.confirmUploads(eventId, callerId, [photoId, otherPhotoId])).rejects.toBeInstanceOf(
+          ApiException,
+        );
+
+        expect(identicalCopiesService.reportRefusedUploads).toHaveBeenCalledWith(
+          eventId,
+          callerId,
+          [{ sha256: hashOf(matchingKey()), contentType: "image/jpeg", sizeBytes: 1024 }],
+          new Map([[hashOf(matchingKey()), "report-1"]]),
         );
       });
 

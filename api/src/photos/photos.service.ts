@@ -279,6 +279,13 @@ export class PhotosService {
       callerId,
       refused: refused.length,
     });
+    // A child-safety match reports the uploader to the platform; the answer stays the same 422.
+    const attempts = refused.map((photo) => ({
+      sha256: hashes.get(photo.id)!,
+      contentType: photo.contentType,
+      sizeBytes: photo.sizeBytes,
+    }));
+    await this.identicalCopiesService.reportRefusedUploads(eventId, callerId, attempts, removed);
     throw new ApiException("PHOTO_REJECTED_MATCHES_REMOVED_IMAGE");
   }
 
