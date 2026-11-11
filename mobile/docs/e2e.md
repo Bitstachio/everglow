@@ -121,7 +121,7 @@ The workflow restores each cache with `actions/cache/restore` and saves it with 
 
 The simulator build keeps Xcode's ad hoc signing. Do not pass `CODE_SIGNING_ALLOWED=NO`: an unsigned app has no Keychain entitlement, and Auth0 sign-in then fails in the app with `OSStatus -34018`. The build step fails if the `.app` is not signed.
 
-The build uses `xcodebuild` with a fixed `-derivedDataPath` instead of `expo run:ios`, and builds only the runner's architecture (`ARCHS=$(uname -m)`, `ONLY_ACTIVE_ARCH=YES`). That, not a cache, is where most of the build time went. Not in this workflow: reusing a built `.app` when native and JS inputs are unchanged ([EV-230](https://linear.app/mehrshadfb/issue/EV-230/reuse-the-built-mac-smoke-app-when-its-native-and-js-inputs-are)).
+The build uses `xcodebuild` with a fixed `-derivedDataPath` instead of `expo run:ios`, and builds only the runner's architecture (`ARCHS=$(uname -m)`, `ONLY_ACTIVE_ARCH=YES`). That cut the build step below the baseline, but runner speed decides most of the build time (see the table). Not in this workflow: reusing a built `.app` when native and JS inputs are unchanged ([EV-230](https://linear.app/mehrshadfb/issue/EV-230/reuse-the-built-mac-smoke-app-when-its-native-and-js-inputs-are)).
 
 Measured on `macos-latest` (`macos-26-arm64`, Xcode 26.6). Job time runs from job start to end and excludes the queue. Hosted Mac runners vary a lot from run to run (the simulator boot alone took 1 to 3.5 min in these runs).
 
@@ -131,8 +131,10 @@ Measured on `macos-latest` (`macos-26-arm64`, Xcode 26.6). Job time runs from jo
 | `42893320031`, cold: single-arch `xcodebuild`, all caches missed       | 16 min                   | 6.5 min     | Smoke failed at Auth0 sign-in, a rejected password, after the build                |
 | `42901234610`, warm: Maestro, CocoaPods and DerivedData caches all hit | not measured (cancelled) | over 10 min | Cancelled during the build; DerivedData restore took 36 s and the build recompiled |
 | `42904800710`, cold on another branch (stack top, more flows)          | 37 min                   | 14.5 min    | Login passed; most of the job is the extra flows                                   |
+| `42911090551`, Maestro and CocoaPods hit, DerivedData missed           | 46 min                   | 22.2 min    | Login passed on attempt 1                                                          |
+| `42918743372`, cold: all caches missed, no DerivedData step            | 39 min                   | 23.5 min    | Login passed on attempt 1                                                          |
 
-A warm run without the DerivedData cache was not measured separately.
+Without the DerivedData cache, the single-arch build step took 6.5 to 23.5 min across four runs, and three of them took 14.5 to 23.5 min. The baseline took 28.6 min. Runner speed matters more than the build changes: `42893320031`'s 6.5 min is the fastest run so far, not the usual time, so plan for about 15 to 25 min.
 
 Required repository secrets:
 
