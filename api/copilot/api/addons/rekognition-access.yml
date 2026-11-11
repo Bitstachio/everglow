@@ -1,0 +1,41 @@
+# Rekognition image moderation for the api service's ECS task role, for upload
+# screening (docs/moderation.md §11). The dev IAM user gets the same permission
+# in infra/upload-screening.tf.
+#
+# The API sends Rekognition the photo's bytes, never a bucket and key, so this
+# is the only permission screening needs: no S3 or KMS rights for Rekognition,
+# and no change to the photos key policy. Nothing calls it until
+# MODERATION_SCREENING_ENABLED=true in the manifest.
+#
+# Copilot deploys this template with the service and attaches every
+# AWS::IAM::ManagedPolicy it outputs to the task role.
+
+Parameters:
+  App:
+    Type: String
+    Description: Your application's name.
+  Env:
+    Type: String
+    Description: The environment name your service is being deployed to.
+  Name:
+    Type: String
+    Description: The name of the service.
+
+Resources:
+  # DetectModerationLabels has no resource-level permissions, hence "*".
+  RekognitionModerationPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: !Sub "Lets the ${App}-${Env}-${Name} service screen photos with Rekognition image moderation."
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DetectModerationLabels
+            Effect: Allow
+            Action: rekognition:DetectModerationLabels
+            Resource: "*"
+
+Outputs:
+  RekognitionModerationPolicyArn:
+    Description: Attached by Copilot to the api service's task role.
+    Value: !Ref RekognitionModerationPolicy
