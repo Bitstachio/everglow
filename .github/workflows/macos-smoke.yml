@@ -27,6 +27,8 @@ jobs:
       EXPO_PUBLIC_AUTH0_AUDIENCE: ${{ secrets.EXPO_PUBLIC_AUTH0_AUDIENCE }}
       EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL: everglowmobile://password-change/result
       MAESTRO_VERSION: "2.10.0"
+      # Bump to invalidate every Mac smoke cache this workflow keeps.
+      CACHE_EPOCH: v1
 
     steps:
       - uses: actions/checkout@v4
@@ -81,11 +83,35 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
+      # Caches are restored before the step that uses them and saved after it
+      # or in the always() steps at the end of the job, so a failing smoke still
+      # keeps a cold run's caches.
+      - name: Restore Maestro CLI
+        id: maestro-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.maestro
+          key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
+
       - name: Install Maestro
+        id: maestro-install
+        if: steps.maestro-cache.outputs.cache-hit != 'true'
         working-directory: ${{ github.workspace }}
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | MAESTRO_VERSION="$MAESTRO_VERSION" bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      # Saved straight after install, before any flow runs: Maestro can write
+      # session files under ~/.maestro, and a cache must never hold a secret.
+      - name: Save Maestro CLI
+        if: steps.maestro-install.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.maestro
+          key: ${{ steps.maestro-cache.outputs.cache-primary-key }}
+
+      - name: Add Maestro to PATH
+        working-directory: ${{ github.workspace }}
+        run: echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
       - name: Boot iPhone simulator
         id: sim
@@ -112,15 +138,65 @@ jobs:
           # Reduce Auth0 password-field fights with iOS AutoFill.
           xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false || true
 
+      # CocoaPods download cache only (not ios/Pods). ios/ is gitignored CNG
+      # output, so Podfile.lock does not exist until after prebuild; the key
+      # stands in for what decides pod versions (JS lockfile + Expo config).
+      - name: Restore CocoaPods downloads
+        id: pods-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-
+
       - name: Prebuild native iOS project
+        id: prebuild
         run: pnpm exec expo prebuild --platform ios --non-interactive
 
+      # Drive xcodebuild directly (not expo run:ios) so the build is single-arch
+      # and lands in a fixed -derivedDataPath where the .app is easy to find.
+      # DerivedData is not cached: prebuild regenerates ios/ and pnpm reinstalls
+      # node_modules every run, so Xcode recompiles a restored tree anyway.
       - name: Build and install Release (no Metro)
-        run: >
-          pnpm exec expo run:ios
-          --configuration Release
-          --device "$DEVICE_ID"
-          --no-bundler
+        id: build
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)"
+          SCHEME="$(basename "$WORKSPACE" .xcworkspace)"
+          DERIVED_DATA="${HOME}/everglow-deriveddata"
+          ARCH="$(uname -m)"
+          mkdir -p "$DERIVED_DATA"
+          # Hosted macos runners are Apple Silicon; Release otherwise builds
+          # arm64+x86_64 for the simulator and roughly doubles compile work.
+          # Keep code signing on: Xcode signs simulator builds ad hoc ("Sign to
+          # Run Locally"). An unsigned app has no Keychain entitlement, and
+          # Auth0 then fails sign-in with OSStatus -34018.
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -derivedDataPath "$DERIVED_DATA" \
+            -destination "platform=iOS Simulator,id=${DEVICE_ID}" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            ARCHS="$ARCH" \
+            ONLY_ACTIVE_ARCH=YES \
+            build
+          APP_PATH="$(find "$DERIVED_DATA/Build/Products/Release-iphonesimulator" -maxdepth 2 -name '*.app' | head -1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app under $DERIVED_DATA/Build/Products/Release-iphonesimulator"
+            exit 1
+          fi
+          if ! codesign --verify "$APP_PATH"; then
+            echo "$APP_PATH is not signed. Sign-in needs the Keychain, which an unsigned simulator app cannot use."
+            exit 1
+          fi
+          codesign --display --verbose=2 "$APP_PATH"
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
 
       - name: Maestro login smoke
         run: pnpm run test:e2e:login:ios:ci
@@ -141,3 +217,12 @@ jobs:
             mobile/.maestro/results/
           if-no-files-found: ignore
           retention-days: 7
+
+      # Save only what this run produced, and skip exact-key hits (that entry
+      # already exists).
+      - name: Save CocoaPods downloads
+        if: always() && steps.pods-cache.outputs.cache-hit != 'true' && steps.prebuild.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: ${{ steps.pods-cache.outputs.cache-primary-key }}
