@@ -44,6 +44,13 @@ MISMATCHED or NOT_FOUND permits a new reservation. A missing confirmation
 response remains recoverable and never authorizes another mint. Photos
 already in a fresh server list clear stale local failures.
 
+A DUPLICATE verdict means this person already has the same bytes on the roll
+([uploads.md](../../docs/uploads.md#the-same-photo-twice)). The API has
+discarded the copy, so it is not a failure: the row reads "Already on the
+roll" with the existing frame's thumbnail and no Retry, and it leaves the tray
+like a developed one. The sheet adds no frame for it, and the picked copy's
+local file is released at once.
+
 Known gap ([EV-195](https://linear.app/mehrshadfb/issue/EV-195)): if iOS is
 still finishing the earlier background PUT when Retry confirms, the API
 answers MISSING and releases the slot, so the file is sent again and the late
