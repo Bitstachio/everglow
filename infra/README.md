@@ -57,6 +57,41 @@ terraform apply
   looks up by name. Deploy the `api` service to staging before the first
   apply, and apply again if the service is ever deleted and recreated.
 
+## Before turning on upload screening
+
+Upload screening ([docs/moderation.md §11](../docs/moderation.md)) sends each
+new photo to Amazon Rekognition. It is off until `MODERATION_SCREENING_ENABLED`
+is `true` in an environment. Before that, in this order:
+
+1. **Opt the account out of AWS AI services content use.** By default AWS may
+   store and use content that Rekognition processes to improve its services.
+   The privacy policy promises we don't use photos to train AI models, so
+   this has to be off first. From the AWS Organizations management account,
+   enable the AI services opt-out policy type, then create this policy and
+   attach it to the root, or to the account:
+
+   ```json
+   { "services": { "rekognition": { "opt_out_policy": { "@@assign": "optOut" } } } }
+   ```
+
+   Use `default` instead of `rekognition` to opt out of every AI service.
+   With the CLI: `aws organizations enable-policy-type --root-id <root> --policy-type AISERVICES_OPT_OUT_POLICY`,
+   `aws organizations create-policy --type AISERVICES_OPT_OUT_POLICY --name ai-opt-out --content file://policy.json`,
+   then `aws organizations attach-policy --policy-id <id> --target-id <root or account>`.
+   Check it with `aws organizations describe-effective-policy --policy-type AISERVICES_OPT_OUT_POLICY --target-id <account>`.
+   An account outside an organization has to join or create one first.
+2. **Publish the privacy policy wording** that names the screening and its
+   provider (Apple guideline 5.1.2(i)).
+3. **Apply** this folder, which gives the dev IAM user
+   `rekognition:DetectModerationLabels` ([upload-screening.tf](upload-screening.tf)).
+   Staging's task role gets it from `api/copilot/api/addons/rekognition-access.yml`
+   on its next `copilot svc deploy`. Neither needs a KMS change: the API sends
+   Rekognition the bytes, not a bucket key.
+4. **Switch it on**: `MODERATION_SCREENING_ENABLED: "true"` in the
+   environment's Copilot variables, deploy, then set
+   `api_jobs_enabled.upload_screening = true` here and apply again, so the
+   screening job's heartbeat and the skipped-photo alert watch it.
+
 ## If a lock is stuck
 
 A plan or apply that was killed can leave `dev/terraform.tfstate.tflock`
