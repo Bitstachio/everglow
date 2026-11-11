@@ -128,7 +128,7 @@ describe("PhotoVisibilityService", () => {
 
       const where = await service.whereVisibleTo(callerId, eventFor(accessLevel));
 
-      expect(where.AND).toHaveLength(5);
+      expect(where.AND).toHaveLength(6);
     });
 
     it("hides a photo with an OPEN automated report from everyone but organizers, and only while it is OPEN", async () => {
@@ -139,6 +139,27 @@ describe("PhotoVisibilityService", () => {
 
       expect(member.AND).toContainEqual({ reports: { none: { status: "OPEN", source: "AUTOMATED" } } });
       expect(JSON.stringify(organizer)).not.toContain("AUTOMATED");
+    });
+
+    it("hides a photo upload screening holds from everyone but its uploader and organizers, until the hold runs out", async () => {
+      jest.useFakeTimers({ now: new Date("2026-11-11T12:00:00.000Z") });
+      try {
+        mockPhotosOverThreshold([]);
+
+        const member = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+        const organizer = await service.whereVisibleTo(callerId, eventFor(AccessLevel.ORGANIZER));
+
+        expect(member.AND).toContainEqual({
+          OR: [
+            { screeningHeldUntil: null },
+            { screeningHeldUntil: { lte: new Date("2026-11-11T12:00:00.000Z") } },
+            { addedById: callerId },
+          ],
+        });
+        expect(JSON.stringify(organizer)).not.toContain("screeningHeldUntil");
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("hides photos the caller has an OPEN report on, and only OPEN ones", async () => {
@@ -311,6 +332,11 @@ describe("PhotoVisibilityService", () => {
   });
 
   describe("countVisibleByUploader", () => {
+    // The screening hold compares against the time of the call: pin it, so
+    // the filter rebuilt below is the same one.
+    beforeEach(() => jest.useFakeTimers({ now: new Date("2026-11-11T12:00:00.000Z") }));
+    afterEach(() => jest.useRealTimers());
+
     it("counts the photos the caller sees from each uploader, leaving out departed ones", async () => {
       prisma.event.findUnique.mockResolvedValue(eventFor(AccessLevel.VIEWER) as never);
       mockPhotosOverThreshold([]);
