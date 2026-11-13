@@ -41,8 +41,11 @@ export type EventPhotoFile = {
  * - cantAdd: the API refused these bytes for good (PHOTO_REJECTED_MATCHES_REMOVED_IMAGE);
  *   it can only be removed, and nothing more is said about why
  * - cancelled: "Cancel the rest" stopped it
+ * - removed: the person is no longer on the roll, or the roll is gone
+ *   (REMOVED_FROM_EVENT, NOT_A_MEMBER, 404); nothing more can land on it
  */
 export type EventPhotoFailure =
+  | "removed"
   | "connection"
   | "refused"
   | "noRoom"
@@ -147,6 +150,8 @@ const failureFor = (error: unknown): EventPhotoFailure => {
   const code = getErrorCode(error);
   if (code === "EVENT_GALLERY_CLOSED") return "closed";
   if (code === "EVENT_STORAGE_LIMIT_REACHED") return "noRoom";
+  if (code === "REMOVED_FROM_EVENT" || code === "NOT_A_MEMBER") return "removed";
+  if (isApiError(error) && error.status === 404) return "removed";
   if (error instanceof MissingUploadFile) return "missing";
   if (error instanceof RefusedUpload) return "refused";
   if (isApiError(error)) return isConnectionError(error) ? "connection" : "refused";

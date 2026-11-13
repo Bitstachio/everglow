@@ -448,6 +448,10 @@ const EventDetailScreen = () => {
       accessibilityLabel: t(trayNeedsAttention ? "tray.line.openFailedLabel" : "tray.line.openLabel"),
       onPress: screen.onOpenTray,
     };
+    if (tray.inFlight > 0 && screen.trayOffline) {
+      // Picked without a connection: they wait in the tray and go once it's back.
+      return { text: t("tray.line.waitingOffline", { count: tray.inFlight }), action: open };
+    }
     if (tray.inFlight > 0) {
       // Files that didn't take aren't developing: they count in their own line once these finish.
       const total = tray.inFlight + tray.developed;

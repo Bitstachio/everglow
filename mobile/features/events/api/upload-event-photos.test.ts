@@ -107,10 +107,13 @@ test("reports each batch's photo ids as soon as they're minted", async () => {
 });
 
 test.each([
-  ["EVENT_STORAGE_LIMIT_REACHED", "noRoom"],
-  ["EVENT_GALLERY_CLOSED", "closed"],
-])("stops at a batch refused with %s and fails the rest as %s", async (code, reason) => {
-  const refusal = createApiError("Refused", { status: 403, code });
+  ["EVENT_STORAGE_LIMIT_REACHED", 403, "noRoom"],
+  ["EVENT_GALLERY_CLOSED", 403, "closed"],
+  ["REMOVED_FROM_EVENT", 403, "removed"],
+  ["NOT_A_MEMBER", 403, "removed"],
+  [undefined, 404, "removed"],
+])("stops at a batch refused with %s (%s) and fails the rest as %s", async (code, status, reason) => {
+  const refusal = createApiError("Refused", { status, code });
   mockCreateUploadUrls.mockImplementationOnce(mintSlots).mockRejectedValueOnce(refusal);
   const onFile = jest.fn();
 

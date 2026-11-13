@@ -332,12 +332,14 @@
       "openLabel": "Open the tray",
       "openFailedLabel": "Open the tray, some photos need attention",
       "offline": "{{count}} didn’t take · offline",
+      "waitingOffline": "{{count}} waiting · offline",
       "didntTake": "{{count}} didn’t take",
       "noRoom": "{{count}} didn’t fit · the roll is full",
       "closed": "{{count}} didn’t make it · roll closed",
       "cantAdd": "{{count}} can’t be added"
     },
     "title": "In the tray",
+    "full": "The tray is full. Let what’s waiting go first.",
     "progress": "{{developed}} of {{total}} developed",
     "developingRejected": "{{count}} developing,",
     "rejected": "{{count}} can’t be added.",
@@ -349,6 +351,7 @@
     "row": {
       "developed": "Developed",
       "waiting": "Waiting",
+      "waitingOffline": "Waiting · offline",
       "offline": "Didn’t take · offline",
       "interrupted": "Didn’t take · interrupted",
       "missing": "Didn’t take · file unavailable",

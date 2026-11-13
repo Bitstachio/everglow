@@ -7,8 +7,11 @@ import {
   cancelTray,
   clearUploadTrays,
   dismissClosed,
+  fitsOfflineQueue,
   forgetTray,
   getTray,
+  isTrayOnline,
+  OFFLINE_QUEUE_LIMIT,
   getTraySession,
   openTraySession,
   localFileFor,
@@ -45,11 +48,13 @@ let mockConnectionListener: ((state: { isConnected: boolean }) => void) | null =
 jest.mock("../api/upload-event-photos", () => ({
   uploadEventPhotos: (...args: Parameters<Upload>) => mockUpload(...args),
 }));
+const mockFetchConnection = jest.fn();
 jest.mock("@react-native-community/netinfo", () => ({
   addEventListener: (listener: (state: { isConnected: boolean }) => void) => {
     mockConnectionListener = listener;
     return () => undefined;
   },
+  fetch: () => mockFetchConnection(),
 }));
 
 const item = (key: string, status: TrayItem["status"] = { kind: "waiting" }): TrayItem => ({
@@ -76,6 +81,9 @@ beforeEach(() => {
   settle.mockReset().mockResolvedValue(undefined);
   mockPersist.mockReset();
   mockRestore.mockReset().mockReturnValue(new Map());
+  mockFetchConnection.mockReset().mockResolvedValue({ isConnected: true, isInternetReachable: true });
+  // Every test starts online; the connection state is the module's, like the phone's.
+  mockConnectionListener?.({ isConnected: true });
 });
 
 test("sends what can go, refreshes the roll, then drops the developed frames", async () => {
@@ -598,4 +606,134 @@ test("Cancel removes pending connection retries so reconnecting cannot resume ca
   await flush();
   expect(mockUpload).toHaveBeenCalledTimes(1);
   expect(getTray("event-1").items).toEqual([]);
+});
+
+describe("offline", () => {
+  test("photos picked offline wait in the tray without reserving anything, then go in order once online", async () => {
+    mockConnectionListener?.({ isConnected: false });
+    expect(isTrayOnline()).toBe(false);
+
+    addToTray("event-1", [item("a"), item("b")], settle);
+    addToTray("event-1", [item("c")], settle);
+    await flush();
+
+    expect(mockUpload).not.toHaveBeenCalled();
+    expect(getTray("event-1")).toMatchObject({ running: false });
+    expect(getTray("event-1").items.map(({ key, status }) => [key, status.kind])).toEqual([
+      ["c", "waiting"],
+      ["a", "waiting"],
+      ["b", "waiting"],
+    ]);
+
+    mockConnectionListener?.({ isConnected: true });
+    await flush();
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(mockUpload.mock.calls[0][1].map((file) => file.uri)).toEqual([
+      "file://c.jpg",
+      "file://a.jpg",
+      "file://b.jpg",
+    ]);
+    expect(settle).toHaveBeenCalledTimes(1);
+    expect(getTray("event-1").items).toEqual([]);
+  });
+
+  test("Retry while offline puts the files back in the queue instead of failing them again", async () => {
+    mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) =>
+      onFile(0, { kind: "failed", reason: "connection" }),
+    );
+    addToTray("event-1", [item("a")], settle);
+    await flush();
+    mockConnectionListener?.({ isConnected: false });
+
+    retryTray("event-1");
+    await flush();
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(getTray("event-1").items[0]?.status).toEqual({ kind: "waiting" });
+  });
+
+  test("after the app stopped, queued photos go by themselves once the phone is online", async () => {
+    const queued = item("queued");
+    const dropped = item("dropped", { kind: "failed", reason: "connection" });
+    mockRestore.mockReturnValueOnce(
+      new Map([
+        ["event-1", { items: [queued], running: false, closed: null }],
+        ["event-2", { items: [dropped], running: false, closed: null }],
+      ]),
+    );
+
+    activateUploadTrays("account-a", settle);
+    await flush();
+
+    expect(mockUpload.mock.calls.map(([eventId, files]) => [eventId, files.map((file) => file.uri)])).toEqual([
+      ["event-1", ["file://queued.jpg"]],
+      ["event-2", ["file://dropped.jpg"]],
+    ]);
+    expect(settle).toHaveBeenCalledWith("event-1");
+  });
+
+  test("after the app stopped offline, queued photos keep waiting for the connection", async () => {
+    mockFetchConnection.mockResolvedValue({ isConnected: false, isInternetReachable: false });
+    mockRestore.mockReturnValueOnce(new Map([["event-1", { items: [item("queued")], running: false, closed: null }]]));
+
+    activateUploadTrays("account-a", settle);
+    await flush();
+
+    expect(isTrayOnline()).toBe(false);
+    expect(mockUpload).not.toHaveBeenCalled();
+    mockConnectionListener?.({ isConnected: true });
+    await flush();
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+  });
+
+  test("a roll you were taken off while offline drops its tray instead of retrying", async () => {
+    activateUploadTrays("account-a", settle);
+    mockConnectionListener?.({ isConnected: false });
+    addToTray("event-1", [item("a"), item("b")], settle);
+    mockUpload.mockImplementationOnce(async (_eventId, files, { onFile }) =>
+      files.forEach((_file, index) => onFile(index, { kind: "failed", reason: "removed" })),
+    );
+
+    mockConnectionListener?.({ isConnected: true });
+    await flush();
+
+    expect(getTray("event-1")).toEqual({ items: [], running: false, closed: null });
+    expect(mockPersist.mock.calls.at(-1)![1].has("event-1")).toBe(false);
+    expect(settle).not.toHaveBeenCalled();
+  });
+
+  test("a roll that closed while offline keeps the closed-roll message and doesn't retry", async () => {
+    mockConnectionListener?.({ isConnected: false });
+    addToTray("event-1", [item("a")], settle);
+    mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) =>
+      onFile(0, { kind: "failed", reason: "closed" }),
+    );
+
+    mockConnectionListener?.({ isConnected: true });
+    await flush();
+    mockConnectionListener?.({ isConnected: false });
+    mockConnectionListener?.({ isConnected: true });
+    await flush();
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(getTray("event-1").closed).not.toBeNull();
+    expect(getTray("event-1").items[0]?.status).toEqual({ kind: "failed", reason: "closed" });
+  });
+
+  test("the queue on the phone is capped by files and by bytes", () => {
+    mockConnectionListener?.({ isConnected: false });
+    const many = (count: number, sizeBytes = 1) =>
+      Array.from({ length: count }, (_, index) => ({ ...item(`p${index}`), sizeBytes }));
+
+    expect(fitsOfflineQueue(many(OFFLINE_QUEUE_LIMIT.files))).toBe(true);
+    expect(fitsOfflineQueue(many(OFFLINE_QUEUE_LIMIT.files + 1))).toBe(false);
+    expect(fitsOfflineQueue(many(2, OFFLINE_QUEUE_LIMIT.bytes / 2 + 1))).toBe(false);
+
+    addToTray("event-1", many(OFFLINE_QUEUE_LIMIT.files - 1), settle);
+    expect(fitsOfflineQueue([item("one-more")])).toBe(true);
+    expect(fitsOfflineQueue([item("one-more"), item("two-more")])).toBe(false);
+    // Files that can't go hold no copy waiting to send.
+    expect(fitsOfflineQueue([item("video", { kind: "rejected", reason: "video" }), item("one-more")])).toBe(true);
+  });
 });

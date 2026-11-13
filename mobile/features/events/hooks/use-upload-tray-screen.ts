@@ -8,6 +8,7 @@ import {
   reconcileTrayPhotos,
   removeFromTray,
   retryTray,
+  useTrayOnline,
   useUploadTraySession,
 } from "../lib/upload-tray";
 
@@ -25,6 +26,7 @@ export const useUploadTrayScreen = () => {
   const thumbnails = new Map(photos.map((photo) => [photo.id, photo.thumbnailUrl]));
   useFocusEffect(useCallback(() => (eventId ? openTraySession(eventId) : undefined), [eventId]));
   const tray = useUploadTraySession(eventId);
+  const online = useTrayOnline();
   useEffect(() => {
     if (eventId && visible && photosQuery.data) reconcileTrayPhotos(eventId, photosQuery.data);
   }, [eventId, visible, photosQuery.data]);
@@ -47,6 +49,8 @@ export const useUploadTrayScreen = () => {
       return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "", cacheKey, progress };
     }),
     summary: summarizeTray(tray),
+    /** Waiting files wait for the connection, and say so. */
+    offline: !online,
     onBack: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),
     onCancelRest: () => {
       if (eventId) cancelTray(eventId);

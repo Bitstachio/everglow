@@ -30,12 +30,15 @@ import { readLastVisit, writeLastVisit } from "../lib/roll-visits";
 import {
   addToTray,
   dismissClosed,
+  fitsOfflineQueue,
   getTray,
+  isTrayOnline,
   localFileFor,
   reconcileTrayPhotos,
   ownsUploadTrays,
   releaseLocalFile,
   useUploadTray,
+  useTrayOnline,
   type TrayItem,
 } from "../lib/upload-tray";
 import type { EventParticipantResponseDto, EventResponseDto, MemberPhotos, PhotoResponseDto } from "../types";
@@ -156,6 +159,7 @@ export const useEventDetailScreen = () => {
   const removeParticipantMutation = useRemoveEventParticipantMutation(eventId ?? "");
   const refreshRoll = useRefreshRollAfterUpload();
   const tray = useUploadTray(eventId);
+  const trayOnline = useTrayOnline();
   // After joining, or opening an envelope you're already on (06.6, 06.7).
   const arrivalNote = useArrivalNote();
   // 06.6 asks about notes after a join, with the arrival note on its edge instead of under it.
@@ -278,6 +282,11 @@ export const useEventDetailScreen = () => {
   /** Puts the photos in the tray and starts them developing. 08.5 opens the tray to say why some can't go. */
   const sendToTray = async (items: TrayItem[]) => {
     if (!eventId || !user || items.length === 0) return;
+    // Offline the picks wait on the phone; past the limit they're not copied at all.
+    if (!isTrayOnline() && !fitsOfflineQueue(items)) {
+      showNotice(t("tray.full"));
+      return;
+    }
     const retained = await retainUploadFiles(user.id, items);
     if (!ownsUploadTrays(user.id)) {
       retained.forEach((item) => releaseUploadFile(user.id, item.uri));
@@ -552,6 +561,8 @@ export const useEventDetailScreen = () => {
     onPreviewReady: releaseLocalFile,
     tray: summarizeTray(tray),
     trayRunning: tray.running,
+    // Offline, what waits in the tray waits for the connection, not its turn.
+    trayOffline: !trayOnline,
     closedWhileSending,
     isFull,
     leftBytes,

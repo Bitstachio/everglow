@@ -87,6 +87,16 @@ test("retains exact bytes independently of the picker cache and restores interru
   expect(restoreUploadTrays("account-b").size).toBe(0);
 });
 
+test("a photo still queued when the app stopped comes back queued, not interrupted", async () => {
+  const [queued] = await retainUploadFiles("account-a", [picked()]);
+  persistUploadTrays("account-a", new Map([["event", tray([queued!])]]));
+
+  const restored = restoreUploadTrays("account-a").get("event")!;
+
+  expect(restored.items[0]).toMatchObject({ key: "picked-1", status: { kind: "waiting" } });
+  expect(restored.items[0]!.minted).toBeUndefined();
+});
+
 test("recovers the preceding complete snapshot when the process stops during a write", async () => {
   const files = await retainUploadFiles("account-a", [picked()]);
   persistUploadTrays("account-a", new Map([["event", tray(files)]]));

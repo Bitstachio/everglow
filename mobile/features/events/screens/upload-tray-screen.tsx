@@ -42,7 +42,7 @@ const UploadTrayScreen = () => {
       case "sending":
         return t(item.sizeBytes > 0 && s.bytesSent >= item.sizeBytes ? "tray.row.finishing" : "tray.row.developing");
       case "waiting":
-        return t("tray.row.waiting");
+        return t(screen.offline ? "tray.row.waitingOffline" : "tray.row.waiting");
       case "failed":
         return t(
           s.reason === "connection"
