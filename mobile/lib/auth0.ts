@@ -1,3 +1,4 @@
+import NetInfo from "@react-native-community/netinfo";
 import Auth0, { parseIdToken, type User } from "react-native-auth0";
 import * as WebBrowser from "expo-web-browser";
 import { AUTH0_CUSTOM_SCHEME, env } from "@/lib/env";
@@ -93,17 +94,46 @@ export const logoutFromAuth0 = async (): Promise<void> => {
   }
 };
 
+const RENEWAL_OFFLINE = "TokenRenewalOffline";
+
+/** True for the error `getAccessToken` throws when the token can't be renewed without a network. */
+export const isTokenRenewalOffline = (error: unknown): boolean =>
+  error instanceof Error && error.name === RENEWAL_OFFLINE;
+
+const isOffline = async (): Promise<boolean> => {
+  try {
+    const state = await NetInfo.fetch();
+    return state.isConnected === false || state.isInternetReachable === false;
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Return a valid access token, transparently refreshing it via the stored
  * refresh token when expired. Returns null when there is no usable session.
+ *
+ * A renewal that fails while the phone is offline throws instead (see
+ * `isTokenRenewalOffline`): sent without a token, the request could reach the
+ * API on a patchy network, answer 401 and sign the person out for no reason.
  */
 export const getAccessToken = async (): Promise<string | null> => {
+  let hasValid: boolean;
   try {
-    const hasValid = await auth0.credentialsManager.hasValidCredentials();
-    if (!hasValid) return null;
+    hasValid = await auth0.credentialsManager.hasValidCredentials();
+  } catch {
+    return null;
+  }
+  if (!hasValid) return null;
+  try {
     const credentials = await auth0.credentialsManager.getCredentials();
     return credentials?.accessToken ?? null;
-  } catch {
+  } catch (error) {
+    if (await isOffline()) {
+      throw Object.assign(new Error("The session can't be renewed offline", { cause: error }), {
+        name: RENEWAL_OFFLINE,
+      });
+    }
     return null;
   }
 };

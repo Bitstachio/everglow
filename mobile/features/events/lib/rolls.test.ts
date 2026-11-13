@@ -3,6 +3,7 @@ import {
   formatClosedOn,
   formatClosesOn,
   formatOpensOn,
+  formatSavedAt,
   groupRolls,
   hasClosed,
   isLastDay,
@@ -144,5 +145,11 @@ describe("date formatting", () => {
 
   it("formats the closed date as day.month", () => {
     expect(formatClosedOn(new Date(2026, 8, 21, 12, 0).toISOString())).toBe("21.09");
+  });
+
+  it("says when saved rolls were loaded: the time today, the day before that", () => {
+    const now = new Date(2026, 10, 11, 23, 0);
+    expect(formatSavedAt(new Date(2026, 10, 11, 21, 40).getTime(), now)).toBe("21:40");
+    expect(formatSavedAt(new Date(2026, 9, 18, 21, 40).getTime(), now)).toBe("18.10");
   });
 });

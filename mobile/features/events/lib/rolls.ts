@@ -104,6 +104,13 @@ export const formatOpensOn = (iso: string): string => {
   return `${weekday} ${time24}`;
 };
 
+/** Offline, when the rolls were last loaded: "21:40" today, "18.10" for an earlier day. */
+export const formatSavedAt = (updatedAt: number, now: Date = new Date()): string => {
+  const date = new Date(updatedAt);
+  if (date.toDateString() !== now.toDateString()) return formatClosedOn(date.toISOString());
+  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+};
+
 /** "21.09": the day a closed roll's photos went. */
 export const formatClosedOn = (iso: string): string => {
   const date = new Date(iso);

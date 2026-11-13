@@ -25,6 +25,16 @@ Prefer wrapping generated helpers in feature `api/` hooks rather than calling th
 - `QueryProvider` wraps the app in `app/_layout.tsx`, above `AuthProvider`, which clears the cache on sign-out and when a 401 ends the session
 - Default query options: 60s stale time, 2 retries, refetch on focus
 - Feature mutations should update or invalidate keys from the feature's `keys.ts`
+- `onlineManager` follows NetInfo. Offline, queries pause instead of failing, so a screen that must say it is offline reads `useIsOnline()` (`hooks/use-is-online.ts`) as well as connection errors
+
+### Saved for an offline launch
+
+A query that Home needs to open without a network opts in with `meta: { persist: true }`. Today that is the rolls list and the strips of open rolls. `lib/query/session-persister.ts` writes those queries, the profile and who Auth0 says is signed in to one snapshot (`lib/session-cache.ts`), a second after they change:
+
+- Where: `Paths.cache/session/snapshot.json`. That is app-private, encrypted at rest by the OS, and left out of device backups. No tokens and no upload links. Strip rows carry thumbnail links that expire within minutes; offline, the frames come from expo-image's disk cache under `photo:<id>:thumbnail`.
+- When it is read: at launch, when the session is valid on the phone but `GET /users/me` can't be reached. A snapshot for another Auth0 subject, one older than 7 days, or one that doesn't parse is deleted instead. With nothing usable the app shows "can't connect" as before.
+- When it goes: every time the auth context clears the account (sign-out, account deletion, a 401), together with React Query and expo-image's memory and disk caches.
+- Opt in only for what Home needs to open. Never for a query whose links last longer than minutes, or for data that is not the signed-in person's to see.
 
 ## Feature `api/` layer
 

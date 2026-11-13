@@ -293,6 +293,14 @@ revoke the refresh token (POST /oauth/revoke) â†’ clear the Auth0 web session â†
 2. **Clear the web session** with `webAuth.clearSession`, so the next Universal Login does not sign the same person straight back in.
 3. **Clear the credentials manager**, in a `finally`, so a cancelled or failed step above never leaves tokens on the phone.
 
-The auth context then clears the account (`clearAccount("signedOut")`: the query cache, `user`, `identity`, a waiting invite, and the upload trays registered in `mobile/lib/account-cleared.ts`). Account deletion signs out the same way, onto Deleted (14.12).
+The auth context then clears the account (`clearAccount("signedOut")`: the query cache, the session snapshot saved for an offline launch, expo-image's caches, `user`, `identity`, a waiting invite, and the upload trays registered in `mobile/lib/account-cleared.ts`). Account deletion signs out the same way, onto Deleted (14.12).
 
 A session that ends on its own takes a shorter path, `handleSessionExpired`: a 401 from the API (section 2) or a password change that killed the refresh token ([Credential changes](./credential-changes.md), section 2.1). It clears the credentials manager and the account with reason `sessionExpired`, which keeps unfinished uploads on the phone for the same person, and does not revoke. After a password change Auth0 has already revoked the token. After a 401 the stored tokens are only dropped from the phone.
+
+## 12. Opening the app offline
+
+The network going away never signs anyone out.
+
+- **Launch.** `hasValidCredentials` only reads the phone: it is true offline while a refresh token is stored. When `GET /users/me` then can't be reached, the auth context opens Home from the session snapshot the last online launch saved (`mobile/lib/session-cache.ts`, described in `mobile/docs/api.md`). It reloads the profile once the network is back, so a suspension or a deletion that happened meanwhile still routes. With no snapshot, for example on the first launch after signing in, it shows "can't connect" with Try again.
+- **Token renewal.** `getAccessToken` renews an expired access token through the credentials manager. If that fails while NetInfo says the phone is offline, it throws, and the axios interceptor fails the request as a connection error. Before this, the request went out with no token. On a patchy network it could reach the API, get a 401, and sign the person out. A renewal that fails while the phone is online still sends the request without a token, so a refresh token Auth0 really revoked ends the session through the usual 401.
+- **Identity.** Offline, Auth0 can't say who is signed in when the token is due for renewal. The snapshot's identity stands in. A snapshot whose subject differs from the one Auth0 reports is deleted, not used.
