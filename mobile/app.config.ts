@@ -1,3 +1,4 @@
+import "tsx/cjs";
 import { ConfigContext, ExpoConfig } from "expo/config";
 import { AUTH0_CUSTOM_SCHEME, env } from "./lib/env";
 
