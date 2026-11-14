@@ -4,7 +4,7 @@
  * marks hand-drawn but stable between renders.
  */
 
-export type PencilMark = "ring" | "tick" | "cross" | "underline" | "strike";
+export type PencilMark = "ring" | "tick" | "cross" | "underline" | "strike" | "star";
 
 export type Point = [number, number];
 
@@ -128,6 +128,21 @@ export const pencilArrow = (from: Point, to: Point, bend = 0.25, seed = 1): Penc
   return [toStroke(shaft), toStroke([barb(-1), to, barb(1)])];
 };
 
+/** The drawn star, in a unit box: from its upper left, round, and closed. */
+const STAR: Point[] = [
+  [0.36, 0.37],
+  [0.5, 0],
+  [0.64, 0.37],
+  [1, 0.41],
+  [0.71, 0.63],
+  [0.82, 1],
+  [0.5, 0.78],
+  [0.18, 1],
+  [0.29, 0.63],
+  [0, 0.41],
+  [0.36, 0.37],
+];
+
 export const pencilStrokes = (
   mark: PencilMark,
   width: number,
@@ -162,5 +177,10 @@ export const pencilStrokes = (
       return [toStroke(line([0, height * 0.5], [width, height * 0.42], height * 0.25, seed))];
     case "strike":
       return [toStroke(line([0, height * 0.55], [width, height * 0.45], 0, seed))];
+    case "star": {
+      // Five points in one stroke, as a host is starred on the roll call (11.1).
+      const fit = ([x, y]: Point): Point => [inset + x * (width - 2 * inset), inset + y * (height - 2 * inset)];
+      return [toStroke(STAR.map(fit))];
+    }
   }
 };
