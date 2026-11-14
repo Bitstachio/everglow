@@ -158,7 +158,7 @@ test("labels a new roll for tonight with the plan's default film", async () => {
     "A month, 30-day roll",
   ]);
   expect(screen.getByRole("radio", { name: "A month, 30-day roll" })).toBeChecked();
-  expect(screen.getByText(/Photos removed Tue 01.12/)).toBeOnTheScreen();
+  expect(screen.getByText(/Photos kept until Tue 01.12/)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Load the roll" })).toBeDisabled();
 });
 
@@ -179,7 +179,7 @@ test("names the roll, sets when it happens and the film, then opens it", async (
   await user.press(screen.getByRole("button", { name: "Set Sat 7 Nov, 19:00" }));
 
   expect(await screen.findByRole("button", { name: "When it happens: Sat 07.11 · 19:00. Change" })).toBeOnTheScreen();
-  expect(screen.getByText(/Photos removed Sat 14.11/)).toBeOnTheScreen();
+  expect(screen.getByText(/Photos kept until Sat 14.11/)).toBeOnTheScreen();
 
   await user.press(screen.getByRole("button", { name: "Load the roll" }));
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));

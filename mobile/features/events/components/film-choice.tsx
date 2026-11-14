@@ -16,7 +16,7 @@ type FilmChoiceProps = {
   onSelect: (days: number) => void;
   /** Ring the chosen box in pencil, once the host has picked one (04.4). */
   circled: boolean;
-  /** "Photos removed Sat 14.11", once there is a date. */
+  /** "Photos kept until Sat 14.11", once there is a date. */
   removed?: ReactNode;
 };
 
