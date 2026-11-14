@@ -1,3 +1,4 @@
+import { useBlockHardwareBack } from "@/hooks/use-block-hardware-back";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -9,10 +10,12 @@ type PhotoSource = "camera" | "library";
 /**
  * 02.7 Your photo. Onboarding is already complete; the photo is optional.
  * The picked photo goes to the move-and-scale crop; Skip goes to the card.
+ * There is no going back to name and username, Android's system back included.
  */
 export const useOnboardingPhotoScreen = () => {
   const { t } = useTranslation(["onboarding", "common"]);
   const { card } = useLabCard();
+  useBlockHardwareBack();
 
   const pick = async (source: PhotoSource) => {
     try {
