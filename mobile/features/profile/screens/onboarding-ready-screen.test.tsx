@@ -8,6 +8,9 @@ import OnboardingReadyScreen from "./onboarding-ready-screen";
 const mockReplace = jest.fn();
 jest.mock("expo-router", () => ({ router: { replace: (href: unknown) => mockReplace(href) } }));
 
+const mockBlockHardwareBack = jest.fn();
+jest.mock("@/hooks/use-block-hardware-back", () => ({ useBlockHardwareBack: () => mockBlockHardwareBack() }));
+
 jest.mock("../hooks/use-lab-card", () => ({
   useLabCard: () => ({
     firstName: "Maya",
@@ -44,6 +47,11 @@ test("shows the finished card and goes to Home", async () => {
   expect(screen.getByRole("header", { name: "You’re set,\nMaya." })).toBeOnTheScreen();
   await user.press(screen.getByRole("button", { name: "Go to your rolls" }));
   expect(mockReplace).toHaveBeenCalledWith("/events");
+});
+
+test("Android's system back does not leave the finished card", async () => {
+  await renderReady();
+  expect(mockBlockHardwareBack).toHaveBeenCalled();
 });
 
 test("opens the envelope that brought them, once onboarding is done (06.3)", async () => {

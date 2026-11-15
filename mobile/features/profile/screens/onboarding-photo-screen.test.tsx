@@ -10,6 +10,9 @@ jest.mock("expo-router", () => ({
   router: { push: (href: unknown) => mockPush(href), replace: (href: unknown) => mockReplace(href) },
 }));
 
+const mockBlockHardwareBack = jest.fn();
+jest.mock("@/hooks/use-block-hardware-back", () => ({ useBlockHardwareBack: () => mockBlockHardwareBack() }));
+
 jest.mock("../hooks/use-lab-card", () => ({
   useLabCard: () => ({
     firstName: "Maya",
@@ -60,6 +63,8 @@ test("shows the card waiting for a face, with no way back to the finished steps"
   expect(screen.getByLabelText("Your lab card: Maya Chen, @maya.chen")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Add a face\nto the name." })).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Back" })).not.toBeOnTheScreen();
+  // Nor through Android's system back.
+  expect(mockBlockHardwareBack).toHaveBeenCalled();
 });
 
 test("a chosen photo goes to the crop, uncropped", async () => {
