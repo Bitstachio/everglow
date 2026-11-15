@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { Alert, type TextInput } from "react-native";
+import { Alert, Keyboard, type TextInput } from "react-native";
 import { useSetNewRollCoverMutation } from "../api/mutations";
 import {
   addMonths,
