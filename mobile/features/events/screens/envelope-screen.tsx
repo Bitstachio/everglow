@@ -24,6 +24,7 @@ const EnvelopeScreen = () => {
     edge,
     envelope,
     readyStamp,
+    goToRoll,
     invitationUrl,
     shut,
     isLoading,
@@ -36,6 +37,7 @@ const EnvelopeScreen = () => {
     onCloseReset,
     onConfirmReset,
     onRetry,
+    onGoToRoll,
     onClose,
   } = useEnvelopeScreen();
 
@@ -113,6 +115,12 @@ const EnvelopeScreen = () => {
           </>
         )}
       </ScrollView>
+
+      {goToRoll ? (
+        <View className="px-5 pb-1 pt-3">
+          <Button testID="envelope-go-to-roll" title={goToRoll} mark="▸" onPress={onGoToRoll} />
+        </View>
+      ) : null}
 
       <FilmGrain />
 
