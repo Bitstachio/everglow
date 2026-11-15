@@ -12,6 +12,8 @@ type RollCallRowProps = Omit<PressableProps, "children"> & {
   roleLabel?: string;
   /** A removed person: greyed, for the removed list. */
   gone?: boolean;
+  /** Just after the name: a host's pencil star, or "· you". Decorative; say it in the label too. */
+  mark?: ReactNode;
 };
 
 /** One person on the roll call: number, photo, name, role. */
@@ -21,6 +23,7 @@ export const RollCallRow = ({
   name,
   roleLabel,
   gone = false,
+  mark,
   className = "",
   ...props
 }: RollCallRowProps) => (
@@ -32,9 +35,12 @@ export const RollCallRow = ({
   >
     <EdgePrint className="w-6">{String(number).padStart(2, "0")}</EdgePrint>
     <View className={gone ? "opacity-35" : ""}>{avatar}</View>
-    <Text className={`flex-1 font-sans-medium text-name ${gone ? "text-edge" : "text-text"}`} numberOfLines={1}>
-      {name}
-    </Text>
+    <View className="flex-1 flex-row items-center gap-1.5">
+      <Text className={`shrink font-sans-medium text-name ${gone ? "text-edge" : "text-text"}`} numberOfLines={1}>
+        {name}
+      </Text>
+      {mark}
+    </View>
     {roleLabel ? <EdgePrint>{roleLabel}</EdgePrint> : null}
   </Pressable>
 );

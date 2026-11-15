@@ -74,7 +74,7 @@ const Stroke = ({
 };
 
 /**
- * A grease-pencil mark: ring, tick, cross, underline or strike. Strawberry
+ * A grease-pencil mark: ring, tick, cross, underline, strike or star. Strawberry
  * only ever appears this way. Marks are decorative: whatever they point at is
  * also said in text, so they are hidden from assistive tech.
  */

@@ -107,3 +107,17 @@ test("an arrow is a curved shaft ending at its point, then a head there", () => 
   // It bows: the shaft is longer than the straight line.
   expect(shaft.length).toBeGreaterThan(Math.hypot(40, 100));
 });
+
+test("a star is one closed stroke inside its box", () => {
+  const [star] = pencilStrokes("star", 20, 19, 2);
+  const numbers = star.d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+  const xs = numbers.filter((_, i) => i % 2 === 0);
+  const ys = numbers.filter((_, i) => i % 2 === 1);
+  expect(pencilStrokes("star", 20, 19, 2)).toHaveLength(1);
+  expect(Math.min(...xs)).toBeGreaterThanOrEqual(2);
+  expect(Math.max(...xs)).toBeLessThanOrEqual(18);
+  expect(Math.min(...ys)).toBeGreaterThanOrEqual(2);
+  expect(Math.max(...ys)).toBeLessThanOrEqual(17);
+  expect(star.d.startsWith(`M${xs[0].toFixed(1)} ${ys[0].toFixed(1)}`)).toBe(true);
+  expect([xs.at(-1), ys.at(-1)]).toEqual([xs[0], ys[0]]);
+});

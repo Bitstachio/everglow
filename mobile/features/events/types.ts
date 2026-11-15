@@ -3,6 +3,7 @@ import type { EventResponseDto, PhotoResponseDto } from "@/lib/api/generated";
 export type {
   AccessLevel,
   CreateEventDto,
+  EventBanResponseDto,
   EventParticipantResponseDto,
   EventResponseDto,
   InvitePreviewResponseDto,
