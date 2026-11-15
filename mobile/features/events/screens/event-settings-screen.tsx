@@ -113,7 +113,6 @@ const EventSettingsScreen = () => {
           options={film.options}
           selected={film.selected}
           onSelect={film.onSelect}
-          circled={film.circled}
           removed={
             film.closes ? (
               <Trans

@@ -179,7 +179,6 @@ export const useNewRollScreen = () => {
     film: {
       options: filmOptions,
       selected: galleryWindowDays,
-      circled: pickedFilm !== null,
       onSelect: (days: number) => form.setValue("galleryWindowDays", days, { shouldDirty: true }),
       closes: gallery.closesAt ? formatShortDay(gallery.closesAt) : null,
     },

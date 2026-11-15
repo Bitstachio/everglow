@@ -324,7 +324,6 @@ export const useEventSettingsScreen = () => {
       options: filmOptions,
       selected: filmDraft,
       onSelect: setFilmDraft,
-      circled: filmDraft !== null && filmDraft !== filmDays,
       closes: filmPreview.closesAt ? formatShortDay(filmPreview.closesAt) : null,
       error: filmError,
       saveLabel: t("roll:settings.editFilm.save"),
