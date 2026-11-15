@@ -59,7 +59,9 @@ export const FilmChoice = ({ heading, unit, options, selected, onSelect, circled
         ))}
         {circled && index >= 0 && boxWidth > 0 ? (
           <View
-            key={selected}
+            // Its own key space: the boxes are keyed by days, so a bare `selected`
+            // would clash with the chosen box's key.
+            key={`ring-${selected}`}
             pointerEvents="none"
             className="absolute"
             style={{ left: index * (boxWidth + GAP) - RING_X, top: -RING_Y }}
