@@ -34,7 +34,10 @@ export const FilmBox = ({ days, label, name, selected = false, className = "", .
       className={[
         "h-28 flex-1 justify-between overflow-hidden rounded-paper px-2.5 pb-2.5",
         name ? "pt-2.5" : "pt-4",
-        selected ? "bg-leader" : "border border-sprocket bg-frame-empty",
+        // Keep the border in both states: on Android, dropping it when a box is
+        // chosen left the rounded clip stale and the box painted blank white.
+        "border",
+        selected ? "border-leader bg-leader" : "border-sprocket bg-frame-empty",
         className,
       ]
         .filter(Boolean)

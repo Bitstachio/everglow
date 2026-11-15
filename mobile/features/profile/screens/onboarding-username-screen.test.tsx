@@ -22,8 +22,14 @@ jest.mock("expo-router", () => ({
 jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
 const mockCompleteOnboarding = jest.fn();
+const mockRefreshProfile = jest.fn();
 jest.mock("@/context/auth-context", () => ({
-  useAuth: () => ({ identity: null, completeOnboarding: mockCompleteOnboarding, isLoading: false }),
+  useAuth: () => ({
+    identity: null,
+    completeOnboarding: mockCompleteOnboarding,
+    refreshProfile: mockRefreshProfile,
+    isLoading: false,
+  }),
 }));
 
 const mockAlert = jest.fn();
@@ -145,6 +151,35 @@ test("a name taken just before Continue says so", async () => {
   expect(await screen.findByText("Someone has @maya.chen. Try another.")).toBeOnTheScreen();
   expect(mockAlert).not.toHaveBeenCalled();
   expect(mockReplace).not.toHaveBeenCalled();
+});
+
+test("an onboarding that already went through goes on to the photo", async () => {
+  const user = userEvent.setup();
+  mockAvailability.mockReturnValue(state({ status: "available", username: "maya.chen", canSubmit: true }));
+  mockCompleteOnboarding.mockRejectedValue(createApiError("exists", { status: 409, code: "DETAILS_ALREADY_EXIST" }));
+  mockRefreshProfile.mockResolvedValue(null);
+  await renderStep("maya.chen");
+
+  await user.press(screen.getByRole("checkbox", { name: "I agree to the terms and the privacy policy" }));
+  await user.press(screen.getByRole("button", { name: "Continue" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/onboarding/photo"));
+  expect(mockRefreshProfile).toHaveBeenCalled();
+  expect(mockAlert).not.toHaveBeenCalled();
+});
+
+test("goes on to the photo even if reloading the finished profile fails", async () => {
+  const user = userEvent.setup();
+  mockAvailability.mockReturnValue(state({ status: "available", username: "maya.chen", canSubmit: true }));
+  mockCompleteOnboarding.mockRejectedValue(createApiError("exists", { status: 409, code: "DETAILS_ALREADY_EXIST" }));
+  mockRefreshProfile.mockRejectedValue(new Error("offline"));
+  await renderStep("maya.chen");
+
+  await user.press(screen.getByRole("checkbox", { name: "I agree to the terms and the privacy policy" }));
+  await user.press(screen.getByRole("button", { name: "Continue" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/onboarding/photo"));
+  expect(mockAlert).not.toHaveBeenCalled();
 });
 
 test("any other failure is said in an alert", async () => {
