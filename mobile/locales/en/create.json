@@ -29,7 +29,7 @@
     },
     "days": "{{count}} days",
     "a11y": "{{name}}, {{count}}-day roll",
-    "removed": "Photos removed <value>{{closes}}</value>"
+    "removed": "Photos kept until <value>{{closes}}</value>"
   },
   "when": {
     "heading": "When",

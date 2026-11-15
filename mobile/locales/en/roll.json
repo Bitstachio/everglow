@@ -200,7 +200,7 @@
       "dayRoll": "day roll",
       "save": "Save",
       "failed": "Couldn’t change the film. Try again.",
-      "removed": "Photos removed <value>{{closes}}</value>"
+      "removed": "Photos kept until <value>{{closes}}</value>"
     }
   },
   "leave": {
