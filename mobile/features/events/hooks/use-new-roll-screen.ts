@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { Alert, Keyboard, type TextInput } from "react-native";
+import { Alert, type TextInput } from "react-native";
 import { useSetNewRollCoverMutation } from "../api/mutations";
 import {
   addMonths,
@@ -32,26 +32,12 @@ export type NewRollStatus = "loading" | "ready" | "notReady" | "full";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
 
-/** The guest line shows while typing; the keyboard stays up when moving between the two fields. */
-const useKeyboardVisible = () => {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const shown = Keyboard.addListener("keyboardDidShow", () => setVisible(true));
-    const hidden = Keyboard.addListener("keyboardDidHide", () => setVisible(false));
-    return () => {
-      shown.remove();
-      hidden.remove();
-    };
-  }, []);
-  return visible;
-};
-
 /**
- * 04.1–04.8 A new roll: its name and a line for guests, when it happens, the
- * film and its first frame; asking before it is thrown away, and saying so
- * when the account can't run another. The film on offer, its default, the
- * latest date and the roll limit all come from the API
- * (`GET /users/me/limits`), never from the app.
+ * A new roll: its name and a line for guests, when it happens, the film and
+ * its first frame; asking before it is thrown away, and saying so when the
+ * account can't run another. The film on offer, its default, the latest date
+ * and the roll limit all come from the API (`GET /users/me/limits`), never
+ * from the app.
  */
 export const useNewRollScreen = () => {
   const { t } = useTranslation("create");
@@ -84,9 +70,9 @@ export const useNewRollScreen = () => {
       void limitsQuery.refetch();
     },
   });
-  const [title, description, date, pickedFilm] = useWatch({
+  const [title, date, pickedFilm] = useWatch({
     control: form.control,
-    name: ["title", "description", "date", "galleryWindowDays"],
+    name: ["title", "date", "galleryWindowDays"],
   });
   const galleryWindowDays = chosenFilm(pickedFilm);
   const { errors, isDirty, isSubmitting } = form.formState;
@@ -99,7 +85,6 @@ export const useNewRollScreen = () => {
     void refetchLimits({ cancelRefetch: false });
   }, [refetchLimits]);
   const guestLineRef = useRef<TextInput>(null);
-  const keyboardVisible = useKeyboardVisible();
 
   const now = new Date();
   const latest = new Date(newEvent?.latestDate ?? now);
@@ -174,7 +159,6 @@ export const useNewRollScreen = () => {
       accessibilityLabel: t("label.editA11y", { when: shownWhen }),
     },
     guestLineRef,
-    showGuestLine: keyboardVisible || description.length > 0,
     onNameSubmit: () => guestLineRef.current?.focus(),
     film: {
       options: filmOptions,

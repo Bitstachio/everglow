@@ -64,7 +64,6 @@ const NewRollScreen = () => {
     onLoad,
     whenField,
     guestLineRef,
-    showGuestLine,
     onNameSubmit,
     film,
     cover,
@@ -151,26 +150,24 @@ const NewRollScreen = () => {
               )}
             />
 
-            {showGuestLine ? (
-              <View className="mt-10.5">
-                <Controller
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <GuestLine
-                      ref={guestLineRef}
-                      label={t("guests.label")}
-                      placeholder={t("guests.placeholder")}
-                      accessibilityLabel={t("guests.a11y")}
-                      value={field.value}
-                      onChangeText={field.onChange}
-                      onBlur={field.onBlur}
-                      editable={!isLoading}
-                    />
-                  )}
-                />
-              </View>
-            ) : null}
+            <View className="mt-10.5">
+              <Controller
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <GuestLine
+                    ref={guestLineRef}
+                    label={t("guests.label")}
+                    placeholder={t("guests.placeholder")}
+                    accessibilityLabel={t("guests.a11y")}
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+            </View>
 
             <View className="mt-10">
               <WhenField
