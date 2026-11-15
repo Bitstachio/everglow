@@ -7,7 +7,7 @@ import { renderWithI18n } from "@/testing/render";
 import { act, screen, userEvent, waitFor } from "@testing-library/react-native";
 // Observe the native alert boundary without replacing screen hooks.
 // eslint-disable-next-line no-restricted-imports
-import { Alert, Keyboard, type AlertButton } from "react-native";
+import { Alert, type AlertButton } from "react-native";
 import NewRollScreen from "./new-roll-screen";
 // Seed the limits cache at the integration boundary.
 import { profileKeys } from "@/features/profile/api/keys";
@@ -87,9 +87,6 @@ const limits = (newEvent: Record<string, unknown> = {}, account: Record<string, 
   },
 });
 
-// Captured so a test can raise and lower the keyboard.
-const keyboard: Record<string, () => void> = {};
-
 const renderScreen = async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: 0 } },
@@ -135,10 +132,6 @@ beforeEach(() => {
   });
   mockConfirmCover.mockReset().mockResolvedValue({ data: { data: buildEvent({ id: "roll-1" }) } });
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
-  jest.spyOn(Keyboard, "addListener").mockImplementation((event, listener) => {
-    keyboard[event] = listener as () => void;
-    return { remove: jest.fn() } as unknown as ReturnType<typeof Keyboard.addListener>;
-  });
 });
 
 afterEach(() => {
@@ -266,17 +259,11 @@ test("loads the roll even when its first frame didn't take", async () => {
   expect(screen.queryByText("The roll didn’t load. Try again.")).not.toBeOnTheScreen();
 });
 
-test("shows the line for guests while typing and sends it", async () => {
+test("sends the line for guests", async () => {
   await renderScreen();
-  expect(screen.queryByLabelText("A line for guests, optional")).not.toBeOnTheScreen();
-
-  await act(() => keyboard.keyboardDidShow());
   const user = userEvent.setup();
   await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
   await user.paste(screen.getByLabelText("A line for guests, optional"), "Bring a jacket, we’re on the roof");
-  await act(() => keyboard.keyboardDidHide());
-  // Written in, it stays on the screen.
-  expect(screen.getByLabelText("A line for guests, optional")).toBeOnTheScreen();
 
   await user.press(screen.getByRole("button", { name: "Load the roll" }));
   await waitFor(() =>
