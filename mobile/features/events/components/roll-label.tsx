@@ -16,7 +16,7 @@ type RollLabelProps = Pick<
 
 /** 04.1–04.2 and 04.5 The roll's label: its name written in, and its cover. */
 export const RollLabel = forwardRef<TextInput, RollLabelProps>(({ stock, nameA11y, cover, ...input }, ref) => (
-  <Paper className="flex-row items-center gap-3">
+  <Paper tilt={false} className="flex-row items-center gap-3">
     <View className="flex-1">
       <Text className="font-mono-semibold text-edge-print uppercase text-paper-ink">{stock}</Text>
       <TextInput
