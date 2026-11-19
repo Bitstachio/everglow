@@ -104,7 +104,7 @@ test("upcoming: every schedule row can still change", async () => {
   });
   await renderScreen(event);
 
-  expect(await screen.findByText("Roll settings")).toBeOnTheScreen();
+  expect(await screen.findByText("Event settings")).toBeOnTheScreen();
   expect(screen.getByText(event.title)).toBeOnTheScreen();
   expect(screen.getByText(`Opens ${formatOpensAt(event.galleryOpensAt)}`)).toBeOnTheScreen();
 
@@ -112,7 +112,7 @@ test("upcoming: every schedule row can still change", async () => {
   expect(screen.getByRole("button", { name: "Cover, Add" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Note for guests, Add" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: `When, ${formatOpensAt(event.date)}` })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Film, 7-day roll" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Film, 7 days" })).toBeOnTheScreen();
   expect(screen.getByLabelText("Storage, 0 of 3 GB")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Envelopes, Two · reset" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Delete the roll, After it closes" })).toBeOnTheScreen();
@@ -188,8 +188,8 @@ test("opens when and film slips while upcoming", async () => {
 
   await user.press(screen.getByLabelText("Dismiss"));
   await waitFor(() => expect(screen.queryByText("When it happens")).toBeNull());
-  await user.press(screen.getByRole("button", { name: "Film, 7-day roll" }));
-  expect(await screen.findByLabelText("A week, 7-day roll")).toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Film, 7 days" }));
+  expect(await screen.findByLabelText("A week, 7 days")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Save" })).toBeOnTheScreen();
 });
 
@@ -203,8 +203,8 @@ test("saves a new film from the slip", async () => {
   await renderScreen(event);
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: "Film, 7-day roll" }));
-  await user.press(await screen.findByLabelText("Two weeks, 14-day roll"));
+  await user.press(await screen.findByRole("button", { name: "Film, 7 days" }));
+  await user.press(await screen.findByLabelText("Two weeks, 14 days"));
   await user.press(screen.getByRole("button", { name: "Save" }));
 
   await waitFor(() =>
@@ -323,7 +323,7 @@ describe("a closed roll", () => {
     mockRemove.mockResolvedValue({ data: undefined });
     await renderScreen(closed());
     const user = userEvent.setup();
-    await user.press(await screen.findByRole("button", { name: "Delete the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Delete the event" }));
 
     expect(await screen.findByText("Closed 21.09 · 11 people")).toBeOnTheScreen();
     expect(screen.getByText(/for all 11 people/)).toBeOnTheScreen();
@@ -348,7 +348,7 @@ describe("a closed roll", () => {
     mockRemove.mockRejectedValue(createApiError("Forbidden", { status: 403, code: "EVENT_HAS_OPEN_REPORTS" }));
     await renderScreen(closed());
     const user = userEvent.setup();
-    await user.press(await screen.findByRole("button", { name: "Delete the roll" }));
+    await user.press(await screen.findByRole("button", { name: "Delete the event" }));
     await user.press(await screen.findByRole("button", { name: "Delete Lake weekend" }));
 
     expect(await screen.findByText(/reports waiting for a decision/)).toBeOnTheScreen();
@@ -374,10 +374,10 @@ test("a film change refused because the roll opened says so and reloads the roll
   mockUpdate.mockRejectedValue(createApiError("Locked", { status: 409, code: "EVENT_SCHEDULE_LOCKED" }));
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: "Film, 7-day roll" }));
-  await user.press(await screen.findByLabelText("Two weeks, 14-day roll"));
+  await user.press(await screen.findByRole("button", { name: "Film, 7 days" }));
+  await user.press(await screen.findByLabelText("Two weeks, 14 days"));
   await user.press(screen.getByRole("button", { name: "Save" }));
 
-  expect(await screen.findByText("The date and film can only change before the roll opens.")).toBeOnTheScreen();
+  expect(await screen.findByText("The date and duration can only change before the event opens.")).toBeOnTheScreen();
   await waitFor(() => expect(mockFindOne).toHaveBeenCalledTimes(2));
 });

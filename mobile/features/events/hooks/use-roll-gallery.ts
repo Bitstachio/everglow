@@ -44,7 +44,7 @@ export const useRollGallery = ({
   listed,
   showNotice,
 }: Props) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const renewPhoto = useRenewEventPhoto(eventId);
   const deletePhoto = useDeleteEventPhotoMutation();
   const refreshRoll = useRefreshRollAfterUpload();

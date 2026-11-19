@@ -31,13 +31,13 @@ export const LeaveRollSlip = ({
   onConfirm,
   onStay,
 }: LeaveRollSlipProps) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const asks = asksAboutFrames(frameCount, closed);
 
   return (
     <Slip
       edge={asks ? t("leave.edge", { title: rollTitle }) : undefined}
-      title={asks ? t("leave.framesTitle", { count: frameCount }) : t("leave.title", { title: rollTitle })}
+      title={asks ? t("leave.photosTitle", { count: frameCount }) : t("leave.title", { title: rollTitle })}
       body={asks ? undefined : closed ? t("leave.bodyClosed") : t("leave.return")}
     >
       {asks ? (

@@ -99,7 +99,7 @@ test("a connection failure shows the offline state without alerting", async () =
 test("an unexpected failure is surfaced", async () => {
   mockFindAll.mockRejectedValue(new Error("boom"));
   await renderHome();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your rolls", expect.any(String)));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your events", expect.any(String)));
   expect(screen.getByTestId("offline")).toHaveTextContent("online");
 });
 

@@ -85,7 +85,7 @@ const CoverButton = ({ children }: { children: ReactNode }) => (
 );
 
 const EventDetailScreen = () => {
-  const { t } = useTranslation(["roll", "common"]);
+  const { t } = useTranslation(["event", "common"]);
   const insets = useSafeAreaInsets();
   const screen = useEventDetailScreen();
   const { event, participants, frames, role, stage, now, lastDay } = screen;
@@ -219,7 +219,7 @@ const EventDetailScreen = () => {
     stock.kind === "hidden" ? (
       t("band.hidden")
     ) : stock.kind === "frames" ? (
-      <Trans t={t} i18nKey="band.frames" values={{ count }} components={{ value }} />
+      <Trans t={t} i18nKey="band.photos" values={{ count }} components={{ value }} />
     ) : event.limits.storageBytes === null ? (
       <Trans t={t} i18nKey="band.storageNoLimit" values={{ used }} components={{ value }} />
     ) : (
@@ -373,13 +373,13 @@ const EventDetailScreen = () => {
     </View>
   );
 
-  const frameBy = (frame: SheetFrame) => frame.by ?? (frame.deleted ? t("frame.deletedAccount") : null);
+  const frameBy = (frame: SheetFrame) => frame.by ?? (frame.deleted ? t("photo.deletedAccount") : null);
   const frameLabel = (frame: SheetFrame) => {
     const by = frameBy(frame);
     const label = by
-      ? t("frame.labelBy", { number: frame.number, name: by })
-      : t("frame.label", { number: frame.number });
-    return frame.isNew ? t("frame.new", { label }) : label;
+      ? t("photo.labelBy", { number: frame.number, name: by })
+      : t("photo.label", { number: frame.number });
+    return frame.isNew ? t("photo.new", { label }) : label;
   };
 
   const renderFrame = ({ item }: { item: SheetItem }) => (
@@ -417,14 +417,14 @@ const EventDetailScreen = () => {
           testID="roll-frame-developing"
           uri={item.frame.item.uri}
           number={item.frame.number}
-          by={t("frame.you")}
+          by={t("photo.you")}
           avatar={uploaderAvatar(currentUploader)}
           develop={item.frame.develop}
           crossed={item.frame.crossed}
           accessibilityLabel={
             item.frame.crossed
-              ? t("tray.frameFailed", { number: item.frame.number })
-              : t("tray.frameDeveloping", { number: item.frame.number })
+              ? t("tray.photoFailed", { number: item.frame.number })
+              : t("tray.photoDeveloping", { number: item.frame.number })
           }
           onPress={screen.onOpenTray}
         />
@@ -599,7 +599,7 @@ const EventDetailScreen = () => {
 
 /** Everything that opens over the roll: the menu, people, slips, the envelope, a frame. */
 const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> }) => {
-  const { t } = useTranslation(["roll", "report"]);
+  const { t } = useTranslation(["event", "report"]);
   const { event, role } = screen;
   if (!event) return null;
 
@@ -783,7 +783,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
 /** A save or share under way: how far it has got. */
 const progressLabel = (
-  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  t: ReturnType<typeof useTranslation<"event">>["t"],
   progress: ReturnType<typeof useEventDetailScreen>["progress"],
 ) =>
   progress === null
@@ -794,7 +794,7 @@ const progressLabel = (
 
 /** 08.6's body: who can make room depends on who's asking. */
 const roomBody = (
-  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  t: ReturnType<typeof useTranslation<"event">>["t"],
   fits: number,
   left: string,
   role: string,

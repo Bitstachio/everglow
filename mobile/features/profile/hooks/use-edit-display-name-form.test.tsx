@@ -61,7 +61,7 @@ test("saves only the trimmed name and then reports success", async () => {
 });
 
 test.each([
-  ["   ", "Your frames need a name"],
+  ["   ", "Your photos need a name"],
   ["a".repeat(256), "255 characters at most"],
 ])("rejects invalid name %s", async (name, message) => {
   await render(<Probe />);

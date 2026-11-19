@@ -95,7 +95,7 @@ const renderWithClient = (ui: React.ReactElement) => {
 /** 10.9 Remove the frame, then confirm on the delete slip. */
 const removeTheFrame = async () => {
   const user = userEvent.setup();
-  await user.press(await screen.findByRole("button", { name: "Remove the frame" }));
+  await user.press(await screen.findByRole("button", { name: "Remove the photo" }));
   await user.press(await screen.findByRole("button", { name: "Delete it" }));
 };
 
@@ -120,24 +120,24 @@ test("10.8 lists one ticket per frame with its reasons, never who reported it", 
   await renderWithClient(<ReportsScreen />);
 
   expect(await screen.findByRole("header", { name: "Reports · 2 to check" })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Frame 2 · by Marcus, 3 reports · nudity · hidden" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Photo 2 · by Marcus, 3 reports · nudity · hidden" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Marcus Bell, 1 report · harassment" })).toBeOnTheScreen();
   expect(screen.getByText("Done · 1 this week")).toBeOnTheScreen();
 
-  await userEvent.setup().press(screen.getByRole("button", { name: /Frame 2/ }));
+  await userEvent.setup().press(screen.getByRole("button", { name: /Photo 2/ }));
   expect(mockRouter.push).toHaveBeenCalledWith({
     pathname: "/events/[id]/report-check",
     params: { id: "event-1", key: "frame:photo-144" },
   });
 });
 
-test("10.9 one decision closes the frame's reports, then goes back to the list", async () => {
+test("10.9 one decision closes the photo's reports, then goes back to the list", async () => {
   mockListReports.mockImplementation(() => listed([report(), report({ reason: "SPAM" })]));
   await renderWithClient(<ReportCheckScreen />);
 
-  expect(await screen.findByRole("header", { name: "Frame 2 · 2 reports" })).toBeOnTheScreen();
+  expect(await screen.findByRole("header", { name: "Photo 2 · 2 reports" })).toBeOnTheScreen();
   expect(screen.getByText("Nudity · 1")).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Remove Marcus from the roll" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Remove Marcus from the event" })).toBeOnTheScreen();
 
   await userEvent.setup().press(screen.getByRole("button", { name: "Keep it, it’s fine" }));
 
@@ -172,9 +172,9 @@ test("10.10 a frame with Everglow tells hosts no more than that", async () => {
   mockListReports.mockImplementation(() => listed([report({ queue: "PLATFORM" })]));
   await renderWithClient(<ReportCheckScreen />);
 
-  expect(await screen.findByRole("header", { name: "Frame 2 · reported" })).toBeOnTheScreen();
+  expect(await screen.findByRole("header", { name: "Photo 2 · reported" })).toBeOnTheScreen();
   expect(screen.getByText(/Everglow’s safety team/)).toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Remove the frame" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Remove the photo" })).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Ok" }));
   expect(mockRouter.back).toHaveBeenCalled();
 });
@@ -191,7 +191,7 @@ test("10.8 counts only what hosts can decide, and names someone who left", async
 
   expect(await screen.findByRole("header", { name: "Reports · 1 to check" })).toBeOnTheScreen();
   expect(
-    screen.getByRole("button", { name: "Frame 2 · by Marcus, 1 report · nudity · with Everglow" }),
+    screen.getByRole("button", { name: "Photo 2 · by Marcus, 1 report · nudity · with Everglow" }),
   ).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Someone who left, 1 report · spam" })).toBeOnTheScreen();
 });
@@ -207,7 +207,7 @@ test("10.8 a host-only list that fails to load says why, and tries again", async
   expect(await screen.findByRole("header", { name: "Nothing to check on your roll." })).toBeOnTheScreen();
 });
 
-test("10.9 a report the host filed is decided through another one on the frame", async () => {
+test("10.9 a report the host filed is decided through another one on the photo", async () => {
   const own = report();
   const other = report();
   mockListReports.mockImplementation(() => listed([own, other]));
@@ -228,7 +228,7 @@ test("10.9 a frame no longer on the roll can only be kept", async () => {
   await renderWithClient(<ReportCheckScreen />);
 
   expect(await screen.findByText("Deleted")).toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Remove the frame" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Remove the photo" })).not.toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Keep it, it’s fine" })).toBeOnTheScreen();
 });
 
@@ -257,23 +257,23 @@ test("10.9 removing the frame waits for the confirm", async () => {
   await renderWithClient(<ReportCheckScreen />);
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: "Remove the frame" }));
-  expect(await screen.findByRole("header", { name: "Delete this frame for everyone?" })).toBeOnTheScreen();
+  await user.press(await screen.findByRole("button", { name: "Remove the photo" }));
+  expect(await screen.findByRole("header", { name: "Delete this photo for everyone?" })).toBeOnTheScreen();
   expect(mockResolve).not.toHaveBeenCalled();
 
   await user.press(screen.getByRole("button", { name: "Keep it" }));
   expect(mockResolve).not.toHaveBeenCalled();
 });
 
-test("10.9 removing the person confirms on 11.4's slip and sends what happens to their frames", async () => {
+test("10.9 removing the person confirms on 11.4's slip and sends what happens to their photos", async () => {
   mockParticipants[1] = { ...mockParticipants[1], photoCount: 4 };
   mockListReports.mockImplementation(() => listed([report({ reason: "SPAM" })]));
   await renderWithClient(<ReportCheckScreen />);
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: "Remove Marcus from the roll" }));
-  expect(await screen.findByRole("header", { name: "What about their 3 other frames?" })).toBeOnTheScreen();
-  expect(screen.getByText("The reported frame is removed either way.")).toBeOnTheScreen();
+  await user.press(await screen.findByRole("button", { name: "Remove Marcus from the event" }));
+  expect(await screen.findByRole("header", { name: "What about their 3 other photos?" })).toBeOnTheScreen();
+  expect(screen.getByText("The reported photo is removed either way.")).toBeOnTheScreen();
   expect(mockResolve).not.toHaveBeenCalled();
 
   await user.press(screen.getByRole("radio", { name: /Delete them too/ }));
@@ -290,7 +290,7 @@ test("10.9 Keep on a severe report says it goes to Everglow, not that it closes"
   await renderWithClient(<ReportCheckScreen />);
 
   expect(
-    await screen.findByText("Keep hands this to Everglow’s safety team. The frame stays hidden until they decide."),
+    await screen.findByText("Keep hands this to Everglow’s safety team. The photo stays hidden until they decide."),
   ).toBeOnTheScreen();
 });
 

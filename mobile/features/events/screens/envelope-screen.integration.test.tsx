@@ -267,7 +267,7 @@ test("05.7 a roll under review is on hold", async () => {
   expect(screen.getByText("Under review", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(
     screen.getByText(
-      "Everglow is reviewing this roll after reports. Until then the envelope doesn’t admit anyone new. People already in can still look.",
+      "Everglow is reviewing this event after reports. Until then the envelope doesn’t admit anyone new. People already in can still look.",
     ),
   ).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: /Reset/ })).not.toBeOnTheScreen();
@@ -278,7 +278,7 @@ test("a suspended roll says so plainly", async () => {
   await renderScreen(buildEvent({ status: "SUSPENDED" }));
 
   expect(
-    await screen.findByText("This roll was suspended for breaking our terms, so no one new can join."),
+    await screen.findByText("This event was suspended for breaking our terms, so no one new can join."),
   ).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();
 });

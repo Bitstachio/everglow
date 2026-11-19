@@ -12,7 +12,7 @@ import type { TrayItem } from "../lib/upload-tray";
 
 /** 08.3 In the tray, and 08.5 Can't be added. */
 const UploadTrayScreen = () => {
-  const { t } = useTranslation(["roll", "common"]);
+  const { t } = useTranslation(["event", "common"]);
   const screen = useUploadTrayScreen();
   const { summary, entries } = screen;
 

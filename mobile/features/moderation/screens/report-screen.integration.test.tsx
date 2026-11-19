@@ -70,7 +70,7 @@ describe("a frame (10.1–10.4)", () => {
 
   test("sends nothing until a reason is ticked, then sends it and lands on the roll", async () => {
     await renderScreen();
-    expect(screen.getByRole("header", { name: "Report frame 144" })).toBeOnTheScreen();
+    expect(screen.getByRole("header", { name: "Report photo 144" })).toBeOnTheScreen();
     expect(await screen.findByLabelText("▸ 144 · Leila")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Send report" })).toBeDisabled();
 
@@ -118,7 +118,7 @@ describe("a frame (10.1–10.4)", () => {
     await user().press(screen.getByRole("checkbox", { name: "Spam" }));
     await user().press(screen.getByRole("button", { name: "Send report" }));
 
-    expect(await screen.findByText("This frame isn’t on the roll anymore.")).toBeOnTheScreen();
+    expect(await screen.findByText("This photo isn’t in the event anymore.")).toBeOnTheScreen();
     expect(screen.getByRole("checkbox", { name: "Spam" })).toBeChecked();
     expect(mockRouter.dismissTo).not.toHaveBeenCalled();
   });
@@ -167,7 +167,7 @@ test("a person report on a roll that has gone says the roll has gone", async () 
   await user().press(screen.getByRole("checkbox", { name: "Spam" }));
   await user().press(screen.getByRole("button", { name: "Send report" }));
 
-  expect(await screen.findByText("This roll isn’t there anymore.")).toBeOnTheScreen();
+  expect(await screen.findByText("This event isn’t there anymore.")).toBeOnTheScreen();
 });
 
 test("the whole roll goes to Everglow (10.6)", async () => {

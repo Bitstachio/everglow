@@ -96,7 +96,7 @@ const renderScreen = async () => {
       <NewRollScreen />
     </QueryClientProvider>,
   );
-  await screen.findByText("Film");
+  await screen.findByText("Duration");
 };
 
 beforeEach(() => {
@@ -145,23 +145,23 @@ test("labels a new roll for tonight with the plan's default film", async () => {
   expect(screen.getByText("Everglow 400")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "When it happens: Tonight · 20:00. Change" })).toBeOnTheScreen();
   expect(screen.getAllByRole("radio").map((box) => box.props.accessibilityLabel)).toEqual([
-    "Weekend, 3-day roll",
-    "A week, 7-day roll",
-    "Two weeks, 14-day roll",
-    "A month, 30-day roll",
+    "Weekend, 3 days",
+    "A week, 7 days",
+    "Two weeks, 14 days",
+    "A month, 30 days",
   ]);
-  expect(screen.getByRole("radio", { name: "A month, 30-day roll" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "A month, 30 days" })).toBeChecked();
   expect(screen.getByText(/Photos kept until Tue 01.12/)).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Load the roll" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Create the event" })).toBeDisabled();
 });
 
 test("names the roll, sets when it happens and the film, then opens it", async () => {
   await renderScreen();
   const user = userEvent.setup();
 
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
-  await user.press(screen.getByRole("radio", { name: "A week, 7-day roll" }));
-  expect(screen.getByRole("radio", { name: "A week, 7-day roll" })).toBeChecked();
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
+  await user.press(screen.getByRole("radio", { name: "A week, 7 days" }));
+  expect(screen.getByRole("radio", { name: "A week, 7 days" })).toBeChecked();
 
   await user.press(screen.getByRole("button", { name: /^When it happens: Tonight · 20:00/ }));
   expect(screen.getByText("November 2026")).toBeOnTheScreen();
@@ -174,7 +174,7 @@ test("names the roll, sets when it happens and the film, then opens it", async (
   expect(await screen.findByRole("button", { name: "When it happens: Sat 07.11 · 19:00. Change" })).toBeOnTheScreen();
   expect(screen.getByText(/Photos kept until Sat 14.11/)).toBeOnTheScreen();
 
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
   expect(mockCreate).toHaveBeenCalledWith({
     body: { title: "Nadia turns 30", date: new Date(2026, 10, 7, 19).toISOString(), galleryWindowDays: 7 },
@@ -184,7 +184,7 @@ test("names the roll, sets when it happens and the film, then opens it", async (
   await waitFor(() => expect(mockLimits).toHaveBeenCalledTimes(2));
 });
 
-/** Opens the first frame's menu and picks a photo from the library, which opens the cover crop. */
+/** Opens the first photo's menu and picks a photo from the library, which opens the cover crop. */
 const pickCover = async () => {
   const alert = jest.mocked(Alert.alert);
   alert.mockClear();
@@ -228,8 +228,8 @@ test("adds a first frame and uploads it once the roll is loaded", async () => {
   expect(await screen.findByRole("button", { name: "Change the cover" })).toBeOnTheScreen();
 
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
 
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
   expect(mockMintCover).toHaveBeenCalledWith(
@@ -248,24 +248,24 @@ test("loads the roll even when its first frame didn't take", async () => {
   await screen.findByRole("button", { name: "Change the cover" });
 
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
 
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
   expect(Alert.alert).toHaveBeenCalledWith(
     "The cover didn’t take",
-    "The roll is loaded. Add the cover from the roll’s settings.",
+    "The event is ready. Add the cover from its settings.",
   );
-  expect(screen.queryByText("The roll didn’t load. Try again.")).not.toBeOnTheScreen();
+  expect(screen.queryByText("The event didn’t open. Try again.")).not.toBeOnTheScreen();
 });
 
 test("sends the line for guests", async () => {
   await renderScreen();
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
   await user.paste(screen.getByLabelText("A line for guests, optional"), "Bring a jacket, we’re on the roof");
 
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
       body: expect.objectContaining({ description: "Bring a jacket, we’re on the roof" }),
@@ -296,10 +296,10 @@ test("chooses the plan's default film when the limits are already loaded", async
     </QueryClientProvider>,
   );
 
-  expect(screen.getByRole("radio", { name: "A week, 7-day roll" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "A week, 7 days" })).toBeChecked();
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
   await waitFor(() =>
     expect(mockCreate).toHaveBeenCalledWith({
       body: expect.objectContaining({ galleryWindowDays: 7 }),
@@ -312,7 +312,7 @@ test("prints any other length the API offers in days", async () => {
   mockLimits.mockResolvedValue(limits({ galleryWindowOptions: [3, 90], defaultGalleryWindowDays: 90 }));
   await renderScreen();
 
-  expect(screen.getByRole("radio", { name: "90 days, 90-day roll" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "90 days, 90 days" })).toBeChecked();
 });
 
 test("keeps the roll and says so when it didn't load", async () => {
@@ -320,14 +320,14 @@ test("keeps the roll and says so when it didn't load", async () => {
   mockCreate.mockReturnValueOnce(pending.promise);
   await renderScreen();
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
 
-  expect(screen.getByLabelText("Roll name")).toHaveProp("editable", false);
+  expect(screen.getByLabelText("Event name")).toHaveProp("editable", false);
   pending.reject(new Error("Network unavailable"));
 
-  expect(await screen.findByText("The roll didn’t load. Try again.")).toBeOnTheScreen();
-  expect(screen.getByLabelText("Roll name")).toHaveDisplayValue("Nadia turns 30");
+  expect(await screen.findByText("The event didn’t open. Try again.")).toBeOnTheScreen();
+  expect(screen.getByLabelText("Event name")).toHaveDisplayValue("Nadia turns 30");
   expect(mockReplace).not.toHaveBeenCalled();
 });
 
@@ -342,9 +342,7 @@ test("waits for the film, and offers to try again if it can't be had", async () 
   expect(screen.getByTestId("new-roll-loading")).toBeOnTheScreen();
   first.reject(new Error("Network unavailable"));
 
-  expect(
-    await screen.findByText("Couldn’t get the film ready. Check your connection and try again."),
-  ).toBeOnTheScreen();
+  expect(await screen.findByText("Couldn’t load the options. Check your connection and try again.")).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("button", { name: "When it happens: Tonight · 20:00. Change" })).toBeOnTheScreen();
 });
@@ -364,23 +362,23 @@ test("closes an empty roll without asking", async () => {
   expect(mockBack).toHaveBeenCalledTimes(1);
 
   await leaveScreen();
-  expect(screen.queryByText("Throw this roll away?")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Throw this event away?")).not.toBeOnTheScreen();
   expect(mockDispatch).toHaveBeenCalledWith(back);
 });
 
 test("asks before throwing away a roll with anything filled in", async () => {
   await renderScreen();
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
 
   await leaveScreen();
-  expect(await screen.findByText("Throw this roll away?")).toBeOnTheScreen();
+  expect(await screen.findByText("Throw this event away?")).toBeOnTheScreen();
   expect(screen.getByText("Nothing has been created. You can start again any time.")).toBeOnTheScreen();
   // The label drops its edit link while a slip is over it.
   expect(screen.getByText("Tonight · 20:00")).toBeOnTheScreen();
   await user.press(screen.getByRole("button", { name: "Keep editing" }));
   expect(mockDispatch).not.toHaveBeenCalled();
-  expect(screen.getByLabelText("Roll name")).toHaveDisplayValue("Nadia turns 30");
+  expect(screen.getByLabelText("Event name")).toHaveDisplayValue("Nadia turns 30");
 
   await leaveScreen();
   await user.press(await screen.findByRole("button", { name: "Throw it away" }));
@@ -393,19 +391,19 @@ test("counts a first frame as something to lose", async () => {
   await screen.findByRole("button", { name: "Change the cover" });
 
   await leaveScreen();
-  expect(await screen.findByText("Throw this roll away?")).toBeOnTheScreen();
+  expect(await screen.findByText("Throw this event away?")).toBeOnTheScreen();
 });
 
 test("goes without asking once the roll is loaded", async () => {
   await renderScreen();
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
 
   await leaveScreen();
   expect(mockDispatch).toHaveBeenCalledWith(back);
-  expect(screen.queryByText("Throw this roll away?")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Throw this event away?")).not.toBeOnTheScreen();
 });
 
 // Two rolls you started: a party that frees a spot on Saturday 14 November, and a wedding coming up.
@@ -431,17 +429,17 @@ test("shows the rolls in use instead of the form when the plan's rolls are all r
   );
 
   expect(await screen.findByText("Free plan · 2 of 2 running")).toBeOnTheScreen();
-  expect(screen.getByText(/Both rolls/)).toBeOnTheScreen();
+  expect(screen.getByText(/Both events/)).toBeOnTheScreen();
   expect(
     screen.getByText(
       /A free account runs 2 rolls at a time\. Nadia turns 30 closes on Sat 14 Nov, then a spot opens\./,
     ),
   ).toBeOnTheScreen();
   expect(await screen.findByText("free on 14 Nov ↑")).toBeOnTheScreen();
-  expect(screen.queryByLabelText("Roll name")).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText("Event name")).not.toBeOnTheScreen();
   expect(mockPrevent.prevent).toBe(false);
 
-  await userEvent.setup().press(screen.getByRole("button", { name: "Back to your rolls" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Back to your events" }));
   expect(mockBack).toHaveBeenCalledTimes(1);
 });
 
@@ -453,8 +451,8 @@ test("shows the rolls in use when the create is refused for the limit", async ()
   await renderScreen();
   mockLimits.mockResolvedValue(limits({}, full));
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Nadia turns 30");
-  await user.press(screen.getByRole("button", { name: "Load the roll" }));
+  await user.paste(screen.getByLabelText("Event name"), "Nadia turns 30");
+  await user.press(screen.getByRole("button", { name: "Create the event" }));
 
   expect(await screen.findByText("Free plan · 2 of 2 running")).toBeOnTheScreen();
   expect(mockReplace).not.toHaveBeenCalled();

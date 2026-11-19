@@ -75,7 +75,7 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date(), savedA
     <Pressable
       testID="roll-card"
       accessibilityRole="button"
-      accessibilityLabel={t("roll.label", { title: event.title, status: timeText })}
+      accessibilityLabel={t("event.label", { title: event.title, status: timeText })}
       onPress={onPress}
       className="active:opacity-80"
     >
@@ -121,7 +121,7 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date(), savedA
         <EdgePrint>
           <Trans
             t={t}
-            i18nKey={upcoming ? "roll.peopleIn" : "roll.people"}
+            i18nKey={upcoming ? "event.peopleIn" : "event.people"}
             values={{ count: event.usage.members }}
             components={{ value: <EdgeValue>{null}</EdgeValue> }}
           />

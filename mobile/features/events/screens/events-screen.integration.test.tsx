@@ -69,14 +69,14 @@ test("shows the film-strip skeletons while loading, then the first-run empty sta
   expect(screen.queryByText(/^No rolls yet\./)).not.toBeOnTheScreen();
   pending.resolve({ data: { data: [] } });
   expect(await screen.findByText(/^No rolls yet\./)).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Start a roll" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Start an event" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Join with an envelope" })).toBeOnTheScreen();
 });
 
 test("starts a roll from the first-run screen", async () => {
   await renderScreen();
   await screen.findByText(/^No rolls yet\./);
-  await userEvent.setup().press(screen.getByRole("button", { name: "Start a roll" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Start an event" }));
   expect(mockPush).toHaveBeenCalledWith("/events/create");
 });
 
@@ -144,7 +144,7 @@ test("shows the offline banner and blocks a new event when the lab can't be reac
   mockFindAll.mockRejectedValue(createApiError("gateway", { status: 503 }));
   await renderScreen();
   expect(await screen.findByText("No connection")).toBeOnTheScreen();
-  expect(screen.getByText("Back online to start a roll")).toBeOnTheScreen();
+  expect(screen.getByText("Back online to start an event")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "New event" })).toBeDisabled();
   expect(screen.getByText("Nothing saved yet")).toBeOnTheScreen();
   expect(Alert.alert).not.toHaveBeenCalled();
@@ -261,7 +261,7 @@ test("pull-to-refresh retains current rolls until the refreshed list arrives", a
 test("surfaces an unexpected fetch error and recovers on refresh", async () => {
   mockFindAll.mockRejectedValue(new Error("boom"));
   await renderScreen();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your rolls", "Please try again"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your events", "Please try again"));
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Nadia turns 30" })] } });
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(await screen.findByText("Nadia turns 30")).toBeOnTheScreen();

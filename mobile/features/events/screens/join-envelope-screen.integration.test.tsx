@@ -208,26 +208,26 @@ describe("Refusals", () => {
     await renderScreen();
 
     expect(await screen.findByText(/All 30 spots/)).toBeOnTheScreen();
-    expect(screen.getByText("Sam’s roll holds 30 people. Ask Sam to make room.")).toBeOnTheScreen();
+    expect(screen.getByText("Sam’s event holds 30 people. Ask Sam to make room.")).toBeOnTheScreen();
     expect(stampText("Returned")).toBeOnTheScreen();
-    expect(stampText("Roll full")).toBeOnTheScreen();
+    expect(stampText("Event full")).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Sam & Jo’s wedding" })).toBeOnTheScreen();
     expect(screen.queryByLabelText(/QR code/)).not.toBeOnTheScreen();
 
-    await press("Back to your rolls");
+    await press("Back to your events");
     expect(mockRouter.dismissTo).toHaveBeenCalledWith("/events");
   });
 
   test("06.8 without a host's name or a limit, the roll is still full", async () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_MEMBER_LIMIT_REACHED", host: null }));
     await renderScreen();
-    expect(await screen.findByText("This roll holds 30 people. Ask the host to make room.")).toBeOnTheScreen();
+    expect(await screen.findByText("This event holds 30 people. Ask the host to make room.")).toBeOnTheScreen();
   });
 
   test("06.8 on a plan without a limit", async () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_MEMBER_LIMIT_REACHED", memberLimit: null }));
     await renderScreen();
-    expect(await screen.findByText(/This roll/)).toBeOnTheScreen();
+    expect(await screen.findByText(/This event/)).toBeOnTheScreen();
     expect(screen.getByText("Ask the host to make room.")).toBeOnTheScreen();
   });
 
@@ -263,7 +263,7 @@ describe("Refusals", () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_GALLERY_CLOSED", galleryState: "CLOSED" }));
     await renderScreen();
 
-    expect(await screen.findByText("The roll closed on 17 Nov and its photos were removed.")).toBeOnTheScreen();
+    expect(await screen.findByText("The event closed on 17 Nov and its photos were removed.")).toBeOnTheScreen();
     // Past the pick-up date, the envelope says it's gone.
     expect(screen.getByText("17 Nov, gone")).toBeOnTheScreen();
     expect(stampText("Closed")).toBeOnTheScreen();
@@ -272,7 +272,7 @@ describe("Refusals", () => {
   test("06.11 closed without a date", async () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_GALLERY_CLOSED", galleryClosesAt: null }));
     await renderScreen();
-    expect(await screen.findByText("The roll has closed and its photos were removed.")).toBeOnTheScreen();
+    expect(await screen.findByText("The event has closed and its photos were removed.")).toBeOnTheScreen();
   });
 
   test("06.12 joining is on hold while Everglow reviews the roll", async () => {
@@ -280,7 +280,7 @@ describe("Refusals", () => {
     await renderScreen();
 
     expect(await screen.findByText(/Joining is/)).toBeOnTheScreen();
-    expect(screen.getByText("Everglow is reviewing this roll. Try the envelope again later.")).toBeOnTheScreen();
+    expect(screen.getByText("Everglow is reviewing this event. Try the envelope again later.")).toBeOnTheScreen();
     expect(stampText("On hold")).toBeOnTheScreen();
     expect(stampText("Review")).toBeOnTheScreen();
   });

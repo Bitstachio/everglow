@@ -168,7 +168,7 @@ const EventsScreen = () => {
       <View className="gap-3 px-5 pb-1">
         {showFirstRun ? (
           <>
-            <Button testID="home-new-roll" title={t("firstRun.startRoll")} mark="+" onPress={onNewEvent} />
+            <Button testID="home-new-roll" title={t("firstRun.startEvent")} mark="+" onPress={onNewEvent} />
             <Button title={t("firstRun.joinEnvelope")} variant="secondary" mark="▸" onPress={onScan} />
           </>
         ) : (

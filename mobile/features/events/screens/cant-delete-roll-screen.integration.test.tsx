@@ -81,7 +81,7 @@ afterEach(() => {
 test("an open roll waits until it closes, and the API is never asked to delete it", async () => {
   await renderScreen();
 
-  expect(await screen.findByText("Roll settings")).toBeOnTheScreen();
+  expect(await screen.findByText("Event settings")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Can’t delete\nthis roll yet." })).toBeOnTheScreen();
   expect(screen.getByLabelText("Still open, Cut it or wait until 17 Nov")).toBeOnTheScreen();
   expect(screen.getByText(/A roll is deleted only after it closes/)).toBeOnTheScreen();
