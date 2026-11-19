@@ -129,6 +129,7 @@ test("closing goes back", async () => {
   await userEvent.setup().press(await screen.findByRole("button", { name: "Close the envelope" }));
   expect(mockBack).toHaveBeenCalledTimes(1);
   expect(screen.queryByText("Ready", { includeHiddenElements: true })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Go to the roll" })).not.toBeOnTheScreen();
 });
 
 test("straight after loading a roll, the envelope is stamped Ready and closing goes on to the roll", async () => {
@@ -140,6 +141,18 @@ test("straight after loading a roll, the envelope is stamped Ready and closing g
     await userEvent.setup().press(screen.getByRole("button", { name: "Close the envelope" }));
     expect(mockReplace).toHaveBeenCalledWith("/events/event-1");
     expect(mockBack).not.toHaveBeenCalled();
+  } finally {
+    mockParams = { id: "event-1" };
+  }
+});
+
+test("straight after loading a roll, Go to the roll opens it", async () => {
+  mockParams = { id: "event-1", ready: "1" };
+  try {
+    await renderScreen();
+
+    await userEvent.setup().press(await screen.findByRole("button", { name: "Go to the roll" }));
+    expect(mockReplace).toHaveBeenCalledWith("/events/event-1");
   } finally {
     mockParams = { id: "event-1" };
   }
