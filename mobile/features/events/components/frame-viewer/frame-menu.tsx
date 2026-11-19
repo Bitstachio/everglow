@@ -42,7 +42,7 @@ export const FrameMenu = ({
   /** Left out for your own frame, and when its owner is off the roll or already blocked. */
   onBlock?: () => void;
 }) => {
-  const { t } = useTranslation(["roll", "report"]);
+  const { t } = useTranslation(["event", "report"]);
   return (
     <BottomSheet testID="frame-menu-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
       <View>
@@ -58,13 +58,13 @@ export const FrameMenu = ({
           <View className="flex-1 gap-1">
             <Text className="font-display text-title-sheet text-text">
               {isOwn
-                ? t("viewer.ownFrame")
+                ? t("viewer.ownPhoto")
                 : frame?.deleted
-                  ? t("viewer.deletedFrame")
-                  : t("viewer.someoneFrame", { name })}
+                  ? t("viewer.deletedPhoto")
+                  : t("viewer.somePhoto", { name })}
             </Text>
             <EdgePrint size="frame-label">
-              {t("viewer.byline", { name: isOwn ? t("frame.you") : name, time })}
+              {t("viewer.byline", { name: isOwn ? t("photo.you") : name, time })}
             </EdgePrint>
             {frame?.uploader?.username ? <EdgePrint size="frame-label">@{frame.uploader.username}</EdgePrint> : null}
           </View>
@@ -84,7 +84,7 @@ export const FrameMenu = ({
             onPress={onDelete}
           />
         ) : null}
-        {onReport ? <MenuAction label={t("report:menu.reportFrame")} icon={Flag} onPress={onReport} /> : null}
+        {onReport ? <MenuAction label={t("report:menu.reportPhoto")} icon={Flag} onPress={onReport} /> : null}
         {onBlock ? (
           <MenuAction
             muted

@@ -8,13 +8,13 @@ This document covers end-to-end testing for the Everglow mobile app: what we use
 
 **Flows:**
 
-| Flow                     | Tags               | What it checks                                                                                       |
-| ------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `flows/login-smoke.yaml` | `smoke`, `login`   | Fresh install, Auth0 login, lands on Home                                                            |
-| `flows/profile.yaml`     | `smoke`, `profile` | Home avatar opens your lab card (account settings), Back returns Home                                |
-| `flows/roll-upload.yaml` | `smoke`, `roll`    | Loads a roll, adds a photo from the photo library, sees the frame on the roll, then deletes the roll |
+| Flow                     | Tags               | What it checks                                                                                            |
+| ------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------- |
+| `flows/login-smoke.yaml` | `smoke`, `login`   | Fresh install, Auth0 login, lands on Home                                                                 |
+| `flows/profile.yaml`     | `smoke`, `profile` | Home avatar opens your lab card (account settings), Back returns Home                                     |
+| `flows/roll-upload.yaml` | `smoke`, `event`   | Starts an event, adds a photo from the photo library, sees the photo in the event, then deletes the event |
 
-`config.yaml` runs them in that order (`executionOrder`), and stops at the first failure. Profile and roll upload reuse the session the login flow leaves on the device.
+`config.yaml` runs them in that order (`executionOrder`), and stops at the first failure. Profile and event upload reuse the session the login flow leaves on the device.
 
 ## Layout
 
@@ -63,13 +63,13 @@ pnpm test:e2e:ios
 pnpm test:e2e:android
 
 # Smoke suite: login (clears app state, runs helpers/login.yaml), then profile,
-# then roll upload. Export Auth0 creds in the shell — nested pnpm `--` breaks
+# then event upload. Export Auth0 creds in the shell — nested pnpm `--` breaks
 # Maestro's argv:
 E2E_EMAIL=user1@everglow.social E2E_PASSWORD='your-test-password' \
   pnpm test:e2e:login:ios
 ```
 
-The roll upload flow needs a photo in the simulator's library. Add the fixture once per simulator:
+The event upload flow needs a photo in the simulator's library. Add the fixture once per simulator:
 
 ```sh
 xcrun simctl addmedia booted .maestro/fixtures/smoke-photo.jpg
@@ -112,20 +112,20 @@ maestro check-syntax .maestro/flows/roll-upload.yaml
 
 The flow keeps app data (`clearState: false`): it needs a signed-in, onboarded session. If it times out waiting for `events-profile-button`, check the API connection, sign in again, complete onboarding, and ensure Metro is serving the app.
 
-## Roll upload: load a roll, add a photo, delete it
+## Event upload: start an event, add a photo, delete it
 
 `flows/roll-upload.yaml` runs against the shared staging API, as the E2E user:
 
-1. Taps New event (`home-new-roll`) and names the roll `Smoke-<timestamp>`.
-2. Moves the roll to the half hour under way now in the When slip, swiping the times strip until that time shows (the strip lists only the times on screen). A new roll starts tonight by default, and photos can only be added once it has opened; a time already past opens it at once.
-3. Loads the roll, closes the envelope, and taps the shutter (`roll-add-photos`, or the first-visit button `roll-opened-action`).
-4. Picks the fixture photo in the system photo picker by its date label (`Photo, January 01, 2001, …`), taps Done (Add on older iOS), and waits up to two minutes for a frame on the roll (`roll-frame`).
+1. Taps New event (`home-new-roll`) and names the event `Smoke-<timestamp>`.
+2. Moves the event to the half hour under way now in the When slip, swiping the times strip until that time shows (the strip lists only the times on screen). A new event starts tonight by default, and photos can only be added once it has opened; a time already past opens it at once.
+3. Loads the event, closes the envelope, and taps the shutter (`roll-add-photos`, or the first-visit button `roll-opened-action`).
+4. Picks the fixture photo in the system photo picker by its date label (`Photo, January 01, 2001, …`), taps Done (Add on older iOS), and waits up to two minutes for a photo in the event (`roll-frame`).
 
 `launchApp` grants Photos access, so no permission alert shows. The photo is `.maestro/fixtures/smoke-photo.jpg`, a 15 KB generated image. Its EXIF date, 1 January 2001, is older than every sample photo the simulator ships with, so its label in the picker is unique. CI adds it with `xcrun simctl addmedia` before Maestro runs.
 
-**Cleanup.** `helpers/delete-smoke-rolls.yaml` deletes every roll on Home named `Smoke-…`: it opens the roll, cuts it if it is still open (only a closed roll can be deleted), then deletes it from the roll menu. The flow runs it in `onFlowStart`, for rolls an earlier run left behind, and in `onFlowComplete`, so its own roll goes whether the flow passed or failed. If cleanup fails, the flow fails. The E2E account runs on the free plan, which allows a limited number of rolls at a time, so leftover rolls would otherwise block the next run. Don't name your own rolls `Smoke-…` on the E2E account.
+**Cleanup.** `helpers/delete-smoke-rolls.yaml` deletes every event on Home named `Smoke-…`: it opens the event, cuts it if it is still open (only a closed event can be deleted), then deletes it from the event menu. The flow runs it in `onFlowStart`, for events an earlier run left behind, and in `onFlowComplete`, so its own event goes whether the flow passed or failed. If cleanup fails, the flow fails. The E2E account runs on the free plan, which allows a limited number of events at a time, so leftover events would otherwise block the next run. Don't name your own events `Smoke-…` on the E2E account.
 
-Mac smoke runs one at a time (see [When it runs](./mac-smoke.md#when-it-runs)), so two CI runs never delete each other's roll. A local run at the same time as CI still can.
+Mac smoke runs one at a time (see [When it runs](./mac-smoke.md#when-it-runs)), so two CI runs never delete each other's event. A local run at the same time as CI still can.
 
 Add further test YAML files under `flows/`. Keep reusable subflows in a sibling `helpers/` directory and call them with `runFlow` so they are not discovered as standalone tests.
 

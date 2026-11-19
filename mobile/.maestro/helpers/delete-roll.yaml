@@ -1,8 +1,8 @@
-# From a roll you host: cut it if it is still open, then delete it, and land on
-# Home. Only a closed roll can be deleted. Not discovered as a standalone test.
+# From an event you host: cut it if it is still open, then delete it, and land on
+# Home. Only a closed event can be deleted. Not discovered as a standalone test.
 appId: ${APP_ID}
 ---
-# The first visit after a roll opens shows "it opens" before the roll itself.
+# The first visit after an event opens shows "it opens" before the event itself.
 - extendedWaitUntil:
     visible:
       id: "roll-opened-back|roll-menu-button"

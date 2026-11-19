@@ -37,8 +37,8 @@ beforeEach(() => {
 
 test("pitches the app and starts a roll through sign-up", async () => {
   await renderWelcome();
-  expect(screen.getByRole("header", { name: "Everyone’s photos.\nOne roll for the night." })).toBeOnTheScreen();
-  fireEvent.press(screen.getByRole("button", { name: "Start a roll" }));
+  expect(screen.getByRole("header", { name: "Everyone’s photos.\nOne event for the night." })).toBeOnTheScreen();
+  fireEvent.press(screen.getByRole("button", { name: "Start an event" }));
   await waitFor(() => expect(mockSignup).toHaveBeenCalledTimes(1));
   expect(mockLogin).not.toHaveBeenCalled();
 });
@@ -60,13 +60,13 @@ test("a failed sign-in says so", async () => {
 
 test("the contact sheet is decorative", async () => {
   await renderWelcome();
-  expect(screen.queryByText("Every photo from the night, one roll")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Every photo from the night, one event")).not.toBeOnTheScreen();
 });
 
 test("after a 401 the welcome opens with the signed-out slip", async () => {
   mockParams = { signedOut: "1" };
   await renderWelcome();
-  expect(screen.getByRole("header", { name: "Sign in again\nto see your rolls." })).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "Sign in again\nto see your events." })).toBeOnTheScreen();
   fireEvent.press(screen.getAllByRole("button", { name: "Sign in" }).at(-1)!);
   await waitFor(() => expect(mockLogin).toHaveBeenCalledTimes(1));
 });
@@ -75,12 +75,12 @@ test("an account being deleted opens the welcome with a slip that says so, and n
   mockParams = { deleting: "1" };
   await renderWelcome();
   expect(screen.getByRole("header", { name: "Your account\nis being deleted." })).toBeOnTheScreen();
-  expect(screen.queryByText("Sign in again\nto see your rolls.")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Sign in again\nto see your events.")).not.toBeOnTheScreen();
   fireEvent.press(screen.getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByText("Your account\nis being deleted.")).not.toBeOnTheScreen());
 });
 
 test("a normal visit has no slip", async () => {
   await renderWelcome();
-  expect(screen.queryByText("Sign in again\nto see your rolls.")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Sign in again\nto see your events.")).not.toBeOnTheScreen();
 });

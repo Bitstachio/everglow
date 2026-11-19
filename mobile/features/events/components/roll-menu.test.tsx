@@ -17,16 +17,16 @@ test("a host runs the roll from the menu", async () => {
   await renderWithI18n(<RollMenu role="host" canOpenSettings canCut {...on} />);
 
   expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Roll call" })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Roll settings" })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Cut the roll now" })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Leave the roll" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "People" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Event settings" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "End the event now" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Leave the event" })).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: /Reports/ })).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Report this roll" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Report this event" })).not.toBeOnTheScreen();
 
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "Send the envelope" }));
-  await user.press(screen.getByRole("button", { name: "Cut the roll now" }));
+  await user.press(screen.getByRole("button", { name: "End the event now" }));
   expect(on.onSendEnvelope).toHaveBeenCalledTimes(1);
   expect(on.onCut).toHaveBeenCalledTimes(1);
 });
@@ -50,8 +50,8 @@ test("with nothing to check the row just says Reports", async () => {
 
 test("settings and cut leave the menu when they don't apply", async () => {
   await renderWithI18n(<RollMenu role="host" canOpenSettings={false} canCut={false} {...handlers()} />);
-  expect(screen.queryByRole("button", { name: "Roll settings" })).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Cut the roll now" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Event settings" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "End the event now" })).not.toBeOnTheScreen();
 });
 
 test("a closed roll's host deletes it in Cut's place", async () => {
@@ -60,9 +60,9 @@ test("a closed roll's host deletes it in Cut's place", async () => {
     <RollMenu role="host" canOpenSettings canCut={false} canDelete onDelete={onDelete} {...handlers()} />,
   );
 
-  expect(screen.queryByRole("button", { name: "Cut the roll now" })).not.toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Leave the roll" })).toBeOnTheScreen();
-  await userEvent.setup().press(screen.getByRole("button", { name: "Delete the roll" }));
+  expect(screen.queryByRole("button", { name: "End the event now" })).not.toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Leave the event" })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Delete the event" }));
   expect(onDelete).toHaveBeenCalledTimes(1);
 });
 
@@ -78,20 +78,20 @@ test("Leave goes when it can't apply", async () => {
       {...handlers()}
     />,
   );
-  expect(screen.getByRole("button", { name: "Delete the roll" })).toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Leave the roll" })).not.toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Delete the event" })).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Leave the event" })).not.toBeOnTheScreen();
 });
 
 test("a guest gets the roll call, a report and leave", async () => {
   const on = handlers();
   await renderWithI18n(<RollMenu role="guest" canOpenSettings={false} canCut={false} {...on} />);
 
-  expect(screen.getByRole("button", { name: "Roll call" })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Leave the roll" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "People" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Leave the event" })).toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Send the envelope" })).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Roll settings" })).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Cut the roll now" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Event settings" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "End the event now" })).not.toBeOnTheScreen();
 
-  await userEvent.setup().press(screen.getByRole("button", { name: "Report this roll" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Report this event" }));
   expect(on.onReportRoll).toHaveBeenCalledTimes(1);
 });

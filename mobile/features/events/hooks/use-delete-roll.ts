@@ -20,7 +20,7 @@ type DeleteRollOptions = {
  * without refetching the roll.
  */
 export const useDeleteRoll = (event: EventResponseDto | null, { onDeleted }: DeleteRollOptions) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const router = useRouter();
   const mutation = useDeleteEventMutation();
   // Once the roll is deleted its queries fail on the way out; that's not a load error.
@@ -36,7 +36,7 @@ export const useDeleteRoll = (event: EventResponseDto | null, { onDeleted }: Del
       onSuccess: onDeleted,
       onError: (failure) => {
         deleted.current = false;
-        setError(getErrorMessage(failure, t("settings.deleteRoll.failed")));
+        setError(getErrorMessage(failure, t("settings.deleteEvent.failed")));
       },
     });
   };
@@ -55,10 +55,10 @@ export const useDeleteRoll = (event: EventResponseDto | null, { onDeleted }: Del
     isDeleting: mutation.isPending,
     slip: {
       edge: event
-        ? t("settings.deleteRoll.edge", { date: formatClosedOn(closedOn(event)), count: event.usage.members })
+        ? t("settings.deleteEvent.edge", { date: formatClosedOn(closedOn(event)), count: event.usage.members })
         : "",
-      body: t("settings.deleteRoll.body", { count: event?.usage.members ?? 0 }),
-      confirmLabel: t("settings.deleteRoll.confirm", { title: event?.title ?? "" }),
+      body: t("settings.deleteEvent.body", { count: event?.usage.members ?? 0 }),
+      confirmLabel: t("settings.deleteEvent.confirm", { title: event?.title ?? "" }),
       error,
       isDeleting: mutation.isPending,
       onConfirm,

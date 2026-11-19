@@ -181,8 +181,8 @@ const NewRollScreen = () => {
 
             <View className="mt-10">
               <FilmChoice
-                heading={t("film.heading")}
-                unit={t("film.dayRoll")}
+                heading={t("duration.heading")}
+                unit={t("duration.unit")}
                 options={film.options}
                 selected={film.selected}
                 onSelect={film.onSelect}
@@ -190,7 +190,7 @@ const NewRollScreen = () => {
                   film.closes ? (
                     <Trans
                       t={t}
-                      i18nKey="film.removed"
+                      i18nKey="duration.removed"
                       values={{ closes: film.closes }}
                       components={{ value: <EdgeValue>{null}</EdgeValue> }}
                     />

@@ -27,7 +27,7 @@ const cutFrames = (photos: { uri: string; cacheKey: string }[], photoCount: numb
  * always made; the roll then shows it closed just now.
  */
 export const useCutRollScreen = () => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;

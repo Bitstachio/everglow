@@ -29,7 +29,7 @@ jest.mock("../lib/notification-permission", () => ({ requestNotificationPermissi
 const readPermission = jest.mocked(readPushPermission);
 const requestPermission = jest.mocked(requestNotificationPermission);
 const NOT_NOW = "file://documents/notes-not-now.json";
-const EDGE = "You’re on the roll · 25th";
+const EDGE = "You’re in the event · 25th";
 
 beforeEach(() => {
   mockFiles.clear();
@@ -56,7 +56,7 @@ describe("NotesAsk (06.6)", () => {
 
     await waitFor(() => expect(question()).toBeTruthy());
     expect(screen.getByText(EDGE)).toBeTruthy();
-    expect(screen.getByText("A note when the gallery opens, and the day before photos are removed.")).toBeTruthy();
+    expect(screen.getByText("A note when the event opens, and the day before photos are removed.")).toBeTruthy();
     expect(onVisibleChange).toHaveBeenLastCalledWith(true);
   });
 

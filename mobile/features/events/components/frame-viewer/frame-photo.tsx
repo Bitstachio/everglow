@@ -33,7 +33,7 @@ export const FramePhoto = ({
   fadeMs: number;
   onRetry: RenewFrame;
 }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const { status, attempt, refreshing, retry, onProgress, onDisplay, onError, originalUri, thumbnailUri } =
     useFramePhoto({ photo: frame.photo, active, onRetry });
 

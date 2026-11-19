@@ -37,8 +37,8 @@ export const useReportsScreen = () => {
       group.kind === "person"
         ? person?.name || t("check.left")
         : number
-          ? t("check.frameRow", { number, name: byName })
-          : t("check.frameRowNoNumber", { name: byName });
+          ? t("check.photoRow", { number, name: byName })
+          : t("check.photoRowNoNumber", { name: byName });
     const edge = [
       t("check.edge", { count: group.reports.length, reason: t(`reasonShort.${group.reason}`) }),
       group.withEverglow ? t("check.withEverglow") : group.hidden ? t("check.hidden") : null,

@@ -103,10 +103,10 @@ export const useNewRollScreen = () => {
   };
 
   // Names for the usual lengths; any other length is printed in days.
-  const names = t("film.names", { returnObjects: true }) as Record<string, string | undefined>;
+  const names = t("duration.names", { returnObjects: true }) as Record<string, string | undefined>;
   const filmOptions = (newEvent?.galleryWindowOptions ?? []).map((days) => {
-    const name = names[String(days)] ?? t("film.days", { count: days });
-    return { days, name, accessibilityLabel: t("film.a11y", { name, count: days }) };
+    const name = names[String(days)] ?? t("duration.days", { count: days });
+    return { days, name, accessibilityLabel: t("duration.a11y", { name, count: days }) };
   });
 
   const gallery = galleryWindow(date, galleryWindowDays, now);
