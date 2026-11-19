@@ -1,10 +1,10 @@
 appId: ${APP_ID}
-name: Load a roll, add a photo, then delete the roll
+name: Start an event, add a photo, then delete the event
 tags:
   - smoke
-  - roll
-# Staging is shared, so the roll this flow loads never stays behind: rolls left
-# by an earlier run are deleted first, and this run's roll is deleted when the
+  - event
+# Staging is shared, so the event this flow loads never stays behind: events left
+# by an earlier run are deleted first, and this run's event is deleted when the
 # flow ends, whether it passed or not.
 onFlowStart:
   - runFlow: ../helpers/delete-smoke-rolls.yaml
@@ -27,8 +27,8 @@ onFlowComplete:
 
 - tapOn:
     id: "home-new-roll"
-# The account's plan runs a limited number of rolls at a time. When every one
-# is in use, New roll says so instead of showing the label.
+# The account's plan runs a limited number of events at a time. When every one
+# is in use, New event says so instead of showing the label.
 - extendedWaitUntil:
     visible:
       id: "new-roll-name|new-roll-full-back"
@@ -39,7 +39,7 @@ onFlowComplete:
     id: "new-roll-name"
 - inputText: ${output.rollName}
 
-# Photos can be added only once the roll has opened. A new roll starts tonight
+# Photos can be added only once the event has opened. A new event starts tonight
 # by default, so move it to the half hour under way now: a time already past
 # opens it at once. The times strip lists only the times on screen, earlier
 # ones to the left, so swipe until that one shows.
@@ -78,7 +78,7 @@ onFlowComplete:
 - tapOn:
     id: "new-roll-load"
 
-# A new roll opens on its envelope; closing it shows the roll.
+# A new event opens on its envelope; closing it shows the event.
 - extendedWaitUntil:
     visible:
       id: "envelope-close"
