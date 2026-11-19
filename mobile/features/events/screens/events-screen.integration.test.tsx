@@ -66,16 +66,16 @@ test("shows the film-strip skeletons while loading, then the first-run empty sta
   mockFindAll.mockReturnValue(pending.promise);
   await renderScreen();
   expect(screen.getByTestId("home-loading")).toBeOnTheScreen();
-  expect(screen.queryByText(/^No rolls yet\./)).not.toBeOnTheScreen();
+  expect(screen.queryByText(/^No events yet\./)).not.toBeOnTheScreen();
   pending.resolve({ data: { data: [] } });
-  expect(await screen.findByText(/^No rolls yet\./)).toBeOnTheScreen();
+  expect(await screen.findByText(/^No events yet\./)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Start an event" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Join with an envelope" })).toBeOnTheScreen();
 });
 
 test("starts a roll from the first-run screen", async () => {
   await renderScreen();
-  await screen.findByText(/^No rolls yet\./);
+  await screen.findByText(/^No events yet\./);
   await userEvent.setup().press(screen.getByRole("button", { name: "Start an event" }));
   expect(mockPush).toHaveBeenCalledWith("/events/create");
 });
@@ -236,7 +236,7 @@ test("opens the lab card from the header avatar", async () => {
 
 test("opens the scanner from the header and from the first-run leader (06.1)", async () => {
   await renderScreen();
-  await screen.findByText(/^No rolls yet\./);
+  await screen.findByText(/^No events yet\./);
   await openJoin();
   expect(mockPush).toHaveBeenLastCalledWith("/join");
   mockPush.mockReset();
@@ -270,7 +270,7 @@ test("surfaces an unexpected fetch error and recovers on refresh", async () => {
 test("does not fetch without a signed-in user", async () => {
   mockUser = null;
   await renderScreen();
-  expect(screen.getByText(/^No rolls yet\./)).toBeOnTheScreen();
+  expect(screen.getByText(/^No events yet\./)).toBeOnTheScreen();
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(mockFindAll).not.toHaveBeenCalled();
 });

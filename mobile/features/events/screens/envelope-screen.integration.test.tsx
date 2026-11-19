@@ -154,7 +154,7 @@ test("05.3 shares the link of the envelope on the table", async () => {
   await user.press(screen.getByRole("button", { name: "Share the link" }));
 
   expect(share).toHaveBeenCalledWith({
-    message: "Nadia turns 30 · join the roll\nhttps://events.everglow.app/invite/weekend-viewer",
+    message: "Nadia turns 30 · join the event\nhttps://events.everglow.app/invite/weekend-viewer",
   });
 });
 
@@ -251,8 +251,8 @@ test("05.6 a closed roll says no one new can join, with nothing to share", async
   expect(screen.getByText("Closed", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("No new guests", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("21 Sep, gone")).toBeOnTheScreen();
-  expect(screen.getByText(/The roll closed on/)).toHaveTextContent(
-    "The roll closed on 21 Sep and its photos were removed, so no one new can join.",
+  expect(screen.getByText(/The event closed on/)).toHaveTextContent(
+    "The event closed on 21 Sep and its photos were removed, so no one new can join.",
   );
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();

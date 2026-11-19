@@ -319,7 +319,7 @@ describe("upcoming (07.1, 07.2)", () => {
 
     const shutter = await screen.findByRole("button", { name: /Adding photos opens/ });
     expect(shutter).toBeDisabled();
-    expect(screen.getByText(/0.*frames/)).toBeOnTheScreen();
+    expect(screen.getByText(/0.*photos/)).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Send the envelope" })).not.toBeOnTheScreen();
   });
 });
@@ -432,7 +432,7 @@ describe("open (07.4–07.8)", () => {
     Reflect.deleteProperty(fromOlderApi, "photoCount");
     await renderScreen({ event: fromOlderApi, photos: oneFrame });
 
-    expect(await screen.findByText(/· roll of 1$/)).toBeOnTheScreen();
+    expect(await screen.findByText(/· 1 photo$/)).toBeOnTheScreen();
     expect(screen.queryByText(/NaN/)).toBeNull();
     expect(screen.getByRole("button", { name: "Save all photos to Photos" })).toBeEnabled();
   });
@@ -451,7 +451,8 @@ describe("open (07.4–07.8)", () => {
 
     expect(await screen.findByText("You can look and save")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
-    expect(screen.getByText(/1.*frame/)).toBeOnTheScreen();
+    // The host line and the count both say how many photos there are.
+    expect(screen.getAllByText(/1.*photo/).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Save all photos to Photos" })).toBeEnabled();
   });
 
@@ -574,10 +575,10 @@ describe("closed (07.9)", () => {
     });
 
     expect(await screen.findByText("Closed just now")).toBeOnTheScreen();
-    expect(screen.getByText(/^Oct 18 – .* · cut early · 24 people$/)).toBeOnTheScreen();
+    expect(screen.getByText(/^Oct 18 – .* · ended early · 24 people$/)).toBeOnTheScreen();
     expect(screen.getByLabelText(/^The photos were removed on /)).toBeOnTheScreen();
     expect(screen.queryByText(/^photos removed/)).toBeNull();
-    expect(screen.queryByText(/^Roll cut/)).toBeNull();
+    expect(screen.queryByText(/^Event ended early/)).toBeNull();
   });
 
   test("a roll cut earlier says it was cut early, under the day it closed", async () => {
@@ -586,7 +587,7 @@ describe("closed (07.9)", () => {
     expect(await screen.findByText("Closed 03.11")).toBeOnTheScreen();
     expect(screen.getByText("Oct 18 – Nov 3 · ended early · 24 people")).toBeOnTheScreen();
     expect(screen.getByText("photos removed 3 Nov")).toBeOnTheScreen();
-    expect(screen.queryByText(/^Roll cut/)).toBeNull();
+    expect(screen.queryByText(/^Event ended early/)).toBeNull();
   });
 
   const cohost = buildParticipant({ userId: "user-4", name: "Sam Rivera", accessLevel: "ORGANIZER" });
@@ -708,7 +709,7 @@ describe("held by Everglow (07.10, 07.11)", () => {
     expect(mockListPhotos).not.toHaveBeenCalled();
 
     // No sheet is open, so the cut screen opens straight away.
-    await userEvent.setup().press(screen.getByRole("button", { name: "Cut the roll" }));
+    await userEvent.setup().press(screen.getByRole("button", { name: "End the event early" }));
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/events/[id]/cut", params: { id: "event-1" } });
     expect(mockDeactivate).not.toHaveBeenCalled();
   });
@@ -721,14 +722,14 @@ describe("held by Everglow (07.10, 07.11)", () => {
 
     expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
     expect(screen.getByText("Event ended early")).toBeOnTheScreen();
-    expect(screen.queryByRole("button", { name: "Cut the roll" })).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "End the event early" })).not.toBeOnTheScreen();
   });
 
   test("suspended: a guest can only read why", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ event: openEvent({ status: "SUSPENDED" }), participants: [host, guest] });
     expect(await screen.findByText("Suspended by Everglow")).toBeOnTheScreen();
-    expect(screen.queryByRole("button", { name: "Cut the roll" })).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "End the event early" })).not.toBeOnTheScreen();
     await userEvent.setup().press(screen.getByRole("button", { name: "What this means ▸" }));
     expect(mockPush).toHaveBeenCalledWith("/terms-of-use");
   });
@@ -1025,7 +1026,7 @@ describe("adding photos (08)", () => {
     // 30 MB left on the roll, but 24 MB of it is still on its way.
     await user.press(screen.getByRole("button", { name: "Add photos" }));
     expect(await screen.findByText("No room for these.")).toBeOnTheScreen();
-    expect(screen.getByText(/The roll has 6 MB left/)).toBeOnTheScreen();
+    expect(screen.getByText(/The event has 6 MB left/)).toBeOnTheScreen();
     expect(mockCreateUploadUrls).toHaveBeenCalledTimes(1);
     sending.resolve({ status: 200, body: "", headers: {} });
     await waitFor(() => expect(mockConfirmUploads).toHaveBeenCalled());
@@ -1079,7 +1080,7 @@ describe("adding photos (08)", () => {
     pickPhotos(25);
     mockCreateUploadUrls
       .mockImplementationOnce(mintSlotPerFile())
-      .mockRejectedValueOnce(createApiError("This roll has closed.", { status: 403, code: "EVENT_GALLERY_CLOSED" }));
+      .mockRejectedValueOnce(createApiError("This event has closed.", { status: 403, code: "EVENT_GALLERY_CLOSED" }));
     await renderScreen();
     await screen.findByText("Weekend meetup");
     const user = userEvent.setup();
@@ -1474,7 +1475,7 @@ describe("saving and deleting photos", () => {
     mockUser = { id: "user-2" };
     await renderScreen({ participants, photos: [buildPhoto({ addedById: "user-1" })] });
     const user = userEvent.setup();
-    await user.press(await screen.findByLabelText(/^Frame 1/));
+    await user.press(await screen.findByLabelText(/^Photo 1/));
     await user.press(screen.getAllByRole("button", { name: "More" })[0]);
 
     expect(await screen.findByRole("button", { name: "Report this photo" })).toBeOnTheScreen();
@@ -1646,7 +1647,7 @@ describe("people and the menu", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  test("Roll call from the menu swaps the same sheet to the roll call", async () => {
+  test("People from the menu swaps the same sheet to the roll call", async () => {
     mockUser = { id: "user-2" };
     await renderScreen({ participants: [host, guest], photos: oneFrame });
     const user = userEvent.setup();
@@ -1676,7 +1677,7 @@ describe("people and the menu", () => {
     expect(screen.getByRole("button", { name: "Event settings" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "End the event now" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Leave the event" })).toBeOnTheScreen();
-    // Delete stays in Roll settings until the roll closes.
+    // Delete stays in Event settings until the roll closes.
     expect(screen.queryByRole("button", { name: "Delete the event" })).not.toBeOnTheScreen();
   });
 
@@ -1689,7 +1690,7 @@ describe("people and the menu", () => {
     expect(screen.queryByRole("button", { name: "Delete the event" })).not.toBeOnTheScreen();
   });
 
-  test("Cut the roll now opens the cut screen once the menu has gone", async () => {
+  test("End the event now opens the cut screen once the menu has gone", async () => {
     await renderScreen({ photos: oneFrame });
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Event menu" }));

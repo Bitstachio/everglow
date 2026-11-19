@@ -432,7 +432,7 @@ test("shows the rolls in use instead of the form when the plan's rolls are all r
   expect(screen.getByText(/Both events/)).toBeOnTheScreen();
   expect(
     screen.getByText(
-      /A free account runs 2 rolls at a time\. Nadia turns 30 closes on Sat 14 Nov, then a spot opens\./,
+      /A free account runs 2 events at a time\. Nadia turns 30 closes on Sat 14 Nov, then a spot opens\./,
     ),
   ).toBeOnTheScreen();
   expect(await screen.findByText("free on 14 Nov ↑")).toBeOnTheScreen();

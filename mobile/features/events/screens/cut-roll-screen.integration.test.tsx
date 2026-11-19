@@ -73,7 +73,7 @@ test("says what goes now and what stays", async () => {
   await renderScreen();
 
   expect(await screen.findByText("Hosts only")).toBeOnTheScreen();
-  expect(screen.getByRole("header", { name: "Cut the roll\nnow?" })).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "End the event\nnow?" })).toBeOnTheScreen();
   expect(screen.getByLabelText("Now, Nobody can add photos or join")).toBeOnTheScreen();
   expect(screen.getByLabelText("At once, All 148 photos are removed")).toBeOnTheScreen();
   expect(screen.getByLabelText("Stays, The event and its 24 people")).toBeOnTheScreen();

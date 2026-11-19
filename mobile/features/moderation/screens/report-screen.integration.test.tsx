@@ -175,7 +175,7 @@ test("the whole roll goes to Everglow (10.6)", async () => {
   await renderScreen();
 
   expect(await screen.findByRole("header", { name: "Report Sam & Jo’s wedding" })).toBeOnTheScreen();
-  expect(screen.getByText(/Reports about a roll go to Everglow/)).toBeOnTheScreen();
+  expect(screen.getByText(/Reports about an event go to Everglow/)).toBeOnTheScreen();
   await user().press(screen.getByRole("checkbox", { name: "Spam or a scam" }));
   await user().press(screen.getByRole("button", { name: "Send report" }));
 

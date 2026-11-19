@@ -92,7 +92,7 @@ const renderWithClient = (ui: React.ReactElement) => {
   );
 };
 
-/** 10.9 Remove the frame, then confirm on the delete slip. */
+/** 10.9 Remove the photo, then confirm on the delete slip. */
 const removeTheFrame = async () => {
   const user = userEvent.setup();
   await user.press(await screen.findByRole("button", { name: "Remove the photo" }));
@@ -204,7 +204,7 @@ test("10.8 a host-only list that fails to load says why, and tries again", async
 
   expect(await screen.findByText("Only hosts can do that.")).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByRole("header", { name: "Nothing to check on your roll." })).toBeOnTheScreen();
+  expect(await screen.findByRole("header", { name: "Nothing to check in your event." })).toBeOnTheScreen();
 });
 
 test("10.9 a report the host filed is decided through another one on the photo", async () => {
