@@ -1,6 +1,6 @@
 # Mac smoke (iOS CI)
 
-Mac smoke is the GitHub Actions job that builds the iOS app on a hosted Mac and runs the Maestro smoke suite against the staging API: login, profile, then roll upload. This page covers how the job runs: triggers, secrets, failure handling, retries, artifacts and caches. The flows themselves, and how to run them on your own simulator, are in [E2E tests (Maestro)](./e2e.md).
+Mac smoke is the GitHub Actions job that builds the iOS app on a hosted Mac and runs the Maestro smoke suite against the staging API: login, profile, then event upload. This page covers how the job runs: triggers, secrets, failure handling, retries, artifacts and caches. The flows themselves, and how to run them on your own simulator, are in [E2E tests (Maestro)](./e2e.md).
 
 Workflow: [`.github/workflows/macos-smoke.yml`](../../.github/workflows/macos-smoke.yml).
 
@@ -30,7 +30,7 @@ Without the label, a pull request's run shows the job as skipped and costs no Ma
 
 Every run signs in as the same seeded staging user, so the job uses one concurrency group for the whole repository (`macos-smoke-e2e-user`). A running smoke is never cancelled; later runs wait. GitHub keeps one pending run per group, so when a third run queues, the older pending one is cancelled. A nightly can be displaced that way only when two runs queue behind a running one; the next night runs again.
 
-Because runs never overlap, two CI runs never delete each other's `Smoke-…` roll. A local run at the same time as CI still can.
+Because runs never overlap, two CI runs never delete each other's `Smoke-…` event. A local run at the same time as CI still can.
 
 ## Required secrets
 
