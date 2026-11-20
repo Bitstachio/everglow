@@ -92,14 +92,9 @@ test("keeps the card's line for the description empty when there is none", async
   expect(screen.getByLabelText(/^Weekend meetup, /)).toBeOnTheScreen();
 });
 
-test("shows a faint C in place of a cover that isn't there", async () => {
+test("shows no letter on an event without a cover", async () => {
   await renderWithI18n(<HomeEventCard event={buildEvent({ coverUrl: null })} now={NOW} />);
 
-  expect(screen.getByText("C")).toBeOnTheScreen();
-});
-
-test("has no letter when the event has a cover", async () => {
-  await renderWithI18n(<HomeEventCard event={buildEvent({ coverUrl: "https://cdn/cover.jpg" })} now={NOW} />);
-
   expect(screen.queryByText("C")).not.toBeOnTheScreen();
+  expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
 });
