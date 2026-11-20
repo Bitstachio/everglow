@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-test("shows the film-strip skeletons while loading, then the first-run empty state", async () => {
+test("shows the card placeholders while loading, then the first-run empty state", async () => {
   const pending = deferred<unknown>();
   mockFindAll.mockReturnValue(pending.promise);
   await renderScreen();
@@ -100,7 +100,7 @@ test("lists the rolls, groups the closed ones, and opens a roll", async () => {
   expect(mockPush).toHaveBeenCalledWith("/events/live-1");
 });
 
-test("loads the latest four photos of open rolls only", async () => {
+test("lists open events without loading their photos", async () => {
   mockFindAll.mockResolvedValue({
     data: {
       data: [
@@ -113,23 +113,8 @@ test("loads the latest four photos of open rolls only", async () => {
   await renderScreen();
   await screen.findByText("Sam & Jo’s wedding");
 
-  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(1));
-  expect(mockListPhotos).toHaveBeenCalledWith(
-    expect.objectContaining({ path: { eventId: "live-1" }, query: { limit: 4 } }),
-  );
-});
-
-test("pull-to-refresh reloads the open rolls' photos too", async () => {
-  mockFindAll.mockResolvedValue({
-    data: { data: [buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" })] },
-  });
-  await renderScreen();
-  await screen.findByText("Sam & Jo’s wedding");
-  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(1));
-
-  await fireEvent(screen.getByTestId("home-refresh"), "refresh");
-
-  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("Sam & Jo’s wedding")).toBeOnTheScreen();
+  expect(mockListPhotos).not.toHaveBeenCalled();
 });
 
 test("adds a new event from the rolls list", async () => {
@@ -158,8 +143,8 @@ test("keeps the saved rolls on screen when the connection drops", async () => {
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(await screen.findByText("Showing what’s saved")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
-  // Each roll says when it was loaded, in place of its time (03.5).
-  expect(screen.getByText(/ppl · as of \d\d:\d\d$/)).toBeOnTheScreen();
+  // Each event says when it was loaded, in place of its timing.
+  expect(screen.getByText(/^as of \d\d:\d\d$/)).toBeOnTheScreen();
 });
 
 const leftWedding = () => ({

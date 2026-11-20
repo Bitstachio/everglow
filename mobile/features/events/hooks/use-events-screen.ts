@@ -1,15 +1,13 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage, isConnectionError } from "@/lib/api/errors";
-import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
-import { eventsKeys } from "../api/keys";
 import { useEventsQuery } from "../api/queries";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import { LEAVE_MOTION, LEAVE_SETTLE_MS, takeLeftRoll, type LeftRoll } from "../lib/left-roll";
-import { groupRolls, hasClosed, isLastDay, ROLL_FRAMES } from "../lib/rolls";
+import { groupRolls, hasClosed, isLastDay } from "../lib/rolls";
 import type { Event } from "../types";
 
 const MINUTE_MS = 60 * 1000;
@@ -17,7 +15,6 @@ const MINUTE_MS = 60 * 1000;
 export const useEventsScreen = () => {
   const { t } = useTranslation(["home", "common"]);
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { user } = useAuth();
   const {
     data: events = [],
@@ -111,10 +108,6 @@ export const useEventsScreen = () => {
     onRefresh: () => {
       if (!user?.id) return;
       void refetch({ cancelRefetch: false });
-      // The strips load separately, so pulling down refreshes them too.
-      for (const event of groups.live) {
-        void queryClient.invalidateQueries({ queryKey: eventsKeys.preview(event.id, ROLL_FRAMES) });
-      }
     },
     onNewEvent: () => router.push("/events/create"),
     // 06.1: the header's scanner and "Join with an envelope" both open the scanner.

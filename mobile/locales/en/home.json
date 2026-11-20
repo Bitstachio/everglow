@@ -16,7 +16,16 @@
   "event": {
     "people": "<value>{{count}}</value> ppl",
     "peopleIn": "Not open yet · <value>{{count}}</value> ppl in",
-    "label": "{{title}}, {{status}}"
+    "label": "{{title}}, {{status}}",
+    "status": {
+      "upcoming": "Upcoming",
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "photos_one": "{{count}} photo",
+    "photos_other": "{{count}} photos",
+    "members_one": "{{count}} person",
+    "members_other": "{{count}} people"
   },
   "time": {
     "left": "{{hours}}h {{minutes}}m left",
