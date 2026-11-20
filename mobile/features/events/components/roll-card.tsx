@@ -3,20 +3,11 @@ import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { FilmStrip, type StripFrame } from "@/components/ui/film-strip";
 import { GreasePencil } from "@/components/ui/grease-pencil";
 import { PencilNote } from "@/components/ui/pencil-note";
-import type { TFunction } from "i18next";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, View, type LayoutChangeEvent } from "react-native";
-import {
-  formatClosedOn,
-  formatClosesOn,
-  formatOpensOn,
-  isLastDay,
-  ROLL_FRAMES,
-  rollTime,
-  type RollPhoto,
-  type RollTime,
-} from "../lib/rolls";
+import { describeTime } from "../lib/describe-time";
+import { isLastDay, ROLL_FRAMES, rollTime, type RollPhoto } from "../lib/rolls";
 import type { EventResponseDto } from "../types";
 import { getEventCoverCacheKey } from "./event-cover";
 
@@ -131,19 +122,4 @@ export const RollCard = ({ event, onPress, photos = [], now = new Date(), savedA
       </View>
     </Pressable>
   );
-};
-
-const describeTime = (t: TFunction<"home">, descriptor: RollTime): string => {
-  switch (descriptor.kind) {
-    case "closingSoon":
-      return t("time.left", { hours: descriptor.hours, minutes: descriptor.minutes });
-    case "closesOn":
-      return t("time.until", { date: formatClosesOn(descriptor.iso) });
-    case "open":
-      return t("time.open");
-    case "opensOn":
-      return t("time.opensAt", { when: formatOpensOn(descriptor.iso) });
-    case "closedOn":
-      return t("time.closedOn", { date: formatClosedOn(descriptor.iso) });
-  }
 };
