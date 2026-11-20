@@ -53,23 +53,14 @@ const StatusTag = ({ state }: { state: GalleryState }) => {
 };
 
 /**
- * The photo behind the card. Closed events are in black and white and fainter,
- * like a set of photos that has been taken down. With no cover, a faint letter
- * sits in the ground.
+ * The cover behind the card. Closed events are in black and white and fainter,
+ * like a set of photos that has been taken down.
  */
-const CardBackground = ({ event }: { event: EventResponseDto }) => {
-  if (!event.coverUrl) {
-    return (
-      <View pointerEvents="none" className="absolute inset-0 items-end justify-center pr-5">
-        <Text className="font-display text-counter text-text opacity-10">C</Text>
-      </View>
-    );
-  }
-
+const CardBackground = ({ coverUrl, event }: { coverUrl: string; event: EventResponseDto }) => {
   const photo = (
     <RetryingPhoto
-      uri={event.coverUrl}
-      cacheKey={getEventCoverCacheKey(event.id, event.coverUrl)}
+      uri={coverUrl}
+      cacheKey={getEventCoverCacheKey(event.id, coverUrl)}
       className="h-full w-full"
       contentFit="cover"
       cachePolicy="memory-disk"
@@ -115,9 +106,9 @@ export const HomeEventCard = ({ event, onPress, now = new Date(), savedAt = null
       accessibilityRole="button"
       accessibilityLabel={t("event.label", { title: event.title, status: timeText })}
       onPress={onPress}
-      className="overflow-hidden rounded-paper bg-sheet active:opacity-80"
+      className="mx-5 overflow-hidden rounded-paper border border-line bg-sheet active:opacity-80"
     >
-      <CardBackground event={event} />
+      {event.coverUrl ? <CardBackground coverUrl={event.coverUrl} event={event} /> : null}
       <View className="gap-2 p-4">
         <View className="flex-row">
           <StatusTag state={event.galleryState} />
