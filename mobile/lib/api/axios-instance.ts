@@ -1,6 +1,6 @@
 import { create, type AxiosInstance } from "axios";
-import { getAccessToken } from "@/lib/auth0";
-import { toApiError } from "@/lib/api/errors";
+import { getAccessToken, isTokenRenewalOffline } from "@/lib/auth0";
+import { createConnectionError, toApiError } from "@/lib/api/errors";
 import { env } from "@/lib/env";
 
 const RAW_BASE_URL = env.EXPO_PUBLIC_API_URL;
@@ -33,7 +33,13 @@ export const createAxiosInstance = (): AxiosInstance => {
 
   instance.interceptors.request.use(
     async (config) => {
-      const accessToken = await getAccessToken();
+      let accessToken: string | null;
+      try {
+        accessToken = await getAccessToken();
+      } catch (error) {
+        // Offline with a token due for renewal: fail like any request without a network.
+        throw isTokenRenewalOffline(error) ? createConnectionError(error) : error;
+      }
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
