@@ -408,6 +408,30 @@ export type BlockedUserListResponseDto = {
   items: Array<BlockedUserResponseDto>;
 };
 
+export type DevicePlatform = "IOS" | "ANDROID";
+
+export type DeviceResponseDto = {
+  /**
+   * Keep it to unregister this phone on sign-out.
+   */
+  id: string;
+  platform: DevicePlatform;
+  locale: string | null;
+  lastSeenAt: string;
+};
+
+export type RegisterDeviceDto = {
+  /**
+   * The Expo push token from getExpoPushTokenAsync, e.g. ExponentPushToken[xxxx]. Sent in the body, not the path, so it never lands in access logs.
+   */
+  token: string;
+  platform: DevicePlatform;
+  /**
+   * The phone's language as a BCP 47 tag, e.g. en-CA. Kept for translated notifications.
+   */
+  locale?: string;
+};
+
 export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
 
 export type EventInviteResponseDto = {
@@ -668,30 +692,6 @@ export type EventBanListResponseDto = {
    * Newest first
    */
   items: Array<EventBanResponseDto>;
-};
-
-export type DevicePlatform = "IOS" | "ANDROID";
-
-export type DeviceResponseDto = {
-  /**
-   * Keep it to unregister this phone on sign-out.
-   */
-  id: string;
-  platform: DevicePlatform;
-  locale: string | null;
-  lastSeenAt: string;
-};
-
-export type RegisterDeviceDto = {
-  /**
-   * The Expo push token from getExpoPushTokenAsync, e.g. ExponentPushToken[xxxx]. Sent in the body, not the path, so it never lands in access logs.
-   */
-  token: string;
-  platform: DevicePlatform;
-  /**
-   * The phone's language as a BCP 47 tag, e.g. en-CA. Kept for translated notifications.
-   */
-  locale?: string;
 };
 
 export type ReportEscalation =
@@ -1851,6 +1851,72 @@ export type BlocksControllerBlockResponses = {
 
 export type BlocksControllerBlockResponse = BlocksControllerBlockResponses[keyof BlocksControllerBlockResponses];
 
+export type DevicesControllerRegisterData = {
+  body: RegisterDeviceDto;
+  path?: never;
+  query?: never;
+  url: "/api/v2/users/me/devices";
+};
+
+export type DevicesControllerRegisterErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type DevicesControllerRegisterError = DevicesControllerRegisterErrors[keyof DevicesControllerRegisterErrors];
+
+export type DevicesControllerRegisterResponses = {
+  /**
+   * The registered phone
+   */
+  200: {
+    data: DeviceResponseDto;
+    meta: ResponseMetaDto;
+  };
+};
+
+export type DevicesControllerRegisterResponse =
+  DevicesControllerRegisterResponses[keyof DevicesControllerRegisterResponses];
+
+export type DevicesControllerUnregisterData = {
+  body?: never;
+  path: {
+    deviceId: string;
+  };
+  query?: never;
+  url: "/api/v2/users/me/devices/{deviceId}";
+};
+
+export type DevicesControllerUnregisterErrors = {
+  /**
+   * Missing or invalid access token
+   */
+  401: unknown;
+  /**
+   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
+   */
+  429: ApiErrorDto;
+};
+
+export type DevicesControllerUnregisterError =
+  DevicesControllerUnregisterErrors[keyof DevicesControllerUnregisterErrors];
+
+export type DevicesControllerUnregisterResponses = {
+  /**
+   * The phone gets no more pushes (empty data envelope at runtime)
+   */
+  204: void;
+};
+
+export type DevicesControllerUnregisterResponse =
+  DevicesControllerUnregisterResponses[keyof DevicesControllerUnregisterResponses];
+
 export type EventsControllerFindAllData = {
   body?: never;
   path?: never;
@@ -2512,72 +2578,6 @@ export type EventsControllerConfirmCoverUploadResponses = {
 
 export type EventsControllerConfirmCoverUploadResponse =
   EventsControllerConfirmCoverUploadResponses[keyof EventsControllerConfirmCoverUploadResponses];
-
-export type DevicesControllerRegisterData = {
-  body: RegisterDeviceDto;
-  path?: never;
-  query?: never;
-  url: "/api/v2/users/me/devices";
-};
-
-export type DevicesControllerRegisterErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-  /**
-   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
-   */
-  429: ApiErrorDto;
-};
-
-export type DevicesControllerRegisterError = DevicesControllerRegisterErrors[keyof DevicesControllerRegisterErrors];
-
-export type DevicesControllerRegisterResponses = {
-  /**
-   * The registered phone
-   */
-  200: {
-    data: DeviceResponseDto;
-    meta: ResponseMetaDto;
-  };
-};
-
-export type DevicesControllerRegisterResponse =
-  DevicesControllerRegisterResponses[keyof DevicesControllerRegisterResponses];
-
-export type DevicesControllerUnregisterData = {
-  body?: never;
-  path: {
-    deviceId: string;
-  };
-  query?: never;
-  url: "/api/v2/users/me/devices/{deviceId}";
-};
-
-export type DevicesControllerUnregisterErrors = {
-  /**
-   * Missing or invalid access token
-   */
-  401: unknown;
-  /**
-   * Rate limit exceeded; retry after the number of seconds in the Retry-After header
-   */
-  429: ApiErrorDto;
-};
-
-export type DevicesControllerUnregisterError =
-  DevicesControllerUnregisterErrors[keyof DevicesControllerUnregisterErrors];
-
-export type DevicesControllerUnregisterResponses = {
-  /**
-   * The phone gets no more pushes (empty data envelope at runtime)
-   */
-  204: void;
-};
-
-export type DevicesControllerUnregisterResponse =
-  DevicesControllerUnregisterResponses[keyof DevicesControllerUnregisterResponses];
 
 export type PlatformModerationControllerListReportsData = {
   body?: never;
