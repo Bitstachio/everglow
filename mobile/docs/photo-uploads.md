@@ -65,11 +65,19 @@ These are platform references, not claims about another app's internals.
 
 ## Offline
 
-- Photos picked while NetInfo says the phone is offline are copied into the
-  account's tray folder as usual and stay **waiting**: nothing is minted. The
-  roll's line reads "{n} waiting · offline" and the tray's rows "Waiting ·
-  offline". When the connection returns, every tray with waiting files runs
-  through the same `run` and `uploadEventPhotos` path, in the order picked.
+- Photos picked while NetInfo says the phone has no network (`isConnected`
+  false) are copied into the account's tray folder as usual and stay
+  **waiting**: nothing is minted, also when the connection drops while an
+  earlier batch is still sending. The roll's line reads "{n} waiting · offline"
+  and the tray's rows "Waiting · offline". When the connection returns, every
+  tray with waiting files runs through the same `run` and `uploadEventPhotos`
+  path, earliest pick first (`pickedAt`), so photos land in the order they
+  were picked. Files that didn't take because the connection dropped go again
+  with them.
+- A network the phone hasn't vouched for (`isInternetReachable` false) is
+  still tried. That reading is often wrong on Wi-Fi the OS hasn't validated,
+  and going by it would keep photos from being sent at all. When it turns
+  true, what didn't take goes again.
 - Retry while offline puts files back in the queue instead of failing them
   again.
 - What may wait offline is capped across all rolls at
@@ -78,8 +86,9 @@ These are platform references, not claims about another app's internals.
   nothing is copied. Online picks are bounded by the roll's room instead.
 - Once online, the usual refusals apply: a closed roll gives the closed-roll
   message and doesn't retry; a full roll keeps its "didn't fit" rows. A roll
-  the person was taken off (`REMOVED_FROM_EVENT`, `NOT_A_MEMBER`) or that is
-  gone (404) drops its tray, as leaving it does.
+  the person was taken off (mint and confirm answer the bare 403 `FORBIDDEN`
+  to someone with no access to the event) or that is gone (404) drops its
+  tray, as leaving it does.
 - The room check uses the roll as last loaded, minus what the tray already
   holds; the API stays the authority when the files are minted.
 
