@@ -934,7 +934,32 @@ describe("PhotosService", () => {
         );
       });
 
-      it("screens nothing for a refused re-upload of a removed image", async () => {
+      it("gives the whole confirm one timeout: what it couldn't reach is held, and nothing waits per photo", async () => {
+        config["moderation.screeningTimeoutMs"] = 20;
+        const ids = Array.from(
+          { length: 6 },
+          (_, index) => `dddddddd-dddd-dddd-dddd-${String(index).padStart(12, "0")}`,
+        );
+        const built = ids.map((id) => buildPhoto(id));
+        prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+        prisma.photo.findMany.mockResolvedValue(built);
+        s3Service.headObject.mockImplementation(() =>
+          Promise.resolve({ exists: true, contentType: built[0].contentType, sizeBytes: built[0].sizeBytes }),
+        );
+        prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+        rekognition.detectModerationLabels.mockReturnValue(new Promise(() => undefined));
+
+        const results = await service.confirmUploads(eventId, callerId, ids);
+
+        expect(results.map((result) => result.status)).toEqual(Array(6).fill("READY"));
+        // Four at a time: the first four use up the timeout, and the last two are never sent.
+        expect(rekognition.detectModerationLabels).toHaveBeenCalledTimes(4);
+        expect(screeningData()).toHaveLength(6);
+        for (const data of screeningData()) expect(data).toMatchObject({ status: "READY", screening: "PENDING" });
+      });
+
+      it("files nothing and writes no screening columns for a refused re-upload of a removed image", async () => {
         identicalCopiesService.findRemovedImages.mockResolvedValue(new Map([[hashOf(key), "removed-report"]]));
 
         await expect(confirmOne()).rejects.toMatchObject({

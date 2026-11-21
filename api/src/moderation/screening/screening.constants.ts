@@ -8,7 +8,8 @@ import type { ModerationLabel } from "src/sdk/aws/rekognition/rekognition.servic
 export const DEFAULT_SCREENING_MIN_CONFIDENCE = 80;
 
 // How long one photo's screen may take, its S3 read included, before it is
-// held for the screening job instead.
+// held for the screening job instead. At upload confirm it is also how long
+// the whole batch may take, so screening adds at most this to a confirm.
 export const DEFAULT_SCREENING_TIMEOUT_MS = 5000;
 
 // How long a photo that couldn't be screened stays hidden from guests while

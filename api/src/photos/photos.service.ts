@@ -219,10 +219,12 @@ export class PhotosService {
     if (verified.length > 0) {
       // Each original is read once and hashed, so identical copies of a
       // removed intimate or child-safety image can be found and refused (docs/moderation.md §7).
-      // Upload screening runs alongside (§11); it is empty while it is off.
+      // Upload screening runs alongside (§11); it is empty while it is off,
+      // and gives the whole batch one timeout, so a slow Rekognition holds
+      // photos for the screening job instead of holding up the confirm.
       const [hashes, screening] = await Promise.all([
         hashPhotoOriginals(this.s3Service, verified),
-        this.uploadScreeningService.screenAll(verified),
+        this.uploadScreeningService.screenAll(verified, { withinOneTimeout: true }),
       ]);
       await this.refuseRemovedImages(eventId, callerId, verified, hashes);
 

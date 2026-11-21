@@ -95,22 +95,46 @@ export class UploadScreeningService {
     return this.configService.get<boolean>("moderation.screeningEnabled") === true;
   }
 
-  /** Each photo's outcome, a few at a time. Empty while screening is off. */
-  async screenAll(photos: readonly ScreenablePhoto[]): Promise<Map<string, ScreeningOutcome>> {
+  private timeoutMs(): number {
+    return this.configService.getOrThrow<number>("moderation.screeningTimeoutMs");
+  }
+
+  /**
+   * Each photo's outcome, a few at a time. Empty while screening is off.
+   *
+   * `withinOneTimeout` is for a caller someone is waiting on (upload confirm):
+   * SCREENING_TIMEOUT_MS then bounds the whole batch, not each photo, and a
+   * photo not screened by then is held for the job. Otherwise 20 photos and
+   * a Rekognition that hangs would keep a confirm waiting five timeouts,
+   * past the app's own request timeout.
+   */
+  async screenAll(
+    photos: readonly ScreenablePhoto[],
+    { withinOneTimeout = false }: { withinOneTimeout?: boolean } = {},
+  ): Promise<Map<string, ScreeningOutcome>> {
     if (!this.isEnabled() || photos.length === 0) return new Map();
 
-    const outcomes = await mapWithConcurrency(photos, SCREENING_CONCURRENCY, (photo) => this.screenOne(photo));
+    const deadline = withinOneTimeout ? AbortSignal.timeout(this.timeoutMs()) : undefined;
+    const outcomes = await mapWithConcurrency(photos, SCREENING_CONCURRENCY, (photo) =>
+      this.screenOne(photo, deadline),
+    );
     return new Map(photos.map((photo, index) => [photo.id, outcomes[index]]));
   }
 
-  /** One photo's outcome. Bounded by SCREENING_TIMEOUT_MS, S3 read included. Never throws. */
-  async screenOne(photo: ScreenablePhoto): Promise<ScreeningOutcome> {
+  /**
+   * One photo's outcome. Bounded by SCREENING_TIMEOUT_MS, S3 read included,
+   * and by `deadline` when the caller has one for its whole batch. Never throws.
+   */
+  async screenOne(photo: ScreenablePhoto, deadline?: AbortSignal): Promise<ScreeningOutcome> {
     const hasDisplayCopy = DERIVATIVE_CONTENT_TYPES.includes(photo.contentType);
     const originalIsReadable =
       REKOGNITION_CONTENT_TYPES.includes(photo.contentType) && photo.sizeBytes <= REKOGNITION_MAX_IMAGE_BYTES;
     if (!hasDisplayCopy && !originalIsReadable) return { kind: "skipped", reason: "unsupported_format" };
+    // The batch's time is already up: read nothing and send nothing.
+    if (deadline?.aborted) return { kind: "retry", reason: "timeout" };
 
-    const signal = AbortSignal.timeout(this.configService.getOrThrow<number>("moderation.screeningTimeoutMs"));
+    const timeout = AbortSignal.timeout(this.timeoutMs());
+    const signal = deadline ? AbortSignal.any([timeout, deadline]) : timeout;
     try {
       let bytes = hasDisplayCopy
         ? await untilAborted(
