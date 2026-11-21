@@ -35,7 +35,7 @@ The three-step protocol this shares with avatars and event covers, and the per-p
    - missing → `MISSING`; the row is deleted, since nothing was uploaded
    - mismatched → `MISMATCHED`; the object and the row are deleted
    - the same bytes as one of the caller's own `READY` photos in the event, or as an earlier id in the request → `DUPLICATE` with `existingPhotoId`; the object and the row are deleted ([uploads.md](./uploads.md#the-same-photo-twice))
-   - both verdicts are final: the slot's quota is released on the spot and the client mints a new slot to retry
+   - all three verdicts are final and release the slot's quota on the spot. After `MISSING` or `MISMATCHED` the client mints a new slot to retry; after `DUPLICATE` there is nothing to retry, since the photo is already there
 7. **Done.** Photo shows up in the event on the next list call.
 
 ### Why presigned URLs
