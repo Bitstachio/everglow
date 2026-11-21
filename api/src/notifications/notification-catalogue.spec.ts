@@ -11,6 +11,22 @@ import {
 /** One sample per type, so every entry is rendered here. Add one with each new type. */
 const SAMPLES: { [T in NotificationType]: NotificationDataByType[T] } = {
   TEST: { nonce: "n1" },
+  REPORT_TO_CHECK: {
+    eventId: "11111111-1111-1111-1111-111111111111",
+    targetKey: "photo:22222222-2222-2222-2222-222222222222",
+  },
+  PHOTO_HIDDEN: {
+    eventId: "11111111-1111-1111-1111-111111111111",
+    photoId: "22222222-2222-2222-2222-222222222222",
+  },
+  PHOTO_REMOVED: {
+    eventId: "11111111-1111-1111-1111-111111111111",
+    photoId: "22222222-2222-2222-2222-222222222222",
+  },
+  MEMBER_REMOVED: {
+    eventId: "11111111-1111-1111-1111-111111111111",
+    reportId: "33333333-3333-3333-3333-333333333333",
+  },
 };
 
 const cases = Object.values(NotificationType).flatMap((type) => NOTIFICATION_LOCALES.map((locale) => [type, locale]));

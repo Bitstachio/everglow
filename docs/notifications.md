@@ -85,9 +85,13 @@ that checks them, its copy per language, the app path a tap opens, its dedupe ke
 8. If the tap should open a screen that needs more than a path, handle it in the app's notification tap handler,
    which arrives with the app's side of EV-73.
 
-| Type   | Sent when                                                       | Opens | Required | Channel   | ttl  |
-| ------ | --------------------------------------------------------------- | ----- | -------- | --------- | ---- |
-| `TEST` | `pnpm run notifications:send-test` (§6). Never sent by the app. | `/`   | no       | `account` | none |
+| Type              | Sent when                                                                 | Opens                     | Required | Channel   | ttl    |
+| ----------------- | ------------------------------------------------------------------------- | ------------------------- | -------- | --------- | ------ |
+| `TEST`            | `pnpm run notifications:send-test` (§6). Never sent by the app.           | `/`                       | no       | `account` | none   |
+| `REPORT_TO_CHECK` | New organizer-queue report (not platform-only). Batched per target. EV-33 | `/events/<id>/reports`    | no       | `reports` | 7 days |
+| `PHOTO_HIDDEN`    | Photo open reports hit the hide threshold. EV-33                          | `/events/<id>/reports`    | no       | `reports` | 7 days |
+| `PHOTO_REMOVED`   | `REMOVE_PHOTO` (or member removal that deletes the photo). EV-33          | `/events/<id>`            | yes      | `account` | none   |
+| `MEMBER_REMOVED`  | `REMOVE_MEMBER` on a report. EV-33                                        | `/events/<id>`            | yes      | `account` | none   |
 
 ### Languages
 
@@ -104,9 +108,10 @@ in the app's notification settings ("A roll opens", "New photos, in batches", "T
 joins your roll", "Reports to check"). The ids are `NOTIFICATION_CHANNELS` in the catalogue, typed, so an entry
 cannot name a channel that does not exist.
 
-| Channel   | For                         |
-| --------- | --------------------------- |
-| `account` | Account notices, and `TEST` |
+| Channel   | For                                                              |
+| --------- | ---------------------------------------------------------------- |
+| `account` | Account notices, `TEST`, and required removals                   |
+| `reports` | Host report queue and hidden-photo notices (`REPORT_TO_CHECK`, `PHOTO_HIDDEN`) |
 
 A new kind adds its channel id to `NOTIFICATION_CHANNELS` here **and** to the matching list the app creates its
 channels from, in the same release. That list arrives with the app's side of EV-73
@@ -222,15 +227,15 @@ The mobile side lives in `mobile/features/notifications/`.
   Auth0 sign-out.
 - **Tapping.** Opens the notification's `url` once an account is signed in and onboarded and the app is past the
   launch redirect, sign-in and onboarding, so the screen opens on top of Home. Only `/events/<id>`,
-  `/events/<id>/envelope` and `/events/<id>/tray` open, without any query string or hash. A notification opens
-  once, by its `notificationId`, whether it woke the app or reached it running. A tap the account had not opened
-  yet is dropped when the account is cleared.
+  `/events/<id>/envelope`, `/events/<id>/tray` and `/events/<id>/reports` open, without any query string or hash.
+  A notification opens once, by its `notificationId`, whether it woke the app or reached it running. A tap the
+  account had not opened yet is dropped when the account is cleared.
 - **In the foreground.** A notification shows as a banner, without sound, and stays in the list. No banner while
   its roll is on screen.
 - **Android.** One channel per kind of notification, matching the 14.9 toggles, created from
-  `NOTIFICATION_CHANNELS` in `lib/push.ts`: so far only `account` (account notices and `TEST`), at high
-  importance. A type's catalogue `channel` must be one of these ids. Android fixes a channel's importance once the
-  phone has created it, so changing one needs a new id. The old `default` channel is deleted. The small icon is
-  tinted with the stamp colour (`app.json`). It has no `icon` of its own yet: the only monochrome asset,
-  `assets/images/android-icon-monochrome.png`, is the Expo template's stand-in, so add one with the Everglow mark
-  (96×96, white on transparent) when it exists.
+  `NOTIFICATION_CHANNELS` in `lib/push.ts`: `account` (account notices, `TEST`, required removals) and `reports`
+  (host reports to check), at high importance. A type's catalogue `channel` must be one of these ids. Android fixes
+  a channel's importance once the phone has created it, so changing one needs a new id. The old `default` channel
+  is deleted. The small icon is tinted with the stamp colour (`app.json`). It has no `icon` of its own yet: the
+  only monochrome asset, `assets/images/android-icon-monochrome.png`, is the Expo template's stand-in, so add one
+  with the Everglow mark (96×96, white on transparent) when it exists.
