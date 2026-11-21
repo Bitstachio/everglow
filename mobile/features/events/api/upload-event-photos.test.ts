@@ -109,6 +109,8 @@ test("reports each batch's photo ids as soon as they're minted", async () => {
 test.each([
   ["EVENT_STORAGE_LIMIT_REACHED", 403, "noRoom"],
   ["EVENT_GALLERY_CLOSED", 403, "closed"],
+  // What mint answers someone who is no longer in the event.
+  ["FORBIDDEN", 403, "removed"],
   ["REMOVED_FROM_EVENT", 403, "removed"],
   ["NOT_A_MEMBER", 403, "removed"],
   [undefined, 404, "removed"],

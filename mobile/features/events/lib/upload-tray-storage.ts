@@ -20,6 +20,7 @@ const item = z.object({
   contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]),
   status,
   minted: z.object({ photoId: z.string(), seq: z.number() }).optional(),
+  pickedAt: z.number().optional(),
 });
 const snapshot = z.object({
   version: z.literal(1),

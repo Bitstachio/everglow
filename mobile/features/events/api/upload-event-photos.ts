@@ -41,8 +41,9 @@ export type EventPhotoFile = {
  * - cantAdd: the API refused these bytes for good (PHOTO_REJECTED_MATCHES_REMOVED_IMAGE);
  *   it can only be removed, and nothing more is said about why
  * - cancelled: "Cancel the rest" stopped it
- * - removed: the person is no longer on the roll, or the roll is gone
- *   (REMOVED_FROM_EVENT, NOT_A_MEMBER, 404); nothing more can land on it
+ * - removed: the person is no longer on the roll, or the roll is gone (the
+ *   bare 403 `FORBIDDEN` these endpoints give someone with no access to the
+ *   event, or 404); nothing more can land on it
  */
 export type EventPhotoFailure =
   | "removed"
@@ -150,7 +151,11 @@ const failureFor = (error: unknown): EventPhotoFailure => {
   const code = getErrorCode(error);
   if (code === "EVENT_GALLERY_CLOSED") return "closed";
   if (code === "EVENT_STORAGE_LIMIT_REACHED") return "noRoom";
-  if (code === "REMOVED_FROM_EVENT" || code === "NOT_A_MEMBER") return "removed";
+  // Mint and confirm tell someone with no access to the event nothing more
+  // than FORBIDDEN (a viewer or a suspended account gets its own code), and
+  // 404 once the event is gone. The membership codes are the ones join and
+  // leave use, kept in case these endpoints ever say more.
+  if (code === "FORBIDDEN" || code === "REMOVED_FROM_EVENT" || code === "NOT_A_MEMBER") return "removed";
   if (isApiError(error) && error.status === 404) return "removed";
   if (error instanceof MissingUploadFile) return "missing";
   if (error instanceof RefusedUpload) return "refused";

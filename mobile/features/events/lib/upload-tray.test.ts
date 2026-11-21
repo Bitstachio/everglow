@@ -43,7 +43,8 @@ jest.mock("./upload-tray-storage", () => ({
 }));
 
 const mockUpload = jest.fn<ReturnType<Upload>, Parameters<Upload>>();
-let mockConnectionListener: ((state: { isConnected: boolean }) => void) | null = null;
+let mockConnectionListener: ((state: { isConnected: boolean; isInternetReachable?: boolean | null }) => void) | null =
+  null;
 
 jest.mock("../api/upload-event-photos", () => ({
   uploadEventPhotos: (...args: Parameters<Upload>) => mockUpload(...args),
@@ -64,6 +65,12 @@ const item = (key: string, status: TrayItem["status"] = { kind: "waiting" }): Tr
   contentType: "image/jpeg",
   sizeBytes: 100,
   status,
+});
+
+/** An item as the tray holds it: stamped with when it was picked. */
+const inTray = (key: string, status: TrayItem["status"] = { kind: "waiting" }) => ({
+  ...item(key, status),
+  pickedAt: expect.any(Number) as number,
 });
 
 /** Every file develops, as photo-<key>. */
@@ -96,7 +103,7 @@ test("sends what can go, refreshes the roll, then drops the developed photos", a
   expect(getTray("event-1")).toEqual({
     running: false,
     closed: null,
-    items: [item("big", { kind: "rejected", reason: "tooLarge" })],
+    items: [inTray("big", { kind: "rejected", reason: "tooLarge" })],
   });
 });
 
@@ -224,7 +231,7 @@ test("keeps a frame that didn't take, and retries it", async () => {
   addToTray("event-1", [item("a"), item("b")], settle);
   await flush();
 
-  expect(getTray("event-1").items).toEqual([item("a", { kind: "failed", reason: "connection" })]);
+  expect(getTray("event-1").items).toEqual([inTray("a", { kind: "failed", reason: "connection" })]);
   expect(summarizeTray(getTray("event-1"))).toMatchObject({ retryable: 1, offline: 1 });
 
   retryTray("event-1");
@@ -478,7 +485,7 @@ test("late updates from a cleared account cannot change its replacement tray", a
   addToTray("event-1", [item("new")], settleNew);
   finishOld();
   await flush();
-  expect(getTray("event-1")).toEqual({ items: [item("new")], running: true, closed: null });
+  expect(getTray("event-1")).toEqual({ items: [inTray("new")], running: true, closed: null });
   expect(settleNew).not.toHaveBeenCalled();
   cancelTray("event-1");
   expect(mockUpload.mock.calls[1]![2].signal.aborted).toBe(true);
@@ -609,7 +616,7 @@ test("Cancel removes pending connection retries so reconnecting cannot resume ca
 });
 
 describe("offline", () => {
-  test("photos picked offline wait in the tray without reserving anything, then go in order once online", async () => {
+  test("photos picked offline wait in the tray without reserving anything, then go in the order picked once online", async () => {
     mockConnectionListener?.({ isConnected: false });
     expect(isTrayOnline()).toBe(false);
 
@@ -628,13 +635,66 @@ describe("offline", () => {
     mockConnectionListener?.({ isConnected: true });
     await flush();
 
+    // The tray lists the latest pick first; the earliest pick is sent first, so it lands first.
     expect(mockUpload).toHaveBeenCalledTimes(1);
     expect(mockUpload.mock.calls[0][1].map((file) => file.uri)).toEqual([
-      "file://c.jpg",
       "file://a.jpg",
       "file://b.jpg",
+      "file://c.jpg",
     ]);
     expect(settle).toHaveBeenCalledTimes(1);
+    expect(getTray("event-1").items).toEqual([]);
+  });
+
+  test("a network the phone hasn't vouched for is still tried: only no network at all keeps photos waiting", async () => {
+    mockConnectionListener?.({ isConnected: true, isInternetReachable: false });
+    expect(isTrayOnline()).toBe(true);
+
+    addToTray("event-1", [item("a")], settle);
+    await flush();
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+  });
+
+  test("photos picked after the connection drops mid-run stay waiting, with nothing reserved for them", async () => {
+    let finish: () => void = () => undefined;
+    mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) => {
+      await new Promise<void>((resolve) => (finish = resolve));
+      onFile(0, { kind: "failed", reason: "connection" });
+    });
+    addToTray("event-1", [item("a")], settle);
+    await flush();
+    mockConnectionListener?.({ isConnected: false });
+    addToTray("event-1", [item("late")], settle);
+
+    finish();
+    await flush();
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(getTray("event-1").items.map(({ key, status }) => [key, status.kind])).toEqual([
+      ["late", "waiting"],
+      ["a", "failed"],
+    ]);
+  });
+
+  test("back online, what didn't take goes again together with what was waiting", async () => {
+    mockUpload.mockImplementationOnce(async (_eventId, _files, { onFile }) =>
+      onFile(0, { kind: "failed", reason: "connection" }),
+    );
+    addToTray("event-1", [item("dropped")], settle);
+    await flush();
+    mockConnectionListener?.({ isConnected: false });
+    addToTray("event-1", [item("picked-offline")], settle);
+    await flush();
+    mockUpload.mockClear();
+
+    mockConnectionListener?.({ isConnected: true });
+    await flush();
+
+    expect(mockUpload.mock.calls.flatMap(([, files]) => files.map((file) => file.uri)).sort()).toEqual([
+      "file://dropped.jpg",
+      "file://picked-offline.jpg",
+    ]);
     expect(getTray("event-1").items).toEqual([]);
   });
 

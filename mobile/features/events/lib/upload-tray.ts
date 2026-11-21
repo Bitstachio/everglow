@@ -39,6 +39,8 @@ export type TrayItem = EventPhotoFile & {
   status: TrayStatus;
   /** Once its upload URL is minted: its photo id, and which mint it came from (later mints are newer). */
   minted?: { photoId: string; seq: number };
+  /** When it was put in the tray, so what waits is sent in the order it was picked. */
+  pickedAt?: number;
 };
 
 export type Tray = {
@@ -211,8 +213,15 @@ const run = async (eventId: string) => {
 
   try {
     for (;;) {
-      if (!isCurrent() || controller.signal.aborted) break;
-      const waiting = getTray(eventId).items.filter((item) => item.status.kind === "waiting");
+      // Offline by now: what was picked meanwhile stays waiting, with nothing minted.
+      if (!isCurrent() || controller.signal.aborted || !connected) break;
+      // The tray lists the latest pick first; what waits goes oldest pick first,
+      // so photos land on the roll in the order they were picked.
+      const waiting = getTray(eventId)
+        .items.filter((item) => item.status.kind === "waiting")
+        .map((item, index) => ({ item, index }))
+        .sort((a, b) => (a.item.pickedAt ?? 0) - (b.item.pickedAt ?? 0) || a.index - b.index)
+        .map(({ item }) => item);
       if (waiting.length === 0) break;
       await uploadEventPhotos(
         eventId,
@@ -293,37 +302,57 @@ const run = async (eventId: string) => {
 
 let watchingConnection = false;
 
-const isConnectedState = (state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) =>
-  state.isConnected !== false && state.isInternetReachable !== false;
+type ConnectionState = { isConnected: boolean | null; isInternetReachable?: boolean | null };
+
+/**
+ * No network at all, which is when the tray doesn't try. A network the phone
+ * hasn't vouched for (`isInternetReachable` false) is still tried: that
+ * reading is wrong often enough, on Wi-Fi the OS hasn't validated, that going
+ * by it would keep photos from being sent at all.
+ */
+const hasNetwork = (state: ConnectionState) => state.isConnected !== false;
+
+/** A network the phone says reaches the internet: when it turns true, what didn't take goes again. */
+const isReachable = (state: ConnectionState) => hasNetwork(state) && state.isInternetReachable !== false;
+
+let reachable = true;
+
+let lastPickedAt = 0;
 
 /**
  * With a connection: files picked offline, or left waiting when the app
- * stopped, start sending; files that didn't take because the connection
- * dropped (08.4) go again.
+ * stopped, start sending, and files that didn't take because the connection
+ * dropped go again, whether or not their tray has other files waiting or
+ * sending.
  */
 const resumeQueued = () => {
   for (const [eventId, tray] of trays) {
-    if (tray.running || tray.storageError) continue;
-    if (tray.items.some((item) => item.status.kind === "waiting")) void run(eventId);
-    else if (tray.items.some((item) => item.status.kind === "failed" && item.status.reason === "connection")) {
+    if (tray.storageError) continue;
+    if (tray.items.some((item) => item.status.kind === "failed" && item.status.reason === "connection")) {
       retryAttempts.delete(eventId);
       retryTray(eventId, ["connection"], true);
-    }
+    } else if (!tray.running && tray.items.some((item) => item.status.kind === "waiting")) void run(eventId);
   }
 };
 
-const setConnected = (next: boolean) => {
-  const reconnected = next && !connected;
-  const changed = next !== connected;
-  connected = next;
+/** Takes a NetInfo reading; returns whether the connection just came back. */
+const noteConnection = (state: ConnectionState): boolean => {
+  const online = hasNetwork(state);
+  const reaches = isReachable(state);
+  const back = (online && !connected) || (reaches && !reachable);
+  const changed = online !== connected;
+  connected = online;
+  reachable = reaches;
   if (changed) emit();
-  if (reconnected) resumeQueued();
+  return back;
 };
 
 const watchConnection = () => {
   if (watchingConnection) return;
   watchingConnection = true;
-  NetInfo.addEventListener((state) => setConnected(isConnectedState(state)));
+  NetInfo.addEventListener((state) => {
+    if (noteConnection(state)) resumeQueued();
+  });
 };
 
 /** Whether the tray can send now. Offline, picked photos wait in the tray instead. */
@@ -354,7 +383,10 @@ export const fitsOfflineQueue = (items: TrayItem[]): boolean => {
 export const addToTray = (eventId: string, items: TrayItem[], settle: () => Promise<unknown>) => {
   watchConnection();
   settlers.set(eventId, settle);
-  setTray(eventId, (tray) => ({ ...tray, items: [...items, ...tray.items] }));
+  // Later than any earlier pick, even one made in the same millisecond.
+  lastPickedAt = Math.max(Date.now(), lastPickedAt + 1);
+  const pickedAt = lastPickedAt;
+  setTray(eventId, (tray) => ({ ...tray, items: [...items.map((item) => ({ ...item, pickedAt })), ...tray.items] }));
   void run(eventId);
 };
 
@@ -482,12 +514,8 @@ export const activateUploadTrays = (userId: string, settle: (eventId: string) =>
     .then(() => NetInfo.fetch())
     .then((state) => {
       if (activeUserId !== userId) return;
-      const online = isConnectedState(state);
-      if (online !== connected) {
-        connected = online;
-        emit();
-      }
-      if (online) resumeQueued();
+      noteConnection(state);
+      if (connected) resumeQueued();
     })
     .catch(() => undefined);
 };
