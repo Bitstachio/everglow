@@ -15,6 +15,8 @@ export class PlatformReportMapper {
     const { evidence } = report;
     return {
       ...ReportMapper.toResponseDto(report),
+      // The platform reads every note, an automated report's readout included.
+      note: report.note,
       reporterId: report.reporterId,
       resolvedById: report.resolvedById,
       escalationReasons: report.escalationReasons,

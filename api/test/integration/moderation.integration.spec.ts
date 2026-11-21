@@ -421,12 +421,13 @@ describe("Moderation (integration)", () => {
       );
     });
 
-    it("lists an automated report as AUTOMATED, with the platform, and without a reporter", async () => {
+    it("lists an automated report as AUTOMATED, with the platform, and without a reporter or its note", async () => {
       const automated = buildReport({
         reporterId: null,
         source: "AUTOMATED",
         queue: "PLATFORM",
         reason: "NUDITY_OR_SEXUAL",
+        note: "Upload screening: Explicit Nudity (97%)",
         escalationReasons: ["AUTOMATED_FLAG", "SEVERE_REASON"],
       });
       prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildOrganizerAccess()]));
@@ -436,7 +437,7 @@ describe("Moderation (integration)", () => {
 
       const body = response.body as WrappedResponse<ReportListBody>;
       expect(body.data.items).toEqual([expectedReportResponse(automated)]);
-      expect(body.data.items[0]).toMatchObject({ source: "AUTOMATED", queue: "PLATFORM" });
+      expect(body.data.items[0]).toMatchObject({ source: "AUTOMATED", queue: "PLATFORM", note: null });
       expect(body.data.items[0]).not.toHaveProperty("reporterId");
       expect(body.data.items[0]).not.toHaveProperty("escalationReasons");
     });

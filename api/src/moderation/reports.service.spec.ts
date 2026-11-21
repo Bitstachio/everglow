@@ -551,7 +551,7 @@ describe("ReportsService", () => {
 
         prisma.report.count.mockResolvedValue(3);
         await service.reportPhoto(photoId, callerId, dto);
-        expect(prisma.report.count).toHaveBeenLastCalledWith({ where: { photoId, status: "OPEN" } });
+        expect(prisma.report.count).toHaveBeenLastCalledWith({ where: { photoId, status: "OPEN", source: "USER" } });
         expect(logger.warn).toHaveBeenCalledWith(
           expect.objectContaining({ escalationReasons: ["hide_threshold_reached"] }),
           expect.any(String),

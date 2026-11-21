@@ -12,6 +12,7 @@ import {
   ReportEscalation,
   ReportQueue,
   ReportReason,
+  ReportSource,
   ReportStatus,
   ReportTargetType,
 } from "generated/prisma/client";
@@ -1003,8 +1004,10 @@ export class ReportsService {
     const reasons: ReportEscalation[] = [];
 
     if (report.photoId && context.hideThreshold !== undefined) {
+      // Members' reports only: an automated report hides the photo by itself
+      // (§5) and is nobody's count toward the threshold.
       const openReports = await this.prisma.report.count({
-        where: { photoId: report.photoId, status: ReportStatus.OPEN },
+        where: { photoId: report.photoId, status: ReportStatus.OPEN, source: ReportSource.USER },
       });
       // Equality, so the report that tips the photo over is the one that says so.
       if (openReports === context.hideThreshold) reasons.push(ReportEscalation.HIDE_THRESHOLD_REACHED);

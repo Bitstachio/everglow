@@ -1,4 +1,4 @@
-import { Report, ReportActorRole } from "generated/prisma/client";
+import { Report, ReportActorRole, ReportSource } from "generated/prisma/client";
 import { KeysetPage } from "src/common/pagination/keyset-cursor";
 import { ReportListResponseDto } from "../dto/report-list-response.dto";
 import { ReportReceiptResponseDto } from "../dto/report-receipt-response.dto";
@@ -29,7 +29,9 @@ export class ReportMapper {
       photoId: report.photoId,
       reportedUserId: report.reportedUserId,
       reason: report.reason,
-      note: report.note,
+      // An automated report's note is the check's readout, for the platform's
+      // reviewer: PlatformReportMapper puts it back.
+      note: report.source === ReportSource.AUTOMATED ? null : report.note,
       status: report.status,
       queue: report.queue,
       closedReason: report.closedReason,

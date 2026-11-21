@@ -57,6 +57,18 @@ describe("ReportMapper", () => {
       });
     });
 
+    it("withholds an automated report's note, which is the check's readout for the platform", () => {
+      const automated: Report = {
+        ...report,
+        reporterId: null,
+        source: "AUTOMATED",
+        queue: "PLATFORM",
+        note: "Upload screening: Explicit Nudity (97%)",
+      };
+
+      expect(ReportMapper.toResponseDto(automated)).toMatchObject({ source: "AUTOMATED", note: null });
+    });
+
     it("hides which moderator closed a report the platform closed", () => {
       const dto = ReportMapper.toResponseDto({ ...report, closedByRole: "PLATFORM" });
 

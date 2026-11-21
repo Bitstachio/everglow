@@ -9,6 +9,7 @@ import {
 } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
 import { EvidenceService, EvidenceSnapshot } from "./evidence/evidence.service";
+import { REPORT_NOTE_MAX_LENGTH } from "./moderation.constants";
 import { initialHoldFor, removalDueAtFor } from "./report-deadlines";
 import { escalationAlertFields, escalationLogName, reasonEscalations } from "./report-escalation";
 
@@ -30,15 +31,13 @@ export interface AutomatedReportInput {
   reason: ReportReason;
   /**
    * For the platform's reviewer: what the check found, such as screening's
-   * labels. Written by us, never by a user. At most 500 characters.
+   * labels. Written by us, never by a user, and never sent to organizers.
+   * Cut to the column's length (REPORT_NOTE_MAX_LENGTH).
    */
   note: string | null;
   /** The evidence snapshot, written in the same transaction (§7). */
   snapshot: EvidenceSnapshot;
 }
-
-/** Matches Report.note VarChar(500). */
-const NOTE_MAX_LENGTH = 500;
 
 /**
  * Files an automated report inside the caller's transaction, with its
@@ -70,7 +69,7 @@ export const fileAutomatedReport = async (
         photoId: input.targetType === ReportTargetType.PHOTO ? input.photoId : null,
         reportedUserId: input.reportedUserId,
         reason: input.reason,
-        note: input.note?.slice(0, NOTE_MAX_LENGTH) || null,
+        note: input.note?.slice(0, REPORT_NOTE_MAX_LENGTH) || null,
         queue: ReportQueue.PLATFORM,
         escalatedAt: now,
         escalationReasons: [ReportEscalation.AUTOMATED_FLAG, ...reasonEscalations(input.reason)],

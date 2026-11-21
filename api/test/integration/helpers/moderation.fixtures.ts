@@ -44,7 +44,7 @@ export const buildReport = (overrides: Partial<Report> = {}): Report => ({
 export const buildMemberReport = (overrides: Partial<Report> = {}): Report =>
   buildReport({ targetType: ReportTargetType.MEMBER, photoId: null, ...overrides });
 
-/** The response never carries `reporterId`. */
+/** The response never carries `reporterId`, nor an automated report's note. */
 export const expectedReportResponse = (report: Report) => ({
   id: report.id,
   eventId: report.eventId,
@@ -54,7 +54,7 @@ export const expectedReportResponse = (report: Report) => ({
   photoId: report.photoId,
   reportedUserId: report.reportedUserId,
   reason: report.reason,
-  note: report.note,
+  note: report.source === "AUTOMATED" ? null : report.note,
   status: report.status,
   queue: report.queue,
   closedReason: report.closedReason,

@@ -63,7 +63,14 @@ export class ReportResponseDto {
   @ApiProperty({ enum: ReportReason, enumName: "ReportReason" })
   reason: ReportReason;
 
-  @ApiProperty({ type: String, nullable: true, maxLength: REPORT_NOTE_MAX_LENGTH })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    maxLength: REPORT_NOTE_MAX_LENGTH,
+    description:
+      "What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): " +
+      "only the platform's endpoints return it, and organizers get null.",
+  })
   note: string | null;
 
   @ApiProperty({
