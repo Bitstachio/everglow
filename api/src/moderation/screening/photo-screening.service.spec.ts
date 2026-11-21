@@ -38,6 +38,8 @@ describe("PhotoScreeningService", () => {
   beforeEach(() => {
     prisma = mockDeep<PrismaClient>();
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
+    // The run's lock is free unless a test says another run holds it.
+    prisma.$queryRaw.mockResolvedValue([{ locked: true }]);
     prisma.photo.updateMany.mockResolvedValue({ count: 1 });
     prisma.report.createManyAndReturn.mockResolvedValue([
       { id: "report-1", eventId, source: "AUTOMATED", queue: "PLATFORM", escalationReasons: [] } as never,
@@ -81,6 +83,21 @@ describe("PhotoScreeningService", () => {
       skipped: 0,
       stillHeld: 0,
     });
+    expect(rekognition.detectModerationLabels).not.toHaveBeenCalled();
+  });
+
+  it("does nothing while another run, here or on another replica, is still going", async () => {
+    prisma.$queryRaw.mockResolvedValue([{ locked: false }]);
+
+    await expect(service.screenHeld(now)).resolves.toEqual({
+      screened: 0,
+      cleared: 0,
+      flagged: 0,
+      skipped: 0,
+      stillHeld: 0,
+      ranElsewhere: true,
+    });
+    expect(prisma.photo.findMany).not.toHaveBeenCalled();
     expect(rekognition.detectModerationLabels).not.toHaveBeenCalled();
   });
 
@@ -211,10 +228,11 @@ describe("PhotoScreeningService", () => {
       { name: "Explicit Nudity", parentName: "Explicit", confidence: 97 },
     ]);
     const boom = new Error("connection lost");
-    let writes = 0;
+    // The first transaction is the run's lock; the second photo's write is the third.
+    let transactions = 0;
     prisma.$transaction.mockImplementation(async (fn) => {
-      writes += 1;
-      if (writes === 2) throw boom;
+      transactions += 1;
+      if (transactions === 3) throw boom;
       return (fn as (tx: unknown) => Promise<unknown>)(prisma);
     });
 

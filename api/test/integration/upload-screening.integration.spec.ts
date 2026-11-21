@@ -168,6 +168,8 @@ describe("Upload screening (integration)", () => {
   it("screens held photos from the job, and files the report for one it flags", async () => {
     const photo = buildPhoto({ screening: "PENDING", screeningHeldUntil: new Date(Date.now() + 60_000) });
     prisma.photo.findMany.mockResolvedValue([{ ...photo, event: { title: "Roll" } }] as never);
+    // No other run holds the job's lock.
+    prisma.$queryRaw.mockResolvedValue([{ locked: true }]);
     rekognition.detectModerationLabels.mockResolvedValue([{ name: "Explicit", parentName: "", confidence: 99 }]);
     prisma.report.createManyAndReturn.mockResolvedValue([
       buildReport({ reporterId: null, source: "AUTOMATED", queue: "PLATFORM", reason: "NUDITY_OR_SEXUAL" }),

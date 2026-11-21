@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PhotoScreening, PhotoStatus } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { runExclusively } from "src/prisma/advisory-lock";
 import { PrismaService } from "src/prisma/prisma.service";
 import { FiledScreeningReport, ScreeningOutcome, UploadScreeningService } from "./upload-screening.service";
 
@@ -14,7 +15,17 @@ export interface PhotoScreeningRunResult {
   skipped: number;
   /** Still held: a later run tries again. */
   stillHeld: number;
+  /** Another run, here or on another replica, was still going; this one did nothing. */
+  ranElsewhere?: boolean;
 }
+
+// One run at a time across replicas (runExclusively): two would send the same
+// held photos to Rekognition twice. The timeout is well past a run's length,
+// 50 photos four at a time at 5 seconds each.
+const SCREENING_LOCK_KEY = "photos:screening";
+const SCREENING_LOCK_TIMEOUT_MS = 10 * 60_000;
+
+const emptyResult = (): PhotoScreeningRunResult => ({ screened: 0, cleared: 0, flagged: 0, skipped: 0, stillHeld: 0 });
 
 /**
  * The screening job's work (docs/moderation.md §11): screens photos that
@@ -37,7 +48,14 @@ export class PhotoScreeningService {
   }
 
   async screenHeld(now: Date = new Date()): Promise<PhotoScreeningRunResult> {
-    const result: PhotoScreeningRunResult = { screened: 0, cleared: 0, flagged: 0, skipped: 0, stillHeld: 0 };
+    const run = await runExclusively(this.prisma, SCREENING_LOCK_KEY, SCREENING_LOCK_TIMEOUT_MS, () =>
+      this.screenHeldNow(now),
+    );
+    return run.ran ? run.result : { ...emptyResult(), ranElsewhere: true };
+  }
+
+  private async screenHeldNow(now: Date): Promise<PhotoScreeningRunResult> {
+    const result = emptyResult();
 
     const photos = await this.prisma.photo.findMany({
       where: { status: PhotoStatus.READY, screening: PhotoScreening.PENDING },
