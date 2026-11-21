@@ -57,6 +57,9 @@ const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
 const SUSPENDED_ROUTE = "/account-suspended" as const;
 
+/** How often a profile opened from the phone is asked for again while the app stays open. */
+export const PROFILE_RELOAD_INTERVAL_MS = 30_000;
+
 /**
  * Where signing out lands: the welcome, or Deleted (14.12) after deleting the
  * account, with `apple=1` for a Sign in with Apple account.
@@ -186,7 +189,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Offline, Auth0 may not say who is signed in (the token is due for renewal);
   // the session on this phone is still theirs, and so is what it saved.
   const loadSession = useCallback(async (): Promise<User | null> => {
-    if (!isAuth0Configured() || !(await hasValidSession())) return null;
+    if (!isAuth0Configured()) return null;
+    if (!(await hasValidSession())) {
+      // Nobody is signed in: whatever is saved is someone's who left, and
+      // must not be there for the next person who opens the app offline.
+      persister.clear();
+      return null;
+    }
     const signedIn = await getSignedInIdentity();
     setIdentity(signedIn);
     try {
@@ -195,16 +204,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!isConnectionError(err)) throw err;
       const saved = readSessionSnapshot({ sub: signedIn?.sub });
       if (!saved) throw err;
-      hydrate(queryClient, saved.queries);
+      try {
+        hydrate(queryClient, saved.queries);
+      } catch {
+        // A snapshot that can't be loaded is no use on any later launch either.
+        persister.clear();
+        throw err;
+      }
       setIdentity(signedIn ?? saved.identity);
       setProfileFromPhone(true);
       setUser(saved.profile);
       return saved.profile;
     }
-  }, [queryClient, refreshProfile]);
+  }, [queryClient, refreshProfile, persister]);
 
   // A profile from this phone is loaded again once Everglow answers: on
-  // reconnect, or on return to the app when the API itself was down.
+  // reconnect, on return to the app, and every half minute meanwhile, since
+  // an API that was down comes back without the phone's network changing.
   useEffect(() => {
     if (!profileFromPhone) return;
     let reloading = false;
@@ -217,11 +233,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const signedIn = await getSignedInIdentity();
         const profile = await authService.getUserProfile();
         if (stopped || signedOutRef.current) return;
+        // No profile means the API answered with an error (a 500, a 429), not
+        // that the session ended: the saved profile stands and a later try
+        // asks again. A session that really ended comes through the 401 handler.
+        if (!profile) return;
         setUser(profile);
         if (signedIn) setIdentity(signedIn);
         setProfileFromPhone(false);
         // Home is already open; only a change of standing moves the person on.
-        if (!profile || profile.suspendedAt || !profile.isOnboarded) routeForUser(profile);
+        if (profile.suspendedAt || !profile.isOnboarded) routeForUser(profile);
       } catch {
         // Still out of reach: the next reconnect tries again.
       } finally {
@@ -235,10 +255,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const stopFocus = focusManager.subscribe((focused) => {
       if (focused) void reload();
     });
+    const timer = setInterval(() => void reload(), PROFILE_RELOAD_INTERVAL_MS);
     return () => {
       stopped = true;
       stopOnline();
       stopFocus();
+      clearInterval(timer);
     };
   }, [profileFromPhone, routeForUser]);
 
@@ -288,6 +310,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         setError(null);
         signedOutRef.current = false;
+        // A new sign-in starts from nothing saved, in case an earlier account's snapshot outlived it.
+        persister.clear();
         setIdentity(await loginWithUniversalLogin(options));
         let profile: User | null;
         try {
@@ -311,7 +335,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
       }
     },
-    [refreshProfile, routeForUser],
+    [refreshProfile, routeForUser, persister],
   );
 
   const login = useCallback(() => authenticate(), [authenticate]);

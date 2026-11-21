@@ -8,8 +8,12 @@ export const SESSION_WRITE_DELAY_MS = 1000;
 
 export type PersistedSession = { userId: string; identity: SignedInIdentity | null; profile: User };
 
-/** Only queries that opted in, and only once they hold data from the API. */
-export const isPersistedQuery = (query: Query) => query.meta?.persist === true && query.state.status === "success";
+/**
+ * Only queries that opted in, and only once they hold data from the API. A
+ * refetch that failed leaves the query in error with its last answer still
+ * there, and that answer is still worth keeping.
+ */
+export const isPersistedQuery = (query: Query) => query.meta?.persist === true && query.state.data !== undefined;
 
 /**
  * Keeps the session snapshot (`lib/session-cache.ts`) in step with the signed-in
@@ -24,13 +28,31 @@ export const createSessionPersister = (queryClient: QueryClient, delayMs = SESSI
     timer = undefined;
     if (!session) return;
     try {
+      const saved = dehydrate(queryClient, {
+        shouldDehydrateQuery: isPersistedQuery,
+        shouldDehydrateMutation: () => false,
+      });
+      // Nothing has loaded yet (the profile answers before the rolls do): what
+      // is on disk from last time is worth more than a Home with nothing on it.
+      if (saved.queries.length === 0) return;
       saveSessionSnapshot({
         ...session,
         savedAt: Date.now(),
-        queries: dehydrate(queryClient, {
-          shouldDehydrateQuery: isPersistedQuery,
-          shouldDehydrateMutation: () => false,
-        }),
+        queries: {
+          ...saved,
+          // Saved as the answer it holds, not as the failed refetch after it.
+          queries: saved.queries.map((query) => ({
+            ...query,
+            state: {
+              ...query.state,
+              status: "success" as const,
+              fetchStatus: "idle" as const,
+              error: null,
+              fetchFailureCount: 0,
+              fetchFailureReason: null,
+            },
+          })),
+        },
       });
     } catch {
       // A full disk only costs the offline launch; the next change tries again.

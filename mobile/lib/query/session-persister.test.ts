@@ -46,19 +46,44 @@ test("only queries that opted in are saved, with the account they belong to", as
   persister.stop();
 });
 
-test("a failed query is never saved over what was there", async () => {
-  const persister = createSessionPersister(queryClient);
-  persister.setSession(session);
-  await queryClient
+const failRolls = () =>
+  queryClient
     .fetchQuery({
       queryKey: ["rolls"],
       queryFn: async () => Promise.reject(new Error("offline")),
       meta: { persist: true },
     })
     .catch(() => undefined);
+
+test("nothing is written until an opted-in query has an answer, so what was saved last time stands", async () => {
+  const persister = createSessionPersister(queryClient);
+  // The profile answers first; a write then would replace last time's rolls with none.
+  persister.setSession(session);
+  jest.advanceTimersByTime(SESSION_WRITE_DELAY_MS);
+  // And a query that failed without ever answering has nothing to save either.
+  await failRolls();
   jest.advanceTimersByTime(SESSION_WRITE_DELAY_MS);
 
-  expect(savedKeys()).toEqual([]);
+  expect(save).not.toHaveBeenCalled();
+  persister.stop();
+});
+
+test("a query whose refetch failed is still saved with its last answer, as an answer", async () => {
+  const persister = createSessionPersister(queryClient);
+  persister.setSession(session);
+  await fetchInto("rolls", true, [{ id: "event-1" }]);
+  await failRolls();
+  expect(queryClient.getQueryState(["rolls"])?.status).toBe("error");
+  // Another opted-in answer schedules the write.
+  await fetchInto("strip-1", true, []);
+  jest.advanceTimersByTime(SESSION_WRITE_DELAY_MS);
+
+  expect(savedKeys().sort()).toEqual(["rolls", "strip-1"]);
+  const rolls = (save.mock.calls.at(-1)?.[0].queries.queries as { queryKey: unknown[]; state: object }[]).find(
+    (query) => query.queryKey[0] === "rolls",
+  );
+  // Read back offline, it must not look like a failure.
+  expect(rolls?.state).toMatchObject({ data: [{ id: "event-1" }], status: "success", error: null });
   persister.stop();
 });
 
@@ -109,9 +134,10 @@ test("a full disk doesn't break the app; the next change tries again", async () 
   });
   const persister = createSessionPersister(queryClient);
   persister.setSession(session);
+  await fetchInto("rolls", true, []);
   jest.advanceTimersByTime(SESSION_WRITE_DELAY_MS);
 
-  await fetchInto("rolls", true, []);
+  await fetchInto("strip-1", true, []);
   jest.advanceTimersByTime(SESSION_WRITE_DELAY_MS);
 
   expect(save).toHaveBeenCalledTimes(2);

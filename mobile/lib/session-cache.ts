@@ -36,6 +36,13 @@ const snapshotSchema = z.object({
   queries: z.looseObject({ queries: z.array(z.unknown()), mutations: z.array(z.unknown()) }),
 });
 
+/** One saved query, as far as reading it back needs: which it is, and when it was answered. */
+const savedQuery = z.looseObject({
+  queryKey: z.array(z.unknown()),
+  queryHash: z.string(),
+  state: z.looseObject({ dataUpdatedAt: z.number() }),
+});
+
 const snapshotFile = () => new File(new Directory(Paths.cache, "session"), "snapshot.json");
 
 export const removeSessionSnapshot = () => {
@@ -80,11 +87,18 @@ export const readSessionSnapshot = ({
     removeSessionSnapshot();
     return null;
   }
+  // Each answer by its own age, not the snapshot's: a snapshot saved again
+  // today can still carry rolls loaded a week ago. One that doesn't look like
+  // a saved query is left out rather than handed to React Query.
+  const queries = saved.queries.queries.filter((entry) => {
+    const query = savedQuery.safeParse(entry);
+    return query.success && now - query.data.state.dataUpdatedAt <= SESSION_SNAPSHOT_MAX_AGE_MS;
+  });
   return {
     savedAt: saved.savedAt,
     userId: saved.userId,
     identity: saved.identity,
     profile: saved.profile as unknown as User,
-    queries: saved.queries as unknown as DehydratedState,
+    queries: { queries, mutations: [] } as unknown as DehydratedState,
   };
 };

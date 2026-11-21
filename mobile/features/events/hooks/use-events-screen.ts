@@ -93,7 +93,8 @@ export const useEventsScreen = () => {
     if (rollClosed) void refetch({ cancelRefetch: false });
   }, [rollClosed, refetch]);
 
-  const savedAtLabel = useMemo(() => (dataUpdatedAt ? formatSavedAt(dataUpdatedAt, now) : null), [dataUpdatedAt, now]);
+  // Against the time it is read, not `now`, which only ticks while a roll is on its last day.
+  const savedAtLabel = dataUpdatedAt ? formatSavedAt(dataUpdatedAt) : null;
 
   return {
     groups,

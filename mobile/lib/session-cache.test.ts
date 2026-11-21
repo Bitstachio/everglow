@@ -102,3 +102,44 @@ test("nothing saved reads as nothing, and removing it twice is harmless", () => 
   removeSessionSnapshot();
   expect(mockFiles.size).toBe(0);
 });
+
+const savedQuery = (key: string, dataUpdatedAt: number) => ({
+  queryKey: [key],
+  queryHash: JSON.stringify([key]),
+  state: { data: [], dataUpdatedAt, status: "success" },
+});
+
+test("each saved answer is read back by its own age: one loaded over a week ago is left out", () => {
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+  // Saved again today, but still carrying rolls from eight days ago.
+  saveSessionSnapshot(
+    snapshot({
+      queries: {
+        queries: [savedQuery("rolls", NOW - WEEK - 60_000), savedQuery("strip", NOW - 60_000)],
+        mutations: [],
+      } as unknown as SessionSnapshot["queries"],
+    }),
+  );
+
+  const read = readSessionSnapshot({ sub: "auth0|1", now: NOW });
+
+  expect((read?.queries.queries as unknown as { queryKey: string[] }[]).map((query) => query.queryKey[0])).toEqual([
+    "strip",
+  ]);
+});
+
+test("an entry that isn't a saved query is left out rather than handed on", () => {
+  saveSessionSnapshot(
+    snapshot({
+      queries: {
+        queries: [null, { queryKey: ["no-state"] }, savedQuery("rolls", NOW)],
+        mutations: [{ anything: true }],
+      } as unknown as SessionSnapshot["queries"],
+    }),
+  );
+
+  const read = readSessionSnapshot({ sub: "auth0|1", now: NOW });
+
+  expect(read?.queries.queries).toHaveLength(1);
+  expect(read?.queries.mutations).toEqual([]);
+});
