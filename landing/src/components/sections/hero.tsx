@@ -9,7 +9,7 @@ import Image from "next/image";
 
 const enter = "animate-hero-enter motion-reduce:animate-none";
 
-/** Fills the opening viewport above the film-strip nav. */
+/** Fills the opening viewport above the sticky site nav. */
 export const Hero = async () => {
   const t = await getTranslations("common.hero");
   const waitlist = await getTranslations("cta");

@@ -8,9 +8,9 @@ const readNavHeight = () => {
   return Math.ceil(nav.getBoundingClientRect().height);
 };
 
-const syncFilmNavHeight = () => {
+const syncSiteNavHeight = () => {
   const height = readNavHeight();
-  document.documentElement.style.setProperty("--film-nav-h", `${height}px`);
+  document.documentElement.style.setProperty("--site-nav-h", `${height}px`);
   return height;
 };
 
@@ -20,7 +20,7 @@ const isSectionInView = (element: HTMLElement, probe: number) => {
 };
 
 /**
- * Tracks which landing section sits under the sticky film-strip.
+ * Tracks which landing section sits under the sticky site nav.
  * Clicks highlight immediately and stay locked through smooth scroll until
  * the destination reaches the nav line (or the page bottom).
  */
@@ -30,7 +30,7 @@ export const useActiveSection = (sectionIds: readonly string[]) => {
 
   useEffect(() => {
     const update = () => {
-      const navHeight = syncFilmNavHeight();
+      const navHeight = syncSiteNavHeight();
       const probe = navHeight + 2;
       const lockedId = lockedIdRef.current;
 

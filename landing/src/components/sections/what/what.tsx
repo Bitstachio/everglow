@@ -29,7 +29,7 @@ export const What = async () => {
   });
 
   return (
-    <section id="what" className="scroll-mt-[var(--film-nav-h)] pt-24">
+    <section id="what" className="scroll-mt-[var(--site-nav-h)] pt-24">
       <Container>
         <EdgeLabel className="text-edge mb-3 block">{t("eyebrow")}</EdgeLabel>
         <h2 className="font-display text-strong mb-7 max-w-[20ch] text-[clamp(2rem,4vw,2.75rem)] leading-none font-semibold tracking-[-0.035em]">
