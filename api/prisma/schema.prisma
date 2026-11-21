@@ -422,7 +422,7 @@ model Photo {
   @@index([status, createdAt])
   // Identical copies of a removed image, and the backfill's IS NULL scan.
   @@index([sha256])
-  // The screening job's queue of held photos, soonest deadline first.
+  // The screening job's queue: only held photos are in it.
   @@index([screeningHeldUntil], where: { screening: "PENDING" })
 }
 

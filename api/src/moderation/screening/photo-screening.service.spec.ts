@@ -84,7 +84,7 @@ describe("PhotoScreeningService", () => {
     expect(rekognition.detectModerationLabels).not.toHaveBeenCalled();
   });
 
-  it("takes held READY photos, soonest deadline first, a batch at a time", async () => {
+  it("takes held READY photos, least recently tried first, a batch at a time", async () => {
     prisma.photo.findMany.mockResolvedValue([]);
 
     await service.screenHeld(now);
@@ -92,7 +92,7 @@ describe("PhotoScreeningService", () => {
     expect(prisma.photo.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { status: "READY", screening: "PENDING" },
-        orderBy: [{ screeningHeldUntil: "asc" }, { id: "asc" }],
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
         take: 50,
       }),
     );
@@ -154,7 +154,28 @@ describe("PhotoScreeningService", () => {
     s3Service.getObjectBytes.mockResolvedValue(null);
 
     await expect(service.screenHeld(now)).resolves.toMatchObject({ screened: 1, stillHeld: 1 });
-    expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+    // Its verdict and hold are untouched; it only moves behind the rest of the queue.
+    expect(prisma.photo.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["p-1"] }, screening: "PENDING" },
+      data: { updatedAt: now },
+    });
+  });
+
+  it("holds a photo whose original Rekognition refuses, for the display copy to come", async () => {
+    // A small JPEG: its original is sent while the display copy isn't written yet.
+    prisma.photo.findMany.mockResolvedValue([held("p-1", { sizeBytes: 1024 })] as never);
+    s3Service.getObjectBytes.mockImplementation((key: string) =>
+      Promise.resolve(key.startsWith("derived/") ? null : new Uint8Array([1])),
+    );
+    rekognition.detectModerationLabels.mockRejectedValue(
+      Object.assign(new Error("not a JPEG"), { name: "InvalidImageFormatException" }),
+    );
+
+    await expect(service.screenHeld(now)).resolves.toMatchObject({ skipped: 0, stillHeld: 1 });
+    expect(prisma.photo.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ screening: "SKIPPED" }) as unknown }),
+    );
   });
 
   it("publishes a photo unchecked once its hold has run out, and warns", async () => {
@@ -182,5 +203,35 @@ describe("PhotoScreeningService", () => {
       .mockResolvedValueOnce([]);
 
     await expect(service.screenHeld(now)).resolves.toMatchObject({ screened: 2, cleared: 1, stillHeld: 1 });
+  });
+
+  it("logs the verdicts it recorded even when a later photo's write fails, and keeps that one held", async () => {
+    prisma.photo.findMany.mockResolvedValue([held("p-1"), held("p-2"), held("p-3")] as never);
+    rekognition.detectModerationLabels.mockResolvedValue([
+      { name: "Explicit Nudity", parentName: "Explicit", confidence: 97 },
+    ]);
+    const boom = new Error("connection lost");
+    let writes = 0;
+    prisma.$transaction.mockImplementation(async (fn) => {
+      writes += 1;
+      if (writes === 2) throw boom;
+      return (fn as (tx: unknown) => Promise<unknown>)(prisma);
+    });
+
+    await expect(service.screenHeld(now)).resolves.toMatchObject({ screened: 3, flagged: 2, stillHeld: 1 });
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: boom, event: "photo.screening.record_failed", photoId: "p-2" }),
+      expect.any(String),
+    );
+    const flagged = logger.info.mock.calls
+      .map(([fields]) => fields as { event?: string; photoId?: string })
+      .filter((fields) => fields.event === "photo.screening.flagged")
+      .map((fields) => fields.photoId);
+    expect(flagged).toEqual(["p-1", "p-3"]);
+    expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["p-2"] }, screening: "PENDING" },
+      data: { updatedAt: now },
+    });
   });
 });

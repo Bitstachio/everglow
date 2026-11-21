@@ -920,7 +920,7 @@ describe("PhotosService", () => {
         );
       });
 
-      it("publishes an image Rekognition refuses as unreadable, instead of holding it", async () => {
+      it("publishes a photo whose display copy Rekognition refuses as unreadable, instead of holding it", async () => {
         rekognition.detectModerationLabels.mockRejectedValue(
           Object.assign(new Error("bad image"), { name: "InvalidImageFormatException" }),
         );
@@ -930,6 +930,23 @@ describe("PhotosService", () => {
         expect(screeningData()[0]).toMatchObject({ screening: "SKIPPED", screeningHeldUntil: null });
         expect(logger.warn).toHaveBeenCalledWith(
           expect.objectContaining({ event: "photo.screening.skipped", reason: "invalid_image" }),
+          expect.any(String),
+        );
+      });
+
+      it("holds a photo whose original Rekognition refuses: its display copy may still pass", async () => {
+        s3Service.getObjectBytes.mockImplementation((objectKey: string) =>
+          Promise.resolve(objectKey === displayCopy ? null : new Uint8Array([0xff, 0xd8])),
+        );
+        rekognition.detectModerationLabels.mockRejectedValue(
+          Object.assign(new Error("bad image"), { name: "InvalidImageFormatException" }),
+        );
+
+        await confirmOne();
+
+        expect(screeningData()[0]).toMatchObject({ screening: "PENDING" });
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "photo.screening.held", reason: "no_display_copy" }),
           expect.any(String),
         );
       });

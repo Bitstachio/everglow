@@ -26,7 +26,7 @@ export type ScreenablePhoto = Pick<Photo, "id" | "eventId" | "s3Key" | "contentT
 export type ScreeningSkipReason =
   /** HEIC or HEIF: no display copy yet, and Rekognition reads neither (EV-5). */
   | "unsupported_format"
-  /** Rekognition refused the image itself; trying again would fail the same way. */
+  /** Rekognition refused the display copy itself; trying again would fail the same way. */
   | "invalid_image"
   /** It stayed unscreenable for the whole hold. */
   | "hold_expired";
@@ -47,7 +47,7 @@ export interface FiledScreeningReport {
   report: Report | null;
 }
 
-// Rekognition errors that depend only on the image: trying again won't help.
+// Rekognition errors that depend only on the bytes sent: sending the same bytes again won't help.
 const PERMANENT_REKOGNITION_ERRORS = new Set([
   "InvalidImageFormatException",
   "ImageTooLargeException",
@@ -135,6 +135,7 @@ export class UploadScreeningService {
 
     const timeout = AbortSignal.timeout(this.timeoutMs());
     const signal = deadline ? AbortSignal.any([timeout, deadline]) : timeout;
+    let sentDisplayCopy = false;
     try {
       let bytes = hasDisplayCopy
         ? await untilAborted(
@@ -142,6 +143,7 @@ export class UploadScreeningService {
             signal,
           )
         : null;
+      sentDisplayCopy = bytes !== null;
       if (!bytes && originalIsReadable) {
         bytes = await untilAborted(this.s3Service.getObjectBytes(photo.s3Key, { abortSignal: signal }), signal);
       }
@@ -160,7 +162,15 @@ export class UploadScreeningService {
       return verdict ? { kind: "flagged", verdict } : { kind: "cleared" };
     } catch (error) {
       if (signal.aborted) return { kind: "retry", reason: "timeout" };
-      if (PERMANENT_REKOGNITION_ERRORS.has(errorType(error))) return { kind: "skipped", reason: "invalid_image" };
+      if (PERMANENT_REKOGNITION_ERRORS.has(errorType(error))) {
+        // The display copy would be refused the same way every time. An
+        // original may be refused for what it is (not the type it claims, an
+        // unusual encoding) while the display copy rendered from it passes, so
+        // that one is held until the display copy is there.
+        return sentDisplayCopy
+          ? { kind: "skipped", reason: "invalid_image" }
+          : { kind: "retry", reason: "no_display_copy" };
+      }
 
       // Only the error's type: SDK errors can echo request details.
       this.logger.warn(
