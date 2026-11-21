@@ -835,7 +835,7 @@ describe("adding photos (08)", () => {
 
   test("photos added offline wait in the tray and develop once the connection is back", async () => {
     const client = await renderScreen({ photos: oneFrame });
-    await screen.findByLabelText("Frame 1, by You");
+    await screen.findByLabelText("Photo 1, by You");
     await act(async () => mockConnectionListener?.({ isConnected: false }));
     const user = userEvent.setup();
 
@@ -868,7 +868,7 @@ describe("adding photos (08)", () => {
       status: { kind: "waiting" as const },
     }));
     await renderScreen({ photos: oneFrame });
-    await screen.findByLabelText("Frame 1, by You");
+    await screen.findByLabelText("Photo 1, by You");
     await act(async () => mockConnectionListener?.({ isConnected: false }));
     await act(async () => addToTray("event-2", queued, async () => undefined));
 
