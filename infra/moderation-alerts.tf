@@ -112,12 +112,14 @@ locals {
       pattern  = "{ $.event = \"report.hold.lapsed\" }"
     }
     # Upload screening (docs/moderation.md §11). A photo it could not check
-    # was published unchecked. HEIC and HEIF are skipped by design until the
-    # image processor renders them (unsupported_format), so they don't count.
+    # was published unchecked: Rekognition refused it (invalid_image) or its
+    # hold ran out (hold_expired). HEIC and HEIF are skipped by design until
+    # the image processor renders them (unsupported_format), so they don't
+    # count.
     photo_screening_skipped = {
       severity  = "ticket"
       event     = "photo.screening.skipped"
-      summary   = "Five or more photos in an hour were published without screening: Rekognition failed or timed out for 30 minutes, or no display copy appeared."
+      summary   = "Five or more photos in an hour were published without screening: Rekognition refused the image, it failed or timed out for 30 minutes, or no display copy appeared."
       pattern   = "{ ($.event = \"photo.screening.skipped\") && ($.reason != \"unsupported_format\") }"
       period    = 3600
       threshold = 5

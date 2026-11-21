@@ -76,7 +76,7 @@ is `true` in an environment. Before that, in this order:
 
    Use `default` instead of `rekognition` to opt out of every AI service.
    With the CLI: `aws organizations enable-policy-type --root-id <root> --policy-type AISERVICES_OPT_OUT_POLICY`,
-   `aws organizations create-policy --type AISERVICES_OPT_OUT_POLICY --name ai-opt-out --content file://policy.json`,
+   `aws organizations create-policy --type AISERVICES_OPT_OUT_POLICY --name ai-opt-out --description "Opt out of AI services content use" --content file://policy.json`,
    then `aws organizations attach-policy --policy-id <id> --target-id <root or account>`.
    Check it with `aws organizations describe-effective-policy --policy-type AISERVICES_OPT_OUT_POLICY --target-id <account>`.
    An account outside an organization has to join or create one first.
@@ -85,8 +85,11 @@ is `true` in an environment. Before that, in this order:
 3. **Apply** this folder, which gives the dev IAM user
    `rekognition:DetectModerationLabels` ([upload-screening.tf](upload-screening.tf)).
    Staging's task role gets it from `api/copilot/api/addons/rekognition-access.yml`
-   on its next `copilot svc deploy`. Neither needs a KMS change: the API sends
-   Rekognition the bytes, not a bucket key.
+   on its next `copilot svc deploy`. That deploy attaches a policy to a role
+   the photos bucket trusts, so it sends one control-change alert
+   (`AttachRolePolicy`, [photo-privacy.tf](photo-privacy.tf)); that one is
+   expected. Neither needs a KMS change: the API sends Rekognition the bytes,
+   not a bucket key.
 4. **Switch it on**: `MODERATION_SCREENING_ENABLED: "true"` in the
    environment's Copilot variables, deploy, then set
    `api_jobs_enabled.upload_screening = true` here and apply again, so the
