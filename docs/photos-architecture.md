@@ -152,6 +152,7 @@ On mobile, every small preview (the contact sheet, Home's strips, the viewer's s
 - The original loads at low priority, decoded at the frame's size, under `photo:{id}:original`: the key the viewer uses, so opening the frame doesn't download it again. The cost is the original's size once per photo per device (a few MB for a phone photo) instead of the 512 px WebP thumbnail, and only for photos with no thumbnail; a virtualized list loads only the frames near the screen.
 - Once a preview has fallen back it stays on the original for the session; a thumbnail written later is used from the next launch, so a frame never swaps images while it is on screen.
 - If the original fails too (tried four times), the frame stays empty and still opens the viewer, which has its own Try again.
+- A load that fails while the phone has no network isn't counted at all: it says nothing about whether the image exists. The frame keeps its placeholder and asks for the same image again once the network is back.
 
 Reported frames on the moderation screens keep the thumbnail only: they are blurred, and their original is fetched when the reviewer chooses to look. The viewer's own page keeps the thumbnail under the original it loads anyway.
 

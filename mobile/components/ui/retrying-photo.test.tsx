@@ -1,5 +1,8 @@
+import { onlineManager } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { RetryingPhoto } from "./retrying-photo";
+
+afterEach(() => onlineManager.setOnline(true));
 
 const fail = () => fireEvent(screen.getByTestId("preview"), "error", { nativeEvent: { error: "not ready" } });
 
@@ -203,5 +206,48 @@ describe("fallback", () => {
       await view.unmount();
       jest.useRealTimers();
     }
+  });
+});
+
+describe("without a network", () => {
+  const original = { uri: "https://bucket/original.jpg", cacheKey: "photo:20:original" };
+
+  test("a failed load isn't counted: the same image is asked for again once the network is back", async () => {
+    const view = await render(
+      <RetryingPhoto
+        testID="preview"
+        uri="https://bucket/thumb.webp"
+        cacheKey="photo:20:thumbnail"
+        fallback={original}
+        mayBeLate={false}
+      />,
+    );
+    await act(async () => onlineManager.setOnline(false));
+    await fail();
+    // The parent's placeholder shows meanwhile, and the full photo is not asked for.
+    expect(screen.queryByTestId("preview")).not.toBeOnTheScreen();
+
+    await act(async () => onlineManager.setOnline(true));
+
+    expect(screen.getByTestId("preview").props.source).toEqual([
+      { uri: "https://bucket/thumb.webp", cacheKey: "photo:20:thumbnail" },
+    ]);
+    // Online again, a failure counts as before: an older photo goes to the original.
+    await fail();
+    expect(screen.getByTestId("preview").props.source).toEqual([original]);
+    await view.unmount();
+  });
+
+  test("a frame that remounts while offline asks again, since nothing was learned about its image", async () => {
+    const photo = <RetryingPhoto testID="preview" uri="https://bucket/thumb.webp" cacheKey="photo:21:thumbnail" />;
+    let view = await render(photo);
+    await act(async () => onlineManager.setOnline(false));
+    await fail();
+    await view.unmount();
+
+    view = await render(photo);
+
+    expect(screen.getByTestId("preview")).toBeOnTheScreen();
+    await view.unmount();
   });
 });

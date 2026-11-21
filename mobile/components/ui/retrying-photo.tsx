@@ -1,3 +1,4 @@
+import { onlineManager } from "@tanstack/react-query";
 import { useEffect, useState, type ComponentProps } from "react";
 import { Photo } from "./photo";
 
@@ -49,6 +50,7 @@ type RemotePhotoProps = Omit<RetryingPhotoProps, "uri" | "mayBeLate"> & {
 const RemotePhoto = ({ uri, cacheKey, retryKey, mayBeLate, fallback, ...props }: RemotePhotoProps) => {
   const [failures, setFailures] = useState(() => failedLoads.get(retryKey) ?? 0);
   const [waiting, setWaiting] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     if (!waiting) return;
@@ -56,7 +58,24 @@ const RemotePhoto = ({ uri, cacheKey, retryKey, mayBeLate, fallback, ...props }:
     return () => clearTimeout(timer);
   }, [waiting, failures]);
 
+  // Asked for again once the phone has a network.
+  useEffect(() => {
+    if (!offline) return;
+    const retry = () => {
+      if (onlineManager.isOnline()) setOffline(false);
+    };
+    retry();
+    return onlineManager.subscribe(retry);
+  }, [offline]);
+
   const onError = () => {
+    // Without a network a failed load says nothing about the image: it isn't
+    // counted, so the frame neither gives up for the session nor goes on to
+    // download the full photo once the network is back.
+    if (!onlineManager.isOnline()) {
+      setOffline(true);
+      return;
+    }
     // An image that can't be late isn't coming by waiting for it.
     const next = mayBeLate ? failures + 1 : GAVE_UP;
     failedLoads.set(retryKey, next);
@@ -68,7 +87,7 @@ const RemotePhoto = ({ uri, cacheKey, retryKey, mayBeLate, fallback, ...props }:
     // The fallback is the full photo: let thumbnails that exist load first.
     return fallback ? <RetryingPhoto {...props} {...fallback} priority="low" /> : null;
   }
-  if (waiting) return null;
+  if (waiting || offline) return null;
   return <Photo {...props} key={failures} source={{ uri, cacheKey }} recyclingKey={retryKey} onError={onError} />;
 };
 
