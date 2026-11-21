@@ -228,6 +228,8 @@ test("the decision shows hosts what people wrote, never an automated report's re
 
   expect(await screen.findByText(/Not from this party/)).toBeOnTheScreen();
   expect(screen.queryByText(/Upload screening/)).not.toBeOnTheScreen();
+  // Keep settles the person's report only: the automated one still hides the photo.
+  expect(screen.getByText(/also flagged automatically. It stays hidden until Everglow decides/)).toBeOnTheScreen();
 });
 
 test("10.8 a host-only list that fails to load says why, and tries again", async () => {

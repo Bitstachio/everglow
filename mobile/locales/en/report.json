@@ -153,6 +153,7 @@
     "keepPerson": "Keep them, it’s fine",
     "keepSeverePhoto": "Keep hands this to Everglow’s safety team. The photo stays hidden until they decide.",
     "keepSeverePerson": "Keep hands this to Everglow’s safety team to decide.",
+    "keepAutomatedPhoto": "This photo was also flagged automatically. It stays hidden until Everglow decides.",
     "failed": "Didn’t go through. Try again.",
     "gone": "Already handled."
   },

@@ -117,6 +117,9 @@ export const useReportCheckScreen = () => {
   // Keep closes ordinary reports, but the API hands severe ones to Everglow
   // instead (docs/moderation.md §3), so say so before the host taps it.
   const keepGoesToEverglow = (group?.decidable ?? []).some((report) => SEVERE_REASONS.includes(report.reason));
+  // An automated report stays with Everglow whatever the host decides, and
+  // keeps the photo hidden until then (§5), so Keep alone won't show it again.
+  const keepLeavesItFlagged = kind === "frame" && !!group?.automated;
 
   // A host can't be removed by another host's report decision, nor can you remove yourself.
   const canRemovePerson = !!subject && subject.accessLevel !== "ORGANIZER" && subject.userId !== user?.id;
@@ -136,9 +139,10 @@ export const useReportCheckScreen = () => {
       ? t("decide.reasonValue", { reason: t(`reasonLong.${group.reason}`), count: group.reasonCount })
       : "",
     addedByValue: addedAt ? t("decide.addedByValue", { name, time: addedAt }) : name,
-    // A person's words only: an automated report's note is the check's own readout, for Everglow.
+    // A person's words only: an automated report's note is the check's own
+    // readout, for Everglow. The API withholds it; this keeps it out either way.
     notes: (group?.reports ?? [])
-      .filter((report) => report.source === "USER")
+      .filter((report) => report.source !== "AUTOMATED")
       .map((report) => report.note)
       .filter((note): note is string => !!note),
     removePersonLabel: t("decide.removePerson", { name: firstName }),
@@ -151,7 +155,9 @@ export const useReportCheckScreen = () => {
       ? kind === "frame"
         ? t("decide.keepSeverePhoto")
         : t("decide.keepSeverePerson")
-      : null,
+      : keepLeavesItFlagged
+        ? t("decide.keepAutomatedPhoto")
+        : null,
     confirming,
     onReveal: () => setRevealed(true),
     onRemoveFrame: () => setConfirming("frame"),
