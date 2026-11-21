@@ -13,6 +13,8 @@ import i18n from "@/i18n/instance";
 export const NOTIFICATION_CHANNELS = [
   // Account notices, and TEST.
   { id: "account", name: "notes.channels.account", importance: Notifications.AndroidImportance.HIGH },
+  // A roll's gallery just opened.
+  { id: "roll_opens", name: "notes.channels.roll_opens", importance: Notifications.AndroidImportance.HIGH },
 ] as const;
 
 export type NotificationChannelId = (typeof NOTIFICATION_CHANNELS)[number]["id"];

@@ -665,6 +665,8 @@ enum NotificationType {
   // Internal: checks the whole path from the API to a phone
   // (pnpm run notifications:send-test).
   TEST
+  // Members who were on the roll before galleryOpensAt. EV-141.
+  GALLERY_OPENED
 }
 
 enum NotificationStatus {

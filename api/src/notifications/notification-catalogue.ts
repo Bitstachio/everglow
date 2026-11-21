@@ -32,7 +32,7 @@ export const resolveNotificationLocale = (tag: string | null | undefined): Notif
  * creates the same ids (mobile/features/notifications/lib/push.ts); a new id
  * goes in both lists (docs/notifications.md §3).
  */
-export const NOTIFICATION_CHANNELS = ["account"] as const;
+export const NOTIFICATION_CHANNELS = ["account", "roll_opens"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /**
@@ -41,6 +41,7 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
  */
 export type NotificationDataByType = {
   TEST: { nonce: string };
+  GALLERY_OPENED: { eventId: string };
 };
 
 export interface NotificationDefinition<TData> {
@@ -89,6 +90,13 @@ const TEST_COPY: Record<NotificationLocale, RenderedNotification> = {
   },
 };
 
+const GALLERY_OPENED_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
+  en: {
+    title: "A roll is open",
+    body: "Take the first shot.",
+  },
+};
+
 /**
  * Every notification type, in one place, like the API's error codes. Adding a
  * type: add it to the NotificationType enum (with a migration), to
@@ -102,6 +110,18 @@ export const NOTIFICATION_CATALOGUE: Catalogue = {
     isData: (data): data is NotificationDataByType["TEST"] => hasStringFields(data, "nonce"),
     dedupeKey: (userId, { nonce }) => `test:${nonce}:${userId}`,
     render: (_data, locale) => TEST_COPY[locale],
+  },
+  GALLERY_OPENED: {
+    required: false,
+    channel: "roll_opens",
+    // Stale once the opening moment has passed; keep trying for a day.
+    ttlSeconds: 24 * 60 * 60,
+    isData: (data): data is NotificationDataByType["GALLERY_OPENED"] => hasStringFields(data, "eventId"),
+    dedupeKey: (userId, { eventId }) => `gallery_opened:${eventId}:${userId}`,
+    render: ({ eventId }, locale) => ({
+      ...GALLERY_OPENED_COPY[locale],
+      url: `/events/${eventId}`,
+    }),
   },
 };
 
