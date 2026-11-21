@@ -18,7 +18,8 @@ import { eventForPhotoVisibilityInclude } from "src/moderation/moderation.types"
 import { PhotoVisibilityService } from "src/moderation/photo-visibility.service";
 
 const url = process.env.DB_TEST_DATABASE_URL;
-const SUB_PREFIX = "dbtest-screening|";
+// Under "dbtest|", so the notifications suite's empty-database guard and cleanup cover leftovers of a killed run.
+const SUB_PREFIX = "dbtest|screening|";
 const describeDb = url ? describe : describe.skip;
 
 describeDb("upload screening against Postgres", () => {
