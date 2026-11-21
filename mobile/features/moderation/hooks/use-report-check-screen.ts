@@ -136,7 +136,11 @@ export const useReportCheckScreen = () => {
       ? t("decide.reasonValue", { reason: t(`reasonLong.${group.reason}`), count: group.reasonCount })
       : "",
     addedByValue: addedAt ? t("decide.addedByValue", { name, time: addedAt }) : name,
-    notes: (group?.reports ?? []).map((report) => report.note).filter((note): note is string => !!note),
+    // A person's words only: an automated report's note is the check's own readout, for Everglow.
+    notes: (group?.reports ?? [])
+      .filter((report) => report.source === "USER")
+      .map((report) => report.note)
+      .filter((note): note is string => !!note),
     removePersonLabel: t("decide.removePerson", { name: firstName }),
     /** Only a frame still on the roll can be removed. */
     canRemoveFrame: !!photo,

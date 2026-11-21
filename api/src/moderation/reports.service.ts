@@ -10,7 +10,6 @@ import {
   Report,
   ReportActorRole,
   ReportEscalation,
-  ReportHoldReason,
   ReportQueue,
   ReportReason,
   ReportStatus,
@@ -39,7 +38,6 @@ import {
   RESOLUTION_CLOSED_REASON,
   RESOLUTION_STATUS,
   ReportResolutionAction,
-  CHILD_SAFETY_HOLD_DAYS,
   PLATFORM_ONLY_REPORT_REASONS,
   REPORT_DISMISSAL_COOLDOWN_DAYS,
   SEVERE_REPORT_REASONS,
@@ -50,13 +48,20 @@ import {
 } from "./moderation.constants";
 import { eventForPhotoVisibilityInclude } from "./moderation.types";
 import { PhotoVisibilityService } from "./photo-visibility.service";
-import { ageInDays, alertRemovalDeadlines, remindLongOpenReports, removalDueAtFor } from "./report-deadlines";
+import {
+  ageInDays,
+  alertRemovalDeadlines,
+  initialHoldFor,
+  remindLongOpenReports,
+  removalDueAtFor,
+} from "./report-deadlines";
 import {
   PLATFORM_ESCALATIONS,
   escalateToPlatform,
   escalationAlertFields,
   escalationLogName,
   logEscalations,
+  reasonEscalations,
 } from "./report-escalation";
 import { REPORT_ACTIONS, REPORT_SUBJECT } from "./reports.abilities";
 import { liftReviewWhenEventReportsSettled } from "./review-lift";
@@ -908,14 +913,10 @@ export class ReportsService {
             queue: toPlatform ? ReportQueue.PLATFORM : ReportQueue.ORGANIZERS,
             escalatedAt: toPlatform ? new Date() : null,
             escalationReasons: routing,
-            // A child-safety report is held from the start, so its evidence
-            // outlives any delete until the platform has decided (§7).
-            // An intimate image must be removed within 48 hours (§7).
+            // An intimate image must be removed within 48 hours, and a
+            // child-safety report is held from the start (§7).
             removalDueAt: removalDueAtFor(dto.reason, new Date()),
-            ...(dto.reason === ReportReason.CHILD_SAFETY && {
-              holdUntil: new Date(Date.now() + CHILD_SAFETY_HOLD_DAYS * 24 * 60 * 60 * 1000),
-              holdReason: ReportHoldReason.CHILD_SAFETY,
-            }),
+            ...initialHoldFor(dto.reason, new Date()),
           },
         ],
         skipDuplicates: true,
@@ -977,11 +978,8 @@ export class ReportsService {
     eventId: string,
     context: EscalationContext,
   ): Promise<ReportEscalation[]> {
-    const reasons: ReportEscalation[] = [];
+    const reasons = reasonEscalations(reason);
 
-    if (SEVERE_REPORT_REASONS.includes(reason)) reasons.push(ReportEscalation.SEVERE_REASON);
-    if (reason === ReportReason.CHILD_SAFETY) reasons.push(ReportEscalation.CHILD_SAFETY);
-    if (reason === ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE) reasons.push(ReportEscalation.INTIMATE_IMAGE);
     if (context.targetIsEvent) reasons.push(ReportEscalation.TARGET_IS_EVENT);
     if (context.reportedAccessLevel === AccessLevel.ORGANIZER) {
       reasons.push(ReportEscalation.TARGET_IS_ORGANIZER);

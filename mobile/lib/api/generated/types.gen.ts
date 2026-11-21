@@ -294,6 +294,11 @@ export type CreateReportDto = {
 };
 
 /**
+ * USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.
+ */
+export type ReportSource = "USER" | "AUTOMATED";
+
+/**
  * Who handles the report: ORGANIZERS, or PLATFORM once it is about an organizer, the gallery has closed, organizers left it for 24 hours, or an organizer dismissed a severe report. Organizers can't close PLATFORM reports (403 REPORT_ESCALATED).
  */
 export type ReportQueue = "ORGANIZERS" | "PLATFORM";
@@ -327,6 +332,10 @@ export type ReportResponseDto = {
    * The event's title when the report was filed.
    */
   eventTitle: string;
+  /**
+   * USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.
+   */
+  source: ReportSource;
   targetType: ReportTargetType;
   /**
    * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
@@ -706,7 +715,8 @@ export type ReportEscalation =
   | "SEVERE_DISMISSED"
   | "TARGET_DELETED"
   | "CHILD_SAFETY"
-  | "INTIMATE_IMAGE";
+  | "INTIMATE_IMAGE"
+  | "AUTOMATED_FLAG";
 
 export type ReportHoldReason = "CHILD_SAFETY" | "INTIMATE_IMAGE" | "LAW_ENFORCEMENT" | "LEGAL";
 
@@ -741,6 +751,10 @@ export type PlatformReportListItemDto = {
    * The event's title when the report was filed.
    */
   eventTitle: string;
+  /**
+   * USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.
+   */
+  source: ReportSource;
   targetType: ReportTargetType;
   /**
    * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
@@ -775,7 +789,7 @@ export type PlatformReportListItemDto = {
   resolvedAt: string | null;
   createdAt: string;
   /**
-   * Null once that account is deleted.
+   * Null once that account is deleted, and always for an AUTOMATED report.
    */
   reporterId: string | null;
   escalationReasons: Array<ReportEscalation>;
@@ -817,6 +831,10 @@ export type PlatformReportResponseDto = {
    * The event's title when the report was filed.
    */
   eventTitle: string;
+  /**
+   * USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.
+   */
+  source: ReportSource;
   targetType: ReportTargetType;
   /**
    * The reported photo. Null for MEMBER reports, and once the photo has been deleted.
@@ -851,7 +869,7 @@ export type PlatformReportResponseDto = {
   resolvedAt: string | null;
   createdAt: string;
   /**
-   * Null once that account is deleted.
+   * Null once that account is deleted, and always for an AUTOMATED report.
    */
   reporterId: string | null;
   escalationReasons: Array<ReportEscalation>;

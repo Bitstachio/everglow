@@ -137,6 +137,7 @@ describe("ReportsService", () => {
     eventId,
     eventTitle: event.title,
     reporterId: callerId,
+    source: "USER",
     targetType: ReportTargetType.PHOTO,
     photoId,
     reportedUserId: uploaderId,
