@@ -42,9 +42,9 @@ export const DERIVATIVE_CONTENT_TYPES: readonly string[] = ["image/jpeg", "image
  *
  * Left out on purpose, because they are ordinary at a party: swimwear and
  * underwear, non-explicit nudity and kissing, weapons on their own,
- * explosions and blasts (fireworks), alcohol, drugs and tobacco, rude
- * gestures, gambling. Rekognition doesn't detect child sexual abuse
- * material, so nothing maps to CHILD_SAFETY.
+ * explosions and blasts (fireworks: SCREENING_IGNORED_LABELS), alcohol, drugs
+ * and tobacco, rude gestures, gambling. Rekognition doesn't detect child
+ * sexual abuse material, so nothing maps to CHILD_SAFETY.
  */
 export const SCREENING_CATEGORIES: readonly { reason: ReportReason; labels: readonly string[] }[] = [
   {
@@ -69,6 +69,14 @@ export const SCREENING_CATEGORIES: readonly { reason: ReportReason; labels: read
   { reason: ReportReason.HARASSMENT, labels: ["Hate Symbols", "Nazi Party", "White Supremacy", "Extremist"] },
 ];
 
+/**
+ * Labels that never file a report, although their parent is listed. In
+ * taxonomy v7 "Explosions and Blasts" sits under "Graphic Violence", and
+ * Rekognition returns that parent with it, so fireworks would otherwise be
+ * filed as violence.
+ */
+export const SCREENING_IGNORED_LABELS: readonly string[] = ["Explosions and Blasts"];
+
 /** What screening concluded about a flagged photo: the reason to file, and the labels that made it. */
 export interface ScreeningVerdict {
   reason: ReportReason;
@@ -77,8 +85,18 @@ export interface ScreeningVerdict {
 
 /** The verdict on a photo's labels, or null when none of them files a report. */
 export const classifyModerationLabels = (labels: readonly ModerationLabel[]): ScreeningVerdict | null => {
+  const ignored = (label: ModerationLabel): boolean => SCREENING_IGNORED_LABELS.includes(label.name);
+  // A parent comes back with each child found under it. One that is there
+  // only for ignored children is ignored too; one with no child in the
+  // answer still counts.
+  const onlyForIgnored = (label: ModerationLabel): boolean => {
+    const children = labels.filter((child) => child.parentName === label.name);
+    return children.length > 0 && children.every(ignored);
+  };
+  const counted = labels.filter((label) => !ignored(label) && !onlyForIgnored(label));
+
   for (const category of SCREENING_CATEGORIES) {
-    const matching = labels.filter(
+    const matching = counted.filter(
       (label) => category.labels.includes(label.name) || category.labels.includes(label.parentName),
     );
     if (matching.length > 0) return { reason: category.reason, labels: matching };

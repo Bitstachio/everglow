@@ -22,12 +22,43 @@ describe("upload screening labels", () => {
     ["Swimwear or Underwear", ""],
     ["Kissing on the Lips", "Non-Explicit Nudity of Intimate parts and Kissing"],
     ["Weapons", "Violence"],
-    ["Explosions and Blasts", "Violence"],
+    ["Explosions and Blasts", "Graphic Violence"],
     ["Alcoholic Beverages", "Alcohol"],
     ["Middle Finger", "Rude Gestures"],
     ["Smoking", "Drugs & Tobacco"],
   ])("files nothing for %s, which is ordinary at a party", (name, parentName) => {
     expect(classifyModerationLabels([label(name, parentName)])).toBeNull();
+  });
+
+  it("files nothing for fireworks, which come back with their Graphic Violence parent", () => {
+    const fireworks = [
+      label("Violence"),
+      label("Graphic Violence", "Violence"),
+      label("Explosions and Blasts", "Graphic Violence"),
+    ];
+
+    expect(classifyModerationLabels(fireworks)).toBeNull();
+  });
+
+  it("still files graphic violence found next to an explosion, without the explosion", () => {
+    const labels = [
+      label("Violence"),
+      label("Graphic Violence", "Violence"),
+      label("Explosions and Blasts", "Graphic Violence"),
+      label("Blood & Gore", "Graphic Violence"),
+    ];
+
+    expect(classifyModerationLabels(labels)).toEqual({
+      reason: "VIOLENCE",
+      labels: [label("Graphic Violence", "Violence"), label("Blood & Gore", "Graphic Violence")],
+    });
+  });
+
+  it("files a listed parent that comes back with no child", () => {
+    expect(classifyModerationLabels([label("Violence"), label("Graphic Violence", "Violence")])).toEqual({
+      reason: "VIOLENCE",
+      labels: [label("Graphic Violence", "Violence")],
+    });
   });
 
   it("lets nudity outrank violence, and keeps only the labels that made the verdict", () => {
