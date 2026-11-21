@@ -4083,7 +4083,8 @@
           "note": {
             "type": "string",
             "nullable": true,
-            "maxLength": 500
+            "maxLength": 500,
+            "description": "What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null."
           },
           "status": {
             "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",
@@ -4982,7 +4983,8 @@
           "note": {
             "type": "string",
             "nullable": true,
-            "maxLength": 500
+            "maxLength": 500,
+            "description": "What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null."
           },
           "status": {
             "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",
@@ -5187,7 +5189,8 @@
           "note": {
             "type": "string",
             "nullable": true,
-            "maxLength": 500
+            "maxLength": 500,
+            "description": "What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null."
           },
           "status": {
             "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",

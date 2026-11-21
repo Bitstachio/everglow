@@ -346,6 +346,9 @@ export type ReportResponseDto = {
    */
   reportedUserId: string | null;
   reason: ReportReason;
+  /**
+   * What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null.
+   */
   note: string | null;
   /**
    * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
@@ -765,6 +768,9 @@ export type PlatformReportListItemDto = {
    */
   reportedUserId: string | null;
   reason: ReportReason;
+  /**
+   * What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null.
+   */
   note: string | null;
   /**
    * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
@@ -845,6 +851,9 @@ export type PlatformReportResponseDto = {
    */
   reportedUserId: string | null;
   reason: ReportReason;
+  /**
+   * What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null.
+   */
   note: string | null;
   /**
    * ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.
