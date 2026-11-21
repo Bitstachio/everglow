@@ -18,7 +18,8 @@ import { buildPhotoS3Key } from "src/photos/photos.constants";
 import { PhotosService } from "src/photos/photos.service";
 
 const url = process.env.DB_TEST_DATABASE_URL;
-const SUB_PREFIX = "dbtest-copies|";
+// Under "dbtest|", so the notifications suite's empty-database guard and cleanup cover leftovers of a killed run.
+const SUB_PREFIX = "dbtest|copies|";
 
 if (!url) {
   console.warn("Skipped the photo copies suite: set DB_TEST_DATABASE_URL to a migrated Postgres database to run it.");
@@ -80,7 +81,8 @@ describeDb("photo copies against Postgres", () => {
   const a = newClient();
   const b = newClient();
   const sameBytes = "c0".repeat(32);
-  let eventId: string;
+  // Set before anything is created, so a failed setup can never leave the cleanup without a filter.
+  const eventId = randomUUID();
   let userId: string;
   let otherUserId: string;
 
@@ -120,7 +122,6 @@ describeDb("photo copies against Postgres", () => {
 
   beforeAll(async () => {
     const plan = await a.plan.findFirstOrThrow({ where: { code: "FREE" }, orderBy: { version: "desc" } });
-    eventId = randomUUID();
     await a.event.create({
       data: {
         id: eventId,
@@ -197,6 +198,47 @@ describeDb("photo copies against Postgres", () => {
       { photoId, status: "READY" },
     ]);
     expect(await rows([photoId])).toEqual([{ id: photoId, status: "READY", sha256: sameBytes }]);
+    expect(s3.deleteObjects).not.toHaveBeenCalled();
+  });
+
+  it("never deletes the file of a photo a concurrent confirm made READY without a hash", async () => {
+    // An older photo with these bytes is on the roll already.
+    const older = await pendingPhoto(userId);
+    await serviceOn(
+      a,
+      fakeS3(() => sameBytes),
+    ).confirmUploads(eventId, userId, [older]);
+    const photoId = await pendingPhoto(userId);
+    // One confirm can't hash the photo, the other can, and both run at once.
+    const unhashed = fakeS3(() => sameBytes);
+    unhashed.sha256OfObject.mockRejectedValue(new Error("timeout"));
+    const hashed = fakeS3(() => sameBytes, 150);
+
+    await Promise.all([
+      serviceOn(a, unhashed).confirmUploads(eventId, userId, [photoId]),
+      serviceOn(b, hashed).confirmUploads(eventId, userId, [photoId]),
+    ]);
+
+    // Whichever wrote first, a row that is still there kept its object.
+    const [row] = await rows([photoId]);
+    const deleted = [...unhashed.deleteObjects.mock.calls, ...hashed.deleteObjects.mock.calls].map(([keys]) => keys[0]);
+    if (row) expect(deleted).not.toContain(buildPhotoS3Key(eventId, photoId));
+    else expect(deleted).toContain(buildPhotoS3Key(eventId, photoId));
+  });
+
+  it("keeps the second of two identical files when the first one's slot was cancelled while they were verified", async () => {
+    const [first, second] = [await pendingPhoto(userId), await pendingPhoto(userId)];
+    const s3 = fakeS3(() => sameBytes, 150);
+
+    const confirming = serviceOn(a, s3).confirmUploads(eventId, userId, [first, second]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await b.photo.delete({ where: { id: first } });
+
+    expect(await confirming).toEqual([
+      { photoId: first, status: "NOT_FOUND" },
+      { photoId: second, status: "READY" },
+    ]);
+    expect(await rows([first, second])).toEqual([{ id: second, status: "READY", sha256: sameBytes }]);
     expect(s3.deleteObjects).not.toHaveBeenCalled();
   });
 
