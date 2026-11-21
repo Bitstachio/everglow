@@ -111,6 +111,18 @@ locals {
       summary  = "A legal hold on a report passed. Extend it or let retention delete the evidence."
       pattern  = "{ $.event = \"report.hold.lapsed\" }"
     }
+    # Upload screening (docs/moderation.md §11). A photo it could not check
+    # was published unchecked. HEIC and HEIF are skipped by design until the
+    # image processor renders them (unsupported_format), so they don't count.
+    photo_screening_skipped = {
+      severity  = "ticket"
+      event     = "photo.screening.skipped"
+      summary   = "Five or more photos in an hour were published without screening: Rekognition failed or timed out for 30 minutes, or no display copy appeared."
+      pattern   = "{ ($.event = \"photo.screening.skipped\") && ($.reason != \"unsupported_format\") }"
+      period    = 3600
+      threshold = 5
+      enabled   = var.api_jobs_enabled.upload_screening
+    }
 
     # --- Account deletion and Sign in with Apple ----------------------------
 
@@ -345,6 +357,16 @@ locals {
       enabled        = var.api_jobs_enabled.photo_hash_backfill
       disabled_event = "photo.hash_backfill.disabled"
     }
+    # Screens photos held at upload confirm. While it is down, held photos
+    # wait out their 30-minute hold and are published unchecked.
+    photo_screening = {
+      event_prefix   = "photo.screening"
+      name           = "upload screening job"
+      interval       = 60
+      severity       = "ticket"
+      enabled        = var.api_jobs_enabled.upload_screening
+      disabled_event = "photo.screening.disabled"
+    }
     # The send and receipts jobs share NOTIFICATIONS_SENDER_ENABLED; the
     # disabled line is logged once, so only the send job alarms on it.
     notification_send = {
@@ -385,8 +407,9 @@ locals {
     }
   }
 
-  # No run_completed for two intervals (2 min for the notification sender,
-  # 30 min for receipts, 2 h hourly, 48 h daily), where the job is on.
+  # No run_completed for two intervals (2 min for the notification sender and
+  # upload screening, 30 min for receipts, 2 h hourly, 48 h daily), where the
+  # job is on.
   api_job_heartbeat_alerts = {
     for key, job in local.api_jobs : "${key}_heartbeat" => {
       severity            = job.severity
