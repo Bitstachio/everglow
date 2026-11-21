@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/cn";
 import { useActiveSection } from "@/components/ui/site-nav/use-active-section";
+import { useNavStuck } from "@/components/ui/site-nav/use-nav-stuck";
 import { useScrollActiveChip } from "@/components/ui/site-nav/use-scroll-active-chip";
 import { useTranslations } from "next-intl";
 import { useRef } from "react";
@@ -24,19 +25,33 @@ const ITEMS: NavItem[] = [
 export const SiteNav = () => {
   const t = useTranslations("common.nav");
   const { activeId, selectSection } = useActiveSection(SECTION_IDS);
+  const navRef = useRef<HTMLElement>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
+  const stuck = useNavStuck(navRef);
   useScrollActiveChip(activeId, chipsRef);
 
   return (
     <nav
+      ref={navRef}
       data-site-nav
       aria-label={t("ariaLabel")}
       className="border-border-muted bg-background sticky top-0 z-40 shrink-0 border-b"
     >
-      <div className="mx-auto flex max-w-[1240px] items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto flex max-w-[1240px] items-center px-4 py-3 sm:px-6 lg:px-8",
+          stuck ? "gap-2 sm:gap-3" : "gap-0",
+        )}
+      >
         <a
           href="#home"
-          className="font-display text-strong shrink-0 text-[15px] leading-none font-semibold tracking-[-0.02em] no-underline"
+          tabIndex={stuck ? undefined : -1}
+          aria-hidden={!stuck}
+          className={cn(
+            "font-display text-strong shrink-0 text-[15px] leading-none font-semibold tracking-[-0.02em] no-underline",
+            "overflow-hidden transition-[max-width,opacity,margin] duration-[800ms] ease-out",
+            stuck ? "max-w-[8rem] opacity-100" : "pointer-events-none max-w-0 opacity-0",
+          )}
         >
           {t("brand")}
         </a>
