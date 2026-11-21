@@ -587,10 +587,10 @@ Google Play also expects a public child-safety standards page and a named child-
 
 - **The report.** An automated `CHILD_SAFETY` report (`source: AUTOMATED`, no reporter, §1) on the uploader as a **member** of the event they tried to post to. The refused photo has no row left to point at.
 - **Routing.** It goes into `PLATFORM` (`automated_flag`, `child_safety`), held a year from filing, and pages through `report.escalated` like any child-safety report (§9). Its note names the matched report, for the reviewer.
-- **Evidence.** The snapshot holds the uploader, their username, and the refused bytes' SHA-256, type and size. **The refused bytes are not kept:** they are identical to the matched report's evidence copy, which is already held, and that copy is what a CyberTipline report points at. The upload is deleted as any refused upload is.
-- **One report at a time.** While the uploader has an OPEN attempt report in that event, a repeat files nothing new (`report.removed_image_reupload.repeated`, audit only), so a retrying client doesn't page again and again.
-- **Failures.** If the report can't be written, the refusal still stands, and `report.removed_image_reupload.report_failed` is logged as an error.
-- Organizers never see it (§2). Nothing tells the uploader (step 4).
+- **Evidence.** The snapshot holds the uploader, their username, and the refused bytes' SHA-256, type and size. **The refused bytes are not kept:** they are identical to the matched report's evidence copy, and that copy is what a CyberTipline report points at. Filing the attempt report holds every matched child-safety report at least as long as it is held itself (a hold already there keeps its reason and is only lengthened), so the image can't be purged from under it. The upload is deleted as any refused upload is. The match is by hash, so bytes that were also removed as an intimate image are still reported.
+- **One report at a time.** While the uploader has an OPEN attempt report in that event, a repeat files nothing new (`report.removed_image_reupload.repeated`, audit only, with the reports it matched), so a retrying client doesn't page again and again. The check and the filing run under one lock per uploader and event, so two refusals at the same moment file one report.
+- **Failures.** If the report can't be written, the refusal still stands, and `report.removed_image_reupload.report_failed` is logged as an error with the uploader and the refused hashes: the upload and its row are gone by then, so that line is the only record.
+- Organizers never see it (§2). Nothing tells the uploader (step 4). Like any OPEN report in the event, it keeps the event from being deleted until the platform has decided.
 
 ### Intimate images: the TAKE IT DOWN Act
 

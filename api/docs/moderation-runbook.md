@@ -66,7 +66,7 @@ A `CHILD_SAFETY` report is hidden from everyone, organizers included, and held f
    6. Tell nobody involved why. Nothing the person sees may prejudice an investigation.
 3. **If it isn't:** `DISMISS` it. If it is still objectionable, use the ordinary verdicts instead.
 
-**A re-upload attempt** is an automated `CHILD_SAFETY` member report with no photo. Its note names the removed image's report. The upload was already refused, and its bytes are the same as that report's evidence copy, so don't look at the image again: the earlier verdict judged it. Report the uploader (steps 2.1 to 2.3, citing the earlier report) and suspend the account (step 2.5). The suspension closes the attempt report as `ACCOUNT_SUSPENDED`. If the match was wrong, `DISMISS` the report instead.
+**A re-upload attempt** is an automated `CHILD_SAFETY` member report with no photo. Its note names the removed image's report. The upload was already refused, and its bytes are the same as that report's evidence copy, so don't look at the image again: the earlier verdict judged it. Report the uploader (steps 2.1 to 2.3, citing the earlier report) and suspend the account (step 2.5). The suspension closes the attempt report as `ACCOUNT_SUSPENDED`. If the match was wrong, `DISMISS` the report instead. A verdict on a member report settles every OPEN member report about that person in that event, so check the queue for others about them first: dismissing one of those closes the attempt report too.
 
 ## Intimate image shared without consent (`intimate_image`): pages, 48 hours
 

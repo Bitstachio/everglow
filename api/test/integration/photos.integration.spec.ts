@@ -452,13 +452,23 @@ describe("PhotosController (integration)", () => {
     describe("a refused re-upload of a removed child-safety image", () => {
       const ATTEMPT_REPORT_ID = "eeeeeeee-2222-4222-8333-eeeeeeeeeeee";
 
+      /** Serves both evidence lookups: the refusal's, and the attempt report's, which asks for child safety only. */
+      const removedAs = (reason: "CHILD_SAFETY" | "NON_CONSENSUAL_INTIMATE_IMAGE") =>
+        prisma.reportEvidence.findMany.mockImplementation(((args: { where: { report: { AND: object[] } } }) => {
+          const childSafetyOnly = args.where.report.AND.some(
+            (clause) => (clause as { reason?: string }).reason === "CHILD_SAFETY",
+          );
+          return Promise.resolve(
+            childSafetyOnly && reason !== "CHILD_SAFETY" ? [] : [{ sha256, reportId: TEST_REPORT_ID }],
+          );
+        }) as never);
+
       beforeEach(() => {
         prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
         prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
         prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
         // The bytes match a kept report, and that report is a child-safety one.
-        prisma.reportEvidence.findMany.mockResolvedValue([{ sha256, reportId: TEST_REPORT_ID }] as never);
-        prisma.report.findMany.mockResolvedValue([{ id: TEST_REPORT_ID }] as never);
+        removedAs("CHILD_SAFETY");
         prisma.report.findFirst.mockResolvedValue(null);
         prisma.report.createManyAndReturn.mockImplementation(((args: { data: Record<string, unknown>[] }) =>
           Promise.resolve([{ ...args.data[0], id: ATTEMPT_REPORT_ID }])) as never);
@@ -516,7 +526,7 @@ describe("PhotosController (integration)", () => {
       });
 
       it("files nothing for an intimate image's match", async () => {
-        prisma.report.findMany.mockResolvedValue([]);
+        removedAs("NON_CONSENSUAL_INTIMATE_IMAGE");
 
         await confirm().expect(422);
 

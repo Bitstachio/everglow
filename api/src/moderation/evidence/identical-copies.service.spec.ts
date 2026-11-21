@@ -520,8 +520,8 @@ describe("IdenticalCopiesService", () => {
     };
 
     beforeEach(() => {
-      // The matched report is a child-safety one, and the uploader has no OPEN attempt report yet.
-      prisma.report.findMany.mockResolvedValue([{ id: reportId }] as never);
+      // The hash is of a removed child-safety image, and the uploader has no OPEN attempt report yet.
+      prisma.reportEvidence.findMany.mockResolvedValue([{ sha256, reportId }] as never);
       prisma.report.findFirst.mockResolvedValue(null);
       prisma.event.findUnique.mockResolvedValue({ title: "Sam & Jo" } as never);
       prisma.report.createManyAndReturn.mockResolvedValue([attemptReport] as never);
@@ -533,9 +533,9 @@ describe("IdenticalCopiesService", () => {
     it("files an automated child-safety report on the uploader, held a year, in the platform's queue", async () => {
       await report();
 
-      expect(prisma.report.findMany).toHaveBeenCalledWith({
-        where: { id: { in: [reportId] }, reason: "CHILD_SAFETY" },
-        select: { id: true },
+      expect(prisma.reportEvidence.findMany).toHaveBeenCalledWith({
+        where: { sha256: { in: [sha256] }, report: { AND: [REMOVED_IMAGE_REPORTS, { reason: "CHILD_SAFETY" }] } },
+        select: { sha256: true, reportId: true },
       });
       expect(inserted()).toMatchObject({
         eventId,
@@ -601,8 +601,53 @@ describe("IdenticalCopiesService", () => {
       );
     });
 
+    it("reports by the hash, whichever report the refusal named for it", async () => {
+      // The same bytes were removed as an intimate image too, and that report is the one the refusal carries.
+      const intimateReportId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+      await service.reportRefusedUploads(eventId, uploaderId, [upload], new Map([[sha256, intimateReportId]]), now);
+
+      expect(inserted().note).toContain(reportId);
+      expect(inserted().note).not.toContain(intimateReportId);
+    });
+
+    it("keeps the matched reports, whose evidence is the image, at least as long as the attempt report", async () => {
+      await report();
+
+      const hold = new Date(now.getTime() + 365 * day);
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: [reportId] }, holdUntil: null },
+        data: { holdUntil: hold, holdReason: "CHILD_SAFETY" },
+      });
+      // A hold already there keeps its reason, and is never shortened.
+      expect(prisma.report.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: [reportId] }, holdUntil: { lt: hold } },
+        data: { holdUntil: hold },
+      });
+    });
+
+    it("checks for an OPEN attempt report and files under one lock, so two refusals at once file one", async () => {
+      const order: string[] = [];
+      prisma.$executeRaw.mockImplementation((() => {
+        order.push("lock");
+        return Promise.resolve(1);
+      }) as never);
+      prisma.report.findFirst.mockImplementation((() => {
+        order.push("check");
+        return Promise.resolve(null);
+      }) as never);
+      prisma.report.createManyAndReturn.mockImplementation((() => {
+        order.push("file");
+        return Promise.resolve([attemptReport]);
+      }) as never);
+
+      await report();
+
+      expect(order).toEqual(["lock", "check", "file"]);
+    });
+
     it("reports nothing for a match of an intimate image", async () => {
-      prisma.report.findMany.mockResolvedValue([]);
+      prisma.reportEvidence.findMany.mockResolvedValue([]);
 
       await report();
 
@@ -613,7 +658,7 @@ describe("IdenticalCopiesService", () => {
     it("asks nothing when nothing matched", async () => {
       await service.reportRefusedUploads(eventId, uploaderId, [upload], new Map(), now);
 
-      expect(prisma.report.findMany).not.toHaveBeenCalled();
+      expect(prisma.reportEvidence.findMany).not.toHaveBeenCalled();
     });
 
     it("files nothing more while the uploader's attempt report in this event is OPEN", async () => {
@@ -650,8 +695,14 @@ describe("IdenticalCopiesService", () => {
 
       await expect(report()).resolves.toBeUndefined();
 
+      // Who and what: the upload and its row are gone, so nothing else says.
       expect(logger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ event: "report.removed_image_reupload.report_failed", eventId }),
+        expect.objectContaining({
+          event: "report.removed_image_reupload.report_failed",
+          eventId,
+          reportedUserId: uploaderId,
+          sha256: [sha256],
+        }),
         expect.any(String),
       );
     });
