@@ -124,8 +124,8 @@ test("a photo the roll already has says so, as done, with nothing to retry or re
   mockEntries = [entry("IMG_2231", { kind: "onRoll", photoId: "p1" })];
   await renderScreen();
 
-  expect(title()).toHaveTextContent("In the tray\n1 already on the roll.");
-  expect(screen.getByLabelText("IMG_2231, Already on the roll")).toBeOnTheScreen();
+  expect(title()).toHaveTextContent("In the tray\n1 already in the event.");
+  expect(screen.getByLabelText("IMG_2231, Already in the event")).toBeOnTheScreen();
   expect(screen.queryByText("The tray is empty.")).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Retry IMG_2231" })).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Retry ↻" })).not.toBeOnTheScreen();
@@ -141,7 +141,7 @@ test("a photo the roll already has doesn't count as developed next to new ones",
   await renderScreen();
 
   expect(title()).toHaveTextContent("In the tray\n1 of 2 developed");
-  expect(screen.getByLabelText("IMG_2232, Already on the roll")).toBeOnTheScreen();
+  expect(screen.getByLabelText("IMG_2232, Already in the event")).toBeOnTheScreen();
 });
 
 test("offers Retry for files that didn't take, not Cancel", async () => {

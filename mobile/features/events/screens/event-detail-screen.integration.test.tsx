@@ -866,9 +866,9 @@ describe("adding photos (08)", () => {
       };
     });
     await renderScreen({ photos: oneFrame });
-    await screen.findByLabelText("Frame 1, by You");
+    await screen.findByLabelText("Photo 1, by You");
     await userEvent.setup().press(screen.getByRole("button", { name: "Add photos" }));
-    expect(await screen.findByLabelText("Frame 3, developing")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("Photo 3, developing")).toBeOnTheScreen();
     mockListPhotos.mockResolvedValue({
       data: { data: { items: [buildPhoto({ id: "photo-new-1" }), ...oneFrame], nextCursor: null } },
     });
@@ -878,8 +878,8 @@ describe("adding photos (08)", () => {
     // One new frame, and the copy never takes a number of its own.
     await waitFor(() => expect(screen.queryByText(/Developing/)).not.toBeOnTheScreen());
     expect(screen.queryByLabelText(/developing|didn’t take/)).not.toBeOnTheScreen();
-    expect(screen.getAllByLabelText(/^Frame \d+, by You$/)).toHaveLength(2);
-    expect(screen.queryByLabelText("Frame 3, by You")).not.toBeOnTheScreen();
+    expect(screen.getAllByLabelText(/^Photo \d+, by You$/)).toHaveLength(2);
+    expect(screen.queryByLabelText("Photo 3, by You")).not.toBeOnTheScreen();
     expect(screen.queryByText(/didn’t take|can’t be added/)).not.toBeOnTheScreen();
     expect(screen.queryByTestId("tray-needs-attention", { includeHiddenElements: true })).not.toBeOnTheScreen();
   });

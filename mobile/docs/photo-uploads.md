@@ -46,8 +46,8 @@ already in a fresh server list clear stale local failures.
 
 A DUPLICATE verdict means this person already has the same bytes on the roll
 ([uploads.md](../../docs/uploads.md#the-same-photo-twice)). The API has
-discarded the copy, so it is not a failure: the row reads "Already on the
-roll" with the existing frame's thumbnail and no Retry, and it leaves the tray
+discarded the copy, so it is not a failure: the row reads "Already in the
+event" with the existing frame's thumbnail and no Retry, and it leaves the tray
 like a developed one. The sheet adds no frame for it, and the picked copy's
 local file is released at once.
 
