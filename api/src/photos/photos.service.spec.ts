@@ -516,7 +516,7 @@ describe("PhotosService", () => {
         { photoId: mismatchedPhotoId, status: "MISMATCHED" },
       ]);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: photoId },
+        where: { id: photoId, status: "PENDING" },
         data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
       expect(s3Service.deleteObjects).toHaveBeenCalledTimes(1);
@@ -543,7 +543,7 @@ describe("PhotosService", () => {
       ]);
       expect(s3Service.headObject).toHaveBeenCalledWith(buildPhotoS3Key(eventId, photoId));
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: photoId },
+        where: { id: photoId, status: "PENDING" },
         data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, photoId)) },
       });
       // Only the verified original is read and hashed.
@@ -564,7 +564,7 @@ describe("PhotosService", () => {
         const key = buildPhotoS3Key(eventId, id);
         expect(s3Service.sha256OfObject).toHaveBeenCalledWith(key, { timeoutMs: PHOTO_HASH_TIMEOUT_MS });
         expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-          where: { id },
+          where: { id, status: "PENDING" },
           data: { status: "READY", sha256: hashOf(key) },
         });
       }
@@ -586,7 +586,7 @@ describe("PhotosService", () => {
 
       expect(results).toEqual([{ photoId, status: "READY" }]);
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: photoId },
+        where: { id: photoId, status: "PENDING" },
         data: { status: "READY", sha256: null },
       });
       expect(logger.warn).toHaveBeenCalledWith(
@@ -672,11 +672,19 @@ describe("PhotosService", () => {
         s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
         s3Service.sha256OfObject.mockResolvedValue(sameBytes);
         prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+        prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       });
 
-      /** The caller's slots in this request, then the READY photos with their hashes. */
-      const onRoll = (batch: Photo[], ready: { id: string; sha256: string | null }[]) =>
-        prisma.photo.findMany.mockResolvedValueOnce(batch).mockResolvedValueOnce(ready as unknown as Photo[]);
+      /**
+       * The caller's slots in this request, the same rows as they are under
+       * the lock (`current`, unless a test says they changed meanwhile), then
+       * the READY photos with their hashes.
+       */
+      const onRoll = (batch: Photo[], ready: { id: string; sha256: string | null }[], current: Photo[] = batch) =>
+        prisma.photo.findMany
+          .mockResolvedValueOnce(batch)
+          .mockResolvedValueOnce(current)
+          .mockResolvedValueOnce(ready as unknown as Photo[]);
 
       it("answers DUPLICATE with the photo on the roll, and removes the upload and its slot", async () => {
         onRoll([buildPhoto(photoId)], [{ id: existingPhotoId, sha256: sameBytes }]);
@@ -692,11 +700,12 @@ describe("PhotosService", () => {
         });
         expect(prisma.$executeRaw).toHaveBeenCalledWith(expect.anything(), `photo-copies:${eventId}:${callerId}`);
         expect(prisma.photo.updateMany).not.toHaveBeenCalled();
-        // The object and its renditions, then the slot, which returns its storage.
+        // The slot goes in the READY transaction, which returns its storage and settles
+        // that no confirm can make it READY; then the object and its renditions.
+        expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId, status: "PENDING" } });
         expect(s3Service.deleteObjects).toHaveBeenCalledWith(withDerivatives(buildPhotoS3Key(eventId, photoId)));
-        expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(photoId));
-        expect(s3Service.deleteObjects.mock.invocationCallOrder[0]).toBeLessThan(
-          prisma.photo.deleteMany.mock.invocationCallOrder[0],
+        expect(prisma.photo.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+          s3Service.deleteObjects.mock.invocationCallOrder[0],
         );
         expect(logger.info).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -727,10 +736,10 @@ describe("PhotosService", () => {
         ]);
         expect(prisma.photo.updateMany).toHaveBeenCalledTimes(1);
         expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-          where: { id: photoId },
+          where: { id: photoId, status: "PENDING" },
           data: { status: "READY", sha256: sameBytes },
         });
-        expect(prisma.photo.deleteMany).toHaveBeenCalledWith(releaseOf(otherPhotoId));
+        expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: otherPhotoId, status: "PENDING" } });
       });
 
       it("points a later copy at the oldest photo on the roll when several share the bytes", async () => {
@@ -761,7 +770,7 @@ describe("PhotosService", () => {
         ]);
         expect(prisma.photo.updateMany).toHaveBeenCalledTimes(1);
         expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-          where: { id: otherPhotoId },
+          where: { id: otherPhotoId, status: "PENDING" },
           data: { status: "READY", sha256: hashOf(buildPhotoS3Key(eventId, otherPhotoId)) },
         });
         expect(logger.info).toHaveBeenCalledWith(
@@ -771,7 +780,23 @@ describe("PhotosService", () => {
       });
 
       it("keeps a photo of the request that a concurrent confirm already made READY", async () => {
-        onRoll([buildPhoto(photoId)], [{ id: photoId, sha256: sameBytes }]);
+        onRoll([buildPhoto(photoId)], [{ id: photoId, sha256: sameBytes }], [buildPhoto(photoId, { status: "READY" })]);
+
+        const results = await service.confirmUploads(eventId, callerId, [photoId]);
+
+        expect(results).toEqual([{ photoId, status: "READY" }]);
+        expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+        expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+        expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      });
+
+      it("never discards a photo a concurrent confirm made READY without a hash, though its bytes are on the roll", async () => {
+        // The other confirm couldn't hash it, so the roll's lookup by hash finds only the older photo.
+        onRoll(
+          [buildPhoto(photoId)],
+          [{ id: existingPhotoId, sha256: sameBytes }],
+          [buildPhoto(photoId, { status: "READY" })],
+        );
 
         const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
@@ -780,30 +805,70 @@ describe("PhotosService", () => {
         expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
       });
 
-      it("lets a photo without a hash through, without taking the lock", async () => {
+      it("promotes the next pick when the first of identical files was cancelled meanwhile", async () => {
+        // The first id's slot is gone by the time the lock is held.
+        onRoll([buildPhoto(photoId), buildPhoto(otherPhotoId)], [], [buildPhoto(otherPhotoId)]);
+
+        const results = await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
+
+        expect(results).toEqual([
+          { photoId, status: "NOT_FOUND" },
+          { photoId: otherPhotoId, status: "READY" },
+        ]);
+        expect(prisma.photo.updateMany).toHaveBeenCalledTimes(1);
+        expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+          where: { id: otherPhotoId, status: "PENDING" },
+          data: { status: "READY", sha256: sameBytes },
+        });
+        expect(s3Service.deleteObjects).not.toHaveBeenCalled();
+      });
+
+      it("promotes the next pick when the first one's slot goes between the check and the flip", async () => {
+        onRoll([buildPhoto(photoId), buildPhoto(otherPhotoId)], []);
+        prisma.photo.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+
+        const results = await service.confirmUploads(eventId, callerId, [photoId, otherPhotoId]);
+
+        expect(results).toEqual([
+          { photoId, status: "NOT_FOUND" },
+          { photoId: otherPhotoId, status: "READY" },
+        ]);
+        expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+      });
+
+      it("lets a photo without a hash through, under the same lock", async () => {
         prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
         s3Service.sha256OfObject.mockRejectedValue(new Error("timeout"));
 
         const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
         expect(results).toEqual([{ photoId, status: "READY" }]);
-        expect(prisma.$executeRaw).not.toHaveBeenCalled();
-        expect(prisma.photo.findMany).toHaveBeenCalledTimes(1);
+        // The lock is taken whether or not anything was hashed; the roll isn't searched without a hash.
+        expect(prisma.$executeRaw).toHaveBeenCalledWith(expect.anything(), `photo-copies:${eventId}:${callerId}`);
+        expect(prisma.photo.findMany).toHaveBeenCalledTimes(2);
         expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-          where: { id: photoId },
+          where: { id: photoId, status: "PENDING" },
           data: { status: "READY", sha256: null },
         });
       });
 
-      it("keeps the PENDING row when the copy's object can't be deleted", async () => {
+      it("says so when the copy's object can't be deleted: its slot is already released", async () => {
         onRoll([buildPhoto(photoId)], [{ id: existingPhotoId, sha256: sameBytes }]);
         s3Service.deleteObjects.mockRejectedValueOnce(new Error("s3 down"));
 
         const results = await service.confirmUploads(eventId, callerId, [photoId]);
 
         expect(results).toEqual([{ photoId, status: "DUPLICATE", existingPhotoId }]);
-        expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+        expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: photoId, status: "PENDING" } });
         expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "photo.upload_refused.object_retained", photoId, eventId, callerId }),
+          expect.any(String),
+        );
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ event: "photo.upload_refused.duplicate", duplicates: 1, objectsRetained: 1 }),
+          expect.any(String),
+        );
       });
 
       it("refuses the bytes of a removed image before looking for copies", async () => {

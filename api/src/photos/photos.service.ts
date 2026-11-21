@@ -22,7 +22,7 @@ import { presignedUrlExpiresAt, S3Service } from "src/sdk/aws/s3/s3.service";
 import { UploadFileDto } from "./dto/create-upload-urls.dto";
 import { ListPhotosQueryDto } from "./dto/list-photos-query.dto";
 import { PhotoWithUrl } from "./mappers/photo.mapper";
-import { findCopiesOnTheRoll } from "./photo-copies";
+import { settleCopiesOnTheRoll } from "./photo-copies";
 import { hashPhotoOriginals } from "./photo-hashing";
 import { deleteObjectWithDerivatives } from "./photo-object-deletion";
 import { PhotoStorageService } from "./photo-storage.service";
@@ -225,23 +225,22 @@ export class PhotosService {
 
       // One update per photo, since each carries its own hash; together, so a
       // batch flips READY as one. A second copy of a photo the caller already
-      // has on the roll stays PENDING and is discarded below.
-      const { first, copies } = await this.prisma.$transaction(async (tx) => {
-        const decided = await findCopiesOnTheRoll(tx, {
+      // has on the roll is not flipped: its slot is released in the same
+      // transaction, and its object deleted below.
+      const { first, copies, gone } = await this.prisma.$transaction((tx) =>
+        settleCopiesOnTheRoll(tx, {
           eventId,
           uploaderId: callerId,
           photos: verified,
           hashes,
           requestOrder: uniqueIds,
-        });
-        for (const photo of decided.first) {
-          await tx.photo.updateMany({
-            where: { id: photo.id },
-            data: { status: PhotoStatus.READY, sha256: hashes.get(photo.id) ?? null },
-          });
-        }
-        return decided;
-      });
+          readyData: (photo) => ({ status: PhotoStatus.READY, sha256: hashes.get(photo.id) ?? null }),
+        }),
+      );
+      // A slot cancelled or swept while its photo was verified is not on the roll.
+      for (const result of results) {
+        if (gone.includes(result.photoId)) result.status = CONFIRM_PHOTO_STATUSES.NOT_FOUND;
+      }
       await this.discardCopies(eventId, callerId, verified, copies, results);
       const unhashed = first.filter((photo) => !hashes.get(photo.id)).length;
       if (unhashed > 0) {
@@ -250,10 +249,12 @@ export class PhotosService {
           "Confirmed photos could not be hashed; the hash backfill will hash them",
         );
       }
-      this.logger.info(
-        { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: verified.length - copies.size },
-        "Photo uploads confirmed",
-      );
+      if (first.length > 0) {
+        this.logger.info(
+          { event: "photo.uploads_confirmed", eventId, callerId, confirmedCount: first.length },
+          "Photo uploads confirmed",
+        );
+      }
       await this.removeIfRemovedMeanwhile(hashes);
     }
 
@@ -313,10 +314,11 @@ export class PhotosService {
 
   /**
    * Answers DUPLICATE for second copies of photos the caller already has on
-   * the roll, and removes them: each object with its renditions, then its
-   * slot, which returns its storage. A copy whose object could not be deleted
-   * keeps its PENDING row: confirming it again answers DUPLICATE again, and
-   * the sweeper deletes both.
+   * the roll, and deletes their objects with their renditions. Their slots
+   * went in the READY transaction, which returned their storage and settled
+   * that no confirm can make them READY, so the object goes after the row
+   * here, unlike a manual delete. An object that could not be deleted has no
+   * row left: it is logged, and the orphan reconciler removes it.
    */
   private async discardCopies(
     eventId: string,
@@ -335,13 +337,27 @@ export class PhotosService {
     const deletes = await Promise.allSettled(
       discarded.map((photo) => deleteObjectWithDerivatives(this.s3Service, photo.s3Key)),
     );
-    const releasable = discarded.filter((_, index) => deletes[index].status === "fulfilled").map((photo) => photo.id);
-    await this.releaseSlots(releasable, {
-      event: "photo.upload_refused.duplicate",
-      eventId,
-      callerId,
-      duplicates: discarded.length,
+    let retained = 0;
+    deletes.forEach((outcome, index) => {
+      if (outcome.status === "fulfilled") return;
+      retained += 1;
+      this.logger.warn(
+        { event: "photo.upload_refused.object_retained", photoId: discarded[index].id, eventId, callerId },
+        "Duplicate upload could not be deleted from S3; its slot is released and the orphan reconciler removes it",
+      );
     });
+    this.logger.info(
+      {
+        event: "photo.upload_refused.duplicate",
+        eventId,
+        callerId,
+        duplicates: discarded.length,
+        released: discarded.length,
+        objectsRetained: retained,
+        audit: true,
+      },
+      "Upload slots released",
+    );
   }
 
   /**
