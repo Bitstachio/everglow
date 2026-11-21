@@ -143,15 +143,15 @@ We don't store image dimensions. Apple-Photos-style uniform square grid lets the
 
 Opening a frame mounts the original image; Save and Save all also download originals on explicit user action. Thumbnail and original cache keys must identify the variant separately (for example `photo:{id}:thumbnail` and `photo:{id}:original`), so a cached thumbnail can never satisfy a full-size request.
 
-Presigned URLs change between API reads. Image components may use a stable per-photo, per-variant cache key rather than the changing signature. A photo that has a thumbnail never downloads its original until it is opened or saved.
+Presigned URLs change between API reads. Image components may use a stable per-photo, per-variant cache key rather than the changing signature. A photo whose thumbnail loads never downloads its original until it is opened or saved.
 
 On mobile, every small preview (the contact sheet, Home's strips, the viewer's strip and menu, the upload tray) loads through `photoPreview()` in `features/events/lib/photo-preview.ts` and `RetryingPhoto`. Failures are counted per cache key for the session, so a re-signed URL or a remounted frame doesn't start over:
 
 - A photo added in the last 10 minutes may still be waiting for its thumbnail, which is tried four times in all (after 2, 5 and 10 seconds) before the original is shown instead.
-- An older photo's thumbnail that fails was never written, so the original is shown on the first failure. A thumbnail link that is empty goes straight to the original.
-- The original loads at low priority, decoded at the frame's size, under `photo:{id}:original`: the key the viewer uses, so opening the frame doesn't download it again. The cost is the original's size once per photo per device (a few MB for a phone photo) instead of the 512 px WebP thumbnail, and only for photos with no thumbnail; a virtualized list loads only the frames near the screen.
+- An older photo's thumbnail is tried once more, two seconds later, before the original is shown: one failure can be an expired link or a dropped request as easily as a thumbnail that was never written, and by the retry the list has usually signed the link again. A thumbnail link that is empty goes straight to the original.
+- The original loads at low priority under `photo:{id}:original`: the key the viewer uses, so opening the frame doesn't download it again. It is decoded at the frame's size, not its own (`enforceEarlyResizing` on iOS; Android downscales by default). The cost is the original's size once per photo per device (a few MB for a phone photo) instead of the 512 px WebP thumbnail, and only for photos with no thumbnail. How many load at once follows what the lists keep mounted: the contact sheet about ten screens either side (FlatList's default window), the viewer's strip two.
 - Once a preview has fallen back it stays on the original for the session; a thumbnail written later is used from the next launch, so a frame never swaps images while it is on screen.
-- If the original fails too (tried four times), the frame stays empty and still opens the viewer, which has its own Try again.
+- If the original fails too (tried four times), the frame stays empty and still opens the viewer, which has its own Try again. Those failures are counted apart from the photo's own, so a preview that gave up never blanks the same photo in the viewer or on a report.
 - A load that fails while the phone has no network isn't counted at all: it says nothing about whether the image exists. The frame keeps its placeholder and asks for the same image again once the network is back.
 
 Reported frames on the moderation screens keep the thumbnail only: they are blurred, and their original is fetched when the reviewer chooses to look. The viewer's own page keeps the thumbnail under the original it loads anyway.
