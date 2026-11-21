@@ -478,4 +478,24 @@ describe("a photo already on the roll (DUPLICATE)", () => {
     expect(mockCreateUploadUrls).not.toHaveBeenCalled();
     expect(lastUpdates(onFile)).toEqual([{ kind: "onRoll", photoId: "kept" }]);
   });
+
+  test("is final even when the verdict names no frame: nothing is sent again", async () => {
+    mockConfirmUploads
+      .mockResolvedValueOnce({ data: { data: [{ photoId: "photo-0", status: "DUPLICATE" }] } })
+      .mockResolvedValueOnce({ data: { data: [{ photoId: "previous", status: "DUPLICATE" }] } });
+    const onFile = jest.fn();
+
+    await uploadEventPhotos("event-1", photoFiles(1), { onFile, put });
+    expect(lastUpdates(onFile)).toEqual([{ kind: "onRoll", photoId: undefined }]);
+
+    onFile.mockClear();
+    mockCreateUploadUrls.mockClear();
+    await uploadEventPhotos(
+      "event-1",
+      photoFiles(1).map((file) => ({ ...file, resumePhotoId: "previous" })),
+      { onFile, put },
+    );
+    expect(lastUpdates(onFile)).toEqual([{ kind: "onRoll", photoId: undefined }]);
+    expect(mockCreateUploadUrls).not.toHaveBeenCalled();
+  });
 });

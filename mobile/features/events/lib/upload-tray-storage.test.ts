@@ -117,14 +117,24 @@ test("an unavailable picked file keeps its failure after restart without blockin
   expect(mockFiles.get(restored.items[1]!.uri)).toBe("jpg");
 });
 
-test("restores a photo the roll already had, without the snapshot being thrown away", async () => {
-  const files = await retainUploadFiles("account-a", [picked()]);
+test("reads a snapshot holding a photo the roll already had, and leaves that finished row behind", async () => {
+  const files = await retainUploadFiles("account-a", [picked(), picked()]);
   persistUploadTrays(
     "account-a",
-    new Map([["event", tray([{ ...files[0]!, status: { kind: "onRoll", photoId: "kept" } }])]]),
+    new Map([
+      [
+        "event",
+        tray([
+          { ...files[0]!, status: { kind: "onRoll", photoId: "kept" } },
+          { ...files[1]!, status: { kind: "failed", reason: "connection" } },
+        ]),
+      ],
+    ]),
   );
   const restored = restoreUploadTrays("account-a").get("event")!;
-  expect(restored.items).toEqual([expect.objectContaining({ status: { kind: "onRoll", photoId: "kept" } })]);
+  // The snapshot still parses, so the file that needs Retry comes back; the
+  // copy has no Retry or Remove and nothing would ever clear it.
+  expect(restored.items.map((entry) => entry.status)).toEqual([{ kind: "failed", reason: "connection" }]);
 });
 
 test("does not serialize signed URLs, skips byte-only writes and deletes only the signed-out account", async () => {

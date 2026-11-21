@@ -1,7 +1,7 @@
 import { onAccountCleared, type AccountClearedReason } from "@/lib/account-cleared";
 import NetInfo from "@react-native-community/netinfo";
 import { useSyncExternalStore } from "react";
-import { isFinished, retainCompletedTrayRows } from "./upload-tray-session";
+import { retainCompletedTrayRows } from "./upload-tray-session";
 import { persistUploadTrays, restoreUploadTrays, removeUploadStorage, releaseUploadFile } from "./upload-tray-storage";
 import type { PhotoResponseDto } from "../types";
 import {
@@ -31,7 +31,7 @@ export type TrayStatus =
   | { kind: "waiting" }
   | { kind: "sending"; bytesSent: number }
   | { kind: "developed"; photoId: string }
-  | { kind: "onRoll"; photoId: string }
+  | { kind: "onRoll"; photoId?: string }
   | { kind: "failed"; reason: Exclude<EventPhotoFailure, "cancelled"> }
   | { kind: "rejected"; reason: "video" | "tooLarge" };
 
@@ -264,7 +264,12 @@ const run = async (eventId: string) => {
       setTray(eventId, (tray) => ({
         ...tray,
         running: false,
-        items: refreshed ? tray.items.filter((item) => !isFinished(item)) : tray.items,
+        // A copy of a frame the roll already had has nothing to wait for: it
+        // goes whether or not the refresh worked, since nothing later would
+        // clear it and its row has no Retry or Remove.
+        items: tray.items.filter(
+          (item) => item.status.kind !== "onRoll" && !(refreshed && item.status.kind === "developed"),
+        ),
       }));
       // Photos picked while the roll was refreshing found it still running; they go now.
       if (getTray(eventId).items.some((item) => item.status.kind === "waiting")) void run(eventId);

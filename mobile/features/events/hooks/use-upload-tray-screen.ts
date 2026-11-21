@@ -4,6 +4,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEventPhotosQuery, useEventQuery } from "../api/queries";
 import {
   cancelTray,
+  localFileFor,
   openTraySession,
   reconcileTrayPhotos,
   removeFromTray,
@@ -46,7 +47,8 @@ export const useUploadTrayScreen = () => {
       // otherwise the local file, which the row decodes at its own small size.
       // A copy's local file is released as soon as the roll says it has it.
       const cacheKey = previewable && thumbnail && photoId ? `photo:${photoId}:thumbnail` : undefined;
-      const local = status.kind === "onRoll" ? "" : item.uri;
+      // Until the list has the kept frame (picked twice in one go), its own local file stands in.
+      const local = status.kind === "onRoll" ? ((photoId && localFileFor(photoId)) ?? "") : item.uri;
       return { ...item, uri: previewable ? (thumbnail ?? local) : "", cacheKey, progress };
     }),
     summary: summarizeTray(tray),

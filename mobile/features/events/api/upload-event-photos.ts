@@ -55,12 +55,13 @@ export type EventPhotoFailure =
 /**
  * What happened to one file, by its index in the list passed in. `onRoll`
  * means the uploader already has these bytes on the roll (a DUPLICATE
- * verdict): the API discarded this copy, and `photoId` is the frame kept.
+ * verdict): the API discarded this copy, and `photoId` is the frame kept,
+ * when the verdict names it.
  */
 export type EventPhotoUpdate =
   | { kind: "sending"; bytesSent: number }
   | { kind: "developed"; photoId: string }
-  | { kind: "onRoll"; photoId: string }
+  | { kind: "onRoll"; photoId?: string }
   | { kind: "failed"; reason: EventPhotoFailure };
 
 type EventPhotoUploadResult = {
@@ -248,9 +249,12 @@ const confirmSlots = async (eventId: string, photoIds: string[], signal?: AbortS
   return { results, cantAdd };
 };
 
-/** The frame already on the roll for a DUPLICATE verdict, or undefined for any other. */
-const frameOnRoll = (result: ConfirmPhotoResultDto | undefined): string | undefined =>
-  result?.status === "DUPLICATE" ? result.existingPhotoId : undefined;
+/**
+ * A DUPLICATE verdict is final whether or not it names the frame kept: the
+ * copy is discarded, and sending it again would only be refused again.
+ */
+const isOnRoll = (result: ConfirmPhotoResultDto | undefined): result is ConfirmPhotoResultDto =>
+  result?.status === "DUPLICATE";
 
 const runPooled = async (tasks: (() => Promise<void>)[], concurrency: number) => {
   let next = 0;
@@ -329,11 +333,10 @@ const uploadFreshEventPhotos = async (
         const verdicts = new Map(results.map((result) => [result.photoId, result]));
         for (const [photoId, index] of landed) {
           const verdict = verdicts.get(photoId);
-          const kept = frameOnRoll(verdict);
           if (verdict?.status === "READY") {
             uploaded += 1;
             onFile?.(index, { kind: "developed", photoId });
-          } else if (kept) onFile?.(index, { kind: "onRoll", photoId: kept });
+          } else if (isOnRoll(verdict)) onFile?.(index, { kind: "onRoll", photoId: verdict.existingPhotoId });
           else onFile?.(index, { kind: "failed", reason: cantAdd.has(photoId) ? "cantAdd" : "refused" });
         }
       } catch (error) {
@@ -367,12 +370,12 @@ export const uploadEventPhotos = async (
       );
       const verdicts = new Map(results.map((result) => [result.photoId, result]));
       for (const { index, photoId } of batch) {
-        const verdict = verdicts.get(photoId)?.status;
-        const kept = frameOnRoll(verdicts.get(photoId));
+        const result = verdicts.get(photoId);
+        const verdict = result?.status;
         if (verdict === "READY") {
           uploaded += 1;
           options.onFile?.(index, { kind: "developed", photoId });
-        } else if (kept) options.onFile?.(index, { kind: "onRoll", photoId: kept });
+        } else if (isOnRoll(result)) options.onFile?.(index, { kind: "onRoll", photoId: result.existingPhotoId });
         else if (cantAdd.has(photoId)) options.onFile?.(index, { kind: "failed", reason: "cantAdd" });
         else if (verdict) pending.push(index);
         else options.onFile?.(index, { kind: "failed", reason: "connection" });

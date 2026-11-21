@@ -624,6 +624,17 @@ describe("a photo the roll already has from this person", () => {
     close();
   });
 
+  test("leaves the tray even when the roll can't be refreshed, since nothing later would clear it", async () => {
+    activateUploadTrays("account-a", settle);
+    settle.mockRejectedValueOnce(new Error("offline"));
+    mockUpload.mockImplementationOnce(sameBytes);
+    addToTray("event-1", [item("first"), item("again")], settle);
+    await flush();
+
+    // The developed frame waits for a list that has it; the copy has nothing to wait for.
+    expect(getTray("event-1").items.map(({ key }) => key)).toEqual(["first"]);
+  });
+
   test("is never sent again by Retry", async () => {
     let refreshed: () => void = () => undefined;
     settle.mockImplementationOnce(() => new Promise<void>((resolve) => (refreshed = resolve)));
