@@ -206,7 +206,7 @@ test("a frame Everglow's check flagged says so in the list, and is with Everglow
 
   expect(
     await screen.findByRole("button", {
-      name: "Frame 2 · by Marcus, 1 report · harassment · flagged automatically · with Everglow",
+      name: "Photo 2 · by Marcus, 1 report · harassment · flagged automatically · with Everglow",
     }),
   ).toBeOnTheScreen();
   expect(screen.queryByText(/Upload screening/)).not.toBeOnTheScreen();
