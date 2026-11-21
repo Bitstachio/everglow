@@ -200,7 +200,7 @@ describe("opened offline from the rolls saved on the phone", () => {
     expect(screen.getByText("Showing what’s saved")).toBeOnTheScreen();
     expect(screen.getByText(new RegExp(`· as of ${formatSavedAt(savedAt)}$`))).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "New event" })).toBeDisabled();
-    expect(screen.getByText("Back online to start a roll")).toBeOnTheScreen();
+    expect(screen.getByText("Back online to start an event")).toBeOnTheScreen();
     expect(mockFindAll).not.toHaveBeenCalled();
     expect(mockListPhotos).not.toHaveBeenCalled();
   });
