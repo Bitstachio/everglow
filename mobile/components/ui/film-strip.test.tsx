@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { FilmStrip } from "./film-strip";
 
 test("prints a blank photo's number and hides the preview strip from assistive tech", async () => {
@@ -31,7 +31,17 @@ test("shows the photo in a frame whose thumbnail is missing", async () => {
     />,
   );
   const photo = () => screen.getByTestId("film-strip-photo", { includeHiddenElements: true });
-  await fireEvent(photo(), "error", { nativeEvent: { error: "404" } });
+  // An older photo's thumbnail is tried once more before the photo stands in.
+  jest.useFakeTimers();
+  try {
+    await fireEvent(photo(), "error", { nativeEvent: { error: "404" } });
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+    await fireEvent(photo(), "error", { nativeEvent: { error: "404" } });
+  } finally {
+    jest.useRealTimers();
+  }
   expect(photo().props.source).toEqual([fallback]);
 });
 

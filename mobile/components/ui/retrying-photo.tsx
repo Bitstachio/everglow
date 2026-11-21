@@ -19,8 +19,10 @@ export type PhotoPreview = {
   fallback?: PhotoVariant;
   /**
    * The image may still be on its way (a new photo's thumbnail is written a
-   * few seconds after upload), so a failed load is tried again before giving
-   * up. Without it the first failure goes straight to `fallback`. Defaults to true.
+   * few seconds after upload), so a failed load is tried three more times
+   * before giving up. Without it, it is tried once more: one failure can be
+   * an expired link or a dropped request as easily as a missing image.
+   * Defaults to true.
    */
   mayBeLate?: boolean;
 };
@@ -32,6 +34,9 @@ const RETRY_DELAYS_MS = [2000, 5000, 10000] as const;
 
 /** Stored for an image that won't be asked for again this session. */
 const GAVE_UP = RETRY_DELAYS_MS.length + 1;
+
+/** Tries after the first for an image that can't be late. */
+const SETTLED_RETRIES = 1;
 
 /**
  * Failed loads per image, for the session. Keyed by the image's stable cache
@@ -45,6 +50,36 @@ type RemotePhotoProps = Omit<RetryingPhotoProps, "uri" | "mayBeLate"> & {
   uri: string;
   retryKey: string;
   mayBeLate: boolean;
+};
+
+type FallbackPhotoProps = Omit<RetryingPhotoProps, "uri" | "cacheKey" | "fallback" | "mayBeLate"> & {
+  fallback: PhotoVariant;
+};
+
+/**
+ * The fallback: the full photo, standing in for a thumbnail.
+ *
+ * - Low priority, so thumbnails that exist load first.
+ * - Decoded at the frame's size, not the photo's (`enforceEarlyResizing` on
+ *   iOS; Android downscales by default).
+ * - Its failures are counted apart from the photo's own: giving up here must
+ *   not blank the same photo where it is asked for on purpose, such as the
+ *   viewer or a report, which load it under the same cache key.
+ */
+const FallbackPhoto = ({ fallback, ...props }: FallbackPhotoProps) => {
+  const retryKey = `${fallback.cacheKey ?? fallback.uri}:fallback`;
+  return (
+    <RemotePhoto
+      {...props}
+      key={retryKey}
+      retryKey={retryKey}
+      uri={fallback.uri}
+      cacheKey={fallback.cacheKey}
+      mayBeLate
+      priority="low"
+      enforceEarlyResizing
+    />
+  );
 };
 
 const RemotePhoto = ({ uri, cacheKey, retryKey, mayBeLate, fallback, ...props }: RemotePhotoProps) => {
@@ -76,17 +111,16 @@ const RemotePhoto = ({ uri, cacheKey, retryKey, mayBeLate, fallback, ...props }:
       setOffline(true);
       return;
     }
-    // An image that can't be late isn't coming by waiting for it.
-    const next = mayBeLate ? failures + 1 : GAVE_UP;
+    // An image that can't be late isn't coming by waiting long for it, but
+    // it gets one more try: by then a re-signed link or the network is back.
+    const retries = mayBeLate ? RETRY_DELAYS_MS.length : SETTLED_RETRIES;
+    const next = failures + 1 > retries ? GAVE_UP : failures + 1;
     failedLoads.set(retryKey, next);
     setFailures(next);
-    setWaiting(next <= RETRY_DELAYS_MS.length);
+    setWaiting(next !== GAVE_UP);
   };
 
-  if (failures > RETRY_DELAYS_MS.length) {
-    // The fallback is the full photo: let thumbnails that exist load first.
-    return fallback ? <RetryingPhoto {...props} {...fallback} priority="low" /> : null;
-  }
+  if (failures >= GAVE_UP) return fallback ? <FallbackPhoto {...props} fallback={fallback} /> : null;
   if (waiting || offline) return null;
   return <Photo {...props} key={failures} source={{ uri, cacheKey }} recyclingKey={retryKey} onError={onError} />;
 };
@@ -109,5 +143,5 @@ export const RetryingPhoto = ({ uri, cacheKey, fallback, mayBeLate = true, ...pr
       />
     );
   }
-  return fallback ? <RetryingPhoto {...props} {...fallback} priority="low" /> : null;
+  return fallback ? <FallbackPhoto {...props} fallback={fallback} /> : null;
 };

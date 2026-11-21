@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { Text } from "react-native";
 import { ContactFrame } from "./contact-frame";
 
@@ -41,7 +41,17 @@ test("shows the photo when its thumbnail is missing, keeping the uploader, and r
       accessibilityLabel="Frame 7, by Leila"
     />,
   );
-  await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+  // An older photo's thumbnail is tried once more before the photo stands in.
+  jest.useFakeTimers();
+  try {
+    await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+    await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+  } finally {
+    jest.useRealTimers();
+  }
   expect(screen.getByTestId("contact-frame-photo").props.source).toEqual([fallback]);
   expect(screen.getByText("Leila", { includeHiddenElements: true })).toBeOnTheScreen();
   await fireEvent(screen.getByTestId("contact-frame-photo"), "display");

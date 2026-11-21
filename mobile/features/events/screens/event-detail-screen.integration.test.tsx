@@ -1406,6 +1406,23 @@ describe("saving and deleting photos", () => {
     expect(mockDownloadFile).toHaveBeenCalledTimes(2);
   });
 
+  /** An older photo's thumbnail fails for good: once, then again on its one retry two seconds later. */
+  const failThumbnailForGood = async () => {
+    const thumbnail = await screen.findByTestId("contact-frame-photo");
+    jest.useFakeTimers();
+    try {
+      await fireEvent(thumbnail, "error", { nativeEvent: { error: "404" } });
+      // One failure could be an expired link: the photo isn't downloaded for it.
+      expect(screen.queryByTestId("contact-frame-photo")).not.toBeOnTheScreen();
+      await act(async () => {
+        jest.advanceTimersByTime(2000);
+      });
+      await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+    } finally {
+      jest.useRealTimers();
+    }
+  };
+
   test("an older frame whose thumbnail was never written shows the photo instead, and keeps its uploader", async () => {
     const legacy = buildPhoto({
       id: "photo-legacy",
@@ -1413,7 +1430,7 @@ describe("saving and deleting photos", () => {
       createdAt: fromNow(-DAY),
     });
     await renderScreen({ photos: [legacy] });
-    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+    await failThumbnailForGood();
     // Under the viewer's key for the original, so opening the frame doesn't download it again.
     expect(screen.getByTestId("contact-frame-photo").props.source).toEqual([
       { uri: legacy.url, cacheKey: "photo:photo-legacy:original" },
@@ -1453,7 +1470,7 @@ describe("saving and deleting photos", () => {
   test("a frame whose thumbnail and photo both fail stays empty and still opens", async () => {
     const broken = buildPhoto({ id: "photo-broken", createdAt: fromNow(-DAY) });
     await renderScreen({ photos: [broken] });
-    await fireEvent(await screen.findByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+    await failThumbnailForGood();
     expect(screen.getByTestId("contact-frame-photo").props.source[0].cacheKey).toBe("photo:photo-broken:original");
     jest.useFakeTimers();
     try {

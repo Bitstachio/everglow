@@ -210,6 +210,10 @@ export const FrameViewer = (props: Props) => {
                 data={frames}
                 keyExtractor={(item) => item.photo.id}
                 extraData={frame?.photo.id}
+                // Two screens of frames either side, not the default ten: a frame
+                // with no thumbnail loads its photo, and the open frame's own
+                // photo shouldn't queue behind a hundred of them.
+                windowSize={5}
                 style={{ flexGrow: 0 }}
                 initialScrollIndex={Math.max(0, index - 2)}
                 getItemLayout={(_, itemIndex) => ({
