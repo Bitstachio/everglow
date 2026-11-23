@@ -1,4 +1,4 @@
-import { Event, EventInvite } from "generated/prisma/client";
+import { AccessLevel, Event, EventInvite } from "generated/prisma/client";
 import { EventLimits, EventUsage } from "src/plans/event-plan.service";
 import { galleryStateOf } from "src/plans/plans.constants";
 import { EventBanListResponseDto } from "../dto/event-ban-list-response.dto";
@@ -21,6 +21,7 @@ export class EventMapper {
    * `coverUrl` is presigned by the caller; the mapper never sees S3, and the key is never returned.
    * `limits` and `usage` come from EventPlanService (limitsOf, usageFor);
    * `photoCount` from PhotoVisibilityService.countVisibleTo, for the caller.
+   * `accessLevel` is the caller's role on this event.
    */
   static toResponseDto(
     event: Event,
@@ -28,6 +29,7 @@ export class EventMapper {
     limits: EventLimits,
     usage: EventUsage,
     photoCount: number,
+    accessLevel: AccessLevel,
     invites: EventInvite[] = [],
   ): EventResponseDto {
     return {
@@ -37,6 +39,7 @@ export class EventMapper {
       description: event.suspendedAt ? null : event.description,
       date: event.date,
       creatorId: event.creatorId,
+      accessLevel,
       invitationUrl: buildInvitationUrl(event.invitationUrl),
       invites: EventMapper.toInviteResponseDtoList(invites),
       coverUrl,
