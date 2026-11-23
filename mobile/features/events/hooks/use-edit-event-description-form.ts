@@ -22,7 +22,7 @@ export const useEditEventDescriptionForm = ({
   initialDescription,
   onSuccess,
 }: UseEditEventDescriptionFormParams) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const mutation = useUpdateEventMutation(eventId);
   const submitting = useRef(false);
   const schema = z.object({

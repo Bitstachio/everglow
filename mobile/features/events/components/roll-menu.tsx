@@ -41,7 +41,7 @@ export const RollMenu = ({
   onReportRoll,
   onLeave,
 }: RollMenuProps) => {
-  const { t } = useTranslation(["roll", "report"]);
+  const { t } = useTranslation(["event", "report"]);
 
   if (role === "host") {
     return (
@@ -56,12 +56,16 @@ export const RollMenu = ({
             onPress={reports.onOpen}
           />
         ) : null}
-        <MenuAction label={t("menuSheet.rollCall")} icon={Users} onPress={onOpenRollCall} />
+        <MenuAction label={t("menuSheet.people")} icon={Users} onPress={onOpenRollCall} />
         {canOpenSettings ? (
           <MenuAction label={t("menuSheet.settings")} icon={SlidersHorizontal} onPress={onOpenSettings} />
         ) : null}
-        {canCut ? <MenuAction label={t("menuSheet.cut")} icon={Scissors} onPress={onCut} /> : null}
-        {canDelete && onDelete ? <MenuAction label={t("menuSheet.delete")} icon={Trash} onPress={onDelete} /> : null}
+        {canCut ? (
+          <MenuAction testID="roll-menu-cut" label={t("menuSheet.cut")} icon={Scissors} onPress={onCut} />
+        ) : null}
+        {canDelete && onDelete ? (
+          <MenuAction testID="roll-menu-delete" label={t("menuSheet.delete")} icon={Trash} onPress={onDelete} />
+        ) : null}
         {canLeave ? <MenuAction muted label={t("menuSheet.leave")} icon={SignOut} onPress={onLeave} /> : null}
       </View>
     );
@@ -69,8 +73,8 @@ export const RollMenu = ({
 
   return (
     <View testID="roll-menu">
-      <MenuAction first label={t("menuSheet.rollCall")} icon={Users} onPress={onOpenRollCall} />
-      <MenuAction label={t("report:menu.reportRoll")} icon={Flag} onPress={onReportRoll} />
+      <MenuAction first label={t("menuSheet.people")} icon={Users} onPress={onOpenRollCall} />
+      <MenuAction label={t("report:menu.reportEvent")} icon={Flag} onPress={onReportRoll} />
       <MenuAction label={t("menuSheet.leave")} icon={SignOut} onPress={onLeave} />
     </View>
   );

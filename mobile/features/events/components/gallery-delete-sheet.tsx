@@ -15,7 +15,7 @@ export const GalleryDeleteSheet = ({
   onClose: () => void;
   onConfirm: () => void;
 }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   return (
     <BottomSheet visible={!!targets?.length} onClose={onClose}>
       <Slip

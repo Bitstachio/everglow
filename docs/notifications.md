@@ -85,10 +85,11 @@ that checks them, its copy per language, the app path a tap opens, its dedupe ke
 8. If the tap should open a screen that needs more than a path, handle it in the app's notification tap handler,
    which arrives with the app's side of EV-73.
 
-| Type             | Sent when                                                                                          | Opens          | Required | Channel      | ttl   |
-| ---------------- | -------------------------------------------------------------------------------------------------- | -------------- | -------- | ------------ | ----- |
-| `TEST`           | `pnpm run notifications:send-test` (§6). Never sent by the app.                                    | `/`            | no       | `account`    | none  |
-| `GALLERY_OPENED` | Every 5 minutes: `galleryOpensAt` in the last day; members who joined at or before then. EV-141. | `/events/<id>` | no       | `roll_opens` | 1 day |
+| Type              | Sent when                                                                                          | Opens            | Required | Channel        | ttl   |
+| ----------------- | -------------------------------------------------------------------------------------------------- | ---------------- | -------- | -------------- | ----- |
+| `TEST`            | `pnpm run notifications:send-test` (§6). Never sent by the app.                                    | `/`              | no       | `account`      | none  |
+| `GALLERY_OPENED`  | Every 5 minutes: `galleryOpensAt` in the last day; members who joined at or before then. EV-141. | `/events/<id>`   | no       | `roll_opens`   | 1 day |
+| `GALLERY_CLOSING` | Hourly job: gallery closes within 1 day (and within 7 days when `galleryWindowDays` ≥ 14). EV-72. | `/events/<id>`   | no       | `roll_closing` | 1 day |
 
 ### Languages
 
@@ -105,10 +106,11 @@ in the app's notification settings ("A roll opens", "New photos, in batches", "T
 joins your roll", "Reports to check"). The ids are `NOTIFICATION_CHANNELS` in the catalogue, typed, so an entry
 cannot name a channel that does not exist.
 
-| Channel      | For                                   |
-| ------------ | ------------------------------------- |
-| `account`    | Account notices, and `TEST`           |
-| `roll_opens` | Gallery opened (`GALLERY_OPENED`)     |
+| Channel        | For                                      |
+| -------------- | ---------------------------------------- |
+| `account`      | Account notices, and `TEST`              |
+| `roll_opens`   | Gallery opened (`GALLERY_OPENED`)        |
+| `roll_closing` | Closing reminders (`GALLERY_CLOSING`)    |
 
 A new kind adds its channel id to `NOTIFICATION_CHANNELS` here **and** to the matching list the app creates its
 channels from, in the same release. That list arrives with the app's side of EV-73
@@ -150,14 +152,15 @@ falls back to Expo's default channel.
   and before the result is written, the lease runs out and that request is sent again. Expo offers no idempotency
   key to close this.
 
-| Job                    | When           | Enabled by                                     | Replicas               |
-| ---------------------- | -------------- | ---------------------------------------------- | ---------------------- |
-| Notification send      | every minute   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | all; claims split work |
-| Notification receipts  | every 15 min   | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | one at a time          |
-| Notification retention | daily, 05:00   | always                                         | one at a time          |
-| Gallery open notify    | every 5 minutes| always                                         | all; dedupe keys       |
+| Job                       | When         | Enabled by                                     | Replicas               |
+| ------------------------- | ------------ | ---------------------------------------------- | ---------------------- |
+| Notification send         | every minute | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | all; claims split work |
+| Notification receipts     | every 15 min | on unless `NOTIFICATIONS_SENDER_ENABLED=false` | one at a time          |
+| Notification retention    | daily, 05:00 | always                                         | one at a time          |
+| Gallery closing reminder  | every hour   | always                                         | all; dedupe keys       |
+| Gallery open notify       | every 5 minutes| always                                       | all; dedupe keys       |
 
-Every replica schedules all three. Send runs everywhere, and the claims keep replicas off each other's rows.
+Every replica schedules these jobs. Send runs everywhere, and the claims keep replicas off each other's rows.
 Receipts and retention would repeat the same work on every replica (N replicas, N times the receipt calls to
 Expo), so each run first takes a Postgres advisory lock with `pg_try_advisory_xact_lock` (`runExclusively` in
 `api/src/prisma/advisory-lock.ts`); a replica that finds it held skips that run and logs its heartbeat with
@@ -231,9 +234,9 @@ The mobile side lives in `mobile/features/notifications/`.
 - **In the foreground.** A notification shows as a banner, without sound, and stays in the list. No banner while
   its roll is on screen.
 - **Android.** One channel per kind of notification, matching the 14.9 toggles, created from
-  `NOTIFICATION_CHANNELS` in `lib/push.ts`: `account` (account notices and `TEST`) and `roll_opens` (a roll just
-  opened), at high importance. A type's catalogue `channel` must be one of these ids. Android fixes a channel's
-  importance once the phone has created it, so changing one needs a new id. The old `default` channel is deleted.
-  The small icon is tinted with the stamp colour (`app.json`). It has no `icon` of its own yet: the only
+  `NOTIFICATION_CHANNELS` in `lib/push.ts`: `account` (account notices and `TEST`), `roll_opens` (a roll just
+  opened), and `roll_closing` (the day before a roll closes), at high importance. A type's catalogue `channel` must be one of these ids. Android fixes a
+  channel's importance once the phone has created it, so changing one needs a new id. The old `default` channel is
+  deleted. The small icon is tinted with the stamp colour (`app.json`). It has no `icon` of its own yet: the only
   monochrome asset, `assets/images/android-icon-monochrome.png`, is the Expo template's stand-in, so add one with
   the Everglow mark (96×96, white on transparent) when it exists.

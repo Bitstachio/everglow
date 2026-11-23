@@ -34,14 +34,14 @@ const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
 
 // A roll has at most two envelopes: adds photos and view only.
 const ENVELOPE_COUNT_KEYS = [
-  "roll:settings.envelopeCount.0",
-  "roll:settings.envelopeCount.1",
-  "roll:settings.envelopeCount.2",
+  "event:settings.envelopeCount.0",
+  "event:settings.envelopeCount.1",
+  "event:settings.envelopeCount.2",
 ] as const;
 
 /** Roll settings for upcoming and open galleries. */
 export const useEventSettingsScreen = () => {
-  const { t } = useTranslation(["roll", "create"]);
+  const { t } = useTranslation(["event", "create"]);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
@@ -66,7 +66,7 @@ export const useEventSettingsScreen = () => {
 
   useEffect(() => {
     if (!eventQuery.isError || isRollDeleted()) return;
-    Alert.alert(t("roll:settings.loadFailed"), getErrorMessage(eventQuery.error));
+    Alert.alert(t("event:settings.loadFailed"), getErrorMessage(eventQuery.error));
     router.back();
   }, [eventQuery.isError, eventQuery.errorUpdatedAt, eventQuery.error, isRollDeleted, router, t]);
 
@@ -82,16 +82,16 @@ export const useEventSettingsScreen = () => {
   const subtitle = !event
     ? ""
     : isClosed
-      ? t("roll:closed.top", { date: formatClosedOn(closedOn(event)) })
+      ? t("event:closed.top", { date: formatClosedOn(closedOn(event)) })
       : event.galleryState === "OPEN"
         ? event.galleryClosesAt
-          ? t("roll:settings.openUntil", { until: formatEnvelopeDay(event.galleryClosesAt) })
-          : t("roll:settings.open")
-        : t("roll:settings.opens", { when: formatOpensAt(event.galleryOpensAt) });
+          ? t("event:settings.openUntil", { until: formatEnvelopeDay(event.galleryClosesAt) })
+          : t("event:settings.open")
+        : t("event:settings.opens", { when: formatOpensAt(event.galleryOpensAt) });
 
   const whenValue = event ? formatOpensAt(event.date) : "";
   const filmValue =
-    event?.galleryWindowDays != null ? t("roll:settings.filmDays", { count: event.galleryWindowDays }) : "";
+    event?.galleryWindowDays != null ? t("event:settings.durationDays", { count: event.galleryWindowDays }) : "";
 
   const storage =
     event != null
@@ -105,15 +105,15 @@ export const useEventSettingsScreen = () => {
   const envelopesValue = (() => {
     if (!event) return "";
     const state = envelopeState(event);
-    if (state === "closed") return t("roll:settings.envelopesClosed");
-    if (state === "suspended") return t("roll:settings.envelopesSuspended");
+    if (state === "closed") return t("event:settings.envelopesClosed");
+    if (state === "suspended") return t("event:settings.envelopesSuspended");
     const held = envelopeCount(event);
     const count = t(ENVELOPE_COUNT_KEYS[Math.min(held, ENVELOPE_COUNT_KEYS.length - 1)]);
     // No envelope, nothing to reset.
     if (held === 0) return count;
     return state === "onHold"
-      ? t("roll:settings.envelopesOnHold", { count })
-      : t("roll:settings.envelopesReset", { count });
+      ? t("event:settings.envelopesOnHold", { count })
+      : t("event:settings.envelopesReset", { count });
   })();
 
   const now = new Date();
@@ -161,7 +161,7 @@ export const useEventSettingsScreen = () => {
       label: day ? String(day.getDate()) : null,
       accessibilityLabel: day
         ? state === "unavailable"
-          ? t("roll:settings.editWhen.unavailable", { day: formatLongDay(day) })
+          ? t("event:settings.editWhen.unavailable", { day: formatLongDay(day) })
           : formatLongDay(day)
         : undefined,
       onPress: day ? () => setWhenDraft((current) => clampWhen(onDay(current, day))) : undefined,
@@ -189,7 +189,7 @@ export const useEventSettingsScreen = () => {
       await updateMutation.mutateAsync({ date: whenDraft.toISOString() });
       setWhenVisible(false);
     } catch (error) {
-      setWhenError(getErrorMessage(error, t("roll:settings.editWhen.failed")));
+      setWhenError(getErrorMessage(error, t("event:settings.editWhen.failed")));
       // The roll may have opened meanwhile (EVENT_SCHEDULE_LOCKED): show the index as it is now.
       void eventQuery.refetch();
     } finally {
@@ -209,10 +209,10 @@ export const useEventSettingsScreen = () => {
     setFilmVisible(true);
   };
 
-  const filmNames = t("create:film.names", { returnObjects: true }) as Record<string, string | undefined>;
+  const filmNames = t("create:duration.names", { returnObjects: true }) as Record<string, string | undefined>;
   const filmOptions = (event?.galleryWindowOptions ?? []).map((days) => {
-    const name = filmNames[String(days)] ?? t("create:film.days", { count: days });
-    return { days, name, accessibilityLabel: t("create:film.a11y", { name, count: days }) };
+    const name = filmNames[String(days)] ?? t("create:duration.days", { count: days });
+    return { days, name, accessibilityLabel: t("create:duration.a11y", { name, count: days }) };
   });
   const filmPreview = galleryWindow(eventDate, filmDraft, now);
 
@@ -228,7 +228,7 @@ export const useEventSettingsScreen = () => {
       await updateMutation.mutateAsync({ galleryWindowDays: filmDraft });
       setFilmVisible(false);
     } catch (error) {
-      setFilmError(getErrorMessage(error, t("roll:settings.editFilm.failed")));
+      setFilmError(getErrorMessage(error, t("event:settings.editDuration.failed")));
       // The roll may have opened meanwhile (EVENT_SCHEDULE_LOCKED): show the index as it is now.
       void eventQuery.refetch();
     } finally {
@@ -243,13 +243,13 @@ export const useEventSettingsScreen = () => {
     title: event?.title ?? "",
     subtitle,
     nameValue: event?.title ?? "",
-    coverValue: event?.coverUrl ? t("roll:settings.coverChange") : t("roll:settings.coverAdd"),
-    noteValue: note || t("roll:settings.noteAdd"),
-    whenValue: scheduleLocked ? t("roll:settings.locked", { value: whenValue }) : whenValue,
-    filmValue: scheduleLocked ? t("roll:settings.locked", { value: filmValue }) : filmValue,
-    storageValue: t("roll:settings.storageUsed", { used: storage.used, limit: storage.limit }),
+    coverValue: event?.coverUrl ? t("event:settings.coverChange") : t("event:settings.coverAdd"),
+    noteValue: note || t("event:settings.noteAdd"),
+    whenValue: scheduleLocked ? t("event:settings.locked", { value: whenValue }) : whenValue,
+    filmValue: scheduleLocked ? t("event:settings.locked", { value: filmValue }) : filmValue,
+    storageValue: t("event:settings.storageUsed", { used: storage.used, limit: storage.limit }),
     envelopesValue,
-    deleteValue: isClosed ? undefined : t("roll:settings.deleteAfter"),
+    deleteValue: isClosed ? undefined : t("event:settings.deleteAfter"),
     onBack: () => router.back(),
     onOpenName: () => {
       if (eventId) router.push(`/events/${eventId}/edit-title`);
@@ -290,23 +290,23 @@ export const useEventSettingsScreen = () => {
         if (whenSaving) return;
         setWhenVisible(false);
       },
-      edge: t("roll:settings.editWhen.edge"),
+      edge: t("event:settings.editWhen.edge"),
       months: whenMonths,
       monthIndex: whenMonthIndex,
       onMonthChange: (index: number) => setWhenMonth(addMonths(firstMonth, index)),
       previous: {
-        accessibilityLabel: t("roll:settings.editWhen.previousMonth"),
+        accessibilityLabel: t("event:settings.editWhen.previousMonth"),
         disabled: whenMonth.getTime() <= firstMonth.getTime(),
       },
       next: {
-        accessibilityLabel: t("roll:settings.editWhen.nextMonth"),
+        accessibilityLabel: t("event:settings.editWhen.nextMonth"),
         disabled: whenMonth.getTime() >= lastMonth.getTime(),
       },
       weekdays: WEEKDAY_INITIALS,
       times: whenTimes,
-      people: othersOnRoll > 0 ? t("roll:settings.editWhen.people", { count: othersOnRoll }) : null,
+      people: othersOnRoll > 0 ? t("event:settings.editWhen.people", { count: othersOnRoll }) : null,
       error: whenError,
-      setLabel: t("roll:settings.editWhen.move", {
+      setLabel: t("event:settings.editWhen.move", {
         day: formatLongDay(whenDraft),
         time: formatClock(whenDraft),
       }),
@@ -319,15 +319,14 @@ export const useEventSettingsScreen = () => {
         if (filmSaving) return;
         setFilmVisible(false);
       },
-      heading: t("roll:settings.editFilm.heading"),
-      unit: t("roll:settings.editFilm.dayRoll"),
+      heading: t("event:settings.editDuration.heading"),
+      unit: t("event:settings.editDuration.unit"),
       options: filmOptions,
       selected: filmDraft,
       onSelect: setFilmDraft,
-      circled: filmDraft !== null && filmDraft !== filmDays,
       closes: filmPreview.closesAt ? formatShortDay(filmPreview.closesAt) : null,
       error: filmError,
-      saveLabel: t("roll:settings.editFilm.save"),
+      saveLabel: t("event:settings.editDuration.save"),
       onSave: () => void saveFilm(),
       isSaving: filmSaving,
       canSave: filmDraft != null,

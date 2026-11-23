@@ -9,7 +9,7 @@ import { useEditEventTitleScreen } from "../hooks/use-edit-event-title-screen";
 
 /** Edit the roll's name from settings. */
 const EditEventTitleScreen = () => {
-  const { t } = useTranslation(["roll", "common"]);
+  const { t } = useTranslation(["event", "common"]);
   const { isLoading, form, onSubmit, onBack } = useEditEventTitleScreen();
 
   if (isLoading) {
@@ -23,7 +23,7 @@ const EditEventTitleScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-ground">
       <TopBar
-        title={t("roll:settings.editName.title")}
+        title={t("event:settings.editName.title")}
         left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={onBack} />}
       />
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -33,9 +33,9 @@ const EditEventTitleScreen = () => {
           isSubmitting={form.formState.isSubmitting}
           error={form.formState.errors.root?.server?.message}
           onSubmit={onSubmit}
-          placeholder={t("roll:settings.editName.placeholder")}
-          accessibilityLabel={t("roll:settings.editName.a11y")}
-          saveLabel={t("roll:settings.editName.save")}
+          placeholder={t("event:settings.editName.placeholder")}
+          accessibilityLabel={t("event:settings.editName.a11y")}
+          saveLabel={t("event:settings.editName.save")}
         />
       </KeyboardAvoidingView>
       <FilmGrain />

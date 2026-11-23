@@ -55,6 +55,8 @@ export const ALERT_EVENTS = {
   GALLERY_CLOSE_RUN_FAILED: "event.gallery_close.run_failed",
   GALLERY_OPEN_NOTIFY_RUN_COMPLETED: "event.gallery_open_notify.run_completed",
   GALLERY_OPEN_NOTIFY_RUN_FAILED: "event.gallery_open_notify.run_failed",
+  GALLERY_CLOSING_REMINDER_RUN_COMPLETED: "event.gallery_closing_reminder.run_completed",
+  GALLERY_CLOSING_REMINDER_RUN_FAILED: "event.gallery_closing_reminder.run_failed",
   REPORT_EVIDENCE_RUN_COMPLETED: "report.evidence_job.run_completed",
   REPORT_EVIDENCE_RUN_FAILED: "report.evidence_job.run_failed",
   PHOTO_HASH_BACKFILL_RUN_COMPLETED: "photo.hash_backfill.run_completed",

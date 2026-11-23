@@ -86,7 +86,7 @@ test("the sign-out slip names the account and says nothing is lost", async () =>
   mockScreen.signOutVisible = true;
   await renderScreen();
   expect(screen.getByRole("header", { name: "Sign out?" })).toBeOnTheScreen();
-  expect(screen.getByText("Your rolls and photos stay. Sign in again any time.")).toBeOnTheScreen();
+  expect(screen.getByText("Your events and photos stay. Sign in again any time.")).toBeOnTheScreen();
   const user = userEvent.setup();
   // The index row is under the slip; the slip's leader is the last "Sign out".
   const leaders = screen.getAllByRole("button", { name: "Sign out" });

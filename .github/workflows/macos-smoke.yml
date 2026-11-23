@@ -1,11 +1,17 @@
+# How this job runs (triggers, secrets, retries, caches): mobile/docs/mac-smoke.md
 name: Mac smoke
 
 on:
+  # Nightly on main. 08:00 UTC is the middle of the night in North America,
+  # when staging is quiet.
+  schedule:
+    - cron: "0 8 * * *"
   workflow_dispatch:
-
-concurrency:
-  group: macos-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  # Pull requests only run the smoke while they carry the `mac-smoke` label
+  # (see the job's `if`). This is `pull_request`, never `pull_request_target`:
+  # the repository is public, and fork pull requests must not get secrets.
+  pull_request:
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
@@ -13,8 +19,22 @@ permissions:
 jobs:
   login-ios:
     name: Maestro login (iOS)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.repository == 'Bitstachio/everglow') ||
+      (github.event_name == 'pull_request' &&
+        ((github.event.action == 'labeled' && github.event.label.name == 'mac-smoke') ||
+         (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'mac-smoke'))))
     runs-on: macos-latest
     timeout-minutes: 75
+    # Every run signs in as the same seeded staging user, so one run at a time
+    # across the repository. A running smoke is never cancelled. GitHub keeps
+    # one pending run per group: a newer run that queues replaces the pending
+    # one, so a nightly can be displaced only when two runs queue behind a
+    # running one. Job-level, so a skipped (unlabelled) PR run takes no slot.
+    concurrency:
+      group: macos-smoke-e2e-user
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: mobile
@@ -27,6 +47,15 @@ jobs:
       EXPO_PUBLIC_AUTH0_AUDIENCE: ${{ secrets.EXPO_PUBLIC_AUTH0_AUDIENCE }}
       EXPO_PUBLIC_AUTH0_PASSWORD_CHANGE_RESULT_URL: everglowmobile://password-change/result
       MAESTRO_VERSION: "2.10.0"
+      # Pinned simulator. macos-latest (macos-26-arm64) has iPhone 17 on iOS
+      # 26.2, 26.4 and 26.5; 26.5 matches the default Xcode 26.6 SDK. When the
+      # image drops the runtime, the job falls back to the newest iOS runtime
+      # with this model and warns; it fails when no runtime has the model.
+      SIM_DEVICE: iPhone 17
+      SIM_RUNTIME: iOS 26.5
+      IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+      # Bump to invalidate every Mac smoke cache this workflow keeps.
+      CACHE_EPOCH: v1
 
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +71,10 @@ jobs:
             fi
           done
           if [ "$missing" -ne 0 ]; then
+            if [ "$IS_FORK_PR" = "true" ]; then
+              echo "::error::Pull requests from forks get no repository secrets, so the smoke cannot sign in. A maintainer can push the branch to this repository and run the workflow there."
+              exit 1
+            fi
             echo "Set secrets with: gh secret set <NAME>"
             echo "EXPO_PUBLIC_API_URL must be a public HTTPS API (not localhost)."
             exit 1
@@ -52,6 +85,10 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Check the staging API answers
+        timeout-minutes: 2
+        run: ./scripts/check-maestro-api.sh "$EXPO_PUBLIC_API_URL"
 
       - name: Write mobile/.env for the Release build
         run: |
@@ -73,6 +110,32 @@ jobs:
           cache: pnpm
           cache-dependency-path: mobile/pnpm-lock.yaml
 
+      # Boot starts here and finishes while dependencies install and the app
+      # builds. "Wait for the simulator" blocks on it before install.
+      - name: Pick and start booting the simulator
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/simulators.json"
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON mobile/scripts/pick-maestro-simulator.ts < "$RUNNER_TEMP/simulators.json" > "$RUNNER_TEMP/simulator.txt"
+          DEVICE_ID="$(sed -n 's/^udid=//p' "$RUNNER_TEMP/simulator.txt")"
+          SIM_NAME="$(sed -n 's/^name=//p' "$RUNNER_TEMP/simulator.txt")"
+          SIM_RUNTIME_USED="$(sed -n 's/^runtime=//p' "$RUNNER_TEMP/simulator.txt")"
+          echo "Simulator: $SIM_NAME on $SIM_RUNTIME_USED ($DEVICE_ID); pinned $SIM_DEVICE on $SIM_RUNTIME"
+          {
+            echo "DEVICE_ID=$DEVICE_ID"
+            echo "SIM_NAME=$SIM_NAME"
+            echo "SIM_RUNTIME_USED=$SIM_RUNTIME_USED"
+          } >> "$GITHUB_ENV"
+          # simctl boot returns once the boot has started. Already booted is fine;
+          # anything else is a real failure.
+          if ! out="$(xcrun simctl boot "$DEVICE_ID" 2>&1)"; then
+            case "$out" in
+              *"current state: Booted"*) echo "Simulator was already booted." ;;
+              *) echo "$out"; exit 1 ;;
+            esac
+          fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -81,52 +144,127 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
+      # Caches are restored before the step that uses them and saved after it
+      # or in the always() steps at the end of the job, so a failing smoke still
+      # keeps a cold run's caches.
+      - name: Restore Maestro CLI
+        id: maestro-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.maestro
+          key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
+
       - name: Install Maestro
+        id: maestro-install
+        if: steps.maestro-cache.outputs.cache-hit != 'true'
         working-directory: ${{ github.workspace }}
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | MAESTRO_VERSION="$MAESTRO_VERSION" bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
-      - name: Boot iPhone simulator
-        id: sim
+      # Saved straight after install, before any flow runs: Maestro can write
+      # session files under ~/.maestro, and a cache must never hold a secret.
+      - name: Save Maestro CLI
+        if: steps.maestro-install.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.maestro
+          key: ${{ steps.maestro-cache.outputs.cache-primary-key }}
+
+      - name: Add Maestro to PATH
+        working-directory: ${{ github.workspace }}
+        run: echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      # CocoaPods download cache only (not ios/Pods). ios/ is gitignored CNG
+      # output, so Podfile.lock does not exist until after prebuild; the key
+      # stands in for what decides pod versions (JS lockfile + Expo config).
+      - name: Restore CocoaPods downloads
+        id: pods-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-${{ hashFiles('mobile/pnpm-lock.yaml', 'mobile/package.json', 'mobile/app.config.ts', 'mobile/app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-cocoapods-${{ env.CACHE_EPOCH }}-
+
+      - name: Prebuild native iOS project
+        id: prebuild
+        run: pnpm exec expo prebuild --platform ios --non-interactive
+
+      # Drive xcodebuild directly (not expo run:ios) so the build is single-arch
+      # and lands in a fixed -derivedDataPath where the .app is easy to find.
+      # DerivedData is not cached: prebuild regenerates ios/ and pnpm reinstalls
+      # node_modules every run, so Xcode recompiles a restored tree anyway.
+      - name: Build and install Release (no Metro)
+        id: build
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)"
+          SCHEME="$(basename "$WORKSPACE" .xcworkspace)"
+          DERIVED_DATA="${HOME}/everglow-deriveddata"
+          ARCH="$(uname -m)"
+          mkdir -p "$DERIVED_DATA"
+          # Hosted macos runners are Apple Silicon; Release otherwise builds
+          # arm64+x86_64 for the simulator and roughly doubles compile work.
+          # Keep code signing on: Xcode signs simulator builds ad hoc ("Sign to
+          # Run Locally"). An unsigned app has no Keychain entitlement, and
+          # Auth0 then fails sign-in with OSStatus -34018.
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -derivedDataPath "$DERIVED_DATA" \
+            -destination "platform=iOS Simulator,id=${DEVICE_ID}" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            ARCHS="$ARCH" \
+            ONLY_ACTIVE_ARCH=YES \
+            build
+          APP_PATH="$(find "$DERIVED_DATA/Build/Products/Release-iphonesimulator" -maxdepth 2 -name '*.app' | head -1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app under $DERIVED_DATA/Build/Products/Release-iphonesimulator"
+            exit 1
+          fi
+          if ! codesign --verify "$APP_PATH"; then
+            echo "$APP_PATH is not signed. Sign-in needs the Keychain, which an unsigned simulator app cannot use."
+            exit 1
+          fi
+          codesign --display --verbose=2 "$APP_PATH"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Wait for the simulator and install the app
+        timeout-minutes: 10
         working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          data = json.load(sys.stdin)
-          devices = []
-          for runtime, items in data.get("devices", {}).items():
-              for d in items:
-                  if d.get("isAvailable") and d.get("name", "").startswith("iPhone"):
-                      devices.append(d["udid"])
-          if not devices:
-              sys.exit("No available iPhone simulator")
-          print(devices[-1])
-          ')"
-          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
-          echo "udid=$DEVICE_ID" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$DEVICE_ID" || true
-          open -a Simulator
           xcrun simctl bootstatus "$DEVICE_ID" -b
+          open -a Simulator
           # Reduce Auth0 password-field fights with iOS AutoFill.
-          xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false || true
+          xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Preferences AutoFillPasswords -bool false
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
 
-      - name: Prebuild native iOS project
-        run: pnpm exec expo prebuild --platform ios --non-interactive
+      - name: Add the smoke photo to the simulator library
+        run: xcrun simctl addmedia "$DEVICE_ID" .maestro/fixtures/smoke-photo.jpg
 
-      - name: Build and install Release (no Metro)
-        run: >
-          pnpm exec expo run:ios
-          --configuration Release
-          --device "$DEVICE_ID"
-          --no-bundler
-
+      # Writes attempts.json and the job summary, and a warning annotation when
+      # a retry rescued the run (scripts/maestro-attempt-summary.ts).
       - name: Maestro login smoke
+        env:
+          MAESTRO_ARTIFACT_NAME: maestro-login-ios-${{ github.run_id }}
         run: pnpm run test:e2e:login:ios:ci
 
-      - name: Upload Maestro results
+      # Maestro writes every -e value into commands.json, and this repo's
+      # artifacts are public. Never upload results that still hold a secret.
+      - name: Scrub secrets from Maestro results
+        id: scrub
         if: always()
+        run: pnpm exec tsx ./scripts/scrub-maestro-results.ts .maestro/results E2E_PASSWORD
+
+      - name: Upload Maestro results
+        id: upload
+        if: always() && steps.scrub.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: maestro-login-ios-${{ github.run_id }}
@@ -134,3 +272,19 @@ jobs:
             mobile/.maestro/results/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Link the results in the job summary
+        if: always() && steps.upload.outputs.artifact-url != ''
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          echo "- Results download: [maestro-login-ios-${GITHUB_RUN_ID}]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Save only what this run produced, and skip exact-key hits (that entry
+      # already exists).
+      - name: Save CocoaPods downloads
+        if: always() && steps.pods-cache.outputs.cache-hit != 'true' && steps.prebuild.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: ${{ steps.pods-cache.outputs.cache-primary-key }}

@@ -8,13 +8,15 @@ type WhenFieldProps = {
   accessibilityLabel: string;
   disabled?: boolean;
   onPress: () => void;
+  testID?: string;
 };
 
 /** 04.3 When the roll happens, under its label; tapping it opens the calendar slip. */
-export const WhenField = ({ heading, when, accessibilityLabel, disabled = false, onPress }: WhenFieldProps) => (
+export const WhenField = ({ heading, when, accessibilityLabel, disabled = false, onPress, testID }: WhenFieldProps) => (
   <View>
     <EdgePrint className="mb-2.5">{heading}</EdgePrint>
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}

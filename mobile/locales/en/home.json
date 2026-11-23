@@ -3,19 +3,19 @@
     "scanner": "Scan an envelope",
     "labCard": "Your lab card"
   },
-  "failedTitle": "Couldn’t load your rolls",
+  "failedTitle": "Couldn’t load your events",
   "firstRun": {
-    "edge": "Roll 00 · unexposed",
-    "title": "No rolls yet.",
+    "edge": "Event 00 · no photos yet",
+    "title": "No events yet.",
     "body": "Start one for your next night out, or join one someone sends you.",
     "note": "yours goes here",
-    "startRoll": "Start a roll",
+    "startEvent": "Start an event",
     "joinEnvelope": "Join with an envelope"
   },
   "newEvent": "New event",
-  "roll": {
+  "event": {
     "people": "<value>{{count}}</value> ppl",
-    "peopleIn": "Unexposed · <value>{{count}}</value> ppl in",
+    "peopleIn": "Not open yet · <value>{{count}}</value> ppl in",
     "label": "{{title}}, {{status}}"
   },
   "time": {
@@ -33,7 +33,7 @@
     "edge": "No connection",
     "note": "Showing what’s saved",
     "asOf": "as of {{time}}",
-    "waiting": "Back online to start a roll",
+    "waiting": "Back online to start an event",
     "nothingSaved": "Nothing saved yet"
   }
 }

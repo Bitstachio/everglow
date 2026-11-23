@@ -11,6 +11,7 @@ import { RateLimitModule } from "./common/rate-limit/rate-limit.module";
 import appleConfig from "./config/apple.config";
 import auth0Config from "./config/auth0.config";
 import awsConfig from "./config/aws.config";
+import { validateEnv } from "./config/env";
 import moderationConfig from "./config/moderation.config";
 import notificationsConfig from "./config/notifications.config";
 import photosConfig from "./config/photos.config";
@@ -34,6 +35,7 @@ import { UsersModule } from "./users/users.module";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateEnv,
       load: [
         appleConfig,
         auth0Config,

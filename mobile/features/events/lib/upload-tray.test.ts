@@ -78,7 +78,7 @@ beforeEach(() => {
   mockRestore.mockReset().mockReturnValue(new Map());
 });
 
-test("sends what can go, refreshes the roll, then drops the developed frames", async () => {
+test("sends what can go, refreshes the roll, then drops the developed photos", async () => {
   addToTray("event-1", [item("a"), item("b"), item("big", { kind: "rejected", reason: "tooLarge" })], settle);
   expect(getTray("event-1").running).toBe(true);
   await flush();

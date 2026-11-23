@@ -7,7 +7,14 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useReportMutation } from "../api/mutations";
 import { useReportedPhotoQuery } from "../api/queries";
-import { goesOnlyToEverglow, lastHostReason, REPORT_NOTE_MAX, REPORT_REASONS, type ReportTarget } from "../lib/reasons";
+import {
+  goesOnlyToEverglow,
+  lastHostReason,
+  REPORT_NOTE_MAX,
+  REPORT_REASONS,
+  REPORT_TARGET_COPY_KEY,
+  type ReportTarget,
+} from "../lib/reasons";
 import type { ReportReason } from "../types";
 
 type Params = { id: string; photoId?: string; userId?: string; number?: string };
@@ -23,7 +30,7 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
  * two serious reasons go only to Everglow, and the ticket says so.
  */
 export const useReportScreen = () => {
-  const { t } = useTranslation(["report", "roll"]);
+  const { t } = useTranslation(["report", "event"]);
   const params = useLocalSearchParams<Params>();
   const eventId = first(params.id) ?? "";
   const photoId = first(params.photoId);
@@ -51,7 +58,7 @@ export const useReportScreen = () => {
     (participant) => participant.userId === user?.id && participant.accessLevel === "ORGANIZER",
   );
   // Until the roll call loads, or for someone who has left it.
-  const name = subject?.name || t("roll:people.unknown");
+  const name = subject?.name || t("event:people.unknown");
   const firstName = firstNameOf(name) || name;
   const number = Number.isInteger(frameNumber) && frameNumber > 0 ? frameNumber : null;
   const serious = reason !== null && goesOnlyToEverglow(reason);
@@ -59,18 +66,18 @@ export const useReportScreen = () => {
   const title =
     target === "frame"
       ? number
-        ? t("top.frame", { number })
-        : t("top.frameNoNumber")
+        ? t("top.photo", { number })
+        : t("top.photoNoNumber")
       : target === "person"
         ? t("top.person", { name })
         : event?.title
-          ? t("top.roll", { title: event.title })
-          : t("menu.reportRoll");
+          ? t("top.event", { title: event.title })
+          : t("menu.reportEvent");
 
   const frameLabel = number
     ? subject
-      ? t("subject.frame", { number, name: firstName })
-      : t("subject.frameNoName", { number })
+      ? t("subject.photo", { number, name: firstName })
+      : t("subject.photoNoName", { number })
     : name;
   const subjectLabel = `▸ ${
     target === "frame"
@@ -79,7 +86,7 @@ export const useReportScreen = () => {
         ? subject?.username
           ? t("subject.person", { name: firstName, username: subject.username })
           : firstName
-        : t("subject.roll")
+        : t("subject.event")
   }`;
 
   // A frame report came from the viewer: going back reopens that frame.
@@ -111,7 +118,7 @@ export const useReportScreen = () => {
           // A frame hidden or removed since the menu opened, or a roll that's gone.
           // Someone who has left the roll is a 403 with its own message.
           if (isApiError(failure) && failure.status === 404) {
-            setError(t(target === "frame" ? "gone.frame" : "gone.roll"));
+            setError(t(target === "frame" ? "gone.photo" : "gone.event"));
             return;
           }
           setError(getErrorMessage(failure, t("failed")));
@@ -132,7 +139,7 @@ export const useReportScreen = () => {
     subjectLabel,
     reasons: REPORT_REASONS[target].map((value) => ({
       reason: value,
-      label: t(`reasons.${target}.${value}` as "reasons.frame.SPAM"),
+      label: t(`reasons.${REPORT_TARGET_COPY_KEY[target]}.${value}` as "reasons.photo.SPAM"),
       checked: value === reason,
     })),
     dividerAfter: lastHostReason(target),
@@ -140,7 +147,7 @@ export const useReportScreen = () => {
       ? t("ticket.footer.serious")
       : target === "frame" && isHost
         ? t("ticket.footer.person")
-        : t(`ticket.footer.${target}`),
+        : t(`ticket.footer.${REPORT_TARGET_COPY_KEY[target]}`),
     reason,
     serious,
     note,

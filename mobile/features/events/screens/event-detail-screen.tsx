@@ -51,7 +51,7 @@ import {
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
-import { formatClosedOn, formatOpensOn } from "../lib/rolls";
+import { formatClosedOn, formatOpensOn, rollFrameCount } from "../lib/rolls";
 import type { DevelopingFrame } from "../lib/upload-tray-view";
 import { formatEventStorage, formatStorageBytes } from "../utils";
 
@@ -85,7 +85,7 @@ const CoverButton = ({ children }: { children: ReactNode }) => (
 );
 
 const EventDetailScreen = () => {
-  const { t } = useTranslation(["roll", "common"]);
+  const { t } = useTranslation(["event", "common"]);
   const insets = useSafeAreaInsets();
   const screen = useEventDetailScreen();
   const { event, participants, frames, role, stage, now, lastDay } = screen;
@@ -100,7 +100,7 @@ const EventDetailScreen = () => {
 
   const host = hostName(event, participants);
   const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
-  const count = Math.max(frames.length, event.photoCount);
+  const count = rollFrameCount(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
     const opens = formatRollDate(event.galleryOpensAt);
@@ -149,7 +149,7 @@ const EventDetailScreen = () => {
           title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           }
@@ -219,7 +219,7 @@ const EventDetailScreen = () => {
     stock.kind === "hidden" ? (
       t("band.hidden")
     ) : stock.kind === "frames" ? (
-      <Trans t={t} i18nKey="band.frames" values={{ count }} components={{ value }} />
+      <Trans t={t} i18nKey="band.photos" values={{ count }} components={{ value }} />
     ) : event.limits.storageBytes === null ? (
       <Trans t={t} i18nKey="band.storageNoLimit" values={{ used }} components={{ value }} />
     ) : (
@@ -373,19 +373,20 @@ const EventDetailScreen = () => {
     </View>
   );
 
-  const frameBy = (frame: SheetFrame) => frame.by ?? (frame.deleted ? t("frame.deletedAccount") : null);
+  const frameBy = (frame: SheetFrame) => frame.by ?? (frame.deleted ? t("photo.deletedAccount") : null);
   const frameLabel = (frame: SheetFrame) => {
     const by = frameBy(frame);
     const label = by
-      ? t("frame.labelBy", { number: frame.number, name: by })
-      : t("frame.label", { number: frame.number });
-    return frame.isNew ? t("frame.new", { label }) : label;
+      ? t("photo.labelBy", { number: frame.number, name: by })
+      : t("photo.label", { number: frame.number });
+    return frame.isNew ? t("photo.new", { label }) : label;
   };
 
   const renderFrame = ({ item }: { item: SheetItem }) => (
     <View className="w-1/3 px-0.5 pb-3.5">
       {item.kind === "photo" ? (
         <ContactFrame
+          testID="roll-frame"
           uri={item.frame.photo.thumbnailUrl}
           cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
@@ -413,16 +414,17 @@ const EventDetailScreen = () => {
         />
       ) : (
         <ContactFrame
+          testID="roll-frame-developing"
           uri={item.frame.item.uri}
           number={item.frame.number}
-          by={t("frame.you")}
+          by={t("photo.you")}
           avatar={uploaderAvatar(currentUploader)}
           develop={item.frame.develop}
           crossed={item.frame.crossed}
           accessibilityLabel={
             item.frame.crossed
-              ? t("tray.frameFailed", { number: item.frame.number })
-              : t("tray.frameDeveloping", { number: item.frame.number })
+              ? t("tray.photoFailed", { number: item.frame.number })
+              : t("tray.photoDeveloping", { number: item.frame.number })
           }
           onPress={screen.onOpenTray}
         />
@@ -541,7 +543,7 @@ const EventDetailScreen = () => {
             <BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />
           </CoverButton>
           <CoverButton>
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           </CoverButton>
@@ -597,7 +599,7 @@ const EventDetailScreen = () => {
 
 /** Everything that opens over the roll: the menu, people, slips, the envelope, a frame. */
 const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> }) => {
-  const { t } = useTranslation(["roll", "report"]);
+  const { t } = useTranslation(["event", "report"]);
   const { event, role } = screen;
   if (!event) return null;
 
@@ -781,7 +783,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
 /** A save or share under way: how far it has got. */
 const progressLabel = (
-  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  t: ReturnType<typeof useTranslation<"event">>["t"],
   progress: ReturnType<typeof useEventDetailScreen>["progress"],
 ) =>
   progress === null
@@ -792,7 +794,7 @@ const progressLabel = (
 
 /** 08.6's body: who can make room depends on who's asking. */
 const roomBody = (
-  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  t: ReturnType<typeof useTranslation<"event">>["t"],
   fits: number,
   left: string,
   role: string,

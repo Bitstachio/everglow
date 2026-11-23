@@ -15,11 +15,12 @@ import { TEST_PHOTO_ID, withPhotoDerivatives } from "./helpers/photos.fixtures";
 import { TEST_USER_ID, buildUserWithDetails } from "./helpers/users.fixtures";
 
 /**
- * Actioning an intimate-image report removes its identical copies in other
- * events (docs/moderation.md §7). Runs the real EvidenceService, which the
- * other suites replace, so the copies' evidence path is the one in production.
+ * Actioning an intimate-image or child-safety photo report removes its
+ * identical copies in other events (docs/moderation.md §7). Runs the real
+ * EvidenceService, which the other suites replace, so the copies' evidence
+ * path is the one in production.
  */
-describe("Identical copies of a removed intimate image (integration)", () => {
+describe("Identical copies of a removed image (integration)", () => {
   const OTHER_EVENT_ID = "eeeeeeee-1111-4222-8333-eeeeeeeeeeee";
   const COPY_PHOTO_ID = "ffffffff-1111-4222-8333-ffffffffffff";
   const COPY_UPLOADER_ID = "abababab-1111-4222-8333-abababababab";
@@ -102,6 +103,7 @@ describe("Identical copies of a removed intimate image (integration)", () => {
     prisma.report.findMany.mockResolvedValue([
       {
         id: TEST_REPORT_ID,
+        reason: "NON_CONSENSUAL_INTIMATE_IMAGE",
         resolvedById: TEST_USER_ID,
         holdUntil: null,
         holdReason: null,
@@ -190,6 +192,96 @@ describe("Identical copies of a removed intimate image (integration)", () => {
     expect(prisma.reportEvidence.update).toHaveBeenCalledWith({
       where: { id: `ev-${LINKED_REPORT_ID}` },
       data: { evidenceS3Key: null, objectS3Key: null, quarantineFailedAt: null },
+    });
+  });
+
+  describe("of a removed child-safety image", () => {
+    const filedHoldUntil = new Date(Date.now() + 200 * 24 * 60 * 60 * 1000);
+    const childSafety = buildReport({
+      reason: "CHILD_SAFETY",
+      queue: "PLATFORM",
+      escalationReasons: ["CHILD_SAFETY"],
+      holdUntil: filedHoldUntil,
+      holdReason: "CHILD_SAFETY",
+    });
+
+    beforeEach(() => {
+      prisma.report.findUnique.mockResolvedValue({
+        ...childSafety,
+        evidence: evidenceRow(TEST_REPORT_ID, originalKey),
+      } as never);
+      prisma.report.updateManyAndReturn.mockReset();
+      prisma.report.updateManyAndReturn
+        .mockResolvedValueOnce([
+          { ...childSafety, status: "ACTIONED", closedReason: "PHOTO_REMOVED", closedByRole: "PLATFORM" },
+        ])
+        .mockResolvedValue([]);
+      prisma.report.findMany.mockResolvedValue([
+        {
+          id: TEST_REPORT_ID,
+          reason: "CHILD_SAFETY",
+          resolvedById: TEST_USER_ID,
+          holdUntil: filedHoldUntil,
+          holdReason: "CHILD_SAFETY",
+          evidence: { id: `ev-${TEST_REPORT_ID}`, sha256, objectS3Key: null },
+        },
+      ] as never);
+      // discardImages asks only for actioned intimate-image reports that aren't held: none here.
+      prisma.reportEvidence.findMany.mockImplementation(((args: { where: Record<string, { in: string[] }> }) => {
+        if (args.where.objectS3Key) {
+          const keys = args.where.objectS3Key.in;
+          if (keys.includes(copyKey)) return Promise.resolve([evidenceRow(LINKED_REPORT_ID, copyKey)]);
+          return Promise.resolve([evidenceRow(TEST_REPORT_ID, originalKey)]);
+        }
+        return Promise.resolve([]);
+      }) as never);
+    });
+
+    it("removes every identical copy under a held child-safety report, and keeps its evidence", async () => {
+      const before = Date.now();
+      await request(httpServer)
+        .patch(`/${API_GLOBAL_PREFIX}/admin/reports/${TEST_REPORT_ID}`)
+        .set(authHeader())
+        .send({ action: "REMOVE_PHOTO" })
+        .expect(200);
+
+      // Only a platform removal of a photo counts.
+      expect(prisma.report.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [{ id: { in: [TEST_REPORT_ID] } }, expect.objectContaining({ status: "ACTIONED" }) as unknown],
+          },
+        }),
+      );
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sha256, status: "READY" } }),
+      );
+      const created = prisma.report.create.mock.calls[0][0] as { data: Record<string, unknown> };
+      expect(created.data).toMatchObject({
+        eventId: OTHER_EVENT_ID,
+        photoId: COPY_PHOTO_ID,
+        reportedUserId: COPY_UPLOADER_ID,
+        reporterId: null,
+        reason: "CHILD_SAFETY",
+        queue: "PLATFORM",
+        escalationReasons: ["CHILD_SAFETY"],
+        status: "ACTIONED",
+        closedReason: "PHOTO_REMOVED",
+        holdReason: "CHILD_SAFETY",
+      });
+      // Held a year from the copy's removal, not from the original's filing.
+      const holdUntil = (created.data.holdUntil as Date).getTime();
+      expect(holdUntil).toBeGreaterThanOrEqual(before + 365 * 24 * 60 * 60 * 1000);
+      expect(holdUntil).toBeGreaterThan(filedHoldUntil.getTime());
+      // The copy is copied to evidence under its own report before it is deleted ...
+      expect(s3Service.copyObject).toHaveBeenCalledWith(copyKey, evidenceKey(LINKED_REPORT_ID, copyKey));
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(copyKey));
+      // ... and that evidence copy, like the original's, is kept for NCMEC and Cybertip.ca.
+      expect(s3Service.deleteObject).not.toHaveBeenCalledWith(evidenceKey(LINKED_REPORT_ID, copyKey));
+      expect(s3Service.deleteObject).not.toHaveBeenCalledWith(evidenceKey(TEST_REPORT_ID, originalKey));
+      expect(prisma.reportEvidence.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ evidenceS3Key: null }) as unknown }),
+      );
     });
   });
 

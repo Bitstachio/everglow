@@ -66,13 +66,13 @@ export const useReportCheckScreen = () => {
       : withEverglow
         ? kind === "frame"
           ? number
-            ? t("everglow.topFrame", { number })
-            : t("everglow.topFrameNoNumber")
+            ? t("everglow.topPhoto", { number })
+            : t("everglow.topPhotoNoNumber")
           : t("everglow.topPerson", { name })
         : kind === "frame"
           ? number
-            ? t("decide.topFrame", { number, count })
-            : t("decide.topFrameNoNumber", { count })
+            ? t("decide.topPhoto", { number, count })
+            : t("decide.topPhotoNoNumber", { count })
           : t("decide.topPerson", { name, count });
 
   const addedAt = photo
@@ -145,7 +145,7 @@ export const useReportCheckScreen = () => {
     pending: resolve.isPending ? resolve.variables?.action : undefined,
     keepNote: keepGoesToEverglow
       ? kind === "frame"
-        ? t("decide.keepSevereFrame")
+        ? t("decide.keepSeverePhoto")
         : t("decide.keepSeverePerson")
       : null,
     confirming,

@@ -667,6 +667,9 @@ enum NotificationType {
   TEST
   // Members who were on the roll before galleryOpensAt. EV-141.
   GALLERY_OPENED
+  // Members of a roll with photos, 1 day before galleryClosesAt
+  // (and 7 days before when galleryWindowDays >= 14). EV-72.
+  GALLERY_CLOSING
 }
 
 enum NotificationStatus {

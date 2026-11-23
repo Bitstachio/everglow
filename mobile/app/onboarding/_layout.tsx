@@ -2,7 +2,8 @@ import { OnboardingDraftProvider } from "@/features/profile/onboarding-draft";
 import { Stack } from "expo-router";
 
 // Onboarding is complete by the photo step, so there is no swiping back to
-// the name and username from there.
+// the name and username from there. gestureEnabled only covers the iOS swipe;
+// the photo and ready screens also block Android's system back themselves.
 const OnboardingLayout = () => (
   <OnboardingDraftProvider>
     <Stack screenOptions={{ headerShown: false }}>

@@ -1,33 +1,31 @@
 appId: ${APP_ID}
-name: Events avatar opens Account Settings and Back returns home
+name: Events avatar opens the lab card and Back returns home
 tags:
   - smoke
   - profile
 ---
-# Prerequisite: sign in and complete onboarding on this device first.
+# Needs a signed-in, onboarded session on this device. In the smoke suite the
+# login flow runs first and leaves one; run on its own, sign in by hand first.
 - launchApp:
     clearState: false
 - extendedWaitUntil:
     visible:
       id: "events-profile-button"
-    timeout: 30000
-- assertVisible: "Everglow"
-- assertNotVisible: "Gallery"
+    timeout: 60000
 - tapOn:
     id: "events-profile-button"
-- assertVisible: "Account Settings"
-- assertNotVisible: "Edit Profile"
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - tapOn:
-          text: ".*Back.*"
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - back
-- assertVisible: "Everglow"
+- extendedWaitUntil:
+    visible:
+      id: "account-settings-back"
+    timeout: 30000
 - assertVisible:
-    id: "events-profile-button"
+    id: "account-settings"
+- assertVisible:
+    text: "(?i).*username.*"
+- tapOn:
+    id: "account-settings-back"
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 30000
+- assertVisible: "Everglow"

@@ -43,7 +43,7 @@ export const RollOpened = ({
 
   return (
     <SafeAreaView testID="roll-opened" className="flex-1 bg-ground">
-      <TopBar left={<BackButton accessibilityLabel={backLabel} onPress={onBack} />} />
+      <TopBar left={<BackButton testID="roll-opened-back" accessibilityLabel={backLabel} onPress={onBack} />} />
       <View className="flex-1 items-center justify-center gap-9 px-5">
         <View onLayout={onDialLayout}>
           <FrameCounter count={count} label={counterLabel} accessibilityLabel={counterAccessibilityLabel} />
@@ -65,7 +65,7 @@ export const RollOpened = ({
         </View>
       </View>
       <View className="px-5 pb-4">
-        <Button title={action.title} mark={action.mark} onPress={action.onPress} />
+        <Button testID="roll-opened-action" title={action.title} mark={action.mark} onPress={action.onPress} />
       </View>
       <FilmGrain />
     </SafeAreaView>
