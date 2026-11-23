@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { CaslModule } from "src/casl/casl.module";
+import { NotificationsModule } from "src/notifications/notifications.module";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { BlocksController } from "./blocks.controller";
 import { BlocksService } from "./blocks.service";
@@ -9,7 +10,7 @@ import { ReportsService } from "./reports.service";
 import { StaleReportCheckScheduler } from "./stale-report-check.scheduler";
 
 @Module({
-  imports: [CaslModule],
+  imports: [CaslModule, NotificationsModule],
   controllers: [ReportsController, BlocksController],
   // PhotoPurgeService is stateless and needs only the global S3Service; it is
   // provided here directly because importing PhotosModule would be a cycle.

@@ -11,8 +11,10 @@ import i18n from "@/i18n/instance";
  * importance once the phone has created it: a new importance needs a new id.
  */
 export const NOTIFICATION_CHANNELS = [
-  // Account notices, and TEST.
+  // Account notices, TEST, and required removal notices.
   { id: "account", name: "notes.channels.account", importance: Notifications.AndroidImportance.HIGH },
+  // Host reports to check, and a photo that just hid.
+  { id: "reports", name: "notes.channels.reports", importance: Notifications.AndroidImportance.HIGH },
   // A roll's gallery just opened.
   { id: "roll_opens", name: "notes.channels.roll_opens", importance: Notifications.AndroidImportance.HIGH },
   // The day before a roll closes (and 7 days before for longer rolls).

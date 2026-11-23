@@ -32,7 +32,7 @@ export const resolveNotificationLocale = (tag: string | null | undefined): Notif
  * creates the same ids (mobile/features/notifications/lib/push.ts); a new id
  * goes in both lists (docs/notifications.md §3).
  */
-export const NOTIFICATION_CHANNELS = ["account", "roll_opens", "roll_closing"] as const;
+export const NOTIFICATION_CHANNELS = ["account", "reports", "roll_opens", "roll_closing"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /**
@@ -41,6 +41,15 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
  */
 export type NotificationDataByType = {
   TEST: { nonce: string };
+  /**
+   * `targetKey` names the reported thing so several reports on the same
+   * photo or member batch into one push (`photo:<id>` / `member:<id>`).
+   */
+  REPORT_TO_CHECK: { eventId: string; targetKey: string };
+  PHOTO_HIDDEN: { eventId: string; photoId: string };
+  PHOTO_REMOVED: { eventId: string; photoId: string };
+  /** `reportId` keeps a later removal (after a rejoin) a separate occasion. */
+  MEMBER_REMOVED: { eventId: string; reportId: string };
   GALLERY_OPENED: { eventId: string };
   /** `window` is which reminder: one day before close, or seven days before. */
   GALLERY_CLOSING: { eventId: string; window: "1d" | "7d" };
@@ -92,6 +101,25 @@ const TEST_COPY: Record<NotificationLocale, RenderedNotification> = {
   },
 };
 
+const REPORT_TO_CHECK_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
+  en: { title: "A report to check", body: "Open the roll's reports to decide." },
+};
+
+const PHOTO_HIDDEN_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
+  en: { title: "A photo is hidden", body: "It stays hidden until you review it." },
+};
+
+const PHOTO_REMOVED_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
+  en: { title: "A photo was removed", body: "One of your photos was removed from a roll." },
+};
+
+const MEMBER_REMOVED_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
+  en: {
+    title: "Removed from a roll",
+    body: "A host removed you. Only a host can let you back in.",
+  },
+};
+
 const GALLERY_OPENED_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
   en: {
     title: "A roll is open",
@@ -132,6 +160,48 @@ export const NOTIFICATION_CATALOGUE: Catalogue = {
     isData: (data): data is NotificationDataByType["TEST"] => hasStringFields(data, "nonce"),
     dedupeKey: (userId, { nonce }) => `test:${nonce}:${userId}`,
     render: (_data, locale) => TEST_COPY[locale],
+  },
+  REPORT_TO_CHECK: {
+    required: false,
+    channel: "reports",
+    ttlSeconds: 7 * 24 * 60 * 60,
+    isData: (data): data is NotificationDataByType["REPORT_TO_CHECK"] => hasStringFields(data, "eventId", "targetKey"),
+    dedupeKey: (userId, { eventId, targetKey }) => `report_to_check:${eventId}:${targetKey}:${userId}`,
+    render: ({ eventId }, locale) => ({
+      ...REPORT_TO_CHECK_COPY[locale],
+      url: `/events/${eventId}/reports`,
+    }),
+  },
+  PHOTO_HIDDEN: {
+    required: false,
+    channel: "reports",
+    ttlSeconds: 7 * 24 * 60 * 60,
+    isData: (data): data is NotificationDataByType["PHOTO_HIDDEN"] => hasStringFields(data, "eventId", "photoId"),
+    dedupeKey: (userId, { photoId }) => `photo_hidden:${photoId}:${userId}`,
+    render: ({ eventId }, locale) => ({
+      ...PHOTO_HIDDEN_COPY[locale],
+      url: `/events/${eventId}/reports`,
+    }),
+  },
+  PHOTO_REMOVED: {
+    required: true,
+    channel: "account",
+    isData: (data): data is NotificationDataByType["PHOTO_REMOVED"] => hasStringFields(data, "eventId", "photoId"),
+    dedupeKey: (userId, { photoId }) => `photo_removed:${photoId}:${userId}`,
+    render: ({ eventId }, locale) => ({
+      ...PHOTO_REMOVED_COPY[locale],
+      url: `/events/${eventId}`,
+    }),
+  },
+  MEMBER_REMOVED: {
+    required: true,
+    channel: "account",
+    isData: (data): data is NotificationDataByType["MEMBER_REMOVED"] => hasStringFields(data, "eventId", "reportId"),
+    dedupeKey: (userId, { eventId, reportId }) => `member_removed:${eventId}:${reportId}:${userId}`,
+    render: ({ eventId }, locale) => ({
+      ...MEMBER_REMOVED_COPY[locale],
+      url: `/events/${eventId}`,
+    }),
   },
   GALLERY_OPENED: {
     required: false,
