@@ -120,7 +120,6 @@ const MEMBER_REMOVED_COPY: Record<NotificationLocale, Omit<RenderedNotification,
   },
 };
 
-
 const GALLERY_OPENED_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
   en: {
     title: "A roll is open",
