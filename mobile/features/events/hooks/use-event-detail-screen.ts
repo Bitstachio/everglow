@@ -121,6 +121,7 @@ type BlockTarget = { userId: string; name: string; over: "roll" | "viewer" };
 
 /** How a report hands back to the roll: `reported` once sent (10.4), `resume` to reopen the frame it left. */
 const REPORTED = ["frame", "person", "roll"] as const;
+const REPORTED_COPY_KEY = { frame: "photo", person: "person", roll: "event" } as const;
 type ReportReturn = { reported?: (typeof REPORTED)[number]; resume?: string };
 
 /** 08.6: picked photos that don't all fit, waiting on Send or Pick again. */
@@ -134,7 +135,7 @@ const JUST_NOW_MS = 60 * 1000;
 
 /** 07.1–07.11: the roll, through its whole life, for each role. */
 export const useEventDetailScreen = () => {
-  const { t } = useTranslation(["roll", "report"]);
+  const { t } = useTranslation(["event", "report"]);
   const router = useRouter();
   const { id, arrival, reported, resume } = useLocalSearchParams<{ id: string; arrival?: string } & ReportReturn>();
   const eventId = Array.isArray(id) ? id[0] : id;
@@ -214,7 +215,7 @@ export const useEventDetailScreen = () => {
   }, [eventId, hasPhotos, photosQuery.data]);
   const participants = leftRoll?.participants ?? participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
-  const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("frame.you"));
+  const frames = sheetFrames(photos, participants, user?.id, lastVisit, t("photo.you"));
   const developing = hasPhotos ? developingFrames(tray.items, photos, frames.length) : [];
   const stage = event ? rollStage(event, photos.length + developing.length) : "open";
   const leftBytes = event ? eventStorageLeftBytes(event) : null;
@@ -441,9 +442,9 @@ export const useEventDetailScreen = () => {
   // A host's own roll keeps showing them a frame they report.
   const sentNotice =
     reported === "frame" && role === "host"
-      ? t("report:sent.hostFrame")
+      ? t("report:sent.hostPhoto")
       : reported && REPORTED.includes(reported)
-        ? t(`report:sent.${reported}`)
+        ? t(`report:sent.${REPORTED_COPY_KEY[reported]}`)
         : null;
   useEffect(() => {
     if (!reported) return;

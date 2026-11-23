@@ -27,6 +27,8 @@ const SAMPLES: { [T in NotificationType]: NotificationDataByType[T] } = {
     eventId: "11111111-1111-1111-1111-111111111111",
     reportId: "33333333-3333-3333-3333-333333333333",
   },
+  GALLERY_OPENED: { eventId: "11111111-1111-1111-1111-111111111111" },
+  GALLERY_CLOSING: { eventId: "11111111-1111-1111-1111-111111111111", window: "1d" },
 };
 
 const cases = Object.values(NotificationType).flatMap((type) => NOTIFICATION_LOCALES.map((locale) => [type, locale]));

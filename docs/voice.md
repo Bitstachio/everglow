@@ -56,11 +56,17 @@ Screens stay light. Before adding a line, check what the screen already says.
 ## Push notifications
 
 Copy lives in `api/src/notifications/notification-catalogue.ts`. Same tone as the rest of this doc: short, dry, no
-exclamation marks, no reporter name or other text a person typed.
+exclamation marks, no reporter name, event title, or other text a person typed (the push carries ids only; the tap
+opens the roll).
 
-| Type              | Title (en)           | Body (en)                                                    |
-| ----------------- | -------------------- | ------------------------------------------------------------ |
-| `REPORT_TO_CHECK` | A report to check    | Open the roll's reports to decide.                           |
-| `PHOTO_HIDDEN`    | A photo is hidden    | It stays hidden until you review it.                         |
-| `PHOTO_REMOVED`   | A photo was removed  | One of your photos was removed from a roll.                  |
-| `MEMBER_REMOVED`  | Removed from a roll  | A host removed you. Only a host can let you back in.         |
+| Type              | Title (en)                 | Body (en)                                                              |
+| ----------------- | -------------------------- | ---------------------------------------------------------------------- |
+| `TEST`            | Everglow                   | Test frame. If you can read this, notifications reach this phone.      |
+| `REPORT_TO_CHECK` | A report to check          | Open the roll's reports to decide.                                     |
+| `PHOTO_HIDDEN`    | A photo is hidden          | It stays hidden until you review it.                                   |
+| `PHOTO_REMOVED`   | A photo was removed        | One of your photos was removed from a roll.                            |
+| `MEMBER_REMOVED`  | Removed from a roll        | A host removed you. Only a host can let you back in.                   |
+| `GALLERY_OPENED`  | A roll is open             | Take the first shot.                                                   |
+| `GALLERY_CLOSING` | A roll closes tomorrow     | The photos are removed when it closes. Save the ones you want.         |
+|                   | A roll closes in 7 days    | The photos are removed when it closes. Save the ones you want.         |
+

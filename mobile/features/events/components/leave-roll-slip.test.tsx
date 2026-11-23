@@ -20,8 +20,8 @@ test("asks what happens to the frames you added, with leaving them selected", as
   await renderWithI18n(<LeaveRollSlip {...props} />);
 
   expect(screen.getByText("Leave Sam & Jo’s wedding")).toBeOnTheScreen();
-  expect(screen.getByRole("header", { name: "What about your 12 frames?" })).toBeOnTheScreen();
-  expect(screen.getByRole("radio", { name: /Leave them on the roll/, checked: true })).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "What about your 12 photos?" })).toBeOnTheScreen();
+  expect(screen.getByRole("radio", { name: /Leave them in the event/, checked: true })).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: /Take them with me/, checked: false })).toBeOnTheScreen();
   expect(screen.getByText("All 12 are removed for everyone. This can’t be undone.")).toBeOnTheScreen();
   expect(screen.getByText("To come back you’ll need a new envelope.")).toBeOnTheScreen();
@@ -36,15 +36,15 @@ test("asks what happens to the frames you added, with leaving them selected", as
 
 test("says which frames go in words that fit the count", async () => {
   const view = await renderWithI18n(<LeaveRollSlip {...props} frameCount={1} />);
-  expect(screen.getByRole("header", { name: "What about your frame?" })).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "What about your photo?" })).toBeOnTheScreen();
   expect(
-    screen.getByRole("radio", { name: "Leave it on the roll. Everyone keeps it until the roll closes" }),
+    screen.getByRole("radio", { name: "Leave it in the event. Everyone keeps it until the event closes" }),
   ).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: /^Take it with me/ })).toBeOnTheScreen();
   expect(screen.getByText("It’s removed for everyone. This can’t be undone.")).toBeOnTheScreen();
 
   await view.rerender(<LeaveRollSlip {...props} frameCount={2} />);
-  expect(screen.getByRole("header", { name: "What about your 2 frames?" })).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "What about your 2 photos?" })).toBeOnTheScreen();
   expect(screen.getByText("Both are removed for everyone. This can’t be undone.")).toBeOnTheScreen();
 });
 
@@ -61,8 +61,8 @@ test("a roll with no frames of yours, or a closed roll, does not ask", async () 
 
 test("a refusal stays on the slip with the choice you made", async () => {
   await renderWithI18n(
-    <LeaveRollSlip {...props} photos="DELETE" error="Every roll needs a host. Make someone else host first." />,
+    <LeaveRollSlip {...props} photos="DELETE" error="Every event needs a host. Make someone else host first." />,
   );
-  expect(screen.getByRole("alert")).toHaveTextContent("Every roll needs a host. Make someone else host first.");
+  expect(screen.getByRole("alert")).toHaveTextContent("Every event needs a host. Make someone else host first.");
   expect(screen.getByRole("radio", { name: /Take them with me/, checked: true })).toBeOnTheScreen();
 });

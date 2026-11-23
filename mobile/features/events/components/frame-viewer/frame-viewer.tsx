@@ -65,7 +65,7 @@ type Props = {
  */
 export const FrameViewer = (props: Props) => {
   const { frame, frames, busy, onReport, onBlock } = props;
-  const { t, i18n } = useTranslation("roll");
+  const { t, i18n } = useTranslation("event");
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stripStep = Math.floor(width / 5);
@@ -100,7 +100,7 @@ export const FrameViewer = (props: Props) => {
   });
   const uploader = frame?.uploader;
   const name =
-    uploader?.name ?? frame?.by ?? (frame?.deleted ? t("frame.deletedAccount") : t("gallery.unknownUploader"));
+    uploader?.name ?? frame?.by ?? (frame?.deleted ? t("photo.deletedAccount") : t("gallery.unknownUploader"));
   const time = frame
     ? new Date(frame.photo.createdAt).toLocaleString(i18n.language, {
         weekday: "short",
@@ -221,9 +221,9 @@ export const FrameViewer = (props: Props) => {
                 renderItem={({ item }) => (
                   <Pressable
                     accessibilityRole="imagebutton"
-                    accessibilityLabel={t("frame.labelBy", {
+                    accessibilityLabel={t("photo.labelBy", {
                       number: item.number,
-                      name: item.by ?? (item.deleted ? t("frame.deletedAccount") : t("gallery.unknownUploader")),
+                      name: item.by ?? (item.deleted ? t("photo.deletedAccount") : t("gallery.unknownUploader")),
                     })}
                     accessibilityState={{ selected: item.photo.id === frame?.photo.id }}
                     onPress={() => props.onMove(item.photo.id)}

@@ -1,33 +1,8 @@
-# Everglow AWS infrastructure — dev.
-#
-# This file *describes* what exists in AWS; it does not run anything by itself.
-#   terraform plan   → shows the diff between this file and reality
-#   terraform apply  → makes reality match the file
-#
-# State is local for now (terraform.tfstate, gitignored) — moves to a shared
-# backend when deployment work starts. The API's access key is deliberately
-# NOT managed here: Terraform state would store the secret in plaintext. It
-# was created with `aws iam create-access-key` and lives only in api/.env.
-
-terraform {
-  required_version = ">= 1.5"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = "us-east-1"
-}
-
-# --- S3: photo storage (see docs/photos-architecture.md) ----------------------
+# The photos bucket and the rules on it (docs/photos-architecture.md,
+# docs/photo-privacy.md).
 
 resource "aws_s3_bucket" "photos" {
-  bucket = "everglow-photos-dev"
+  bucket = "everglow-photos-${var.environment}"
 }
 
 resource "aws_s3_bucket_public_access_block" "photos" {
@@ -60,17 +35,19 @@ resource "aws_s3_bucket_policy" "photos" {
       # Photos are users' private data: only the API and the image processor
       # read them. An explicit Deny beats any Allow, so this holds for admins
       # too; opening a photo means changing this policy first, which CloudTrail
-      # records and the alerts below report. The app is unaffected: its
-      # download URLs are presigned by the API, so AWS sees the API reading.
+      # records and the alerts report. The app is unaffected: its download URLs
+      # are presigned by the API, so AWS sees the API reading.
       # aws:userId is the reliable allowlist key for IAM users and assumed
-      # roles (ROLEID:session). See docs/photo-privacy.md.
+      # roles (ROLEID:session). See docs/photo-privacy.md. An API role is
+      # allowed under any session name (StringNotLike ROLEID:*); the two
+      # conditions must both hold for the Deny to apply.
       #
       # Lambda names the processor's session after the function, so only that
       # session is exempt, not any session of the role. A bucket policy cannot
       # tell Lambda from a person who assumes the role with the same session
       # name (lambda:SourceFunctionArn is not allowed in resource policies).
       # That takes a trust policy change first, which is alerted, and the read
-      # alert checks where the credentials were issued (photo-privacy.tf).
+      # alert checks where the credentials were issued (alerts.tf).
       var.allow_human_photo_reads ? [] : [
         {
           Sid       = "OnlyTheApiReadsPhotos"
@@ -78,30 +55,29 @@ resource "aws_s3_bucket_policy" "photos" {
           Principal = "*"
           Action    = ["s3:GetObject", "s3:GetObjectVersion"]
           Resource  = "${aws_s3_bucket.photos.arn}/*"
-          Condition = {
-            StringNotEquals = {
-              "aws:userId" = [
-                aws_iam_user.api.unique_id,
-                "${aws_iam_role.image_processor.unique_id}:${aws_lambda_function.image_processor.function_name}",
-              ]
-            }
-          }
+          Condition = merge(
+            {
+              StringNotEquals = {
+                "aws:userId" = concat(
+                  [for user in var.api_users : user.unique_id],
+                  ["${aws_iam_role.image_processor.unique_id}:${aws_lambda_function.image_processor.function_name}"],
+                )
+              }
+            },
+            length(var.api_roles) == 0 ? {} : {
+              StringNotLike = { "aws:userId" = [for role in var.api_roles : "${role.unique_id}:*"] }
+            },
+          )
         },
       ],
     )
   })
 }
 
-# The policy used to hold only the TLS rule under this name.
-moved {
-  from = aws_s3_bucket_policy.photos_tls_only
-  to   = aws_s3_bucket_policy.photos
-}
-
 # New objects are encrypted with a key only the API may use, so S3 read
-# access alone is not enough to see a photo. Objects uploaded before this
-# keep S3-managed encryption. Bucket keys cut the KMS calls (and cost) per
-# object; CloudTrail still records every object read.
+# access alone is not enough to see a photo. Objects uploaded before the key
+# existed keep S3-managed encryption. Bucket keys cut the KMS calls (and cost)
+# per object; CloudTrail still records every object read.
 resource "aws_s3_bucket_server_side_encryption_configuration" "photos" {
   bucket = aws_s3_bucket.photos.id
 
@@ -129,6 +105,7 @@ resource "aws_s3_bucket_cors_configuration" "photos" {
 }
 
 # Half-finished multipart uploads are invisible but billed — sweep them daily.
+# A test environment can also expire everything after a while.
 resource "aws_s3_bucket_lifecycle_configuration" "photos" {
   bucket = aws_s3_bucket.photos.id
 
@@ -144,34 +121,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "photos" {
       days_after_initiation = 1
     }
   }
-}
 
-# --- IAM: the identity the API runs as ----------------------------------------
+  dynamic "rule" {
+    for_each = var.expire_objects_after_days == null ? [] : [var.expire_objects_after_days]
 
-resource "aws_iam_user" "api" {
-  name = "everglow-api-dev"
-}
+    content {
+      id     = "expire-test-data"
+      status = "Enabled"
 
-resource "aws_iam_user_policy" "api_s3" {
-  name = "everglow-api-s3"
-  user = aws_iam_user.api.name
+      filter {
+        prefix = ""
+      }
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        # Exactly what S3Service calls — nothing else.
-        Effect   = "Allow"
-        Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
-        Resource = "${aws_s3_bucket.photos.arn}/*"
-      },
-      {
-        # Load-bearing: without ListBucket, HeadObject on a missing key
-        # returns 403 instead of 404 and the photo confirm flow breaks.
-        Effect   = "Allow"
-        Action   = "s3:ListBucket"
-        Resource = aws_s3_bucket.photos.arn
-      },
-    ]
-  })
+      expiration {
+        days = rule.value
+      }
+    }
+  }
 }

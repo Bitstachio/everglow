@@ -214,8 +214,8 @@ import { PinoLogger } from "nestjs-pino";
 Production writes one JSON object per line to the CloudWatch log group Copilot creates for the service
 (`/copilot/<app>-<env>-<svc>`; the Terraform default is `/copilot/everglow-staging-api`). There is no log
 shipper in the API. Saved Logs Insights queries and a dashboard live in
-[`../infra/api-logs.tf`](../infra/api-logs.tf). They share `api_log_group_name` with the alarms in
-[`../infra/moderation-alerts.tf`](../infra/moderation-alerts.tf). Queries filter on fields, never on the
+[`../../infra/api-logs.tf`](../../infra/api-logs.tf). They share `api_log_group_name` with the alarms in
+[`../../infra/moderation-alerts.tf`](../../infra/moderation-alerts.tf). Queries filter on fields, never on the
 message text.
 
 | Saved query | Replace | What it returns |

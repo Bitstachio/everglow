@@ -28,8 +28,16 @@ export const TopBar = ({ title, left, right }: TopBarProps) => (
 );
 
 /** The round back button for a `TopBar`. */
-export const BackButton = ({ accessibilityLabel, onPress }: { accessibilityLabel: string; onPress: () => void }) => (
-  <IconButton accessibilityLabel={accessibilityLabel} onPress={onPress}>
+export const BackButton = ({
+  accessibilityLabel,
+  onPress,
+  testID,
+}: {
+  accessibilityLabel: string;
+  onPress: () => void;
+  testID?: string;
+}) => (
+  <IconButton testID={testID} accessibilityLabel={accessibilityLabel} onPress={onPress}>
     <CaretLeft size={18} weight="bold" color={colorTokens.text} />
   </IconButton>
 );

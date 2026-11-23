@@ -72,6 +72,13 @@
       ],
       "expo-image",
       "expo-status-bar",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "light"
+        }
+      ],
       "expo-web-browser",
       [
         "expo-splash-screen",

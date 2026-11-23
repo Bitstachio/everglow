@@ -35,8 +35,8 @@ test("fills the card from the account and the plan's limit", async () => {
     accessibilityLabel: "Your lab card: Maya Chen, @maya.chen",
     fields: [
       { label: "Name", value: "Maya Chen" },
-      { label: "Signs frames as", value: "@maya.chen" },
-      { label: "Free roll", value: "0 of 2 running" },
+      { label: "Signs photos as", value: "@maya.chen" },
+      { label: "Free plan", value: "0 of 2 running" },
     ],
   });
 });
@@ -44,7 +44,7 @@ test("fills the card from the account and the plan's limit", async () => {
 test("leaves the number out when the plan has no limit", async () => {
   mockLimits = { plan: "PLUS", limits: { activeEvents: null }, usage: { activeEvents: 3 } };
   const { result } = await render();
-  expect(result.current.card.fields[2]).toEqual({ label: "Rolls", value: "3 running" });
+  expect(result.current.card.fields[2]).toEqual({ label: "Events", value: "3 running" });
 });
 
 test("leaves the rolls line empty until the limits load", async () => {

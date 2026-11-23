@@ -81,10 +81,10 @@ afterEach(() => {
 test("an open roll waits until it closes, and the API is never asked to delete it", async () => {
   await renderScreen();
 
-  expect(await screen.findByText("Roll settings")).toBeOnTheScreen();
-  expect(screen.getByRole("header", { name: "Can’t delete\nthis roll yet." })).toBeOnTheScreen();
-  expect(screen.getByLabelText("Still open, Cut it or wait until 17 Nov")).toBeOnTheScreen();
-  expect(screen.getByText(/A roll is deleted only after it closes/)).toBeOnTheScreen();
+  expect(await screen.findByText("Event settings")).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "Can’t delete\nthis event yet." })).toBeOnTheScreen();
+  expect(screen.getByLabelText("Still open, End it or wait until 17 Nov")).toBeOnTheScreen();
+  expect(screen.getByText(/An event is deleted only after it closes/)).toBeOnTheScreen();
   expect(screen.queryByLabelText(/reports?,/)).toBeNull();
   expect(screen.queryByLabelText(/^Under review/)).toBeNull();
   expect(mockRemove).not.toHaveBeenCalled();
@@ -94,13 +94,13 @@ test("an upcoming roll isn't open yet", async () => {
   const closesAt = new Date(2026, 11, 2, 19, 0).toISOString();
   await renderScreen({ event: buildEvent({ galleryState: "UPCOMING", galleryClosesAt: closesAt }) });
   expect(
-    await screen.findByLabelText(`Not open yet, Cut it or wait until ${formatEnvelopeDay(closesAt)}`),
+    await screen.findByLabelText(`Not open yet, End it or wait until ${formatEnvelopeDay(closesAt)}`),
   ).toBeOnTheScreen();
 });
 
 test("a roll that never closes can only be cut first", async () => {
   await renderScreen({ event: buildEvent({ galleryState: "OPEN", galleryClosesAt: null, galleryWindowDays: null }) });
-  expect(await screen.findByLabelText("Still open, Cut it first")).toBeOnTheScreen();
+  expect(await screen.findByLabelText("Still open, End it first")).toBeOnTheScreen();
 });
 
 test("open reports and a review are listed too, and the reports open from here", async () => {

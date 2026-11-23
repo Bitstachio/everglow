@@ -17,13 +17,13 @@ import { useEventSettingsScreen } from "../hooks/use-event-settings-screen";
 
 /** Roll settings for an upcoming or open roll. */
 const EventSettingsScreen = () => {
-  const { t } = useTranslation(["roll", "common"]);
+  const { t } = useTranslation(["event", "common"]);
   const screen = useEventSettingsScreen();
 
   if (screen.isLoading || !screen.event) {
     return (
       <View className="flex-1 items-center justify-center bg-ground">
-        <Spinner label={t("roll:settings.loading")} />
+        <Spinner label={t("event:settings.loading")} />
       </View>
     );
   }
@@ -33,7 +33,7 @@ const EventSettingsScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-ground">
       <TopBar
-        title={t("roll:settings.title")}
+        title={t("event:settings.title")}
         left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
       />
 
@@ -42,37 +42,37 @@ const EventSettingsScreen = () => {
         <EdgePrint className="mt-2">{screen.subtitle}</EdgePrint>
 
         <View className="mt-10">
-          <IndexRow first label={t("roll:settings.name")} value={screen.nameValue} onPress={screen.onOpenName} />
+          <IndexRow first label={t("event:settings.name")} value={screen.nameValue} onPress={screen.onOpenName} />
           <IndexRow
-            label={t("roll:settings.cover")}
+            label={t("event:settings.cover")}
             value={screen.coverValue}
             disabled={screen.isUpdatingCover}
             onPress={screen.onOpenCover}
           />
-          <IndexRow label={t("roll:settings.note")} value={screen.noteValue} onPress={screen.onOpenNote} />
+          <IndexRow label={t("event:settings.note")} value={screen.noteValue} onPress={screen.onOpenNote} />
           <IndexRow
-            label={t("roll:settings.when")}
+            label={t("event:settings.when")}
             value={screen.whenValue}
             lit={!screen.scheduleLocked}
             onPress={screen.onOpenWhen}
           />
           <IndexRow
-            label={t("roll:settings.film")}
+            label={t("event:settings.duration")}
             value={screen.filmValue}
             lit={!screen.scheduleLocked}
             onPress={screen.onOpenFilm}
           />
-          <IndexRow label={t("roll:settings.storage")} value={screen.storageValue} />
+          <IndexRow label={t("event:settings.storage")} value={screen.storageValue} />
           <IndexRow
-            label={t("roll:settings.envelopes")}
+            label={t("event:settings.envelopes")}
             value={screen.envelopesValue}
             onPress={screen.onOpenEnvelopes}
           />
-          <IndexRow muted label={t("roll:settings.delete")} value={screen.deleteValue} onPress={screen.onOpenDelete} />
+          <IndexRow muted label={t("event:settings.delete")} value={screen.deleteValue} onPress={screen.onOpenDelete} />
         </View>
 
         {screen.scheduleLocked && screen.event.galleryState === "OPEN" ? (
-          <Text className="mt-16 font-sans text-body text-text-2">{t("roll:settings.scheduleLockedNote")}</Text>
+          <Text className="mt-16 font-sans text-body text-text-2">{t("event:settings.scheduleLockedNote")}</Text>
         ) : null}
       </ScrollView>
 
@@ -113,12 +113,11 @@ const EventSettingsScreen = () => {
           options={film.options}
           selected={film.selected}
           onSelect={film.onSelect}
-          circled={film.circled}
           removed={
             film.closes ? (
               <Trans
                 t={t}
-                i18nKey="roll:settings.editFilm.removed"
+                i18nKey="event:settings.editDuration.removed"
                 values={{ closes: film.closes }}
                 components={{ value: <EdgeValue>{null}</EdgeValue> }}
               />

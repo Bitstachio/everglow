@@ -3,6 +3,13 @@ import type { ReportReason } from "../types";
 /** What a report is about: a frame, a person on the roll, or the roll itself. */
 export type ReportTarget = "frame" | "person" | "roll";
 
+/** The copy key for each target, so the target names in code can stay as they are. */
+export const REPORT_TARGET_COPY_KEY = {
+  frame: "photo",
+  person: "person",
+  roll: "event",
+} as const satisfies Record<ReportTarget, string>;
+
 /** Reasons only Everglow's safety team sees: hosts are never shown them, nor what they're about. */
 const EVERGLOW_ONLY: readonly ReportReason[] = ["CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"];
 

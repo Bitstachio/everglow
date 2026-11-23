@@ -1,10 +1,10 @@
 {
-  "title": "New roll",
+  "title": "New event",
   "close": "Close",
   "label": {
     "stock": "Everglow 400",
-    "namePlaceholder": "Name your roll",
-    "nameA11y": "Roll name",
+    "namePlaceholder": "Name your event",
+    "nameA11y": "Event name",
     "when": "{{day}} · {{time}}",
     "editA11y": "When it happens: {{when}}. Change",
     "days": {
@@ -18,9 +18,9 @@
     "placeholder": "Bring a jacket, we’re on the roof",
     "a11y": "A line for guests, optional"
   },
-  "film": {
-    "heading": "Film",
-    "dayRoll": "day roll",
+  "duration": {
+    "heading": "Duration",
+    "unit": "days",
     "names": {
       "3": "Weekend",
       "7": "A week",
@@ -28,8 +28,8 @@
       "30": "A month"
     },
     "days": "{{count}} days",
-    "a11y": "{{name}}, {{count}}-day roll",
-    "removed": "Photos removed <value>{{closes}}</value>"
+    "a11y": "{{name}}, {{count}} days",
+    "removed": "Photos kept until <value>{{closes}}</value>"
   },
   "when": {
     "heading": "When",
@@ -43,7 +43,7 @@
     "addA11y": "Add a cover",
     "changeA11y": "Change the cover",
     "preparing": "Getting the cover ready",
-    "menuTitle": "First frame",
+    "menuTitle": "First photo",
     "take": "Take a photo",
     "choose": "Choose from Photos",
     "remove": "Remove it",
@@ -53,7 +53,7 @@
     "libraryDenied": "Allow access to Photos in Settings to choose a cover.",
     "failed": "Couldn’t use that photo. Try another.",
     "didntTakeTitle": "The cover didn’t take",
-    "didntTake": "The roll is loaded. Add the cover from the roll’s settings.",
+    "didntTake": "The event is ready. Add the cover from its settings.",
     "crop": {
       "cancel": "Cancel",
       "title": "Move and scale",
@@ -61,21 +61,21 @@
       "hint": "Pinch to zoom · drag to frame it"
     }
   },
-  "load": "Load the roll",
+  "load": "Create the event",
   "validation": {
-    "nameRequired": "Give the roll a name",
+    "nameRequired": "Give the event a name",
     "nameTooLong": "100 characters at most",
     "lineTooLong": "255 characters at most"
   },
-  "failed": "The roll didn’t load. Try again.",
+  "failed": "The event didn’t open. Try again.",
   "notReady": {
-    "edge": "No film yet",
-    "body": "Couldn’t get the film ready. Check your connection and try again.",
+    "edge": "Not ready yet",
+    "body": "Couldn’t load the options. Check your connection and try again.",
     "retry": "Try again"
   },
   "leave": {
     "edge": "Not loaded yet",
-    "title": "Throw this roll away?",
+    "title": "Throw this event away?",
     "body": "Nothing has been created. You can start again any time.",
     "keep": "Keep editing",
     "throwAway": "Throw it away"
@@ -85,18 +85,18 @@
     "plans": {
       "FREE": "Free plan"
     },
-    "titleBoth": "Both rolls",
-    "title_one": "Your roll",
-    "title_other": "All {{count}} rolls",
+    "titleBoth": "Both events",
+    "title_one": "Your event",
+    "title_other": "All {{count}} events",
     "dim_one": "is in use.",
     "dim_other": "are in use.",
     "runs": {
-      "FREE_one": "A free account runs one roll at a time.",
-      "FREE_other": "A free account runs {{count}} rolls at a time."
+      "FREE_one": "A free account runs one event at a time.",
+      "FREE_other": "A free account runs {{count}} events at a time."
     },
     "frees": "<b>{{title}}</b> closes on {{date}}, then a spot opens.",
-    "cutOne": "Cut one of them short from its settings, and a spot opens.",
+    "cutOne": "End one of them early from its settings, and a spot opens.",
     "note": "free on {{date}} ↑",
-    "back": "Back to your rolls"
+    "back": "Back to your events"
   }
 }

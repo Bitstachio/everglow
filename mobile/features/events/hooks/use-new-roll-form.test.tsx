@@ -86,7 +86,7 @@ test("asks for a name before loading", async () => {
   await renderWithI18n(<Probe />);
   await userEvent.setup().press(screen.getByRole("button", { name: "Load" }));
 
-  expect((await screen.findAllByText("Give the roll a name")).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText("Give the event a name")).length).toBeGreaterThan(0);
   expect(mockCreate).not.toHaveBeenCalled();
 });
 
@@ -98,7 +98,7 @@ test("keeps the roll and says why when it didn't load", async () => {
   await user.paste(screen.getByLabelText("Name"), "Nadia turns 30");
   await user.press(screen.getByRole("button", { name: "Load" }));
 
-  expect(await screen.findByText("The roll didn’t load. Try again.")).toBeOnTheScreen();
+  expect(await screen.findByText("The event didn’t open. Try again.")).toBeOnTheScreen();
   expect(screen.getByLabelText("Name")).toHaveDisplayValue("Nadia turns 30");
   expect(onCreated).not.toHaveBeenCalled();
 

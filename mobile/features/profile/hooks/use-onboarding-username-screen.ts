@@ -22,11 +22,11 @@ export type UsernameView =
  * checked on the phone first, then availability after a short pause. A taken
  * or reserved name offers free ones built from your name. Continue sends
  * name, username and accepted terms together, which completes onboarding,
- * then goes on to the photo.
+ * then goes on to the photo. If onboarding was already done, it goes on too.
  */
 export const useOnboardingUsernameScreen = () => {
   const { t } = useTranslation(["onboarding", "common"]);
-  const { completeOnboarding, isLoading } = useAuth();
+  const { completeOnboarding, refreshProfile, isLoading } = useAuth();
   const { name, username, setUsername, acceptedTerms, setAcceptedTerms } = useOnboardingDraft();
   // A name can go between the check and the submit; the API then says USERNAME_TAKEN.
   const [takenOnSubmit, setTakenOnSubmit] = useState<string | null>(null);
@@ -81,6 +81,12 @@ export const useOnboardingUsernameScreen = () => {
       const code = getErrorCode(err);
       if (code === "USERNAME_TAKEN" || code === "USERNAME_RESERVED") {
         setTakenOnSubmit(normalized);
+        return;
+      }
+      // Onboarding already went through (an earlier Continue): load that profile and go on.
+      if (code === "DETAILS_ALREADY_EXIST") {
+        await refreshProfile().catch(() => null);
+        router.replace("/onboarding/photo");
         return;
       }
       Alert.alert(t("username.failedTitle"), getErrorMessage(err, t("common:actions.tryAgain")));

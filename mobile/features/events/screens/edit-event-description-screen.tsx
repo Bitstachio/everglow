@@ -9,7 +9,7 @@ import { useEditEventDescriptionScreen } from "../hooks/use-edit-event-descripti
 
 /** Edit the optional note for guests from settings. */
 const EditEventDescriptionScreen = () => {
-  const { t } = useTranslation(["roll", "common"]);
+  const { t } = useTranslation(["event", "common"]);
   const { isLoading, form, onSubmit, onBack } = useEditEventDescriptionScreen();
 
   if (isLoading) {
@@ -23,7 +23,7 @@ const EditEventDescriptionScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-ground">
       <TopBar
-        title={t("roll:settings.editNote.title")}
+        title={t("event:settings.editNote.title")}
         left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={onBack} />}
       />
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -33,11 +33,11 @@ const EditEventDescriptionScreen = () => {
           isSubmitting={form.formState.isSubmitting}
           error={form.formState.errors.root?.server?.message}
           onSubmit={onSubmit}
-          label={t("roll:settings.editNote.label")}
-          placeholder={t("roll:settings.editNote.placeholder")}
-          accessibilityLabel={t("roll:settings.editNote.a11y")}
-          hint={t("roll:settings.editNote.hint")}
-          saveLabel={t("roll:settings.editNote.save")}
+          label={t("event:settings.editNote.label")}
+          placeholder={t("event:settings.editNote.placeholder")}
+          accessibilityLabel={t("event:settings.editNote.a11y")}
+          hint={t("event:settings.editNote.hint")}
+          saveLabel={t("event:settings.editNote.save")}
         />
       </KeyboardAvoidingView>
       <FilmGrain />

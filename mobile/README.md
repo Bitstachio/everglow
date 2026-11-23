@@ -30,7 +30,7 @@ pnpm test:e2e:ios      # Maestro; see docs/e2e.md
 pnpm test:e2e:android
 ```
 
-Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run instructions are in [docs/e2e.md](docs/e2e.md). After installing the Maestro CLI, building the native app (`pnpm ios` / `pnpm android`), and signing in on a simulator/emulator, run the platform script from `mobile/`.
+Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run instructions are in [docs/e2e.md](docs/e2e.md). The iOS CI job that runs them against staging is documented in [docs/mac-smoke.md](docs/mac-smoke.md). After installing the Maestro CLI, building the native app (`pnpm ios` / `pnpm android`), and signing in on a simulator/emulator, run the platform script from `mobile/`.
 
 ## Docs
 
@@ -43,4 +43,5 @@ Mobile E2E uses Maestro. Flows live in [`.maestro/`](.maestro/); setup and run i
 | Forms                     | [docs/forms.md](docs/forms.md)                                                                       |
 | Theme / UI scale / icons  | [docs/theme.md](docs/theme.md), [docs/ui-scale.md](docs/ui-scale.md), [docs/icons.md](docs/icons.md) |
 | Testing / E2E             | [docs/testing.md](docs/testing.md), [docs/e2e.md](docs/e2e.md)                                       |
+| Mac smoke (iOS CI)        | [docs/mac-smoke.md](docs/mac-smoke.md)                                                               |
 | Shared product docs       | [../docs/](../docs/)                                                                                 |

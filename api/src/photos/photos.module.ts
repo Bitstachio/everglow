@@ -2,10 +2,13 @@ import { Module } from "@nestjs/common";
 import { CaslModule } from "src/casl/casl.module";
 import { ImagesModule } from "src/images/images.module";
 import { ModerationModule } from "src/moderation/moderation.module";
+import { NotificationsModule } from "src/notifications/notifications.module";
 import { PlansModule } from "src/plans/plans.module";
 import { StorageModule } from "src/storage/storage.module";
 import { GalleryCloseScheduler } from "./gallery-close.scheduler";
 import { GalleryCloseService } from "./gallery-close.service";
+import { GalleryClosingReminderScheduler } from "./gallery-closing-reminder.scheduler";
+import { GalleryClosingReminderService } from "./gallery-closing-reminder.service";
 import { PhotoHashBackfillScheduler } from "./photo-hash-backfill.scheduler";
 import { PhotoHashBackfillService } from "./photo-hash-backfill.service";
 import { PhotoDerivativeOrphanSource } from "./photo-derivative-orphan-source";
@@ -18,7 +21,7 @@ import { PhotosController } from "./photos.controller";
 import { PhotosService } from "./photos.service";
 
 @Module({
-  imports: [CaslModule, ImagesModule, ModerationModule, PlansModule, StorageModule],
+  imports: [CaslModule, ImagesModule, ModerationModule, NotificationsModule, PlansModule, StorageModule],
   controllers: [PhotosController],
   providers: [
     PhotosService,
@@ -30,6 +33,8 @@ import { PhotosService } from "./photos.service";
     PhotoDerivativeOrphanSource,
     GalleryCloseService,
     GalleryCloseScheduler,
+    GalleryClosingReminderService,
+    GalleryClosingReminderScheduler,
     PhotoHashBackfillService,
     PhotoHashBackfillScheduler,
   ],

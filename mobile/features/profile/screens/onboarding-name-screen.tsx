@@ -43,11 +43,11 @@ const OnboardingNameScreen = () => {
 
       <View className="mt-8 items-center">
         <SignatureFrame
-          number={t("name.frameNumber")}
+          number={t("name.photoNumber")}
           signature={signature}
           note={t("name.note")}
           showNote={hasTyped}
-          accessibilityLabel={t("name.frameA11y", { name: signature })}
+          accessibilityLabel={t("name.photoA11y", { name: signature })}
         />
       </View>
 
