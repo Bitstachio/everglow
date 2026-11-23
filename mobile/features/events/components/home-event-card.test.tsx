@@ -5,7 +5,7 @@ import { HomeEventCard } from "./home-event-card";
 
 const NOW = new Date("2026-10-16T12:00:00.000Z");
 
-test("shows an open event's status, timing, counts, and opens on press", async () => {
+test("shows an open event's status, host role, timing, counts, and opens on press", async () => {
   const onPress = jest.fn();
   const event = buildEvent({
     title: "Sam & Jo’s wedding",
@@ -19,11 +19,20 @@ test("shows an open event's status, timing, counts, and opens on press", async (
 
   expect(screen.getByText("Open")).toBeOnTheScreen();
   expect(screen.getByText("Sam & Jo’s wedding")).toBeOnTheScreen();
+  expect(screen.getByText("Host")).toBeOnTheScreen();
   expect(screen.getByText("5h 42m left")).toBeOnTheScreen();
   expect(screen.getByText("12 photos · 24 people")).toBeOnTheScreen();
 
   fireEvent.press(screen.getByLabelText("Sam & Jo’s wedding, 5h 42m left"));
   expect(onPress).toHaveBeenCalledTimes(1);
+});
+
+test("shows Adds photos for a participant and View only for a viewer", async () => {
+  await renderWithI18n(<HomeEventCard event={buildEvent({ title: "Friday", accessLevel: "PARTICIPANT" })} now={NOW} />);
+  expect(screen.getByText("Adds photos")).toBeOnTheScreen();
+
+  await renderWithI18n(<HomeEventCard event={buildEvent({ title: "Saturday", accessLevel: "VIEWER" })} now={NOW} />);
+  expect(screen.getByText("View only")).toBeOnTheScreen();
 });
 
 test("marks an upcoming event with when it opens and leaves out photos", async () => {
@@ -83,7 +92,7 @@ test("shows the description on one line when there is one", async () => {
   expect(screen.getByText("An afternoon with friends", { exact: true })).toBeOnTheScreen();
 });
 
-test("keeps the card's line for the description empty when there is none", async () => {
+test("omits the description line when there is none", async () => {
   const event = buildEvent({ description: null });
 
   await renderWithI18n(<HomeEventCard event={event} now={NOW} />);

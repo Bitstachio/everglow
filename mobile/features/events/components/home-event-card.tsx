@@ -10,6 +10,7 @@ import { describeTime } from "../lib/describe-time";
 import { rollTime } from "../lib/rolls";
 import type { EventResponseDto } from "../types";
 import { getEventCoverCacheKey } from "./event-cover";
+import { ROLE_KEY } from "./roll-people-list";
 
 type HomeEventCardProps = {
   event: EventResponseDto;
@@ -82,11 +83,12 @@ const CardBackground = ({ coverUrl, event }: { coverUrl: string; event: EventRes
 };
 
 /**
- * One event on the events list: the status, the name, a line of timing, the
- * counts, and the description in one line. The photo is the card's background.
+ * One event on the events list: the name with the status at the top right, the
+ * caller's role under the title, then timing, counts, and the description.
+ * The photo is the card's background. Role is event.accessLevel from the API.
  */
 export const HomeEventCard = ({ event, onPress, now = new Date(), savedAt = null }: HomeEventCardProps) => {
-  const { t } = useTranslation("home");
+  const { t } = useTranslation(["home", "event"]);
   const closed = event.galleryState === "CLOSED";
 
   const timeText = describeTime(t, rollTime(event, now));
@@ -110,19 +112,21 @@ export const HomeEventCard = ({ event, onPress, now = new Date(), savedAt = null
     >
       {event.coverUrl ? <CardBackground coverUrl={event.coverUrl} event={event} /> : null}
       <View className="gap-2 p-4">
-        <View className="flex-row">
+        <View className="flex-row items-start justify-between gap-3">
+          <Display variant="roll" numberOfLines={1} className={`min-w-0 flex-1 ${closed ? "text-text-2" : ""}`}>
+            {event.title}
+          </Display>
           <StatusTag state={event.galleryState} />
         </View>
-        <Display variant="roll" numberOfLines={1} className={closed ? "text-text-2" : ""}>
-          {event.title}
-        </Display>
+        <EdgePrint>{t(`event:${ROLE_KEY[event.accessLevel]}`)}</EdgePrint>
         <View className="gap-1">
-          <EdgePrint>{timingLine}</EdgePrint>
+          <EdgePrint tone="text">{timingLine}</EdgePrint>
           <EdgePrint>{counts}</EdgePrint>
-          {/* Reserves the line when there is no description, so cards keep their height. */}
-          <Text numberOfLines={1} className="min-h-5 font-sans text-body text-text-2">
-            {description}
-          </Text>
+          {description ? (
+            <Text numberOfLines={1} className="font-sans text-body text-text-2">
+              {description}
+            </Text>
+          ) : null}
         </View>
       </View>
     </Pressable>
