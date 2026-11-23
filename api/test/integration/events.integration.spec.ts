@@ -101,10 +101,8 @@ describe("EventsController (integration)", () => {
   // The role on an event response is a separate lookup from the membership check.
   // Membership checks have no select and stay empty; the response lookup asks for accessLevel.
   const mockCallerRole = (access: ReturnType<typeof buildOrganizerAccess>) => {
-    prisma.eventAccess.findUnique.mockImplementation((args) => {
-      const selectsLevel = (args as { select?: { accessLevel?: boolean } } | undefined)?.select?.accessLevel;
-      return Promise.resolve(selectsLevel ? access : null);
-    });
+    prisma.eventAccess.findUnique.mockImplementation(((args: { select?: { accessLevel?: boolean } }) =>
+      Promise.resolve(args.select?.accessLevel ? access : null)) as never);
   };
 
   const s3Service = {
@@ -148,18 +146,17 @@ describe("EventsController (integration)", () => {
     prisma.report.findMany.mockResolvedValue([]);
     // Event responses read the caller's role with a narrow select. Other lookups stay empty
     // unless a test says who the caller is.
-    prisma.eventAccess.findMany.mockImplementation((args) => {
-      const query = args as {
-        where?: { userId?: string; eventId?: { in?: string[] } };
-        select?: { eventId?: boolean; accessLevel?: boolean };
-      };
-      if (query.select?.accessLevel && query.select.eventId && query.where?.userId && query.where.eventId?.in) {
+    prisma.eventAccess.findMany.mockImplementation(((args: {
+      where?: { userId?: string; eventId?: { in?: string[] } };
+      select?: { eventId?: boolean; accessLevel?: boolean };
+    }) => {
+      if (args.select?.accessLevel && args.select.eventId && args.where?.userId && args.where.eventId?.in) {
         return Promise.resolve(
-          query.where.eventId.in.map((eventId) => ({ eventId, accessLevel: AccessLevel.ORGANIZER })),
-        ) as never;
+          args.where.eventId.in.map((eventId) => ({ eventId, accessLevel: AccessLevel.ORGANIZER })),
+        );
       }
       return Promise.resolve([]);
-    });
+    }) as never);
     mockCallerRole(buildOrganizerAccess());
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.eventInvite.findMany.mockResolvedValue([]);
