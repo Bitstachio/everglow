@@ -665,6 +665,9 @@ enum NotificationType {
   // Internal: checks the whole path from the API to a phone
   // (pnpm run notifications:send-test).
   TEST
+  // Members of a roll with photos, 1 day before galleryClosesAt
+  // (and 7 days before when galleryWindowDays >= 14). EV-72.
+  GALLERY_CLOSING
 }
 
 enum NotificationStatus {
