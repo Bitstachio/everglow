@@ -62,5 +62,6 @@ exclamation marks, no event title or other text a person typed (the push carries
 
 | Type              | Title (en)                 | Body (en)                                                              |
 | ----------------- | -------------------------- | ---------------------------------------------------------------------- |
+| `GALLERY_OPENED`  | A roll is open             | Take the first shot.                                                   |
 | `GALLERY_CLOSING` | A roll closes tomorrow     | The photos are removed when it closes. Save the ones you want.         |
 |                   | A roll closes in 7 days    | The photos are removed when it closes. Save the ones you want.         |

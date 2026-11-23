@@ -102,8 +102,9 @@ describe("Android channels", () => {
 
     await ensureAndroidChannels();
 
-    expect(setChannel).toHaveBeenCalledTimes(2);
+    expect(setChannel).toHaveBeenCalledTimes(3);
     expect(setChannel).toHaveBeenCalledWith("account", { name: "Account", importance: 4 });
+    expect(setChannel).toHaveBeenCalledWith("roll_opens", { name: "A roll opens", importance: 4 });
     expect(setChannel).toHaveBeenCalledWith("roll_closing", {
       name: "The day before it closes",
       importance: 4,
