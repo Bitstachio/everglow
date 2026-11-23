@@ -14,9 +14,8 @@ import { useTranslation } from "react-i18next";
 import { type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
-import { RollCard } from "../components/roll-card";
+import { HomeEventCard } from "../components/home-event-card";
 import { useEventsScreen } from "../hooks/use-events-screen";
-import { useRollPreview } from "../hooks/use-roll-preview";
 import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
 
@@ -24,14 +23,6 @@ const UNEXPOSED: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n), numbe
 
 // First run: the first frame is circled for the roll they are about to start.
 const FIRST_ROLL: StripFrame[] = UNEXPOSED.map((frame, i) => (i === 0 ? { ...frame, circled: true } : frame));
-
-/** An open roll loads its first photos for the strip; the rest wait on the events list. */
-type LiveRollCardProps = { event: Event; now: Date; savedAt: string | null; onPress: () => void };
-
-const LiveRollCard = ({ event, now, savedAt, onPress }: LiveRollCardProps) => {
-  const photos = useRollPreview(event);
-  return <RollCard event={event} now={now} savedAt={savedAt} onPress={onPress} photos={photos} />;
-};
 
 // 13.3: the roll you left fades, then the cards below close the gap.
 const LEAVE_FADE = FadeOut.duration(LEAVE_MOTION.fadeMs).easing(Easing.out(Easing.quad));
@@ -46,16 +37,8 @@ const ListRow = ({ moving, children }: { moving: boolean; children: ReactNode })
   </Animated.View>
 );
 
-// While loading, the frames are blank: no numbers until the rolls arrive (03.2).
-const LOADING: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n) }));
-
-const RollSkeleton = () => (
-  <View className="gap-2.5">
-    <View className="mx-5 h-5.5 w-50 rounded-xs bg-sheet" />
-    <FilmStrip frames={LOADING} />
-    <View className="mx-5 h-2.5 w-36 rounded-xs bg-sheet" />
-  </View>
-);
+// While loading, each event is a blank card until the list arrives.
+const CardSkeleton = () => <View className="mx-5 h-36 rounded-paper bg-sheet" />;
 
 const EventsScreen = () => {
   const { t } = useTranslation("home");
@@ -116,9 +99,9 @@ const EventsScreen = () => {
       >
         {isLoading ? (
           <View testID="home-loading" className="gap-5.5">
-            <RollSkeleton />
-            <RollSkeleton />
-            <RollSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
           </View>
         ) : showFirstRun ? (
           <View className="mt-9.5">
@@ -135,17 +118,12 @@ const EventsScreen = () => {
           <View className="gap-5.5">
             {groups.live.map((event) => (
               <ListRow key={event.id} moving={moving}>
-                {event.id === leavingRoll?.id ? (
-                  // Its queries went with the membership: the strip it had stays until it's gone.
-                  <RollCard event={event} now={now} savedAt={offlineAsOf} photos={leavingRoll.photos} />
-                ) : (
-                  <LiveRollCard event={event} now={now} savedAt={offlineAsOf} onPress={() => onOpenRoll(event)} />
-                )}
+                <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
             {groups.upcoming.map((event) => (
               <ListRow key={event.id} moving={moving}>
-                <RollCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
+                <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
             {groups.closed.length > 0 ? (
@@ -158,7 +136,7 @@ const EventsScreen = () => {
             ) : null}
             {groups.closed.map((event) => (
               <ListRow key={event.id} moving={moving}>
-                <RollCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
+                <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
           </View>
