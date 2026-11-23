@@ -1,13 +1,13 @@
 {
   "launch": {
-    "status": "Loading the roll"
+    "status": "Loading your events"
   },
   "welcome": {
     "signIn": "Sign in",
     "title": "Everyone’s photos.",
-    "titleDim": "One roll for the night.",
-    "start": "Start a roll",
-    "caption": "Every photo from the night, one roll",
+    "titleDim": "One event for the night.",
+    "start": "Start an event",
+    "caption": "Every photo from the night, one event",
     "note": "that’s us, 2 a.m.",
     "failedTitle": "Couldn’t sign in"
   },
@@ -20,8 +20,8 @@
   },
   "signedOut": {
     "edge": "Signed out",
-    "title": "Sign in again\nto see your rolls.",
-    "body": "For your safety, Everglow signs you out after a while. Your rolls and photos are where you left them.",
+    "title": "Sign in again\nto see your events.",
+    "body": "For your safety, Everglow signs you out after a while. Your events and photos are where you left them.",
     "signIn": "Sign in"
   },
   "deleting": {

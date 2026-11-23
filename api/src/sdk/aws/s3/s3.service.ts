@@ -102,13 +102,16 @@ export class S3Service implements OnModuleDestroy {
     if (!bucket) throw new Error(S3_SERVICE_ERRORS.BUCKET_NOT_CONFIGURED());
     this.bucket = bucket;
 
+    // A static key (local development, where the shared dev key is in .env), or
+    // none: the SDK's default credential chain, which on Copilot is the ECS task
+    // role. Half a key is a mistake, not a request for the chain.
     const accessKeyId = configService.get<string>("aws.accessKeyId");
     const secretAccessKey = configService.get<string>("aws.secretAccessKey");
-    if (!accessKeyId || !secretAccessKey) throw new Error(S3_SERVICE_ERRORS.CREDENTIALS_NOT_CONFIGURED());
+    if (!accessKeyId !== !secretAccessKey) throw new Error(S3_SERVICE_ERRORS.CREDENTIALS_INCOMPLETE());
 
     this.client = new S3Client({
       region,
-      credentials: { accessKeyId, secretAccessKey },
+      ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
     });
   }
 

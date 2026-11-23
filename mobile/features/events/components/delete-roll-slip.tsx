@@ -24,17 +24,24 @@ export const DeleteRollSlip = ({
   onConfirm,
   onKeep,
 }: DeleteRollSlipProps) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
 
   return (
-    <Slip edge={edge} title={t("settings.deleteRoll.title")} body={body}>
+    <Slip edge={edge} title={t("settings.deleteEvent.title")} body={body}>
       {error ? (
         <Text accessibilityRole="alert" className="font-sans text-body text-pencil">
           {error}
         </Text>
       ) : null}
-      <Button title={confirmLabel} variant="danger" mark="✕" onPress={onConfirm} isLoading={isDeleting} />
-      <Button title={t("settings.deleteRoll.cancel")} variant="secondary" mark="‹" onPress={onKeep} />
+      <Button
+        testID="delete-roll-confirm"
+        title={confirmLabel}
+        variant="danger"
+        mark="✕"
+        onPress={onConfirm}
+        isLoading={isDeleting}
+      />
+      <Button title={t("settings.deleteEvent.cancel")} variant="secondary" mark="‹" onPress={onKeep} />
     </Slip>
   );
 };

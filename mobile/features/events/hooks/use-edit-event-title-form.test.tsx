@@ -27,8 +27,8 @@ const TitleFormProbe = ({ initialTitle = "Weekend meetup" }: { initialTitle?: st
           onChangeText={field.onChange}
           onBlur={field.onBlur}
           onSubmitEditing={onSubmit}
-          placeholder="Name your roll"
-          accessibilityLabel="Roll name"
+          placeholder="Name your event"
+          accessibilityLabel="Event name"
           error={fieldState.error?.message ?? form.formState.errors.root?.server?.message}
           saveLabel="Save"
           onSave={onSubmit}
@@ -50,7 +50,7 @@ beforeEach(() => {
 test("submits a trimmed title", async () => {
   await render(<TitleFormProbe />);
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "  Updated meetup  ");
+  await user.paste(screen.getByLabelText("Event name"), "  Updated meetup  ");
   await user.press(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
   expect(mockMutateAsync).toHaveBeenCalledWith({ title: "Updated meetup" });
@@ -59,9 +59,9 @@ test("submits a trimmed title", async () => {
 test("rejects a whitespace-only title", async () => {
   await render(<TitleFormProbe />);
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "   ");
+  await user.paste(screen.getByLabelText("Event name"), "   ");
   await user.press(screen.getByRole("button", { name: "Save" }));
-  expect(await screen.findByText("Give the roll a name")).toBeOnTheScreen();
+  expect(await screen.findByText("Give the event a name")).toBeOnTheScreen();
   expect(mockMutateAsync).not.toHaveBeenCalled();
 });
 
@@ -69,10 +69,10 @@ test("surfaces server errors and keeps values for retry", async () => {
   mockMutateAsync.mockRejectedValueOnce(new Error("Network unavailable"));
   await render(<TitleFormProbe />);
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Retry title");
+  await user.paste(screen.getByLabelText("Event name"), "Retry title");
   await user.press(screen.getByRole("button", { name: "Save" }));
   expect(await screen.findByText("Couldn’t update the name. Try again.")).toBeOnTheScreen();
-  expect(screen.getByLabelText("Roll name")).toHaveDisplayValue("Retry title");
+  expect(screen.getByLabelText("Event name")).toHaveDisplayValue("Retry title");
   expect(mockSuccess).not.toHaveBeenCalled();
   await user.press(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
@@ -84,7 +84,7 @@ test("locks Save while the mutation is pending", async () => {
   mockMutateAsync.mockReturnValue(pending.promise);
   await render(<TitleFormProbe />);
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "Meetup");
+  await user.paste(screen.getByLabelText("Event name"), "Meetup");
   await user.press(screen.getByRole("button", { name: "Save" }));
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   await user.press(screen.getByRole("button", { name: "Save" }));
@@ -96,7 +96,7 @@ test("locks Save while the mutation is pending", async () => {
 test("skips the mutation when the trimmed title matches the current name", async () => {
   await render(<TitleFormProbe />);
   const user = userEvent.setup();
-  await user.paste(screen.getByLabelText("Roll name"), "  Weekend meetup  ");
+  await user.paste(screen.getByLabelText("Event name"), "  Weekend meetup  ");
   await user.press(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(mockSuccess).toHaveBeenCalledTimes(1));
   expect(mockMutateAsync).not.toHaveBeenCalled();

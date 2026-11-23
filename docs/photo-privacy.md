@@ -2,7 +2,7 @@
 
 Users' photos are theirs. The API needs to read them to serve the app, but no person with AWS access should be able to browse them. The owner of an AWS account can never be locked out completely, since they can always change the rules. So the goal is that **nobody reads a photo by accident, and every deliberate read is recorded and reported**.
 
-The Terraform is in `api/infra/`: the bucket policy in `main.tf`, the rest in `photo-privacy.tf`.
+The Terraform is in `infra/`: each environment's bucket, bucket policy, key and read alert in `modules/photo-storage/` (one instance per environment in `photos.tf`), and what they share (the trail, the alert topic and the control-change alert) in `photo-privacy.tf`.
 
 ## The layers
 
@@ -40,7 +40,7 @@ Logs and alerts name people by opaque ids, object keys (which contain the upload
 | Failed photo notifications | SQS, `everglow-photo-uploads-dlq-dev` | The S3 notification: bucket, object key, and the uploader's IP address as S3 recorded it | 14 days | `aws_sqs_queue.photo_uploads_dlq` |
 | CloudTrail | S3, `everglow-audit-logs-dev` | Every read and write of a photo object (key, caller, IP address, time) and every configuration write in the account | 365 days, then expired | `aws_s3_bucket_lifecycle_configuration.audit_logs` |
 | Alert email | The mailboxes in `alert_emails` | Photo read alerts: the object key, the caller and their IP address. Control change alerts: the caller and their IP address. API log alarms: the alarm name, its meaning and a console link, no ids. | Not enforced: as long as the mailbox keeps it. SNS keeps nothing once delivered. Delete an alert once what it raised is closed. | `aws_sns_topic.security_alerts` |
-| Alarm metrics and history | CloudWatch | Counts and alarm state changes, no ids | 15 months (metrics), 30 days (history), both fixed by AWS | `api/infra/moderation-alerts.tf` |
+| Alarm metrics and history | CloudWatch | Counts and alarm state changes, no ids | 15 months (metrics), 30 days (history), both fixed by AWS | `infra/moderation-alerts.tf` |
 
 **The audit bucket's protections.** Public access is blocked, non-TLS requests are refused, only CloudTrail may write to it and only for this trail, and log file validation writes signed digests, so a changed or deleted log file can be detected (`aws cloudtrail validate-logs`). Turning the trail off or changing it is alerted. It is encrypted with S3-managed keys, not KMS, and has no versioning or Object Lock: someone with S3 rights in the account can delete the logs, and that is not alerted. The production plan below moves them to a separate account with Object Lock.
 
@@ -57,6 +57,12 @@ In dev:
 - **Files can still be listed, and the bucket policy is not locked,** so Terraform can keep changing it.
 - **Photos uploaded before the KMS key existed** keep S3-managed encryption. The bucket policy still blocks reading them.
 
+In staging (`everglow-photos-staging`, the same module and controls as dev):
+
+- **The API has no access key.** It runs as the Copilot service's ECS task role, and the bucket policy and key trust that role under any session name (ECS names each session after its task). The role's S3 rights come from the addon in `api/copilot/api/addons/`. The read alert matches callers by the role that issued their session, so a person assuming any other role, or the processor's role outside Lambda, still alerts.
+- **Changes to the task role alert** like changes to the processor's role, since it is on the allowlist. A Copilot deploy that changes its policies sends one.
+- **Every object expires after 30 days.** Staging holds test data; its database keeps the rows, so an older photo shows as missing.
+
 Production, before launch (EV-37):
 
 - A separate AWS account, and an API role whose credentials never leave the server.
@@ -68,15 +74,16 @@ Production, before launch (EV-37):
 ## Applying
 
 ```sh
-cd api/infra
+cd infra
 cp terraform.tfvars.example terraform.tfvars   # set alert_emails; the repo is public, keep it out of git
 # Build the image-processor artifact first from the repository root:
 # (cd functions/image-processor && pnpm install --frozen-lockfile && pnpm build)
 # Use your own admin AWS profile; Terraform no longer selects one.
+terraform init
 terraform plan
 terraform apply
 ```
 
 AWS then emails a confirmation link to each address in `alert_emails`. Alerts arrive only after it is clicked. CloudTrail delivers events a few minutes after they happen, so an alert can take up to about 15 minutes.
 
-The state is local and gitignored. Before planning, obtain the latest shared dev state from whoever last applied. Back up the existing state and verify that the incoming file has the same lineage and a newer serial. Replacing this file updates local bookkeeping only; it does not deploy code or change AWS resources.
+The state is shared in S3 and locked while anyone plans or applies; who applies and how is in [infra/README.md](../infra/README.md).

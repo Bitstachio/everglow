@@ -62,7 +62,7 @@ describe("14.11 Delete account", () => {
     await renderScreen(<DeleteAccountScreen />);
     expect(screen.getByRole("header", { name: "Delete your\naccount?" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Delete my account" })).toBeDisabled();
-    expect(screen.getByText("Choose what happens to your frames first")).toBeOnTheScreen();
+    expect(screen.getByText("Choose what happens to your photos first")).toBeOnTheScreen();
     await userEvent.setup().press(screen.getByRole("radio", { name: /^Delete them/ }));
     expect(mockDeleteScreen.onChoosePhotos).toHaveBeenCalledWith("DELETE");
   });
@@ -86,7 +86,7 @@ describe("14.11 Delete account", () => {
   test("says when the rolls couldn't load, and tries again", async () => {
     mockDeleteScreen.rollsFailed = true;
     await renderScreen(<DeleteAccountScreen />);
-    expect(screen.getByText("Couldn’t load your rolls.")).toBeOnTheScreen();
+    expect(screen.getByText("Couldn’t load your events.")).toBeOnTheScreen();
     expect(screen.queryByLabelText("Nadia turns 30, Stays with the people on it")).not.toBeOnTheScreen();
     await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
     expect(mockDeleteScreen.onRetryRolls).toHaveBeenCalledTimes(1);
@@ -95,7 +95,7 @@ describe("14.11 Delete account", () => {
   test("leaves the rolls section out when there's nothing in it", async () => {
     mockDeleteScreen.showRolls = false;
     await renderScreen(<DeleteAccountScreen />);
-    expect(screen.queryByText("Rolls you host alone")).not.toBeOnTheScreen();
+    expect(screen.queryByText("Events you host alone")).not.toBeOnTheScreen();
   });
 
   test.each([true, false])("says what is kept after deletion (rolls shown: %s)", async (showRolls) => {

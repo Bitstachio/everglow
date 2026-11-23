@@ -5,7 +5,7 @@ test("each reason is a checkbox, and the divider sits after its option", async (
   const onPress = jest.fn();
   await render(
     <LabTicket
-      title="Report a frame"
+      title="Report a photo"
       options={[
         { key: "rude", label: "Rude or hurtful", checked: true },
         { key: "minor", label: "Involves a minor", checked: false, onPress },

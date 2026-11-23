@@ -141,7 +141,7 @@ builds a rule on them and nobody wonders whether one is missing.
 
 1. Add the event name to `ALERT_EVENTS` and to the pinned test next to it, and log it through the constant.
 2. Add a row to §3 with a condition and an action. An alert nobody knows how to act on is noise.
-3. Add the rule to [`api/infra/moderation-alerts.tf`](../infra/moderation-alerts.tf) (§6), in the same PR or in
+3. Add the rule to [`infra/moderation-alerts.tf`](../../infra/moderation-alerts.tf) (§6), in the same PR or in
    one that lands before the event ships.
 4. Never rename an event in §3 without changing its rule there in the same release.
 
@@ -152,11 +152,11 @@ builds a rule on them and nobody wonders whether one is missing.
 The API runs on ECS through Copilot ([`api/copilot/api/manifest.yml`](../copilot/api/manifest.yml)), so its lines
 are already in CloudWatch Logs, in the group Copilot creates for the service: `/copilot/everglow-<env>-api`. The
 rules in §3 are CloudWatch metric filters on that group with an alarm each, in
-[`api/infra/moderation-alerts.tf`](../infra/moderation-alerts.tf). Saved Logs Insights queries and a dashboard
-for the same group live in [`api/infra/api-logs.tf`](../infra/api-logs.tf); both files share
-`api_log_group_name` and the short name in [`api-log-group.tf`](../infra/api-log-group.tf). Every alarm
+[`infra/moderation-alerts.tf`](../../infra/moderation-alerts.tf). Saved Logs Insights queries and a dashboard
+for the same group live in [`infra/api-logs.tf`](../../infra/api-logs.tf); both files share
+`api_log_group_name` and the short name in [`api-log-group.tf`](../../infra/api-log-group.tf). Every alarm
 publishes to the same SNS topic as the photo privacy alerts and the image processor's DLQ alarm
-(`everglow-security-alerts-dev`, [`photo-privacy.tf`](../infra/photo-privacy.tf)), which emails the addresses
+(`everglow-security-alerts-dev`, [`photo-privacy.tf`](../../infra/photo-privacy.tf)), which emails the addresses
 in `alert_emails`. No vendor and no code in the API.
 
 - **Page or ticket is in the alarm name**, `everglow-<env>-api-page-…` or `…-ticket-…`, so the email's subject says
@@ -181,8 +181,8 @@ in `alert_emails`. No vendor and no code in the API.
 The log group belongs to Copilot's stack, so Terraform reads it and never creates it. In a new environment:
 
 1. `copilot svc deploy --env <env>` creates the log group (and sets its retention from the manifest).
-2. Set `api_log_group_name` and `api_jobs_enabled` in `api/infra/terraform.tfvars`, then `terraform plan` and
-   `terraform apply` from `api/infra`. Until the group exists, the plan holds no API alerts and warns
+2. Set `api_log_group_name` and `api_jobs_enabled` in `infra/terraform.tfvars`, then `terraform plan` and
+   `terraform apply` from `infra/`. Until the group exists, the plan holds no API alerts and warns
    (`check "api_log_group_exists"`) instead of failing.
 
 A heartbeat alarm can fire once right after it is created, because its metric has no history yet; it returns to

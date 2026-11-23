@@ -55,9 +55,9 @@ test("says how many rolls are running and which frees a spot first", async () =>
 
   expect(result.current).toMatchObject({
     edge: "Free plan · 2 of 2 running",
-    title: "Both rolls",
+    title: "Both events",
     dim: "are in use.",
-    runs: "A free account runs 2 rolls at a time.",
+    runs: "A free account runs 2 events at a time.",
     next: { title: "Nadia turns 30", date: "Sat 14 Nov" },
   });
   // Only rolls you started count; the one that frees a spot comes last, with its note.
@@ -74,8 +74,8 @@ test("reads the numbers from the plan, never from the app", async () => {
 
   expect(result.current).toMatchObject({
     edge: "Free plan · 3 of 3 running",
-    title: "All 3 rolls",
-    runs: "A free account runs 3 rolls at a time.",
+    title: "All 3 events",
+    runs: "A free account runs 3 events at a time.",
     next: null,
   });
   expect(result.current?.rolls.every(({ note }) => note === undefined)).toBe(true);

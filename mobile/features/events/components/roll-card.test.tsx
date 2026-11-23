@@ -52,7 +52,7 @@ test("marks an upcoming roll as unexposed with when it opens", async () => {
   await renderWithI18n(<RollCard event={event} now={NOW} />);
 
   expect(screen.getByText("Friday at Sully’s")).toBeOnTheScreen();
-  expect(screen.getByText("Unexposed · 11 ppl in")).toBeOnTheScreen();
+  expect(screen.getByText("Not open yet · 11 ppl in")).toBeOnTheScreen();
   expect(screen.getByText(/^Opens /)).toBeOnTheScreen();
 });
 
@@ -71,7 +71,7 @@ test("shows when a closed roll's photos went", async () => {
   expect(screen.getByText(/^Closed /)).toBeOnTheScreen();
 });
 
-test("fills an open roll's strip with its latest photos, then blank frames", async () => {
+test("fills an open roll's strip with its latest photos, then blank photos", async () => {
   const event = buildEvent({
     galleryState: "OPEN",
     galleryClosesAt: "2026-11-21T00:00:00.000Z",

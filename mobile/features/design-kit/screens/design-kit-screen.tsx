@@ -99,14 +99,14 @@ const DesignKitScreen = () => {
 
         <Section title="Display" only={only}>
           <Display variant="event">Sam &amp; Jo’s wedding</Display>
-          <Display dim="are in use.">Both rolls</Display>
+          <Display dim="are in use.">Both events</Display>
           <Display variant="roll">Nadia turns 30</Display>
         </Section>
 
         <Section title="Text and edge print" only={only}>
           <ThemedText className="text-body">Everyone’s photos land in the same place.</ThemedText>
           <ThemedText tone="muted" className="text-body">
-            A free account runs two rolls at a time.
+            A free account runs two events at a time.
           </ThemedText>
           <EdgePrint>
             <EdgeValue>1.2</EdgeValue> / 3 GB · <EdgeValue>5h 42m</EdgeValue> left · <EdgeValue>24</EdgeValue> people
@@ -116,12 +116,12 @@ const DesignKitScreen = () => {
         </Section>
 
         <Section title="Leaders" only={only}>
-          <Button title="Load the roll" mark="▸" />
+          <Button title="Create the event" mark="▸" />
           <Button title="Keep them" variant="outline" mark="‹" />
           <Button title="Cut and remove 148" variant="danger" mark="▸" />
           <Button title="Not now" variant="ghost" />
           <Button title="Saving" isLoading />
-          <Button title="Load the roll" mark="▸" disabled />
+          <Button title="Create the event" mark="▸" disabled />
         </Section>
 
         <Section title="Icon buttons" only={only}>
@@ -166,7 +166,7 @@ const DesignKitScreen = () => {
                   by={["Leila", "Sam", "Jo"][i % 3]}
                   selected={i === 1}
                   isNew={i === 3}
-                  accessibilityLabel={`Frame ${n}`}
+                  accessibilityLabel={`Photo ${n}`}
                 />
               </View>
             ))}
@@ -184,9 +184,9 @@ const DesignKitScreen = () => {
                 key={days}
                 days={days}
                 name={name}
-                label="day roll"
+                label="days"
                 selected={days === 7}
-                accessibilityLabel={`${days}-day roll`}
+                accessibilityLabel={`${days} days`}
               />
             ))}
           </View>
@@ -197,7 +197,7 @@ const DesignKitScreen = () => {
         </Section>
 
         <Section title="Counter" only={only}>
-          <FrameCounter count={12} label="Frames on the roll" accessibilityLabel="12 frames on the roll" />
+          <FrameCounter count={12} label="Photos in the event" accessibilityLabel="12 photos in the event" />
         </Section>
 
         <Section title="Paper" only={only}>
@@ -206,7 +206,7 @@ const DesignKitScreen = () => {
               fields={[
                 { label: "Name", value: "Sam & Jo’s wedding" },
                 { label: "Date", value: "Sun 18 Oct, 4 pm" },
-                { label: "On the roll", value: "24 people so far" },
+                { label: "In the event", value: "24 people so far" },
                 { label: "Pick up by", value: "17 Nov, then it’s gone" },
               ]}
               options={[
@@ -216,12 +216,12 @@ const DesignKitScreen = () => {
               accessibilityLabel="Invite to Sam and Jo’s wedding"
             />
             <View className="absolute -bottom-2 right-4">
-              <Stamp title="Join" subtitle="The roll" />
+              <Stamp title="Join" subtitle="The event" />
             </View>
           </View>
           <LabTicket
-            title="Report a frame"
-            number="Frame 144"
+            title="Report a photo"
+            number="Photo 144"
             options={[
               { key: "spam", label: "Spam or a mistake", checked: false },
               { key: "rude", label: "Rude or hurtful", checked: true },
@@ -239,8 +239,8 @@ const DesignKitScreen = () => {
             photoUri={photo(40)}
             fields={[
               { label: "Name", value: "Maya Chen" },
-              { label: "Signs frames as", value: "@maya.chen" },
-              { label: "Free roll", value: "1 of 2 running" },
+              { label: "Signs photos as", value: "@maya.chen" },
+              { label: "Free plan", value: "1 of 2 running" },
             ]}
             accessibilityLabel="Maya Chen, @maya.chen"
           />
@@ -266,7 +266,7 @@ const DesignKitScreen = () => {
             />
           </View>
           <View accessibilityRole="radiogroup">
-            <OptionRow title="Keep her frames" description="They stay on the roll, signed by Leila." selected />
+            <OptionRow title="Keep her photos" description="They stay in the event, signed by Leila." selected />
             <OptionRow title="Delete them too" description="All 31 are removed for everyone." selected={false} />
           </View>
         </Section>
@@ -274,11 +274,11 @@ const DesignKitScreen = () => {
         <Section title="Slip" only={only}>
           <View className="border-t-2 border-text bg-sheet px-5 pb-6 pt-5">
             <Slip
-              edge="Frame 144 · by Leila"
+              edge="Photo 144 · by Leila"
               title="Delete it for everyone?"
-              body="Leila and everyone on the roll stop seeing it. This can’t be undone."
+              body="Leila and everyone in the event stop seeing it. This can’t be undone."
             >
-              <Button title="Delete frame 144" variant="danger" />
+              <Button title="Delete photo 144" variant="danger" />
               <Button title="Keep it" variant="outline" mark="‹" />
             </Slip>
           </View>

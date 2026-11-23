@@ -64,7 +64,6 @@ const NewRollScreen = () => {
     onLoad,
     whenField,
     guestLineRef,
-    showGuestLine,
     onNameSubmit,
     film,
     cover,
@@ -118,7 +117,7 @@ const NewRollScreen = () => {
             ))}
           </RollsInUse>
           <View className="px-5 pb-1 pt-3">
-            <Button title={t("full.back")} mark="‹" onPress={onBackToRolls} />
+            <Button testID="new-roll-full-back" title={t("full.back")} mark="‹" onPress={onBackToRolls} />
           </View>
         </>
       ) : status === "notReady" ? (
@@ -137,6 +136,7 @@ const NewRollScreen = () => {
               name="title"
               render={({ field }) => (
                 <RollLabel
+                  testID="new-roll-name"
                   stock={t("label.stock")}
                   placeholder={t("label.namePlaceholder")}
                   nameA11y={t("label.nameA11y")}
@@ -150,44 +150,47 @@ const NewRollScreen = () => {
               )}
             />
 
-            {showGuestLine ? (
-              <View className="mt-10.5">
-                <Controller
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <GuestLine
-                      ref={guestLineRef}
-                      label={t("guests.label")}
-                      placeholder={t("guests.placeholder")}
-                      accessibilityLabel={t("guests.a11y")}
-                      value={field.value}
-                      onChangeText={field.onChange}
-                      onBlur={field.onBlur}
-                      editable={!isLoading}
-                    />
-                  )}
-                />
-              </View>
-            ) : null}
+            <View className="mt-10.5">
+              <Controller
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <GuestLine
+                    ref={guestLineRef}
+                    label={t("guests.label")}
+                    placeholder={t("guests.placeholder")}
+                    accessibilityLabel={t("guests.a11y")}
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+            </View>
 
             <View className="mt-10">
-              <WhenField heading={t("when.heading")} disabled={isLoading} onPress={when.onOpen} {...whenField} />
+              <WhenField
+                testID="new-roll-when"
+                heading={t("when.heading")}
+                disabled={isLoading}
+                onPress={when.onOpen}
+                {...whenField}
+              />
             </View>
 
             <View className="mt-10">
               <FilmChoice
-                heading={t("film.heading")}
-                unit={t("film.dayRoll")}
+                heading={t("duration.heading")}
+                unit={t("duration.unit")}
                 options={film.options}
                 selected={film.selected}
                 onSelect={film.onSelect}
-                circled={film.circled}
                 removed={
                   film.closes ? (
                     <Trans
                       t={t}
-                      i18nKey="film.removed"
+                      i18nKey="duration.removed"
                       values={{ closes: film.closes }}
                       components={{ value: <EdgeValue>{null}</EdgeValue> }}
                     />
@@ -203,7 +206,14 @@ const NewRollScreen = () => {
                 {error}
               </Text>
             ) : null}
-            <Button title={t("load")} mark="▸" onPress={onLoad} isLoading={isLoading} disabled={!canLoad} />
+            <Button
+              testID="new-roll-load"
+              title={t("load")}
+              mark="▸"
+              onPress={onLoad}
+              isLoading={isLoading}
+              disabled={!canLoad}
+            />
           </View>
         </KeyboardAvoidingView>
       )}

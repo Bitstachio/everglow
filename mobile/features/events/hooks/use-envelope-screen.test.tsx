@@ -132,7 +132,7 @@ test("05.3 shares the envelope's link through the share sheet", async () => {
   await act(() => result.current.onShare());
 
   expect(share).toHaveBeenCalledWith({
-    message: "Nadia turns 30 · join the roll\nhttps://events.everglow.app/invite/weekend",
+    message: "Nadia turns 30 · join the event\nhttps://events.everglow.app/invite/weekend",
   });
 });
 

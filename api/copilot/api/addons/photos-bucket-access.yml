@@ -1,0 +1,65 @@
+# S3 access for the api service's ECS task role, so the API reaches its photos
+# bucket with no access key (S3Service falls back to the default AWS credential
+# chain when AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are unset).
+#
+# Copilot deploys this template with the service and attaches every
+# AWS::IAM::ManagedPolicy it outputs to the task role. The bucket and its rules
+# are Terraform (infra/photos.tf). Its bucket policy and KMS key trust this
+# task role by id, so a replaced role needs a `terraform apply` as well.
+#
+# Each environment's bucket is listed below. An environment that is not listed
+# fails to deploy instead of reaching another environment's photos.
+
+Parameters:
+  App:
+    Type: String
+    Description: Your application's name.
+  Env:
+    Type: String
+    Description: The environment name your service is being deployed to.
+  Name:
+    Type: String
+    Description: The name of the service.
+
+Mappings:
+  PhotosBucket:
+    staging:
+      Name: everglow-photos-staging
+
+Resources:
+  # Exactly what S3Service calls, like the dev IAM user's policy in
+  # infra/photos.tf. No KMS rights: the photos key's policy names this role
+  # itself, and S3 asks KMS on the caller's behalf.
+  PhotosBucketAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: !Sub "Lets the ${App}-${Env}-${Name} service read, write and delete objects in its photos bucket."
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # PutObject: uploads, presigned PUTs, copy targets. GetObject:
+          # reads, HeadObject, presigned GETs, copy sources. DeleteObject:
+          # single and batch deletes.
+          - Sid: PhotoObjects
+            Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:DeleteObject
+            Resource: !Sub
+              - "arn:${AWS::Partition}:s3:::${Bucket}/*"
+              - Bucket: !FindInMap [PhotosBucket, !Ref Env, Name]
+          # ListObjectsV2 for the orphan reconciler. Load-bearing for uploads
+          # too: without it, HeadObject on a missing key returns 403 instead
+          # of 404 and the photo confirm flow breaks.
+          - Sid: ListPhotos
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !Sub
+              - "arn:${AWS::Partition}:s3:::${Bucket}"
+              - Bucket: !FindInMap [PhotosBucket, !Ref Env, Name]
+
+Outputs:
+  PhotosBucketAccessPolicyArn:
+    Description: Attached by Copilot to the api service's task role.
+    Value: !Ref PhotosBucketAccessPolicy

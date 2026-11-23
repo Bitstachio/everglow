@@ -200,7 +200,7 @@ const JoinEnvelopeScreen = () => {
         ) : refusal === "NOT_VALID" ? (
           <Button title={t("refused.scanAnother")} variant="secondary" mark="▸" onPress={onScanAnother} />
         ) : refusal ? (
-          <Button title={t("open.backToRolls")} variant="secondary" mark="‹" onPress={onBackToRolls} />
+          <Button title={t("open.backToEvents")} variant="secondary" mark="‹" onPress={onBackToRolls} />
         ) : (
           <>
             <Button

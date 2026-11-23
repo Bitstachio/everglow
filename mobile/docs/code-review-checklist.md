@@ -15,6 +15,7 @@ See also:
 - [UI scale](./ui-scale.md): type, spacing, radius, tap targets
 - [Testing](./testing.md): Jest + React Native Testing Library
 - [E2E](./e2e.md): Maestro setup and flows under `.maestro/`
+- [Mac smoke](./mac-smoke.md): the iOS CI job that runs the smoke flows against staging
 - `mobile/eslint.config.js`: what lint enforces automatically
 
 ## Codebase conventions

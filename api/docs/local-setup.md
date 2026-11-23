@@ -38,9 +38,11 @@ Get these from the API owner through the team password manager, never through ch
 | -------------------------------------------------------------- | ------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`                               | no      | The dev Auth0 tenant and API identifier, the same ones the mobile app uses | The API does not start                                 |
 | `AUTH0_NATIVE_CLIENT_ID`                                       | no      | The mobile app's Auth0 client ID (`EXPO_PUBLIC_AUTH0_CLIENT_ID`)           | The API does not start                                 |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`                   | **yes** | The dev API's S3 key                                                       | The API does not start                                 |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`                   | **yes** | The dev API's S3 key                                                       | Setup stops; uploads fail with 403 or "credentials"    |
 | `AWS_S3_BUCKET`, `AWS_REGION`                                  | no      | The shared dev bucket and its region                                       | The API does not start                                 |
 | `AUTH0_MANAGEMENT_CLIENT_ID`, `AUTH0_MANAGEMENT_CLIENT_SECRET` | **yes** | The Auth0 M2M app                                                          | Deleting an account and changing a password answer 500 |
+
+The AWS key is only for laptops. Set both halves or neither: with neither, the API uses the default AWS credential chain, which is how staging runs on Copilot (as its ECS task role, with no key). Half a key stops the API at boot.
 
 The `APPLE_SIWA_*` values are not needed locally. Without them, deleting an account that signed in with Apple still works and logs an error.
 

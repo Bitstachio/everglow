@@ -6,9 +6,10 @@
  * You can remove the `reset-project` script from package.json and safely delete this file after running it.
  */
 
-const fs = require("fs");
-const path = require("path");
-const readline = require("readline");
+import fs from "node:fs";
+import path from "node:path";
+import readline from "node:readline";
+import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
 const oldDirs = ["app", "components", "hooks", "constants", "scripts"];
@@ -40,12 +41,7 @@ export default function RootLayout() {
 }
 `;
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
-const moveDirectories = async (userInput) => {
+const moveDirectories = async (userInput: string): Promise<void> => {
   try {
     if (userInput === "y") {
       // Create the app-example directory
@@ -91,17 +87,29 @@ const moveDirectories = async (userInput) => {
         userInput === "y" ? `\n3. Delete the /${exampleDir} directory when you're done referencing it.` : ""
       }`,
     );
-  } catch (error) {
-    console.error(`❌ Error during script execution: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Error during script execution: ${message}`);
   }
 };
 
-rl.question("Do you want to move existing files to /app-example instead of deleting them? (Y/n): ", (answer) => {
-  const userInput = answer.trim().toLowerCase() || "y";
-  if (userInput === "y" || userInput === "n") {
-    moveDirectories(userInput).finally(() => rl.close());
-  } else {
-    console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
-    rl.close();
-  }
-});
+const main = (): void => {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  rl.question("Do you want to move existing files to /app-example instead of deleting them? (Y/n): ", (answer) => {
+    const userInput = answer.trim().toLowerCase() || "y";
+    if (userInput === "y" || userInput === "n") {
+      moveDirectories(userInput).finally(() => rl.close());
+    } else {
+      console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
+      rl.close();
+    }
+  });
+};
+
+const invokedDirectly = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) main();

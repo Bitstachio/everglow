@@ -2,11 +2,11 @@
   "step": "Step {{step}} of {{total}}",
   "next": "Next",
   "name": {
-    "label": "Sign your frames · your name",
+    "label": "Sign your photos · your name",
     "placeholder": "Your name",
-    "frameNumber": "▸ 142",
-    "frameUnsigned": "Your name",
-    "frameA11y": "A sample photo, signed {{name}}",
+    "photoNumber": "▸ 142",
+    "photoUnsigned": "Your name",
+    "photoA11y": "A sample photo, signed {{name}}",
     "note": "how it shows\non your photos"
   },
   "username": {
@@ -36,9 +36,9 @@
   "card": {
     "title": "Lab card · since {{since}}",
     "name": "Name",
-    "signsAs": "Signs frames as",
-    "freeRoll": "Free roll",
-    "rolls": "Rolls",
+    "signsAs": "Signs photos as",
+    "freePlan": "Free plan",
+    "events": "Events",
     "running": "{{count}} of {{limit}} running",
     "runningNoLimit": "{{count}} running",
     "a11y": "Your lab card: {{name}}, @{{username}}"
@@ -47,7 +47,7 @@
     "skip": "Skip",
     "title": "Add a face",
     "titleDim": "to the name.",
-    "body": "So people know whose frames they’re looking at. Black and white on the card, full colour on your photos.",
+    "body": "So people know whose photos they’re looking at. Black and white on the card, full colour on your photos.",
     "take": "Take a photo",
     "choose": "Choose from library",
     "permissionTitle": "Everglow can’t reach your photos",
@@ -66,7 +66,7 @@
     "stamp": "Ready",
     "stampSub": "Onboarded",
     "title": "You’re set,",
-    "body": "Start a roll for your next night out, or join one with an envelope someone sends you.",
-    "go": "Go to your rolls"
+    "body": "Start an event for your next night out, or join one with an envelope someone sends you.",
+    "go": "Go to your events"
   }
 }

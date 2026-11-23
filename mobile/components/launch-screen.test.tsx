@@ -16,10 +16,10 @@ afterEach(() => jest.useRealTimers());
 
 test("shows the name and says the session is loading, to screen readers only", async () => {
   await renderWithI18n(<LaunchScreen />);
-  const launch = screen.getByRole("progressbar", { name: "Loading the roll" });
+  const launch = screen.getByRole("progressbar", { name: "Loading your events" });
   expect(launch).toBeOnTheScreen();
   expect(launch).toBeBusy();
-  expect(screen.queryByText("Loading the roll")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Loading your events")).not.toBeOnTheScreen();
 });
 
 test.each(["load", "error"])("hides the native splash once its image fires %s, never before", async (event) => {

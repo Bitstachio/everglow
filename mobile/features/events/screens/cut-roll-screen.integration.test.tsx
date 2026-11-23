@@ -73,12 +73,12 @@ test("says what goes now and what stays", async () => {
   await renderScreen();
 
   expect(await screen.findByText("Hosts only")).toBeOnTheScreen();
-  expect(screen.getByRole("header", { name: "Cut the roll\nnow?" })).toBeOnTheScreen();
+  expect(screen.getByRole("header", { name: "End the event\nnow?" })).toBeOnTheScreen();
   expect(screen.getByLabelText("Now, Nobody can add photos or join")).toBeOnTheScreen();
   expect(screen.getByLabelText("At once, All 148 photos are removed")).toBeOnTheScreen();
   expect(screen.getByLabelText("Stays, The event and its 24 people")).toBeOnTheScreen();
-  expect(screen.getByText("Can’t be undone · save the roll first ↓")).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Cut it and remove 148 photos" })).toBeOnTheScreen();
+  expect(screen.getByText("Can’t be undone · save the event first ↓")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "End it and remove 148 photos" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Keep it open" })).toBeOnTheScreen();
   // The strip shows the roll's latest photos.
   expect(mockListPhotos).toHaveBeenCalledWith(expect.objectContaining({ query: { limit: 4 } }));
@@ -88,7 +88,7 @@ test("cuts through the deactivate call, refreshes the roll and goes back to it",
   const client = await renderScreen();
   mockDeactivate.mockResolvedValue({ data: { data: openRoll({ galleryState: "CLOSED" }) } });
   const invalidate = jest.spyOn(client, "invalidateQueries");
-  await userEvent.setup().press(await screen.findByRole("button", { name: "Cut it and remove 148 photos" }));
+  await userEvent.setup().press(await screen.findByRole("button", { name: "End it and remove 148 photos" }));
 
   await waitFor(() => expect(mockBack).toHaveBeenCalled());
   expect(mockDeactivate).toHaveBeenCalledWith({ path: { eventId: "event-1" }, throwOnError: true });
@@ -105,7 +105,7 @@ test("while the cut is on its way it can't be dismissed", async () => {
   const pending = deferred<unknown>();
   mockDeactivate.mockReturnValue(pending.promise);
   const user = userEvent.setup();
-  await user.press(await screen.findByRole("button", { name: "Cut it and remove 148 photos" }));
+  await user.press(await screen.findByRole("button", { name: "End it and remove 148 photos" }));
 
   await waitFor(() => expect(screen.getByRole("button", { name: "Keep it open" })).toBeDisabled());
   expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
@@ -117,7 +117,7 @@ test("while the cut is on its way it can't be dismissed", async () => {
 test("a refused cut says why and stays", async () => {
   await renderScreen();
   mockDeactivate.mockRejectedValue(createApiError("Only hosts can do that.", { status: 403 }));
-  await userEvent.setup().press(await screen.findByRole("button", { name: "Cut it and remove 148 photos" }));
+  await userEvent.setup().press(await screen.findByRole("button", { name: "End it and remove 148 photos" }));
 
   expect(await screen.findByText("Only hosts can do that.")).toBeOnTheScreen();
   expect(mockBack).not.toHaveBeenCalled();
@@ -135,7 +135,7 @@ test("an upcoming roll has no photos to remove or save", async () => {
 
   expect(await screen.findByLabelText("At once, No photos to remove")).toBeOnTheScreen();
   expect(screen.getByText("Can’t be undone")).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Cut it now" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "End it now" })).toBeOnTheScreen();
   expect(mockListPhotos).not.toHaveBeenCalled();
 });
 
@@ -143,7 +143,7 @@ test("a suspended roll's photos are hidden, and still go", async () => {
   await renderScreen({ event: openRoll({ status: "SUSPENDED", photoCount: 0 }), photos: [] });
 
   expect(await screen.findByLabelText("At once, Its hidden photos are removed")).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Cut it and remove the photos" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "End it and remove the photos" })).toBeOnTheScreen();
   expect(mockListPhotos).not.toHaveBeenCalled();
 });
 

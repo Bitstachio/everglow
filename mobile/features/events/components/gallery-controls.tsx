@@ -12,7 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 /** In-flow feedback inside the footer, never a strip floating over the photos. */
 export const GalleryProgress = ({ label, onStop }: { label: string; onStop?: () => void }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   return (
     <View className="min-h-12 flex-row items-center justify-center gap-3 px-5 py-3">
       <Spinner label={label} />
@@ -42,7 +42,7 @@ export const GalleryUnsaved = ({
   onRetry: () => void;
   onDismiss: () => void;
 }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   return (
     <View className="min-h-12 flex-row items-center justify-center gap-3 px-5">
       <Button title={t("gallery.retrySave", { count })} variant="ghost" fullWidth={false} onPress={onRetry} />
@@ -68,7 +68,7 @@ export const GallerySelectionBar = ({
   onShare: () => void;
   onDelete: () => void;
 }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   return (
     <View className="flex-row items-center justify-around border-t border-line bg-ground px-3 py-3">
       <Button
@@ -115,10 +115,10 @@ export const SaveRollSheet = ({
   onClosed: () => void;
   onSave: () => void;
 }) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   return (
     <BottomSheet testID="save-roll-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
-      <Slip edge={t("gallery.saveRoll")} title={t("gallery.saveTitle", { count })} body={t("gallery.saveBody")}>
+      <Slip edge={t("gallery.saveEvent")} title={t("gallery.saveTitle", { count })} body={t("gallery.saveBody")}>
         {ownCount > 0 ? (
           <Pressable
             accessibilityRole="checkbox"

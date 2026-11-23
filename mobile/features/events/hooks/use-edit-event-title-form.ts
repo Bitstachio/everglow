@@ -18,7 +18,7 @@ type UseEditEventTitleFormParams = {
 
 /** Saves a new roll name from settings. */
 export const useEditEventTitleForm = ({ eventId, initialTitle, onSuccess }: UseEditEventTitleFormParams) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const mutation = useUpdateEventMutation(eventId);
   const submitting = useRef(false);
   const schema = z.object({

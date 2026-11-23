@@ -15,7 +15,7 @@ test("shows the hint, count, and keeps Save disabled until dirty", async () => {
     <SettingsTextEdit
       value="Weekend meetup"
       onChangeText={onChangeText}
-      accessibilityLabel="Roll name"
+      accessibilityLabel="Event name"
       hint="Shown on the roll."
       saveLabel="Save"
       onSave={onSave}
@@ -25,7 +25,7 @@ test("shows the hint, count, and keeps Save disabled until dirty", async () => {
     />,
   );
 
-  expect(screen.getByLabelText("Roll name")).toHaveDisplayValue("Weekend meetup");
+  expect(screen.getByLabelText("Event name")).toHaveDisplayValue("Weekend meetup");
   expect(screen.getByText("Shown on the roll.")).toBeOnTheScreen();
   expect(screen.getByLabelText("14 of 100 characters")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -56,9 +56,9 @@ test("shows an error", async () => {
     <SettingsTextEdit
       value=""
       onChangeText={onChangeText}
-      accessibilityLabel="Roll name"
+      accessibilityLabel="Event name"
       hint="Hint"
-      error="Give the roll a name"
+      error="Give the event a name"
       saveLabel="Save"
       onSave={onSave}
       isDirty={false}
@@ -66,5 +66,5 @@ test("shows an error", async () => {
     />,
   );
 
-  expect(screen.getByText("Give the roll a name")).toBeOnTheScreen();
+  expect(screen.getByText("Give the event a name")).toBeOnTheScreen();
 });

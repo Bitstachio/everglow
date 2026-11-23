@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react-native";
 import { FilmStrip } from "./film-strip";
 
-test("prints a blank frame's number and hides the preview strip from assistive tech", async () => {
+test("prints a blank photo's number and hides the preview strip from assistive tech", async () => {
   await render(
     <FilmStrip
       frames={[

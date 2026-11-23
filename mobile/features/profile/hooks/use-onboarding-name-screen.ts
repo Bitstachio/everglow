@@ -19,7 +19,7 @@ export const useOnboardingNameScreen = () => {
     name,
     setName,
     hasTyped: signature.length > 0,
-    signature: signature || t("name.frameUnsigned"),
+    signature: signature || t("name.photoUnsigned"),
     canContinue,
     onNext: () => {
       if (canContinue) router.push("/onboarding/username");
