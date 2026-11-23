@@ -432,6 +432,9 @@ export type RegisterDeviceDto = {
   locale?: string;
 };
 
+/**
+ * The caller's role on this event. Present on every event response the caller can read.
+ */
 export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
 
 export type EventInviteResponseDto = {
@@ -483,6 +486,10 @@ export type EventResponseDto = {
    * Who created the event; null once that account has been deleted. Not a permission: see accessLevel.
    */
   creatorId: string | null;
+  /**
+   * The caller's role on this event. Present on every event response the caller can read.
+   */
+  accessLevel: AccessLevel;
   /**
    * Participant invitation link. Prefer `invites` when present; kept for older clients that expect a single URL.
    */

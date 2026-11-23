@@ -4314,7 +4314,8 @@
           "ORGANIZER",
           "PARTICIPANT",
           "VIEWER"
-        ]
+        ],
+        "description": "The caller's role on this event. Present on every event response the caller can read."
       },
       "EventInviteResponseDto": {
         "type": "object",
@@ -4416,6 +4417,14 @@
             "format": "uuid",
             "nullable": true,
             "description": "Who created the event; null once that account has been deleted. Not a permission: see accessLevel."
+          },
+          "accessLevel": {
+            "description": "The caller's role on this event. Present on every event response the caller can read.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessLevel"
+              }
+            ]
           },
           "invitationUrl": {
             "type": "string",
@@ -4520,6 +4529,7 @@
           "description",
           "date",
           "creatorId",
+          "accessLevel",
           "invitationUrl",
           "invites",
           "coverUrl",

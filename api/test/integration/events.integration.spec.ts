@@ -67,6 +67,7 @@ type EventResponseBody = {
   description: string | null;
   date: string;
   creatorId: string;
+  accessLevel: AccessLevel;
   invitationUrl: string;
   invites: Array<{ accessLevel: AccessLevel; invitationUrl: string }>;
   coverUrl: string | null;
@@ -96,6 +97,13 @@ describe("EventsController (integration)", () => {
   let app: INestApplication;
   let prisma: DeepMockProxy<PrismaClient>;
   let httpServer: Server;
+
+  // The role on an event response is a separate lookup from the membership check.
+  // Membership checks have no select and stay empty; the response lookup asks for accessLevel.
+  const mockCallerRole = (access: ReturnType<typeof buildOrganizerAccess>) => {
+    prisma.eventAccess.findUnique.mockImplementation(((args: { select?: { accessLevel?: boolean } }) =>
+      Promise.resolve(args.select?.accessLevel ? access : null)) as never);
+  };
 
   const s3Service = {
     deleteObjects: jest.fn(),
@@ -136,7 +144,20 @@ describe("EventsController (integration)", () => {
     prisma.eventAccess.count.mockResolvedValue(1);
     // No open event reports: covers are visible.
     prisma.report.findMany.mockResolvedValue([]);
-    prisma.eventAccess.findMany.mockResolvedValue([]);
+    // Event responses read the caller's role with a narrow select. Other lookups stay empty
+    // unless a test says who the caller is.
+    prisma.eventAccess.findMany.mockImplementation(((args: {
+      where?: { userId?: string; eventId?: { in?: string[] } };
+      select?: { eventId?: boolean; accessLevel?: boolean };
+    }) => {
+      if (args.select?.accessLevel && args.select.eventId && args.where?.userId && args.where.eventId?.in) {
+        return Promise.resolve(
+          args.where.eventId.in.map((eventId) => ({ eventId, accessLevel: AccessLevel.ORGANIZER })),
+        );
+      }
+      return Promise.resolve([]);
+    }) as never);
+    mockCallerRole(buildOrganizerAccess());
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.eventInvite.findMany.mockResolvedValue([]);
     Object.values(s3Service).forEach((mock) => mock.mockReset());
@@ -329,10 +350,9 @@ describe("EventsController (integration)", () => {
     const setupJoinableInvite = (event: Event = buildEvent(), token = TEST_INVITE_TOKEN) => {
       prisma.eventInvite.findUnique.mockResolvedValue(buildEventInvite({ eventId: event.id, token }));
       prisma.event.findUnique.mockResolvedValue(event);
-      prisma.eventAccess.findUnique.mockResolvedValue(null);
-      prisma.eventAccess.create.mockResolvedValue(
-        buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: event.id }),
-      );
+      const joined = buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: event.id });
+      mockCallerRole(joined);
+      prisma.eventAccess.create.mockResolvedValue(joined);
     };
 
     it("returns 200 and joins using a bare invite token", async () => {
@@ -347,7 +367,7 @@ describe("EventsController (integration)", () => {
         .expect(201);
 
       const body = response.body as WrappedResponse<EventResponseBody>;
-      expect(body.data).toMatchObject(expectedEventResponse(event));
+      expect(body.data).toMatchObject(expectedEventResponse(event, null, [], AccessLevel.PARTICIPANT));
       expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({ where: { token: TEST_INVITE_TOKEN } });
       expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: event.id } });
       expect(prisma.eventAccess.create).toHaveBeenCalledWith({
@@ -1490,6 +1510,7 @@ describe("EventsController (integration)", () => {
       it("returns a presigned coverUrl on the single read and never the S3 key", async () => {
         const event = buildEvent({ coverS3Key: COVER_S3_KEY });
         prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildViewerAccess()]));
+        mockCallerRole(buildViewerAccess());
 
         const response = await request(httpServer)
           .get(`${EVENTS_BASE_PATH}/${TEST_EVENT_ID}`)
@@ -1497,7 +1518,7 @@ describe("EventsController (integration)", () => {
           .expect(200);
 
         const body = response.body as WrappedResponse<EventResponseBody>;
-        expect(body.data).toEqual(expectedEventResponse(event, COVER_URL));
+        expect(body.data).toEqual(expectedEventResponse(event, COVER_URL, [], AccessLevel.VIEWER));
         expect(s3Service.getPresignedDownloadUrl).toHaveBeenCalledWith(expect.objectContaining({ key: COVER_S3_KEY }));
         expect(JSON.stringify(response.body)).not.toContain("coverS3Key");
       });
@@ -1837,10 +1858,9 @@ describe("EventsController (integration)", () => {
         buildEventInvite({ eventId: TEST_OTHER_EVENT_ID, token: TEST_OTHER_INVITE_TOKEN }),
       );
       prisma.event.findUnique.mockResolvedValueOnce(event);
-      prisma.eventAccess.findUnique.mockResolvedValue(null);
-      prisma.eventAccess.create.mockResolvedValue(
-        buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: TEST_OTHER_EVENT_ID }),
-      );
+      const joined = buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: TEST_OTHER_EVENT_ID });
+      mockCallerRole(joined);
+      prisma.eventAccess.create.mockResolvedValue(joined);
 
       await request(httpServer)
         .post(`${EVENTS_BASE_PATH}/join`)

@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { EventPlan } from "generated/prisma/client";
+import { AccessLevel, EventPlan } from "generated/prisma/client";
 import { STRING_LIMITS } from "src/common/constants/schema.constants";
 import { EventLimitsResponseDto, EventUsageResponseDto } from "src/plans/dto/event-limits-response.dto";
 import { GALLERY_STATES, type GalleryState } from "src/plans/plans.constants";
@@ -26,6 +26,13 @@ export class EventResponseDto {
     description: "Who created the event; null once that account has been deleted. Not a permission: see accessLevel.",
   })
   creatorId: string | null;
+
+  @ApiProperty({
+    enum: AccessLevel,
+    enumName: "AccessLevel",
+    description: "The caller's role on this event. Present on every event response the caller can read.",
+  })
+  accessLevel: AccessLevel;
 
   @ApiProperty({
     description:
