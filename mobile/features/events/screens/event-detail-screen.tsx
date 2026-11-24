@@ -368,7 +368,6 @@ const EventDetailScreen = () => {
         />
       ) : null}
       {stage === "upcoming" || stage === "suspended" ? <UnexposedRoll strips={2} /> : null}
-      {stage === "empty" ? <UnexposedRoll strips={1} /> : null}
       {showsSheet ? <View className="h-4" /> : null}
     </View>
   );
