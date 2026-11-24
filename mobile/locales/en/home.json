@@ -3,6 +3,31 @@
     "scanner": "Scan an envelope",
     "labCard": "Your lab card"
   },
+  "filters": {
+    "label": "Filter",
+    "on": "Filter · On",
+    "sheetTitle": "Filter / Sort",
+    "dismiss": "Dismiss filters",
+    "close": "Close filters",
+    "status": "Status",
+    "statusA11y": "Filter by {{status}}",
+    "role": "My role",
+    "roles": {
+      "ORGANIZER": "Host",
+      "PARTICIPANT": "Adds photos",
+      "VIEWER": "View only"
+    },
+    "roleA11y": "Filter by {{role}}",
+    "sort": "Sort",
+    "sortEarliest": "Earliest",
+    "sortLatest": "Latest",
+    "reset": "Reset",
+    "apply": "Apply",
+    "noMatches": {
+      "title": "No matching events.",
+      "body": "Clear or change filters to see your events again."
+    }
+  },
   "failedTitle": "Couldn’t load your events",
   "firstRun": {
     "edge": "Event 00 · no photos yet",

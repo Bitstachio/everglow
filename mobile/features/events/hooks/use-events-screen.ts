@@ -1,14 +1,16 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage, isConnectionError } from "@/lib/api/errors";
+import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { useEventsQuery } from "../api/queries";
-import { useReduceMotion } from "@/hooks/use-reduce-motion";
+import { filterHomeEvents, sortHomeEventGroups } from "../lib/home-events-filters";
 import { LEAVE_MOTION, LEAVE_SETTLE_MS, takeLeftRoll, type LeftRoll } from "../lib/left-roll";
 import { groupRolls, hasClosed, isLastDay } from "../lib/rolls";
 import type { Event } from "../types";
+import { useHomeEventsFilters } from "./use-home-events-filters";
 
 const MINUTE_MS = 60 * 1000;
 
@@ -16,6 +18,7 @@ export const useEventsScreen = () => {
   const { t } = useTranslation(["home", "common"]);
   const router = useRouter();
   const { user } = useAuth();
+  const filters = useHomeEventsFilters();
   const {
     data: events = [],
     isLoading,
@@ -69,8 +72,14 @@ export const useEventsScreen = () => {
     const others = events.filter((event) => event.id !== leavingEvent.id);
     return holding ? [...others, leavingEvent] : others;
   }, [events, leavingEvent, holding]);
-  const groups = useMemo(() => groupRolls(shown), [shown]);
-  const hasRolls = shown.length > 0;
+
+  const hasEvents = shown.length > 0;
+  const groups = useMemo(() => {
+    const filtered = filterHomeEvents(shown, filters.appliedFilters);
+    return sortHomeEventGroups(groupRolls(filtered), filters.appliedFilters.sortDirection);
+  }, [shown, filters.appliedFilters]);
+  const visibleCount = groups.live.length + groups.upcoming.length + groups.closed.length;
+  const filtersEmpty = hasEvents && visibleCount === 0;
 
   // A roll on its last day counts down by the minute (03.3). One that closes
   // while Home is open is fetched again, so it moves below with the closed ones.
@@ -98,7 +107,11 @@ export const useEventsScreen = () => {
     groups,
     /** The roll going from the list, while it goes: its id and the strip it had. */
     leavingRoll: leaving && !reduceMotion ? { id: leaving.roll.event.id, photos: leaving.roll.photos } : null,
-    hasRolls,
+    /** Unfiltered membership — drives first-run vs filter controls. */
+    hasEvents,
+    /** Filtered list is empty while the caller still has events. */
+    filtersEmpty,
+    filters,
     isLoading,
     isRefreshing: isRefetching,
     isOffline,

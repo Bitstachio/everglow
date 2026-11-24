@@ -15,6 +15,8 @@ import { type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
 import { HomeEventCard } from "../components/home-event-card";
+import { HomeEventsFilterButton } from "../components/home-events-filter-button";
+import { HomeEventsFiltersSheet } from "../components/home-events-filters-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
@@ -45,7 +47,9 @@ const EventsScreen = () => {
   const {
     groups,
     leavingRoll,
-    hasRolls,
+    hasEvents,
+    filtersEmpty,
+    filters,
     isLoading,
     isRefreshing,
     isOffline,
@@ -59,7 +63,9 @@ const EventsScreen = () => {
     onOpenCard,
   } = useEventsScreen();
 
-  const showFirstRun = !isLoading && !hasRolls && !isOffline;
+  const showFirstRun = !isLoading && !hasEvents && !isOffline;
+  // Archive rule only when closed sits under live/upcoming — not for a closed-only list.
+  const showClosedHeading = groups.closed.length > 0 && (groups.live.length > 0 || groups.upcoming.length > 0);
   const moving = leavingRoll !== null;
   // The roll you left can't be opened while it goes.
   const openRoll = (event: Event) => (event.id === leavingRoll?.id ? undefined : () => onOpenRoll(event));
@@ -88,7 +94,13 @@ const EventsScreen = () => {
       {isOffline ? (
         <View className="mx-5 mb-3 mt-2.5 flex-row items-center justify-between border-b border-t border-outline-soft py-2">
           <EdgePrint tone="text">{t("offline.edge")}</EdgePrint>
-          <EdgePrint>{hasRolls ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
+          <EdgePrint>{hasEvents ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
+        </View>
+      ) : null}
+
+      {hasEvents ? (
+        <View className="flex-row items-center justify-end px-5 pb-2 pt-1">
+          <HomeEventsFilterButton active={filters.filtersActive} onPress={filters.openFilters} />
         </View>
       ) : null}
 
@@ -114,6 +126,13 @@ const EventsScreen = () => {
               <Display dim={t("firstRun.body")}>{t("firstRun.title")}</Display>
             </View>
           </View>
+        ) : filtersEmpty ? (
+          <View testID="home-filters-empty" className="mt-9.5 px-5">
+            <Display dim={t("filters.noMatches.body")}>{t("filters.noMatches.title")}</Display>
+            <View className="mt-6">
+              <Button title={t("filters.reset")} variant="secondary" onPress={filters.clearFilters} />
+            </View>
+          </View>
         ) : (
           <View className="gap-5.5">
             {groups.live.map((event) => (
@@ -126,7 +145,7 @@ const EventsScreen = () => {
                 <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
-            {groups.closed.length > 0 ? (
+            {showClosedHeading ? (
               <ListRow key="closed-heading" moving={moving}>
                 <View className="mx-5 mb-1.5 mt-7.75 flex-row items-center justify-between border-t-2 border-text pt-2.5">
                   <EdgePrint tone="text">{t("closed.heading", { count: groups.closed.length })}</EdgePrint>
@@ -156,6 +175,17 @@ const EventsScreen = () => {
           </>
         )}
       </View>
+
+      <HomeEventsFiltersSheet
+        visible={filters.filtersVisible}
+        draft={filters.draftFilters}
+        onClose={filters.closeFilters}
+        onToggleStatus={filters.toggleStatus}
+        onToggleRole={filters.toggleRole}
+        onChangeSort={filters.setSortDirection}
+        onReset={filters.resetFilters}
+        onApply={filters.applyFilters}
+      />
 
       <FilmGrain />
     </SafeAreaView>
