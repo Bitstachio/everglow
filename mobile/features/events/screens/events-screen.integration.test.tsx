@@ -99,6 +99,13 @@ test("lists the rolls, groups the closed ones, and opens a roll", async () => {
   expect(screen.getByText("Lake weekend")).toBeOnTheScreen();
   expect(screen.getByText("Photos removed")).toBeOnTheScreen();
 
+  await userEvent.setup().press(screen.getByRole("button", { name: "Filter" }));
+  expect(await screen.findByTestId("home-events-filters-sheet")).toBeOnTheScreen();
+  expect(screen.getByText("Filter / Sort")).toBeOnTheScreen();
+  expect(screen.getByText("Status")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Apply" })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close filters" }));
+
   await userEvent.setup().press(screen.getByRole("button", { name: /Sam & Jo’s wedding/ }));
   expect(mockPush).toHaveBeenCalledWith("/events/live-1");
 });

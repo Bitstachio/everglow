@@ -16,7 +16,9 @@ import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
 import { HomeEventCard } from "../components/home-event-card";
 import { HomeEventsFilterButton } from "../components/home-events-filter-button";
+import { HomeEventsFiltersSheet } from "../components/home-events-filters-sheet/home-events-filters-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
+import { useHomeEventsFilters } from "../hooks/use-home-events-filters";
 import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
 
@@ -59,6 +61,7 @@ const EventsScreen = () => {
     onOpenRoll,
     onOpenCard,
   } = useEventsScreen();
+  const filters = useHomeEventsFilters();
 
   const showFirstRun = !isLoading && !hasRolls && !isOffline;
   const moving = leavingRoll !== null;
@@ -95,7 +98,7 @@ const EventsScreen = () => {
 
       {hasRolls ? (
         <View className="flex-row items-center justify-end px-5 pb-2 pt-1">
-          <HomeEventsFilterButton onPress={() => {}} />
+          <HomeEventsFilterButton active={filters.filtersActive} onPress={filters.openFilters} />
         </View>
       ) : null}
 
@@ -163,6 +166,19 @@ const EventsScreen = () => {
           </>
         )}
       </View>
+
+      <HomeEventsFiltersSheet
+        visible={filters.filtersVisible}
+        draft={filters.draftFilters}
+        onClose={filters.closeFilters}
+        onToggleStatus={filters.toggleStatus}
+        onToggleRole={filters.toggleRole}
+        onChangeDateFrom={filters.setDateFrom}
+        onChangeDateTo={filters.setDateTo}
+        onChangeSort={filters.setSortDirection}
+        onReset={filters.resetFilters}
+        onApply={filters.applyFilters}
+      />
 
       <FilmGrain />
     </SafeAreaView>

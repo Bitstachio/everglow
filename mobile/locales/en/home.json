@@ -5,7 +5,31 @@
   },
   "filters": {
     "label": "Filter",
-    "on": "Filter · On"
+    "on": "Filter · On",
+    "sheetTitle": "Filter / Sort",
+    "dismiss": "Dismiss filters",
+    "close": "Close filters",
+    "closeDatePicker": "Close date picker",
+    "status": "Status",
+    "statusA11y": "Filter by {{status}}",
+    "role": "My role",
+    "roles": {
+      "ORGANIZER": "Host",
+      "PARTICIPANT": "Adds photos",
+      "VIEWER": "View only"
+    },
+    "roleA11y": "Filter by {{role}}",
+    "dateRange": "Date range",
+    "from": "From",
+    "to": "To",
+    "fromA11y": "Filter from date",
+    "toA11y": "Filter to date",
+    "pickDate": "Select date",
+    "sort": "Sort",
+    "sortEarliest": "Earliest",
+    "sortLatest": "Latest",
+    "reset": "Reset",
+    "apply": "Apply"
   },
   "failedTitle": "Couldn’t load your events",
   "firstRun": {
