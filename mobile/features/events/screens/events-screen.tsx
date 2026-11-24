@@ -64,6 +64,8 @@ const EventsScreen = () => {
   } = useEventsScreen();
 
   const showFirstRun = !isLoading && !hasEvents && !isOffline;
+  // Archive rule only when closed sits under live/upcoming — not for a closed-only list.
+  const showClosedHeading = groups.closed.length > 0 && (groups.live.length > 0 || groups.upcoming.length > 0);
   const moving = leavingRoll !== null;
   // The roll you left can't be opened while it goes.
   const openRoll = (event: Event) => (event.id === leavingRoll?.id ? undefined : () => onOpenRoll(event));
@@ -143,7 +145,7 @@ const EventsScreen = () => {
                 <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
-            {groups.closed.length > 0 ? (
+            {showClosedHeading ? (
               <ListRow key="closed-heading" moving={moving}>
                 <View className="mx-5 mb-1.5 mt-7.75 flex-row items-center justify-between border-t-2 border-text pt-2.5">
                   <EdgePrint tone="text">{t("closed.heading", { count: groups.closed.length })}</EdgePrint>

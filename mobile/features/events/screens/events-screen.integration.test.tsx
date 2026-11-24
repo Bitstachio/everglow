@@ -146,6 +146,30 @@ test("filters the list by status and shows no-matches when nothing fits", async 
   expect(screen.getByText("Friday at Sully’s")).toBeOnTheScreen();
 });
 
+test("hides the closed separator when the filtered list is closed-only", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [
+        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" }),
+        buildEvent({ id: "done-1", title: "Lake weekend", galleryState: "CLOSED" }),
+      ],
+    },
+  });
+  await renderScreen();
+  await screen.findByText("Sam & Jo’s wedding");
+  expect(screen.getByText("Photos removed")).toBeOnTheScreen();
+
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Filter" }));
+  await screen.findByTestId("home-events-filters-sheet");
+  await user.press(screen.getByRole("button", { name: "Filter by Closed" }));
+  await user.press(screen.getByRole("button", { name: "Apply" }));
+
+  expect(await screen.findByText("Lake weekend")).toBeOnTheScreen();
+  expect(screen.queryByText("Sam & Jo’s wedding")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Photos removed")).not.toBeOnTheScreen();
+});
+
 test("lists open events without loading their photos", async () => {
   mockFindAll.mockResolvedValue({
     data: {
