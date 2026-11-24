@@ -1,14 +1,9 @@
-import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { EdgePrint } from "@/components/ui/edge-print";
-import { ThemedText } from "@/components/ui/themed-text";
-import { colorTokens } from "@/theme/tokens";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { Calendar } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import type { AccessLevel } from "../../types";
 import {
   HOME_EVENTS_ROLE_OPTIONS,
@@ -16,8 +11,7 @@ import {
   type HomeEventsFilters,
   type HomeEventsGalleryStatus,
 } from "../../lib/home-events-filters";
-import { displayFilterDay, type EventsListSortDirection } from "../../utils";
-import { useHomeEventsFiltersSheet } from "./use-home-events-filters-sheet";
+import type { EventsListSortDirection } from "../../utils";
 
 type HomeEventsFiltersSheetProps = {
   visible: boolean;
@@ -25,8 +19,6 @@ type HomeEventsFiltersSheetProps = {
   onClose: () => void;
   onToggleStatus: (status: HomeEventsGalleryStatus) => void;
   onToggleRole: (role: AccessLevel) => void;
-  onChangeDateFrom: (value: string | null) => void;
-  onChangeDateTo: (value: string | null) => void;
   onChangeSort: (direction: EventsListSortDirection) => void;
   onReset: () => void;
   onApply: () => void;
@@ -44,15 +36,11 @@ export const HomeEventsFiltersSheet = ({
   onClose,
   onToggleStatus,
   onToggleRole,
-  onChangeDateFrom,
-  onChangeDateTo,
   onChangeSort,
   onReset,
   onApply,
 }: HomeEventsFiltersSheetProps) => {
   const { t } = useTranslation("home");
-  const { activeDateField, toggleDateField, closeDatePicker, handleDateChange, datePickerValue, datePickerDisplay } =
-    useHomeEventsFiltersSheet({ visible, draft, onChangeDateFrom, onChangeDateTo });
 
   return (
     <BottomSheet
@@ -63,15 +51,6 @@ export const HomeEventsFiltersSheet = ({
       dismissAccessibilityLabel={t("filters.dismiss")}
       closeAccessibilityLabel={t("filters.close")}
     >
-      {activeDateField ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("filters.closeDatePicker")}
-          className="absolute inset-0 z-10"
-          onPress={closeDatePicker}
-        />
-      ) : null}
-
       <View className="gap-3">
         <EdgePrint>{t("filters.status")}</EdgePrint>
         <View className="flex-row gap-2">
@@ -108,51 +87,6 @@ export const HomeEventsFiltersSheet = ({
             );
           })}
         </View>
-      </View>
-
-      <View className="gap-3">
-        <EdgePrint>{t("filters.dateRange")}</EdgePrint>
-        <View className="flex-row gap-3">
-          <View className="flex-1 gap-2">
-            <EdgePrint>{t("filters.from")}</EdgePrint>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("filters.fromA11y")}
-              onPress={() => toggleDateField("from")}
-              className="h-12 flex-row items-center gap-2 rounded-paper border border-outline-soft bg-ground px-4"
-            >
-              <AppIcon icon={Calendar} size="xs" color={colorTokens.edge} />
-              <ThemedText className="text-base" tone={draft.dateFrom ? "foreground" : "subtle"}>
-                {draft.dateFrom ? displayFilterDay(draft.dateFrom) : t("filters.pickDate")}
-              </ThemedText>
-            </Pressable>
-          </View>
-          <View className="flex-1 gap-2">
-            <EdgePrint>{t("filters.to")}</EdgePrint>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("filters.toA11y")}
-              onPress={() => toggleDateField("to")}
-              className="h-12 flex-row items-center gap-2 rounded-paper border border-outline-soft bg-ground px-4"
-            >
-              <AppIcon icon={Calendar} size="xs" color={colorTokens.edge} />
-              <ThemedText className="text-base" tone={draft.dateTo ? "foreground" : "subtle"}>
-                {draft.dateTo ? displayFilterDay(draft.dateTo) : t("filters.pickDate")}
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-
-        {activeDateField ? (
-          <View className="z-20" pointerEvents="box-none">
-            <DateTimePicker
-              value={datePickerValue}
-              mode="date"
-              display={datePickerDisplay}
-              onChange={handleDateChange}
-            />
-          </View>
-        ) : null}
       </View>
 
       <View className="gap-3">

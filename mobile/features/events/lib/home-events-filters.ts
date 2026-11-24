@@ -6,16 +6,12 @@ export type HomeEventsGalleryStatus = EventResponseDto["galleryState"];
 export type HomeEventsFilters = {
   statuses: HomeEventsGalleryStatus[];
   roles: AccessLevel[];
-  dateFrom: string | null;
-  dateTo: string | null;
   sortDirection: EventsListSortDirection;
 };
 
 export const DEFAULT_HOME_EVENTS_FILTERS: HomeEventsFilters = {
   statuses: [],
   roles: [],
-  dateFrom: null,
-  dateTo: null,
   sortDirection: "asc",
 };
 
@@ -28,7 +24,4 @@ export const toggleHomeEventsFilterValue = <T extends string>(values: T[], value
 
 /** Active means any narrowing filter — sort alone does not light the Filter control. */
 export const hasActiveHomeEventsFilters = (filters: HomeEventsFilters) =>
-  filters.statuses.length > 0 ||
-  filters.roles.length > 0 ||
-  filters.dateFrom !== null ||
-  filters.dateTo !== null;
+  filters.statuses.length > 0 || filters.roles.length > 0;

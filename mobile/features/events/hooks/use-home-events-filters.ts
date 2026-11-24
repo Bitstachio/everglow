@@ -34,8 +34,6 @@ export const useHomeEventsFilters = () => {
         ...current,
         roles: toggleHomeEventsFilterValue(current.roles, role),
       })),
-    setDateFrom: (dateFrom: string | null) => setDraft((current) => ({ ...current, dateFrom })),
-    setDateTo: (dateTo: string | null) => setDraft((current) => ({ ...current, dateTo })),
     setSortDirection: (sortDirection: EventsListSortDirection) =>
       setDraft((current) => ({ ...current, sortDirection })),
     resetFilters: () => setDraft(DEFAULT_HOME_EVENTS_FILTERS),

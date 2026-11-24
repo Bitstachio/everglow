@@ -173,8 +173,6 @@ const EventsScreen = () => {
         onClose={filters.closeFilters}
         onToggleStatus={filters.toggleStatus}
         onToggleRole={filters.toggleRole}
-        onChangeDateFrom={filters.setDateFrom}
-        onChangeDateTo={filters.setDateTo}
         onChangeSort={filters.setSortDirection}
         onReset={filters.resetFilters}
         onApply={filters.applyFilters}
