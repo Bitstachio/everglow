@@ -1,8 +1,9 @@
 import { AppIcon } from "@/components/ui/app-icon";
-import { Chip } from "@/components/ui/chip";
+import { EdgePrint } from "@/components/ui/edge-print";
 import { colorTokens } from "@/theme/tokens";
 import { Funnel } from "phosphor-react-native";
 import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
 
 type HomeEventsFilterButtonProps = {
   onPress: () => void;
@@ -12,16 +13,23 @@ type HomeEventsFilterButtonProps = {
 /** Opens the home filter / sort sheet. Active when any filter is applied. */
 export const HomeEventsFilterButton = ({ onPress, active = false }: HomeEventsFilterButtonProps) => {
   const { t } = useTranslation("home");
+  const label = active ? t("filters.on") : t("filters.label");
 
   return (
-    <Chip
+    <Pressable
       testID="home-events-filter"
-      label={active ? t("filters.on") : t("filters.label")}
+      accessibilityRole="button"
       accessibilityLabel={t("filters.label")}
-      selected={active}
+      accessibilityState={{ selected: active }}
+      hitSlop={8}
       onPress={onPress}
-      className="self-start"
-      icon={<AppIcon icon={Funnel} size="sm" color={colorTokens.text} />}
-    />
+      className={[
+        "h-9 flex-row items-center gap-1.5 rounded-paper border px-3 active:bg-sheet",
+        active ? "border-text" : "border-outline-soft",
+      ].join(" ")}
+    >
+      <AppIcon icon={Funnel} size="xs" color={active ? colorTokens.text : colorTokens.edge} />
+      <EdgePrint tone={active ? "text" : "edge"}>{label}</EdgePrint>
+    </Pressable>
   );
 };

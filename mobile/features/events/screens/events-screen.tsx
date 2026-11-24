@@ -94,7 +94,7 @@ const EventsScreen = () => {
       ) : null}
 
       {hasRolls ? (
-        <View className="px-5 pb-2 pt-1">
+        <View className="flex-row items-center justify-end px-5 pb-2 pt-1">
           <HomeEventsFilterButton onPress={() => {}} />
         </View>
       ) : null}
