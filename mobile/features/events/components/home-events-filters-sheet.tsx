@@ -4,14 +4,14 @@ import { Chip } from "@/components/ui/chip";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
-import type { AccessLevel } from "../../types";
+import type { AccessLevel } from "../types";
 import {
   HOME_EVENTS_ROLE_OPTIONS,
   HOME_EVENTS_STATUS_OPTIONS,
   type HomeEventsFilters,
   type HomeEventsGalleryStatus,
-} from "../../lib/home-events-filters";
-import type { EventsListSortDirection } from "../../utils";
+} from "../lib/home-events-filters";
+import type { EventsListSortDirection } from "../utils";
 
 type HomeEventsFiltersSheetProps = {
   visible: boolean;

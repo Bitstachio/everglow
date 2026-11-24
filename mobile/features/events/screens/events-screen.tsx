@@ -16,7 +16,7 @@ import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
 import { HomeEventCard } from "../components/home-event-card";
 import { HomeEventsFilterButton } from "../components/home-events-filter-button";
-import { HomeEventsFiltersSheet } from "../components/home-events-filters-sheet/home-events-filters-sheet";
+import { HomeEventsFiltersSheet } from "../components/home-events-filters-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
