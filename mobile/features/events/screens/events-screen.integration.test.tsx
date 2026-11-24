@@ -67,10 +67,12 @@ test("shows the card placeholders while loading, then the first-run empty state"
   await renderScreen();
   expect(screen.getByTestId("home-loading")).toBeOnTheScreen();
   expect(screen.queryByText(/^No events yet\./)).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Filter" })).not.toBeOnTheScreen();
   pending.resolve({ data: { data: [] } });
   expect(await screen.findByText(/^No events yet\./)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Start an event" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Join with an envelope" })).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Filter" })).not.toBeOnTheScreen();
 });
 
 test("starts a roll from the first-run screen", async () => {
@@ -92,6 +94,7 @@ test("lists the rolls, groups the closed ones, and opens a roll", async () => {
   });
   await renderScreen();
   await screen.findByText("Sam & Jo’s wedding");
+  expect(screen.getByRole("button", { name: "Filter" })).toBeOnTheScreen();
   expect(screen.getByText("Friday at Sully’s")).toBeOnTheScreen();
   expect(screen.getByText("Lake weekend")).toBeOnTheScreen();
   expect(screen.getByText("Photos removed")).toBeOnTheScreen();

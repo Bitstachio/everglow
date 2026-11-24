@@ -15,6 +15,7 @@ import { type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
 import { HomeEventCard } from "../components/home-event-card";
+import { HomeEventsFilterButton } from "../components/home-events-filter-button";
 import { useEventsScreen } from "../hooks/use-events-screen";
 import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
@@ -89,6 +90,12 @@ const EventsScreen = () => {
         <View className="mx-5 mb-3 mt-2.5 flex-row items-center justify-between border-b border-t border-outline-soft py-2">
           <EdgePrint tone="text">{t("offline.edge")}</EdgePrint>
           <EdgePrint>{hasRolls ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
+        </View>
+      ) : null}
+
+      {hasRolls ? (
+        <View className="px-5 pb-2 pt-1">
+          <HomeEventsFilterButton onPress={() => {}} />
         </View>
       ) : null}
 

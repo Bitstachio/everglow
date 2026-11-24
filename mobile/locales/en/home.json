@@ -3,6 +3,10 @@
     "scanner": "Scan an envelope",
     "labCard": "Your lab card"
   },
+  "filters": {
+    "label": "Filter",
+    "on": "Filter · On"
+  },
   "failedTitle": "Couldn’t load your events",
   "firstRun": {
     "edge": "Event 00 · no photos yet",
