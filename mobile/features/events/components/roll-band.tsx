@@ -1,5 +1,4 @@
 import { EdgePrint } from "@/components/ui/edge-print";
-import { Sprockets } from "@/components/ui/film-strip";
 import { GreasePencil } from "@/components/ui/grease-pencil";
 import { useState, type ReactNode } from "react";
 import { Pressable, View, type LayoutChangeEvent } from "react-native";
@@ -13,9 +12,9 @@ type RollBandProps = {
   people: ReactNode;
   peopleLabel: string;
   onPeople?: () => void;
-  /** Circle the time: before it opens for hosts (07.1), and on the last day (07.8). */
+  /** Circle the time: before it opens for hosts, and on the last day. */
   circleTime?: boolean;
-  /** Circle the storage: the roll is full (08.7). */
+  /** Circle the storage: the roll is full. */
   circleStock?: boolean;
 };
 
@@ -50,7 +49,7 @@ const Circled = ({ circled, seed, children }: { circled: boolean; seed: number; 
   );
 };
 
-/** The band under the roll's name, printed like a film's edge between sprocket holes. */
+/** The band under the roll's name: storage, time left, and people. */
 export const RollBand = ({
   stock,
   time,
@@ -60,8 +59,7 @@ export const RollBand = ({
   circleTime = false,
   circleStock = false,
 }: RollBandProps) => (
-  <View testID="roll-band" className="mt-4 bg-rebate py-1">
-    <Sprockets edge="top" />
+  <View testID="roll-band" className="mt-4 border-t border-b border-outline-soft bg-rebate">
     <View className="min-h-12 flex-row items-center justify-between px-5 py-3">
       <Circled circled={circleStock} seed={5}>
         {stock}
@@ -83,6 +81,5 @@ export const RollBand = ({
         <EdgePrint accessibilityLabel={peopleLabel}>{people}</EdgePrint>
       )}
     </View>
-    <Sprockets edge="bottom" />
   </View>
 );
