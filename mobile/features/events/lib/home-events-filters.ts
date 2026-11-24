@@ -1,5 +1,6 @@
-import type { AccessLevel, EventResponseDto } from "../types";
-import type { EventsListSortDirection } from "../utils";
+import type { AccessLevel, Event, EventResponseDto } from "../types";
+import { sortEvents, type EventsListSortDirection } from "../utils";
+import type { GroupedRolls } from "./rolls";
 
 export type HomeEventsGalleryStatus = EventResponseDto["galleryState"];
 
@@ -25,3 +26,21 @@ export const toggleHomeEventsFilterValue = <T extends string>(values: T[], value
 /** Active means any narrowing filter — sort alone does not light the Filter control. */
 export const hasActiveHomeEventsFilters = (filters: HomeEventsFilters) =>
   filters.statuses.length > 0 || filters.roles.length > 0;
+
+/** Narrow the home list. Empty status/role selections mean “any”. */
+export const filterHomeEvents = (events: Event[], filters: HomeEventsFilters): Event[] =>
+  events.filter((event) => {
+    if (filters.statuses.length > 0 && !filters.statuses.includes(event.galleryState)) return false;
+    if (filters.roles.length > 0 && !filters.roles.includes(event.accessLevel)) return false;
+    return true;
+  });
+
+/**
+ * Order each gallery-state section by event date. Live / upcoming / closed
+ * buckets stay; only the order inside them follows Earliest / Latest.
+ */
+export const sortHomeEventGroups = (groups: GroupedRolls, direction: EventsListSortDirection): GroupedRolls => ({
+  live: sortEvents(groups.live, direction),
+  upcoming: sortEvents(groups.upcoming, direction),
+  closed: sortEvents(groups.closed, direction),
+});

@@ -22,7 +22,11 @@
     "sortEarliest": "Earliest",
     "sortLatest": "Latest",
     "reset": "Reset",
-    "apply": "Apply"
+    "apply": "Apply",
+    "noMatches": {
+      "title": "No matching events.",
+      "body": "Clear or change filters to see your events again."
+    }
   },
   "failedTitle": "Couldn’t load your events",
   "firstRun": {

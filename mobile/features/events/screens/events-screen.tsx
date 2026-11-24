@@ -18,7 +18,6 @@ import { HomeEventCard } from "../components/home-event-card";
 import { HomeEventsFilterButton } from "../components/home-events-filter-button";
 import { HomeEventsFiltersSheet } from "../components/home-events-filters-sheet/home-events-filters-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
-import { useHomeEventsFilters } from "../hooks/use-home-events-filters";
 import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
 
@@ -48,7 +47,9 @@ const EventsScreen = () => {
   const {
     groups,
     leavingRoll,
-    hasRolls,
+    hasEvents,
+    filtersEmpty,
+    filters,
     isLoading,
     isRefreshing,
     isOffline,
@@ -61,9 +62,8 @@ const EventsScreen = () => {
     onOpenRoll,
     onOpenCard,
   } = useEventsScreen();
-  const filters = useHomeEventsFilters();
 
-  const showFirstRun = !isLoading && !hasRolls && !isOffline;
+  const showFirstRun = !isLoading && !hasEvents && !isOffline;
   const moving = leavingRoll !== null;
   // The roll you left can't be opened while it goes.
   const openRoll = (event: Event) => (event.id === leavingRoll?.id ? undefined : () => onOpenRoll(event));
@@ -92,11 +92,11 @@ const EventsScreen = () => {
       {isOffline ? (
         <View className="mx-5 mb-3 mt-2.5 flex-row items-center justify-between border-b border-t border-outline-soft py-2">
           <EdgePrint tone="text">{t("offline.edge")}</EdgePrint>
-          <EdgePrint>{hasRolls ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
+          <EdgePrint>{hasEvents ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
         </View>
       ) : null}
 
-      {hasRolls ? (
+      {hasEvents ? (
         <View className="flex-row items-center justify-end px-5 pb-2 pt-1">
           <HomeEventsFilterButton active={filters.filtersActive} onPress={filters.openFilters} />
         </View>
@@ -122,6 +122,13 @@ const EventsScreen = () => {
             <View className="mt-6 px-5">
               <EdgePrint className="mb-3">{t("firstRun.edge")}</EdgePrint>
               <Display dim={t("firstRun.body")}>{t("firstRun.title")}</Display>
+            </View>
+          </View>
+        ) : filtersEmpty ? (
+          <View testID="home-filters-empty" className="mt-9.5 px-5">
+            <Display dim={t("filters.noMatches.body")}>{t("filters.noMatches.title")}</Display>
+            <View className="mt-6">
+              <Button title={t("filters.reset")} variant="secondary" onPress={filters.clearFilters} />
             </View>
           </View>
         ) : (

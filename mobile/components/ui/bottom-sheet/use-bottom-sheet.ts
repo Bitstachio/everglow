@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions } from "react-native";
 
-const SHEET_SLIDE_DISTANCE = Dimensions.get("window").height * 0.4;
+/** Full window so tall sheets (filters, etc.) clear the screen before the modal unmounts. */
+const SHEET_SLIDE_DISTANCE = Dimensions.get("window").height;
 const OPEN_DURATION_MS = { scrim: 200, sheet: 280 };
 const CLOSE_DURATION_MS = { scrim: 200, sheet: 250 };
 

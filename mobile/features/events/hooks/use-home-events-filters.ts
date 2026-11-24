@@ -9,7 +9,7 @@ import {
 } from "../lib/home-events-filters";
 import type { EventsListSortDirection } from "../utils";
 
-/** Sheet draft / applied state for home Filter. Does not filter the list yet. */
+/** Sheet draft / applied state for home Filter. */
 export const useHomeEventsFilters = () => {
   const [visible, setVisible] = useState(false);
   const [applied, setApplied] = useState<HomeEventsFilters>(DEFAULT_HOME_EVENTS_FILTERS);
@@ -18,6 +18,7 @@ export const useHomeEventsFilters = () => {
   return {
     filtersVisible: visible,
     draftFilters: draft,
+    appliedFilters: applied,
     filtersActive: hasActiveHomeEventsFilters(applied),
     openFilters: () => {
       setDraft(applied);
@@ -39,6 +40,12 @@ export const useHomeEventsFilters = () => {
     resetFilters: () => setDraft(DEFAULT_HOME_EVENTS_FILTERS),
     applyFilters: () => {
       setApplied(draft);
+      setVisible(false);
+    },
+    /** Clears draft and applied together (empty-state Reset). */
+    clearFilters: () => {
+      setDraft(DEFAULT_HOME_EVENTS_FILTERS);
+      setApplied(DEFAULT_HOME_EVENTS_FILTERS);
       setVisible(false);
     },
   };
