@@ -296,3 +296,9 @@ revoke the refresh token (POST /oauth/revoke) â†’ clear the Auth0 web session â†
 The auth context then clears the account (`clearAccount("signedOut")`: the query cache, `user`, `identity`, a waiting invite, and the upload trays registered in `mobile/lib/account-cleared.ts`). Account deletion signs out the same way, onto Deleted (14.12).
 
 A session that ends on its own takes a shorter path, `handleSessionExpired`: a 401 from the API (section 2) or a password change that killed the refresh token ([Credential changes](./credential-changes.md), section 2.1). It clears the credentials manager and the account with reason `sessionExpired`, which keeps unfinished uploads on the phone for the same person, and does not revoke. After a password change Auth0 has already revoked the token. After a 401 the stored tokens are only dropped from the phone.
+
+## 12. Opening the app offline
+
+The network going away never signs anyone out.
+
+- **Token renewal.** `getAccessToken` renews an expired access token through the credentials manager. If that fails while NetInfo says the phone is offline, it throws, and the axios interceptor fails the request as a connection error. Before this, the request went out with no token. On a patchy network it could reach the API, get a 401, and sign the person out. A renewal that fails while the phone is online still sends the request without a token, so a refresh token Auth0 really revoked ends the session through the usual 401.
