@@ -4,11 +4,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { AppIcon } from "@/components/ui/app-icon";
+import { Avatar, DeletedAvatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
-import { X, DotsThree } from "phosphor-react-native";
+import { X } from "phosphor-react-native";
 import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
@@ -137,9 +138,11 @@ export const FrameViewer = (props: Props) => {
           </View>
           <Animated.View style={pager.chromeStyle}>
             <View className="min-h-14 flex-row items-center gap-3 px-5 py-2">
-              <IconButton accessibilityLabel={t("viewer.close")} onPress={requestClose}>
-                <AppIcon icon={X} size="sm" color={colorTokens.text} />
-              </IconButton>
+              {uploader ? (
+                <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="header" />
+              ) : frame.deleted ? (
+                <DeletedAvatar size="header" />
+              ) : null}
               <View
                 accessible
                 accessibilityRole="adjustable"
@@ -162,8 +165,8 @@ export const FrameViewer = (props: Props) => {
                   {time}
                 </EdgePrint>
               </View>
-              <IconButton accessibilityLabel={t("gallery.more")} disabled={busy} onPress={openMenu}>
-                <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
+              <IconButton accessibilityLabel={t("viewer.close")} onPress={requestClose}>
+                <AppIcon icon={X} size="sm" color={colorTokens.text} />
               </IconButton>
             </View>
           </Animated.View>

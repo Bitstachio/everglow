@@ -531,13 +531,13 @@ test("changing photos clears a closing menu's deferred action", async () => {
   const input = props();
   const view = await render(<FrameViewer {...input} />);
   const user = userEvent.setup();
-  await user.press(screen.getAllByRole("button", { name: "More" })[0]);
+  await user.press(screen.getByRole("button", { name: "More" }));
   await user.press(within(screen.getByTestId("frame-menu-dialog")).getByRole("button", { name: "Save to Photos" }));
   const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), by: "Leila" };
   await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} isOwn={false} />);
   await act(async () => screen.getByTestId("frame-menu-dialog", { includeHiddenElements: true }).props.onDismiss());
   expect(input.onSave).not.toHaveBeenCalled();
-  await user.press(screen.getAllByRole("button", { name: "More" })[0]);
+  await user.press(screen.getByRole("button", { name: "More" }));
   expect(screen.getByText("Leila’s photo")).toBeOnTheScreen();
 });
 
@@ -549,7 +549,26 @@ test("a frame kept by a deleted account is signed as one, not as an unknown phot
   await render(<FrameViewer {...input} />);
   expect(screen.getByRole("adjustable").props.accessibilityLabel).toMatch(/^Deleted account · /);
   expect(screen.getByLabelText("Photo by Deleted account")).toBeOnTheScreen();
+  expect(screen.getByTestId("deleted-avatar", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.queryByText("Unknown photographer", { includeHiddenElements: true })).not.toBeOnTheScreen();
-  await userEvent.setup().press(screen.getAllByRole("button", { name: "More" })[0]);
+  await userEvent.setup().press(screen.getByRole("button", { name: "More" }));
   expect(screen.getByText("Photo from a deleted account")).toBeOnTheScreen();
+});
+
+test("the uploader's portrait sits in the header next to their name", async () => {
+  const input = props();
+  input.frame = {
+    ...input.frame!,
+    by: "Grace",
+    uploader: { userId: "user-2", name: "Grace Lee", avatarUrl: "https://img/grace", username: "grace" },
+  };
+  input.frames = [input.frame];
+  input.isOwn = false;
+  await render(<FrameViewer {...input} />);
+  expect(screen.getByTestId("avatar-image", { includeHiddenElements: true })).toHaveProp(
+    "source",
+    expect.arrayContaining([expect.objectContaining({ uri: "https://img/grace" })]),
+  );
+  expect(screen.getByRole("button", { name: "Close photo" })).toBeOnTheScreen();
+  expect(screen.getAllByRole("button", { name: "More" })).toHaveLength(1);
 });
