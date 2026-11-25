@@ -8,7 +8,7 @@ This document covers **unit** and **integration** tests for the Everglow API (Je
 | --------------- | ---------------------------------- | -------------------------- | ------------------------------------------------------ | -------------------------------------- |
 | Unit            | Colocated under `src/`             | `*.spec.ts`                | One class or pure function                             | Mocked (Prisma, S3, logger, …)         |
 | Integration     | `test/integration/`                | `*.integration.spec.ts`    | Full Nest app over HTTP (routing, pipes, guards, CASL) | Prisma/Auth/S3 still mocked            |
-| Database (opt-in) | `test/db/`                       | `*.db.spec.ts`             | Raw SQL and concurrency: claims, `SKIP LOCKED`, leases, advisory locks | A real, empty Postgres; Expo faked |
+| Database (opt-in) | `test/db/`                       | `*.db.spec.ts`             | Raw SQL and concurrency: claims, `SKIP LOCKED`, leases, advisory locks; triggers and partial indexes the other suites mock (upload screening) | A real, empty Postgres; Expo faked |
 | E2E (planned)   | TBD under `test/`                  | TBD                        | Critical workflows only                                | Real services — **no mocks**           |
 
 ```sh
