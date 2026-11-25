@@ -2,6 +2,7 @@ import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "generated/prisma/client";
 import { Server } from "http";
 import { DeepMockProxy, mockReset } from "jest-mock-extended";
+import { PhotoScreeningService } from "src/moderation/screening/photo-screening.service";
 import { RekognitionService } from "src/sdk/aws/rekognition/rekognition.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
@@ -133,7 +134,7 @@ describe("Upload screening (integration)", () => {
     expect(evidence.writeSnapshot).toHaveBeenCalled();
   });
 
-  it("still confirms when Rekognition is down, holding the photo", async () => {
+  it("still confirms when Rekognition is down, holding the photo for the screening job", async () => {
     rekognition.detectModerationLabels.mockRejectedValue(
       Object.assign(new Error("unavailable"), { name: "ServiceUnavailableException" }),
     );
@@ -162,5 +163,28 @@ describe("Upload screening (integration)", () => {
     expect(filters).toContain('"screeningHeldUntil":null');
     expect(filters).toContain(`"addedById":"${TEST_USER_ID}"`);
     expect(filters).toContain('"source":"AUTOMATED"');
+  });
+
+  it("screens held photos from the job, and files the report for one it flags", async () => {
+    const photo = buildPhoto({ screening: "PENDING", screeningHeldUntil: new Date(Date.now() + 60_000) });
+    prisma.photo.findMany.mockResolvedValue([{ ...photo, event: { title: "Roll" } }] as never);
+    // No other run holds the job's lock.
+    prisma.$queryRaw.mockResolvedValue([{ locked: true }]);
+    rekognition.detectModerationLabels.mockResolvedValue([{ name: "Explicit", parentName: "", confidence: 99 }]);
+    prisma.report.createManyAndReturn.mockResolvedValue([
+      buildReport({ reporterId: null, source: "AUTOMATED", queue: "PLATFORM", reason: "NUDITY_OR_SEXUAL" }),
+    ]);
+
+    await expect(app.get(PhotoScreeningService).screenHeld()).resolves.toMatchObject({ screened: 1, flagged: 1 });
+
+    expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+      where: { id: photo.id, screening: "PENDING" },
+      data: { screening: "FLAGGED", screeningHeldUntil: null },
+    });
+    expect(prisma.report.createManyAndReturn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [expect.objectContaining({ eventTitle: "Roll", reason: "NUDITY_OR_SEXUAL", source: "AUTOMATED" })],
+      }),
+    );
   });
 });
