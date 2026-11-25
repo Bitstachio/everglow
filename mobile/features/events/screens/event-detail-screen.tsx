@@ -1,7 +1,6 @@
 import { GalleryProgress, GallerySelectionBar, GalleryUnsaved, SaveRollSheet } from "../components/gallery-controls";
 import { GalleryDeleteSheet } from "../components/gallery-delete-sheet";
 import { AppIcon } from "@/components/ui/app-icon";
-import { Avatar, DeletedAvatar } from "@/components/ui/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { ContactFrame } from "@/components/ui/contact-frame";
@@ -63,13 +62,6 @@ type SheetItem = { kind: "photo"; frame: SheetFrame } | { kind: "developing"; fr
 
 const value = <EdgeValue>{null}</EdgeValue>;
 
-const uploaderAvatar = (uploader: SheetFrame["uploader"], deleted = false) =>
-  uploader ? (
-    <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" />
-  ) : deleted ? (
-    <DeletedAvatar size="caption" />
-  ) : null;
-
 /** The result of an action, for a few seconds over the foot of the roll. */
 const Notice = ({ message, className = "", style }: { message: string; className?: string; style?: ViewStyle }) => (
   <View pointerEvents="none" className={`absolute left-5 right-5 items-center ${className}`.trim()} style={style}>
@@ -99,7 +91,6 @@ const EventDetailScreen = () => {
   }
 
   const host = hostName(event, participants);
-  const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
   const count = rollFrameCount(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
@@ -368,7 +359,6 @@ const EventDetailScreen = () => {
         />
       ) : null}
       {stage === "upcoming" || stage === "suspended" ? <UnexposedRoll strips={2} /> : null}
-      {stage === "empty" ? <UnexposedRoll strips={1} /> : null}
       {showsSheet ? <View className="h-4" /> : null}
     </View>
   );
@@ -383,7 +373,7 @@ const EventDetailScreen = () => {
   };
 
   const renderFrame = ({ item }: { item: SheetItem }) => (
-    <View className="w-1/3 px-0.5 pb-3.5">
+    <View className="w-1/3 p-0.5">
       {item.kind === "photo" ? (
         <ContactFrame
           testID="roll-frame"
@@ -392,8 +382,6 @@ const EventDetailScreen = () => {
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
           onPreviewReady={() => screen.onPreviewReady(item.frame.photo.id)}
           number={item.frame.number}
-          by={frameBy(item.frame) ?? undefined}
-          avatar={uploaderAvatar(item.frame.uploader, item.frame.deleted)}
           isNew={item.frame.isNew}
           ringSeed={frameSeed(item.frame.photo.id)}
           selected={screen.selectedIds.has(item.frame.photo.id)}
@@ -417,8 +405,6 @@ const EventDetailScreen = () => {
           testID="roll-frame-developing"
           uri={item.frame.item.uri}
           number={item.frame.number}
-          by={t("photo.you")}
-          avatar={uploaderAvatar(currentUploader)}
           develop={item.frame.develop}
           crossed={item.frame.crossed}
           accessibilityLabel={
