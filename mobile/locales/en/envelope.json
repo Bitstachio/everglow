@@ -3,6 +3,7 @@
   "open": "Send the envelope",
   "close": "Close the envelope",
   "ready": "Ready",
+  "goToRoll": "Go to the roll",
   "paper": {
     "name": "Name",
     "date": "Date",

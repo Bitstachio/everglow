@@ -115,6 +115,8 @@ export const useEnvelopeScreen = () => {
     edge: event ? t("edge", { title: event.title }) : null,
     envelope,
     readyStamp: justLoaded && state === "open" ? t("ready") : null,
+    // Straight after loading a roll the host is sent on to it; opened later, the X goes back.
+    goToRoll: justLoaded && eventId ? t("goToRoll") : null,
     invitationUrl,
     state,
     shut,
@@ -146,6 +148,9 @@ export const useEnvelopeScreen = () => {
     onRetry: () => {
       void eventQuery.refetch();
       void participantsQuery.refetch();
+    },
+    onGoToRoll: () => {
+      if (eventId) router.replace(`/events/${eventId}`);
     },
     onClose: () => {
       if (justLoaded && eventId) router.replace(`/events/${eventId}`);
