@@ -1,9 +1,8 @@
 import { colorTokens } from "@/theme/tokens";
 import { WarningCircle } from "phosphor-react-native";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Pressable, View, type LayoutChangeEvent, type PressableProps } from "react-native";
 import { AppIcon } from "./app-icon";
-import { EdgePrint } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
 import { RetryingPhoto } from "./retrying-photo";
@@ -23,20 +22,16 @@ type ContactFrameProps = Omit<PressableProps, "children"> & {
   number: number;
   /** Seeds the selection ring, so each photo keeps its own ring however often it's marked. Defaults to `number`. */
   ringSeed?: number;
-  /** Who uploaded it. */
-  by?: string;
-  /** Small decorative portrait beside the uploader's name. */
-  avatar?: ReactNode;
   /** Circled in pencil while selecting. */
   selected?: boolean;
   /** Ticked in pencil: added since the person last looked. */
   isNew?: boolean;
   /**
    * Still developing, from 0 (just picked) to 1 (on the roll): a warm blur that
-   * sharpens as the upload goes (08.2). Omit for a frame that's on the roll.
+   * sharpens as the upload goes. Omit for a frame that's on the roll.
    */
   develop?: number;
-  /** Crossed out in pencil and darkened: it didn't make it (08.4, 08.8). */
+  /** Crossed out in pencil and darkened: it didn't make it. */
   crossed?: boolean;
   accessibilityLabel: string;
 };
@@ -52,8 +47,8 @@ export const developLook = (amount: number) => {
 };
 
 /**
- * One frame on the contact sheet: a square photo with its uploader underneath.
- * Lay frames out three to a row, 4pt apart, with 14pt between rows.
+ * One square tile in the album grid. Uploader credits live on the open photo;
+ * lay tiles out three to a row with the same hairline gap between columns and rows.
  */
 export const ContactFrame = ({
   uri,
@@ -62,8 +57,6 @@ export const ContactFrame = ({
   onPreviewReady,
   number,
   ringSeed,
-  by,
-  avatar,
   selected = false,
   isNew = false,
   develop,
@@ -80,11 +73,11 @@ export const ContactFrame = ({
     <Pressable
       accessibilityRole="imagebutton"
       accessibilityState={{ selected }}
-      className={`gap-1 ${className}`.trim()}
+      className={className.trim()}
       {...props}
     >
       <View onLayout={onLayout} className={`aspect-square w-full ${selected ? "p-2" : ""}`.trim()}>
-        <View className="h-full w-full overflow-hidden rounded-frame bg-frame-empty">
+        <View className="h-full w-full overflow-hidden bg-frame-empty">
           {placeholderUri ? (
             <Photo
               testID="contact-frame-placeholder"
@@ -135,21 +128,6 @@ export const ContactFrame = ({
           <View className="absolute right-1 top-1">
             <GreasePencil mark="tick" width={22} height={18} strokeWidth={2.5} seed={number} />
           </View>
-        ) : null}
-      </View>
-      {/* The frame's label already names the uploader; the portrait and caption aren't read again. */}
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        className="min-h-4 flex-row items-center gap-1 pl-0.5"
-      >
-        {by ? (
-          <>
-            {avatar}
-            <EdgePrint size="frame-label" className="flex-shrink" numberOfLines={1}>
-              {by}
-            </EdgePrint>
-          </>
         ) : null}
       </View>
     </Pressable>

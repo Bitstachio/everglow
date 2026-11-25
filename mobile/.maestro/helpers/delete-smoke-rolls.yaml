@@ -1,5 +1,5 @@
-# Deletes every roll on Home whose name starts with "Smoke-", the names the
-# roll-upload flow gives its rolls. Not discovered as a standalone test.
+# Deletes every event on Home whose name starts with "Smoke-", the names the
+# roll-upload flow gives its events. Not discovered as a standalone test.
 appId: ${APP_ID}
 ---
 - launchApp:
@@ -12,10 +12,10 @@ appId: ${APP_ID}
     notVisible:
       id: "home-loading"
     timeout: 30000
-# A roll that was cut but not deleted sits with the closed rolls further down.
+# A event that was cut but not deleted sits with the closed events further down.
 - scrollUntilVisible:
     element:
-      id: "roll-card"
+      id: "event-card"
       text: "Smoke-.*"
     direction: DOWN
     timeout: 6000
@@ -24,13 +24,13 @@ appId: ${APP_ID}
     times: 3
     while:
       visible:
-        id: "roll-card"
+        id: "event-card"
         text: "Smoke-.*"
     commands:
       - tapOn:
-          id: "roll-card"
+          id: "event-card"
           text: "Smoke-.*"
       - runFlow: delete-roll.yaml
 - assertNotVisible:
-    id: "roll-card"
+    id: "event-card"
     text: "Smoke-.*"

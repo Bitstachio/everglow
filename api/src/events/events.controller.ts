@@ -74,11 +74,12 @@ export class EventsController {
   async findAll(@CurrentUser() user: AuthenticatedUser): Promise<EventResponseDto[]> {
     const events = await this.eventsService.findAllForUser(user.id);
     const eventIds = events.map((event) => event.id);
-    const [coverUrls, limits, usage, photoCounts] = await Promise.all([
+    const [coverUrls, limits, usage, photoCounts, accessLevels] = await Promise.all([
       this.eventCoverService.getCoverUrls(events, user.id),
       this.eventPlanService.limitsForEvents(events),
       this.eventPlanService.usageFor(eventIds),
       this.photoVisibilityService.countVisibleTo(user.id, eventIds),
+      this.eventsService.accessLevelsForCaller(eventIds, user.id),
     ]);
     return Promise.all(
       events.map(async (event) =>
@@ -88,6 +89,7 @@ export class EventsController {
           limits.get(event.id)!,
           usage.get(event.id)!,
           photoCounts.get(event.id) ?? 0,
+          accessLevels.get(event.id)!,
           await this.eventsService.listInvitesForCaller(event.id, user.id),
         ),
       ),
@@ -331,12 +333,13 @@ export class EventsController {
   }
 
   private async toResponseDto(event: Event, viewerId: string): Promise<EventResponseDto> {
-    const [coverUrl, invites, limits, usage, photoCounts] = await Promise.all([
+    const [coverUrl, invites, limits, usage, photoCounts, accessLevel] = await Promise.all([
       this.eventCoverService.getCoverUrl(event, viewerId),
       this.eventsService.listInvitesForCaller(event.id, viewerId),
       this.eventPlanService.limitsOf(event),
       this.eventPlanService.usageFor([event.id]),
       this.photoVisibilityService.countVisibleTo(viewerId, [event.id]),
+      this.eventsService.accessLevelForCaller(event.id, viewerId),
     ]);
     return EventMapper.toResponseDto(
       event,
@@ -344,6 +347,7 @@ export class EventsController {
       limits,
       usage.get(event.id)!,
       photoCounts.get(event.id) ?? 0,
+      accessLevel,
       invites,
     );
   }

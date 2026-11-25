@@ -14,9 +14,10 @@ import { useTranslation } from "react-i18next";
 import { type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { Easing, FadeOut, LinearTransition } from "react-native-reanimated";
-import { RollCard } from "../components/roll-card";
+import { HomeEventCard } from "../components/home-event-card";
+import { HomeEventsFilterButton } from "../components/home-events-filter-button";
+import { HomeEventsFiltersSheet } from "../components/home-events-filters-sheet";
 import { useEventsScreen } from "../hooks/use-events-screen";
-import { useRollPreview } from "../hooks/use-roll-preview";
 import { LEAVE_MOTION } from "../lib/left-roll";
 import type { Event } from "../types";
 
@@ -24,14 +25,6 @@ const UNEXPOSED: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n), numbe
 
 // First run: the first frame is circled for the roll they are about to start.
 const FIRST_ROLL: StripFrame[] = UNEXPOSED.map((frame, i) => (i === 0 ? { ...frame, circled: true } : frame));
-
-/** An open roll loads its first photos for the strip; the rest wait on the events list. */
-type LiveRollCardProps = { event: Event; now: Date; savedAt: string | null; onPress: () => void };
-
-const LiveRollCard = ({ event, now, savedAt, onPress }: LiveRollCardProps) => {
-  const photos = useRollPreview(event);
-  return <RollCard event={event} now={now} savedAt={savedAt} onPress={onPress} photos={photos} />;
-};
 
 // 13.3: the roll you left fades, then the cards below close the gap.
 const LEAVE_FADE = FadeOut.duration(LEAVE_MOTION.fadeMs).easing(Easing.out(Easing.quad));
@@ -46,23 +39,17 @@ const ListRow = ({ moving, children }: { moving: boolean; children: ReactNode })
   </Animated.View>
 );
 
-// While loading, the frames are blank: no numbers until the rolls arrive (03.2).
-const LOADING: StripFrame[] = [1, 2, 3, 4].map((n) => ({ key: String(n) }));
-
-const RollSkeleton = () => (
-  <View className="gap-2.5">
-    <View className="mx-5 h-5.5 w-50 rounded-xs bg-sheet" />
-    <FilmStrip frames={LOADING} />
-    <View className="mx-5 h-2.5 w-36 rounded-xs bg-sheet" />
-  </View>
-);
+// While loading, each event is a blank card until the list arrives.
+const CardSkeleton = () => <View className="mx-5 h-36 rounded-paper bg-sheet" />;
 
 const EventsScreen = () => {
   const { t } = useTranslation("home");
   const {
     groups,
     leavingRoll,
-    hasRolls,
+    hasEvents,
+    filtersEmpty,
+    filters,
     isLoading,
     isRefreshing,
     isOffline,
@@ -76,7 +63,9 @@ const EventsScreen = () => {
     onOpenCard,
   } = useEventsScreen();
 
-  const showFirstRun = !isLoading && !hasRolls && !isOffline;
+  const showFirstRun = !isLoading && !hasEvents && !isOffline;
+  // Archive rule only when closed sits under live/upcoming — not for a closed-only list.
+  const showClosedHeading = groups.closed.length > 0 && (groups.live.length > 0 || groups.upcoming.length > 0);
   const moving = leavingRoll !== null;
   // The roll you left can't be opened while it goes.
   const openRoll = (event: Event) => (event.id === leavingRoll?.id ? undefined : () => onOpenRoll(event));
@@ -105,7 +94,13 @@ const EventsScreen = () => {
       {isOffline ? (
         <View className="mx-5 mb-3 mt-2.5 flex-row items-center justify-between border-b border-t border-outline-soft py-2">
           <EdgePrint tone="text">{t("offline.edge")}</EdgePrint>
-          <EdgePrint>{hasRolls ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
+          <EdgePrint>{hasEvents ? t("offline.note") : t("offline.nothingSaved")}</EdgePrint>
+        </View>
+      ) : null}
+
+      {hasEvents ? (
+        <View className="flex-row items-center justify-end px-5 pb-2 pt-1">
+          <HomeEventsFilterButton active={filters.filtersActive} onPress={filters.openFilters} />
         </View>
       ) : null}
 
@@ -116,9 +111,9 @@ const EventsScreen = () => {
       >
         {isLoading ? (
           <View testID="home-loading" className="gap-5.5">
-            <RollSkeleton />
-            <RollSkeleton />
-            <RollSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
           </View>
         ) : showFirstRun ? (
           <View className="mt-9.5">
@@ -131,24 +126,26 @@ const EventsScreen = () => {
               <Display dim={t("firstRun.body")}>{t("firstRun.title")}</Display>
             </View>
           </View>
+        ) : filtersEmpty ? (
+          <View testID="home-filters-empty" className="mt-9.5 px-5">
+            <Display dim={t("filters.noMatches.body")}>{t("filters.noMatches.title")}</Display>
+            <View className="mt-6">
+              <Button title={t("filters.reset")} variant="secondary" onPress={filters.clearFilters} />
+            </View>
+          </View>
         ) : (
           <View className="gap-5.5">
             {groups.live.map((event) => (
               <ListRow key={event.id} moving={moving}>
-                {event.id === leavingRoll?.id ? (
-                  // Its queries went with the membership: the strip it had stays until it's gone.
-                  <RollCard event={event} now={now} savedAt={offlineAsOf} photos={leavingRoll.photos} />
-                ) : (
-                  <LiveRollCard event={event} now={now} savedAt={offlineAsOf} onPress={() => onOpenRoll(event)} />
-                )}
+                <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
             {groups.upcoming.map((event) => (
               <ListRow key={event.id} moving={moving}>
-                <RollCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
+                <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
-            {groups.closed.length > 0 ? (
+            {showClosedHeading ? (
               <ListRow key="closed-heading" moving={moving}>
                 <View className="mx-5 mb-1.5 mt-7.75 flex-row items-center justify-between border-t-2 border-text pt-2.5">
                   <EdgePrint tone="text">{t("closed.heading", { count: groups.closed.length })}</EdgePrint>
@@ -158,7 +155,7 @@ const EventsScreen = () => {
             ) : null}
             {groups.closed.map((event) => (
               <ListRow key={event.id} moving={moving}>
-                <RollCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
+                <HomeEventCard event={event} now={now} savedAt={offlineAsOf} onPress={openRoll(event)} />
               </ListRow>
             ))}
           </View>
@@ -168,7 +165,7 @@ const EventsScreen = () => {
       <View className="gap-3 px-5 pb-1">
         {showFirstRun ? (
           <>
-            <Button testID="home-new-roll" title={t("firstRun.startRoll")} mark="+" onPress={onNewEvent} />
+            <Button testID="home-new-roll" title={t("firstRun.startEvent")} mark="+" onPress={onNewEvent} />
             <Button title={t("firstRun.joinEnvelope")} variant="secondary" mark="▸" onPress={onScan} />
           </>
         ) : (
@@ -178,6 +175,17 @@ const EventsScreen = () => {
           </>
         )}
       </View>
+
+      <HomeEventsFiltersSheet
+        visible={filters.filtersVisible}
+        draft={filters.draftFilters}
+        onClose={filters.closeFilters}
+        onToggleStatus={filters.toggleStatus}
+        onToggleRole={filters.toggleRole}
+        onChangeSort={filters.setSortDirection}
+        onReset={filters.resetFilters}
+        onApply={filters.applyFilters}
+      />
 
       <FilmGrain />
     </SafeAreaView>

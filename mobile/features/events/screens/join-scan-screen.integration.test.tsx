@@ -32,7 +32,7 @@ describe("06.1 Scan", () => {
   test("says what it's looking for under the viewfinder", async () => {
     await renderWithI18n(<JoinScanScreen />);
 
-    expect(screen.getByRole("header", { name: "Join a roll" })).toBeOnTheScreen();
+    expect(screen.getByRole("header", { name: "Join an event" })).toBeOnTheScreen();
     expect(screen.getByText("Looking for")).toBeOnTheScreen();
     expect(screen.getByText("an Everglow envelope")).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Point at someone’s invite." })).toBeOnTheScreen();

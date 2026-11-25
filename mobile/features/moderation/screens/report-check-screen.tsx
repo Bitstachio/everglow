@@ -38,7 +38,7 @@ const ReportCheckScreen = () => {
     screen.kind === "frame" ? (
       screen.withEverglow || !screen.photo ? (
         <View className="aspect-square items-center justify-center bg-frame-empty">
-          <EdgePrint>{screen.withEverglow ? t("everglow.hidden") : t("decide.frameGone")}</EdgePrint>
+          <EdgePrint>{screen.withEverglow ? t("everglow.hidden") : t("decide.photoGone")}</EdgePrint>
         </View>
       ) : (
         <Pressable
@@ -93,7 +93,7 @@ const ReportCheckScreen = () => {
             {t("everglow.title")}
           </Display>
           <Text className="font-sans text-body text-text-2">
-            {screen.kind === "frame" ? t("everglow.bodyFrame") : t("everglow.bodyPerson")}
+            {screen.kind === "frame" ? t("everglow.bodyPhoto") : t("everglow.bodyPerson")}
           </Text>
         </View>
       ) : (
@@ -125,7 +125,7 @@ const ReportCheckScreen = () => {
         ) : null}
         {screen.canRemoveFrame ? (
           <Button
-            title={t("decide.removeFrame")}
+            title={t("decide.removePhoto")}
             variant="danger"
             mark="✕"
             isLoading={screen.pending === "REMOVE_PHOTO"}
@@ -144,7 +144,7 @@ const ReportCheckScreen = () => {
           />
         ) : null}
         <Button
-          title={screen.kind === "frame" ? t("decide.keepFrame") : t("decide.keepPerson")}
+          title={screen.kind === "frame" ? t("decide.keepPhoto") : t("decide.keepPerson")}
           variant="ghost"
           className={screen.pending ? undefined : "opacity-80"}
           isLoading={screen.pending === "DISMISS"}

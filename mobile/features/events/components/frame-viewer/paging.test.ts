@@ -77,7 +77,7 @@ describe("settleIndex", () => {
     expect(settle(at(3) + stride * 1.6, FLICK_VELOCITY * 10)).toBe(2);
   });
 
-  test("stops at the first and last frames", () => {
+  test("stops at the first and last photos", () => {
     expect(settle(stride * 0.3, FLICK_VELOCITY, 0)).toBe(0);
     expect(settle(at(9) - stride * 0.3, -FLICK_VELOCITY, 9)).toBe(9);
     expect(settle(0, -FLICK_VELOCITY, 0, 1)).toBe(0);
@@ -159,7 +159,7 @@ describe("zoom", () => {
 });
 
 describe("dismissal", () => {
-  test("progress follows the drag down to half the frame", () => {
+  test("progress follows the drag down to half the photo", () => {
     expect(dismissProgress(0, 800)).toBe(0);
     expect(dismissProgress(200, 800)).toBe(0.5);
     expect(dismissProgress(1000, 800)).toBe(1);

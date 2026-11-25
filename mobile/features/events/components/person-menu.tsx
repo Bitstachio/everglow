@@ -21,9 +21,9 @@ type PersonMenuProps = {
 
 /** 11.2 / 11.8 A person on the roll call: report them, block or unblock them, and for hosts remove them. */
 export const PersonMenu = ({ person, roleLabel, onReport, onBlock, onUnblock, onRemove }: PersonMenuProps) => {
-  const { t } = useTranslation(["report", "roll"]);
-  const name = person.name || t("roll:people.unknown");
-  const frames = t("person.frames", { count: person.photoCount });
+  const { t } = useTranslation(["report", "event"]);
+  const name = person.name || t("event:people.unknown");
+  const frames = t("person.photos", { count: person.photoCount });
   return (
     <View testID="person-menu">
       <View className="flex-row items-center gap-3 pb-4">

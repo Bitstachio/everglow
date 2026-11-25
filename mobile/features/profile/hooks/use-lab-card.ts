@@ -32,7 +32,7 @@ export const useLabCard = () => {
       fields: [
         { label: t("card.name"), value: details?.name },
         { label: t("card.signsAs"), value: details ? `@${details.username}` : undefined },
-        { label: limits?.plan === "FREE" ? t("card.freeRoll") : t("card.rolls"), value: running },
+        { label: limits?.plan === "FREE" ? t("card.freePlan") : t("card.events"), value: running },
       ],
       accessibilityLabel: t("card.a11y", { name: details?.name ?? "", username: details?.username ?? "" }),
     },

@@ -1102,6 +1102,64 @@ export const blocksControllerBlockMutation = (
   return mutationOptions;
 };
 
+/**
+ * Register this phone for push notifications
+ *
+ * Call on every launch while signed in, and whenever the push token changes. Idempotent per token. A token registered to another account moves to the caller. Each account keeps its 10 most recently seen phones.
+ */
+export const devicesControllerRegisterMutation = (
+  options?: Partial<Options<DevicesControllerRegisterData>>,
+): UseMutationOptions<
+  DevicesControllerRegisterResponse,
+  AxiosError<DevicesControllerRegisterError>,
+  Options<DevicesControllerRegisterData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DevicesControllerRegisterResponse,
+    AxiosError<DevicesControllerRegisterError>,
+    Options<DevicesControllerRegisterData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await devicesControllerRegister({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Stop push notifications to a phone
+ *
+ * Call on sign-out, before the access token is cleared. Idempotent: an unknown id is not an error.
+ */
+export const devicesControllerUnregisterMutation = (
+  options?: Partial<Options<DevicesControllerUnregisterData>>,
+): UseMutationOptions<
+  DevicesControllerUnregisterResponse,
+  AxiosError<DevicesControllerUnregisterError>,
+  Options<DevicesControllerUnregisterData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DevicesControllerUnregisterResponse,
+    AxiosError<DevicesControllerUnregisterError>,
+    Options<DevicesControllerUnregisterData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await devicesControllerUnregister({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
 export const eventsControllerFindAllQueryKey = (options?: Options<EventsControllerFindAllData>) =>
   createQueryKey("eventsControllerFindAll", options);
 
@@ -1613,64 +1671,6 @@ export const eventsControllerConfirmCoverUploadMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await eventsControllerConfirmCoverUpload({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      });
-      return data;
-    },
-  };
-  return mutationOptions;
-};
-
-/**
- * Register this phone for push notifications
- *
- * Call on every launch while signed in, and whenever the push token changes. Idempotent per token. A token registered to another account moves to the caller. Each account keeps its 10 most recently seen phones.
- */
-export const devicesControllerRegisterMutation = (
-  options?: Partial<Options<DevicesControllerRegisterData>>,
-): UseMutationOptions<
-  DevicesControllerRegisterResponse,
-  AxiosError<DevicesControllerRegisterError>,
-  Options<DevicesControllerRegisterData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    DevicesControllerRegisterResponse,
-    AxiosError<DevicesControllerRegisterError>,
-    Options<DevicesControllerRegisterData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await devicesControllerRegister({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      });
-      return data;
-    },
-  };
-  return mutationOptions;
-};
-
-/**
- * Stop push notifications to a phone
- *
- * Call on sign-out, before the access token is cleared. Idempotent: an unknown id is not an error.
- */
-export const devicesControllerUnregisterMutation = (
-  options?: Partial<Options<DevicesControllerUnregisterData>>,
-): UseMutationOptions<
-  DevicesControllerUnregisterResponse,
-  AxiosError<DevicesControllerUnregisterError>,
-  Options<DevicesControllerUnregisterData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    DevicesControllerUnregisterResponse,
-    AxiosError<DevicesControllerUnregisterError>,
-    Options<DevicesControllerUnregisterData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await devicesControllerUnregister({
         ...options,
         ...fnOptions,
         throwOnError: true,

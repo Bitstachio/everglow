@@ -3,20 +3,54 @@
     "scanner": "Scan an envelope",
     "labCard": "Your lab card"
   },
-  "failedTitle": "Couldn’t load your rolls",
+  "filters": {
+    "label": "Filter",
+    "on": "Filter · On",
+    "sheetTitle": "Filter / Sort",
+    "dismiss": "Dismiss filters",
+    "close": "Close filters",
+    "status": "Status",
+    "statusA11y": "Filter by {{status}}",
+    "role": "My role",
+    "roles": {
+      "ORGANIZER": "Host",
+      "PARTICIPANT": "Adds photos",
+      "VIEWER": "View only"
+    },
+    "roleA11y": "Filter by {{role}}",
+    "sort": "Sort",
+    "sortEarliest": "Earliest",
+    "sortLatest": "Latest",
+    "reset": "Reset",
+    "apply": "Apply",
+    "noMatches": {
+      "title": "No matching events.",
+      "body": "Clear or change filters to see your events again."
+    }
+  },
+  "failedTitle": "Couldn’t load your events",
   "firstRun": {
-    "edge": "Roll 00 · unexposed",
-    "title": "No rolls yet.",
+    "edge": "Event 00 · no photos yet",
+    "title": "No events yet.",
     "body": "Start one for your next night out, or join one someone sends you.",
     "note": "yours goes here",
-    "startRoll": "Start a roll",
+    "startEvent": "Start an event",
     "joinEnvelope": "Join with an envelope"
   },
   "newEvent": "New event",
-  "roll": {
+  "event": {
     "people": "<value>{{count}}</value> ppl",
-    "peopleIn": "Unexposed · <value>{{count}}</value> ppl in",
-    "label": "{{title}}, {{status}}"
+    "peopleIn": "Not open yet · <value>{{count}}</value> ppl in",
+    "label": "{{title}}, {{status}}",
+    "status": {
+      "upcoming": "Upcoming",
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "photos_one": "{{count}} photo",
+    "photos_other": "{{count}} photos",
+    "members_one": "{{count}} person",
+    "members_other": "{{count}} people"
   },
   "time": {
     "left": "{{hours}}h {{minutes}}m left",
@@ -33,7 +67,7 @@
     "edge": "No connection",
     "note": "Showing what’s saved",
     "asOf": "as of {{time}}",
-    "waiting": "Back online to start a roll",
+    "waiting": "Back online to start an event",
     "nothingSaved": "Nothing saved yet"
   }
 }

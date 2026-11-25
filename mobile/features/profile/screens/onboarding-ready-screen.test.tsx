@@ -45,7 +45,7 @@ test("shows the finished card and goes to Home", async () => {
 
   expect(screen.getByLabelText("Your lab card: Maya Chen, @maya.chen")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "You’re set,\nMaya." })).toBeOnTheScreen();
-  await user.press(screen.getByRole("button", { name: "Go to your rolls" }));
+  await user.press(screen.getByRole("button", { name: "Go to your events" }));
   expect(mockReplace).toHaveBeenCalledWith("/events");
 });
 
@@ -57,6 +57,6 @@ test("Android's system back does not leave the finished card", async () => {
 test("opens the envelope that brought them, once onboarding is done (06.3)", async () => {
   savePendingInvite("k8Qm2");
   await renderReady();
-  await userEvent.setup().press(screen.getByRole("button", { name: "Go to your rolls" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Go to your events" }));
   expect(mockReplace).toHaveBeenCalledWith("/join/k8Qm2");
 });

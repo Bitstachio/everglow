@@ -17,7 +17,7 @@ Shared process docs live in [`.context/`](.context/). Read the matching file in 
 - Work is tracked in **Linear** (team Everglow, keys `EV-N`), not GitHub Issues. If a task has no issue, search first, then create one and tell the requester the key.
 - **Issues are not PRs.** One `EV-N` may ship as several pull requests when that is clearer to review. Every PR still links its issue (`Part of` or `Closes [EV-N](…)`), and each PR is attached on the Linear issue.
 - Prefer **stacked PRs** for large or multi-layer AI-generated changes so each diff is a coherent unit a developer can understand. Create stacks with `gh stack` from the start (see [`.context/stacked-prs.md`](.context/stacked-prs.md)); do not open independent PRs and assemble the stack later on the GitHub website.
-- **Conventional Commits apply only to the PR title** (the squash subject on `main`). Feature-branch commits are throwaway after squash. Subject shape is in [pr-description-generator.md](.context/pr-description-generator.md); the squash body is [commit-description-generator.md](.context/commit-description-generator.md).
+- **Conventional Commits apply only to the PR title** (the squash subject on `main`). Feature-branch commits are throwaway after squash: one short imperative subject that **starts with a lowercase letter**, no trailing period, no `feat:`/`fix:` prefix (full shape in [pr-description-generator.md](.context/pr-description-generator.md)). The squash body is [commit-description-generator.md](.context/commit-description-generator.md).
 - No coding-agent stamps on issues, pull requests, or commits. Forbidden text and the check that strips a stamp the tool injects are in [pr-description-generator.md](.context/pr-description-generator.md).
 
 ## Cursor
