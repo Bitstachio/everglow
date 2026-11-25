@@ -8,7 +8,6 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
-import { Sprockets } from "@/components/ui/film-strip";
 import { X, DotsThree } from "phosphor-react-native";
 import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
@@ -199,9 +198,8 @@ export const FrameViewer = (props: Props) => {
             ) : null}
           </View>
           <Animated.View style={pager.chromeStyle}>
-            {/* Not the shared FilmStrip: that is a fixed, decorative row; this one scrolls the whole roll and each frame is a control. */}
-            <View testID="viewer-film-strip" className="bg-rebate py-3">
-              <Sprockets edge="top" />
+            {/* Thumbnail strip for jumping between frames in the viewer. */}
+            <View testID="viewer-film-strip" className="border-t border-b border-outline-soft bg-rebate py-3">
               <FlatList
                 ref={stripRef}
                 horizontal
@@ -243,7 +241,6 @@ export const FrameViewer = (props: Props) => {
                   </Pressable>
                 )}
               />
-              <Sprockets edge="bottom" />
             </View>
             <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
               <Button
