@@ -75,10 +75,17 @@ test("replaces to account settings when there is nowhere to go back", async () =
 });
 
 test("says the date it opens again once both changes are used", async () => {
-  mockAvailableAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+  mockAvailableAt = new Date(2026, 10, 30, 12).toISOString();
   const { result } = await renderHook(() => useEditUsernameScreen());
 
-  expect(result.current.opensOn).toEqual(expect.stringMatching(/\d{1,2} \w{3}|\w{3} \d{1,2}/));
+  expect(result.current.opensOn).toBe("Mon, 30 Nov");
+});
+
+test("keeps the year when that date is outside the current year", async () => {
+  mockAvailableAt = new Date(2027, 5, 15, 12).toISOString();
+  const { result } = await renderHook(() => useEditUsernameScreen());
+
+  expect(result.current.opensOn).toBe("Tue, 15 Jun 2027");
 });
 
 test("a date in the past means it can change now", async () => {

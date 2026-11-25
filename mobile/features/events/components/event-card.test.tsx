@@ -1,6 +1,5 @@
 import "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
-import { formatDate, formatTime } from "@/lib/format-date";
 import { buildEvent } from "../testing/fixtures";
 import { EventCard } from "./event-card";
 
@@ -11,9 +10,15 @@ test("renders event details and date/time in the device timezone", async () => {
   await render(<EventCard event={event} onPress={onPress} />);
   expect(screen.getByText(event.title)).toBeOnTheScreen();
   expect(screen.getByText(event.description!)).toBeOnTheScreen();
-  expect(screen.getByText(`${formatDate(when)} • ${formatTime(when)}`)).toBeOnTheScreen();
+  expect(screen.getByText("Sun, 20 Sep • 15:30")).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: `Open ${event.title}` }));
   expect(onPress).toHaveBeenCalledTimes(1);
+});
+
+test("keeps the year on the card when the event is outside the current year", async () => {
+  const when = new Date(2025, 8, 20, 15, 30);
+  await render(<EventCard event={buildEvent({ date: when.toISOString() })} onPress={jest.fn()} />);
+  expect(screen.getByText("Sat, 20 Sep 2025 • 15:30")).toBeOnTheScreen();
 });
 
 test.each([null, ""])("supports an event with description %s", async (description) => {

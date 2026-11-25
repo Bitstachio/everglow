@@ -67,6 +67,20 @@ test("says how many rolls are running and which frees a spot first", async () =>
   ]);
 });
 
+test("keeps the year on the next free date when it is outside the current year", async () => {
+  const { result } = await run(
+    limits({
+      nextClosingEvent: { id: "wedding", title: "Sam & Jo", galleryClosesAt: wedding.galleryClosesAt! },
+    }),
+  );
+
+  expect(result.current?.next).toEqual({ title: "Sam & Jo", date: "Mon, 4 Jan 2027" });
+  expect(result.current?.rolls.map(({ event, note }) => [event.id, note])).toEqual([
+    ["party", undefined],
+    ["wedding", "free on Mon, 4 Jan 2027 ↑"],
+  ]);
+});
+
 test("reads the numbers from the plan, never from the app", async () => {
   const { result } = await run(
     limits({ limits: { activeEvents: 3 }, usage: { activeEvents: 3 }, nextClosingEvent: null }),

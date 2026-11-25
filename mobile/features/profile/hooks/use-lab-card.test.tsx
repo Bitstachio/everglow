@@ -22,6 +22,7 @@ const render = () => renderHook(() => useLabCard(), { wrapper: I18nProvider });
 
 beforeEach(() => {
   mockSuspended = false;
+  mockUser.createdAt = "2026-10-15T12:00:00.000Z";
 });
 
 test("fills the card from the account and the plan's limit", async () => {
@@ -39,6 +40,14 @@ test("fills the card from the account and the plan's limit", async () => {
       { label: "Free plan", value: "0 of 2 running" },
     ],
   });
+});
+
+test("keeps the membership year on the since line", async () => {
+  mockUser.createdAt = "2024-10-15T12:00:00.000Z";
+  mockLimits = { plan: "FREE", limits: { activeEvents: 2 }, usage: { activeEvents: 0 } };
+  const { result } = await render();
+
+  expect(result.current.card.title).toBe("Lab card · since Oct 2024");
 });
 
 test("leaves the number out when the plan has no limit", async () => {
