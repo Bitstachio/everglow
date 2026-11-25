@@ -119,7 +119,7 @@ The worker keeps SQS transport handling separate from the S3 lifecycle service a
 
 The Lambda package uses the exact Sharp version installed from the lockfile. CI runs processor tests/build and Terraform validation before passing the aggregate check.
 
-Generation can finish after a new photo is listed. A signed thumbnail URL is not a guarantee that the object exists. Clients retry briefly and show a tappable placeholder if it remains missing; they never automatically download the original as a thumbnail fallback. Only opening a frame or an explicit save action retrieves `url`. Older or unsupported uploads may have only an original until HEIC decoding and backfill land.
+Generation can finish after a new photo is listed. A signed thumbnail URL is not a guarantee that the object exists. Older or unsupported uploads, and photos whose processing failed, have only an original until HEIC decoding and backfill land. Clients wait briefly for a new photo's thumbnail, then show the original in its place (EV-222), so a roll of such photos isn't a sheet of empty frames. The display copy would be the cheaper fallback, but the API doesn't expose it yet, and a photo without a thumbnail almost never has one: both are written by the same job.
 
 ### Why square grid + `object-fit: cover`
 
@@ -143,9 +143,20 @@ We don't store image dimensions. Apple-Photos-style uniform square grid lets the
 
 Opening a frame mounts the original image; Save and Save all also download originals on explicit user action. Thumbnail and original cache keys must identify the variant separately (for example `photo:{id}:thumbnail` and `photo:{id}:original`), so a cached thumbnail can never satisfy a full-size request.
 
-Presigned URLs change between API reads. Image components may use a stable per-photo, per-variant cache key rather than the changing signature. Missing thumbnails must not cause original prefetching.
+Presigned URLs change between API reads. Image components may use a stable per-photo, per-variant cache key rather than the changing signature. A photo whose thumbnail loads never downloads its original until it is opened or saved.
 
-On mobile, a missing thumbnail is tried four times in all (`RetryingPhoto`), counted per cache key for the session, so a re-signed URL or a remounted frame doesn't start over. The frame viewer gives up on an original only after 30 seconds without a byte arriving, and its Try again renews that one photo's links with this endpoint instead of refetching the roll's pages.
+On mobile, every small preview (the event's photo grid, the strips on the new-event and end-early screens, the viewer's strip, the upload tray) loads through `photoPreview()` in `features/events/lib/photo-preview.ts` and `RetryingPhoto`. Failures are counted per cache key for the session, so a re-signed URL or a remounted frame doesn't start over:
+
+- A photo added in the last 10 minutes may still be waiting for its thumbnail, which is tried four times in all (after 2, 5 and 10 seconds) before the original is shown instead.
+- An older photo's thumbnail is tried once more, two seconds later, before the original is shown: one failure can be an expired link or a dropped request as easily as a thumbnail that was never written, and by the retry the list has usually signed the link again. A thumbnail link that is empty goes straight to the original.
+- The original loads at low priority under `photo:{id}:original`: the key the viewer uses, so opening the frame doesn't download it again. It is decoded at the frame's size, not its own (`enforceEarlyResizing` on iOS; Android downscales by default). The cost is the original's size once per photo per device (a few MB for a phone photo) instead of the 512 px WebP thumbnail, and only for photos with no thumbnail. How many load at once follows what the lists keep mounted: the contact sheet about ten screens either side (FlatList's default window), the viewer's strip two.
+- Once a preview has fallen back it stays on the original for the session; a thumbnail written later is used from the next launch, so a frame never swaps images while it is on screen.
+- If the original fails too (tried four times), the frame stays empty and still opens the viewer, which has its own Try again. Those failures are counted apart from the photo's own, so a preview that gave up never blanks the same photo in the viewer or on a report.
+- A load that fails while the phone has no network isn't counted at all: it says nothing about whether the image exists. The frame keeps its placeholder and asks for the same image again once the network is back.
+
+Reported frames on the moderation screens keep the thumbnail only: they are blurred, and their original is fetched when the reviewer chooses to look. The viewer's own page keeps the thumbnail under the original it loads anyway.
+
+The frame viewer gives up on an original only after 30 seconds without a byte arriving, and its Try again renews that one photo's links with this endpoint instead of refetching the roll's pages.
 
 Saving on mobile (`features/events/api/save-event-photos.ts`) asks only to add to Photos (`requestPermissionsAsync(true, ["photo"])`: iOS's add-only prompt, no media read permission on Android 13+). A link from a list fetched more than 10 minutes earlier is renewed with this endpoint before downloading, and a download that fails on a younger link is tried once more with a new one. Each download goes to its own temporary file, and only one save runs at a time. Trying Save all again after it partly failed saves only the frames it missed.
 
