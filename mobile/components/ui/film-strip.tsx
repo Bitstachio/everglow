@@ -3,7 +3,7 @@ import { Text, View, type LayoutChangeEvent } from "react-native";
 import { EdgePrint } from "./edge-print";
 import { GreasePencil } from "./grease-pencil";
 import { Photo } from "./photo";
-import { RetryingPhoto } from "./retrying-photo";
+import { RetryingPhoto, type PhotoVariant } from "./retrying-photo";
 
 export type StripFrame = {
   key: string;
@@ -11,6 +11,10 @@ export type StripFrame = {
   uri?: string;
   /** Cache key for a presigned `uri`, which changes on every fetch. */
   cacheKey?: string;
+  /** Shown when `uri` can't be loaded: the photo, when its thumbnail is missing. */
+  fallback?: PhotoVariant;
+  /** `uri` may not be written yet, so a failure is retried before `fallback`. */
+  mayBeLate?: boolean;
   /** A bundled photo (`import photo from "@/assets/…jpg"`). */
   image?: number;
   /** A frame that carries a short line of text instead of a photo. */
@@ -57,11 +61,13 @@ const Frame = ({ frame, seed }: { frame: StripFrame; seed: number }) => {
       <View
         className={`h-full w-full items-center justify-center overflow-hidden rounded-frame ${frame.caption ? "bg-viewer" : "bg-frame-empty"}`}
       >
-        {frame.uri ? (
+        {frame.uri || frame.fallback ? (
           <RetryingPhoto
             testID="film-strip-photo"
             uri={frame.uri}
             cacheKey={frame.cacheKey}
+            fallback={frame.fallback}
+            mayBeLate={frame.mayBeLate}
             contentFit="cover"
             className={`h-full w-full ${frame.dim ? "opacity-35" : ""}`.trim()}
           />
