@@ -51,6 +51,7 @@ export const FrameMenu = ({
       <View>
         {canDelete ? (
           <MenuAction
+            first
             label={
               isOwn
                 ? t("viewer.deleteOwn")
@@ -62,9 +63,17 @@ export const FrameMenu = ({
             onPress={onDelete}
           />
         ) : null}
-        {onReport ? <MenuAction label={t("report:menu.reportPhoto")} icon={Flag} onPress={onReport} /> : null}
+        {onReport ? (
+          <MenuAction
+            first={!canDelete}
+            label={t("report:menu.reportPhoto")}
+            icon={Flag}
+            onPress={onReport}
+          />
+        ) : null}
         {onBlock ? (
           <MenuAction
+            first={!canDelete && !onReport}
             muted
             label={t("report:menu.block", { name: firstName(name) })}
             icon={Prohibit}
