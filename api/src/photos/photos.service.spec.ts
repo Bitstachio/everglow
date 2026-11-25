@@ -133,6 +133,8 @@ describe("PhotosService", () => {
     sizeBytes: 1024,
     status: "PENDING",
     sha256: null,
+    screening: "UNSCREENED",
+    screeningHeldUntil: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
