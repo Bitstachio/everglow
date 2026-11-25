@@ -22,6 +22,8 @@ export const useEventsQuery = (userId: string | undefined) =>
   useQuery({
     queryKey: eventsKeys.list(userId),
     enabled: Boolean(userId),
+    // Home opens from this when the app starts offline.
+    meta: { persist: true },
     queryFn: async ({ signal }): Promise<EventResponseDto[]> => {
       const { data } = await eventsControllerFindAll({ signal, throwOnError: true });
       // The generated options type the envelope as one event; runtime returns an array.
