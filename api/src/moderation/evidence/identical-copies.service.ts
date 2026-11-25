@@ -14,8 +14,11 @@ import {
   ReportTargetType,
 } from "generated/prisma/client";
 import { PinoLogger } from "nestjs-pino";
+import { fileAutomatedReport, logAutomatedReport } from "src/moderation/automated-report";
+import { initialHoldFor } from "src/moderation/report-deadlines";
 import { deleteObjectsWithDerivatives } from "src/photos/photo-object-deletion";
 import { PHOTO_HASH_TIMEOUT_MS } from "src/photos/photos.constants";
+import { lockForTransaction } from "src/prisma/advisory-lock";
 import { PrismaService } from "src/prisma/prisma.service";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { CHILD_SAFETY_HOLD_DAYS } from "../moderation.constants";
@@ -375,4 +378,165 @@ export class IdenticalCopiesService {
       );
     }
   }
+
+  /**
+   * Reports someone whose confirm was just refused for the bytes of a removed
+   * child-safety image (docs/moderation.md §7): trying to post it again is
+   * itself something the platform must see. Files one automated `CHILD_SAFETY`
+   * MEMBER report on the uploader, in the event they tried to post to: in the
+   * platform's queue, held a year from filing, and paging like any
+   * child-safety report. `matches` is `findRemovedImages`' answer: hash to the
+   * report that removed it. Matches of intimate images report nothing.
+   *
+   * The evidence is the hash, the type and size, and the uploader. The refused
+   * bytes are not kept: they are the matched reports' evidence copy, so the
+   * caller deletes them as it does any refused upload, and those reports are
+   * held at least as long as this one.
+   *
+   * One OPEN attempt report per uploader and event, checked and filed under a
+   * lock: a repeat while one is OPEN files nothing and logs an audit line, so
+   * a retrying client doesn't page again and again. Never throws: the refusal
+   * stands whatever happens here, and a failure is logged as an error.
+   */
+  async reportRefusedUploads(
+    eventId: string,
+    uploaderId: string,
+    refused: RefusedUpload[],
+    matches: Map<string, string>,
+    now: Date = new Date(),
+  ): Promise<void> {
+    const hashes = [...new Set(refused.map((upload) => upload.sha256).filter((hash) => matches.has(hash)))];
+    if (hashes.length === 0) return;
+
+    try {
+      // By hash, not by the one report `matches` names for it: the same bytes
+      // can be removed under an intimate-image report and a child-safety one,
+      // and either may be the one named.
+      const childSafety = await this.prisma.reportEvidence.findMany({
+        where: {
+          sha256: { in: hashes },
+          report: { AND: [REMOVED_IMAGE_REPORTS, { reason: ReportReason.CHILD_SAFETY }] },
+        },
+        select: { sha256: true, reportId: true },
+      });
+      if (childSafety.length === 0) return;
+      const matchedReportIds = [...new Set(childSafety.map((row) => row.reportId))];
+      const matchedHashes = new Set(childSafety.map((row) => row.sha256));
+      const attempts = refused.filter((upload) => matchedHashes.has(upload.sha256));
+
+      const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { title: true } });
+      const [first] = attempts;
+      const hold = initialHoldFor(ReportReason.CHILD_SAFETY, now).holdUntil;
+      const { open, filed } = await this.prisma.$transaction(async (tx) => {
+        // One at a time per uploader and event: two confirms refused together
+        // file one report and page once.
+        await lockForTransaction(tx, refusedUploadLockKey(eventId, uploaderId));
+        const existing = await tx.report.findFirst({
+          where: {
+            eventId,
+            reportedUserId: uploaderId,
+            targetType: ReportTargetType.MEMBER,
+            reason: ReportReason.CHILD_SAFETY,
+            source: ReportSource.AUTOMATED,
+            status: ReportStatus.OPEN,
+          },
+          select: { id: true },
+        });
+        if (existing) return { open: existing, filed: null };
+
+        const report = await fileAutomatedReport(
+          tx,
+          this.evidenceService,
+          {
+            eventId,
+            eventTitle: event?.title ?? "",
+            targetType: ReportTargetType.MEMBER,
+            photoId: null,
+            reportedUserId: uploaderId,
+            reason: ReportReason.CHILD_SAFETY,
+            note: refusedUploadNote(attempts.length, matchedReportIds),
+            snapshot: {
+              objectS3Key: null,
+              contentType: first.contentType,
+              sizeBytes: first.sizeBytes,
+              subjectUserId: uploaderId,
+            },
+          },
+          now,
+        );
+        if (report) {
+          await tx.reportEvidence.update({ where: { reportId: report.id }, data: { sha256: first.sha256 } });
+          // The matched reports' evidence copy is this report's image: keep
+          // it at least as long as this report is held. A hold already there
+          // keeps its reason and is only ever lengthened.
+          if (hold) {
+            await tx.report.updateMany({
+              where: { id: { in: matchedReportIds }, holdUntil: null },
+              data: { holdUntil: hold, holdReason: ReportHoldReason.CHILD_SAFETY },
+            });
+            await tx.report.updateMany({
+              where: { id: { in: matchedReportIds }, holdUntil: { lt: hold } },
+              data: { holdUntil: hold },
+            });
+          }
+        }
+        return { open: null, filed: report };
+      });
+
+      if (open) {
+        this.logger.info(
+          {
+            event: "report.removed_image_reupload.repeated",
+            reportId: open.id,
+            eventId,
+            reportedUserId: uploaderId,
+            matchedReportIds,
+            attempts: attempts.length,
+            audit: true,
+          },
+          "Another re-upload of a removed child-safety image; its OPEN report already covers it",
+        );
+      } else if (filed) {
+        logAutomatedReport(this.logger, filed, { check: "removed_image_reupload", matchedReportIds });
+      }
+    } catch (error) {
+      // Who and what, since nothing else will say: the upload and its row are gone by now.
+      this.logger.error(
+        {
+          err: error as Error,
+          event: "report.removed_image_reupload.report_failed",
+          eventId,
+          reportedUserId: uploaderId,
+          sha256: hashes,
+          audit: true,
+        },
+        "A re-upload of a removed image was refused, but its report could not be filed",
+      );
+    }
+  }
 }
+
+/** The advisory lock that orders one uploader's attempt reports in one event. */
+export const refusedUploadLockKey = (eventId: string, uploaderId: string): string =>
+  `removed-image-reupload:${eventId}:${uploaderId}`;
+
+/** A refused upload, as its attempt report describes it. */
+export interface RefusedUpload {
+  sha256: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+/** The most matched reports a note names; the column holds 500 characters. */
+const NOTE_MAX_MATCHED_REPORTS = 8;
+
+/** For the platform's reviewer: what was refused, and which removal it matched. Written by us, never by a user. */
+export const refusedUploadNote = (attempts: number, matchedReportIds: string[]): string => {
+  const named = matchedReportIds.slice(0, NOTE_MAX_MATCHED_REPORTS).join(", ");
+  const more =
+    matchedReportIds.length > NOTE_MAX_MATCHED_REPORTS
+      ? ` and ${matchedReportIds.length - NOTE_MAX_MATCHED_REPORTS} more`
+      : "";
+  const photos = attempts === 1 ? "1 photo" : `${attempts} photos`;
+  return `Upload refused: ${photos} with the bytes of the child-safety image removed under report ${named}${more}. The refused bytes were not kept; the matched report's evidence copy is the same image.`;
+};
