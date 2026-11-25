@@ -370,7 +370,7 @@ describe("open (07.4–07.8)", () => {
     expect(screen.getByRole("button", { name: "Save all photos to Photos" })).toBeDisabled();
   });
 
-  test("a host sees uploader portraits and names without frame numbers, their room, and Invite", async () => {
+  test("a host hears who took each frame without frame numbers on the tiles, sees their room, and can Invite", async () => {
     await renderScreen({
       event: openEvent({ usage: { members: 2, storageBytes: String(1.2 * 1024 ** 3) } }),
       participants: [
@@ -385,19 +385,12 @@ describe("open (07.4–07.8)", () => {
 
     expect(await screen.findByLabelText("Photo 2, by Grace")).toBeOnTheScreen();
     expect(screen.getByLabelText("Photo 1, by You")).toBeOnTheScreen();
-    for (const [label, name, uri] of [
-      ["Photo 2, by Grace", "Grace", "https://img/grace"],
-      ["Photo 1, by You", "You", "https://img/ada"],
-    ]) {
+    for (const label of ["Photo 2, by Grace", "Photo 1, by You"]) {
       const frame = within(screen.getByLabelText(label));
-      // Seen, but not read out again: the photo's label already names the uploader.
-      expect(frame.queryByText(name)).toBeNull();
-      expect(frame.getByText(name, { includeHiddenElements: true })).toBeOnTheScreen();
+      // Credits live on the open photo; the grid tile only keeps the accessibility label.
+      expect(frame.queryByText(/\S/, { includeHiddenElements: true })).toBeNull();
+      expect(frame.queryByTestId("avatar-image", { includeHiddenElements: true })).toBeNull();
       expect(frame.queryByText(/^\d+$/, { includeHiddenElements: true })).toBeNull();
-      expect(frame.getByTestId("avatar-image", { includeHiddenElements: true })).toHaveProp(
-        "source",
-        expect.arrayContaining([expect.objectContaining({ uri })]),
-      );
     }
     expect(screen.getByText(/1\.2.*\/ 3 GB/)).toBeOnTheScreen();
     expect(screen.getByText(/23 days.*left/)).toBeOnTheScreen();
@@ -407,7 +400,7 @@ describe("open (07.4–07.8)", () => {
     expect(mockPush).toHaveBeenCalledWith("/events/event-1/envelope");
   });
 
-  test("a frame kept by a deleted account is signed Deleted account with a ghost; a departed member's stays unsigned", async () => {
+  test("a frame kept by a deleted account names them in its label; a departed member's stays unsigned", async () => {
     await renderScreen({
       event: openEvent(),
       participants: [host],
@@ -418,8 +411,8 @@ describe("open (07.4–07.8)", () => {
     });
 
     const kept = within(await screen.findByLabelText("Photo 2, by Deleted account"));
-    expect(kept.getByText("Deleted account", { includeHiddenElements: true })).toBeOnTheScreen();
-    expect(kept.getByTestId("deleted-avatar", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(kept.queryByText(/\S/, { includeHiddenElements: true })).toBeNull();
+    expect(kept.queryByTestId("deleted-avatar", { includeHiddenElements: true })).toBeNull();
     expect(kept.queryByTestId("avatar-image", { includeHiddenElements: true })).toBeNull();
     const departed = within(screen.getByLabelText("Photo 1"));
     expect(departed.queryByText(/\S/, { includeHiddenElements: true })).toBeNull();

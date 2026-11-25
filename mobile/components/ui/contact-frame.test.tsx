@@ -1,22 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
-import { Text } from "react-native";
 import { ContactFrame } from "./contact-frame";
 
-test("shows the uploader without a visible frame number, and opens on press", async () => {
+test("opens on press and keeps the accessibility label without a visible frame number", async () => {
   const onPress = jest.fn();
-  await render(<ContactFrame number={144} by="Leila" accessibilityLabel="Photo 144 by Leila" onPress={onPress} />);
-  expect(screen.getByText("Leila", { includeHiddenElements: true })).toBeOnTheScreen();
+  await render(<ContactFrame number={144} accessibilityLabel="Photo 144 by Leila" onPress={onPress} />);
   expect(screen.queryByText(/144/, { includeHiddenElements: true })).toBeNull();
   await fireEvent.press(screen.getByLabelText("Photo 144 by Leila"));
   expect(onPress).toHaveBeenCalledTimes(1);
-});
-
-test("screen readers hear the photo's label once, not its portrait and caption again", async () => {
-  await render(<ContactFrame number={144} by="Maya" avatar={<Text>M</Text>} accessibilityLabel="Photo 144, by Maya" />);
-  expect(screen.getByLabelText("Photo 144, by Maya")).toBeOnTheScreen();
-  expect(screen.queryByText("M")).toBeNull();
-  expect(screen.queryByText("Maya")).toBeNull();
-  expect(screen.getByText("M", { includeHiddenElements: true })).toBeOnTheScreen();
 });
 
 test("marks a frame that didn't make it with the warning icon, hidden from screen readers", async () => {

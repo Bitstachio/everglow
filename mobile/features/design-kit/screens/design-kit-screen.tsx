@@ -157,13 +157,12 @@ const DesignKitScreen = () => {
               { key: "d", number: 4 },
             ]}
           />
-          <View className="flex-row flex-wrap gap-y-3.5">
+          <View className="flex-row flex-wrap">
             {[144, 145, 146, 147, 148, 149].map((n, i) => (
-              <View key={n} className="w-1/3 px-0.5">
+              <View key={n} className="w-1/3 p-0.5">
                 <ContactFrame
                   uri={photo(n)}
                   number={n}
-                  by={["Leila", "Sam", "Jo"][i % 3]}
                   selected={i === 1}
                   isNew={i === 3}
                   accessibilityLabel={`Photo ${n}`}
