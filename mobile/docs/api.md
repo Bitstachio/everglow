@@ -25,6 +25,7 @@ Prefer wrapping generated helpers in feature `api/` hooks rather than calling th
 - `QueryProvider` wraps the app in `app/_layout.tsx`, above `AuthProvider`, which clears the cache on sign-out and when a 401 ends the session
 - Default query options: 60s stale time, 2 retries, refetch on focus
 - Feature mutations should update or invalidate keys from the feature's `keys.ts`
+- `onlineManager` follows NetInfo. Offline, queries pause instead of failing, so a screen that must say it is offline reads `useIsOnline()` (`hooks/use-is-online.ts`) as well as connection errors
 
 ### Saved for an offline launch
 
