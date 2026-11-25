@@ -2,13 +2,17 @@ import "../testing/native-mocks";
 import { createApiError } from "@/lib/api/errors";
 // Integration tests compose the real screen with its data provider.
 // eslint-disable-next-line no-restricted-imports
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
+import { dehydrate, hydrate, onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 // Observe the native alert boundary without replacing screen hooks.
 // eslint-disable-next-line no-restricted-imports
 import { AccessibilityInfo, Alert } from "react-native";
 import EventsScreen from "./events-screen";
 import { LEAVE_MOTION, LEAVE_SETTLE_MS, handOverLeftRoll, takeLeftRoll } from "../lib/left-roll";
+// The saved session is seeded under the keys Home reads, as an offline launch would.
+// eslint-disable-next-line no-restricted-imports
+import { eventsKeys } from "../api/keys";
+import { formatSavedAt } from "../lib/rolls";
 import { buildEvent, deferred } from "../testing/fixtures";
 
 const mockFindAll = jest.fn();
@@ -35,10 +39,12 @@ jest.mock("expo-router", () => {
   };
 });
 
-const renderScreen = async () => {
-  const client = new QueryClient({
+const testClient = () =>
+  new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false, gcTime: 0 } },
   });
+
+const renderScreen = async (client = testClient()) => {
   const tree = () => (
     <QueryClientProvider client={client}>
       <EventsScreen />
@@ -86,7 +92,7 @@ test("lists the rolls, groups the closed ones, and opens a roll", async () => {
   mockFindAll.mockResolvedValue({
     data: {
       data: [
-        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" }),
+        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN", galleryClosesAt: null }),
         buildEvent({ id: "up-1", title: "Friday at Sully’s", galleryState: "UPCOMING" }),
         buildEvent({ id: "done-1", title: "Lake weekend", galleryState: "CLOSED" }),
       ],
@@ -174,7 +180,7 @@ test("lists open events without loading their photos", async () => {
   mockFindAll.mockResolvedValue({
     data: {
       data: [
-        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" }),
+        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN", galleryClosesAt: null }),
         buildEvent({ id: "up-1", title: "Friday at Sully’s", galleryState: "UPCOMING" }),
         buildEvent({ id: "done-1", title: "Lake weekend", galleryState: "CLOSED" }),
       ],
@@ -215,6 +221,51 @@ test("keeps the saved rolls on screen when the connection drops", async () => {
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
   // Each event says when it was loaded, in place of its timing.
   expect(screen.getByText(/^as of \d\d:\d\d$/)).toBeOnTheScreen();
+});
+
+describe("opened offline from the rolls saved on the phone", () => {
+  afterEach(() => onlineManager.setOnline(true));
+
+  /** Home's rolls as the last launch with a network saved them, a day ago. */
+  const savedClient = (events: ReturnType<typeof buildEvent>[]) => {
+    const source = testClient();
+    const savedAt = Date.now() - 24 * 60 * 60 * 1000;
+    source.setQueryData(eventsKeys.list("user-1"), events, { updatedAt: savedAt });
+    // Kept until the screen mounts, as after a launch.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    hydrate(client, dehydrate(source));
+    source.clear();
+    return { client, savedAt };
+  };
+
+  test("shows the saved rolls with the offline marker and the day they were loaded, without asking the API", async () => {
+    const { client, savedAt } = savedClient([buildEvent({ title: "Sam & Jo’s wedding", galleryClosesAt: null })]);
+    onlineManager.setOnline(false);
+
+    await renderScreen(client);
+
+    expect(await screen.findByText("Sam & Jo’s wedding")).toBeOnTheScreen();
+    expect(screen.getByText("No connection")).toBeOnTheScreen();
+    expect(screen.getByText("Showing what’s saved")).toBeOnTheScreen();
+    expect(screen.getByText(`as of ${formatSavedAt(savedAt)}`)).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "New event" })).toBeDisabled();
+    expect(screen.getByText("Back online to start an event")).toBeOnTheScreen();
+    expect(mockFindAll).not.toHaveBeenCalled();
+    expect(mockListPhotos).not.toHaveBeenCalled();
+  });
+
+  test("loads the rolls again once the network is back, and the marker goes", async () => {
+    const { client } = savedClient([buildEvent({ title: "Sam & Jo’s wedding", galleryClosesAt: null })]);
+    mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Nadia turns 30", galleryClosesAt: null })] } });
+    onlineManager.setOnline(false);
+    await renderScreen(client);
+    await screen.findByText("No connection");
+
+    await act(async () => onlineManager.setOnline(true));
+
+    expect(await screen.findByText("Nadia turns 30")).toBeOnTheScreen();
+    expect(screen.queryByText("No connection")).not.toBeOnTheScreen();
+  });
 });
 
 const leftWedding = () => ({
