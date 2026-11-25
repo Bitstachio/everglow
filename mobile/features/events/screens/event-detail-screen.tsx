@@ -50,6 +50,7 @@ import {
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
+import { photoPreview } from "../lib/photo-preview";
 import { formatClosedOn, formatOpensOn, rollFrameCount } from "../lib/rolls";
 import type { DevelopingFrame } from "../lib/upload-tray-view";
 import { formatEventStorage, formatStorageBytes } from "../utils";
@@ -377,8 +378,7 @@ const EventDetailScreen = () => {
       {item.kind === "photo" ? (
         <ContactFrame
           testID="roll-frame"
-          uri={item.frame.photo.thumbnailUrl}
-          cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
+          {...photoPreview(item.frame.photo)}
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
           onPreviewReady={() => screen.onPreviewReady(item.frame.photo.id)}
           number={item.frame.number}

@@ -7,16 +7,16 @@ import { useTranslation } from "react-i18next";
 import { useDeactivateEventMutation } from "../api/mutations";
 import { useEventParticipantsQuery, useEventQuery, useRollPreviewQuery } from "../api/queries";
 import { rollRole } from "../lib/roll-page";
-import { ROLL_FRAMES, toRollPhotos } from "../lib/rolls";
+import { ROLL_FRAMES, toRollPhotos, type RollPhoto } from "../lib/rolls";
 
 /** The latest photos on the left of the cut, dimmed on the right; blank numbered frames when there are fewer. */
-const cutFrames = (photos: { uri: string; cacheKey: string }[], photoCount: number): StripFrame[] => {
+const cutFrames = (photos: RollPhoto[], photoCount: number): StripFrame[] => {
   const shown = [...photos].reverse();
   return Array.from({ length: ROLL_FRAMES }, (_, index) => {
     const photo = shown[index];
     const dim = index >= ROLL_FRAMES / 2;
     return photo
-      ? { key: photo.cacheKey, uri: photo.uri, cacheKey: photo.cacheKey, dim }
+      ? { key: photo.cacheKey, ...photo, dim }
       : { key: `blank-${index}`, number: Math.max(photoCount - shown.length, 0) + index + 1, dim };
   });
 };

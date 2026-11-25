@@ -11,6 +11,7 @@ import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
 import { X } from "phosphor-react-native";
 import { colorTokens } from "@/theme/tokens";
+import { photoPreview } from "../../lib/photo-preview";
 import type { SheetFrame } from "../../lib/roll-page";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
 import { FilmGrain } from "@/components/ui/film-grain";
@@ -211,6 +212,10 @@ export const FrameViewer = (props: Props) => {
                 data={frames}
                 keyExtractor={(item) => item.photo.id}
                 extraData={frame?.photo.id}
+                // Two screens of frames either side, not the default ten: a frame
+                // with no thumbnail loads its photo, and the open frame's own
+                // photo shouldn't queue behind a hundred of them.
+                windowSize={5}
                 style={{ flexGrow: 0 }}
                 initialScrollIndex={Math.max(0, index - 2)}
                 getItemLayout={(_, itemIndex) => ({
@@ -237,8 +242,8 @@ export const FrameViewer = (props: Props) => {
                     className={item.photo.id === frame?.photo.id ? "border-2 border-text" : "opacity-50"}
                   >
                     <RetryingPhoto
-                      uri={item.photo.thumbnailUrl}
-                      cacheKey={`photo:${item.photo.id}:thumbnail`}
+                      testID="viewer-strip-photo"
+                      {...photoPreview(item.photo)}
                       className="h-full w-full"
                       contentFit="cover"
                     />
