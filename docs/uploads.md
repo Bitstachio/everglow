@@ -25,6 +25,10 @@ Confirm streams each verified photo original from S3 once through SHA-256 and st
 
 If any photo in a confirm has the bytes of an intimate image or child-safety image the platform removed, the whole confirm answers 422 `PHOTO_REJECTED_MATCHES_REMOVED_IMAGE`. Both kinds get the same code and message, so the answer never says which one matched. Those uploads are deleted with their renditions and their slots released. Nothing else changes: the other photos stay `PENDING`, so the client confirms the same ids again, gets their verdicts, and the refused ones answer `NOT_FOUND`. The app says only that the photo can't be added.
 
+### Upload screening
+
+When `MODERATION_SCREENING_ENABLED=true`, confirm also screens each verified photo with Amazon Rekognition, alongside the hashing, before the batch goes live ([moderation.md §11](./moderation.md#11-upload-screening)). It sends the image processor's display copy (`large.jpg`), or a JPEG or PNG original of 5 MB or less while that isn't written yet. The verdict is written with the `READY` flip, and a flagged photo's automated report in the same transaction. A photo it can't screen yet (no display copy, Rekognition slow or failing) is `READY` but held: only its uploader and the event's organizers see it, and a job retries it every minute for up to 30 minutes. Screening never fails a confirm and never changes its response. It adds at most `SCREENING_TIMEOUT_MS` (5 s) to one: that timeout covers the whole batch, and what isn't screened by then is held.
+
 ## What differs per kind
 
 |                             | Event photos                                                                                                            | Avatar                                                   | Event cover                                                     |
