@@ -64,12 +64,7 @@ export const FrameMenu = ({
           />
         ) : null}
         {onReport ? (
-          <MenuAction
-            first={!canDelete}
-            label={t("report:menu.reportPhoto")}
-            icon={Flag}
-            onPress={onReport}
-          />
+          <MenuAction first={!canDelete} label={t("report:menu.reportPhoto")} icon={Flag} onPress={onReport} />
         ) : null}
         {onBlock ? (
           <MenuAction

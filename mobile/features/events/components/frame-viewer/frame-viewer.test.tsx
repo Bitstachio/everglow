@@ -533,10 +533,19 @@ test("changing photos clears a closing menu's deferred action", async () => {
   const view = await render(<FrameViewer {...input} />);
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "More" }));
-  await user.press(within(screen.getByTestId("frame-menu-dialog")).getByRole("button", { name: "Delete for everyone" }));
+  await user.press(
+    within(screen.getByTestId("frame-menu-dialog")).getByRole("button", { name: "Delete for everyone" }),
+  );
   const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), by: "Leila" };
   await view.rerender(
-    <FrameViewer {...input} frames={[input.frame!, second]} frame={second} isOwn={false} canDelete onReport={jest.fn()} />,
+    <FrameViewer
+      {...input}
+      frames={[input.frame!, second]}
+      frame={second}
+      isOwn={false}
+      canDelete
+      onReport={jest.fn()}
+    />,
   );
   await act(async () => screen.getByTestId("frame-menu-dialog", { includeHiddenElements: true }).props.onDismiss());
   expect(input.onDelete).not.toHaveBeenCalled();

@@ -9,36 +9,39 @@ test.each([
   { isOwn: false, canDelete: true, action: "Delete Leila’s photo" },
   { isOwn: false, canDelete: false, action: null },
   { isOwn: false, canDelete: true, deleted: true, action: "Delete this photo" },
-])("shows the permitted delete action (delete: $canDelete, own: $isOwn)", async ({ isOwn, canDelete, deleted, action }) => {
-  const onDelete = jest.fn();
-  await renderWithI18n(
-    <FrameMenu
-      frame={{
-        photo: buildPhoto({ addedById: deleted ? null : "leila" }),
-        number: 1,
-        by: deleted ? null : "Leila",
-        uploader: null,
-        deleted: deleted ?? false,
-        isNew: false,
-      }}
-      name={deleted ? "Deleted account" : "Leila"}
-      isOwn={isOwn}
-      canDelete={canDelete}
-      visible
-      onClose={jest.fn()}
-      onClosed={jest.fn()}
-      onDelete={onDelete}
-    />,
-  );
-  expect(screen.queryByRole("button", { name: "Save to Photos" })).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Share" })).not.toBeOnTheScreen();
-  if (action) {
-    await userEvent.setup().press(screen.getByRole("button", { name: action }));
-    expect(onDelete).toHaveBeenCalledTimes(1);
-  } else {
-    expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeOnTheScreen();
-  }
-});
+])(
+  "shows the permitted delete action (delete: $canDelete, own: $isOwn)",
+  async ({ isOwn, canDelete, deleted, action }) => {
+    const onDelete = jest.fn();
+    await renderWithI18n(
+      <FrameMenu
+        frame={{
+          photo: buildPhoto({ addedById: deleted ? null : "leila" }),
+          number: 1,
+          by: deleted ? null : "Leila",
+          uploader: null,
+          deleted: deleted ?? false,
+          isNew: false,
+        }}
+        name={deleted ? "Deleted account" : "Leila"}
+        isOwn={isOwn}
+        canDelete={canDelete}
+        visible
+        onClose={jest.fn()}
+        onClosed={jest.fn()}
+        onDelete={onDelete}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Save to Photos" })).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeOnTheScreen();
+    if (action) {
+      await userEvent.setup().press(screen.getByRole("button", { name: action }));
+      expect(onDelete).toHaveBeenCalledTimes(1);
+    } else {
+      expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeOnTheScreen();
+    }
+  },
+);
 
 test("someone else's frame can be reported and its owner blocked", async () => {
   const onReport = jest.fn();
