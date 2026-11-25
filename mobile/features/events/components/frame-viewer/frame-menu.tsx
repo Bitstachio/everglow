@@ -1,15 +1,26 @@
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { DownloadSimple, Flag, Prohibit, ShareNetwork, Trash } from "phosphor-react-native";
+import { Flag, Prohibit, Trash } from "phosphor-react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { EdgePrint } from "@/components/ui/edge-print";
 import { MenuAction } from "@/components/ui/menu-action";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
 import { firstName, type SheetFrame } from "../../lib/roll-page";
 
+/** Whether More has any actions beyond the photo summary (Save/Share live on the bar). */
+export const frameMenuHasActions = ({
+  canDelete,
+  onReport,
+  onBlock,
+}: {
+  canDelete: boolean;
+  onReport?: unknown;
+  onBlock?: unknown;
+}): boolean => canDelete || Boolean(onReport) || Boolean(onBlock);
+
 /**
- * Chapter 09's frame summary and action index, without the removed frame
- * numbers. Someone else's frame can be reported, and its owner blocked (09.3).
+ * Frame summary and overflow actions. Save and Share stay on the viewer bar;
+ * someone else's frame can be reported, and its owner blocked.
  */
 export const FrameMenu = ({
   frame,
@@ -20,8 +31,6 @@ export const FrameMenu = ({
   visible,
   onClose,
   onClosed,
-  onSave,
-  onShare,
   onDelete,
   onReport,
   onBlock,
@@ -34,8 +43,6 @@ export const FrameMenu = ({
   visible: boolean;
   onClose: () => void;
   onClosed: () => void;
-  onSave: () => void;
-  onShare: () => void;
   onDelete: () => void;
   /** Left out for your own frame: you can't report it. */
   onReport?: () => void;
@@ -69,8 +76,6 @@ export const FrameMenu = ({
             {frame?.uploader?.username ? <EdgePrint size="frame-label">@{frame.uploader.username}</EdgePrint> : null}
           </View>
         </View>
-        <MenuAction label={t("viewer.save")} icon={DownloadSimple} onPress={onSave} />
-        <MenuAction label={t("gallery.share")} icon={ShareNetwork} onPress={onShare} />
         {canDelete ? (
           <MenuAction
             label={

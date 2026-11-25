@@ -15,7 +15,7 @@ import type { SheetFrame } from "../../lib/roll-page";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { GalleryProgress, GalleryUnsaved } from "../gallery-controls";
-import { FrameMenu } from "./frame-menu";
+import { FrameMenu, frameMenuHasActions } from "./frame-menu";
 import { FramePager } from "./frame-pager";
 import { useFrameViewer } from "./use-frame-viewer";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
@@ -69,6 +69,7 @@ export const FrameViewer = (props: Props) => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stripStep = Math.floor(width / 5);
+  const showMore = frameMenuHasActions({ canDelete: props.canDelete, onReport, onBlock });
   const index = frames.findIndex((item) => item.photo.id === frame?.photo.id);
   const moveTo = (page: number) => {
     const target = frames[page];
@@ -262,33 +263,35 @@ export const FrameViewer = (props: Props) => {
                 onPress={props.onShare}
                 disabled={busy}
               />
-              <Button
-                title={t("viewer.moreAction")}
-                accessibilityLabel={t("gallery.more")}
-                variant="ghost"
-                fullWidth={false}
-                onPress={openMenu}
-                disabled={busy}
-              />
+              {showMore ? (
+                <Button
+                  title={t("viewer.moreAction")}
+                  accessibilityLabel={t("gallery.more")}
+                  variant="ghost"
+                  fullWidth={false}
+                  onPress={openMenu}
+                  disabled={busy}
+                />
+              ) : null}
             </View>
           </Animated.View>
         </View>
       </GestureHandlerRootView>
-      <FrameMenu
-        frame={frame}
-        name={name}
-        time={time}
-        isOwn={props.isOwn}
-        canDelete={props.canDelete}
-        visible={menuVisible && !!frame}
-        onClose={closeMenu}
-        onClosed={onMenuClosed}
-        onSave={() => fromMenu(props.onSave)}
-        onShare={() => fromMenu(props.onShare)}
-        onDelete={() => fromMenu(props.onDelete)}
-        onReport={onReport ? () => fromMenu(() => closeThen(onReport)) : undefined}
-        onBlock={onBlock ? () => fromMenu(onBlock) : undefined}
-      />
+      {showMore ? (
+        <FrameMenu
+          frame={frame}
+          name={name}
+          time={time}
+          isOwn={props.isOwn}
+          canDelete={props.canDelete}
+          visible={menuVisible && !!frame}
+          onClose={closeMenu}
+          onClosed={onMenuClosed}
+          onDelete={() => fromMenu(props.onDelete)}
+          onReport={onReport ? () => fromMenu(() => closeThen(onReport)) : undefined}
+          onBlock={onBlock ? () => fromMenu(onBlock) : undefined}
+        />
+      ) : null}
       <GalleryDeleteSheet
         targets={props.deleteTargets}
         busy={props.isDeleting}
