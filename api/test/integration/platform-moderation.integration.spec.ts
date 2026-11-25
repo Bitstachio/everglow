@@ -103,6 +103,19 @@ describe("Platform moderation (integration)", () => {
     expect(JSON.stringify(body)).not.toContain("photos/u/e/p");
   });
 
+  it("shows the platform an automated report's note, which organizers never get", async () => {
+    asModerator();
+    const note = "Upload screening: Explicit Nudity (97%)";
+    prisma.report.findMany.mockResolvedValue([
+      reportWithEvidence({ source: "AUTOMATED", reporterId: null, note }),
+    ] as never);
+
+    const response = await request(httpServer).get(adminPath("reports")).set(authHeader()).expect(200);
+
+    const body = response.body as { data: { items: Record<string, unknown>[] } };
+    expect(body.data.items[0]).toMatchObject({ source: "AUTOMATED", reporterId: null, note });
+  });
+
   describe("evidence", () => {
     const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
