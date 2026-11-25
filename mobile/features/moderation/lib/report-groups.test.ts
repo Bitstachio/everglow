@@ -6,6 +6,7 @@ const report = (overrides: Partial<ReportResponseDto> = {}): ReportResponseDto =
   id: `report-${++next}`,
   eventId: "event-1",
   eventTitle: "Sam & Jo’s wedding",
+  source: "USER",
   targetType: "PHOTO",
   photoId: "photo-144",
   reportedUserId: "u-marcus",
@@ -39,6 +40,12 @@ test("reports on one frame are one decision, with the reason given most", () => 
 test("one spam report doesn't hide a frame; one for nudity does", () => {
   expect(groupOpenReports([report()], 24)[0].hidden).toBe(false);
   expect(groupOpenReports([report({ reason: "VIOLENCE" })], 24)[0].hidden).toBe(true);
+});
+
+test("an automated report hides a frame whatever its reason, and the group says it was automatic", () => {
+  const [group] = groupOpenReports([report({ source: "AUTOMATED", reason: "HARASSMENT", queue: "PLATFORM" })], 24);
+  expect(group).toMatchObject({ hidden: true, automated: true, withEverglow: true });
+  expect(groupOpenReports([report()], 24)[0].automated).toBe(false);
 });
 
 test("a person's reports are their own group, and never hidden", () => {

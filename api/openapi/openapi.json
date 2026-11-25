@@ -3988,6 +3988,14 @@
           "reason"
         ]
       },
+      "ReportSource": {
+        "type": "string",
+        "enum": [
+          "USER",
+          "AUTOMATED"
+        ],
+        "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers."
+      },
       "ReportQueue": {
         "type": "string",
         "enum": [
@@ -4038,6 +4046,14 @@
             "type": "string",
             "description": "The event's title when the report was filed."
           },
+          "source": {
+            "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportSource"
+              }
+            ]
+          },
           "targetType": {
             "allOf": [
               {
@@ -4067,7 +4083,8 @@
           "note": {
             "type": "string",
             "nullable": true,
-            "maxLength": 500
+            "maxLength": 500,
+            "description": "What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null."
           },
           "status": {
             "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",
@@ -4123,6 +4140,7 @@
           "id",
           "eventId",
           "eventTitle",
+          "source",
           "targetType",
           "photoId",
           "reportedUserId",
@@ -4938,6 +4956,14 @@
             "type": "string",
             "description": "The event's title when the report was filed."
           },
+          "source": {
+            "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportSource"
+              }
+            ]
+          },
           "targetType": {
             "allOf": [
               {
@@ -4967,7 +4993,8 @@
           "note": {
             "type": "string",
             "nullable": true,
-            "maxLength": 500
+            "maxLength": 500,
+            "description": "What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null."
           },
           "status": {
             "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",
@@ -5022,7 +5049,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Null once that account is deleted."
+            "description": "Null once that account is deleted, and always for an AUTOMATED report."
           },
           "escalationReasons": {
             "type": "array",
@@ -5075,6 +5102,7 @@
           "id",
           "eventId",
           "eventTitle",
+          "source",
           "targetType",
           "photoId",
           "reportedUserId",
@@ -5134,6 +5162,14 @@
             "type": "string",
             "description": "The event's title when the report was filed."
           },
+          "source": {
+            "description": "USER: a member filed it. AUTOMATED: one of Everglow's own checks did, such as upload screening; it is always in the PLATFORM queue and hides the photo from everyone but organizers.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportSource"
+              }
+            ]
+          },
           "targetType": {
             "allOf": [
               {
@@ -5163,7 +5199,8 @@
           "note": {
             "type": "string",
             "nullable": true,
-            "maxLength": 500
+            "maxLength": 500,
+            "description": "What the reporter wrote. An AUTOMATED report's note is the check's readout (screening's labels): only the platform's endpoints return it, and organizers get null."
           },
           "status": {
             "description": "ACTIONED: something was removed. DISMISSED: judged and left as it is. TARGET_GONE: closed without a verdict because what was reported was deleted.",
@@ -5218,7 +5255,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Null once that account is deleted."
+            "description": "Null once that account is deleted, and always for an AUTOMATED report."
           },
           "escalationReasons": {
             "type": "array",
@@ -5276,6 +5313,7 @@
           "id",
           "eventId",
           "eventTitle",
+          "source",
           "targetType",
           "photoId",
           "reportedUserId",
