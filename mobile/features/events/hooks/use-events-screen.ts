@@ -8,7 +8,8 @@ import { Alert } from "react-native";
 import { useEventsQuery } from "../api/queries";
 import { filterHomeEvents, sortHomeEventGroups } from "../lib/home-events-filters";
 import { LEAVE_MOTION, LEAVE_SETTLE_MS, takeLeftRoll, type LeftRoll } from "../lib/left-roll";
-import { groupRolls, hasClosed, isLastDay } from "../lib/rolls";
+import { useIsOnline } from "@/hooks/use-is-online";
+import { formatSavedAt, groupRolls, hasClosed, isLastDay } from "../lib/rolls";
 import type { Event } from "../types";
 import { useHomeEventsFilters } from "./use-home-events-filters";
 
@@ -30,9 +31,12 @@ export const useEventsScreen = () => {
     refetch,
   } = useEventsQuery(user?.id);
 
-  // A connection error keeps the last-loaded rolls on screen (03.5); any other
-  // failure is unexpected, so surface it.
-  const isOffline = isError && isConnectionError(error);
+  // No network, or a connection error, keeps the last-loaded rolls on screen,
+  // from memory or from the phone after an offline launch. Offline the query
+  // pauses rather than fails, so the network state counts on its own. Any
+  // other failure is unexpected, so surface it.
+  const isOnline = useIsOnline();
+  const isOffline = !isOnline || (isError && isConnectionError(error));
   useEffect(() => {
     if (isError && !isConnectionError(error)) {
       Alert.alert(t("failedTitle"), getErrorMessage(error, t("common:actions.tryAgain")));
@@ -95,13 +99,8 @@ export const useEventsScreen = () => {
     if (rollClosed) void refetch({ cancelRefetch: false });
   }, [rollClosed, refetch]);
 
-  const savedAtLabel = useMemo(
-    () =>
-      dataUpdatedAt
-        ? new Date(dataUpdatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })
-        : null,
-    [dataUpdatedAt],
-  );
+  // Against the time it is read, not `now`, which only ticks while a roll is on its last day.
+  const savedAtLabel = dataUpdatedAt ? formatSavedAt(dataUpdatedAt) : null;
 
   return {
     groups,
