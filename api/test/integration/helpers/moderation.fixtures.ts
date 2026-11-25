@@ -14,6 +14,7 @@ export const buildReport = (overrides: Partial<Report> = {}): Report => ({
   eventId: TEST_EVENT_ID,
   eventTitle: "Test Event",
   reporterId: TEST_USER_ID,
+  source: "USER",
   targetType: ReportTargetType.PHOTO,
   photoId: TEST_PHOTO_ID,
   reportedUserId: TEST_TARGET_USER_ID,

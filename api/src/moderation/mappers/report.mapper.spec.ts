@@ -9,6 +9,7 @@ describe("ReportMapper", () => {
     eventId: "66666666-6666-6666-6666-666666666666",
     eventTitle: "Ana & Ben",
     reporterId: "11111111-1111-1111-1111-111111111111",
+    source: "USER",
     targetType: "PHOTO",
     photoId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     reportedUserId: "22222222-2222-2222-2222-222222222222",
