@@ -541,7 +541,7 @@ test("changing photos clears a closing menu's deferred action", async () => {
   await act(async () => screen.getByTestId("frame-menu-dialog", { includeHiddenElements: true }).props.onDismiss());
   expect(input.onDelete).not.toHaveBeenCalled();
   await user.press(screen.getByRole("button", { name: "More" }));
-  expect(screen.getByText("Leila’s photo")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Delete Leila’s photo" })).toBeOnTheScreen();
 });
 
 test("a frame kept by a deleted account is signed as one, not as an unknown photographer", async () => {
@@ -556,7 +556,8 @@ test("a frame kept by a deleted account is signed as one, not as an unknown phot
   expect(screen.getByTestId("deleted-avatar", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.queryByText("Unknown photographer", { includeHiddenElements: true })).not.toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "More" }));
-  expect(screen.getByText("Photo from a deleted account")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Delete this photo" })).toBeOnTheScreen();
+  expect(screen.queryByText("Photo from a deleted account")).not.toBeOnTheScreen();
 });
 
 test("the uploader's portrait sits in the header next to their name", async () => {

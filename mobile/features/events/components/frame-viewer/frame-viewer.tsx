@@ -281,7 +281,6 @@ export const FrameViewer = (props: Props) => {
         <FrameMenu
           frame={frame}
           name={name}
-          time={time}
           isOwn={props.isOwn}
           canDelete={props.canDelete}
           visible={menuVisible && !!frame}

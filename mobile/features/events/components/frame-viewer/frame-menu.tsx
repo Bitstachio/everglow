@@ -1,13 +1,11 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Flag, Prohibit, Trash } from "phosphor-react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
-import { EdgePrint } from "@/components/ui/edge-print";
 import { MenuAction } from "@/components/ui/menu-action";
-import { RetryingPhoto } from "@/components/ui/retrying-photo";
 import { firstName, type SheetFrame } from "../../lib/roll-page";
 
-/** Whether More has any actions beyond the photo summary (Save/Share live on the bar). */
+/** Whether More has any actions (Save/Share live on the viewer bar). */
 export const frameMenuHasActions = ({
   canDelete,
   onReport,
@@ -19,13 +17,12 @@ export const frameMenuHasActions = ({
 }): boolean => canDelete || Boolean(onReport) || Boolean(onBlock);
 
 /**
- * Frame summary and overflow actions. Save and Share stay on the viewer bar;
+ * Overflow actions for the open photo. Save and Share stay on the viewer bar;
  * someone else's frame can be reported, and its owner blocked.
  */
 export const FrameMenu = ({
   frame,
   name,
-  time,
   isOwn,
   canDelete,
   visible,
@@ -37,7 +34,6 @@ export const FrameMenu = ({
 }: {
   frame: SheetFrame | null;
   name: string;
-  time: string;
   isOwn: boolean;
   canDelete: boolean;
   visible: boolean;
@@ -53,29 +49,6 @@ export const FrameMenu = ({
   return (
     <BottomSheet testID="frame-menu-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
       <View>
-        <View className="flex-row items-center gap-3 pb-4">
-          <View className="size-[52px] overflow-hidden rounded-frame">
-            <RetryingPhoto
-              uri={frame?.photo.thumbnailUrl}
-              cacheKey={frame ? `photo:${frame.photo.id}:thumbnail` : undefined}
-              className="h-full w-full"
-              contentFit="cover"
-            />
-          </View>
-          <View className="flex-1 gap-1">
-            <Text className="font-display text-title-sheet text-text">
-              {isOwn
-                ? t("viewer.ownPhoto")
-                : frame?.deleted
-                  ? t("viewer.deletedPhoto")
-                  : t("viewer.somePhoto", { name })}
-            </Text>
-            <EdgePrint size="frame-label">
-              {t("viewer.byline", { name: isOwn ? t("photo.you") : name, time })}
-            </EdgePrint>
-            {frame?.uploader?.username ? <EdgePrint size="frame-label">@{frame.uploader.username}</EdgePrint> : null}
-          </View>
-        </View>
         {canDelete ? (
           <MenuAction
             label={
