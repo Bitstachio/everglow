@@ -28,6 +28,7 @@ describe("ALERT_EVENTS", () => {
       UPLOAD_SLOTS_PRESIGN_FAILED: "photo.upload_slots.presign_failed",
       UPLOAD_SLOTS_REJECTED: "photo.upload_slots.rejected",
       PHOTO_HASH_BACKFILL_DISABLED: "photo.hash_backfill.disabled",
+      PHOTO_SCREENING_SKIPPED: "photo.screening.skipped",
 
       NOTIFICATION_GIVEN_UP: "notification.given_up",
       NOTIFICATION_SENDER_DISABLED: "notification.sender.disabled",
