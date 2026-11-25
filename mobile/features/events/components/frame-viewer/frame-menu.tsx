@@ -1,41 +1,44 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { DownloadSimple, Flag, Prohibit, ShareNetwork, Trash } from "phosphor-react-native";
+import { Flag, Prohibit, Trash } from "phosphor-react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
-import { EdgePrint } from "@/components/ui/edge-print";
 import { MenuAction } from "@/components/ui/menu-action";
-import { RetryingPhoto } from "@/components/ui/retrying-photo";
 import { firstName, type SheetFrame } from "../../lib/roll-page";
 
+/** Whether More has any actions (Save/Share live on the viewer bar). */
+export const frameMenuHasActions = ({
+  canDelete,
+  onReport,
+  onBlock,
+}: {
+  canDelete: boolean;
+  onReport?: unknown;
+  onBlock?: unknown;
+}): boolean => canDelete || Boolean(onReport) || Boolean(onBlock);
+
 /**
- * Chapter 09's frame summary and action index, without the removed frame
- * numbers. Someone else's frame can be reported, and its owner blocked (09.3).
+ * Overflow actions for the open photo. Save and Share stay on the viewer bar;
+ * someone else's frame can be reported, and its owner blocked.
  */
 export const FrameMenu = ({
   frame,
   name,
-  time,
   isOwn,
   canDelete,
   visible,
   onClose,
   onClosed,
-  onSave,
-  onShare,
   onDelete,
   onReport,
   onBlock,
 }: {
   frame: SheetFrame | null;
   name: string;
-  time: string;
   isOwn: boolean;
   canDelete: boolean;
   visible: boolean;
   onClose: () => void;
   onClosed: () => void;
-  onSave: () => void;
-  onShare: () => void;
   onDelete: () => void;
   /** Left out for your own frame: you can't report it. */
   onReport?: () => void;
@@ -46,33 +49,9 @@ export const FrameMenu = ({
   return (
     <BottomSheet testID="frame-menu-dialog" visible={visible} onClose={onClose} onClosed={onClosed}>
       <View>
-        <View className="flex-row items-center gap-3 pb-4">
-          <View className="size-[52px] overflow-hidden rounded-frame">
-            <RetryingPhoto
-              uri={frame?.photo.thumbnailUrl}
-              cacheKey={frame ? `photo:${frame.photo.id}:thumbnail` : undefined}
-              className="h-full w-full"
-              contentFit="cover"
-            />
-          </View>
-          <View className="flex-1 gap-1">
-            <Text className="font-display text-title-sheet text-text">
-              {isOwn
-                ? t("viewer.ownPhoto")
-                : frame?.deleted
-                  ? t("viewer.deletedPhoto")
-                  : t("viewer.somePhoto", { name })}
-            </Text>
-            <EdgePrint size="frame-label">
-              {t("viewer.byline", { name: isOwn ? t("photo.you") : name, time })}
-            </EdgePrint>
-            {frame?.uploader?.username ? <EdgePrint size="frame-label">@{frame.uploader.username}</EdgePrint> : null}
-          </View>
-        </View>
-        <MenuAction label={t("viewer.save")} icon={DownloadSimple} onPress={onSave} />
-        <MenuAction label={t("gallery.share")} icon={ShareNetwork} onPress={onShare} />
         {canDelete ? (
           <MenuAction
+            first
             label={
               isOwn
                 ? t("viewer.deleteOwn")
@@ -84,9 +63,12 @@ export const FrameMenu = ({
             onPress={onDelete}
           />
         ) : null}
-        {onReport ? <MenuAction label={t("report:menu.reportPhoto")} icon={Flag} onPress={onReport} /> : null}
+        {onReport ? (
+          <MenuAction first={!canDelete} label={t("report:menu.reportPhoto")} icon={Flag} onPress={onReport} />
+        ) : null}
         {onBlock ? (
           <MenuAction
+            first={!canDelete && !onReport}
             muted
             label={t("report:menu.block", { name: firstName(name) })}
             icon={Prohibit}

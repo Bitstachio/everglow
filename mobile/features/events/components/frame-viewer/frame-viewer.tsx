@@ -5,17 +5,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { AppIcon } from "@/components/ui/app-icon";
+import { Avatar, DeletedAvatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { EdgePrint, EdgeValue } from "@/components/ui/edge-print";
 import { RetryingPhoto } from "@/components/ui/retrying-photo";
-import { X, DotsThree } from "phosphor-react-native";
+import { X } from "phosphor-react-native";
 import { colorTokens } from "@/theme/tokens";
 import type { SheetFrame } from "../../lib/roll-page";
 import { GalleryDeleteSheet } from "../gallery-delete-sheet";
 import { FilmGrain } from "@/components/ui/film-grain";
 import { GalleryProgress, GalleryUnsaved } from "../gallery-controls";
-import { FrameMenu } from "./frame-menu";
+import { FrameMenu, frameMenuHasActions } from "./frame-menu";
 import { FramePager } from "./frame-pager";
 import { useFrameViewer } from "./use-frame-viewer";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
@@ -69,6 +70,7 @@ export const FrameViewer = (props: Props) => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stripStep = Math.floor(width / 5);
+  const showMore = frameMenuHasActions({ canDelete: props.canDelete, onReport, onBlock });
   const index = frames.findIndex((item) => item.photo.id === frame?.photo.id);
   const moveTo = (page: number) => {
     const target = frames[page];
@@ -130,9 +132,11 @@ export const FrameViewer = (props: Props) => {
           </View>
           <Animated.View style={pager.chromeStyle}>
             <View className="min-h-14 flex-row items-center gap-3 px-5 py-2">
-              <IconButton accessibilityLabel={t("viewer.close")} onPress={requestClose}>
-                <AppIcon icon={X} size="sm" color={colorTokens.text} />
-              </IconButton>
+              {uploader ? (
+                <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="header" />
+              ) : frame.deleted ? (
+                <DeletedAvatar size="header" />
+              ) : null}
               <View
                 accessible
                 accessibilityRole="adjustable"
@@ -155,8 +159,8 @@ export const FrameViewer = (props: Props) => {
                   {time}
                 </EdgePrint>
               </View>
-              <IconButton accessibilityLabel={t("gallery.more")} disabled={busy} onPress={openMenu}>
-                <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
+              <IconButton accessibilityLabel={t("viewer.close")} onPress={requestClose}>
+                <AppIcon icon={X} size="sm" color={colorTokens.text} />
               </IconButton>
             </View>
           </Animated.View>
@@ -252,33 +256,34 @@ export const FrameViewer = (props: Props) => {
                 onPress={props.onShare}
                 disabled={busy}
               />
-              <Button
-                title={t("viewer.moreAction")}
-                accessibilityLabel={t("gallery.more")}
-                variant="ghost"
-                fullWidth={false}
-                onPress={openMenu}
-                disabled={busy}
-              />
+              {showMore ? (
+                <Button
+                  title={t("viewer.moreAction")}
+                  accessibilityLabel={t("gallery.more")}
+                  variant="ghost"
+                  fullWidth={false}
+                  onPress={openMenu}
+                  disabled={busy}
+                />
+              ) : null}
             </View>
           </Animated.View>
         </View>
       </GestureHandlerRootView>
-      <FrameMenu
-        frame={frame}
-        name={name}
-        time={time}
-        isOwn={props.isOwn}
-        canDelete={props.canDelete}
-        visible={menuVisible && !!frame}
-        onClose={closeMenu}
-        onClosed={onMenuClosed}
-        onSave={() => fromMenu(props.onSave)}
-        onShare={() => fromMenu(props.onShare)}
-        onDelete={() => fromMenu(props.onDelete)}
-        onReport={onReport ? () => fromMenu(() => closeThen(onReport)) : undefined}
-        onBlock={onBlock ? () => fromMenu(onBlock) : undefined}
-      />
+      {showMore ? (
+        <FrameMenu
+          frame={frame}
+          name={name}
+          isOwn={props.isOwn}
+          canDelete={props.canDelete}
+          visible={menuVisible && !!frame}
+          onClose={closeMenu}
+          onClosed={onMenuClosed}
+          onDelete={() => fromMenu(props.onDelete)}
+          onReport={onReport ? () => fromMenu(() => closeThen(onReport)) : undefined}
+          onBlock={onBlock ? () => fromMenu(onBlock) : undefined}
+        />
+      ) : null}
       <GalleryDeleteSheet
         targets={props.deleteTargets}
         busy={props.isDeleting}

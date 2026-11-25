@@ -529,27 +529,71 @@ test("Android close does not wait for the iOS-only dismissal event", async () =>
 
 test("changing photos clears a closing menu's deferred action", async () => {
   const input = props();
+  input.canDelete = true;
   const view = await render(<FrameViewer {...input} />);
   const user = userEvent.setup();
-  await user.press(screen.getAllByRole("button", { name: "More" })[0]);
-  await user.press(within(screen.getByTestId("frame-menu-dialog")).getByRole("button", { name: "Save to Photos" }));
+  await user.press(screen.getByRole("button", { name: "More" }));
+  await user.press(
+    within(screen.getByTestId("frame-menu-dialog")).getByRole("button", { name: "Delete for everyone" }),
+  );
   const second = { ...input.frame!, photo: buildPhoto({ id: "photo-2" }), by: "Leila" };
-  await view.rerender(<FrameViewer {...input} frames={[input.frame!, second]} frame={second} isOwn={false} />);
+  await view.rerender(
+    <FrameViewer
+      {...input}
+      frames={[input.frame!, second]}
+      frame={second}
+      isOwn={false}
+      canDelete
+      onReport={jest.fn()}
+    />,
+  );
   await act(async () => screen.getByTestId("frame-menu-dialog", { includeHiddenElements: true }).props.onDismiss());
-  expect(input.onSave).not.toHaveBeenCalled();
-  await user.press(screen.getAllByRole("button", { name: "More" })[0]);
-  expect(screen.getByText("Leila’s photo")).toBeOnTheScreen();
+  expect(input.onDelete).not.toHaveBeenCalled();
+  await user.press(screen.getByRole("button", { name: "More" }));
+  expect(screen.getByRole("button", { name: "Delete Leila’s photo" })).toBeOnTheScreen();
 });
 
 test("a frame kept by a deleted account is signed as one, not as an unknown photographer", async () => {
   const input = props();
   input.isOwn = false;
+  input.canDelete = true;
   input.frame = { ...input.frame!, photo: buildPhoto({ addedById: null }), by: null, deleted: true };
   input.frames = [input.frame];
   await render(<FrameViewer {...input} />);
   expect(screen.getByRole("adjustable").props.accessibilityLabel).toMatch(/^Deleted account · /);
   expect(screen.getByLabelText("Photo by Deleted account")).toBeOnTheScreen();
+  expect(screen.getByTestId("deleted-avatar", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.queryByText("Unknown photographer", { includeHiddenElements: true })).not.toBeOnTheScreen();
-  await userEvent.setup().press(screen.getAllByRole("button", { name: "More" })[0]);
-  expect(screen.getByText("Photo from a deleted account")).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "More" }));
+  expect(screen.getByRole("button", { name: "Delete this photo" })).toBeOnTheScreen();
+  expect(screen.queryByText("Photo from a deleted account")).not.toBeOnTheScreen();
+});
+
+test("the uploader's portrait sits in the header next to their name", async () => {
+  const input = props();
+  input.frame = {
+    ...input.frame!,
+    by: "Grace",
+    uploader: { userId: "user-2", name: "Grace Lee", avatarUrl: "https://img/grace", username: "grace" },
+  };
+  input.frames = [input.frame];
+  input.isOwn = false;
+  input.onReport = jest.fn();
+  await render(<FrameViewer {...input} />);
+  expect(screen.getByTestId("avatar-image", { includeHiddenElements: true })).toHaveProp(
+    "source",
+    expect.arrayContaining([expect.objectContaining({ uri: "https://img/grace" })]),
+  );
+  expect(screen.getByRole("button", { name: "Close photo" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "More" })).toBeOnTheScreen();
+});
+
+test("hides More when the sheet would have no actions", async () => {
+  const input = props();
+  input.canDelete = false;
+  input.isOwn = true;
+  await render(<FrameViewer {...input} />);
+  expect(screen.getByRole("button", { name: "Save to Photos" })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Share" })).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "More" })).not.toBeOnTheScreen();
 });
