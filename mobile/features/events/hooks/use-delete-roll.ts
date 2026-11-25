@@ -1,10 +1,10 @@
 import { getErrorMessage } from "@/lib/api/errors";
+import { formatDate } from "@/lib/format-date";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDeleteEventMutation } from "../api/mutations";
 import { closedOn } from "../lib/envelope";
-import { formatClosedOn } from "../lib/rolls";
 import type { EventResponseDto } from "../types";
 
 type DeleteRollOptions = {
@@ -55,7 +55,7 @@ export const useDeleteRoll = (event: EventResponseDto | null, { onDeleted }: Del
     isDeleting: mutation.isPending,
     slip: {
       edge: event
-        ? t("settings.deleteEvent.edge", { date: formatClosedOn(closedOn(event)), count: event.usage.members })
+        ? t("settings.deleteEvent.edge", { date: formatDate(closedOn(event)), count: event.usage.members })
         : "",
       body: t("settings.deleteEvent.body", { count: event?.usage.members ?? 0 }),
       confirmLabel: t("settings.deleteEvent.confirm", { title: event?.title ?? "" }),

@@ -1,15 +1,17 @@
 import "../testing/native-mocks";
 import { render, screen, userEvent } from "@testing-library/react-native";
+import { formatDate, formatTime } from "@/lib/format-date";
 import { buildEvent } from "../testing/fixtures";
 import { EventCard } from "./event-card";
 
 test("renders event details and date/time in the device timezone", async () => {
-  const event = buildEvent({ date: new Date(2026, 8, 20, 15, 30).toISOString() });
+  const when = new Date(2026, 8, 20, 15, 30);
+  const event = buildEvent({ date: when.toISOString() });
   const onPress = jest.fn();
   await render(<EventCard event={event} onPress={onPress} />);
   expect(screen.getByText(event.title)).toBeOnTheScreen();
   expect(screen.getByText(event.description!)).toBeOnTheScreen();
-  expect(screen.getByText("Sep 20, 2026 • 3:30 PM")).toBeOnTheScreen();
+  expect(screen.getByText(`${formatDate(when)} • ${formatTime(when)}`)).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: `Open ${event.title}` }));
   expect(onPress).toHaveBeenCalledTimes(1);
 });

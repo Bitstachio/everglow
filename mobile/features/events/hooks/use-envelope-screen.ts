@@ -1,5 +1,6 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage } from "@/lib/api/errors";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,8 +13,6 @@ import {
   envelopeAccessLevel,
   envelopeState,
   envelopeUrl,
-  formatEnvelopeDate,
-  formatEnvelopeDay,
   type EnvelopeKind,
 } from "../lib/envelope";
 
@@ -58,17 +57,15 @@ export const useEnvelopeScreen = () => {
 
   const pickUpBy = () => {
     if (!event) return undefined;
-    if (state === "closed") return t("pickUp.gone", { date: formatEnvelopeDay(closedOn(event)) });
-    return event.galleryClosesAt
-      ? t("pickUp.until", { date: formatEnvelopeDay(event.galleryClosesAt) })
-      : t("pickUp.never");
+    if (state === "closed") return t("pickUp.gone", { date: formatDate(closedOn(event)) });
+    return event.galleryClosesAt ? t("pickUp.until", { date: formatDate(event.galleryClosesAt) }) : t("pickUp.never");
   };
 
   const envelope =
     event && isHost
       ? {
           title: event.title,
-          startsAt: formatEnvelopeDate(event.date),
+          startsAt: formatDateTime(event.date),
           peopleCount: event.usage.members,
           pickUpBy: pickUpBy(),
           admits: shown,
@@ -86,7 +83,7 @@ export const useEnvelopeScreen = () => {
           state,
           stamp: t(`${state}.stamp`),
           stampLine: t(`${state}.stampLine`),
-          date: state === "closed" ? formatEnvelopeDay(closedOn(event)) : undefined,
+          date: state === "closed" ? formatDate(closedOn(event)) : undefined,
         }
       : null;
 

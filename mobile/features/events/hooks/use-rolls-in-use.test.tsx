@@ -58,12 +58,12 @@ test("says how many rolls are running and which frees a spot first", async () =>
     title: "Both events",
     dim: "are in use.",
     runs: "A free account runs 2 events at a time.",
-    next: { title: "Nadia turns 30", date: "Sat 14 Nov" },
+    next: { title: "Nadia turns 30", date: "Sat, 14 Nov" },
   });
   // Only rolls you started count; the one that frees a spot comes last, with its note.
   expect(result.current?.rolls.map(({ event, note }) => [event.id, note])).toEqual([
     ["wedding", undefined],
-    ["party", "free on 14 Nov ↑"],
+    ["party", "free on Sat, 14 Nov ↑"],
   ]);
 });
 

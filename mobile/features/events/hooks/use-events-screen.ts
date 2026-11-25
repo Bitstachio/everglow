@@ -1,5 +1,6 @@
 import { useAuth } from "@/context/auth-context";
 import { getErrorMessage, isConnectionError } from "@/lib/api/errors";
+import { formatTime } from "@/lib/format-date";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -95,13 +96,7 @@ export const useEventsScreen = () => {
     if (rollClosed) void refetch({ cancelRefetch: false });
   }, [rollClosed, refetch]);
 
-  const savedAtLabel = useMemo(
-    () =>
-      dataUpdatedAt
-        ? new Date(dataUpdatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })
-        : null,
-    [dataUpdatedAt],
-  );
+  const savedAtLabel = useMemo(() => (dataUpdatedAt ? formatTime(dataUpdatedAt) : null), [dataUpdatedAt]);
 
   return {
     groups,

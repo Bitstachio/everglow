@@ -1,6 +1,7 @@
 import { useAuth } from "@/context/auth-context";
 import { useUnblockMutation } from "@/features/profile/api/mutations";
 import { getErrorCode, getErrorMessage, isApiError } from "@/lib/api/errors";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import { savePendingInvite } from "@/lib/pending-invite";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
@@ -8,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { useJoinEventMutation } from "../api/mutations";
 import { useInvitePreviewQuery } from "../api/queries";
-import { firstName, formatEnvelopeDate, formatPickUpDate } from "../lib/invite";
+import { firstName } from "../lib/invite";
 import type { InvitePreviewState } from "../types";
 
 /** Why an envelope doesn't admit the caller (06.8–06.13): a preview state, or a link that doesn't open. */
@@ -112,13 +113,13 @@ export const useJoinEnvelopeScreen = () => {
     envelope: data
       ? {
           title: data.title,
-          startsAt: formatEnvelopeDate(data.date),
+          startsAt: formatDateTime(data.date),
           peopleCount: data.memberCount,
           pickUpBy: !data.galleryClosesAt
             ? t("envelope.pickUpNever")
             : // Past the pick-up date there's nothing left to collect.
               t(data.galleryState === "CLOSED" ? "envelope.pickUpGone" : "envelope.pickUp", {
-                date: formatPickUpDate(data.galleryClosesAt),
+                date: formatDate(data.galleryClosesAt),
               }),
           admits: data.accessLevel === "VIEWER" ? ("view" as const) : ("adds" as const),
           invitationUrl: data.invitationUrl,
@@ -127,7 +128,7 @@ export const useJoinEnvelopeScreen = () => {
     /** The host by first name, or null when their profile is gone. */
     host: data?.host?.name ? firstName(data.host.name) : null,
     memberLimit: data?.memberLimit ?? null,
-    closedOn: data?.galleryClosesAt ? formatPickUpDate(data.galleryClosesAt) : null,
+    closedOn: data?.galleryClosesAt ? formatDate(data.galleryClosesAt) : null,
     failureMessage: preview.isError ? getErrorMessage(preview.error) : null,
     isJoining: busy,
     onJoin: () => {

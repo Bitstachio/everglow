@@ -5,11 +5,11 @@ import { useTranslation } from "react-i18next";
 type RollEnvelopeProps = {
   /** The roll's name. */
   title: string;
-  /** When the roll is, formatted: "Sat 7 Nov, 7 pm". */
+  /** When the roll is, formatted: "Sat, 7 Nov, 19:00". */
   startsAt?: string;
   /** Everyone on the roll, hosts included. */
   peopleCount?: number;
-  /** When the photos go, formatted: "14 Nov, then it’s gone". */
+  /** When the photos go, formatted: "Sat, 14 Nov, then it’s gone". */
   pickUpBy?: string;
   /** Which box is ticked: the adds-photos or the view-only envelope. */
   admits?: "adds" | "view";

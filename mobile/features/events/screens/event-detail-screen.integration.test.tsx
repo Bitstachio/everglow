@@ -521,7 +521,7 @@ describe("closed (07.9)", () => {
       photos: oneFrame,
     });
 
-    expect(await screen.findByText("Closed 21.09")).toBeOnTheScreen();
+    expect(await screen.findByText("Closed Mon, 21 Sep")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
   });
 
@@ -535,8 +535,8 @@ describe("closed (07.9)", () => {
       participants: [host, guest],
     });
 
-    expect(await screen.findByText("Closed 21.09")).toBeOnTheScreen();
-    expect(screen.getByLabelText("The photos were removed on 21 Sep.")).toBeOnTheScreen();
+    expect(await screen.findByText("Closed Mon, 21 Sep")).toBeOnTheScreen();
+    expect(screen.getByLabelText("The photos were removed on Mon, 21 Sep.")).toBeOnTheScreen();
     expect(screen.getByText("Who was there · 2")).toBeOnTheScreen();
     expect(screen.getByText("Grace Hopper")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Add photos" })).not.toBeOnTheScreen();
@@ -568,7 +568,7 @@ describe("closed (07.9)", () => {
     });
 
     expect(await screen.findByText("Closed just now")).toBeOnTheScreen();
-    expect(screen.getByText(/^Oct 18 – .* · ended early · 24 people$/)).toBeOnTheScreen();
+    expect(screen.getByText(/^Sun, 18 Oct.* – .+ · ended early · 24 people$/)).toBeOnTheScreen();
     expect(screen.getByLabelText(/^The photos were removed on /)).toBeOnTheScreen();
     expect(screen.queryByText(/^photos removed/)).toBeNull();
     expect(screen.queryByText(/^Event ended early/)).toBeNull();
@@ -577,9 +577,9 @@ describe("closed (07.9)", () => {
   test("a roll cut earlier says it was cut early, under the day it closed", async () => {
     await renderScreen({ event: cutEvent(), participants: [host, guest] });
 
-    expect(await screen.findByText("Closed 03.11")).toBeOnTheScreen();
-    expect(screen.getByText("Oct 18 – Nov 3 · ended early · 24 people")).toBeOnTheScreen();
-    expect(screen.getByText("photos removed 3 Nov")).toBeOnTheScreen();
+    expect(await screen.findByText("Closed Tue, 3 Nov")).toBeOnTheScreen();
+    expect(screen.getByText("Sun, 18 Oct – Tue, 3 Nov · ended early · 24 people")).toBeOnTheScreen();
+    expect(screen.getByText("photos removed Tue, 3 Nov")).toBeOnTheScreen();
     expect(screen.queryByText(/^Event ended early/)).toBeNull();
   });
 
@@ -622,7 +622,7 @@ describe("closed (07.9)", () => {
     await user.press(await screen.findByRole("button", { name: "Event menu" }));
     await user.press(screen.getByRole("button", { name: "Delete the event" }));
 
-    expect(await screen.findByText("Closed 21.09 · 11 people")).toBeOnTheScreen();
+    expect(await screen.findByText("Closed Mon, 21 Sep · 11 people")).toBeOnTheScreen();
     expect(screen.getByText(/for all 11 people/)).toBeOnTheScreen();
     const nativeDismiss = screen.getByTestId("roll-dialog", { includeHiddenElements: true }).props.onDismiss;
     await user.press(screen.getByRole("button", { name: "Delete Lake weekend" }));
@@ -666,7 +666,7 @@ describe("closed (07.9)", () => {
     await user.press(screen.getByRole("button", { name: "Leave the event" }));
 
     expect(await screen.findByText("Couldn’t leave this roll.")).toBeOnTheScreen();
-    expect(screen.getByText("Closed 21.09")).toBeOnTheScreen();
+    expect(screen.getByText("Closed Mon, 21 Sep")).toBeOnTheScreen();
     expect(mockReplace).not.toHaveBeenCalled();
   });
 

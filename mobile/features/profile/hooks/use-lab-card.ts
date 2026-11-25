@@ -1,5 +1,6 @@
 import { getAvatarCacheKey } from "@/components/ui/avatar";
 import { useAuth } from "@/context/auth-context";
+import { formatMonthYear } from "@/lib/format-date";
 import { useTranslation } from "react-i18next";
 import { useMyLimitsQuery } from "../api/queries";
 
@@ -8,15 +9,13 @@ import { useMyLimitsQuery } from "../api/queries";
  * they're running, with the plan's limit read from the API.
  */
 export const useLabCard = () => {
-  const { t, i18n } = useTranslation("onboarding");
+  const { t } = useTranslation("onboarding");
   const { user, isSuspended } = useAuth();
   // A suspended account can only read itself; the API refuses its limits.
   const { data: limits } = useMyLimitsQuery({ enabled: !isSuspended });
   const details = user?.details;
 
-  const since = user
-    ? new Intl.DateTimeFormat(i18n.language, { month: "short", year: "numeric" }).format(new Date(user.createdAt))
-    : "";
+  const since = user ? formatMonthYear(user.createdAt) : "";
   const running = limits
     ? limits.limits.activeEvents == null
       ? t("card.runningNoLimit", { count: limits.usage.activeEvents })

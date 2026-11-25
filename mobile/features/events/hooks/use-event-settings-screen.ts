@@ -1,6 +1,7 @@
 import { useAuth } from "@/context/auth-context";
 import { useMyLimitsQuery } from "@/features/profile/api/queries";
 import { getErrorMessage } from "@/lib/api/errors";
+import { formatDate, formatDateTime, formatMinutes, formatMonth, formatTime } from "@/lib/format-date";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,11 +12,6 @@ import {
   addMonths,
   atMinutes,
   calendarMonth,
-  formatClock,
-  formatLongDay,
-  formatMinutes,
-  formatMonth,
-  formatShortDay,
   galleryWindow,
   minutesOf,
   monthsBetween,
@@ -24,9 +20,8 @@ import {
   TIME_SLOTS,
   WEEKDAY_INITIALS,
 } from "../lib/new-roll";
-import { closedOn, envelopeCount, envelopeState, formatEnvelopeDay } from "../lib/envelope";
-import { formatOpensAt, rollRole, storagePair } from "../lib/roll-page";
-import { formatClosedOn } from "../lib/rolls";
+import { closedOn, envelopeCount, envelopeState } from "../lib/envelope";
+import { rollRole, storagePair } from "../lib/roll-page";
 import { useChangeEventCover } from "./use-change-event-cover";
 import { useDeleteRoll } from "./use-delete-roll";
 
@@ -82,14 +77,14 @@ export const useEventSettingsScreen = () => {
   const subtitle = !event
     ? ""
     : isClosed
-      ? t("event:closed.top", { date: formatClosedOn(closedOn(event)) })
+      ? t("event:closed.top", { date: formatDate(closedOn(event)) })
       : event.galleryState === "OPEN"
         ? event.galleryClosesAt
-          ? t("event:settings.openUntil", { until: formatEnvelopeDay(event.galleryClosesAt) })
+          ? t("event:settings.openUntil", { until: formatDate(event.galleryClosesAt) })
           : t("event:settings.open")
-        : t("event:settings.opens", { when: formatOpensAt(event.galleryOpensAt) });
+        : t("event:settings.opens", { when: formatDateTime(event.galleryOpensAt) });
 
-  const whenValue = event ? formatOpensAt(event.date) : "";
+  const whenValue = event ? formatDateTime(event.date) : "";
   const filmValue =
     event?.galleryWindowDays != null ? t("event:settings.durationDays", { count: event.galleryWindowDays }) : "";
 
@@ -161,8 +156,8 @@ export const useEventSettingsScreen = () => {
       label: day ? String(day.getDate()) : null,
       accessibilityLabel: day
         ? state === "unavailable"
-          ? t("event:settings.editWhen.unavailable", { day: formatLongDay(day) })
-          : formatLongDay(day)
+          ? t("event:settings.editWhen.unavailable", { day: formatDate(day) })
+          : formatDate(day)
         : undefined,
       onPress: day ? () => setWhenDraft((current) => clampWhen(onDay(current, day))) : undefined,
     }));
@@ -307,8 +302,8 @@ export const useEventSettingsScreen = () => {
       people: othersOnRoll > 0 ? t("event:settings.editWhen.people", { count: othersOnRoll }) : null,
       error: whenError,
       setLabel: t("event:settings.editWhen.move", {
-        day: formatLongDay(whenDraft),
-        time: formatClock(whenDraft),
+        day: formatDate(whenDraft),
+        time: formatTime(whenDraft),
       }),
       onSet: () => void saveWhen(),
       isSetting: whenSaving,
@@ -324,7 +319,7 @@ export const useEventSettingsScreen = () => {
       options: filmOptions,
       selected: filmDraft,
       onSelect: setFilmDraft,
-      closes: filmPreview.closesAt ? formatShortDay(filmPreview.closesAt) : null,
+      closes: filmPreview.closesAt ? formatDate(filmPreview.closesAt) : null,
       error: filmError,
       saveLabel: t("event:settings.editDuration.save"),
       onSave: () => void saveFilm(),

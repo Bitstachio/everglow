@@ -1,4 +1,5 @@
 import { useMyLimitsQuery } from "@/features/profile/api/queries";
+import { formatDate, formatMinutes, formatMonth, formatTime } from "@/lib/format-date";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useWatch } from "react-hook-form";
@@ -10,11 +11,6 @@ import {
   monthsBetween,
   atMinutes,
   calendarMonth,
-  formatClock,
-  formatLongDay,
-  formatMinutes,
-  formatMonth,
-  formatShortDay,
   galleryWindow,
   minutesOf,
   onDay,
@@ -98,8 +94,8 @@ export const useNewRollScreen = () => {
 
   const describeWhen = (when: Date) => {
     const kind = rollDay(when, now);
-    const day = kind === "date" ? formatShortDay(when) : t(`label.days.${kind}`);
-    return t("label.when", { day, time: formatClock(when) });
+    const day = kind === "date" ? formatDate(when) : t(`label.days.${kind}`);
+    return t("label.when", { day, time: formatTime(when) });
   };
 
   // Names for the usual lengths; any other length is printed in days.
@@ -123,8 +119,8 @@ export const useNewRollScreen = () => {
         label: day ? String(day.getDate()) : null,
         accessibilityLabel: day
           ? state === "unavailable"
-            ? t("when.unavailable", { day: formatLongDay(day) })
-            : formatLongDay(day)
+            ? t("when.unavailable", { day: formatDate(day) })
+            : formatDate(day)
           : undefined,
         onPress: day ? () => setDraft((current) => clamp(onDay(current, day))) : undefined,
       }),
@@ -164,7 +160,7 @@ export const useNewRollScreen = () => {
       options: filmOptions,
       selected: galleryWindowDays,
       onSelect: (days: number) => form.setValue("galleryWindowDays", days, { shouldDirty: true }),
-      closes: gallery.closesAt ? formatShortDay(gallery.closesAt) : null,
+      closes: gallery.closesAt ? formatDate(gallery.closesAt) : null,
     },
     cover: {
       uri: cover?.uri,
@@ -199,7 +195,7 @@ export const useNewRollScreen = () => {
         },
         weekdays: WEEKDAY_INITIALS,
         times,
-        setLabel: t("when.set", { day: formatLongDay(draft), time: formatClock(draft) }),
+        setLabel: t("when.set", { day: formatDate(draft), time: formatTime(draft) }),
         onSet: () => {
           form.setValue("date", draft, { shouldDirty: true });
           setWhenVisible(false);

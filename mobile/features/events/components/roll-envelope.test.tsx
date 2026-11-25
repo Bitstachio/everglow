@@ -8,9 +8,9 @@ jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 
 const roll = {
   title: "Nadia turns 30",
-  startsAt: "Sat 7 Nov, 7 pm",
+  startsAt: "Sat, 7 Nov, 19:00",
   peopleCount: 18,
-  pickUpBy: "14 Nov, then it’s gone",
+  pickUpBy: "Sat, 14 Nov, then it’s gone",
   accessibilityLabel: "Adds-photos envelope for Nadia turns 30",
 };
 
@@ -19,9 +19,9 @@ test("fills the envelope in with the roll", async () => {
 
   expect(screen.getByLabelText("Adds-photos envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
-  expect(screen.getByText("Sat 7 Nov, 7 pm")).toBeOnTheScreen();
+  expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
-  expect(screen.getByText("14 Nov, then it’s gone")).toBeOnTheScreen();
+  expect(screen.getByText("Sat, 14 Nov, then it’s gone")).toBeOnTheScreen();
   expect(screen.getByText("QR")).toBeOnTheScreen();
 });
 

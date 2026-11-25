@@ -1,11 +1,11 @@
 import { useAuth } from "@/context/auth-context";
 import { useEventOpenReportsQuery } from "@/features/moderation/api/queries";
 import { groupOpenReports } from "@/features/moderation/lib/report-groups";
+import { formatDate } from "@/lib/format-date";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useEventParticipantsQuery, useEventQuery } from "../api/queries";
-import { formatEnvelopeDay } from "../lib/envelope";
 import { rollRole } from "../lib/roll-page";
 
 type BlockerRow = {
@@ -57,7 +57,7 @@ export const useCantDeleteRollScreen = () => {
       key: "open",
       label: event.galleryState === "OPEN" ? t("cantDelete.stillOpen") : t("cantDelete.notOpenYet"),
       value: event.galleryClosesAt
-        ? t("cantDelete.waitUntil", { date: formatEnvelopeDay(event.galleryClosesAt) })
+        ? t("cantDelete.waitUntil", { date: formatDate(event.galleryClosesAt) })
         : t("cantDelete.cutFirst"),
       lit: true,
     });

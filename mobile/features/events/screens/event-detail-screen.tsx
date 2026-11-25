@@ -12,6 +12,7 @@ import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Slip } from "@/components/ui/slip";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
+import { formatDate, formatDateRange, formatDateTime, formatTime } from "@/lib/format-date";
 import { colorTokens } from "@/theme/tokens";
 import { DotsThree } from "phosphor-react-native";
 import type { ReactNode } from "react";
@@ -36,21 +37,17 @@ import { BlockSlip } from "@/features/moderation/components/block-slip";
 import { RollTrayLine } from "../components/roll-tray-line";
 import { UnexposedRoll } from "../components/unexposed-roll";
 import { useEventDetailScreen } from "../hooks/use-event-detail-screen";
-import { closedOn, formatEnvelopeDay } from "../lib/envelope";
+import { closedOn } from "../lib/envelope";
 import {
   bandStock,
   bandTime,
-  formatClock,
-  formatOpensAt,
-  formatRange,
   frameSeed,
-  formatRollDate,
   hostName,
   storagePair,
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
-import { formatClosedOn, formatOpensOn, rollFrameCount } from "../lib/rolls";
+import { rollFrameCount } from "../lib/rolls";
 import type { DevelopingFrame } from "../lib/upload-tray-view";
 import { formatEventStorage, formatStorageBytes } from "../utils";
 
@@ -94,7 +91,7 @@ const EventDetailScreen = () => {
   const count = rollFrameCount(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
-    const opens = formatRollDate(event.galleryOpensAt);
+    const opens = formatDate(event.galleryOpensAt);
     return (
       <RollOpened
         title={event.title}
@@ -102,8 +99,8 @@ const EventDetailScreen = () => {
         edge={
           event.galleryClosesAt
             ? t("opened.edge", {
-                opens: formatOpensAt(event.galleryOpensAt),
-                closes: formatRollDate(event.galleryClosesAt),
+                opens,
+                closes: formatDate(event.galleryClosesAt),
                 count: event.usage.members,
               })
             : t("opened.edgeOpenEnded", { opens, count: event.usage.members })
@@ -133,11 +130,11 @@ const EventDetailScreen = () => {
   // closed, it says so over two crossed-out strips.
   if (stage === "closed") {
     const removedOn = closedOn(event);
-    const edgeValues = { range: formatRange(event.galleryOpensAt, removedOn), count: event.usage.members };
+    const edgeValues = { range: formatDateRange(event.galleryOpensAt, removedOn), count: event.usage.members };
     return (
       <SafeAreaView className="flex-1 bg-ground">
         <TopBar
-          title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
+          title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatDate(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
             <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
@@ -163,14 +160,14 @@ const EventDetailScreen = () => {
                 <UnexposedRoll
                   strips={2}
                   crossed
-                  accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
+                  accessibilityLabel={t("closed.removedLabel", { date: formatDate(removedOn) })}
                 />
               ) : (
                 <UnexposedRoll
                   strips={3}
                   crossed
-                  note={t("closed.removed", { date: formatEnvelopeDay(removedOn) })}
-                  accessibilityLabel={t("closed.removedLabel", { date: formatEnvelopeDay(removedOn) })}
+                  note={t("closed.removed", { date: formatDate(removedOn) })}
+                  accessibilityLabel={t("closed.removedLabel", { date: formatDate(removedOn) })}
                 />
               )}
               <EdgePrint className="mx-5 mt-8 border-b border-outline-soft pb-2.5">
@@ -237,18 +234,18 @@ const EventDetailScreen = () => {
     stage === "upcoming"
       ? role === "host"
         ? event.galleryWindowDays
-          ? t("sub.upcomingHost", { when: formatOpensAt(event.galleryOpensAt), days: event.galleryWindowDays })
-          : t("sub.upcomingHostOpenEnded", { when: formatOpensAt(event.galleryOpensAt) })
+          ? t("sub.upcomingHost", { when: formatDateTime(event.galleryOpensAt), days: event.galleryWindowDays })
+          : t("sub.upcomingHostOpenEnded", { when: formatDateTime(event.galleryOpensAt) })
         : host
-          ? t("sub.upcomingGuest", { when: formatOpensAt(event.galleryOpensAt), host })
-          : t("sub.upcomingHostOpenEnded", { when: formatOpensAt(event.galleryOpensAt) })
+          ? t("sub.upcomingGuest", { when: formatDateTime(event.galleryOpensAt), host })
+          : t("sub.upcomingHostOpenEnded", { when: formatDateTime(event.galleryOpensAt) })
       : stage === "suspended"
         ? host
-          ? t("sub.hidden", { date: formatRollDate(event.date), host })
-          : t("sub.hiddenNoHost", { date: formatRollDate(event.date) })
+          ? t("sub.hidden", { date: formatDate(event.date), host })
+          : t("sub.hiddenNoHost", { date: formatDate(event.date) })
         : host
-          ? t("sub.open", { date: formatRollDate(event.date), host, count })
-          : t("sub.openNoHost", { date: formatRollDate(event.date), count });
+          ? t("sub.open", { date: formatDate(event.date), host, count })
+          : t("sub.openNoHost", { date: formatDate(event.date), count });
 
   const save: FooterAction = {
     title:
@@ -282,8 +279,8 @@ const EventDetailScreen = () => {
           ? { kind: "leader", title: t("footer.sendEnvelope"), mark: "↗", onPress: screen.onOpenEnvelope }
           : {
               kind: "locked",
-              label: t("footer.opensAt", { when: formatOpensOn(event.galleryOpensAt) }),
-              accessibilityLabel: t("footer.lockedLabel", { when: formatOpensOn(event.galleryOpensAt) }),
+              label: t("footer.opensAt", { when: formatDateTime(event.galleryOpensAt) }),
+              accessibilityLabel: t("footer.lockedLabel", { when: formatDateTime(event.galleryOpensAt) }),
             };
       case "underReview":
         return { kind: "locked", label: t("footer.onHold"), accessibilityLabel: t("footer.onHold"), save };
@@ -605,7 +602,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
           // 08.8: the gallery closed while photos were sending. There's no Retry.
           <Slip
             edge={t("closedSending.edge", {
-              time: formatClock(event.galleryState === "CLOSED" ? closedOn(event) : closed.at),
+              time: formatTime(event.galleryState === "CLOSED" ? closedOn(event) : closed.at),
             })}
             title={t("closedSending.title", { count: screen.tray.closed })}
             body={closed.landed > 0 ? t("closedSending.body", { count: closed.landed }) : t("closedSending.bodyNone")}

@@ -1,11 +1,4 @@
-import {
-  extractInvitationToken,
-  firstName,
-  formatEnvelopeDate,
-  formatPickUpDate,
-  looksLikeInvite,
-  routeForIncomingLink,
-} from "./invite";
+import { extractInvitationToken, firstName, looksLikeInvite, routeForIncomingLink } from "./invite";
 
 describe("extractInvitationToken", () => {
   test.each([
@@ -42,17 +35,7 @@ describe("looksLikeInvite", () => {
   );
 });
 
-describe("formatting", () => {
-  test("prints when a roll happens the way the envelope does", () => {
-    expect(formatEnvelopeDate(new Date(2026, 9, 18, 16, 0).toISOString())).toBe("Sun 18 Oct, 4 pm");
-    expect(formatEnvelopeDate(new Date(2026, 10, 7, 19, 30).toISOString())).toBe("Sat 7 Nov, 7:30 pm");
-    expect(formatEnvelopeDate(new Date(2026, 10, 7, 0, 5).toISOString())).toBe("Sat 7 Nov, 12:05 am");
-  });
-
-  test("prints the pick-up day", () => {
-    expect(formatPickUpDate(new Date(2026, 10, 17, 12).toISOString())).toBe("17 Nov");
-  });
-
+describe("firstName", () => {
   test("names the host by their first name", () => {
     expect(firstName("Sam Rivera")).toBe("Sam");
     expect(firstName("  Jo  ")).toBe("Jo");

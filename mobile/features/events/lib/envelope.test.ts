@@ -1,13 +1,5 @@
 import { buildEvent } from "../testing/fixtures";
-import {
-  closedOn,
-  envelopeAccessLevel,
-  envelopeCount,
-  envelopeState,
-  envelopeUrl,
-  formatEnvelopeDate,
-  formatEnvelopeDay,
-} from "./envelope";
+import { closedOn, envelopeAccessLevel, envelopeCount, envelopeState, envelopeUrl } from "./envelope";
 
 test("each envelope carries the invite for its access level", () => {
   const event = buildEvent();
@@ -19,19 +11,6 @@ test("each envelope carries the invite for its access level", () => {
 
 test("an envelope has no link when the API listed no invites", () => {
   expect(envelopeUrl(buildEvent({ invites: [] }), "adds")).toBeNull();
-});
-
-test("writes the roll's date the way the lab fills it in", () => {
-  expect(formatEnvelopeDate(new Date(2026, 10, 7, 19, 0).toISOString())).toBe("Sat 7 Nov, 7 pm");
-  expect(formatEnvelopeDate(new Date(2026, 10, 7, 19, 30).toISOString())).toBe("Sat 7 Nov, 7:30 pm");
-  expect(formatEnvelopeDate(new Date(2026, 10, 8, 0, 5).toISOString())).toBe("Sun 8 Nov, 12:05 am");
-  expect(formatEnvelopeDate(new Date(2026, 10, 8, 12, 0).toISOString())).toBe("Sun 8 Nov, 12 pm");
-  expect(formatEnvelopeDate(new Date(2026, 8, 12, 18, 0).toISOString())).toBe("Sat 12 Sep, 6 pm");
-});
-
-test("writes a day with a three-letter month", () => {
-  expect(formatEnvelopeDay(new Date(2026, 8, 21, 12, 0).toISOString())).toBe("21 Sep");
-  expect(formatEnvelopeDay(new Date(2026, 10, 14, 12, 0).toISOString())).toBe("14 Nov");
 });
 
 test("an envelope admits people only while the roll is open and in good standing", () => {

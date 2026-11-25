@@ -1,6 +1,7 @@
 import { useEventParticipantsQuery, useEventPhotosQuery, useEventQuery } from "@/features/events/api/queries";
 import { useAuth } from "@/context/auth-context";
 import { getErrorCode, getErrorMessage } from "@/lib/api/errors";
+import { formatDateTime } from "@/lib/format-date";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,7 +21,7 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
  * report on it. 10.10 when it's with Everglow: hosts are told no more than that.
  */
 export const useReportCheckScreen = () => {
-  const { t, i18n } = useTranslation("report");
+  const { t } = useTranslation("report");
   const { user } = useAuth();
   const params = useLocalSearchParams<Params>();
   const eventId = first(params.id) ?? "";
@@ -75,14 +76,7 @@ export const useReportCheckScreen = () => {
             : t("decide.topPhotoNoNumber", { count })
           : t("decide.topPerson", { name, count });
 
-  const addedAt = photo
-    ? new Date(photo.createdAt).toLocaleString(i18n.language, {
-        weekday: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-    : null;
+  const addedAt = photo ? formatDateTime(photo.createdAt) : null;
 
   const onBack = () =>
     router.canGoBack() ? router.back() : router.replace({ pathname: "/events/[id]/reports", params: { id: eventId } });
