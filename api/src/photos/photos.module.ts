@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { CaslModule } from "src/casl/casl.module";
 import { ImagesModule } from "src/images/images.module";
 import { ModerationModule } from "src/moderation/moderation.module";
+import { ScreeningModule } from "src/moderation/screening/screening.module";
 import { NotificationsModule } from "src/notifications/notifications.module";
 import { PlansModule } from "src/plans/plans.module";
 import { StorageModule } from "src/storage/storage.module";
@@ -21,7 +22,15 @@ import { PhotosController } from "./photos.controller";
 import { PhotosService } from "./photos.service";
 
 @Module({
-  imports: [CaslModule, ImagesModule, ModerationModule, NotificationsModule, PlansModule, StorageModule],
+  imports: [
+    CaslModule,
+    ImagesModule,
+    ModerationModule,
+    NotificationsModule,
+    PlansModule,
+    ScreeningModule,
+    StorageModule,
+  ],
   controllers: [PhotosController],
   providers: [
     PhotosService,
