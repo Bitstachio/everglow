@@ -1,6 +1,6 @@
 {
   "scan": {
-    "edge": "Join a roll",
+    "edge": "Join an event",
     "close": "Close",
     "torchOn": "Turn on the light",
     "torchOff": "Turn off the light",
@@ -43,22 +43,22 @@
     "failedTitle": "Couldn’t open",
     "failedDim": "the envelope.",
     "tryAgain": "Try again",
-    "backToRolls": "Back to your rolls",
+    "backToEvents": "Back to your events",
     "notNow": "Not now"
   },
   "arrived": {
     "joined": {
-      "one": "You’re on the roll · {{place}}st",
-      "two": "You’re on the roll · {{place}}nd",
-      "few": "You’re on the roll · {{place}}rd",
-      "other": "You’re on the roll · {{place}}th"
+      "one": "You’re in the event · {{place}}st",
+      "two": "You’re in the event · {{place}}nd",
+      "few": "You’re in the event · {{place}}rd",
+      "other": "You’re in the event · {{place}}th"
     },
-    "joinedNoPlace": "You’re on the roll",
-    "already": "You’re already on this roll"
+    "joinedNoPlace": "You’re in the event",
+    "already": "You’re already in this event"
   },
   "notes": {
     "title": "Want a note when photos land?",
-    "body": "A note when the gallery opens, and the day before photos are removed.",
+    "body": "A note when the event opens, and the day before photos are removed.",
     "turnOn": "Turn on notes",
     "notNow": "Not now"
   },
@@ -67,13 +67,13 @@
     "returned": "Returned",
     "scanAnother": "Scan another",
     "full": {
-      "stamp": "Roll full",
+      "stamp": "Event full",
       "title": "All {{limit}} spots",
       "dim": "are taken.",
-      "titleNoLimit": "This roll",
+      "titleNoLimit": "This event",
       "dimNoLimit": "is full.",
-      "body": "{{host}}’s roll holds {{limit}} people. Ask {{host}} to make room.",
-      "bodyNoHost": "This roll holds {{limit}} people. Ask the host to make room.",
+      "body": "{{host}}’s event holds {{limit}} people. Ask {{host}} to make room.",
+      "bodyNoHost": "This event holds {{limit}} people. Ask the host to make room.",
       "bodyNoLimit": "Ask the host to make room."
     },
     "notValid": {
@@ -85,33 +85,33 @@
     "removed": {
       "stamp": "Removed",
       "title": "You were removed",
-      "dim": "from this roll.",
+      "dim": "from this event.",
       "body": "A host removed you, so this envelope doesn’t admit you. Only a host can let you back in."
     },
     "closed": {
       "stamp": "Closed",
-      "title": "This roll",
+      "title": "This event",
       "dim": "has closed.",
-      "body": "The roll closed on {{date}} and its photos were removed.",
-      "bodyNoDate": "The roll has closed and its photos were removed."
+      "body": "The event closed on {{date}} and its photos were removed.",
+      "bodyNoDate": "The event has closed and its photos were removed."
     },
     "onHold": {
       "stamp": "On hold",
       "stampSub": "Review",
       "title": "Joining is",
       "dim": "on hold.",
-      "body": "Everglow is reviewing this roll. Try the envelope again later."
+      "body": "Everglow is reviewing this event. Try the envelope again later."
     },
     "suspended": {
       "stamp": "Suspended",
-      "title": "This roll",
+      "title": "This event",
       "dim": "was suspended.",
       "body": "Everglow suspended it for breaking our terms, so no one can join it."
     },
     "blocked": {
       "stamp": "Blocked",
       "title": "You blocked {{host}}.",
-      "dim": "{{host}} hosts this roll.",
+      "dim": "{{host}} hosts this event.",
       "body": "To join, unblock {{host}} first. They won’t be told either way.",
       "unblock": "Unblock {{host}} and join",
       "unblockFailed": "Couldn’t unblock"
@@ -119,7 +119,7 @@
   },
   "sealed": {
     "title": "You’ve been invited",
-    "dim": "to a roll.",
+    "dim": "to an event.",
     "body": "Sign in to open the envelope and see whose it is.",
     "signIn": "Sign in to open it",
     "stamp": "Sealed",

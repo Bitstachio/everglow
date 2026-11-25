@@ -499,6 +499,28 @@ export class EventsService {
   }
 
   /**
+   * The caller's role on each event. Events the caller can read always have a
+   * membership row; a missing row is a bug in the call site.
+   */
+  async accessLevelsForCaller(eventIds: string[], callerId: string): Promise<Map<string, AccessLevel>> {
+    if (eventIds.length === 0) return new Map();
+    const rows = await this.prisma.eventAccess.findMany({
+      where: { userId: callerId, eventId: { in: eventIds } },
+      select: { eventId: true, accessLevel: true },
+    });
+    return new Map(rows.map((row) => [row.eventId, row.accessLevel]));
+  }
+
+  async accessLevelForCaller(eventId: string, callerId: string): Promise<AccessLevel> {
+    const access = await this.prisma.eventAccess.findUnique({
+      where: { userId_eventId: { userId: callerId, eventId } },
+      select: { accessLevel: true },
+    });
+    if (!access) throw new ApiException("NOT_A_MEMBER", { eventId });
+    return access.accessLevel;
+  }
+
+  /**
    * Invite rows for organizers only. Non-organizers get an empty list so
    * invite tokens are not leaked on event responses. A closed event has no
    * invites to share, since it can't be joined.

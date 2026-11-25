@@ -40,7 +40,7 @@ const pickPhoto = async (
  * JPEG on device before upload, which also converts HEIC from the camera roll.
  */
 export const useChangeEventCover = (eventId: string, hasCover: boolean) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const setCoverMutation = useSetEventCoverMutation(eventId);
   const removeCoverMutation = useRemoveEventCoverMutation(eventId);
   const [isPreparing, setIsPreparing] = useState(false);

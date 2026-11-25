@@ -1,0 +1,36 @@
+# Deletes every event on Home whose name starts with "Smoke-", the names the
+# roll-upload flow gives its events. Not discovered as a standalone test.
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "events-profile-button"
+    timeout: 60000
+- extendedWaitUntil:
+    notVisible:
+      id: "home-loading"
+    timeout: 30000
+# A event that was cut but not deleted sits with the closed events further down.
+- scrollUntilVisible:
+    element:
+      id: "event-card"
+      text: "Smoke-.*"
+    direction: DOWN
+    timeout: 6000
+    optional: true
+- repeat:
+    times: 3
+    while:
+      visible:
+        id: "event-card"
+        text: "Smoke-.*"
+    commands:
+      - tapOn:
+          id: "event-card"
+          text: "Smoke-.*"
+      - runFlow: delete-roll.yaml
+- assertNotVisible:
+    id: "event-card"
+    text: "Smoke-.*"

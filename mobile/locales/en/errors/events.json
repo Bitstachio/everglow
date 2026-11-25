@@ -1,15 +1,15 @@
 {
-  "ALREADY_A_MEMBER": "You're already on this roll.",
+  "ALREADY_A_MEMBER": "You're already in this event.",
   "CANNOT_CHANGE_OWN_ROLE": "You can't change your own role. Ask another host.",
-  "CANNOT_REMOVE_SELF": "You can't remove yourself. Leave the roll instead.",
+  "CANNOT_REMOVE_SELF": "You can't remove yourself. Leave the event instead.",
   "COVER_CHANGED_CONCURRENTLY": "Another host changed the cover at the same time. Please try again.",
-  "EVENT_HAS_OPEN_REPORTS": "This roll has reports waiting for a decision, so it can't be deleted yet.",
-  "EVENT_SUSPENDED": "This roll was suspended for breaking our terms, so it can't be changed or joined.",
-  "EVENT_UNDER_REVIEW": "This roll is on hold while Everglow reviews it. No one can join or add photos until then.",
-  "LAST_ORGANIZER": "Every roll needs a host. Make someone else host first.",
-  "NOT_A_MEMBER": "You're not on this roll.",
-  "ORGANIZER_BLOCKED_BY_CALLER": "You blocked the host of this roll. Unblock them to join.",
+  "EVENT_HAS_OPEN_REPORTS": "This event has reports waiting for a decision, so it can't be deleted yet.",
+  "EVENT_SUSPENDED": "This event was suspended for breaking our terms, so it can't be changed or joined.",
+  "EVENT_UNDER_REVIEW": "This event is on hold while Everglow reviews it. No one can join or add photos until then.",
+  "LAST_ORGANIZER": "Every event needs a host. Make someone else host first.",
+  "NOT_A_MEMBER": "You're not in this event.",
+  "ORGANIZER_BLOCKED_BY_CALLER": "You blocked the host of this event. Unblock them to join.",
   "ORGANIZER_ONLY": "Only hosts can do that.",
-  "REMOVED_FROM_EVENT": "A host removed you from this roll. Only a host can let you back in.",
-  "TARGET_NOT_A_MEMBER": "That person isn't on this roll anymore."
+  "REMOVED_FROM_EVENT": "A host removed you from this event. Only a host can let you back in.",
+  "TARGET_NOT_A_MEMBER": "That person isn't in this event anymore."
 }

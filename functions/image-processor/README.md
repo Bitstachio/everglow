@@ -17,7 +17,7 @@ The Nest API owns authorization, upload reservations and confirmation, Prisma ro
 | `src/*.spec.ts`                                    | Colocated unit and worker-boundary regression tests                              |
 | `scripts/build-lambda.mjs`                         | Deployment ZIP with Linux ARM64 Sharp binaries                                   |
 | `api/src/photos/photo-derivative-orphan-source.ts` | API-owned cleanup backstop; uses the existing source registry                    |
-| `infra/image-processor.tf`                         | Queue, role, Lambda and S3 notification resources                                |
+| `infra/modules/photo-storage/image-processor.tf`   | Queue, role, Lambda and S3 notification resources                                |
 
 Paths in the final two rows are relative to the repository root. The Lambda does not import API source files. The handler reuses its SDK client across warm invocations; each message gets a service with a correlated logger. Domain processing throws failures, and each is logged once:
 

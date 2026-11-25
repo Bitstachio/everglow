@@ -84,6 +84,14 @@ export const hasClosed = (event: EventResponseDto, now: Date = new Date()): bool
 export const isLastDay = (event: EventResponseDto, now: Date = new Date()): boolean =>
   rollTime(event, now).kind === "closingSoon";
 
+/**
+ * How many frames a roll holds: the roll's `photoCount`, or the frames loaded so far when more
+ * have landed since it was read. An API from before `photoCount` leaves it out, so the loaded
+ * frames stand in rather than NaN.
+ */
+export const rollFrameCount = (loaded: number, photoCount: number | undefined): number =>
+  typeof photoCount === "number" && Number.isFinite(photoCount) ? Math.max(loaded, photoCount) : loaded;
+
 /** "21 Nov": how long an open roll stays open. */
 export const formatClosesOn = (iso: string): string =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });

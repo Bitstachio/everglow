@@ -32,7 +32,7 @@ test("a destructive leader carries a warning icon and names the action", async (
 });
 
 test("the leader's end mark is decorative", async () => {
-  await render(<Button title="Load the roll" mark="▸" />);
+  await render(<Button title="Create the event" mark="▸" />);
   expect(screen.queryByText("▸")).not.toBeOnTheScreen();
   expect(screen.getByText("▸", { includeHiddenElements: true })).toHaveProp("importantForAccessibility", "no");
 });

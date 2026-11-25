@@ -1,7 +1,6 @@
 import { GalleryProgress, GallerySelectionBar, GalleryUnsaved, SaveRollSheet } from "../components/gallery-controls";
 import { GalleryDeleteSheet } from "../components/gallery-delete-sheet";
 import { AppIcon } from "@/components/ui/app-icon";
-import { Avatar, DeletedAvatar } from "@/components/ui/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { ContactFrame } from "@/components/ui/contact-frame";
@@ -51,7 +50,7 @@ import {
   type Duration,
   type SheetFrame,
 } from "../lib/roll-page";
-import { formatClosedOn, formatOpensOn } from "../lib/rolls";
+import { formatClosedOn, formatOpensOn, rollFrameCount } from "../lib/rolls";
 import type { DevelopingFrame } from "../lib/upload-tray-view";
 import { formatEventStorage, formatStorageBytes } from "../utils";
 
@@ -62,13 +61,6 @@ const FOOT_SPACE = 190;
 type SheetItem = { kind: "photo"; frame: SheetFrame } | { kind: "developing"; frame: DevelopingFrame };
 
 const value = <EdgeValue>{null}</EdgeValue>;
-
-const uploaderAvatar = (uploader: SheetFrame["uploader"], deleted = false) =>
-  uploader ? (
-    <Avatar userId={uploader.userId} name={uploader.name} uri={uploader.avatarUrl} size="caption" />
-  ) : deleted ? (
-    <DeletedAvatar size="caption" />
-  ) : null;
 
 /** The result of an action, for a few seconds over the foot of the roll. */
 const Notice = ({ message, className = "", style }: { message: string; className?: string; style?: ViewStyle }) => (
@@ -85,7 +77,7 @@ const CoverButton = ({ children }: { children: ReactNode }) => (
 );
 
 const EventDetailScreen = () => {
-  const { t } = useTranslation(["roll", "common"]);
+  const { t } = useTranslation(["event", "common"]);
   const insets = useSafeAreaInsets();
   const screen = useEventDetailScreen();
   const { event, participants, frames, role, stage, now, lastDay } = screen;
@@ -99,8 +91,7 @@ const EventDetailScreen = () => {
   }
 
   const host = hostName(event, participants);
-  const currentUploader = participants.find((participant) => participant.userId === screen.currentUserId) ?? null;
-  const count = Math.max(frames.length, event.photoCount);
+  const count = rollFrameCount(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
     const opens = formatRollDate(event.galleryOpensAt);
@@ -149,7 +140,7 @@ const EventDetailScreen = () => {
           title={screen.closedJustNow ? t("closed.justNow") : t("closed.top", { date: formatClosedOn(removedOn) })}
           left={<BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />}
           right={
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           }
@@ -219,7 +210,7 @@ const EventDetailScreen = () => {
     stock.kind === "hidden" ? (
       t("band.hidden")
     ) : stock.kind === "frames" ? (
-      <Trans t={t} i18nKey="band.frames" values={{ count }} components={{ value }} />
+      <Trans t={t} i18nKey="band.photos" values={{ count }} components={{ value }} />
     ) : event.limits.storageBytes === null ? (
       <Trans t={t} i18nKey="band.storageNoLimit" values={{ used }} components={{ value }} />
     ) : (
@@ -368,31 +359,29 @@ const EventDetailScreen = () => {
         />
       ) : null}
       {stage === "upcoming" || stage === "suspended" ? <UnexposedRoll strips={2} /> : null}
-      {stage === "empty" ? <UnexposedRoll strips={1} /> : null}
       {showsSheet ? <View className="h-4" /> : null}
     </View>
   );
 
-  const frameBy = (frame: SheetFrame) => frame.by ?? (frame.deleted ? t("frame.deletedAccount") : null);
+  const frameBy = (frame: SheetFrame) => frame.by ?? (frame.deleted ? t("photo.deletedAccount") : null);
   const frameLabel = (frame: SheetFrame) => {
     const by = frameBy(frame);
     const label = by
-      ? t("frame.labelBy", { number: frame.number, name: by })
-      : t("frame.label", { number: frame.number });
-    return frame.isNew ? t("frame.new", { label }) : label;
+      ? t("photo.labelBy", { number: frame.number, name: by })
+      : t("photo.label", { number: frame.number });
+    return frame.isNew ? t("photo.new", { label }) : label;
   };
 
   const renderFrame = ({ item }: { item: SheetItem }) => (
-    <View className="w-1/3 px-0.5 pb-3.5">
+    <View className="w-1/3 p-0.5">
       {item.kind === "photo" ? (
         <ContactFrame
+          testID="roll-frame"
           uri={item.frame.photo.thumbnailUrl}
           cacheKey={`photo:${item.frame.photo.id}:thumbnail`}
           placeholderUri={screen.localFileFor(item.frame.photo.id)}
           onPreviewReady={() => screen.onPreviewReady(item.frame.photo.id)}
           number={item.frame.number}
-          by={frameBy(item.frame) ?? undefined}
-          avatar={uploaderAvatar(item.frame.uploader, item.frame.deleted)}
           isNew={item.frame.isNew}
           ringSeed={frameSeed(item.frame.photo.id)}
           selected={screen.selectedIds.has(item.frame.photo.id)}
@@ -413,16 +402,15 @@ const EventDetailScreen = () => {
         />
       ) : (
         <ContactFrame
+          testID="roll-frame-developing"
           uri={item.frame.item.uri}
           number={item.frame.number}
-          by={t("frame.you")}
-          avatar={uploaderAvatar(currentUploader)}
           develop={item.frame.develop}
           crossed={item.frame.crossed}
           accessibilityLabel={
             item.frame.crossed
-              ? t("tray.frameFailed", { number: item.frame.number })
-              : t("tray.frameDeveloping", { number: item.frame.number })
+              ? t("tray.photoFailed", { number: item.frame.number })
+              : t("tray.photoDeveloping", { number: item.frame.number })
           }
           onPress={screen.onOpenTray}
         />
@@ -541,7 +529,7 @@ const EventDetailScreen = () => {
             <BackButton accessibilityLabel={t("common:actions.back")} onPress={screen.onBack} />
           </CoverButton>
           <CoverButton>
-            <IconButton accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
+            <IconButton testID="roll-menu-button" accessibilityLabel={t("menu")} onPress={screen.onOpenMenu}>
               <AppIcon icon={DotsThree} size="sm" color={colorTokens.text} />
             </IconButton>
           </CoverButton>
@@ -597,7 +585,7 @@ const EventDetailScreen = () => {
 
 /** Everything that opens over the roll: the menu, people, slips, the envelope, a frame. */
 const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> }) => {
-  const { t } = useTranslation(["roll", "report"]);
+  const { t } = useTranslation(["event", "report"]);
   const { event, role } = screen;
   if (!event) return null;
 
@@ -781,7 +769,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
 
 /** A save or share under way: how far it has got. */
 const progressLabel = (
-  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  t: ReturnType<typeof useTranslation<"event">>["t"],
   progress: ReturnType<typeof useEventDetailScreen>["progress"],
 ) =>
   progress === null
@@ -792,7 +780,7 @@ const progressLabel = (
 
 /** 08.6's body: who can make room depends on who's asking. */
 const roomBody = (
-  t: ReturnType<typeof useTranslation<"roll">>["t"],
+  t: ReturnType<typeof useTranslation<"event">>["t"],
   fits: number,
   left: string,
   role: string,

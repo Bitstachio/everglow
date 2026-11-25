@@ -152,7 +152,7 @@ jobs:
         background: true
       - run: pnpm run lint
         background: true
-      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p scripts
         background: true
       - wait-all:
 

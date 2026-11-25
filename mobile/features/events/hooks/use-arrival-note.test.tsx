@@ -17,11 +17,11 @@ beforeEach(() => {
 const render = () => renderHook(() => useArrivalNote(), { wrapper: I18nProvider });
 
 test.each([
-  ["1", "You’re on the roll · 1st"],
-  ["2", "You’re on the roll · 2nd"],
-  ["23", "You’re on the roll · 23rd"],
-  ["25", "You’re on the roll · 25th"],
-  ["11", "You’re on the roll · 11th"],
+  ["1", "You’re in the event · 1st"],
+  ["2", "You’re in the event · 2nd"],
+  ["23", "You’re in the event · 23rd"],
+  ["25", "You’re in the event · 25th"],
+  ["11", "You’re in the event · 11th"],
 ])("says which member a guest became: %s", async (place, note) => {
   mockParams = { arrival: "joined", place };
   const { result } = await render();
@@ -31,13 +31,13 @@ test.each([
 test("leaves the place out when the route has none", async () => {
   mockParams = { arrival: "joined" };
   const { result } = await render();
-  expect(result.current).toBe("You’re on the roll");
+  expect(result.current).toBe("You’re in the event");
 });
 
 test("says when they were already on the roll", async () => {
   mockParams = { arrival: "already" };
   const { result } = await render();
-  expect(result.current).toBe("You’re already on this roll");
+  expect(result.current).toBe("You’re already in this event");
 });
 
 test("shows nothing on a roll opened any other way", async () => {

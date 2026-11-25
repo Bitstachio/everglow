@@ -1,20 +1,15 @@
-# The manifest for the "api" service.
-# Read the full specification for the "Load Balanced Web Service" type at:
-#  https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/
-
-# Your service name will be used in naming your resources like log groups, ECS services, etc.
+# Copilot Load Balanced Web Service:
+# https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/
 name: api
 type: Load Balanced Web Service
 
-# Distribute traffic to your service.
 http:
   path: "/"
-  # Nest serves the API under /api/v2 (same as the image HEALTHCHECK).
+  # Nest HEALTHCHECK path
   healthcheck: "/api/v2"
-  # DNS for this name is a Namecheap CNAME to the environment load balancer.
+  # Namecheap CNAME → environment load balancer
   alias: api-staging.everglow.social
 
-# Configuration for your containers and service.
 image:
   build: Dockerfile
   port: 3000
@@ -32,46 +27,32 @@ variables:
   PORT: "3000"
   TRUST_PROXY: "1"
   AWS_REGION: us-east-1
-  # Replace with real staging values before photo features matter.
-  AWS_S3_BUCKET: everglow-staging-placeholder
-  AWS_ACCESS_KEY_ID: PLACEHOLDER
-  # Replace with your Auth0 tenant (same values as local mobile/API).
-  # Staging still shares the development tenant and audience, so a development
-  # token is accepted here. Give staging its own API identifier (or tenant)
-  # before real users: docs/authentication.md §2.1.
+  # No AWS keys: ECS task role via addons/photos-bucket-access.yml.
+  # AWS_S3_BUCKET is set per environment below.
+
+  # Shared with local/dev for now. Separate audience/tenant before real users:
+  # docs/authentication.md §2.1.
   AUTH0_DOMAIN: dev-hr3web1pe4wofusq.us.auth0.com
   AUTH0_AUDIENCE: https://api.everglow.com
-  # Required: the API does not start without it. The client id of the native
-  # app the staging build signs in with (its EXPO_PUBLIC_AUTH0_CLIENT_ID); only
-  # tokens whose azp is this client are accepted. Not a secret.
-  # AUTH0_NATIVE_CLIENT_ID: <native app client id>
+  # Mobile native app client id (EXPO_PUBLIC_AUTH0_CLIENT_ID). azp must match.
+  AUTH0_NATIVE_CLIENT_ID: YlcaGdi1IdSzLAtaO1fzI6cprwS8wixc
 
-# The log group /copilot/everglow-<env>-api. Its lines carry user and report
-# ids, so they are kept 90 days (Copilot's default is 30): long enough to
-# answer a moderation or deletion question about last quarter, short enough
-# not to become an archive. The alerts on it are infra/moderation-alerts.tf.
+# Default Copilot retention is 30; keep longer for moderation/deletion questions.
+# Alerts: infra/moderation-alerts.tf
 logging:
   retention: 90
 
 secrets:
-  AWS_SECRET_ACCESS_KEY: /copilot/${COPILOT_APPLICATION_NAME}/${COPILOT_ENVIRONMENT_NAME}/secrets/AWS_SECRET_ACCESS_KEY
-  # Hosted Postgres (e.g. Neon) — set via: copilot secret init (name DATABASE_URL)
+  # copilot secret init DATABASE_URL
   DATABASE_URL: /copilot/${COPILOT_APPLICATION_NAME}/${COPILOT_ENVIRONMENT_NAME}/secrets/DATABASE_URL
 
-# Values per environment, overriding the ones above.
-#
-# The scheduled jobs below act on AWS_S3_BUCKET or the Auth0 tenant for the
-# rows in DATABASE_URL, and most delete what those rows do not explain. Switch
-# them on only in the one environment whose database owns that bucket and
-# tenant (docs/photos-architecture.md §11, api/docs/local-setup.md). Staging
-# owns neither yet: its bucket is a placeholder and its tenant is the shared
-# dev tenant, whose logins belong to every developer's database. So they are
-# off here, stated rather than left to the code's defaults, and each one
-# turned on needs the matching api_jobs_enabled flag in infra/ so its
-# heartbeat is watched.
+# Jobs that mutate S3/Auth0 stay off until infra watches their heartbeats (EV-232).
+# Account deletion reconciler stays off while staging shares the dev Auth0 tenant.
+# See docs/photos-architecture.md §11.
 environments:
   staging:
     variables:
+      AWS_S3_BUCKET: everglow-photos-staging
       ACCOUNT_DELETION_RECONCILER_ENABLED: "false"
       PHOTO_ORPHAN_RECONCILER_ENABLED: "false"
       GALLERY_CLOSE_ENABLED: "false"

@@ -6,6 +6,7 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   description: "An afternoon with friends",
   date: "2026-09-20T15:30:00.000Z",
   creatorId: "user-1",
+  accessLevel: "ORGANIZER",
   invitationUrl: "https://events.everglow.app/invite/weekend",
   invites: [
     { accessLevel: "PARTICIPANT", invitationUrl: "https://events.everglow.app/invite/weekend" },

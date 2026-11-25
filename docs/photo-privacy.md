@@ -2,7 +2,7 @@
 
 Users' photos are theirs. The API needs to read them to serve the app, but no person with AWS access should be able to browse them. The owner of an AWS account can never be locked out completely, since they can always change the rules. So the goal is that **nobody reads a photo by accident, and every deliberate read is recorded and reported**.
 
-The Terraform is in `infra/`: the bucket policy in `main.tf`, the rest in `photo-privacy.tf`.
+The Terraform is in `infra/`: each environment's bucket, bucket policy, key and read alert in `modules/photo-storage/` (one instance per environment in `photos.tf`), and what they share (the trail, the alert topic and the control-change alert) in `photo-privacy.tf`.
 
 ## The layers
 
@@ -56,6 +56,12 @@ In dev:
 - **`allow_human_photo_reads = true`** in `terraform.tfvars` lifts the read block for debugging. Applying it changes the bucket policy, which raises an alert. It only opens photos from before the KMS key: newer ones stay unreadable to people, because only the API and image processor may decrypt them. To see one of your own test photos, open it in the app.
 - **Files can still be listed, and the bucket policy is not locked,** so Terraform can keep changing it.
 - **Photos uploaded before the KMS key existed** keep S3-managed encryption. The bucket policy still blocks reading them.
+
+In staging (`everglow-photos-staging`, the same module and controls as dev):
+
+- **The API has no access key.** It runs as the Copilot service's ECS task role, and the bucket policy and key trust that role under any session name (ECS names each session after its task). The role's S3 rights come from the addon in `api/copilot/api/addons/`. The read alert matches callers by the role that issued their session, so a person assuming any other role, or the processor's role outside Lambda, still alerts.
+- **Changes to the task role alert** like changes to the processor's role, since it is on the allowlist. A Copilot deploy that changes its policies sends one.
+- **Every object expires after 30 days.** Staging holds test data; its database keeps the rows, so an older photo shows as missing.
 
 Production, before launch (EV-37):
 

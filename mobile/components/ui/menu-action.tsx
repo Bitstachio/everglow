@@ -12,11 +12,13 @@ type MenuActionProps = {
   muted?: boolean;
   /** The first row of a menu with no header above it: no rule on top. */
   first?: boolean;
+  testID?: string;
 };
 
 /** One action in a menu sheet: its label in tracked mono caps, its icon on the right, ruled above. */
-export const MenuAction = ({ label, icon, onPress, muted = false, first = false }: MenuActionProps) => (
+export const MenuAction = ({ label, icon, onPress, muted = false, first = false, testID }: MenuActionProps) => (
   <Pressable
+    testID={testID}
     accessibilityRole="button"
     accessibilityLabel={label}
     onPress={onPress}

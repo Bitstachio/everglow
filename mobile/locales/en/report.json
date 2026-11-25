@@ -1,34 +1,34 @@
 {
   "close": "Close",
   "top": {
-    "frame": "Report frame {{number}}",
-    "frameNoNumber": "Report this frame",
+    "photo": "Report photo {{number}}",
+    "photoNoNumber": "Report this photo",
     "person": "Report {{name}}",
-    "roll": "Report {{title}}"
+    "event": "Report {{title}}"
   },
   "subject": {
-    "frame": "{{number}} · {{name}}",
-    "frameNoName": "Frame {{number}}",
+    "photo": "{{number}} · {{name}}",
+    "photoNoName": "Photo {{number}}",
     "person": "{{name}} · @{{username}}",
-    "roll": "The whole roll"
+    "event": "The whole event"
   },
   "ticket": {
-    "frame": "What’s wrong with this frame",
+    "photo": "What’s wrong with this photo",
     "person": "What’s wrong with {{name}}",
-    "roll": "What’s wrong with this roll",
+    "event": "What’s wrong with this event",
     "anonymous": "Anonymous",
     "everglow": "Goes straight to Everglow",
     "footer": {
-      "frame": "The hosts see what was reported, never who reported it. You stop seeing this photo right away.",
+      "photo": "The hosts see what was reported, never who reported it. You stop seeing this photo right away.",
       "person": "The hosts see what was reported, never who reported it.",
-      "roll": "Reports about a roll go to Everglow. The hosts are not told who reported it.",
+      "event": "Reports about an event go to Everglow. The hosts are not told who reported it.",
       "serious": "This goes only to Everglow’s safety team, not the hosts. If someone is in danger now, call 911."
     },
     "notePlaceholder": "What happened",
     "noteLabel": "A short note about what’s wrong, optional"
   },
   "reasons": {
-    "frame": {
+    "photo": {
       "SPAM": "Spam",
       "NUDITY_OR_SEXUAL": "Nudity or sexual",
       "HARASSMENT": "Harassment",
@@ -44,7 +44,7 @@
       "OTHER": "Something else",
       "CHILD_SAFETY": "Putting a child at risk"
     },
-    "roll": {
+    "event": {
       "SPAM": "Spam or a scam",
       "NUDITY_OR_SEXUAL": "Nudity or sexual",
       "HARASSMENT": "Hate or harassment",
@@ -58,51 +58,51 @@
   "sendEverglow": "Send to Everglow",
   "failed": "Didn’t send. Try again.",
   "gone": {
-    "frame": "This frame isn’t on the roll anymore.",
-    "roll": "This roll isn’t there anymore."
+    "photo": "This photo isn’t in the event anymore.",
+    "event": "This event isn’t there anymore."
   },
   "sent": {
-    "frame": "Report sent · frame hidden for you",
-    "hostFrame": "Report sent",
+    "photo": "Report sent · photo hidden for you",
+    "hostPhoto": "Report sent",
     "person": "Report sent",
-    "roll": "Report sent to Everglow"
+    "event": "Report sent to Everglow"
   },
   "block": {
     "edge": "Block {{name}}",
     "title": "You won’t see each other.",
-    "body": "{{name}}’s photos disappear for you on every roll, and yours for them. They aren’t told. Inside rolls {{name}} hosts, you’ll still see each other.",
+    "body": "{{name}}’s photos disappear for you on every event, and yours for them. They aren’t told. Inside events {{name}} hosts, you’ll still see each other.",
     "confirm": "Block {{name}}",
     "cancel": "Cancel",
     "done": "{{name}} is blocked",
     "failed": "Didn’t block. Try again."
   },
   "menu": {
-    "reportFrame": "Report this frame",
+    "reportPhoto": "Report this photo",
     "block": "Block {{name}}",
     "unblock": "Unblock {{name}}",
     "unblocked": "{{name}} is unblocked",
     "reportPerson": "Report {{name}}",
-    "reportRoll": "Report this roll",
-    "remove": "Remove from the roll",
+    "reportEvent": "Report this event",
+    "remove": "Remove from the event",
     "reports": "Reports",
     "reportsToCheck": "Reports · {{count}} to check"
   },
   "person": {
     "edge": "@{{username}} · {{role}} · {{frames}}",
     "edgeNoUsername": "{{role}} · {{frames}}",
-    "frames_one": "{{count}} frame",
-    "frames_other": "{{count}} frames"
+    "photos_one": "{{count}} photo",
+    "photos_other": "{{count}} photos"
   },
   "check": {
     "top": "Reports · {{count}} to check",
     "topNone": "Reports",
     "title_one": "{{count}} to check",
     "title_other": "{{count}} to check",
-    "titleDim": "on your roll.",
+    "titleDim": "in your event.",
     "empty": "Nothing to check",
     "retry": "Try again",
-    "frameRow": "Frame {{number}} · by {{name}}",
-    "frameRowNoNumber": "A frame by {{name}}",
+    "photoRow": "Photo {{number}} · by {{name}}",
+    "photoRowNoNumber": "A photo by {{name}}",
     "left": "Someone who left",
     "leftInline": "someone who left",
     "edge_one": "{{count}} report · {{reason}}",
@@ -130,39 +130,39 @@
     "NON_CONSENSUAL_INTIMATE_IMAGE": "Intimate image"
   },
   "decide": {
-    "topFrame_one": "Frame {{number}} · {{count}} report",
-    "topFrame_other": "Frame {{number}} · {{count}} reports",
-    "topFrameNoNumber_one": "A frame · {{count}} report",
-    "topFrameNoNumber_other": "A frame · {{count}} reports",
+    "topPhoto_one": "Photo {{number}} · {{count}} report",
+    "topPhoto_other": "Photo {{number}} · {{count}} reports",
+    "topPhotoNoNumber_one": "A photo · {{count}} report",
+    "topPhotoNoNumber_other": "A photo · {{count}} reports",
     "topPerson_one": "{{name}} · {{count}} report",
     "topPerson_other": "{{name}} · {{count}} reports",
     "tapToLook": "Tap to look",
-    "frameGone": "Deleted",
-    "lookLabel": "The reported frame, blurred. Tap to look.",
-    "lookedLabel": "The reported frame.",
+    "photoGone": "Deleted",
+    "lookLabel": "The reported photo, blurred. Tap to look.",
+    "lookedLabel": "The reported photo.",
     "reason": "Reason",
     "reasonValue": "{{reason}} · {{count}}",
     "addedBy": "Added by",
     "addedByValue": "{{name}} · {{time}}",
     "person": "Reported",
     "note": "Note",
-    "removeFrame": "Remove the frame",
-    "removePerson": "Remove {{name}} from the roll",
-    "keepFrame": "Keep it, it’s fine",
+    "removePhoto": "Remove the photo",
+    "removePerson": "Remove {{name}} from the event",
+    "keepPhoto": "Keep it, it’s fine",
     "keepPerson": "Keep them, it’s fine",
-    "keepSevereFrame": "Keep hands this to Everglow’s safety team. The frame stays hidden until they decide.",
+    "keepSeverePhoto": "Keep hands this to Everglow’s safety team. The photo stays hidden until they decide.",
     "keepSeverePerson": "Keep hands this to Everglow’s safety team to decide.",
     "failed": "Didn’t go through. Try again.",
     "gone": "Already handled."
   },
   "everglow": {
-    "topFrame": "Frame {{number}} · reported",
-    "topFrameNoNumber": "A frame · reported",
+    "topPhoto": "Photo {{number}} · reported",
+    "topPhotoNoNumber": "A photo · reported",
     "topPerson": "{{name}} · reported",
     "hidden": "Hidden",
     "title": "This one is with",
     "titleDim": "Everglow’s safety team.",
-    "bodyFrame": "You don’t need to do anything. The frame stays hidden until they decide.",
+    "bodyPhoto": "You don’t need to do anything. The photo stays hidden until they decide.",
     "bodyPerson": "You don’t need to do anything. Everglow decides what happens next.",
     "ok": "Ok"
   }

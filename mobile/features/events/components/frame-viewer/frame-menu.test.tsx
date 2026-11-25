@@ -5,10 +5,10 @@ import { buildPhoto } from "../../testing/fixtures";
 import { FrameMenu } from "./frame-menu";
 
 test.each([
-  { isOwn: true, canDelete: true, title: "Your frame", action: "Delete for everyone" },
-  { isOwn: false, canDelete: true, title: "Leila’s frame", action: "Delete Leila’s frame" },
-  { isOwn: false, canDelete: false, title: "Leila’s frame", action: null },
-  { isOwn: false, canDelete: true, deleted: true, title: "Frame from a deleted account", action: "Delete this frame" },
+  { isOwn: true, canDelete: true, title: "Your photo", action: "Delete for everyone" },
+  { isOwn: false, canDelete: true, title: "Leila’s photo", action: "Delete Leila’s photo" },
+  { isOwn: false, canDelete: false, title: "Leila’s photo", action: null },
+  { isOwn: false, canDelete: true, deleted: true, title: "Photo from a deleted account", action: "Delete this photo" },
 ])(
   "shows the permitted actions for $title (delete: $canDelete)",
   async ({ isOwn, canDelete, deleted, title, action }) => {
@@ -68,7 +68,7 @@ test("someone else's frame can be reported and its owner blocked (09.3)", async 
     />,
   );
   const user = userEvent.setup();
-  await user.press(screen.getByRole("button", { name: "Report this frame" }));
+  await user.press(screen.getByRole("button", { name: "Report this photo" }));
   await user.press(screen.getByRole("button", { name: "Block Leila" }));
   expect(onReport).toHaveBeenCalledTimes(1);
   expect(onBlock).toHaveBeenCalledTimes(1);

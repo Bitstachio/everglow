@@ -10,6 +10,6 @@ test("presses through to the action", async () => {
 });
 
 test("a muted action dims its label", async () => {
-  await render(<MenuAction muted label="Leave the roll" icon={QrCode} onPress={jest.fn()} />);
-  expect(screen.getByText("Leave the roll")).toHaveProp("className", expect.stringContaining("text-edge"));
+  await render(<MenuAction muted label="Leave the event" icon={QrCode} onPress={jest.fn()} />);
+  expect(screen.getByText("Leave the event")).toHaveProp("className", expect.stringContaining("text-edge"));
 });

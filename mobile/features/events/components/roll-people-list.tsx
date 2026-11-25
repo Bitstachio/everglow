@@ -20,7 +20,7 @@ export const ROLE_KEY = {
 
 /** Who's on the roll, for the sheet over the roll: hosts first, then everyone else as they appear. */
 export const RollPeopleList = ({ participants, currentUserId, onPerson }: RollPeopleListProps) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const ordered = [
     ...participants.filter((participant) => participant.accessLevel === "ORGANIZER"),
     ...participants.filter((participant) => participant.accessLevel !== "ORGANIZER"),

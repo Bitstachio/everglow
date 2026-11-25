@@ -26,7 +26,7 @@ type BlockerRow = {
  * host sees each of those that holds, and what to do about it.
  */
 export const useCantDeleteRollScreen = () => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;

@@ -5,6 +5,7 @@ import {
   AccessLevel,
   Event,
   EventAccess,
+  NotificationType,
   PhotoStatus,
   Prisma,
   Report,
@@ -26,6 +27,7 @@ import { DEFAULT_PAGE_SIZE } from "src/common/pagination/pagination.constants";
 import { KEYSET_ORDER_BY, KeysetPage, keysetAfter, toKeysetPage } from "src/common/pagination/keyset-cursor";
 import { MEMBER_PHOTOS, type MemberPhotos, removeMemberInTransaction } from "src/events/event-membership";
 import { eventWithCallerAccessInclude } from "src/events/events.types";
+import { NotificationsService } from "src/notifications/notifications.service";
 import { deleteObjectWithDerivatives } from "src/photos/photo-object-deletion";
 import { PhotoPurgeService } from "src/photos/photo-purge.service";
 import { GALLERY_STATES, galleryStateOf } from "src/plans/plans.constants";
@@ -108,6 +110,7 @@ export class ReportsService {
     private readonly s3Service: S3Service,
     private readonly photoPurgeService: PhotoPurgeService,
     private readonly evidenceService: EvidenceService,
+    private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(this.constructor.name);
@@ -436,6 +439,13 @@ export class ReportsService {
       });
     }
 
+    await this.notifyRemovals({
+      eventId: event.id,
+      reportId,
+      photo,
+      removedMemberId,
+    });
+
     this.logger.info(
       {
         event: "report.resolved",
@@ -635,7 +645,10 @@ export class ReportsService {
     const removes = action !== REPORT_RESOLUTION_ACTIONS.DISMISS;
     const photo =
       removes && loaded.targetType === ReportTargetType.PHOTO && loaded.photoId
-        ? await this.prisma.photo.findUnique({ where: { id: loaded.photoId }, select: { id: true, s3Key: true } })
+        ? await this.prisma.photo.findUnique({
+            where: { id: loaded.photoId },
+            select: { id: true, s3Key: true, addedById: true },
+          })
         : null;
     const removedMemberId = action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER ? loaded.reportedUserId : null;
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_MEMBER && (!removedMemberId || !loaded.eventId)) {
@@ -715,6 +728,15 @@ export class ReportsService {
     // the others, and held ones, keep theirs (EvidenceService.discardImages).
     if (removes) await this.evidenceService.discardImages(closedIds);
 
+    if (resolved.eventId) {
+      await this.notifyRemovals({
+        eventId: resolved.eventId,
+        reportId,
+        photo,
+        removedMemberId,
+      });
+    }
+
     this.logger.info(
       {
         event: "report.resolved",
@@ -747,14 +769,17 @@ export class ReportsService {
   private async photoToRemove(
     report: Report,
     action: ReportResolutionAction,
-  ): Promise<{ id: string; s3Key: string } | null> {
+  ): Promise<{ id: string; s3Key: string; addedById: string | null } | null> {
     if (action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO && report.targetType !== ReportTargetType.PHOTO) {
       throw new BadRequestException(RESPONSE_TEMPLATES.INVALID_VALUE("action", action, "used on photo reports only"));
     }
     if (action === REPORT_RESOLUTION_ACTIONS.DISMISS || report.targetType !== ReportTargetType.PHOTO) return null;
 
     const photo = report.photoId
-      ? await this.prisma.photo.findUnique({ where: { id: report.photoId }, select: { id: true, s3Key: true } })
+      ? await this.prisma.photo.findUnique({
+          where: { id: report.photoId },
+          select: { id: true, s3Key: true, addedById: true },
+        })
       : null;
     if (!photo && action === REPORT_RESOLUTION_ACTIONS.REMOVE_PHOTO) {
       throw new ApiException("REPORTED_PHOTO_GONE", { reportId: report.id });
@@ -968,7 +993,76 @@ export class ReportsService {
       );
     }
 
+    await this.notifyReportCreated(created, consequences);
+
     return created;
+  }
+
+  /**
+   * Host pushes for a new organizer-queue report and for a photo that just
+   * crossed the hide threshold (EV-33). Never names the reporter. Platform-
+   * only reasons stay off the organizer channel.
+   */
+  private async notifyReportCreated(report: Report, consequences: ReportEscalation[]): Promise<void> {
+    if (!report.eventId) return;
+
+    let queued = 0;
+    const organizers = await this.organizerIds(report.eventId, [report.reporterId, report.reportedUserId]);
+
+    if (
+      report.queue === ReportQueue.ORGANIZERS &&
+      !PLATFORM_ONLY_REPORT_REASONS.includes(report.reason) &&
+      organizers.length > 0
+    ) {
+      const targetKey = report.photoId
+        ? `photo:${report.photoId}`
+        : report.reportedUserId
+          ? `member:${report.reportedUserId}`
+          : `event:${report.eventId}`;
+      queued += await this.notifications.notifyNow(NotificationType.REPORT_TO_CHECK, organizers, {
+        eventId: report.eventId,
+        targetKey,
+      });
+    }
+
+    if (consequences.includes(ReportEscalation.HIDE_THRESHOLD_REACHED) && report.photoId && organizers.length > 0) {
+      queued += await this.notifications.notifyNow(NotificationType.PHOTO_HIDDEN, organizers, {
+        eventId: report.eventId,
+        photoId: report.photoId,
+      });
+    }
+
+    void queued;
+  }
+
+  /** Uploader / removed-member pushes after a REMOVE_* resolution (EV-33). */
+  private async notifyRemovals(args: {
+    eventId: string;
+    reportId: string;
+    photo: { id: string; addedById: string | null } | null;
+    removedMemberId: string | null;
+  }): Promise<void> {
+    if (args.photo?.addedById) {
+      await this.notifications.notifyNow(NotificationType.PHOTO_REMOVED, [args.photo.addedById], {
+        eventId: args.eventId,
+        photoId: args.photo.id,
+      });
+    }
+    if (args.removedMemberId) {
+      await this.notifications.notifyNow(NotificationType.MEMBER_REMOVED, [args.removedMemberId], {
+        eventId: args.eventId,
+        reportId: args.reportId,
+      });
+    }
+  }
+
+  private async organizerIds(eventId: string, exclude: Array<string | null | undefined>): Promise<string[]> {
+    const excluded = new Set(exclude.filter((id): id is string => !!id));
+    const rows = await this.prisma.eventAccess.findMany({
+      where: { eventId, accessLevel: AccessLevel.ORGANIZER },
+      select: { userId: true },
+    });
+    return (rows ?? []).map((row) => row.userId).filter((id) => !excluded.has(id));
   }
 
   /** The reasons known before the report exists: they decide its queue. */

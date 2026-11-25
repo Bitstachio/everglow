@@ -29,7 +29,7 @@ export const RemovePersonSlip = ({
   onConfirm,
   onCancel,
 }: RemovePersonSlipProps) => {
-  const { t } = useTranslation("roll");
+  const { t } = useTranslation("event");
   const [photos, setPhotos] = useState<MemberPhotos>("KEEP");
   const firstName = name.split(" ")[0];
   const others = Math.max(frameCount - (reportedFrame ? 1 : 0), 0);
@@ -41,8 +41,8 @@ export const RemovePersonSlip = ({
         others === 0
           ? t("remove.title", { name: firstName })
           : reportedFrame
-            ? t("remove.otherFrames", { count: others })
-            : t("remove.frames", { count: others })
+            ? t("remove.otherPhotos", { count: others })
+            : t("remove.photos", { count: others })
       }
       body={
         others === 0

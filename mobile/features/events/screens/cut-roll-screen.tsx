@@ -60,6 +60,7 @@ const CutRollScreen = () => {
           </Text>
         ) : null}
         <Button
+          testID="cut-roll-confirm"
           title={screen.confirmLabel}
           variant="danger"
           mark="✂"

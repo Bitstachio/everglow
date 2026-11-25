@@ -3,7 +3,7 @@ import { createApiError } from "@/lib/api/errors";
 // Integration tests compose the real screen with its data provider.
 // eslint-disable-next-line no-restricted-imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 // Observe the native alert boundary without replacing screen hooks.
 // eslint-disable-next-line no-restricted-imports
 import { AccessibilityInfo, Alert } from "react-native";
@@ -61,22 +61,24 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-test("shows the film-strip skeletons while loading, then the first-run empty state", async () => {
+test("shows the card placeholders while loading, then the first-run empty state", async () => {
   const pending = deferred<unknown>();
   mockFindAll.mockReturnValue(pending.promise);
   await renderScreen();
   expect(screen.getByTestId("home-loading")).toBeOnTheScreen();
-  expect(screen.queryByText(/^No rolls yet\./)).not.toBeOnTheScreen();
+  expect(screen.queryByText(/^No events yet\./)).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Filter" })).not.toBeOnTheScreen();
   pending.resolve({ data: { data: [] } });
-  expect(await screen.findByText(/^No rolls yet\./)).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: "Start a roll" })).toBeOnTheScreen();
+  expect(await screen.findByText(/^No events yet\./)).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Start an event" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Join with an envelope" })).toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Filter" })).not.toBeOnTheScreen();
 });
 
 test("starts a roll from the first-run screen", async () => {
   await renderScreen();
-  await screen.findByText(/^No rolls yet\./);
-  await userEvent.setup().press(screen.getByRole("button", { name: "Start a roll" }));
+  await screen.findByText(/^No events yet\./);
+  await userEvent.setup().press(screen.getByRole("button", { name: "Start an event" }));
   expect(mockPush).toHaveBeenCalledWith("/events/create");
 });
 
@@ -92,15 +94,83 @@ test("lists the rolls, groups the closed ones, and opens a roll", async () => {
   });
   await renderScreen();
   await screen.findByText("Sam & Jo’s wedding");
+  expect(screen.getByRole("button", { name: "Filter" })).toBeOnTheScreen();
   expect(screen.getByText("Friday at Sully’s")).toBeOnTheScreen();
   expect(screen.getByText("Lake weekend")).toBeOnTheScreen();
   expect(screen.getByText("Photos removed")).toBeOnTheScreen();
+
+  await userEvent.setup().press(screen.getByRole("button", { name: "Filter" }));
+  expect(await screen.findByTestId("home-events-filters-sheet")).toBeOnTheScreen();
+  expect(screen.getByText("Filter / Sort")).toBeOnTheScreen();
+  expect(screen.getByText("Status")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Apply" })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close filters" }));
 
   await userEvent.setup().press(screen.getByRole("button", { name: /Sam & Jo’s wedding/ }));
   expect(mockPush).toHaveBeenCalledWith("/events/live-1");
 });
 
-test("loads the latest four photos of open rolls only", async () => {
+test("filters the list by status and shows no-matches when nothing fits", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [
+        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN", accessLevel: "ORGANIZER" }),
+        buildEvent({ id: "up-1", title: "Friday at Sully’s", galleryState: "UPCOMING", accessLevel: "PARTICIPANT" }),
+        buildEvent({ id: "done-1", title: "Lake weekend", galleryState: "CLOSED", accessLevel: "VIEWER" }),
+      ],
+    },
+  });
+  await renderScreen();
+  await screen.findByText("Sam & Jo’s wedding");
+
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Filter" }));
+  await screen.findByTestId("home-events-filters-sheet");
+  await user.press(screen.getByRole("button", { name: "Filter by Open" }));
+  await user.press(screen.getByRole("button", { name: "Apply" }));
+
+  expect(screen.getByText("Sam & Jo’s wedding")).toBeOnTheScreen();
+  expect(screen.queryByText("Friday at Sully’s")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Lake weekend")).not.toBeOnTheScreen();
+
+  await user.press(screen.getByRole("button", { name: "Filter" }));
+  await screen.findByTestId("home-events-filters-sheet");
+  await user.press(screen.getByRole("button", { name: "Filter by View only" }));
+  await user.press(screen.getByRole("button", { name: "Apply" }));
+
+  const empty = await screen.findByTestId("home-filters-empty");
+  expect(empty).toBeOnTheScreen();
+  expect(screen.getByText(/^No matching events\./)).toBeOnTheScreen();
+  await user.press(within(empty).getByRole("button", { name: "Reset" }));
+  expect(await screen.findByText("Sam & Jo’s wedding")).toBeOnTheScreen();
+  expect(screen.getByText("Friday at Sully’s")).toBeOnTheScreen();
+});
+
+test("hides the closed separator when the filtered list is closed-only", async () => {
+  mockFindAll.mockResolvedValue({
+    data: {
+      data: [
+        buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" }),
+        buildEvent({ id: "done-1", title: "Lake weekend", galleryState: "CLOSED" }),
+      ],
+    },
+  });
+  await renderScreen();
+  await screen.findByText("Sam & Jo’s wedding");
+  expect(screen.getByText("Photos removed")).toBeOnTheScreen();
+
+  const user = userEvent.setup();
+  await user.press(screen.getByRole("button", { name: "Filter" }));
+  await screen.findByTestId("home-events-filters-sheet");
+  await user.press(screen.getByRole("button", { name: "Filter by Closed" }));
+  await user.press(screen.getByRole("button", { name: "Apply" }));
+
+  expect(await screen.findByText("Lake weekend")).toBeOnTheScreen();
+  expect(screen.queryByText("Sam & Jo’s wedding")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Photos removed")).not.toBeOnTheScreen();
+});
+
+test("lists open events without loading their photos", async () => {
   mockFindAll.mockResolvedValue({
     data: {
       data: [
@@ -113,23 +183,8 @@ test("loads the latest four photos of open rolls only", async () => {
   await renderScreen();
   await screen.findByText("Sam & Jo’s wedding");
 
-  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(1));
-  expect(mockListPhotos).toHaveBeenCalledWith(
-    expect.objectContaining({ path: { eventId: "live-1" }, query: { limit: 4 } }),
-  );
-});
-
-test("pull-to-refresh reloads the open rolls' photos too", async () => {
-  mockFindAll.mockResolvedValue({
-    data: { data: [buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN" })] },
-  });
-  await renderScreen();
-  await screen.findByText("Sam & Jo’s wedding");
-  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(1));
-
-  await fireEvent(screen.getByTestId("home-refresh"), "refresh");
-
-  await waitFor(() => expect(mockListPhotos).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("Sam & Jo’s wedding")).toBeOnTheScreen();
+  expect(mockListPhotos).not.toHaveBeenCalled();
 });
 
 test("adds a new event from the rolls list", async () => {
@@ -144,7 +199,7 @@ test("shows the offline banner and blocks a new event when the lab can't be reac
   mockFindAll.mockRejectedValue(createApiError("gateway", { status: 503 }));
   await renderScreen();
   expect(await screen.findByText("No connection")).toBeOnTheScreen();
-  expect(screen.getByText("Back online to start a roll")).toBeOnTheScreen();
+  expect(screen.getByText("Back online to start an event")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "New event" })).toBeDisabled();
   expect(screen.getByText("Nothing saved yet")).toBeOnTheScreen();
   expect(Alert.alert).not.toHaveBeenCalled();
@@ -158,8 +213,8 @@ test("keeps the saved rolls on screen when the connection drops", async () => {
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(await screen.findByText("Showing what’s saved")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
-  // Each roll says when it was loaded, in place of its time (03.5).
-  expect(screen.getByText(/ppl · as of \d\d:\d\d$/)).toBeOnTheScreen();
+  // Each event says when it was loaded, in place of its timing.
+  expect(screen.getByText(/^as of \d\d:\d\d$/)).toBeOnTheScreen();
 });
 
 const leftWedding = () => ({
@@ -236,7 +291,7 @@ test("opens the lab card from the header avatar", async () => {
 
 test("opens the scanner from the header and from the first-run leader (06.1)", async () => {
   await renderScreen();
-  await screen.findByText(/^No rolls yet\./);
+  await screen.findByText(/^No events yet\./);
   await openJoin();
   expect(mockPush).toHaveBeenLastCalledWith("/join");
   mockPush.mockReset();
@@ -261,7 +316,7 @@ test("pull-to-refresh retains current rolls until the refreshed list arrives", a
 test("surfaces an unexpected fetch error and recovers on refresh", async () => {
   mockFindAll.mockRejectedValue(new Error("boom"));
   await renderScreen();
-  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your rolls", "Please try again"));
+  await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("Couldn’t load your events", "Please try again"));
   mockFindAll.mockResolvedValue({ data: { data: [buildEvent({ title: "Nadia turns 30" })] } });
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(await screen.findByText("Nadia turns 30")).toBeOnTheScreen();
@@ -270,7 +325,7 @@ test("surfaces an unexpected fetch error and recovers on refresh", async () => {
 test("does not fetch without a signed-in user", async () => {
   mockUser = null;
   await renderScreen();
-  expect(screen.getByText(/^No rolls yet\./)).toBeOnTheScreen();
+  expect(screen.getByText(/^No events yet\./)).toBeOnTheScreen();
   await fireEvent(screen.getByTestId("home-refresh"), "refresh");
   expect(mockFindAll).not.toHaveBeenCalled();
 });

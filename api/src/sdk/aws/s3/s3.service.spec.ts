@@ -108,16 +108,55 @@ describe("S3Service", () => {
       );
     });
 
-    it("throws when the access key is missing", () => {
+    const clientOf = (s3: S3Service): S3Client => (s3 as unknown as { client: S3Client }).client;
+
+    it("throws when only the secret key is configured", () => {
       expect(() => new S3Service(buildConfigService({ "aws.accessKeyId": undefined }), buildLogger())).toThrow(
-        S3_SERVICE_ERRORS.CREDENTIALS_NOT_CONFIGURED(),
+        S3_SERVICE_ERRORS.CREDENTIALS_INCOMPLETE(),
       );
     });
 
-    it("throws when the secret key is missing", () => {
+    it("throws when only the access key is configured", () => {
       expect(() => new S3Service(buildConfigService({ "aws.secretAccessKey": undefined }), buildLogger())).toThrow(
-        S3_SERVICE_ERRORS.CREDENTIALS_NOT_CONFIGURED(),
+        S3_SERVICE_ERRORS.CREDENTIALS_INCOMPLETE(),
       );
+    });
+
+    it("treats an empty key as unset", () => {
+      expect(() => new S3Service(buildConfigService({ "aws.secretAccessKey": "" }), buildLogger())).toThrow(
+        S3_SERVICE_ERRORS.CREDENTIALS_INCOMPLETE(),
+      );
+    });
+
+    it("signs with the configured key when both halves are set", async () => {
+      const s3 = new S3Service(buildConfigService({}), buildLogger());
+
+      await expect(clientOf(s3).config.credentials()).resolves.toMatchObject({
+        accessKeyId: "AKIA_TEST",
+        secretAccessKey: "SECRET_TEST",
+      });
+    });
+
+    describe("with no key configured", () => {
+      const savedEnv = { ...process.env };
+
+      afterEach(() => {
+        process.env = { ...savedEnv };
+      });
+
+      it("uses the default AWS credential chain (the ECS task role on Copilot)", async () => {
+        // The chain's first source is the environment, which resolves without a
+        // network call; on ECS the next one, the container credentials, answers.
+        process.env.AWS_ACCESS_KEY_ID = "AKIA_FROM_CHAIN";
+        process.env.AWS_SECRET_ACCESS_KEY = "SECRET_FROM_CHAIN";
+
+        const s3 = new S3Service(
+          buildConfigService({ "aws.accessKeyId": undefined, "aws.secretAccessKey": undefined }),
+          buildLogger(),
+        );
+
+        await expect(clientOf(s3).config.credentials()).resolves.toMatchObject({ accessKeyId: "AKIA_FROM_CHAIN" });
+      });
     });
   });
 

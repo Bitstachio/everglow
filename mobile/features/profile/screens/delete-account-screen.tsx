@@ -11,9 +11,9 @@ import { ScrollView, Text, View } from "react-native";
 import { useDeleteAccountScreen, type RollFate } from "../hooks/use-delete-account-screen";
 
 const ROLL_FATE_LABELS = {
-  DELETED: "delete.rollDeleted",
-  HANDED_OVER: "delete.rollStays",
-  KEPT_FOR_REVIEW: "delete.rollKept",
+  DELETED: "delete.eventDeleted",
+  HANDED_OVER: "delete.eventStays",
+  KEPT_FOR_REVIEW: "delete.eventKept",
 } as const satisfies Record<RollFate, string>;
 
 /** 14.11 Delete account: what happens to your frames, and to each roll you started. */
@@ -32,7 +32,7 @@ const DeleteAccountScreen = () => {
         <Display dim={t("delete.titleDim")}>{t("delete.title")}</Display>
 
         <View className="mt-9.5">
-          <EdgePrint>{t("delete.framesEdge")}</EdgePrint>
+          <EdgePrint>{t("delete.photosEdge")}</EdgePrint>
           <View accessibilityRole="radiogroup">
             <OptionRow
               title={t("delete.keep")}
@@ -53,11 +53,11 @@ const DeleteAccountScreen = () => {
 
         {showRolls ? (
           <View className="mt-9.5">
-            <EdgePrint className="mb-1">{t("delete.rollsEdge")}</EdgePrint>
-            <Text className="mb-3 font-sans text-body text-text-2">{t("delete.rollsBody")}</Text>
+            <EdgePrint className="mb-1">{t("delete.eventsEdge")}</EdgePrint>
+            <Text className="mb-3 font-sans text-body text-text-2">{t("delete.eventsBody")}</Text>
             {rollsFailed ? (
               <View className="items-start gap-2">
-                <Text className="font-sans text-body text-text-2">{t("delete.rollsFailed")}</Text>
+                <Text className="font-sans text-body text-text-2">{t("delete.eventsFailed")}</Text>
                 <Button
                   title={t("delete.retry")}
                   variant="ghost"

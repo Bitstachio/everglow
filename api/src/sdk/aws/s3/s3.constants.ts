@@ -9,7 +9,8 @@ export const S3_SERVICE_ERRORS = {
   GET_FAILED: (key: string) => `Failed to read object from S3 at key "${key}"`,
   LIST_FAILED: (prefix: string) => `Failed to list objects in S3 under prefix "${prefix}"`,
   PRESIGN_FAILED: (key: string) => `Failed to generate presigned URL for key "${key}"`,
-  CREDENTIALS_NOT_CONFIGURED: () => "AWS credentials are not configured",
+  CREDENTIALS_INCOMPLETE: () =>
+    "Set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or neither to use the default AWS credential chain",
 };
 
 export const DEFAULT_PRESIGNED_URL_TTL_SECONDS = 900;

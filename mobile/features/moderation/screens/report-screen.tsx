@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReportNote } from "../components/report-note";
 import { ReportSubject } from "../components/report-subject";
 import { useReportScreen } from "../hooks/use-report-screen";
+import { REPORT_TARGET_COPY_KEY } from "../lib/reasons";
 
 /** 10.1–10.3, 10.5, 10.6 Report a frame, a person or the roll on a lab ticket. */
 const ReportScreen = () => {
@@ -56,7 +57,11 @@ const ReportScreen = () => {
           {subjectPrint}
           <View testID="report-ticket" className="px-1">
             <LabTicket
-              title={target === "person" ? t("ticket.person", { name: screen.firstName }) : t(`ticket.${target}`)}
+              title={
+                target === "person"
+                  ? t("ticket.person", { name: screen.firstName })
+                  : t(`ticket.${REPORT_TARGET_COPY_KEY[target]}`)
+              }
               number={t("ticket.anonymous")}
               options={screen.reasons.map((option) => ({
                 key: option.reason,

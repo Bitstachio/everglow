@@ -2,25 +2,21 @@
 #
 # S3 notifies the queue on ObjectCreated and ObjectRemoved under photos/. The function reads the
 # original, writes thumb.webp + large.jpg under derived/, and must be on the
-# photos KMS key and the bucket's read allowlist (see main.tf / photo-privacy.tf).
+# photos KMS key and the bucket's read allowlist (kms.tf, bucket.tf).
 #
 # Before plan/apply, build the zip this file deploys:
 #   cd functions/image-processor && pnpm build
 
-locals {
-  image_processor_zip = "${path.module}/../functions/image-processor/dist/function.zip"
-}
-
 # --- Queue: S3 notifications, with an alarmed DLQ for repeated failures -------
 
 resource "aws_sqs_queue" "photo_uploads_dlq" {
-  name                      = "everglow-photo-uploads-dlq-dev"
+  name                      = "everglow-photo-uploads-dlq-${var.environment}"
   message_retention_seconds = 1209600 # 14 days, so a failed upload can be inspected
   sqs_managed_sse_enabled   = true
 }
 
 resource "aws_sqs_queue" "photo_uploads" {
-  name                       = "everglow-photo-uploads-dev"
+  name                       = "everglow-photo-uploads-${var.environment}"
   sqs_managed_sse_enabled    = true
   visibility_timeout_seconds = 360 # 6× the function timeout; shorter and SQS redelivers mid-run
 
@@ -35,10 +31,10 @@ resource "aws_sqs_queue" "photo_uploads" {
 # acknowledged and logged as photo.derivatives.undecodable instead, so they do
 # not land here. The photo.derivatives.failed log names the bucket and key.
 #
-# CloudWatch publishes as cloudwatch.amazonaws.com, so the topic policy in
-# photo-privacy.tf has to allow that principal for this alarm's ARN.
+# CloudWatch publishes as cloudwatch.amazonaws.com, so the alert topic's
+# policy has to allow that principal for this alarm's ARN (output dlq_alarm_arn).
 resource "aws_cloudwatch_metric_alarm" "photo_uploads_dlq" {
-  alarm_name          = "everglow-photo-uploads-dlq-dev"
+  alarm_name          = "everglow-photo-uploads-dlq-${var.environment}"
   alarm_description   = "Photo derivative messages are in ${aws_sqs_queue.photo_uploads_dlq.name} after 5 failed attempts. Search the image processor's logs for photo.derivatives.failed."
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
@@ -49,7 +45,7 @@ resource "aws_cloudwatch_metric_alarm" "photo_uploads_dlq" {
   comparison_operator = "GreaterThanThreshold"
   threshold           = 0
   treat_missing_data  = "notBreaching"
-  alarm_actions       = [aws_sns_topic.security_alerts.arn]
+  alarm_actions       = [var.alert_topic_arn]
 }
 
 resource "aws_sqs_queue_policy" "photo_uploads_dlq" {
@@ -111,12 +107,12 @@ resource "aws_sqs_queue_policy" "photo_uploads" {
 # --- Lambda: consumes the queue ------------------------------------------------
 
 resource "aws_cloudwatch_log_group" "image_processor" {
-  name              = "/aws/lambda/everglow-image-processor-dev"
+  name              = "/aws/lambda/everglow-image-processor-${var.environment}"
   retention_in_days = 14
 }
 
 resource "aws_iam_role" "image_processor" {
-  name = "everglow-image-processor-dev"
+  name = "everglow-image-processor-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -131,7 +127,7 @@ resource "aws_iam_role" "image_processor" {
 }
 
 resource "aws_iam_role_policy" "image_processor" {
-  name = "everglow-image-processor-dev"
+  name = "everglow-image-processor-${var.environment}"
   role = aws_iam_role.image_processor.id
 
   policy = jsonencode({
@@ -187,7 +183,7 @@ resource "aws_iam_role_policy" "image_processor" {
 }
 
 resource "aws_lambda_function" "image_processor" {
-  function_name = "everglow-image-processor-dev"
+  function_name = "everglow-image-processor-${var.environment}"
   role          = aws_iam_role.image_processor.arn
   runtime       = "nodejs22.x"
   architectures = ["arm64"]
@@ -196,8 +192,8 @@ resource "aws_lambda_function" "image_processor" {
   memory_size   = 1536
 
   # The build is reproducible, so this only changes when the code or lockfile does.
-  filename         = local.image_processor_zip
-  source_code_hash = filebase64sha256(local.image_processor_zip)
+  filename         = var.image_processor_zip
+  source_code_hash = filebase64sha256(var.image_processor_zip)
 
   # A deployed build: info-level logs tagged env "production", like the API
   # under compose (functions/image-processor/src/logging.ts). Set LOG_LEVEL to
@@ -216,7 +212,7 @@ resource "aws_lambda_function" "image_processor" {
 
   lifecycle {
     precondition {
-      condition     = fileexists(local.image_processor_zip)
+      condition     = fileexists(var.image_processor_zip)
       error_message = "Missing functions/image-processor/dist/function.zip. Run: cd functions/image-processor && pnpm build"
     }
   }
