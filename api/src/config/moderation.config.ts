@@ -5,6 +5,7 @@ import {
   DEFAULT_REPORT_RETENTION_DAYS,
 } from "src/moderation/evidence/evidence.constants";
 import {
+  DEFAULT_SCREENING_BATCH_SIZE,
   DEFAULT_SCREENING_MAX_HOLD_MINUTES,
   DEFAULT_SCREENING_MIN_CONFIDENCE,
   DEFAULT_SCREENING_TIMEOUT_MS,
@@ -33,4 +34,5 @@ export default registerAs("moderation", () => ({
     DEFAULT_SCREENING_MAX_HOLD_MINUTES,
     1,
   ),
+  screeningBatchSize: parseIntegerEnv(process.env.SCREENING_BATCH_SIZE, DEFAULT_SCREENING_BATCH_SIZE, 1),
 }));

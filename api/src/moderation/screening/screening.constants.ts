@@ -16,6 +16,9 @@ export const DEFAULT_SCREENING_TIMEOUT_MS = 5000;
 // the job retries it. After this it is published unchecked (SKIPPED).
 export const DEFAULT_SCREENING_MAX_HOLD_MINUTES = 30;
 
+// Held photos the job screens per run (every minute).
+export const DEFAULT_SCREENING_BATCH_SIZE = 50;
+
 // Photos screened at once per confirm or job run, like hashing
 // (PHOTO_HASH_CONCURRENCY), so a batch of 20 doesn't hit Rekognition's
 // per-second quota all at once.

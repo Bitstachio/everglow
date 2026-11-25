@@ -13,6 +13,7 @@ describe("moderationConfig", () => {
     "SCREENING_MIN_CONFIDENCE",
     "SCREENING_TIMEOUT_MS",
     "SCREENING_MAX_HOLD_MINUTES",
+    "SCREENING_BATCH_SIZE",
   ] as const;
   const original = new Map(MANAGED_VARS.map((name) => [name, process.env[name]]));
 
@@ -75,6 +76,7 @@ describe("moderationConfig", () => {
         screeningMinConfidence: 80,
         screeningTimeoutMs: 5000,
         screeningMaxHoldMinutes: 30,
+        screeningBatchSize: 50,
       });
     });
 
@@ -82,10 +84,12 @@ describe("moderationConfig", () => {
       process.env.SCREENING_MIN_CONFIDENCE = "95";
       process.env.SCREENING_TIMEOUT_MS = "3000";
       process.env.SCREENING_MAX_HOLD_MINUTES = "10";
+      process.env.SCREENING_BATCH_SIZE = "20";
       expect(moderationConfig()).toMatchObject({
         screeningMinConfidence: 95,
         screeningTimeoutMs: 3000,
         screeningMaxHoldMinutes: 10,
+        screeningBatchSize: 20,
       });
 
       process.env.SCREENING_MIN_CONFIDENCE = "150";
