@@ -2,28 +2,24 @@
 
 import { RefObject, useEffect } from "react";
 
-/** Keeps the active film-strip chip in view when the section changes. */
-export const useScrollActiveChip = (
-  activeId: string,
-  tapeRef: RefObject<HTMLElement | null>,
-) => {
+/** Keeps the active nav chip in view when the section changes. */
+export const useScrollActiveChip = (activeId: string, chipsRef: RefObject<HTMLElement | null>) => {
   useEffect(() => {
-    const tape = tapeRef.current;
-    if (!tape || !activeId) return;
+    const track = chipsRef.current;
+    if (!track || !activeId) return;
 
-    const chip = tape.querySelector<HTMLElement>(`[data-nav-section="${activeId}"]`);
+    const chip = track.querySelector<HTMLElement>(`[data-nav-section="${activeId}"]`);
     if (!chip) return;
 
-    const tapeRect = tape.getBoundingClientRect();
+    const trackRect = track.getBoundingClientRect();
     const chipRect = chip.getBoundingClientRect();
-    const nextLeft =
-      tape.scrollLeft + (chipRect.left - tapeRect.left) - tapeRect.width / 2 + chipRect.width / 2;
-    const maxLeft = tape.scrollWidth - tape.clientWidth;
+    const nextLeft = track.scrollLeft + (chipRect.left - trackRect.left) - trackRect.width / 2 + chipRect.width / 2;
+    const maxLeft = track.scrollWidth - track.clientWidth;
     const left = Math.max(0, Math.min(nextLeft, maxLeft));
 
-    if (Math.abs(tape.scrollLeft - left) < 2) return;
+    if (Math.abs(track.scrollLeft - left) < 2) return;
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    tape.scrollTo({ left, behavior: reduceMotion ? "instant" : "smooth" });
-  }, [activeId, tapeRef]);
+    track.scrollTo({ left, behavior: reduceMotion ? "instant" : "smooth" });
+  }, [activeId, chipsRef]);
 };

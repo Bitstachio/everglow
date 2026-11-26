@@ -41,8 +41,8 @@
 
   --duration-standard: 300ms;
 
-  /* Opening viewport: hero height leaves room for the sticky film-strip */
-  --film-nav-h: 3.25rem;
+  /* Opening viewport: hero height leaves room for the sticky site nav */
+  --site-nav-h: 3.25rem;
 }
 
 @theme inline {

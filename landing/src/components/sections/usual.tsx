@@ -8,7 +8,7 @@ export const Usual = async () => {
   const t = await getTranslations("usual");
 
   return (
-    <section id="usual" className="scroll-mt-[var(--film-nav-h)] pt-24">
+    <section id="usual" className="scroll-mt-[var(--site-nav-h)] pt-24">
       <Container className="grid gap-6 md:grid-cols-2 md:gap-16">
         <div>
           <EdgeLabel className="text-edge mb-3 block">{t("eyebrow")}</EdgeLabel>
@@ -22,9 +22,7 @@ export const Usual = async () => {
               key={i}
               className="border-border-muted grid grid-cols-[48px_1fr] border-b py-4 text-[17px] leading-[1.55]"
             >
-              <EdgeLabel className="text-edge leading-[26px]">
-                {String(i + 1).padStart(2, "0")}
-              </EdgeLabel>
+              <EdgeLabel className="text-edge leading-[26px]">{String(i + 1).padStart(2, "0")}</EdgeLabel>
               <span>{t(`steps.${i}`)}</span>
             </li>
           ))}

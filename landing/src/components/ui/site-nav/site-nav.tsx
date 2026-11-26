@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/cn";
 import { useActiveSection } from "@/components/ui/site-nav/use-active-section";
+import { useNavStuck } from "@/components/ui/site-nav/use-nav-stuck";
 import { useScrollActiveChip } from "@/components/ui/site-nav/use-scroll-active-chip";
 import { useTranslations } from "next-intl";
 import { useRef } from "react";
@@ -24,32 +25,40 @@ const ITEMS: NavItem[] = [
 export const SiteNav = () => {
   const t = useTranslations("common.nav");
   const { activeId, selectSection } = useActiveSection(SECTION_IDS);
-  const tapeRef = useRef<HTMLDivElement>(null);
-  useScrollActiveChip(activeId, tapeRef);
+  const navRef = useRef<HTMLElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
+  const stuck = useNavStuck(navRef);
+  useScrollActiveChip(activeId, chipsRef);
 
   return (
     <nav
+      ref={navRef}
       data-site-nav
       aria-label={t("ariaLabel")}
-      className={cn(
-        "bg-rebate sticky top-0 z-40 shrink-0",
-        "before:pointer-events-none before:absolute before:inset-x-0 before:top-[3px] before:h-[5px]",
-        "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-[3px] after:h-[5px]",
-        "before:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
-        "after:bg-[repeating-linear-gradient(90deg,#262626_0_9px,transparent_9px_18px)]",
-      )}
+      className="border-border-muted bg-background sticky top-0 z-40 shrink-0 border-b"
     >
-      <div className="mx-auto flex max-w-[1240px] items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto flex max-w-[1240px] items-center px-4 py-3 sm:px-6 lg:px-8",
+          stuck ? "gap-2 sm:gap-3" : "gap-0",
+        )}
+      >
         <a
           href="#home"
-          className="font-display text-strong shrink-0 text-[15px] leading-none font-semibold tracking-[-0.02em] no-underline"
+          tabIndex={stuck ? undefined : -1}
+          aria-hidden={!stuck}
+          className={cn(
+            "font-display text-strong shrink-0 text-[15px] leading-none font-semibold tracking-[-0.02em] no-underline",
+            "overflow-hidden transition-[max-width,opacity,margin] duration-[800ms] ease-out",
+            stuck ? "max-w-[8rem] opacity-100" : "pointer-events-none max-w-0 opacity-0",
+          )}
         >
           {t("brand")}
         </a>
 
         <div className="relative min-w-0 flex-1">
           <div
-            ref={tapeRef}
+            ref={chipsRef}
             className={cn(
               "flex items-center gap-1.5 overflow-x-auto whitespace-nowrap",
               "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -68,10 +77,10 @@ export const SiteNav = () => {
                   className={cn(
                     "shrink-0 rounded-sm px-2.5 py-[7px] font-mono text-[11px] leading-none font-medium tracking-[0.12em] uppercase no-underline",
                     "duration-standard transition-colors",
-                    isActive ? "text-strong bg-[#1a1a1a]" : "text-edge hover:text-strong hover:bg-[#1a1a1a]",
+                    isActive ? "bg-elevated text-strong" : "text-edge hover:bg-elevated hover:text-strong",
                   )}
                 >
-                  <span className={cn("mr-1.5 font-medium", isActive ? "text-edge" : "text-[#5e5e5e]")}>{item.n}</span>
+                  <span className={cn("text-edge mr-1.5 font-medium", isActive ? "" : "opacity-50")}>{item.n}</span>
                   {t(item.labelKey)}
                 </a>
               );

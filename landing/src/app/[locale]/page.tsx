@@ -23,14 +23,14 @@ const HomePage = async ({ params }: HomePageProps) => {
 
   return (
     <>
-      {/* Hero fills the fold; film-strip sits on the bottom edge */}
-      <div className="flex h-[calc(100svh-var(--film-nav-h))] flex-col">
+      {/* Hero fills the fold; site nav sits on the bottom edge */}
+      <div className="flex h-[calc(100svh-var(--site-nav-h))] flex-col">
         <Hero />
       </div>
       {/* Sibling so sticky works for the rest of the page */}
       <SiteNav />
       {/* Just enough pad for FAQ to reach the sticky nav (spy), not a fixed half-viewport */}
-      <main className="pb-[max(6rem,calc(100svh-var(--film-nav-h)-36rem))]">
+      <main className="pb-[max(6rem,calc(100svh-var(--site-nav-h)-36rem))]">
         <PhotoStrip />
         <Usual />
         <What />
