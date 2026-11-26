@@ -3,11 +3,6 @@ import {
   atMinutes,
   calendarMonth,
   defaultRollDate,
-  formatClock,
-  formatLongDay,
-  formatMinutes,
-  formatMonth,
-  formatShortDay,
   galleryWindow,
   minutesOf,
   onDay,
@@ -85,12 +80,6 @@ test("moves a date to another day or time and back", () => {
   expect(TIME_SLOTS[39]).toBe(19 * 60 + 30);
 });
 
-test("formats the day, time and month as the drawings print them", () => {
-  const date = at(2026, 11, 7, 19);
-  expect(formatShortDay(date)).toBe("Sat 07.11");
-  expect(formatLongDay(date)).toBe("Sat 7 Nov");
-  expect(formatClock(date)).toBe("19:00");
-  expect(formatMinutes(9 * 60 + 30)).toBe("09:30");
-  expect(formatMonth(date)).toBe("November 2026");
+test("prints weekday initials from Sunday", () => {
   expect(WEEKDAY_INITIALS).toEqual(["S", "M", "T", "W", "T", "F", "S"]);
 });

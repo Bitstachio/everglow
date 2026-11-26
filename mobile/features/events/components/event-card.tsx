@@ -1,4 +1,5 @@
 import { AppIcon } from "@/components/ui/app-icon";
+import { formatDate, formatTime } from "@/lib/format-date";
 import { H3 } from "@/components/ui/heading";
 import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -14,23 +15,8 @@ type EventCardProps = {
 };
 
 export const EventCard = ({ event, onPress, onShare }: EventCardProps) => {
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      time: date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      }),
-    };
-  };
-
-  const { date: formattedDate, time } = formatDateTime(event.date);
+  const formattedDate = formatDate(event.date);
+  const time = formatTime(event.date);
 
   return (
     <Pressable

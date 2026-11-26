@@ -43,24 +43,5 @@ export const looksLikeInvite = (text: string): boolean => {
   return UUID.test(trimmed) || (trimmed.includes("/") && extractInvitationToken(trimmed).length > 0);
 };
 
-/** "4 pm", "7:30 pm". */
-const formatHour = (date: Date): string => {
-  const hour = date.getHours() % 12 || 12;
-  const minutes = date.getMinutes();
-  const suffix = date.getHours() < 12 ? "am" : "pm";
-  return minutes ? `${hour}:${String(minutes).padStart(2, "0")} ${suffix}` : `${hour} ${suffix}`;
-};
-
-/** "Sun 18 Oct, 4 pm": when a roll happens, as the envelope prints it. */
-export const formatEnvelopeDate = (iso: string): string => {
-  const date = new Date(iso);
-  const day = date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  return `${day}, ${formatHour(date)}`;
-};
-
-/** "17 Nov": the day a roll's photos go. */
-export const formatPickUpDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-
 /** "Sam" from "Sam Rivera": the envelope names the host the way friends would. */
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;

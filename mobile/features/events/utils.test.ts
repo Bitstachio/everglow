@@ -98,7 +98,8 @@ test("detects active filters", () => {
 test("formats filter days for storage and display", () => {
   expect(formatFilterDay(new Date(2026, 8, 15))).toBe("2026-09-15");
   expect(displayFilterDay(null)).toBe("Select date");
-  expect(displayFilterDay("2026-09-15")).toContain("2026");
+  expect(displayFilterDay("2026-09-15", new Date(2026, 8, 1))).toBe("Tue, 15 Sep");
+  expect(displayFilterDay("2025-09-15", new Date(2026, 8, 1))).toBe("Mon, 15 Sep 2025");
 });
 
 test.each([

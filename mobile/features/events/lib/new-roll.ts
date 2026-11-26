@@ -126,31 +126,5 @@ export const calendarMonth = (month: Date, { selected, window, today, latest }: 
   return [...blanks, ...days];
 };
 
-/** "Sat 07.11": the day on the roll's label and the develops line. */
-export const formatShortDay = (date: Date): string => {
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${weekday} ${day}.${month}`;
-};
-
-/** "Sat 7 Nov": the day on the slip's leader. */
-export const formatLongDay = (date: Date): string =>
-  date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-
-/** "19:00". */
-export const formatClock = (date: Date): string =>
-  date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
-
-/** "19:00" for a time slot. */
-export const formatMinutes = (minutes: number): string =>
-  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-
-/** "November 2026". */
-export const formatMonth = (month: Date): string =>
-  month.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-
-/** "S M T W T F S", from Sunday. 4 January 2026 was a Sunday. */
-export const WEEKDAY_INITIALS: readonly string[] = Array.from({ length: 7 }, (_, i) =>
-  new Date(2026, 0, 4 + i).toLocaleDateString("en-GB", { weekday: "narrow" }),
-);
+/** "S M T W T F S", from Sunday. */
+export const WEEKDAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"] as const;

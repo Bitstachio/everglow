@@ -51,7 +51,7 @@ type WhenSlipProps = {
   times: WhenSlipTime[];
   /** Optional line above the CTA, such as who will see the new date. */
   note?: ReactNode;
-  /** "Set Sat 7 Nov, 19:00" / "Move to Sat 14 Nov, 19:00". */
+  /** "Set Sat, 7 Nov, 19:00" / "Move to Sat, 14 Nov, 19:00". */
   setLabel: string;
   onSet: () => void;
   /** Disable the CTA while a move is saving. */

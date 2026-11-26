@@ -1,14 +1,5 @@
 import { buildEvent } from "../testing/fixtures";
-import {
-  formatClosedOn,
-  formatClosesOn,
-  formatOpensOn,
-  groupRolls,
-  hasClosed,
-  isLastDay,
-  rollFrameCount,
-  rollTime,
-} from "./rolls";
+import { groupRolls, hasClosed, isLastDay, rollFrameCount, rollTime } from "./rolls";
 
 const NOW = new Date("2026-10-16T12:00:00.000Z");
 
@@ -128,21 +119,5 @@ describe("rollFrameCount", () => {
     expect(rollFrameCount(0, undefined)).toBe(0);
     expect(rollFrameCount(4, undefined)).toBe(4);
     expect(rollFrameCount(4, Number.NaN)).toBe(4);
-  });
-});
-
-describe("date formatting", () => {
-  // Build dates from local components so the wall-clock date and time are fixed
-  // whatever timezone the test runs in (the app formats in the viewer's zone).
-  it("formats the close date as day and short month", () => {
-    expect(formatClosesOn(new Date(2026, 10, 21, 12, 0).toISOString())).toBe("21 Nov");
-  });
-
-  it("formats the open date as short weekday and 24-hour time", () => {
-    expect(formatOpensOn(new Date(2026, 9, 16, 21, 0).toISOString())).toBe("Fri 21:00");
-  });
-
-  it("formats the closed date as day.month", () => {
-    expect(formatClosedOn(new Date(2026, 8, 21, 12, 0).toISOString())).toBe("21.09");
   });
 });

@@ -62,9 +62,9 @@ test("fills the adds-photos envelope in first", async () => {
   expect(result.current.edge).toBe("Envelope · Nadia turns 30");
   expect(result.current.envelope).toEqual({
     title: "Nadia turns 30",
-    startsAt: "Sat 7 Nov, 7 pm",
+    startsAt: "Sat, 7 Nov, 19:00",
     peopleCount: 18,
-    pickUpBy: "14 Nov, then it’s gone",
+    pickUpBy: "Sat, 14 Nov, then it’s gone",
     admits: "adds",
     note: "they add photos too",
     accessibilityLabel: "Adds-photos envelope for Nadia turns 30",
@@ -221,9 +221,9 @@ test("05.6 a closed roll's envelope is shut, with the day its photos went", asyn
     state: "closed",
     stamp: "Closed",
     stampLine: "No new guests",
-    date: "21 Sep",
+    date: "Mon, 21 Sep",
   });
-  expect(result.current.envelope).toMatchObject({ admits: "adds", pickUpBy: "21 Sep, gone" });
+  expect(result.current.envelope).toMatchObject({ admits: "adds", pickUpBy: "Mon, 21 Sep, gone" });
   expect(result.current.invitationUrl).toBeNull();
 });
 

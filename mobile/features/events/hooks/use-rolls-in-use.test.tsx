@@ -58,12 +58,26 @@ test("says how many rolls are running and which frees a spot first", async () =>
     title: "Both events",
     dim: "are in use.",
     runs: "A free account runs 2 events at a time.",
-    next: { title: "Nadia turns 30", date: "Sat 14 Nov" },
+    next: { title: "Nadia turns 30", date: "Sat, 14 Nov" },
   });
   // Only rolls you started count; the one that frees a spot comes last, with its note.
   expect(result.current?.rolls.map(({ event, note }) => [event.id, note])).toEqual([
     ["wedding", undefined],
-    ["party", "free on 14 Nov ↑"],
+    ["party", "free on Sat, 14 Nov ↑"],
+  ]);
+});
+
+test("keeps the year on the next free date when it is outside the current year", async () => {
+  const { result } = await run(
+    limits({
+      nextClosingEvent: { id: "wedding", title: "Sam & Jo", galleryClosesAt: wedding.galleryClosesAt! },
+    }),
+  );
+
+  expect(result.current?.next).toEqual({ title: "Sam & Jo", date: "Mon, 4 Jan 2027" });
+  expect(result.current?.rolls.map(({ event, note }) => [event.id, note])).toEqual([
+    ["party", undefined],
+    ["wedding", "free on Mon, 4 Jan 2027 ↑"],
   ]);
 });
 

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import CantDeleteRollScreen from "./cant-delete-roll-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
-import { formatEnvelopeDay } from "../lib/envelope";
+import { formatDate } from "@/lib/format-date";
 
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
@@ -83,7 +83,7 @@ test("an open roll waits until it closes, and the API is never asked to delete i
 
   expect(await screen.findByText("Event settings")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Can’t delete\nthis event yet." })).toBeOnTheScreen();
-  expect(screen.getByLabelText("Still open, End it or wait until 17 Nov")).toBeOnTheScreen();
+  expect(screen.getByLabelText("Still open, End it or wait until Tue, 17 Nov")).toBeOnTheScreen();
   expect(screen.getByText(/An event is deleted only after it closes/)).toBeOnTheScreen();
   expect(screen.queryByLabelText(/reports?,/)).toBeNull();
   expect(screen.queryByLabelText(/^Under review/)).toBeNull();
@@ -93,9 +93,7 @@ test("an open roll waits until it closes, and the API is never asked to delete i
 test("an upcoming roll isn't open yet", async () => {
   const closesAt = new Date(2026, 11, 2, 19, 0).toISOString();
   await renderScreen({ event: buildEvent({ galleryState: "UPCOMING", galleryClosesAt: closesAt }) });
-  expect(
-    await screen.findByLabelText(`Not open yet, End it or wait until ${formatEnvelopeDay(closesAt)}`),
-  ).toBeOnTheScreen();
+  expect(await screen.findByLabelText(`Not open yet, End it or wait until ${formatDate(closesAt)}`)).toBeOnTheScreen();
 });
 
 test("a roll that never closes can only be cut first", async () => {

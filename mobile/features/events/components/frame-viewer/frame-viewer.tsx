@@ -1,4 +1,5 @@
 import { Modal, View, FlatList, Pressable, useWindowDimensions } from "react-native";
+import { formatDateTime } from "@/lib/format-date";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -65,7 +66,7 @@ type Props = {
  */
 export const FrameViewer = (props: Props) => {
   const { frame, frames, busy, onReport, onBlock } = props;
-  const { t, i18n } = useTranslation("event");
+  const { t } = useTranslation("event");
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stripStep = Math.floor(width / 5);
@@ -102,15 +103,7 @@ export const FrameViewer = (props: Props) => {
   const uploader = frame?.uploader;
   const name =
     uploader?.name ?? frame?.by ?? (frame?.deleted ? t("photo.deletedAccount") : t("gallery.unknownUploader"));
-  const time = frame
-    ? new Date(frame.photo.createdAt).toLocaleString(i18n.language, {
-        weekday: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        // 24-hour, and never "24:05" after midnight as `hour12: false` can print.
-        hourCycle: "h23",
-      })
-    : "";
+  const time = frame ? formatDateTime(frame.photo.createdAt) : "";
   // Access changes clear the viewer immediately; ordinary closes retain its
   // contents until the native fade completes and invokes onDismiss.
   if (!frame) return null;

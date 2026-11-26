@@ -67,9 +67,9 @@ test("05.1 shows the adds-photos envelope with its code", async () => {
   expect(screen.getByRole("header", { name: "Envelope · Nadia turns 30" })).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: "Adds photos", checked: true })).toBeOnTheScreen();
   expect(screen.getByText("they add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
-  expect(screen.getByText("Sat 7 Nov, 7 pm")).toBeOnTheScreen();
+  expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
-  expect(screen.getByText("14 Nov, then it’s gone")).toBeOnTheScreen();
+  expect(screen.getByText("Sat, 14 Nov, then it’s gone")).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();
 });
 
@@ -250,9 +250,9 @@ test("05.6 a closed roll says no one new can join, with nothing to share", async
   expect(await screen.findByLabelText("Adds-photos envelope for Lake weekend")).toBeOnTheScreen();
   expect(screen.getByText("Closed", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("No new guests", { includeHiddenElements: true })).toBeOnTheScreen();
-  expect(screen.getByText("21 Sep, gone")).toBeOnTheScreen();
+  expect(screen.getByText("Mon, 21 Sep, gone")).toBeOnTheScreen();
   expect(screen.getByText(/The event closed on/)).toHaveTextContent(
-    "The event closed on 21 Sep and its photos were removed, so no one new can join.",
+    "The event closed on Mon, 21 Sep and its photos were removed, so no one new can join.",
   );
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();

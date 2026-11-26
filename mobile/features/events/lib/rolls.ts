@@ -91,23 +91,3 @@ export const isLastDay = (event: EventResponseDto, now: Date = new Date()): bool
  */
 export const rollFrameCount = (loaded: number, photoCount: number | undefined): number =>
   typeof photoCount === "number" && Number.isFinite(photoCount) ? Math.max(loaded, photoCount) : loaded;
-
-/** "21 Nov": how long an open roll stays open. */
-export const formatClosesOn = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-
-/** "Fri 21:00": when an upcoming roll opens. */
-export const formatOpensOn = (iso: string): string => {
-  const date = new Date(iso);
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
-  const time24 = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return `${weekday} ${time24}`;
-};
-
-/** "21.09": the day a closed roll's photos went. */
-export const formatClosedOn = (iso: string): string => {
-  const date = new Date(iso);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${day}.${month}`;
-};

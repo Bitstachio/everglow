@@ -7,8 +7,7 @@ import { Alert } from "react-native";
 import EventSettingsScreen from "./event-settings-screen";
 import { buildEvent, buildParticipant } from "../testing/fixtures";
 import { createApiError } from "@/lib/api/errors";
-import { formatEnvelopeDay } from "../lib/envelope";
-import { formatOpensAt } from "../lib/roll-page";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 
 const mockFindOne = jest.fn();
 const mockGetParticipants = jest.fn();
@@ -106,12 +105,12 @@ test("upcoming: every schedule row can still change", async () => {
 
   expect(await screen.findByText("Event settings")).toBeOnTheScreen();
   expect(screen.getByText(event.title)).toBeOnTheScreen();
-  expect(screen.getByText(`Opens ${formatOpensAt(event.galleryOpensAt)}`)).toBeOnTheScreen();
+  expect(screen.getByText(`Opens ${formatDateTime(event.galleryOpensAt)}`)).toBeOnTheScreen();
 
   expect(screen.getByRole("button", { name: `Name, ${event.title}` })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Cover, Add" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Note for guests, Add" })).toBeOnTheScreen();
-  expect(screen.getByRole("button", { name: `When, ${formatOpensAt(event.date)}` })).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: `When, ${formatDateTime(event.date)}` })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Duration, 7 days" })).toBeOnTheScreen();
   expect(screen.getByLabelText("Storage, 0 of 3 GB")).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Envelopes, Two · reset" })).toBeOnTheScreen();
@@ -129,10 +128,10 @@ test("open: date and film are locked and explain why", async () => {
   });
   await renderScreen(event);
 
-  expect(await screen.findByText(`Open · until ${formatEnvelopeDay(event.galleryClosesAt!)}`)).toBeOnTheScreen();
+  expect(await screen.findByText(`Open · until ${formatDate(event.galleryClosesAt!)}`)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Cover, Change" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Note for guests, Black tie" })).toBeOnTheScreen();
-  expect(screen.getByLabelText(`When, ${formatOpensAt(event.date)} · locked`)).toBeOnTheScreen();
+  expect(screen.getByLabelText(`When, ${formatDateTime(event.date)} · locked`)).toBeOnTheScreen();
   expect(screen.getByLabelText("Duration, 30 days · locked")).toBeOnTheScreen();
   expect(screen.getByText(/locked once the event opens/)).toBeOnTheScreen();
 });
@@ -181,7 +180,7 @@ test("opens when and film slips while upcoming", async () => {
   );
   const user = userEvent.setup();
 
-  await user.press(await screen.findByRole("button", { name: `When, ${formatOpensAt("2026-11-07T19:00:00.000Z")}` }));
+  await user.press(await screen.findByRole("button", { name: `When, ${formatDateTime("2026-11-07T19:00:00.000Z")}` }));
   expect(await screen.findByText("When it happens")).toBeOnTheScreen();
   // Only the host is on the roll, so nobody else will see the move.
   expect(screen.queryByText(/will see the new date/)).toBeNull();
@@ -244,7 +243,7 @@ test("a move names everyone else on the roll", async () => {
   ]);
   await userEvent
     .setup()
-    .press(await screen.findByRole("button", { name: `When, ${formatOpensAt("2026-11-07T19:00:00.000Z")}` }));
+    .press(await screen.findByRole("button", { name: `When, ${formatDateTime("2026-11-07T19:00:00.000Z")}` }));
   expect(await screen.findByText("2 people will see the new date.")).toBeOnTheScreen();
 });
 
@@ -314,7 +313,7 @@ describe("a closed roll", () => {
 
   test("says when it closed and keeps the schedule locked without the open-roll note", async () => {
     await renderScreen(closed());
-    expect(await screen.findByText("Closed 21.09")).toBeOnTheScreen();
+    expect(await screen.findByText("Closed Mon, 21 Sep")).toBeOnTheScreen();
     expect(screen.getByLabelText(/^Duration, .* · locked$/)).toBeOnTheScreen();
     expect(screen.queryByText(/locked once the event opens/)).toBeNull();
   });
@@ -325,7 +324,7 @@ describe("a closed roll", () => {
     const user = userEvent.setup();
     await user.press(await screen.findByRole("button", { name: "Delete the event" }));
 
-    expect(await screen.findByText("Closed 21.09 · 11 people")).toBeOnTheScreen();
+    expect(await screen.findByText("Closed Mon, 21 Sep · 11 people")).toBeOnTheScreen();
     expect(screen.getByText(/for all 11 people/)).toBeOnTheScreen();
     // iOS reports the dismissal through the Modal once the sheet has gone, and
     // the sheet leaves the tree when its close animation ends, so take the

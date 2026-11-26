@@ -9,7 +9,7 @@ type UnexposedRollProps = {
   strips: number;
   /** Crossed out in pencil: the photos are gone (07.9). */
   crossed?: boolean;
-  /** A pencil note under the strips, such as "photos removed 21 Sep". */
+  /** A pencil note under the strips, such as "photos removed Mon, 21 Sep". */
   note?: string;
   /** Said in full for assistive tech, since the strips are decorative. */
   accessibilityLabel?: string;

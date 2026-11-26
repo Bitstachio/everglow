@@ -1,7 +1,7 @@
 import { useAuth } from "@/context/auth-context";
+import { formatDate } from "@/lib/format-date";
 import { router } from "expo-router";
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useEditUsernameForm } from "./use-edit-username-form";
 
 /**
@@ -9,7 +9,6 @@ import { useEditUsernameForm } from "./use-edit-username-form";
  * says when it opens again (`usernameChangeAvailableAt`).
  */
 export const useEditUsernameScreen = () => {
-  const { i18n } = useTranslation();
   const { user, refreshProfile } = useAuth();
   const currentUsername = user?.details?.username ?? "";
   const close = () => (router.canGoBack() ? router.back() : router.replace("/account-settings"));
@@ -25,10 +24,7 @@ export const useEditUsernameScreen = () => {
   // Read once: the screen is short-lived, and a date that passes while it is open waits for the next visit.
   const [openedAt] = useState(() => Date.now());
   const availableAt = user?.details?.usernameChangeAvailableAt;
-  const opensOn =
-    availableAt && new Date(availableAt).getTime() > openedAt
-      ? new Intl.DateTimeFormat(i18n.language, { day: "numeric", month: "short" }).format(new Date(availableAt))
-      : null;
+  const opensOn = availableAt && new Date(availableAt).getTime() > openedAt ? formatDate(availableAt) : null;
 
   return { form, onSubmit, availability, currentUsername, opensOn, onBack: close };
 };

@@ -34,24 +34,3 @@ export const envelopeUrl = (event: Pick<EventResponseDto, "invites">, kind: Enve
 /** How many envelopes the host holds: one per kind the API listed an invite for. A closed roll has none. */
 export const envelopeCount = (event: Pick<EventResponseDto, "invites">): number =>
   ENVELOPE_KINDS.filter((kind) => envelopeUrl(event, kind) !== null).length;
-
-// Some ICU versions shorten September to "Sept"; the lab writes three letters.
-const shortMonth = (date: Date): string => date.toLocaleDateString("en-GB", { month: "short" }).slice(0, 3);
-
-/** "21 Sep": a day on the envelope, such as when the photos go. */
-export const formatEnvelopeDay = (iso: string): string => {
-  const date = new Date(iso);
-  return `${date.getDate()} ${shortMonth(date)}`;
-};
-
-/** "Sat 7 Nov, 7 pm", or "Sat 7 Nov, 7:30 pm": when the roll is, as filled in on the envelope. */
-export const formatEnvelopeDate = (iso: string): string => {
-  const date = new Date(iso);
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 3);
-  const day = `${weekday} ${formatEnvelopeDay(iso)}`;
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const hour = hours % 12 || 12;
-  const time = minutes ? `${hour}:${String(minutes).padStart(2, "0")}` : String(hour);
-  return `${day}, ${time} ${hours < 12 ? "am" : "pm"}`;
-};

@@ -80,9 +80,9 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByText("Sam & Jo’s wedding")).toBeOnTheScreen();
-    expect(screen.getByText("Sun 18 Oct, 4 pm")).toBeOnTheScreen();
+    expect(screen.getByText("Sun, 18 Oct, 16:00")).toBeOnTheScreen();
     expect(screen.getByText("24 people so far")).toBeOnTheScreen();
-    expect(screen.getByText("17 Nov, then it’s gone")).toBeOnTheScreen();
+    expect(screen.getByText("Tue, 17 Nov, then it’s gone")).toBeOnTheScreen();
     // Nothing to scan on the guest's envelope; a pencil note says what joining gets them.
     expect(screen.queryByLabelText(/^QR code/)).not.toBeOnTheScreen();
     expect(screen.getByText("you add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
@@ -263,9 +263,9 @@ describe("Refusals", () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_GALLERY_CLOSED", galleryState: "CLOSED" }));
     await renderScreen();
 
-    expect(await screen.findByText("The event closed on 17 Nov and its photos were removed.")).toBeOnTheScreen();
+    expect(await screen.findByText("The event closed on Tue, 17 Nov and its photos were removed.")).toBeOnTheScreen();
     // Past the pick-up date, the envelope says it's gone.
-    expect(screen.getByText("17 Nov, gone")).toBeOnTheScreen();
+    expect(screen.getByText("Tue, 17 Nov, gone")).toBeOnTheScreen();
     expect(stampText("Closed")).toBeOnTheScreen();
   });
 

@@ -13,7 +13,7 @@ type FilmChoiceProps = {
   options: FilmOption[];
   selected: number | null;
   onSelect: (days: number) => void;
-  /** "Photos kept until Sat 14.11", once there is a date. */
+  /** "Photos kept until Sat, 14 Nov", once there is a date. */
   removed?: ReactNode;
 };
 

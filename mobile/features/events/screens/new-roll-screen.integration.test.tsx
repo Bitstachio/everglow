@@ -151,7 +151,7 @@ test("labels a new roll for tonight with the plan's default film", async () => {
     "A month, 30 days",
   ]);
   expect(screen.getByRole("radio", { name: "A month, 30 days" })).toBeChecked();
-  expect(screen.getByText(/Photos kept until Tue 01.12/)).toBeOnTheScreen();
+  expect(screen.getByText(/Photos kept until Tue, 1 Dec/)).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Create the event" })).toBeDisabled();
 });
 
@@ -165,14 +165,14 @@ test("names the roll, sets when it happens and the film, then opens it", async (
 
   await user.press(screen.getByRole("button", { name: /^When it happens: Tonight · 20:00/ }));
   expect(screen.getByText("November 2026")).toBeOnTheScreen();
-  await user.press(screen.getByRole("button", { name: "Sat 7 Nov" }));
+  await user.press(screen.getByRole("button", { name: "Sat, 7 Nov" }));
   await user.press(screen.getByRole("button", { name: "19:00" }));
   // While the slip is open, the label follows the draft.
-  expect(screen.getByText("Sat 07.11 · 19:00")).toBeOnTheScreen();
-  await user.press(screen.getByRole("button", { name: "Set Sat 7 Nov, 19:00" }));
+  expect(screen.getByText("Sat, 7 Nov · 19:00")).toBeOnTheScreen();
+  await user.press(screen.getByRole("button", { name: "Set Sat, 7 Nov, 19:00" }));
 
-  expect(await screen.findByRole("button", { name: "When it happens: Sat 07.11 · 19:00. Change" })).toBeOnTheScreen();
-  expect(screen.getByText(/Photos kept until Sat 14.11/)).toBeOnTheScreen();
+  expect(await screen.findByRole("button", { name: "When it happens: Sat, 7 Nov · 19:00. Change" })).toBeOnTheScreen();
+  expect(screen.getByText(/Photos kept until Sat, 14 Nov/)).toBeOnTheScreen();
 
   await user.press(screen.getByRole("button", { name: "Create the event" }));
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/events/roll-1/envelope?ready=1"));
@@ -280,8 +280,8 @@ test("offers only the days the API allows", async () => {
   const user = userEvent.setup();
 
   await user.press(screen.getByRole("button", { name: /^When it happens/ }));
-  expect(screen.getByRole("button", { name: "Sat 21 Nov, can’t be picked" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Fri 20 Nov" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Sat, 21 Nov, can’t be picked" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Fri, 20 Nov" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Previous month" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Next month" })).toBeDisabled();
 });
@@ -432,10 +432,10 @@ test("shows the rolls in use instead of the form when the plan's rolls are all r
   expect(screen.getByText(/Both events/)).toBeOnTheScreen();
   expect(
     screen.getByText(
-      /A free account runs 2 events at a time\. Nadia turns 30 closes on Sat 14 Nov, then a spot opens\./,
+      /A free account runs 2 events at a time\. Nadia turns 30 closes on Sat, 14 Nov, then a spot opens\./,
     ),
   ).toBeOnTheScreen();
-  expect(await screen.findByText("free on 14 Nov ↑")).toBeOnTheScreen();
+  expect(await screen.findByText("free on Sat, 14 Nov ↑")).toBeOnTheScreen();
   expect(screen.queryByLabelText("Event name")).not.toBeOnTheScreen();
   expect(mockPrevent.prevent).toBe(false);
 

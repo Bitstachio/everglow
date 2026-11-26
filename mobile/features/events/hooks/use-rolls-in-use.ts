@@ -1,8 +1,8 @@
 import { useAuth } from "@/context/auth-context";
+import { formatDate } from "@/lib/format-date";
 import { useTranslation } from "react-i18next";
 import { useEventsQuery } from "../api/queries";
-import { formatLongDay } from "../lib/new-roll";
-import { formatClosesOn, groupRolls } from "../lib/rolls";
+import { groupRolls } from "../lib/rolls";
 import type { Event, UserLimitsResponseDto } from "../types";
 
 /**
@@ -36,10 +36,10 @@ export const useRollsInUse = (limits: UserLimitsResponseDto | undefined, hitLimi
     title: limit === 2 ? t("full.titleBoth") : t("full.title", { count: limit }),
     dim: t("full.dim", { count: limit }),
     runs: t(`full.runs.${limits.plan}`, { count: limit }),
-    next: next ? { title: next.title, date: formatLongDay(new Date(next.galleryClosesAt)) } : null,
+    next: next ? { title: next.title, date: formatDate(next.galleryClosesAt) } : null,
     rolls: rolls.map((event) => ({
       event,
-      note: next && event.id === next.id ? t("full.note", { date: formatClosesOn(next.galleryClosesAt) }) : undefined,
+      note: next && event.id === next.id ? t("full.note", { date: formatDate(next.galleryClosesAt) }) : undefined,
     })),
   };
 };

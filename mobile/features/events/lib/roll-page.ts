@@ -173,34 +173,6 @@ export const hostName = (
   return host ? firstName(host.name) : null;
 };
 
-const pad = (value: number) => String(value).padStart(2, "0");
-
-/** When an upcoming roll opens. e.g. "Sat 07.11 · 19:00". */
-export const formatOpensAt = (iso: string): string => {
-  const date = new Date(iso);
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
-  return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
-
-/** Clock time when a roll closed while photos were still sending. e.g. "16:00". */
-export const formatClock = (iso: string): string => {
-  const date = new Date(iso);
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
-
-/** The roll's date under its name. e.g. "Sun 18.10". */
-export const formatRollDate = (iso: string): string => {
-  const date = new Date(iso);
-  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
-  return `${weekday} ${pad(date.getDate())}.${pad(date.getMonth() + 1)}`;
-};
-
-/** The life of a closed roll as a date range. e.g. "Sep 12 – Sep 21". */
-export const formatRange = (fromIso: string, toIso: string): string => {
-  const format = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${format(fromIso)} – ${format(toIso)}`;
-};
-
 /** A stable seed from a photo's id (FNV-1a), so its pencil ring is the same each time it's marked. */
 export const frameSeed = (photoId: string) => {
   let hash = 2166136261;

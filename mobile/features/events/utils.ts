@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format-date";
 import type { AccessLevel, Event } from "./types";
 
 export const getAccessLevelLabel = (accessLevel: AccessLevel) => {
@@ -59,10 +60,8 @@ export const formatFilterDay = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const displayFilterDay = (value: string | null) =>
-  value
-    ? parseFilterDay(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-    : "Select date";
+export const displayFilterDay = (value: string | null, now: Date = new Date()) =>
+  value ? formatDate(parseFilterDay(value), now) : "Select date";
 
 /** Role uses creatorId until list responses include the caller's accessLevel. */
 export const eventMatchesRole = (event: Event, role: AccessLevel, currentUserId: string) => {

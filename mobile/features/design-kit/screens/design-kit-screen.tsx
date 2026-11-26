@@ -112,7 +112,7 @@ const DesignKitScreen = () => {
             <EdgeValue>1.2</EdgeValue> / 3 GB · <EdgeValue>5h 42m</EdgeValue> left · <EdgeValue>24</EdgeValue> people
           </EdgePrint>
           <EdgePrint size="frame-label">144 · Leila</EdgePrint>
-          <PencilNote>free on 14 Nov ↑</PencilNote>
+          <PencilNote>free on Sat, 14 Nov ↑</PencilNote>
         </Section>
 
         <Section title="Leaders" only={only}>
@@ -204,9 +204,9 @@ const DesignKitScreen = () => {
             <LabEnvelope
               fields={[
                 { label: "Name", value: "Sam & Jo’s wedding" },
-                { label: "Date", value: "Sun 18 Oct, 4 pm" },
+                { label: "Date", value: "Sun, 18 Oct, 16:00" },
                 { label: "In the event", value: "24 people so far" },
-                { label: "Pick up by", value: "17 Nov, then it’s gone" },
+                { label: "Pick up by", value: "Tue, 17 Nov, then it’s gone" },
               ]}
               options={[
                 { label: "Adds photos", checked: true },
