@@ -61,7 +61,7 @@ export const LabEnvelope = ({
         {options?.length ? (
           <View
             accessibilityRole={options.some((option) => option.onPress) ? "radiogroup" : undefined}
-            className="flex-row gap-4 pt-1"
+            className="flex-row justify-center gap-4 pt-1"
           >
             {options.map((option) => (
               <Pressable
@@ -91,18 +91,13 @@ export const LabEnvelope = ({
               <GreasePencil mark="arrow" width={20} height={34} from={[12, 32]} to={[5, 3]} bend={0.25} seed={5} />
             </View>
             {/* Ends before a stamp in the corner, the stamp's own width (size-24). */}
-            <PencilNote
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-              className={stamp ? "mr-24" : ""}
-            >
+            <PencilNote numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} className={stamp ? "mr-24" : ""}>
               {note}
             </PencilNote>
           </View>
         ) : null}
         {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
-        {action ? <View className="pt-5">{action}</View> : null}
+        {action ? <View className="items-center pt-5">{action}</View> : null}
       </View>
       {/* Stamped over the bottom right, beside the note; takes no row of its own. */}
       {stamp ? <View className="absolute bottom-6 right-5">{stamp}</View> : null}

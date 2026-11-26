@@ -73,7 +73,7 @@ export const PaperButton = ({
     accessibilityState={{ disabled }}
     disabled={disabled}
     onPress={onPress}
-    className={`min-h-11 flex-row items-center gap-1.5 self-start active:opacity-60 ${disabled ? "opacity-50" : ""}`.trim()}
+    className={`min-h-11 flex-row items-center gap-1.5 active:opacity-60 ${disabled ? "opacity-50" : ""}`.trim()}
   >
     <Text className="font-mono-semibold text-edge-print uppercase text-paper-ink">{title}</Text>
     {mark ? (
