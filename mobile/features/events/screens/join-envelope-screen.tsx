@@ -160,8 +160,6 @@ const JoinEnvelopeScreen = () => {
           peopleCount={envelope?.peopleCount}
           pickUpBy={envelope?.pickUpBy}
           admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "adds" : undefined)}
-          // What joining gets them, pencilled under the ticked box. No code: there's nothing to scan here.
-          note={status === "ready" && envelope ? t(`open.note.${envelope.admits}`) : undefined}
           stamp={
             refused ? (
               <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />

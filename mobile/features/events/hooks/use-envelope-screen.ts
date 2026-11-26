@@ -69,8 +69,6 @@ export const useEnvelopeScreen = () => {
           peopleCount: event.usage.members,
           pickUpBy: pickUpBy(),
           admits: shown,
-          // A closed or held envelope admits nobody, so there is nothing to pencil in.
-          note: isOpen ? t(`note.${shown}`) : undefined,
           accessibilityLabel: t(`label.${shown}`, { title: event.title }),
         }
       : null;

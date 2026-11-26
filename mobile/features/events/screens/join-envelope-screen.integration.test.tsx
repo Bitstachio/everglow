@@ -83,9 +83,8 @@ describe("06.4 The envelope", () => {
     expect(screen.getByText("Sun, 18 Oct, 16:00")).toBeOnTheScreen();
     expect(screen.getByText("24 people so far")).toBeOnTheScreen();
     expect(screen.getByText("Tue, 17 Nov, 16:00")).toBeOnTheScreen();
-    // Nothing to scan on the guest's envelope; a pencil note says what joining gets them.
+    // Nothing to scan on the guest's envelope.
     expect(screen.queryByLabelText(/^QR code/)).not.toBeOnTheScreen();
-    expect(screen.getByText("you add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
     // Stamped on the card: who invited you.
     expect(stampText("Invited")).toBeOnTheScreen();
     expect(stampText("by Sam")).toBeOnTheScreen();
@@ -102,7 +101,6 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByRole("button", { name: "Join to look" })).toBeOnTheScreen();
-    expect(screen.getByText("you look and save", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(stampText("by Sam")).toBeOnTheScreen();
   });
 

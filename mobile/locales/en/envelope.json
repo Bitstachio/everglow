@@ -13,10 +13,6 @@
     "adds": "Adds photos",
     "view": "View only"
   },
-  "note": {
-    "adds": "they add photos too",
-    "view": "they can only look and save"
-  },
   "pickUp": {
     "never": "It stays open"
   },

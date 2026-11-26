@@ -66,7 +66,6 @@ test("05.1 shows the adds-photos envelope with its code", async () => {
   expect(await screen.findByLabelText("Adds-photos envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Envelope · Nadia turns 30" })).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: "Adds photos", checked: true })).toBeOnTheScreen();
-  expect(screen.getByText("they add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 14 Nov, 19:00")).toBeOnTheScreen();
@@ -82,7 +81,6 @@ test("05.2 switches to the view-only envelope", async () => {
 
   expect(screen.getByLabelText("View-only envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: "View only", checked: true })).toBeOnTheScreen();
-  expect(screen.getByText("they can only look and save", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend-viewer")).toBeOnTheScreen();
 });
 
