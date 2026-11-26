@@ -9,7 +9,7 @@ type RollEnvelopeProps = {
   startsAt?: string;
   /** Everyone on the roll, hosts included. */
   peopleCount?: number;
-  /** When the photos go, formatted: "Sat, 14 Nov, then it’s gone". */
+  /** When the gallery ends, formatted: "Sat, 14 Nov, 19:00". */
   pickUpBy?: string;
   /** Which box is ticked: the adds-photos or the view-only envelope. */
   admits?: "adds" | "view";

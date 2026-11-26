@@ -206,7 +206,7 @@ const DesignKitScreen = () => {
                 { label: "Name", value: "Sam & Jo’s wedding" },
                 { label: "Date", value: "Sun, 18 Oct, 16:00" },
                 { label: "In the event", value: "24 people so far" },
-                { label: "Pick up by", value: "Tue, 17 Nov, then it’s gone" },
+                { label: "Pick up by", value: "Tue, 17 Nov, 19:00" },
               ]}
               options={[
                 { label: "Adds photos", checked: true },

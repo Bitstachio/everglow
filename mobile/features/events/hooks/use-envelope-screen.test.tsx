@@ -64,7 +64,7 @@ test("fills the adds-photos envelope in first", async () => {
     title: "Nadia turns 30",
     startsAt: "Sat, 7 Nov, 19:00",
     peopleCount: 18,
-    pickUpBy: "Sat, 14 Nov, then it’s gone",
+    pickUpBy: "Sat, 14 Nov, 19:00",
     admits: "adds",
     note: "they add photos too",
     accessibilityLabel: "Adds-photos envelope for Nadia turns 30",
@@ -223,7 +223,7 @@ test("05.6 a closed roll's envelope is shut, with the day its photos went", asyn
     stampLine: "No new guests",
     date: "Mon, 21 Sep",
   });
-  expect(result.current.envelope).toMatchObject({ admits: "adds", pickUpBy: "Mon, 21 Sep, gone" });
+  expect(result.current.envelope).toMatchObject({ admits: "adds", pickUpBy: "Mon, 21 Sep, 12:00" });
   expect(result.current.invitationUrl).toBeNull();
 });
 

@@ -18,9 +18,7 @@
     "view": "they can only look and save"
   },
   "pickUp": {
-    "until": "{{date}}, then it’s gone",
-    "never": "It stays open",
-    "gone": "{{date}}, gone"
+    "never": "It stays open"
   },
   "label": {
     "adds": "Adds-photos envelope for {{title}}",

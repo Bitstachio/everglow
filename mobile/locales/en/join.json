@@ -22,11 +22,9 @@
     "open": "Open the envelope"
   },
   "envelope": {
-    "pickUp": "{{date}}, then it’s gone",
     "label": "Envelope for {{title}}",
     "labelLoading": "Opening the envelope",
-    "pickUpNever": "It stays open",
-    "pickUpGone": "{{date}}, gone"
+    "pickUpNever": "It stays open"
   },
   "open": {
     "back": "Back",

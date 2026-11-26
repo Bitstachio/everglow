@@ -82,7 +82,7 @@ describe("06.4 The envelope", () => {
     expect(await screen.findByText("Sam & Jo’s wedding")).toBeOnTheScreen();
     expect(screen.getByText("Sun, 18 Oct, 16:00")).toBeOnTheScreen();
     expect(screen.getByText("24 people so far")).toBeOnTheScreen();
-    expect(screen.getByText("Tue, 17 Nov, then it’s gone")).toBeOnTheScreen();
+    expect(screen.getByText("Tue, 17 Nov, 16:00")).toBeOnTheScreen();
     // Nothing to scan on the guest's envelope; a pencil note says what joining gets them.
     expect(screen.queryByLabelText(/^QR code/)).not.toBeOnTheScreen();
     expect(screen.getByText("you add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
@@ -242,7 +242,7 @@ describe("Refusals", () => {
     expect(stampText("Not valid")).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Envelope" })).toBeOnTheScreen();
     // Nothing is filled in on an envelope that doesn't open.
-    expect(screen.queryByText(/so far|then it’s gone/)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/so far/)).not.toBeOnTheScreen();
 
     await press("Scan another");
     expect(mockRouter.replace).toHaveBeenCalledWith("/join");
@@ -265,7 +265,7 @@ describe("Refusals", () => {
 
     expect(await screen.findByText("The event closed on Tue, 17 Nov and its photos were removed.")).toBeOnTheScreen();
     // Past the pick-up date, the envelope says it's gone.
-    expect(screen.getByText("Tue, 17 Nov, gone")).toBeOnTheScreen();
+    expect(screen.getByText("Tue, 17 Nov, 16:00")).toBeOnTheScreen();
     expect(stampText("Closed")).toBeOnTheScreen();
   });
 
