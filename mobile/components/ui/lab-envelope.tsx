@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import Svg, { Line, Polygon } from "react-native-svg";
 import { GreasePencil } from "./grease-pencil";
-import { Paper, PaperBox, PaperField } from "./lab-paper";
+import { PaperBox, PaperField } from "./lab-paper";
 import { PencilNote } from "./pencil-note";
 
 type EnvelopeField = { label: string; value?: ReactNode };
@@ -30,8 +30,9 @@ type LabEnvelopeProps = {
 };
 
 /**
- * The invite: a photo-lab envelope filled in by hand. Every string comes from
- * the caller, translated. Put a `Stamp` beside it to repeat the button.
+ * The invite: a photo-lab envelope filled in by hand, edge to edge. Every
+ * string comes from the caller, translated. Put a `Stamp` beside it to repeat
+ * the button.
  */
 export const LabEnvelope = ({
   fields,
@@ -49,71 +50,62 @@ export const LabEnvelope = ({
   const tickedX = boxX[options?.find((option) => option.checked)?.label ?? ""] ?? 0;
 
   return (
-    // Flap and paper tilt as one, so the flap stays square on the paper's top edge.
-    <View className="-rotate-2">
-      <View className={dimmed ? "pt-3 opacity-50" : "pt-3"}>
-        <View className="absolute left-0 right-0 top-0 h-3.5">
-          <Svg width="100%" height="100%" viewBox="0 0 100 14" preserveAspectRatio="none">
-            <Polygon points="0,14 8,0 92,0 100,14" fill={colorTokens.paperFlap} />
-          </Svg>
+    <View className="flex-1 bg-paper">
+      <View className={dimmed ? "flex-1 px-5 pb-8 pt-2 opacity-50" : "flex-1 px-5 pb-8 pt-2"}>
+        {/* One summary for what's written in; the boxes stay separate so they can be tapped. */}
+        <View accessible accessibilityLabel={accessibilityLabel} className="pt-1">
+          {fields.map((field) => (
+            <PaperField key={field.label} label={field.label} value={field.value} />
+          ))}
         </View>
-        <Paper tilt={false}>
-          {/* One summary for what's written in; the boxes stay separate so they can be tapped. */}
-          <View accessible accessibilityLabel={accessibilityLabel} className="pt-1">
-            {fields.map((field) => (
-              <PaperField key={field.label} label={field.label} value={field.value} />
+        {options?.length ? (
+          <View
+            accessibilityRole={options.some((option) => option.onPress) ? "radiogroup" : undefined}
+            className="flex-row gap-4 pt-1"
+          >
+            {options.map((option) => (
+              <Pressable
+                key={option.label}
+                disabled={!option.onPress}
+                onPress={option.onPress}
+                onLayout={(event) => {
+                  const { x } = event.nativeEvent.layout;
+                  setBoxX((measured) => ({ ...measured, [option.label]: x }));
+                }}
+                accessible={Boolean(option.onPress)}
+                accessibilityRole={option.onPress ? "radio" : undefined}
+                accessibilityState={option.onPress ? { checked: option.checked } : undefined}
+                accessibilityLabel={option.label}
+                className="min-h-11 flex-row items-center gap-1.5 active:opacity-60"
+              >
+                <PaperBox checked={option.checked} />
+                <Text className="font-mono text-edge-print uppercase text-paper-ink">{option.label}</Text>
+              </Pressable>
             ))}
           </View>
-          {options?.length ? (
-            <View
-              accessibilityRole={options.some((option) => option.onPress) ? "radiogroup" : undefined}
-              className="flex-row gap-4 pt-1"
+        ) : null}
+        {note ? (
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="-mt-2">
+            {/* The arrow moves to the ticked box; the note stays at the left on one line, so both envelopes are the same height. */}
+            <View testID="envelope-note" style={{ marginLeft: tickedX }}>
+              <GreasePencil mark="arrow" width={20} height={34} from={[12, 32]} to={[5, 3]} bend={0.25} seed={5} />
+            </View>
+            {/* Ends before a stamp in the corner, the stamp's own width (size-24). */}
+            <PencilNote
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              className={stamp ? "mr-24" : ""}
             >
-              {options.map((option) => (
-                <Pressable
-                  key={option.label}
-                  disabled={!option.onPress}
-                  onPress={option.onPress}
-                  onLayout={(event) => {
-                    const { x } = event.nativeEvent.layout;
-                    setBoxX((measured) => ({ ...measured, [option.label]: x }));
-                  }}
-                  accessible={Boolean(option.onPress)}
-                  accessibilityRole={option.onPress ? "radio" : undefined}
-                  accessibilityState={option.onPress ? { checked: option.checked } : undefined}
-                  accessibilityLabel={option.label}
-                  className="min-h-11 flex-row items-center gap-1.5 active:opacity-60"
-                >
-                  <PaperBox checked={option.checked} />
-                  <Text className="font-mono text-edge-print uppercase text-paper-ink">{option.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-          {note ? (
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="-mt-2">
-              {/* The arrow moves to the ticked box; the note stays at the left on one line, so both envelopes are the same height. */}
-              <View testID="envelope-note" style={{ marginLeft: tickedX }}>
-                <GreasePencil mark="arrow" width={20} height={34} from={[12, 32]} to={[5, 3]} bend={0.25} seed={5} />
-              </View>
-              {/* Ends before a stamp in the corner, the stamp's own width (size-24). */}
-              <PencilNote
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-                className={stamp ? "mr-24" : ""}
-              >
-                {note}
-              </PencilNote>
-            </View>
-          ) : null}
-          {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
-          {action ? <View className="pt-5">{action}</View> : null}
-        </Paper>
+              {note}
+            </PencilNote>
+          </View>
+        ) : null}
+        {code ? <View className="items-center pb-2 pt-6">{code}</View> : null}
+        {action ? <View className="pt-5">{action}</View> : null}
       </View>
-      {/* Stamped over the bottom right corner, beside the note, hanging a little off the edge so it takes no
-          row of its own and clears the last line. */}
-      {stamp ? <View className="absolute -bottom-4 right-2">{stamp}</View> : null}
+      {/* Stamped over the bottom right, beside the note; takes no row of its own. */}
+      {stamp ? <View className="absolute bottom-6 right-5">{stamp}</View> : null}
     </View>
   );
 };
@@ -124,13 +116,7 @@ export const LabEnvelope = ({
  * once you sign in (06.3); the filled-in `LabEnvelope` is its front.
  */
 export const LabEnvelopeBack = ({ stamp, accessibilityLabel }: { stamp?: ReactNode; accessibilityLabel: string }) => (
-  <View
-    accessible
-    accessibilityLabel={accessibilityLabel}
-    className="-rotate-2 overflow-hidden rounded-paper bg-paper shadow-paper"
-    // An envelope's proportions, as the front's paper is about wide.
-    style={{ aspectRatio: 1.6 }}
-  >
+  <View accessible accessibilityLabel={accessibilityLabel} className="flex-1 overflow-hidden bg-paper">
     <View className="absolute inset-0">
       <Svg width="100%" height="100%" viewBox="0 0 160 100" preserveAspectRatio="none">
         {/* The side folds under the flap, meeting where the flap's point lands. */}
