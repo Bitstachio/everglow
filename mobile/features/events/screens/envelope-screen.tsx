@@ -87,7 +87,7 @@ const EnvelopeScreen = () => {
               invitationUrl ? (
                 <QRCode
                   value={invitationUrl}
-                  size={150}
+                  size={210}
                   color={colorTokens.paperInk}
                   backgroundColor={colorTokens.paper}
                 />

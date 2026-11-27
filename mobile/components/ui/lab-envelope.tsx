@@ -61,7 +61,7 @@ export const LabEnvelope = ({
         {options?.length ? (
           <View
             accessibilityRole={options.some((option) => option.onPress) ? "radiogroup" : undefined}
-            className="flex-row justify-center gap-4 pt-1"
+            className="flex-row justify-center gap-4 pt-4"
           >
             {options.map((option) => (
               <Pressable
