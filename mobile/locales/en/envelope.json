@@ -4,12 +4,12 @@
   "close": "Close the envelope",
   "ready": "Ready",
   "paper": {
-    "name": "Name",
-    "date": "Date",
+    "name": "Event",
+    "date": "Start",
     "people": "In the event",
     "peopleCount_one": "{{count}} person so far",
     "peopleCount_other": "{{count}} people so far",
-    "pickUp": "Pick up by",
+    "pickUp": "End",
     "participant": "Participant",
     "viewer": "Viewer"
   },

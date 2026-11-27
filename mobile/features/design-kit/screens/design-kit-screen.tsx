@@ -203,10 +203,10 @@ const DesignKitScreen = () => {
           <View className="pb-4">
             <LabEnvelope
               fields={[
-                { label: "Name", value: "Sam & Jo’s wedding" },
-                { label: "Date", value: "Sun, 18 Oct, 16:00" },
+                { label: "Event", value: "Sam & Jo’s wedding" },
+                { label: "Start", value: "Sun, 18 Oct, 16:00" },
                 { label: "In the event", value: "24 people so far" },
-                { label: "Pick up by", value: "Tue, 17 Nov, 19:00" },
+                { label: "End", value: "Tue, 17 Nov, 19:00" },
               ]}
               options={[
                 { label: "Participant", checked: true },
