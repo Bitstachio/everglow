@@ -66,7 +66,6 @@ export const useEnvelopeScreen = () => {
       ? {
           title: event.title,
           startsAt: formatDateTime(event.date),
-          peopleCount: event.usage.members,
           pickUpBy: pickUpBy(),
           admits: shown,
           accessibilityLabel: t(`label.${shown}`, { title: event.title }),

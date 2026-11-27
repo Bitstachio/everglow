@@ -9,7 +9,6 @@ jest.mock("@/hooks/use-reduce-motion", () => ({ useReduceMotion: () => true }));
 const roll = {
   title: "Nadia turns 30",
   startsAt: "Sat, 7 Nov, 19:00",
-  peopleCount: 18,
   pickUpBy: "Sat, 14 Nov, 19:00",
   accessibilityLabel: "Participant envelope for Nadia turns 30",
 };
@@ -20,14 +19,8 @@ test("fills the envelope in with the roll", async () => {
   expect(screen.getByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
-  expect(screen.getByText("18 people so far")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 14 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("QR")).toBeOnTheScreen();
-});
-
-test("counts one person in the singular", async () => {
-  await renderWithI18n(<RollEnvelope {...roll} peopleCount={1} />);
-  expect(screen.getByText("1 person so far")).toBeOnTheScreen();
 });
 
 test.each(["participant", "viewer"] as const)("an open %s envelope prints nothing by its code", async (admits) => {
@@ -40,7 +33,7 @@ test("a sealed envelope keeps the roll and the code to itself", async () => {
   await renderWithI18n(<RollEnvelope {...roll} admits="participant" sealed code={<Text>QR</Text>} />);
 
   expect(screen.queryByText("Nadia turns 30")).not.toBeOnTheScreen();
-  expect(screen.queryByText("18 people so far")).not.toBeOnTheScreen();
+  expect(screen.queryByText("Sat, 7 Nov, 19:00")).not.toBeOnTheScreen();
   expect(screen.queryByText("QR")).not.toBeOnTheScreen();
 });
 

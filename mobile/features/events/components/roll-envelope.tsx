@@ -7,8 +7,6 @@ type RollEnvelopeProps = {
   title: string;
   /** When the roll is, formatted: "Sat, 7 Nov, 19:00". */
   startsAt?: string;
-  /** Everyone on the roll, organizers included. */
-  peopleCount?: number;
   /** When the gallery ends, formatted: "Sat, 14 Nov, 19:00". */
   pickUpBy?: string;
   /** Which box is ticked: the participant or the viewer envelope. */
@@ -37,7 +35,6 @@ type RollEnvelopeProps = {
 export const RollEnvelope = ({
   title,
   startsAt,
-  peopleCount,
   pickUpBy,
   admits,
   sealed = false,
@@ -58,10 +55,6 @@ export const RollEnvelope = ({
       fields={[
         { label: t("paper.name"), value: title },
         { label: t("paper.date"), value: startsAt },
-        {
-          label: t("paper.people"),
-          value: peopleCount === undefined ? undefined : t("paper.peopleCount", { count: peopleCount }),
-        },
         { label: t("paper.pickUp"), value: pickUpBy },
       ]}
       options={[

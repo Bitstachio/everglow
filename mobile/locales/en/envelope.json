@@ -6,9 +6,6 @@
   "paper": {
     "name": "Event",
     "date": "Start",
-    "people": "In the event",
-    "peopleCount_one": "{{count}} person so far",
-    "peopleCount_other": "{{count}} people so far",
     "pickUp": "End",
     "participant": "Participant",
     "viewer": "Viewer"

@@ -205,7 +205,6 @@ const DesignKitScreen = () => {
               fields={[
                 { label: "Event", value: "Sam & Jo’s wedding" },
                 { label: "Start", value: "Sun, 18 Oct, 16:00" },
-                { label: "In the event", value: "24 people so far" },
                 { label: "End", value: "Tue, 17 Nov, 19:00" },
               ]}
               options={[

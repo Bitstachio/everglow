@@ -88,8 +88,8 @@ const refusalCopy = (
 
 /**
  * 06.4–06.13 The envelope someone opens before joining: whose event it is,
- * who's on it, when to pick the photos up and what it admits, or, returned
- * and dimmed, why it doesn't admit them. Signed out, it's sealed (06.3).
+ * when it starts and ends and what it admits, or, returned and dimmed, why
+ * it doesn't admit them. Signed out, it's sealed (06.3).
  */
 const JoinEnvelopeScreen = () => {
   const { t } = useTranslation("join");
@@ -157,7 +157,6 @@ const JoinEnvelopeScreen = () => {
           dimmed={status !== "ready"}
           title={envelope?.title ?? ""}
           startsAt={envelope?.startsAt}
-          peopleCount={envelope?.peopleCount}
           pickUpBy={envelope?.pickUpBy}
           admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "participant" : undefined)}
           stamp={

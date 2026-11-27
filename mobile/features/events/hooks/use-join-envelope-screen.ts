@@ -114,7 +114,6 @@ export const useJoinEnvelopeScreen = () => {
       ? {
           title: data.title,
           startsAt: formatDateTime(data.date),
-          peopleCount: data.memberCount,
           pickUpBy: data.galleryClosesAt ? formatDateTime(data.galleryClosesAt) : t("envelope.pickUpNever"),
           admits: data.accessLevel === "VIEWER" ? ("viewer" as const) : ("participant" as const),
           invitationUrl: data.invitationUrl,

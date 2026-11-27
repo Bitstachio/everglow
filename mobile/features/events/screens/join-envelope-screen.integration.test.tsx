@@ -76,12 +76,11 @@ beforeEach(() => {
 });
 
 describe("06.4 The envelope", () => {
-  test("shows whose event it is, who's on it, when to pick up, and what it admits", async () => {
+  test("shows whose event it is, when it starts and ends, and what it admits", async () => {
     await renderScreen();
 
     expect(await screen.findByText("Sam & Jo’s wedding")).toBeOnTheScreen();
     expect(screen.getByText("Sun, 18 Oct, 16:00")).toBeOnTheScreen();
-    expect(screen.getByText("24 people so far")).toBeOnTheScreen();
     expect(screen.getByText("Tue, 17 Nov, 16:00")).toBeOnTheScreen();
     // Nothing to scan on the invitee's envelope.
 

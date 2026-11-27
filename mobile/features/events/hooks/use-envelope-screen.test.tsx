@@ -63,7 +63,6 @@ test("fills the participant envelope in first", async () => {
   expect(result.current.envelope).toEqual({
     title: "Nadia turns 30",
     startsAt: "Sat, 7 Nov, 19:00",
-    peopleCount: 18,
     pickUpBy: "Sat, 14 Nov, 19:00",
     admits: "participant",
     accessibilityLabel: "Participant envelope for Nadia turns 30",

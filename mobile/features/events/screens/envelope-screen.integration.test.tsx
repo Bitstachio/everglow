@@ -67,7 +67,6 @@ test("05.1 shows the participant envelope with its code", async () => {
   expect(screen.getByRole("header", { name: "Envelope · Nadia turns 30" })).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: "Participant", checked: true })).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
-  expect(screen.getByText("18 people so far")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 14 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();
 });
