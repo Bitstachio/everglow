@@ -52,15 +52,15 @@ Use an iPhone simulator on iOS 18 for routine runs; it is noticeably quicker tha
 
 Most of the regression suite needs rolls in states that take days to reach. Load [fixtures.sql](fixtures.sql) into the local database (instructions are at the top of the file). It creates, around your account:
 
-| Roll                  | Your role              | State                        |
-| --------------------- | ---------------------- | ---------------------------- |
-| QA · Upcoming (organizer)  | Organizer              | Opens in 2 days              |
+| Roll                        | Your role              | State                        |
+| --------------------------- | ---------------------- | ---------------------------- |
+| QA · Upcoming (organizer)   | Organizer              | Opens in 2 days              |
 | QA · Upcoming (participant) | Participant            | Opens tomorrow               |
-| QA · Last day         | Organizer (with Leila) | Closes in 5 hours, no photos |
-| QA · Viewer        | Viewer                 | Open                         |
-| QA · Closed           | Participant            | Closed 13 days ago           |
-| QA · Under review     | Participant            | Open, under review           |
-| QA · Suspended        | Participant            | Open, suspended              |
+| QA · Last day               | Organizer (with Leila) | Closes in 5 hours, no photos |
+| QA · Viewer                 | Viewer                 | Open                         |
+| QA · Closed                 | Participant            | Closed 13 days ago           |
+| QA · Under review           | Participant            | Open, under review           |
+| QA · Suspended              | Participant            | Open, suspended              |
 
 Rolls that need photos (thumbnails, saving, selection, reports on a frame) use real uploads: add them from the app with the simulator's photo library. Fixture rows have no S3 objects behind them.
 
