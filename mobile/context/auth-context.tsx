@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { focusManager, hydrate, onlineManager, useQueryClient } from "@tanstack/react-query";
 import { CantConnectScreen } from "@/components/cant-connect-screen";
 import { LaunchCurtain, LaunchScreen } from "@/components/launch-screen";
 import i18n from "@/i18n/instance";
@@ -9,7 +9,10 @@ import { setSuspendedHandler, setUnauthorizedHandler } from "@/lib/api/axios-ins
 import { isConnectionError } from "@/lib/api/errors";
 import { runAccountCleared, type AccountClearedReason } from "@/lib/account-cleared";
 import { runBeforeSignOut, type SignOutReason } from "@/lib/before-sign-out";
+import { clearImageCaches } from "@/lib/image-cache";
 import { clearPendingInvite, takeLandingRoute } from "@/lib/pending-invite";
+import { createSessionPersister } from "@/lib/query/session-persister";
+import { readSessionSnapshot } from "@/lib/session-cache";
 import { View } from "react-native";
 import {
   clearLocalCredentials,
@@ -54,6 +57,9 @@ const ONBOARDING_ROUTE = "/onboarding" as const;
 const LOGIN_ROUTE = "/login" as const;
 const SUSPENDED_ROUTE = "/account-suspended" as const;
 
+/** How often a profile opened from the phone is asked for again while the app stays open. */
+export const PROFILE_RELOAD_INTERVAL_MS = 30_000;
+
 /**
  * Where signing out lands: the welcome, or Deleted (14.12) after deleting the
  * account, with `apple=1` for a Sign in with Apple account.
@@ -69,7 +75,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // The step that couldn't reach Everglow (01.7), repeated by Try again.
   const [pendingStep, setPendingStep] = useState<(() => Promise<User | null>) | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+  // The profile came from this phone because Everglow was out of reach at
+  // launch; it's loaded again once the network is back.
+  const [profileFromPhone, setProfileFromPhone] = useState(false);
   const queryClient = useQueryClient();
+  const [persister] = useState(() => createSessionPersister(queryClient));
+
+  useEffect(() => () => persister.stop(), [persister]);
+
+  // What was loaded offline is already on disk; saving it again would only
+  // make it look newer than it is.
+  useEffect(() => {
+    persister.setSession(user && !profileFromPhone ? { userId: user.id, identity, profile: user } : null);
+  }, [persister, user, identity, profileFromPhone]);
 
   // Avoid stale closures when the 401 handler is invoked from the interceptor.
   const handleSessionExpiredRef = useRef<(code?: string) => void>(() => {});
@@ -106,15 +124,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Nothing cached for one account may show to the next one signed in on this
   // phone. An expired session keeps the account's unfinished uploads on disk
   // for when the same person signs back in; sign-out and deletion remove them.
+  // The saved session and every cached image go with it, whatever the reason.
   const clearAccount = useCallback(
     (reason: AccountClearedReason) => {
+      persister.clear();
       queryClient.clear();
+      clearImageCaches();
       clearPendingInvite();
       runAccountCleared(reason);
+      setProfileFromPhone(false);
       setUser(null);
       setIdentity(null);
     },
-    [queryClient],
+    [queryClient, persister],
   );
 
   const handleSessionExpired = useCallback(
@@ -164,13 +186,83 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => setSuspendedHandler(null);
   }, [handleSuspended]);
 
+  // Offline, Auth0 may not say who is signed in (the token is due for renewal);
+  // the session on this phone is still theirs, and so is what it saved.
   const loadSession = useCallback(async (): Promise<User | null> => {
-    if (isAuth0Configured() && (await hasValidSession())) {
-      setIdentity(await getSignedInIdentity());
-      return refreshProfile();
+    if (!isAuth0Configured()) return null;
+    if (!(await hasValidSession())) {
+      // Nobody is signed in: whatever is saved is someone's who left, and
+      // must not be there for the next person who opens the app offline.
+      persister.clear();
+      return null;
     }
-    return null;
-  }, [refreshProfile]);
+    const signedIn = await getSignedInIdentity();
+    setIdentity(signedIn);
+    try {
+      return await refreshProfile();
+    } catch (err) {
+      if (!isConnectionError(err)) throw err;
+      const saved = readSessionSnapshot({ sub: signedIn?.sub });
+      if (!saved) throw err;
+      try {
+        hydrate(queryClient, saved.queries);
+      } catch {
+        // A snapshot that can't be loaded is no use on any later launch either.
+        persister.clear();
+        throw err;
+      }
+      setIdentity(signedIn ?? saved.identity);
+      setProfileFromPhone(true);
+      setUser(saved.profile);
+      return saved.profile;
+    }
+  }, [queryClient, refreshProfile, persister]);
+
+  // A profile from this phone is loaded again once Everglow answers: on
+  // reconnect, on return to the app, and every half minute meanwhile, since
+  // an API that was down comes back without the phone's network changing.
+  useEffect(() => {
+    if (!profileFromPhone) return;
+    let reloading = false;
+    // Set once the account is cleared, so an answer arriving after a sign-out can't bring it back.
+    let stopped = false;
+    const reload = async () => {
+      if (reloading || !onlineManager.isOnline()) return;
+      reloading = true;
+      try {
+        const signedIn = await getSignedInIdentity();
+        const profile = await authService.getUserProfile();
+        if (stopped || signedOutRef.current) return;
+        // No profile means the API answered with an error (a 500, a 429), not
+        // that the session ended: the saved profile stands and a later try
+        // asks again. A session that really ended comes through the 401 handler.
+        if (!profile) return;
+        setUser(profile);
+        if (signedIn) setIdentity(signedIn);
+        setProfileFromPhone(false);
+        // Home is already open; only a change of standing moves the person on.
+        if (profile.suspendedAt || !profile.isOnboarded) routeForUser(profile);
+      } catch {
+        // Still out of reach: the next reconnect tries again.
+      } finally {
+        reloading = false;
+      }
+    };
+    void reload();
+    const stopOnline = onlineManager.subscribe((online) => {
+      if (online) void reload();
+    });
+    const stopFocus = focusManager.subscribe((focused) => {
+      if (focused) void reload();
+    });
+    const timer = setInterval(() => void reload(), PROFILE_RELOAD_INTERVAL_MS);
+    return () => {
+      stopped = true;
+      stopOnline();
+      stopFocus();
+      clearInterval(timer);
+    };
+  }, [profileFromPhone, routeForUser]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -218,6 +310,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         setError(null);
         signedOutRef.current = false;
+        // A new sign-in starts from nothing saved, in case an earlier account's snapshot outlived it.
+        persister.clear();
         setIdentity(await loginWithUniversalLogin(options));
         let profile: User | null;
         try {
@@ -241,7 +335,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
       }
     },
-    [refreshProfile, routeForUser],
+    [refreshProfile, routeForUser, persister],
   );
 
   const login = useCallback(() => authenticate(), [authenticate]);

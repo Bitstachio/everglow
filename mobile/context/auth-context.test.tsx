@@ -5,12 +5,12 @@ import { toApiError } from "@/lib/api/errors";
 import { clearPendingInvite, savePendingInvite, takePendingInvite } from "@/lib/pending-invite";
 import { renderWithI18n } from "@/testing/render";
 import { I18nProvider } from "@/providers/i18n-provider";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { dehydrate, onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, renderHook, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { Pressable, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider, useAuth } from "./auth-context";
+import { AuthProvider, PROFILE_RELOAD_INTERVAL_MS, useAuth } from "./auth-context";
 
 const mockReplace = jest.fn();
 const mockGetUserProfile = jest.fn();
@@ -33,9 +33,20 @@ jest.mock("@/lib/api/axios-instance", () => ({
     mockSuspended = handler;
   },
 }));
+const mockHasValidSession = jest.fn();
+const mockReadSnapshot = jest.fn();
+const mockSaveSnapshot = jest.fn();
+const mockRemoveSnapshot = jest.fn();
+const mockClearImages = jest.fn();
+jest.mock("@/lib/session-cache", () => ({
+  readSessionSnapshot: (options: unknown) => mockReadSnapshot(options),
+  saveSessionSnapshot: (snapshot: unknown) => mockSaveSnapshot(snapshot),
+  removeSessionSnapshot: () => mockRemoveSnapshot(),
+}));
+jest.mock("@/lib/image-cache", () => ({ clearImageCaches: () => mockClearImages() }));
 jest.mock("@/lib/auth0", () => ({
   isAuth0Configured: () => true,
-  hasValidSession: async () => true,
+  hasValidSession: () => mockHasValidSession(),
   getSignedInIdentity: () => mockStoredIdentity(),
   clearLocalCredentials: async () => undefined,
   isUserCancellation: () => false,
@@ -87,6 +98,9 @@ const ben = { sub: "google-oauth2|ben", email: "ben@example.com", name: "Ben" };
 
 beforeEach(() => {
   queryClient = new QueryClient();
+  // Home's rolls opt in to being saved, as `useEventsQuery` does in the app.
+  queryClient.setQueryDefaults(["rolls"], { meta: { persist: true } });
+  mockHasValidSession.mockReset().mockResolvedValue(true);
   mockReplace.mockReset();
   mockGetUserProfile.mockReset();
   mockUnauthorized = null;
@@ -95,9 +109,197 @@ beforeEach(() => {
   clearPendingInvite();
   mockStoredIdentity.mockReset().mockResolvedValue(ada);
   mockLogin.mockReset().mockResolvedValue(ben);
+  mockReadSnapshot.mockReset().mockReturnValue(null);
+  mockSaveSnapshot.mockReset();
+  mockRemoveSnapshot.mockReset();
+  mockClearImages.mockReset();
+  onlineManager.setOnline(true);
 });
 
-test("opening the app offline keeps the session and offers to try again", async () => {
+afterAll(() => onlineManager.setOnline(true));
+
+/** What a launch with the network saved: the profile, and Home's rolls. */
+const savedSession = () => {
+  const source = new QueryClient();
+  // Saved queries carry the opt-in they were saved under.
+  source.setQueryDefaults(["rolls"], { meta: { persist: true } });
+  source.setQueryData(["rolls"], [{ id: "event-1", title: "Sam & Jo’s wedding" }]);
+  const queries = dehydrate(source);
+  source.clear();
+  return { savedAt: Date.now(), userId: "u1", identity: ada, profile, queries };
+};
+
+describe("opening the app offline", () => {
+  test("with a saved session goes straight in with the saved profile and rolls, no can't connect", async () => {
+    mockGetUserProfile.mockRejectedValue(offline());
+    mockReadSnapshot.mockReturnValue(savedSession());
+    onlineManager.setOnline(false);
+
+    const { result } = await renderAuth();
+
+    await waitFor(() => expect(result.current.user).toEqual(profile));
+    expect(mockReadSnapshot).toHaveBeenCalledWith({ sub: "auth0|ada" });
+    expect(result.current.identity).toEqual(ada);
+    expect(queryClient.getQueryData(["rolls"])).toEqual([{ id: "event-1", title: "Sam & Jo’s wedding" }]);
+    expect(screen.queryByRole("header", { name: "The lab is out\nof reach." })).not.toBeOnTheScreen();
+  });
+
+  test("when Auth0 can't say who it is offline, the saved identity stands in", async () => {
+    mockGetUserProfile.mockRejectedValue(offline());
+    mockStoredIdentity.mockResolvedValue(null);
+    mockReadSnapshot.mockReturnValue(savedSession());
+    onlineManager.setOnline(false);
+
+    const { result } = await renderAuth();
+
+    await waitFor(() => expect(result.current.identity).toEqual(ada));
+    expect(mockReadSnapshot).toHaveBeenCalledWith({ sub: undefined });
+  });
+
+  test("doesn't save what it loaded from the phone again, as if it were new", async () => {
+    mockGetUserProfile.mockRejectedValue(offline());
+    mockReadSnapshot.mockReturnValue(savedSession());
+    onlineManager.setOnline(false);
+
+    const { result } = await renderAuth();
+    await waitFor(() => expect(result.current.user).toEqual(profile));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 1200)));
+
+    expect(mockSaveSnapshot).not.toHaveBeenCalled();
+  });
+
+  test("loads the profile again once the network is back, and moves a suspended account on", async () => {
+    mockGetUserProfile.mockRejectedValueOnce(offline()).mockResolvedValue({ ...profile, suspendedAt: "2026-11-11" });
+    mockReadSnapshot.mockReturnValue(savedSession());
+    onlineManager.setOnline(false);
+
+    const { result } = await renderAuth();
+    await waitFor(() => expect(result.current.user).toEqual(profile));
+    expect(mockGetUserProfile).toHaveBeenCalledTimes(1);
+
+    await act(async () => onlineManager.setOnline(true));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/account-suspended"));
+    expect(result.current.isSuspended).toBe(true);
+  });
+
+  test("an error from the API on reconnect leaves the person where they are, and it is asked again", async () => {
+    jest.useFakeTimers();
+    try {
+      // getUserProfile answers null for anything that isn't a connection failure (a 500, a 429).
+      mockGetUserProfile.mockRejectedValueOnce(offline()).mockResolvedValueOnce(null).mockResolvedValue(profile);
+      mockReadSnapshot.mockReturnValue(savedSession());
+      onlineManager.setOnline(false);
+      const { result } = await renderAuth();
+      await waitFor(() => expect(result.current.user).toEqual(profile));
+
+      await act(async () => onlineManager.setOnline(true));
+      await waitFor(() => expect(mockGetUserProfile).toHaveBeenCalledTimes(2));
+
+      // Still signed in, still on Home, and nothing saved was thrown away.
+      expect(result.current.user).toEqual(profile);
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(mockReplace).not.toHaveBeenCalled();
+      expect(mockRemoveSnapshot).not.toHaveBeenCalled();
+
+      // The API is back without the phone's network changing: the next tick asks again.
+      await act(async () => {
+        jest.advanceTimersByTime(PROFILE_RELOAD_INTERVAL_MS);
+      });
+      await waitFor(() => expect(mockGetUserProfile).toHaveBeenCalledTimes(3));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("a saved session that can't be loaded is deleted, and the app offers to try again instead", async () => {
+    mockGetUserProfile.mockRejectedValue(offline());
+    mockReadSnapshot.mockReturnValue({ ...savedSession(), queries: { queries: [null], mutations: [] } });
+
+    await renderProvider();
+
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeOnTheScreen();
+    expect(mockRemoveSnapshot).toHaveBeenCalled();
+  });
+
+  test("a profile that arrives after signing out doesn't sign the person back in", async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    mockGetUserProfile
+      .mockRejectedValueOnce(offline())
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    mockReadSnapshot.mockReturnValue(savedSession());
+    onlineManager.setOnline(false);
+    const { result } = await renderAuth();
+    await waitFor(() => expect(result.current.user).toEqual(profile));
+    await act(async () => onlineManager.setOnline(true));
+    await waitFor(() => expect(mockGetUserProfile).toHaveBeenCalledTimes(2));
+
+    await act(() => result.current.logout());
+    await act(async () => answer(profile));
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+  });
+
+  test("back online, an unchanged profile stays where it is and is saved again", async () => {
+    mockGetUserProfile.mockRejectedValueOnce(offline()).mockResolvedValue(profile);
+    mockReadSnapshot.mockReturnValue(savedSession());
+    onlineManager.setOnline(false);
+
+    const { result } = await renderAuth();
+    await waitFor(() => expect(result.current.user).toEqual(profile));
+    await act(async () => onlineManager.setOnline(true));
+
+    await waitFor(() => expect(mockGetUserProfile).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockSaveSnapshot).toHaveBeenCalled(), { timeout: 3000 });
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+});
+
+test("with nobody signed in, a session left on the phone is deleted at launch", async () => {
+  mockHasValidSession.mockResolvedValue(false);
+  await renderProvider();
+  await screen.findByText("App");
+
+  expect(mockRemoveSnapshot).toHaveBeenCalled();
+  expect(mockGetUserProfile).not.toHaveBeenCalled();
+});
+
+test("a profile loaded from the API is saved with the rolls for the next offline launch", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  await renderProvider();
+  await screen.findByText("App");
+  // Nothing is written for the profile alone: the rolls are what Home opens from.
+  await act(() => queryClient.fetchQuery({ queryKey: ["rolls"], queryFn: async () => [{ id: "event-1" }] }));
+
+  await waitFor(() => expect(mockSaveSnapshot).toHaveBeenCalled(), { timeout: 3000 });
+  expect(mockSaveSnapshot.mock.calls[0][0]).toMatchObject({ userId: "u1", identity: ada, profile });
+});
+
+test("signing out deletes the saved session and every cached image", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  await renderProvider();
+  await screen.findByText("App");
+
+  fireEvent.press(screen.getByRole("button", { name: "Sign out" }));
+
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+  expect(mockRemoveSnapshot).toHaveBeenCalled();
+  expect(mockClearImages).toHaveBeenCalled();
+});
+
+test("an expired session deletes the saved session and every cached image too", async () => {
+  mockGetUserProfile.mockResolvedValue(profile);
+  await renderProvider();
+  await screen.findByText("App");
+
+  await act(async () => mockUnauthorized?.());
+
+  await waitFor(() => expect(mockRemoveSnapshot).toHaveBeenCalled());
+  expect(mockClearImages).toHaveBeenCalled();
+});
+
+test("opening the app offline with nothing saved keeps the session and offers to try again", async () => {
   mockGetUserProfile.mockRejectedValueOnce(offline()).mockResolvedValueOnce(profile);
   await renderProvider();
 
