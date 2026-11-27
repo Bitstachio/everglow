@@ -4609,7 +4609,7 @@
           "PARTICIPANT",
           "VIEWER"
         ],
-        "description": "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks."
+        "description": "Access level granted on join: PARTICIPANT or VIEWER."
       },
       "InviteHostResponseDto": {
         "type": "object",
@@ -4659,7 +4659,7 @@
             "description": "The invite's shareable link, as organizers share it: what a QR code on the envelope carries."
           },
           "accessLevel": {
-            "description": "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.",
+            "description": "Access level granted on join: PARTICIPANT or VIEWER.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/InviteAccessLevel"

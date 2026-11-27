@@ -52,7 +52,7 @@ beforeEach(() => {
   mockLogout.mockResolvedValue(undefined);
 });
 
-test("lists the rolls you host alone with what the API says deleting would do to each", async () => {
+test("lists the rolls you organize alone with what the API says deleting would do to each", async () => {
   const { result } = await render();
   // Before a choice, what Leave them would do.
   expect(mockPreviewQuery).toHaveBeenLastCalledWith("KEEP");
@@ -70,7 +70,7 @@ test("asks again with the photos choice, which can change an outcome", async () 
   expect(mockPreviewQuery).toHaveBeenLastCalledWith("DELETE");
 });
 
-test("leaves the rolls out when you host none alone", async () => {
+test("leaves the rolls out when you organize none alone", async () => {
   mockPreview = { isError: false, data: { events: [] } };
   const { result } = await render();
   expect(result.current.showRolls).toBe(false);

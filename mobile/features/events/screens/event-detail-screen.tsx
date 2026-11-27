@@ -219,7 +219,7 @@ const EventDetailScreen = () => {
       />
     );
 
-  const viewOnlyBand = role === "viewer" && stage !== "suspended";
+  const viewerBand = role === "viewer" && stage !== "suspended";
 
   const timeText =
     time.kind === "opensIn" ? (
@@ -292,11 +292,15 @@ const EventDetailScreen = () => {
             }
           : { kind: "none" };
       default:
-        if (role === "viewer") return { kind: "viewOnly", note: t("footer.viewOnly"), save, right: people };
+        if (role === "viewer") return { kind: "viewer", note: t("footer.viewerNote"), save, right: people };
         // 08.7: at the limit the shutter locks for everyone. Organizers can make room; others are told who to ask.
         if (screen.isFull) {
           const label =
-            role === "organizer" ? t("footer.full") : organizer ? t("footer.fullParticipant", { organizer }) : t("footer.fullParticipantNoOrganizer");
+            role === "organizer"
+              ? t("footer.full")
+              : organizer
+                ? t("footer.fullParticipant", { organizer })
+                : t("footer.fullParticipantNoOrganizer");
           return {
             kind: "locked",
             label,
@@ -335,14 +339,14 @@ const EventDetailScreen = () => {
         time={timeText}
         // Viewers see their role where the people count goes; People is in their footer (07.7).
         people={
-          viewOnlyBand ? (
+          viewerBand ? (
             t("band.viewer")
           ) : (
             <Trans t={t} i18nKey="band.people" values={{ count: event.usage.members }} components={{ value }} />
           )
         }
-        peopleLabel={viewOnlyBand ? t("band.viewer") : t("band.peopleLabel", { count: event.usage.members })}
-        onPeople={viewOnlyBand || screen.selecting ? undefined : screen.onOpenPeople}
+        peopleLabel={viewerBand ? t("band.viewer") : t("band.peopleLabel", { count: event.usage.members })}
+        onPeople={viewerBand || screen.selecting ? undefined : screen.onOpenPeople}
         circleTime={(stage === "upcoming" && role === "organizer") || lastDay}
         circleStock={screen.isFull}
       />
@@ -784,9 +788,15 @@ const roomBody = (
   organizer: string | null,
 ) => {
   const none = fits === 0;
-  if (role === "organizer") return none ? t("room.noneBodyOrganizer", { left }) : t("room.bodyOrganizer", { left, fits });
-  if (organizer) return none ? t("room.noneBodyParticipant", { left, organizer }) : t("room.bodyParticipant", { left, fits, organizer });
-  return none ? t("room.noneBodyParticipantNoOrganizer", { left }) : t("room.bodyParticipantNoOrganizer", { left, fits });
+  if (role === "organizer")
+    return none ? t("room.noneBodyOrganizer", { left }) : t("room.bodyOrganizer", { left, fits });
+  if (organizer)
+    return none
+      ? t("room.noneBodyParticipant", { left, organizer })
+      : t("room.bodyParticipant", { left, fits, organizer });
+  return none
+    ? t("room.noneBodyParticipantNoOrganizer", { left })
+    : t("room.bodyParticipantNoOrganizer", { left, fits });
 };
 
 export default EventDetailScreen;

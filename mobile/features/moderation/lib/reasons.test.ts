@@ -1,4 +1,4 @@
-import { goesOnlyToEverglow, lastHostReason, REPORT_REASONS } from "./reasons";
+import { goesOnlyToEverglow, lastOrganizerReason, REPORT_REASONS } from "./reasons";
 
 test("the two serious reasons go only to Everglow", () => {
   expect(goesOnlyToEverglow("CHILD_SAFETY")).toBe(true);
@@ -19,7 +19,7 @@ test("a person can't be reported for an intimate image, since there is none", ()
 });
 
 test("the Everglow rule sits under Something else", () => {
-  expect(lastHostReason("frame")).toBe("OTHER");
-  expect(lastHostReason("person")).toBe("OTHER");
-  expect(lastHostReason("roll")).toBe("OTHER");
+  expect(lastOrganizerReason("frame")).toBe("OTHER");
+  expect(lastOrganizerReason("person")).toBe("OTHER");
+  expect(lastOrganizerReason("roll")).toBe("OTHER");
 });

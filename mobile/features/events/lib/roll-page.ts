@@ -81,8 +81,8 @@ export const hasOpened = (event: Pick<EventResponseDto, "galleryState" | "galler
   event.galleryState === "UPCOMING" && new Date(event.galleryOpensAt) <= now;
 
 /**
- * The left of the band. Who adds photos sees the room left; viewers, and
- * participants before it opens, see the frame count. A suspended roll is hidden.
+ * The left of the band. Organizers and participants see the room left;
+ * viewers, and participants before it opens, see the frame count. A suspended roll is hidden.
  */
 export type BandStock = { kind: "storage" } | { kind: "frames" } | { kind: "hidden" };
 

@@ -30,8 +30,8 @@
   },
   "open": {
     "back": "Back",
-    "joinAdds": "Join and add photos",
-    "joinView": "Join to look",
+    "joinParticipant": "Join and add photos",
+    "joinViewer": "Join to look",
     "note": {
       "participant": "you add photos too",
       "viewer": "you look and save"

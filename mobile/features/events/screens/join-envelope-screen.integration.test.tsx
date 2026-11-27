@@ -97,7 +97,7 @@ describe("06.4 The envelope", () => {
     });
   });
 
-  test("06.5 says a view-only envelope lets them look", async () => {
+  test("06.5 says a viewer envelope lets them look", async () => {
     mockPreview.mockImplementation(() => previewed({ accessLevel: "VIEWER" }));
     await renderScreen();
 
@@ -254,7 +254,9 @@ describe("Refusals", () => {
 
     expect(await screen.findByText(/You were removed/)).toBeOnTheScreen();
     expect(
-      screen.getByText("An organizer removed you, so this envelope doesn’t admit you. Only an organizer can let you back in."),
+      screen.getByText(
+        "An organizer removed you, so this envelope doesn’t admit you. Only an organizer can let you back in.",
+      ),
     ).toBeOnTheScreen();
     expect(stampText("Removed")).toBeOnTheScreen();
   });

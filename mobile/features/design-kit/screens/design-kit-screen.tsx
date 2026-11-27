@@ -228,7 +228,7 @@ const DesignKitScreen = () => {
               { key: "child", label: "Involves a minor", checked: false },
             ]}
             divider={{ afterKey: "nudity", label: "Goes straight to Everglow" }}
-            footer="Anonymous to hosts."
+            footer="Anonymous to organizers."
           />
         </Section>
 

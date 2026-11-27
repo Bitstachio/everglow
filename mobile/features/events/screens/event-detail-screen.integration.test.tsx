@@ -438,7 +438,7 @@ describe("open (07.4–07.8)", () => {
     expect(screen.getByRole("button", { name: "Add photos" })).toBeOnTheScreen();
   });
 
-  test("a view-only participant has no shutter, but can save", async () => {
+  test("a viewer has no shutter, but can save", async () => {
     mockUser = { id: "user-3" };
     await renderScreen({ participants: [organizer, viewer], photos: oneFrame });
 
@@ -1463,18 +1463,25 @@ describe("saving and deleting photos", () => {
   test.each([
     { who: "someone on the roll", participants: [organizer, participant], block: "Block Ada" },
     { who: "someone who left the roll", participants: [participant], block: null },
-    { who: "someone already blocked", participants: [{ ...organizer, isBlockedByCaller: true }, participant], block: null },
-  ])("a participant can report a frame by $who, and block only someone on the roll", async ({ participants, block }) => {
-    mockUser = { id: "user-2" };
-    await renderScreen({ participants, photos: [buildPhoto({ addedById: "user-1" })] });
-    const user = userEvent.setup();
-    await user.press(await screen.findByLabelText(/^Photo 1/));
-    await user.press(screen.getAllByRole("button", { name: "More" })[0]);
+    {
+      who: "someone already blocked",
+      participants: [{ ...organizer, isBlockedByCaller: true }, participant],
+      block: null,
+    },
+  ])(
+    "a participant can report a frame by $who, and block only someone on the roll",
+    async ({ participants, block }) => {
+      mockUser = { id: "user-2" };
+      await renderScreen({ participants, photos: [buildPhoto({ addedById: "user-1" })] });
+      const user = userEvent.setup();
+      await user.press(await screen.findByLabelText(/^Photo 1/));
+      await user.press(screen.getAllByRole("button", { name: "More" })[0]);
 
-    expect(await screen.findByRole("button", { name: "Report this photo" })).toBeOnTheScreen();
-    if (block) expect(screen.getByRole("button", { name: block })).toBeOnTheScreen();
-    else expect(screen.queryByRole("button", { name: /^Block/ })).not.toBeOnTheScreen();
-  });
+      expect(await screen.findByRole("button", { name: "Report this photo" })).toBeOnTheScreen();
+      if (block) expect(screen.getByRole("button", { name: block })).toBeOnTheScreen();
+      else expect(screen.queryByRole("button", { name: /^Block/ })).not.toBeOnTheScreen();
+    },
+  );
 });
 
 describe("people and the menu", () => {

@@ -56,7 +56,7 @@ beforeEach(() => {
   mockParticipants = { data: [buildParticipant()] };
 });
 
-test("fills the adds-photos envelope in first", async () => {
+test("fills the participant envelope in first", async () => {
   const { result } = await render();
 
   expect(result.current.edge).toBe("Envelope · Nadia turns 30");
@@ -72,7 +72,7 @@ test("fills the adds-photos envelope in first", async () => {
   expect(result.current.invitationUrl).toBe("https://events.everglow.app/invite/weekend");
 });
 
-test("switches to the view-only envelope and its own link", async () => {
+test("switches to the viewer envelope and its own link", async () => {
   const { result } = await render();
   await act(() => result.current.onSelectKind("viewer"));
 

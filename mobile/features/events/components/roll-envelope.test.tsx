@@ -63,7 +63,9 @@ test("without onSelect, or sealed, the boxes are only printed", async () => {
   const { rerender } = await renderWithI18n(<RollEnvelope {...roll} admits="participant" />);
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
 
-  await rerender(<RollEnvelope {...roll} admits="participant" sealed note="they add photos too" onSelect={jest.fn()} />);
+  await rerender(
+    <RollEnvelope {...roll} admits="participant" sealed note="they add photos too" onSelect={jest.fn()} />,
+  );
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
   expect(screen.queryByText("they add photos too", { includeHiddenElements: true })).not.toBeOnTheScreen();
 });

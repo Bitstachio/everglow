@@ -15,11 +15,11 @@ const mockReportMember = jest.fn();
 const mockReportEvent = jest.fn();
 const mockEvent = buildEvent({ id: "event-1", title: "Sam & Jo’s wedding" });
 const mockParticipants = [
-  buildParticipant({ userId: "u-host", name: "Sam Rivera", username: "sam" }),
+  buildParticipant({ userId: "u-organizer", name: "Sam Rivera", username: "sam" }),
   buildParticipant({ userId: "u-leila", name: "Leila Haddad", username: "leila.h", accessLevel: "PARTICIPANT" }),
 ];
 const mockPhoto = buildPhoto({ id: "photo-144", addedById: "u-leila" });
-let mockUserId = "u-guest";
+let mockUserId = "u-participant";
 
 jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: mockUserId } }) }));
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
@@ -59,7 +59,7 @@ const renderScreen = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockUserId = "u-guest";
+  mockUserId = "u-participant";
   mockReportPhoto.mockImplementation(filed);
   mockReportMember.mockImplementation(filed);
   mockReportEvent.mockImplementation(filed);
@@ -124,7 +124,7 @@ describe("a frame (10.1–10.4)", () => {
   });
 
   test("an organizer goes on seeing a frame they report, and the ticket doesn't promise otherwise", async () => {
-    mockUserId = "u-host";
+    mockUserId = "u-organizer";
     await renderScreen();
 
     expect(await screen.findByText("The organizers see what was reported, never who reported it.")).toBeOnTheScreen();

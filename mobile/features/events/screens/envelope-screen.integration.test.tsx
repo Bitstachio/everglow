@@ -60,7 +60,7 @@ beforeEach(() => {
   share.mockResolvedValue({ action: Share.sharedAction });
 });
 
-test("05.1 shows the adds-photos envelope with its code", async () => {
+test("05.1 shows the participant envelope with its code", async () => {
   await renderScreen();
 
   expect(await screen.findByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
@@ -73,7 +73,7 @@ test("05.1 shows the adds-photos envelope with its code", async () => {
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();
 });
 
-test("05.2 switches to the view-only envelope", async () => {
+test("05.2 switches to the viewer envelope", async () => {
   await renderScreen();
   await screen.findByLabelText("Participant envelope for Nadia turns 30");
 

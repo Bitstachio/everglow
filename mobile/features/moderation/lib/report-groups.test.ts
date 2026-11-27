@@ -53,18 +53,18 @@ test("a person's reports are their own group, and never hidden", () => {
   expect(groups[0].hidden).toBe(false);
 });
 
-test("a frame whose reports are all with Everglow can't be decided by hosts", () => {
+test("a frame whose reports are all with Everglow can't be decided by organizers", () => {
   const [group] = groupOpenReports([report({ queue: "PLATFORM" })], 24);
   expect(group.withEverglow).toBe(true);
   expect(group.decidable).toEqual([]);
   expect(toCheckCount([group])).toBe(0);
 });
 
-test("hosts decide a frame on the reports still with them, even when some went to Everglow", () => {
-  const withHosts = report();
-  const [group] = groupOpenReports([report({ queue: "PLATFORM" }), withHosts], 24);
+test("organizers decide a frame on the reports still with them, even when some went to Everglow", () => {
+  const withOrganizers = report();
+  const [group] = groupOpenReports([report({ queue: "PLATFORM" }), withOrganizers], 24);
   expect(group.withEverglow).toBe(false);
-  expect(group.decidable).toEqual([withHosts]);
+  expect(group.decidable).toEqual([withOrganizers]);
   expect(toCheckCount([group])).toBe(1);
 });
 

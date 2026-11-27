@@ -16,13 +16,13 @@ const mockListReports = jest.fn();
 const mockResolve = jest.fn();
 const mockEvent = buildEvent({ id: "event-1", title: "Sam & Jo’s wedding" });
 const mockParticipants = [
-  buildParticipant({ userId: "u-host", name: "Sam Rivera", username: "sam" }),
+  buildParticipant({ userId: "u-organizer", name: "Sam Rivera", username: "sam" }),
   buildParticipant({ userId: "u-marcus", name: "Marcus Bell", username: "marcus", accessLevel: "PARTICIPANT" }),
 ];
 // Newest first: photo-144 is the roll's 2nd frame.
 const mockPhotos = [
   buildPhoto({ id: "photo-144", addedById: "u-marcus" }),
-  buildPhoto({ id: "photo-1", addedById: "u-host" }),
+  buildPhoto({ id: "photo-1", addedById: "u-organizer" }),
 ];
 
 jest.mock("@/lib/api/generated/client.gen", () => ({ client: { getConfig: () => ({}) } }));
@@ -47,7 +47,7 @@ jest.mock("@/lib/api/generated", () => ({
   },
   reportsControllerResolveReport: (...args: unknown[]) => mockResolve(...args),
 }));
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "u-host" } }) }));
+jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "u-organizer" } }) }));
 // Read on each call: jest hoists this factory above mockRouter's definition.
 jest.mock("expo-router", () => ({
   router: new Proxy({}, { get: (_target, key: keyof typeof mockRouter) => mockRouter[key] }),
@@ -168,7 +168,7 @@ test("a decision someone else already made just goes back", async () => {
   await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
 });
 
-test("10.10 a frame with Everglow tells hosts no more than that", async () => {
+test("10.10 a frame with Everglow tells organizers no more than that", async () => {
   mockListReports.mockImplementation(() => listed([report({ queue: "PLATFORM" })]));
   await renderWithClient(<ReportCheckScreen />);
 
@@ -179,7 +179,7 @@ test("10.10 a frame with Everglow tells hosts no more than that", async () => {
   expect(mockRouter.back).toHaveBeenCalled();
 });
 
-test("10.8 counts only what hosts can decide, and names someone who left", async () => {
+test("10.8 counts only what organizers can decide, and names someone who left", async () => {
   mockParams.mockReturnValue({ id: "event-1" });
   mockListReports.mockImplementation(() =>
     listed([
@@ -196,9 +196,9 @@ test("10.8 counts only what hosts can decide, and names someone who left", async
   expect(screen.getByRole("button", { name: "Someone who left, 1 report · spam" })).toBeOnTheScreen();
 });
 
-test("10.8 a host-only list that fails to load says why, and tries again", async () => {
+test("10.8 an organizer-only list that fails to load says why, and tries again", async () => {
   mockParams.mockReturnValue({ id: "event-1" });
-  mockListReports.mockRejectedValueOnce(createApiError("Only hosts", { status: 403, code: "ORGANIZER_ONLY" }));
+  mockListReports.mockRejectedValueOnce(createApiError("Only organizers", { status: 403, code: "ORGANIZER_ONLY" }));
   mockListReports.mockImplementation(() => listed([]));
   await renderWithClient(<ReportsScreen />);
 

@@ -52,7 +52,7 @@ export const useEnvelopeScreen = () => {
 
   const state = event ? envelopeState(event) : "open";
   const isOpen = state === "open";
-  // Shut, the adds-photos envelope stays on the table without its code (05.6–05.7).
+  // Shut, the participant envelope stays on the table without its code (05.6–05.7).
   const shown: EnvelopeKind = isOpen ? kind : "participant";
 
   const pickUpBy = () => {

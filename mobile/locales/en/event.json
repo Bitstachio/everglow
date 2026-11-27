@@ -56,7 +56,7 @@
     "preparing": "Developing…",
     "opensAt": "Opens {{when}}",
     "lockedLabel": "Adding photos opens {{when}}",
-    "viewOnly": "You can look and save",
+    "viewerNote": "You can look and save",
     "onHold": "On hold while Everglow reviews",
     "cut": "End early ✂",
     "cutLabel": "End the event early",

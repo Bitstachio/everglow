@@ -25,7 +25,7 @@ Run in order; later steps reuse what earlier ones created. IDs in brackets point
 | SM-06 | Tap a frame: the photo opens full screen; Save puts it in Photos                                                                                                 | [VIEW-01], [VIEW-07] | P1  |
 | SM-07 | Your own frame's menu offers Delete for everyone; deleting it removes it from the sheet                                                                          | [VIEW-03], [VIEW-06] | P1  |
 | SM-08 | Roll settings on an upcoming roll lets you change the film; on an open roll When and Film say Locked                                                             | [RUN-03], [RUN-05]   | P1  |
-| SM-09 | Second account opens the adds-photos envelope link and joins; the roll opens with "You're on the roll"                                                           | [JOIN-01]            | P1  |
+| SM-09 | Second account opens the participant envelope link and joins; the roll opens with "You're on the roll"                                                           | [JOIN-01]            | P1  |
 | SM-10 | An invalid envelope link says "This envelope doesn't open"                                                                                                       | [JOIN-03]            | P1  |
 | SM-11 | Roll call lists everyone with roles; reporting a person sends ("Report sent")                                                                                    | [PPL-01], [MOD-04]   | P1  |
 | SM-12 | Cut a test roll, then delete it from settings; it leaves Home                                                                                                    | [RUN-07], [RUN-08]   | P1  |

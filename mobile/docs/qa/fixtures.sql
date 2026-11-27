@@ -20,10 +20,10 @@
 begin;
 
 with defs(title, host_is_me, my_level, opens, closes, closed, review, susp) as (values
-  ('QA · Upcoming (host)',  true,  'ORGANIZER',   now() + interval '2 days',  now() + interval '9 days',  null::timestamp, null::timestamp, null::timestamp),
-  ('QA · Upcoming (guest)', false, 'PARTICIPANT', now() + interval '1 day',   now() + interval '8 days',  null, null, null),
+  ('QA · Upcoming (organizer)',  true,  'ORGANIZER',   now() + interval '2 days',  now() + interval '9 days',  null::timestamp, null::timestamp, null::timestamp),
+  ('QA · Upcoming (participant)', false, 'PARTICIPANT', now() + interval '1 day',   now() + interval '8 days',  null, null, null),
   ('QA · Last day',         false, 'ORGANIZER',   now() - interval '6 days',  now() + interval '5 hours', null, null, null),
-  ('QA · View only',        false, 'VIEWER',      now() - interval '1 day',   now() + interval '6 days',  null, null, null),
+  ('QA · Viewer',        false, 'VIEWER',      now() - interval '1 day',   now() + interval '6 days',  null, null, null),
   ('QA · Closed',           false, 'PARTICIPANT', now() - interval '20 days', now() - interval '13 days', now() - interval '13 days', null, null),
   ('QA · Under review',     false, 'PARTICIPANT', now() - interval '1 day',   now() + interval '6 days',  null, now(), null),
   ('QA · Suspended',        false, 'PARTICIPANT', now() - interval '1 day',   now() + interval '6 days',  null, null, now())
@@ -60,13 +60,13 @@ commit;
 
 -- Join-refusal setup (run after the cases that need you to be a member):
 -- take yourself out of the rolls whose envelopes should refuse you, ban
--- yourself from the view-only roll, and block its host for the upcoming one.
+-- yourself from the viewer roll, and block its organizer for the upcoming one.
 --
 --   delete from "EventAccess" a using "Event" e
 --    where a."eventId" = e.id and a."userId" = :me
---      and e.title in ('QA · Closed','QA · Under review','QA · Suspended','QA · Upcoming (guest)','QA · View only');
+--      and e.title in ('QA · Closed','QA · Under review','QA · Suspended','QA · Upcoming (participant)','QA · Viewer');
 --   insert into "EventBan"(id, "eventId", "userId", "bannedById")
---     select gen_random_uuid(), id, :me, '11111111-1111-4111-8111-111111111111' from "Event" where title = 'QA · View only';
+--     select gen_random_uuid(), id, :me, '11111111-1111-4111-8111-111111111111' from "Event" where title = 'QA · Viewer';
 --   insert into "UserBlock"(id, "blockerId", "blockedId")
 --     values (gen_random_uuid(), :me, '11111111-1111-4111-8111-111111111111');
 --

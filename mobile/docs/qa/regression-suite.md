@@ -29,7 +29,7 @@ Run the passes in order. Each pass lists its cases by ID; P1 cases are in **bold
 **AUTH-01**, **HOME-01**, **HOME-02**, HOME-03, HOME-04, HOME-05, HOME-06, HOME-07, HOME-08, HOME-09, HOME-10,
 **NEW-01**, **NEW-02**, NEW-03, NEW-04, NEW-05, NEW-06, NEW-07, **NEW-08**, NEW-09
 
-### 3. The envelope (A as host)
+### 3. The envelope (A as organizer)
 
 **ENV-01**, **ENV-02**, **ENV-03**, ENV-04, **ENV-05**, ENV-06, ENV-07, **ENV-08**, ENV-09
 
@@ -52,7 +52,7 @@ Run the join-refusal block from [fixtures.sql](fixtures.sql) first.
 
 **MOD-01**, MOD-02, **MOD-03**, **MOD-04**, **MOD-05**, **MOD-06**, **MOD-07**, **MOD-08**, MOD-09, **MOD-10**, MOD-11
 
-### 8. People and running the roll (A as host, B as guest)
+### 8. People and running the roll (A as organizer, B as participant)
 
 **PPL-01**, **PPL-02**, **PPL-03**, **PPL-04**, **PPL-05**, PPL-06, **PPL-07**, PPL-08,
 **RUN-01**, **RUN-02**, **RUN-03**, **RUN-04**, **RUN-05**, RUN-06, **RUN-07**, **RUN-08**, **RUN-09**, RUN-10, RUN-11,

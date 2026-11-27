@@ -633,7 +633,8 @@ export const useEventDetailScreen = () => {
       setPerson(participant);
       setSheet("person");
     },
-    canRemovePerson: role === "organizer" && event?.status === "ACTIVE" && !!person && person.accessLevel !== "ORGANIZER",
+    canRemovePerson:
+      role === "organizer" && event?.status === "ACTIVE" && !!person && person.accessLevel !== "ORGANIZER",
     onRemovePerson: () => {
       if (!person) return;
       setRemoving(person);

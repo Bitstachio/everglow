@@ -27,7 +27,7 @@ import { useDeleteRoll } from "./use-delete-roll";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
 
-// A roll has at most two envelopes: adds photos and view only.
+// A roll has at most two envelopes: participant and viewer.
 const ENVELOPE_COUNT_KEYS = [
   "event:settings.envelopeCount.0",
   "event:settings.envelopeCount.1",

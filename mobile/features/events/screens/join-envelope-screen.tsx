@@ -113,7 +113,7 @@ const JoinEnvelopeScreen = () => {
     onScanAnother,
   } = useJoinEnvelopeScreen();
 
-  const views = envelope?.admits === "viewer";
+  const isViewerEnvelope = envelope?.admits === "viewer";
   const refused = refusal ? refusalCopy(t, refusal, { organizer, memberLimit, closedOn }) : null;
   const organizerName = organizer ?? t("open.theOrganizer");
   const edge = refusal === "NOT_VALID" ? t("refused.edgeNotValid") : refusal ? envelope?.title : undefined;
@@ -204,7 +204,7 @@ const JoinEnvelopeScreen = () => {
         ) : (
           <>
             <Button
-              title={views ? t("open.joinView") : t("open.joinAdds")}
+              title={isViewerEnvelope ? t("open.joinViewer") : t("open.joinParticipant")}
               mark="▸"
               onPress={onJoin}
               isLoading={isJoining || status === "loading"}

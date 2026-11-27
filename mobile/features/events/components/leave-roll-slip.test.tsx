@@ -61,8 +61,14 @@ test("a roll with no frames of yours, or a closed roll, does not ask", async () 
 
 test("a refusal stays on the slip with the choice you made", async () => {
   await renderWithI18n(
-    <LeaveRollSlip {...props} photos="DELETE" error="Every event needs an organizer. Make someone else an organizer first." />,
+    <LeaveRollSlip
+      {...props}
+      photos="DELETE"
+      error="Every event needs an organizer. Make someone else an organizer first."
+    />,
   );
-  expect(screen.getByRole("alert")).toHaveTextContent("Every event needs an organizer. Make someone else an organizer first.");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Every event needs an organizer. Make someone else an organizer first.",
+  );
   expect(screen.getByRole("radio", { name: /Take them with me/, checked: true })).toBeOnTheScreen();
 });

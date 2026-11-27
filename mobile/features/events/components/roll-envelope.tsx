@@ -11,7 +11,7 @@ type RollEnvelopeProps = {
   peopleCount?: number;
   /** When the photos go, formatted: "Sat, 14 Nov, then it’s gone". */
   pickUpBy?: string;
-  /** Which box is ticked: the adds-photos or the view-only envelope. */
+  /** Which box is ticked: the participant or the viewer envelope. */
   admits?: "participant" | "viewer";
   /** Sealed until the invitee signs in: its back, with the flap shut and nothing written on it (06.3). */
   sealed?: boolean;

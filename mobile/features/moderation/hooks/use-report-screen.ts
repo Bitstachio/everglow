@@ -9,7 +9,7 @@ import { useReportMutation } from "../api/mutations";
 import { useReportedPhotoQuery } from "../api/queries";
 import {
   goesOnlyToEverglow,
-  lastHostReason,
+  lastOrganizerReason,
   REPORT_NOTE_MAX,
   REPORT_REASONS,
   REPORT_TARGET_COPY_KEY,
@@ -142,7 +142,7 @@ export const useReportScreen = () => {
       label: t(`reasons.${REPORT_TARGET_COPY_KEY[target]}.${value}` as "reasons.photo.SPAM"),
       checked: value === reason,
     })),
-    dividerAfter: lastHostReason(target),
+    dividerAfter: lastOrganizerReason(target),
     footer: serious
       ? t("ticket.footer.serious")
       : target === "frame" && isOrganizer

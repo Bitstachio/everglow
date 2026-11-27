@@ -17,7 +17,7 @@ export type RollFate = AccountDeletionEventOutcome;
  *
  * What happens to each roll comes from the API, which runs the deletion's own
  * preparation and rolls it back (docs/account-deletion.md §6a): a roll you
- * host alone goes to its longest-standing member, one with no one else on it
+ * organizer alone goes to its longest-standing member, one with no one else on it
  * is deleted, unless it is under review or has open reports, in which case it
  * is kept for Everglow. The answer can depend on the photos choice, so it is
  * asked again when that changes; before a choice it shows what Leave them
