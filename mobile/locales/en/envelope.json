@@ -5,6 +5,7 @@
   "ready": "Ready",
   "paper": {
     "name": "Event",
+    "from": "From",
     "date": "Start",
     "pickUp": "End",
     "participant": "Participant",

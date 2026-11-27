@@ -14,13 +14,22 @@ const roll = {
 };
 
 test("fills the envelope in with the roll", async () => {
-  await renderWithI18n(<RollEnvelope {...roll} admits="participant" code={<Text>QR</Text>} />);
+  await renderWithI18n(
+    <RollEnvelope {...roll} from="Ada Lovelace" admits="participant" code={<Text>QR</Text>} />,
+  );
 
   expect(screen.getByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
+  expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 14 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("QR")).toBeOnTheScreen();
+});
+
+test("leaves From off when no one filled it in", async () => {
+  await renderWithI18n(<RollEnvelope {...roll} admits="participant" />);
+
+  expect(screen.queryByText("From")).not.toBeOnTheScreen();
 });
 
 test.each(["participant", "viewer"] as const)("an open %s envelope prints nothing by its code", async (admits) => {

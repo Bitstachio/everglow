@@ -25,7 +25,9 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
   eventsControllerRegenerateInvite: (...args: unknown[]) => mockRegenerate(...args),
 }));
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
+jest.mock("@/context/auth-context", () => ({
+  useAuth: () => ({ user: { id: "user-1", details: { name: "Ada Lovelace" } } }),
+}));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: () => true }),
   useLocalSearchParams: () => mockParams,
@@ -66,6 +68,7 @@ test("05.1 shows the participant envelope with its code", async () => {
   expect(await screen.findByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Envelope · Nadia turns 30" })).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: "Participant", checked: true })).toBeOnTheScreen();
+  expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 14 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();

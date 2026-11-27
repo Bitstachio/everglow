@@ -204,6 +204,7 @@ const DesignKitScreen = () => {
             <LabEnvelope
               fields={[
                 { label: "Event", value: "Sam & Jo’s wedding" },
+                { label: "From", value: "Maya Chen" },
                 { label: "Start", value: "Sun, 18 Oct, 16:00" },
                 { label: "End", value: "Tue, 17 Nov, 19:00" },
               ]}

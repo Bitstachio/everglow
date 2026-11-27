@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 type RollEnvelopeProps = {
   /** The roll's name. */
   title: string;
+  /** Who filled the envelope in: the organizer's display name (Send the envelope). */
+  from?: string;
   /** When the roll is, formatted: "Sat, 7 Nov, 19:00". */
   startsAt?: string;
   /** When the gallery ends, formatted: "Sat, 14 Nov, 19:00". */
@@ -34,6 +36,7 @@ type RollEnvelopeProps = {
  */
 export const RollEnvelope = ({
   title,
+  from,
   startsAt,
   pickUpBy,
   admits,
@@ -54,6 +57,7 @@ export const RollEnvelope = ({
     <LabEnvelope
       fields={[
         { label: t("paper.name"), value: title },
+        ...(from ? [{ label: t("paper.from"), value: from }] : []),
         { label: t("paper.date"), value: startsAt },
         { label: t("paper.pickUp"), value: pickUpBy },
       ]}

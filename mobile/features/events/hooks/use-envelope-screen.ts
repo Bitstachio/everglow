@@ -65,6 +65,7 @@ export const useEnvelopeScreen = () => {
     event && isOrganizer
       ? {
           title: event.title,
+          from: user?.details?.name,
           startsAt: formatDateTime(event.date),
           pickUpBy: pickUpBy(),
           admits: shown,

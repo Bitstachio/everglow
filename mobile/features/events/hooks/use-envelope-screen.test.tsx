@@ -25,7 +25,9 @@ let mockRegenerating = false;
 jest.mock("../api/mutations", () => ({
   useRegenerateInviteMutation: () => ({ mutateAsync: mockRegenerate, isPending: mockRegenerating }),
 }));
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
+jest.mock("@/context/auth-context", () => ({
+  useAuth: () => ({ user: { id: "user-1", details: { name: "Ada Lovelace" } } }),
+}));
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 let mockCanGoBack = true;
@@ -62,6 +64,7 @@ test("fills the participant envelope in first", async () => {
   expect(result.current.edge).toBe("Envelope · Nadia turns 30");
   expect(result.current.envelope).toEqual({
     title: "Nadia turns 30",
+    from: "Ada Lovelace",
     startsAt: "Sat, 7 Nov, 19:00",
     pickUpBy: "Sat, 14 Nov, 19:00",
     admits: "participant",
