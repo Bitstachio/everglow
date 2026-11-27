@@ -11,9 +11,9 @@ How Everglow talks. The app is drawn as a contact sheet: every event is a roll o
 | photo in the phone's library | photo                           | "Add photos", "Saved to Photos"                   |
 | gallery open / closed        | the roll is open / closed       | "This roll has closed."                           |
 | gallery length               | film: a 3, 7, 14 or 30-day roll | "Choose film"                                     |
-| organizer                    | host                            | "Only hosts can do that."                         |
-| participant                  | adds photos                     | "Join and add photos"                             |
-| viewer                       | view only                       | "Join to look"                                    |
+| organizer                    | organizer                       | "Only organizers can do that."                         |
+| participant                  | participant                     | "Join and add photos"                             |
+| viewer                       | viewer                          | "Join to look"                                    |
 | member, members              | on the roll                     | "You're already on this roll."                    |
 | invite link, QR code         | envelope                        | "Reset this envelope?"                            |
 | deactivate                   | cut the roll                    | "Cut the roll, or wait for it to close."          |
@@ -36,7 +36,7 @@ If a film word could leave someone unsure what will happen, use the plain one.
 ## Tone
 
 - Short and a little dry, the way a photo lab writes a note: "Pick up by 17 Nov, then it's gone."
-- Say what happened, then what to do: "A host removed you from this roll. Only a host can let you back in."
+- Say what happened, then what to do: "An organizer removed you from this roll. Only an organizer can let you back in."
 - Real numbers as they are: "1.2 GB of 3 GB". Never turn storage into a number of photos.
 - Never imply photos survive a closed roll.
 - Don't hard-code plan limits in copy ("2 rolls", "30 people"). Read them from the API, or leave the number out, so paid plans don't need new strings.
@@ -65,7 +65,7 @@ opens the roll).
 | `REPORT_TO_CHECK` | A report to check          | Open the roll's reports to decide.                                     |
 | `PHOTO_HIDDEN`    | A photo is hidden          | It stays hidden until you review it.                                   |
 | `PHOTO_REMOVED`   | A photo was removed        | One of your photos was removed from a roll.                            |
-| `MEMBER_REMOVED`  | Removed from a roll        | A host removed you. Only a host can let you back in.                   |
+| `MEMBER_REMOVED`  | Removed from a roll        | An organizer removed you. Only an organizer can let you back in.                   |
 | `GALLERY_OPENED`  | A roll is open             | Take the first shot.                                                   |
 | `GALLERY_CLOSING` | A roll closes tomorrow     | The photos are removed when it closes. Save the ones you want.         |
 |                   | A roll closes in 7 days    | The photos are removed when it closes. Save the ones you want.         |

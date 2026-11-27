@@ -95,7 +95,7 @@ describe("14.11 Delete account", () => {
   test("leaves the rolls section out when there's nothing in it", async () => {
     mockDeleteScreen.showRolls = false;
     await renderScreen(<DeleteAccountScreen />);
-    expect(screen.queryByText("Events you host alone")).not.toBeOnTheScreen();
+    expect(screen.queryByText("Events you organize alone")).not.toBeOnTheScreen();
   });
 
   test.each([true, false])("says what is kept after deletion (rolls shown: %s)", async (showRolls) => {

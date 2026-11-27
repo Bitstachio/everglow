@@ -43,5 +43,5 @@ export const looksLikeInvite = (text: string): boolean => {
   return UUID.test(trimmed) || (trimmed.includes("/") && extractInvitationToken(trimmed).length > 0);
 };
 
-/** "Sam" from "Sam Rivera": the envelope names the host the way friends would. */
+/** "Sam" from "Sam Rivera": the envelope names the organizer the way friends would. */
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;

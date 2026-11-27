@@ -55,9 +55,9 @@ const MARKS = ["ring", "tick", "cross", "underline", "strike"] as const;
 
 const photo = (seed: number) => `https://picsum.photos/seed/everglow${seed}/400/400`;
 const PEOPLE = [
-  ["Sam Rivera", "Host"],
-  ["Leila Haddad", "Adds photos"],
-  ["Marcus Bell", "View only"],
+  ["Sam Rivera", "Organizer"],
+  ["Leila Haddad", "Participant"],
+  ["Marcus Bell", "Viewer"],
 ] as const;
 
 const DesignKitScreen = () => {
@@ -209,8 +209,8 @@ const DesignKitScreen = () => {
                 { label: "Pick up by", value: "Tue, 17 Nov, then it’s gone" },
               ]}
               options={[
-                { label: "Adds photos", checked: true },
-                { label: "View only", checked: false },
+                { label: "Participant", checked: true },
+                { label: "Viewer", checked: false },
               ]}
               accessibilityLabel="Invite to Sam and Jo’s wedding"
             />

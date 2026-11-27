@@ -40,7 +40,7 @@ test("asks before throwing a roll away, and keeps editing on request", async () 
   expect(mockDispatch).not.toHaveBeenCalled();
 });
 
-test("throws the roll away by finishing the way the host was leaving", async () => {
+test("throws the roll away by finishing the way the organizer was leaving", async () => {
   const { result } = await renderHook(() => useLeaveUnsaved(true));
   await leave();
   await act(() => result.current.onThrowAway());

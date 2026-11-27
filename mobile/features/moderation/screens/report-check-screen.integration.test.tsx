@@ -202,12 +202,12 @@ test("10.8 a host-only list that fails to load says why, and tries again", async
   mockListReports.mockImplementation(() => listed([]));
   await renderWithClient(<ReportsScreen />);
 
-  expect(await screen.findByText("Only hosts can do that.")).toBeOnTheScreen();
+  expect(await screen.findByText("Only organizers can do that.")).toBeOnTheScreen();
   await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("header", { name: "Nothing to check in your event." })).toBeOnTheScreen();
 });
 
-test("10.9 a report the host filed is decided through another one on the photo", async () => {
+test("10.9 a report the organizer filed is decided through another one on the photo", async () => {
   const own = report();
   const other = report();
   mockListReports.mockImplementation(() => listed([own, other]));

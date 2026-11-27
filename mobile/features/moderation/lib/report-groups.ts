@@ -26,7 +26,7 @@ export type ReportGroup = {
   /** Every report on it is with Everglow: hosts can only look (10.10). */
   withEverglow: boolean;
   /**
-   * The reports still with the hosts. A decision is sent on one
+   * The reports still with the organizers. A decision is sent on one
    * of them and closes the others with it; the next is tried when the API
    * says this host filed the first (CANNOT_RESOLVE_OWN_REPORT).
    */
@@ -90,7 +90,7 @@ export const groupOpenReports = (reports: ReportResponseDto[], memberCount: numb
     .sort((a, b) => b.newestAt.localeCompare(a.newestAt));
 };
 
-/** The groups a host can still decide on: what "N to check" counts. Those with Everglow are listed, not counted. */
+/** The groups an organizer can still decide on: what "N to check" counts. Those with Everglow are listed, not counted. */
 export const toCheckCount = (groups: ReportGroup[]) => groups.filter((group) => !group.withEverglow).length;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;

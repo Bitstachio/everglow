@@ -10,13 +10,13 @@ test("reads as one summary and prints the filled-in fields", async () => {
   await render(
     <LabEnvelope
       fields={[{ label: "Name", value: "Sam & Jo’s wedding" }]}
-      options={[{ label: "Adds photos", checked: true }]}
+      options={[{ label: "Participant", checked: true }]}
       accessibilityLabel="Invite to Sam and Jo’s wedding"
     />,
   );
   expect(screen.getByLabelText("Invite to Sam and Jo’s wedding")).toBeOnTheScreen();
   expect(screen.getByText("Sam & Jo’s wedding")).toBeOnTheScreen();
-  expect(screen.getByText("Adds photos")).toBeOnTheScreen();
+  expect(screen.getByText("Participant")).toBeOnTheScreen();
 });
 
 test("a sealed envelope leaves its fields blank", async () => {
@@ -29,8 +29,8 @@ test("the note's arrow follows the ticked box", async () => {
     <LabEnvelope
       fields={[{ label: "Name", value: "Test" }]}
       options={[
-        { label: "Adds photos", checked: adds, onPress: jest.fn() },
-        { label: "View only", checked: !adds, onPress: jest.fn() },
+        { label: "Participant", checked: adds, onPress: jest.fn() },
+        { label: "Viewer", checked: !adds, onPress: jest.fn() },
       ]}
       note="a note"
       accessibilityLabel="Invite"
@@ -38,8 +38,8 @@ test("the note's arrow follows the ticked box", async () => {
   );
   const { rerender } = await render(envelope(true));
   const layoutAt = (x: number) => ({ nativeEvent: { layout: { x, y: 0, width: 120, height: 44 } } });
-  await fireEvent(screen.getByRole("radio", { name: "Adds photos" }), "layout", layoutAt(0));
-  await fireEvent(screen.getByRole("radio", { name: "View only" }), "layout", layoutAt(136));
+  await fireEvent(screen.getByRole("radio", { name: "Participant" }), "layout", layoutAt(0));
+  await fireEvent(screen.getByRole("radio", { name: "Viewer" }), "layout", layoutAt(136));
   expect(screen.getByTestId("envelope-note", { includeHiddenElements: true })).toHaveStyle({ marginLeft: 0 });
 
   // Ticking the other box moves no box, so no new layout comes: the arrow must still move.

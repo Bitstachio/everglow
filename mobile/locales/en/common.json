@@ -30,7 +30,7 @@
   "notes": {
     "channels": {
       "account": "Account",
-      "reports": "Reports to check (hosts)",
+      "reports": "Reports to check (organizers)",
       "roll_opens": "A roll opens",
       "roll_closing": "The day before it closes"
     }

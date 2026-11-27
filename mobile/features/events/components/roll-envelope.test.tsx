@@ -11,13 +11,13 @@ const roll = {
   startsAt: "Sat, 7 Nov, 19:00",
   peopleCount: 18,
   pickUpBy: "Sat, 14 Nov, then it’s gone",
-  accessibilityLabel: "Adds-photos envelope for Nadia turns 30",
+  accessibilityLabel: "Participant envelope for Nadia turns 30",
 };
 
 test("fills the envelope in with the roll", async () => {
-  await renderWithI18n(<RollEnvelope {...roll} admits="adds" code={<Text>QR</Text>} />);
+  await renderWithI18n(<RollEnvelope {...roll} admits="participant" code={<Text>QR</Text>} />);
 
-  expect(screen.getByLabelText("Adds-photos envelope for Nadia turns 30")).toBeOnTheScreen();
+  expect(screen.getByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
@@ -30,14 +30,14 @@ test("counts one person in the singular", async () => {
   expect(screen.getByText("1 person so far")).toBeOnTheScreen();
 });
 
-test.each(["adds", "view"] as const)("an open %s envelope prints nothing by its code", async (admits) => {
+test.each(["participant", "viewer"] as const)("an open %s envelope prints nothing by its code", async (admits) => {
   await renderWithI18n(<RollEnvelope {...roll} admits={admits} code={<Text>QR</Text>} />);
   expect(screen.getByText("QR")).toBeOnTheScreen();
   expect(screen.queryByText(/admits/i)).not.toBeOnTheScreen();
 });
 
 test("a sealed envelope keeps the roll and the code to itself", async () => {
-  await renderWithI18n(<RollEnvelope {...roll} admits="adds" sealed code={<Text>QR</Text>} />);
+  await renderWithI18n(<RollEnvelope {...roll} admits="participant" sealed code={<Text>QR</Text>} />);
 
   expect(screen.queryByText("Nadia turns 30")).not.toBeOnTheScreen();
   expect(screen.queryByText("18 people so far")).not.toBeOnTheScreen();
@@ -51,19 +51,19 @@ test("puts a stamp over the corner", async () => {
 
 test("with onSelect the boxes are radio buttons that pick the envelope", async () => {
   const onSelect = jest.fn();
-  await renderWithI18n(<RollEnvelope {...roll} admits="adds" note="they add photos too" onSelect={onSelect} />);
+  await renderWithI18n(<RollEnvelope {...roll} admits="participant" note="they add photos too" onSelect={onSelect} />);
 
-  expect(screen.getByRole("radio", { name: "Adds photos", checked: true })).toBeOnTheScreen();
-  await userEvent.setup().press(screen.getByRole("radio", { name: "View only", checked: false }));
-  expect(onSelect).toHaveBeenCalledWith("view");
+  expect(screen.getByRole("radio", { name: "Participant", checked: true })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole("radio", { name: "Viewer", checked: false }));
+  expect(onSelect).toHaveBeenCalledWith("viewer");
   expect(screen.getByText("they add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
 });
 
 test("without onSelect, or sealed, the boxes are only printed", async () => {
-  const { rerender } = await renderWithI18n(<RollEnvelope {...roll} admits="adds" />);
+  const { rerender } = await renderWithI18n(<RollEnvelope {...roll} admits="participant" />);
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
 
-  await rerender(<RollEnvelope {...roll} admits="adds" sealed note="they add photos too" onSelect={jest.fn()} />);
+  await rerender(<RollEnvelope {...roll} admits="participant" sealed note="they add photos too" onSelect={jest.fn()} />);
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
   expect(screen.queryByText("they add photos too", { includeHiddenElements: true })).not.toBeOnTheScreen();
 });

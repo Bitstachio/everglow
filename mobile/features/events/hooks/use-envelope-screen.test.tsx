@@ -65,21 +65,21 @@ test("fills the adds-photos envelope in first", async () => {
     startsAt: "Sat, 7 Nov, 19:00",
     peopleCount: 18,
     pickUpBy: "Sat, 14 Nov, then it’s gone",
-    admits: "adds",
+    admits: "participant",
     note: "they add photos too",
-    accessibilityLabel: "Adds-photos envelope for Nadia turns 30",
+    accessibilityLabel: "Participant envelope for Nadia turns 30",
   });
   expect(result.current.invitationUrl).toBe("https://events.everglow.app/invite/weekend");
 });
 
 test("switches to the view-only envelope and its own link", async () => {
   const { result } = await render();
-  await act(() => result.current.onSelectKind("view"));
+  await act(() => result.current.onSelectKind("viewer"));
 
-  expect(result.current.kind).toBe("view");
+  expect(result.current.kind).toBe("viewer");
   expect(result.current.envelope).toMatchObject({
-    admits: "view",
-    accessibilityLabel: "View-only envelope for Nadia turns 30",
+    admits: "viewer",
+    accessibilityLabel: "Viewer envelope for Nadia turns 30",
   });
   expect(result.current.invitationUrl).toBe("https://events.everglow.app/invite/weekend-viewer");
 });
@@ -90,7 +90,7 @@ test("a roll that never closes has no pick-up date", async () => {
   expect(result.current.envelope?.pickUpBy).toBe("It stays open");
 });
 
-test("sends anyone but a host back to the roll", async () => {
+test("sends anyone but an organizer back to the roll", async () => {
   mockParticipants = { data: [buildParticipant({ accessLevel: "PARTICIPANT" })] };
   const { result } = await render();
 
@@ -146,15 +146,15 @@ test("says when the share sheet couldn't open", async () => {
 
 test("05.5 the reset slip asks which envelope, starting on the one on the table, and says who stays", async () => {
   const { result } = await render();
-  await act(() => result.current.onSelectKind("view"));
+  await act(() => result.current.onSelectKind("viewer"));
   await act(() => result.current.onReset());
 
   expect(result.current.reset).toEqual({
     visible: true,
-    choice: "view",
+    choice: "viewer",
     choices: [
-      { key: "adds", title: "Adds photos", description: "For people who add photos" },
-      { key: "view", title: "View only", description: "For people who only look" },
+      { key: "participant", title: "Participant", description: "For people who add photos" },
+      { key: "viewer", title: "Viewer", description: "For people who only look" },
     ],
     body: "Its QR and link stop working at once and you get new ones. The other envelope keeps working, and the 18 people already in stay.",
     isResetting: false,
@@ -164,16 +164,16 @@ test("05.5 the reset slip asks which envelope, starting on the one on the table,
 test("resetting the other envelope from the slip rotates that one and shows it", async () => {
   const { result } = await render();
   await act(() => result.current.onReset());
-  await act(() => result.current.onSelectResetKind("view"));
+  await act(() => result.current.onSelectResetKind("viewer"));
   await act(() => result.current.onConfirmReset());
 
   expect(mockRegenerate).toHaveBeenCalledWith("VIEWER");
-  expect(result.current.kind).toBe("view");
+  expect(result.current.kind).toBe("viewer");
 });
 
 test("resetting rotates only the chosen envelope and closes the slip", async () => {
   const { result } = await render();
-  await act(() => result.current.onSelectKind("view"));
+  await act(() => result.current.onSelectKind("viewer"));
   await act(() => result.current.onReset());
   await act(() => result.current.onConfirmReset());
 
@@ -223,14 +223,14 @@ test("05.6 a closed roll's envelope is shut, with the day its photos went", asyn
     stampLine: "No new guests",
     date: "Mon, 21 Sep",
   });
-  expect(result.current.envelope).toMatchObject({ admits: "adds", pickUpBy: "Mon, 21 Sep, gone" });
+  expect(result.current.envelope).toMatchObject({ admits: "participant", pickUpBy: "Mon, 21 Sep, gone" });
   expect(result.current.invitationUrl).toBeNull();
 });
 
 test("05.7 a roll under review is on hold, and its links are kept back", async () => {
   mockEvent = { data: buildEvent({ status: "UNDER_REVIEW" }) };
   const { result } = await render();
-  await act(() => result.current.onSelectKind("view"));
+  await act(() => result.current.onSelectKind("viewer"));
 
   expect(result.current.shut).toEqual({
     state: "onHold",
@@ -238,7 +238,7 @@ test("05.7 a roll under review is on hold, and its links are kept back", async (
     stampLine: "Under review",
     date: undefined,
   });
-  expect(result.current.envelope?.admits).toBe("adds");
+  expect(result.current.envelope?.admits).toBe("participant");
   expect(result.current.invitationUrl).toBeNull();
 });
 

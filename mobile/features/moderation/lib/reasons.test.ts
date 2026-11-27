@@ -6,7 +6,7 @@ test("the two serious reasons go only to Everglow", () => {
   expect(goesOnlyToEverglow("NUDITY_OR_SEXUAL")).toBe(false);
 });
 
-test("every ticket lists the hosts' reasons before Everglow's", () => {
+test("every ticket lists the organizers' reasons before Everglow's", () => {
   for (const reasons of Object.values(REPORT_REASONS)) {
     const firstSerious = reasons.findIndex(goesOnlyToEverglow);
     expect(reasons.slice(firstSerious).every(goesOnlyToEverglow)).toBe(true);

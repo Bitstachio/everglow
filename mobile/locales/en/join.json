@@ -33,12 +33,12 @@
     "joinAdds": "Join and add photos",
     "joinView": "Join to look",
     "note": {
-      "adds": "you add photos too",
-      "view": "you look and save"
+      "participant": "you add photos too",
+      "viewer": "you look and save"
     },
     "stamp": "Invited",
-    "stampBy": "by {{host}}",
-    "theHost": "the host",
+    "stampBy": "by {{organizer}}",
+    "theOrganizer": "the organizer",
     "joinFailed": "Couldn’t join",
     "failedTitle": "Couldn’t open",
     "failedDim": "the envelope.",
@@ -72,9 +72,9 @@
       "dim": "are taken.",
       "titleNoLimit": "This event",
       "dimNoLimit": "is full.",
-      "body": "{{host}}’s event holds {{limit}} people. Ask {{host}} to make room.",
-      "bodyNoHost": "This event holds {{limit}} people. Ask the host to make room.",
-      "bodyNoLimit": "Ask the host to make room."
+      "body": "{{organizer}}’s event holds {{limit}} people. Ask {{organizer}} to make room.",
+      "bodyNoOrganizer": "This event holds {{limit}} people. Ask an organizer to make room.",
+      "bodyNoLimit": "Ask an organizer to make room."
     },
     "notValid": {
       "stamp": "Not valid",
@@ -86,7 +86,7 @@
       "stamp": "Removed",
       "title": "You were removed",
       "dim": "from this event.",
-      "body": "A host removed you, so this envelope doesn’t admit you. Only a host can let you back in."
+      "body": "An organizer removed you, so this envelope doesn’t admit you. Only an organizer can let you back in."
     },
     "closed": {
       "stamp": "Closed",
@@ -110,10 +110,10 @@
     },
     "blocked": {
       "stamp": "Blocked",
-      "title": "You blocked {{host}}.",
-      "dim": "{{host}} hosts this event.",
-      "body": "To join, unblock {{host}} first. They won’t be told either way.",
-      "unblock": "Unblock {{host}} and join",
+      "title": "You blocked {{organizer}}.",
+      "dim": "{{organizer}} organizes this event.",
+      "body": "To join, unblock {{organizer}} first. They won’t be told either way.",
+      "unblock": "Unblock {{organizer}} and join",
       "unblockFailed": "Couldn’t unblock"
     }
   },

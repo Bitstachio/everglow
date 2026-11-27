@@ -5,7 +5,7 @@ import { HomeEventCard } from "./home-event-card";
 
 const NOW = new Date("2026-10-16T12:00:00.000Z");
 
-test("shows an open event's status, host role, timing, counts, and opens on press", async () => {
+test("shows an open event's status, organizer role, timing, counts, and opens on press", async () => {
   const onPress = jest.fn();
   const event = buildEvent({
     title: "Sam & Jo’s wedding",
@@ -19,7 +19,7 @@ test("shows an open event's status, host role, timing, counts, and opens on pres
 
   expect(screen.getByText("Open")).toBeOnTheScreen();
   expect(screen.getByText("Sam & Jo’s wedding")).toBeOnTheScreen();
-  expect(screen.getByText("Host")).toBeOnTheScreen();
+  expect(screen.getByText("Organizer")).toBeOnTheScreen();
   expect(screen.getByText("5h 42m left")).toBeOnTheScreen();
   expect(screen.getByText("12 photos · 24 people")).toBeOnTheScreen();
 
@@ -27,12 +27,12 @@ test("shows an open event's status, host role, timing, counts, and opens on pres
   expect(onPress).toHaveBeenCalledTimes(1);
 });
 
-test("shows Adds photos for a participant and View only for a viewer", async () => {
+test("shows Participant for a participant and Viewer for a viewer", async () => {
   await renderWithI18n(<HomeEventCard event={buildEvent({ title: "Friday", accessLevel: "PARTICIPANT" })} now={NOW} />);
-  expect(screen.getByText("Adds photos")).toBeOnTheScreen();
+  expect(screen.getByText("Participant")).toBeOnTheScreen();
 
   await renderWithI18n(<HomeEventCard event={buildEvent({ title: "Saturday", accessLevel: "VIEWER" })} now={NOW} />);
-  expect(screen.getByText("View only")).toBeOnTheScreen();
+  expect(screen.getByText("Viewer")).toBeOnTheScreen();
 });
 
 test("marks an upcoming event with when it opens and leaves out photos", async () => {

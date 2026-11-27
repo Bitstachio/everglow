@@ -3,7 +3,7 @@ import {
   bandStock,
   bandTime,
   durationUntil,
-  hostName,
+  organizerName,
   isRollLastDay,
   rollRole,
   rollStage,
@@ -17,23 +17,23 @@ const NOW = new Date("2026-10-10T12:00:00.000Z");
 describe("rollRole", () => {
   it("reads the caller's access level from the roll call", () => {
     const participants = [
-      buildParticipant({ userId: "host", accessLevel: "ORGANIZER" }),
-      buildParticipant({ userId: "guest", accessLevel: "PARTICIPANT" }),
+      buildParticipant({ userId: "organizer", accessLevel: "ORGANIZER" }),
+      buildParticipant({ userId: "participant", accessLevel: "PARTICIPANT" }),
       buildParticipant({ userId: "viewer", accessLevel: "VIEWER" }),
     ];
     const event = buildEvent({ creatorId: "someone-else" });
-    expect(rollRole(event, participants, "host")).toBe("host");
-    expect(rollRole(event, participants, "guest")).toBe("guest");
+    expect(rollRole(event, participants, "organizer")).toBe("organizer");
+    expect(rollRole(event, participants, "participant")).toBe("participant");
     expect(rollRole(event, participants, "viewer")).toBe("viewer");
   });
 
-  it("treats the creator as host until the roll call loads", () => {
-    expect(rollRole(buildEvent({ creatorId: "user-1" }), [], "user-1")).toBe("host");
+  it("treats the creator as organizer until the roll call loads", () => {
+    expect(rollRole(buildEvent({ creatorId: "user-1" }), [], "user-1")).toBe("organizer");
   });
 
-  it("goes by the roll call over the creator: a creator demoted to guest is a guest", () => {
+  it("goes by the roll call over the creator: a creator demoted to participant is a participant", () => {
     const participants = [buildParticipant({ userId: "user-1", accessLevel: "PARTICIPANT" })];
-    expect(rollRole(buildEvent({ creatorId: "user-1" }), participants, "user-1")).toBe("guest");
+    expect(rollRole(buildEvent({ creatorId: "user-1" }), participants, "user-1")).toBe("participant");
   });
 });
 
@@ -94,11 +94,11 @@ describe("bandTime and isRollLastDay", () => {
 
 describe("bandStock", () => {
   it("shows room to those who add photos and frames to those who only look", () => {
-    expect(bandStock("open", "host")).toEqual({ kind: "storage" });
-    expect(bandStock("open", "guest")).toEqual({ kind: "storage" });
-    expect(bandStock("upcoming", "guest")).toEqual({ kind: "frames" });
+    expect(bandStock("open", "organizer")).toEqual({ kind: "storage" });
+    expect(bandStock("open", "participant")).toEqual({ kind: "storage" });
+    expect(bandStock("upcoming", "participant")).toEqual({ kind: "frames" });
     expect(bandStock("open", "viewer")).toEqual({ kind: "frames" });
-    expect(bandStock("suspended", "host")).toEqual({ kind: "hidden" });
+    expect(bandStock("suspended", "organizer")).toEqual({ kind: "hidden" });
   });
 });
 
@@ -193,14 +193,14 @@ describe("shouldShowOpened", () => {
   });
 });
 
-describe("hostName", () => {
-  it("names the creator, or the first host once they've gone", () => {
+describe("organizerName", () => {
+  it("names the creator, or the first organizer once they've gone", () => {
     const participants = [
       buildParticipant({ userId: "maya", name: "Maya Chen", accessLevel: "ORGANIZER" }),
       buildParticipant({ userId: "sam", name: "Sam Rivera", accessLevel: "ORGANIZER" }),
     ];
-    expect(hostName(buildEvent({ creatorId: "sam" }), participants)).toBe("Sam");
-    expect(hostName(buildEvent({ creatorId: null }), participants)).toBe("Maya");
-    expect(hostName(buildEvent({ creatorId: null }), [])).toBeNull();
+    expect(organizerName(buildEvent({ creatorId: "sam" }), participants)).toBe("Sam");
+    expect(organizerName(buildEvent({ creatorId: null }), participants)).toBe("Maya");
+    expect(organizerName(buildEvent({ creatorId: null }), [])).toBeNull();
   });
 });

@@ -3,14 +3,14 @@ import { closedOn, envelopeAccessLevel, envelopeCount, envelopeState, envelopeUr
 
 test("each envelope carries the invite for its access level", () => {
   const event = buildEvent();
-  expect(envelopeUrl(event, "adds")).toBe("https://events.everglow.app/invite/weekend");
-  expect(envelopeUrl(event, "view")).toBe("https://events.everglow.app/invite/weekend-viewer");
-  expect(envelopeAccessLevel("adds")).toBe("PARTICIPANT");
-  expect(envelopeAccessLevel("view")).toBe("VIEWER");
+  expect(envelopeUrl(event, "participant")).toBe("https://events.everglow.app/invite/weekend");
+  expect(envelopeUrl(event, "viewer")).toBe("https://events.everglow.app/invite/weekend-viewer");
+  expect(envelopeAccessLevel("participant")).toBe("PARTICIPANT");
+  expect(envelopeAccessLevel("viewer")).toBe("VIEWER");
 });
 
 test("an envelope has no link when the API listed no invites", () => {
-  expect(envelopeUrl(buildEvent({ invites: [] }), "adds")).toBeNull();
+  expect(envelopeUrl(buildEvent({ invites: [] }), "participant")).toBeNull();
 });
 
 test("an envelope admits people only while the roll is open and in good standing", () => {
@@ -21,7 +21,7 @@ test("an envelope admits people only while the roll is open and in good standing
   expect(envelopeState(buildEvent({ galleryState: "CLOSED", status: "UNDER_REVIEW" }))).toBe("closed");
 });
 
-test("a closed roll closed when a host cut it, or when its window ran out", () => {
+test("a closed roll closed when an organizer cut it, or when its window ran out", () => {
   const event = buildEvent({ galleryClosesAt: "2026-09-21T10:00:00.000Z" });
   expect(closedOn(event)).toBe("2026-09-21T10:00:00.000Z");
   expect(closedOn({ ...event, deactivatedAt: "2026-09-15T10:00:00.000Z" })).toBe("2026-09-15T10:00:00.000Z");

@@ -105,7 +105,7 @@ describe("Android channels", () => {
     expect(setChannel).toHaveBeenCalledTimes(4);
     expect(setChannel).toHaveBeenCalledWith("account", { name: "Account", importance: 4 });
     expect(setChannel).toHaveBeenCalledWith("reports", {
-      name: "Reports to check (hosts)",
+      name: "Reports to check (organizers)",
       importance: 4,
     });
     expect(setChannel).toHaveBeenCalledWith("roll_opens", { name: "A roll opens", importance: 4 });

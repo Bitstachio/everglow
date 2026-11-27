@@ -13,7 +13,7 @@ type EnvelopeOption = { label: string; checked: boolean; onPress?: () => void };
 type LabEnvelopeProps = {
   /** Name, date, who's on the roll, pick-up date. Leave values out for a sealed envelope. */
   fields: EnvelopeField[];
-  /** What the envelope admits, as printed boxes: "Adds photos", "View only". */
+  /** What the envelope admits, as printed boxes: "Participant", "Viewer". */
   options?: EnvelopeOption[];
   /** Written under the boxes in pencil, with an arrow up to the ticked one: what it lets people do. */
   note?: string;

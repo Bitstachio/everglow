@@ -99,7 +99,7 @@ export const useReportCheckScreen = () => {
       }
     }
     const code = getErrorCode(failure);
-    // Another host decided first: the list has caught up, so go back to it.
+    // Another organizer decided first: the list has caught up, so go back to it.
     if (code === "REPORT_ALREADY_RESOLVED") {
       onBack();
       return;
@@ -109,10 +109,10 @@ export const useReportCheckScreen = () => {
   };
 
   // Keep closes ordinary reports, but the API hands severe ones to Everglow
-  // instead (docs/moderation.md §3), so say so before the host taps it.
+  // instead (docs/moderation.md §3), so say so before the organizer taps it.
   const keepGoesToEverglow = (group?.decidable ?? []).some((report) => SEVERE_REASONS.includes(report.reason));
 
-  // A host can't be removed by another host's report decision, nor can you remove yourself.
+  // A host can't be removed by another organizer's report decision, nor can you remove yourself.
   const canRemovePerson = !!subject && subject.accessLevel !== "ORGANIZER" && subject.userId !== user?.id;
 
   return {

@@ -36,7 +36,7 @@ describe("looksLikeInvite", () => {
 });
 
 describe("firstName", () => {
-  test("names the host by their first name", () => {
+  test("names the organizer by their first name", () => {
     expect(firstName("Sam Rivera")).toBe("Sam");
     expect(firstName("  Jo  ")).toBe("Jo");
   });

@@ -264,7 +264,7 @@ event id and uploaded object like `Avatar`.
 A new roll's first frame (04.5) is picked before the roll exists:
 `useNewRollCover` crops and re-encodes it on the device, and once the create
 returns, `useSetNewRollCoverMutation` uploads it to the new roll. If that
-upload fails the roll is still loaded, and the host is told to add the cover
+upload fails the roll is still loaded, and the organizer is told to add the cover
 from the roll's settings.
 
 ## Event photos
@@ -293,7 +293,7 @@ lands on it with a note saying which member they are (06.6, `ArrivalNote`).
 Every other preview state, and a 404, is a returned envelope saying why
 (06.8–06.13). When a join is refused because the roll changed since it
 opened, the preview is fetched again and shows the new state. "Unblock and
-join" lifts the caller's own block on the host, then joins.
+join" lifts the caller's own block on the organizer, then joins.
 
 `/join/[token]` is open signed out: it shows a sealed envelope (06.3), since
 the preview needs an account. "Sign in to open it" keeps the token in

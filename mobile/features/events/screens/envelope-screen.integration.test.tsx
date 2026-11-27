@@ -63,9 +63,9 @@ beforeEach(() => {
 test("05.1 shows the adds-photos envelope with its code", async () => {
   await renderScreen();
 
-  expect(await screen.findByLabelText("Adds-photos envelope for Nadia turns 30")).toBeOnTheScreen();
+  expect(await screen.findByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Envelope · Nadia turns 30" })).toBeOnTheScreen();
-  expect(screen.getByRole("radio", { name: "Adds photos", checked: true })).toBeOnTheScreen();
+  expect(screen.getByRole("radio", { name: "Participant", checked: true })).toBeOnTheScreen();
   expect(screen.getByText("they add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByText("18 people so far")).toBeOnTheScreen();
@@ -75,13 +75,13 @@ test("05.1 shows the adds-photos envelope with its code", async () => {
 
 test("05.2 switches to the view-only envelope", async () => {
   await renderScreen();
-  await screen.findByLabelText("Adds-photos envelope for Nadia turns 30");
+  await screen.findByLabelText("Participant envelope for Nadia turns 30");
 
   // The boxes on the envelope are the switch.
-  await userEvent.setup().press(screen.getByRole("radio", { name: "View only" }));
+  await userEvent.setup().press(screen.getByRole("radio", { name: "Viewer" }));
 
-  expect(screen.getByLabelText("View-only envelope for Nadia turns 30")).toBeOnTheScreen();
-  expect(screen.getByRole("radio", { name: "View only", checked: true })).toBeOnTheScreen();
+  expect(screen.getByLabelText("Viewer envelope for Nadia turns 30")).toBeOnTheScreen();
+  expect(screen.getByRole("radio", { name: "Viewer", checked: true })).toBeOnTheScreen();
   expect(screen.getByText("they can only look and save", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend-viewer")).toBeOnTheScreen();
 });
@@ -112,10 +112,10 @@ test("says when the envelope couldn't load, and tries again", async () => {
   expect(await screen.findByText("Couldn’t load the envelope.")).toBeOnTheScreen();
   mockFindOne.mockResolvedValue({ data: { data: nadia } });
   await userEvent.setup().press(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByLabelText("Adds-photos envelope for Nadia turns 30")).toBeOnTheScreen();
+  expect(await screen.findByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
 });
 
-test("a guest is sent back to the roll", async () => {
+test("a non-organizer is sent back to the roll", async () => {
   await renderScreen(buildEvent({ invites: [] }), [buildParticipant({ accessLevel: "VIEWER" })]);
 
   await screen.findByTestId("envelope-loading");
@@ -147,10 +147,10 @@ test("straight after loading a roll, the envelope is stamped Ready and closing g
 
 test("05.3 shares the link of the envelope on the table", async () => {
   await renderScreen();
-  await screen.findByLabelText("Adds-photos envelope for Nadia turns 30");
+  await screen.findByLabelText("Participant envelope for Nadia turns 30");
   const user = userEvent.setup();
 
-  await user.press(screen.getByRole("radio", { name: "View only" }));
+  await user.press(screen.getByRole("radio", { name: "Viewer" }));
   await user.press(screen.getByRole("button", { name: "Share the link" }));
 
   expect(share).toHaveBeenCalledWith({
@@ -181,7 +181,7 @@ test("05.5 resets the envelope after the slip, and the new code replaces the old
   ).toBeOnTheScreen();
 
   expect(
-    screen.getByRole("radio", { name: "Adds photos. For people who add photos", checked: true }),
+    screen.getByRole("radio", { name: "Participant. For people who add photos", checked: true }),
   ).toBeOnTheScreen();
   await user.press(screen.getByRole("button", { name: "Reset it" }));
 
@@ -202,14 +202,14 @@ test("05.5 the slip can reset the other envelope, which then shows its new code"
   const user = userEvent.setup();
 
   await user.press(await screen.findByRole("button", { name: "Reset an envelope" }));
-  await user.press(screen.getByRole("radio", { name: "View only. For people who only look" }));
+  await user.press(screen.getByRole("radio", { name: "Viewer. For people who only look" }));
   await user.press(screen.getByRole("button", { name: "Reset it" }));
 
   expect(mockRegenerate).toHaveBeenCalledWith({
     path: { eventId: "event-1", accessLevel: "VIEWER" },
     throwOnError: true,
   });
-  expect(await screen.findByLabelText("View-only envelope for Nadia turns 30")).toBeOnTheScreen();
+  expect(await screen.findByLabelText("Viewer envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(await screen.findByLabelText(`QR code: ${fresh}`)).toBeOnTheScreen();
 });
 
@@ -247,7 +247,7 @@ test("05.6 a closed roll says no one new can join, with nothing to share", async
     }),
   );
 
-  expect(await screen.findByLabelText("Adds-photos envelope for Lake weekend")).toBeOnTheScreen();
+  expect(await screen.findByLabelText("Participant envelope for Lake weekend")).toBeOnTheScreen();
   expect(screen.getByText("Closed", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("No new guests", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("Mon, 21 Sep, gone")).toBeOnTheScreen();

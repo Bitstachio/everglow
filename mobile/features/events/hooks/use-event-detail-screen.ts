@@ -188,7 +188,7 @@ export const useEventDetailScreen = () => {
   // What waits for the sheet to be fully gone: the library picker can't open over it.
   const afterSheetCloses = useRef<(() => void) | null>(null);
   const closeSheet = () => setSheet(null);
-  // A closed roll's host deletes it from the menu, through the same slip as in its settings.
+  // A closed roll's organizer deletes it from the menu, through the same slip as in its settings.
   const deleteRoll = useDeleteRoll(eventQuery.data ?? null, {
     onDeleted: () => {
       afterSheetCloses.current = deleteRoll.leaveIfDeleted;
@@ -430,7 +430,7 @@ export const useEventDetailScreen = () => {
     userId: user?.id,
     // Leaving keeps the frames on screen until Home replaces the roll, but nothing can act on them.
     enabled: hasPhotos && !leavingRoll && !eventQuery.isError && !photosRevoked,
-    canDeleteOthers: role === "host",
+    canDeleteOthers: role === "organizer",
     canDelete: stage !== "underReview",
     frames,
     listed,
@@ -439,10 +439,10 @@ export const useEventDetailScreen = () => {
 
   // 10.4: a sent report says so on the roll for a few seconds, then the
   // param goes so coming back doesn't repeat it, as the arrival note does.
-  // A host's own roll keeps showing them a frame they report.
+  // An organizer's own roll keeps showing them a frame they report.
   const sentNotice =
-    reported === "frame" && role === "host"
-      ? t("report:sent.hostPhoto")
+    reported === "frame" && role === "organizer"
+      ? t("report:sent.organizerPhoto")
       : reported && REPORTED.includes(reported)
         ? t(`report:sent.${REPORTED_COPY_KEY[reported]}`)
         : null;
@@ -511,9 +511,9 @@ export const useEventDetailScreen = () => {
     setBlockError(null);
   };
 
-  // 12.1: hosts see how many reports wait for them in the roll's menu. A
+  // 12.1: organizers see how many reports wait for them in the roll's menu. A
   // suspended roll is read-only (EVENT_SUSPENDED), so it has no Reports row.
-  const canReviewReports = role === "host" && event?.status !== "SUSPENDED";
+  const canReviewReports = role === "organizer" && event?.status !== "SUSPENDED";
   const reportsQuery = useEventOpenReportsQuery(eventId, canReviewReports && !leavingRoll);
   const reportsToCheck = canReviewReports
     ? toCheckCount(groupOpenReports(reportsQuery.data ?? [], event?.usage.members ?? 0))
@@ -523,7 +523,7 @@ export const useEventDetailScreen = () => {
   const ownsOpenFrame = !!openFrame && !!user && openFrame.photo.addedById === user.id;
   // Only someone still on the roll can be blocked from their frame: a leaver
   // has no name to show, and a block needs a roll in common. Someone already
-  // blocked only shows up in a roll you host, and Unblock is in the roll call.
+  // blocked only shows up in a roll you organize, and Unblock is in the roll call.
   const openFrameOwner =
     openFrame && !ownsOpenFrame
       ? participants.find((participant) => participant.userId === openFrame.photo.addedById)
@@ -599,7 +599,7 @@ export const useEventDetailScreen = () => {
     onCloseSheet,
     onSheetClosed,
     onOpenPeople: () => setSheet("people"),
-    // Host envelope screen: from Send the envelope and Invite on the roll.
+    // Organizer envelope screen: from Send the envelope and Invite on the roll.
     onOpenEnvelope: () => {
       closeSheet();
       if (eventId) router.push(`/events/${eventId}/envelope`);
@@ -616,10 +616,10 @@ export const useEventDetailScreen = () => {
     onChooseLeavePhotos: setLeavePhotos,
     onConfirmLeave,
     onCut,
-    // Only a host's closed roll can be deleted; a sole host there can't leave it (LAST_ORGANIZER).
-    canDeleteRoll: role === "host" && event?.galleryState === "CLOSED" && event.status !== "SUSPENDED",
+    // Only an organizer's closed roll can be deleted; a sole organizer there can't leave it (LAST_ORGANIZER).
+    canDeleteRoll: role === "organizer" && event?.galleryState === "CLOSED" && event.status !== "SUSPENDED",
     canLeave: !(
-      role === "host" &&
+      role === "organizer" &&
       event?.galleryState === "CLOSED" &&
       participants.filter((participant) => participant.accessLevel === "ORGANIZER").length <= 1
     ),
@@ -633,7 +633,7 @@ export const useEventDetailScreen = () => {
       setPerson(participant);
       setSheet("person");
     },
-    canRemovePerson: role === "host" && event?.status === "ACTIVE" && !!person && person.accessLevel !== "ORGANIZER",
+    canRemovePerson: role === "organizer" && event?.status === "ACTIVE" && !!person && person.accessLevel !== "ORGANIZER",
     onRemovePerson: () => {
       if (!person) return;
       setRemoving(person);
@@ -668,7 +668,7 @@ export const useEventDetailScreen = () => {
       closeSheet();
       if (eventId) router.push({ pathname: "/events/[id]/reports", params: { id: eventId } });
     },
-    // 10.6: anyone but a host can report the roll from its menu.
+    // 10.6: anyone but an organizer can report the roll from its menu.
     onReportRoll: () => reportAfterSheet({}),
     // 10.1: someone else's frame, from the frame menu (09.3, 09.4). The viewer is closed by then.
     onReportFrame:

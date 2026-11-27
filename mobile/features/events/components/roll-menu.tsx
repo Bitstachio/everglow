@@ -6,15 +6,15 @@ import type { RollRole } from "../lib/roll-page";
 
 type RollMenuProps = {
   role: RollRole;
-  /** Hosts manage settings except on a suspended roll. */
+  /** Organizers manage settings except on a suspended roll. */
   canOpenSettings: boolean;
   /** Cut while the gallery is still open (or upcoming). */
   canCut: boolean;
   /** Delete once it has closed, in Cut's place. */
   canDelete?: boolean;
-  /** A host alone on a closed roll can't leave it (LAST_ORGANIZER), so the row goes. */
+  /** An organizer alone on a closed roll can't leave it (LAST_ORGANIZER), so the row goes. */
   canLeave?: boolean;
-  /** Reports to check, for a host who can review them; left out hides the row. */
+  /** Reports to check, for an organizer who can review them; left out hides the row. */
   reports?: { toCheck: number; onOpen: () => void };
   onSendEnvelope: () => void;
   onOpenRollCall: () => void;
@@ -25,7 +25,7 @@ type RollMenuProps = {
   onLeave: () => void;
 };
 
-/** The roll’s ⋯ menu. Hosts run the roll from it; everyone else can report the roll or leave. */
+/** The roll’s ⋯ menu. Organizers run the roll from it; everyone else can report the roll or leave. */
 export const RollMenu = ({
   role,
   canOpenSettings,
@@ -43,7 +43,7 @@ export const RollMenu = ({
 }: RollMenuProps) => {
   const { t } = useTranslation(["event", "report"]);
 
-  if (role === "host") {
+  if (role === "organizer") {
     return (
       <View testID="roll-menu">
         <MenuAction first label={t("menuSheet.sendEnvelope")} icon={QrCode} onPress={onSendEnvelope} />

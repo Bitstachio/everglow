@@ -7,22 +7,22 @@ type RollEnvelopeProps = {
   title: string;
   /** When the roll is, formatted: "Sat, 7 Nov, 19:00". */
   startsAt?: string;
-  /** Everyone on the roll, hosts included. */
+  /** Everyone on the roll, organizers included. */
   peopleCount?: number;
   /** When the photos go, formatted: "Sat, 14 Nov, then it’s gone". */
   pickUpBy?: string;
   /** Which box is ticked: the adds-photos or the view-only envelope. */
-  admits?: "adds" | "view";
-  /** Sealed until the guest signs in: its back, with the flap shut and nothing written on it (06.3). */
+  admits?: "participant" | "viewer";
+  /** Sealed until the invitee signs in: its back, with the flap shut and nothing written on it (06.3). */
   sealed?: boolean;
   /** The QR code, at the bottom right. */
   code?: ReactNode;
-  /** A button at the foot of the paper (the host's Share the link). */
+  /** A button at the foot of the paper (the organizer's Share the link). */
   action?: ReactNode;
-  /** A pencilled note under the boxes, with an arrow to the ticked one (the host's envelope). */
+  /** A pencilled note under the boxes, with an arrow to the ticked one (the organizer's envelope). */
   note?: string;
-  /** Makes the boxes tappable, to switch between the two envelopes (the host's envelope). */
-  onSelect?: (admits: "adds" | "view") => void;
+  /** Makes the boxes tappable, to switch between the two envelopes (the organizer's envelope). */
+  onSelect?: (admits: "participant" | "viewer") => void;
   /** A `Stamp` on the paper's bottom right corner. */
   stamp?: ReactNode;
   /** A returned envelope: the paper dims, its stamp doesn't. */
@@ -66,14 +66,14 @@ export const RollEnvelope = ({
       ]}
       options={[
         {
-          label: t("paper.adds"),
-          checked: admits === "adds",
-          onPress: onSelect ? () => onSelect("adds") : undefined,
+          label: t("paper.participant"),
+          checked: admits === "participant",
+          onPress: onSelect ? () => onSelect("participant") : undefined,
         },
         {
-          label: t("paper.view"),
-          checked: admits === "view",
-          onPress: onSelect ? () => onSelect("view") : undefined,
+          label: t("paper.viewer"),
+          checked: admits === "viewer",
+          onPress: onSelect ? () => onSelect("viewer") : undefined,
         },
       ]}
       code={code}

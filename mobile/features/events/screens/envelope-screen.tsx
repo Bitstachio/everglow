@@ -17,7 +17,7 @@ import QRCode from "react-native-qrcode-svg";
 import { RollEnvelope } from "../components/roll-envelope";
 import { useEnvelopeScreen } from "../hooks/use-envelope-screen";
 
-/** 05.1–05.7 The envelope: what a host sends so people can join the roll. */
+/** 05.1–05.7 The envelope: what an organizer sends so people can join the roll. */
 const EnvelopeScreen = () => {
   const { t } = useTranslation("envelope");
   const {

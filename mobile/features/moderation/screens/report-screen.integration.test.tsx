@@ -123,11 +123,11 @@ describe("a frame (10.1–10.4)", () => {
     expect(mockRouter.dismissTo).not.toHaveBeenCalled();
   });
 
-  test("a host goes on seeing a frame they report, and the ticket doesn't promise otherwise", async () => {
+  test("an organizer goes on seeing a frame they report, and the ticket doesn't promise otherwise", async () => {
     mockUserId = "u-host";
     await renderScreen();
 
-    expect(await screen.findByText("The hosts see what was reported, never who reported it.")).toBeOnTheScreen();
+    expect(await screen.findByText("The organizers see what was reported, never who reported it.")).toBeOnTheScreen();
     expect(screen.queryByText(/You stop seeing this photo/)).not.toBeOnTheScreen();
   });
 

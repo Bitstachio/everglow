@@ -12,7 +12,7 @@ type RollBandProps = {
   people: ReactNode;
   peopleLabel: string;
   onPeople?: () => void;
-  /** Circle the time: before it opens for hosts, and on the last day. */
+  /** Circle the time: before it opens for organizers, and on the last day. */
   circleTime?: boolean;
   /** Circle the storage: the roll is full. */
   circleStock?: boolean;

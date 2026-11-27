@@ -14,7 +14,7 @@ type BlockerRow = {
   value: string;
   /** The label dims for what only Everglow can settle. */
   muted?: boolean;
-  /** The value in full white when the host can act on it. */
+  /** The value in full white when the organizer can act on it. */
   lit: boolean;
   onPress?: () => void;
 };
@@ -23,7 +23,7 @@ type BlockerRow = {
  * Why a roll can't be deleted yet. The API deletes a roll only once it has
  * closed (EVENT_STILL_ACTIVE before then), and not while it is under review
  * (EVENT_UNDER_REVIEW) or has open reports (EVENT_HAS_OPEN_REPORTS), so the
- * host sees each of those that holds, and what to do about it.
+ * organizer sees each of those that holds, and what to do about it.
  */
 export const useCantDeleteRollScreen = () => {
   const { t } = useTranslation("event");
@@ -37,11 +37,11 @@ export const useCantDeleteRollScreen = () => {
   const event = eventQuery.data ?? null;
   const participants = participantsQuery.data ?? [];
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
-  const isHost = event ? rollRole(event, participants, user?.id) === "host" : false;
-  const reportsQuery = useEventOpenReportsQuery(eventId, isHost && event?.status !== "SUSPENDED");
+  const isOrganizer = event ? rollRole(event, participants, user?.id) === "organizer" : false;
+  const reportsQuery = useEventOpenReportsQuery(eventId, isOrganizer && event?.status !== "SUSPENDED");
 
-  // Only hosts delete a roll, and a closed one is deleted from settings instead.
-  const leave = event !== null && !isLoading && (!isHost || event.galleryState === "CLOSED");
+  // Only organizers delete a roll, and a closed one is deleted from settings instead.
+  const leave = event !== null && !isLoading && (!isOrganizer || event.galleryState === "CLOSED");
   useEffect(() => {
     if (leave || eventQuery.isError) router.back();
   }, [leave, eventQuery.isError, router]);
@@ -84,7 +84,7 @@ export const useCantDeleteRollScreen = () => {
   }
 
   return {
-    isLoading: isLoading || !event || !isHost,
+    isLoading: isLoading || !event || !isOrganizer,
     edge: t("settings.title"),
     title: t("cantDelete.title"),
     titleDim: t("cantDelete.titleDim"),

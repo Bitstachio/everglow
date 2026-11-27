@@ -1,15 +1,15 @@
 {
   "menu": "Event menu",
   "sub": {
-    "upcomingHost": "Opens {{when}} · open for {{days}} days",
-    "upcomingHostOpenEnded": "Opens {{when}}",
-    "upcomingGuest": "Opens {{when}} · hosted by {{host}}",
-    "open_one": "{{date}} · hosted by {{host}} · {{count}} photo",
-    "open_other": "{{date}} · hosted by {{host}} · {{count}} photos",
-    "openNoHost_one": "{{date}} · {{count}} photo",
-    "openNoHost_other": "{{date}} · {{count}} photos",
-    "hidden": "{{date}} · hosted by {{host}}",
-    "hiddenNoHost": "{{date}}"
+    "upcomingOrganizer": "Opens {{when}} · open for {{days}} days",
+    "upcomingOrganizerOpenEnded": "Opens {{when}}",
+    "upcomingParticipant": "Opens {{when}} · organized by {{organizer}}",
+    "open_one": "{{date}} · organized by {{organizer}} · {{count}} photo",
+    "open_other": "{{date}} · organized by {{organizer}} · {{count}} photos",
+    "openNoOrganizer_one": "{{date}} · {{count}} photo",
+    "openNoOrganizer_other": "{{date}} · {{count}} photos",
+    "hidden": "{{date}} · organized by {{organizer}}",
+    "hiddenNoOrganizer": "{{date}}"
   },
   "band": {
     "storage": "<value>{{used}}</value> / {{limit}}",
@@ -22,7 +22,7 @@
     "onHold": "On hold",
     "suspended": "Suspended",
     "hidden": "Hidden",
-    "viewOnly": "View only",
+    "viewer": "Viewer",
     "people_one": "<value>{{count}}</value> person ›",
     "people_other": "<value>{{count}}</value> people ›",
     "peopleLabel_one": "{{count}} person in the event",
@@ -61,9 +61,9 @@
     "cut": "End early ✂",
     "cutLabel": "End the event early",
     "firstShot": "first shot’s yours ↓",
-    "full": "Full · hosts can make room",
-    "fullGuest": "Full · ask {{host}} for room",
-    "fullGuestNoHost": "Full · ask a host for room",
+    "full": "Full · organizers can make room",
+    "fullParticipant": "Full · ask {{organizer}} for room",
+    "fullParticipantNoOrganizer": "Full · ask an organizer for room",
     "fullLabel": "The event is full",
     "moreRoom": "More room ▸",
     "moreRoomLabel": "Make more room in the event"
@@ -90,7 +90,7 @@
     "removed": "photos removed {{date}}",
     "removedLabel": "The photos were removed on {{date}}.",
     "whoWasThere": "Who was there · {{count}}",
-    "host": "Host"
+    "organizer": "Organizer"
   },
   "notice": {
     "reviewEdge": "Under review",
@@ -226,7 +226,7 @@
     "failed": "Couldn’t leave the event. Try again."
   },
   "cut": {
-    "edge": "Hosts only",
+    "edge": "Organizers only",
     "title": "End the event",
     "titleDim": "now?",
     "now": "Now",
@@ -265,17 +265,17 @@
   },
   "people": {
     "edge": "In this event · {{count}}",
-    "host": "Host",
-    "addsPhotos": "Adds photos",
-    "viewOnly": "View only",
+    "organizer": "Organizer",
+    "participant": "Participant",
+    "viewer": "Viewer",
     "you": "{{name}} (you)",
     "unknown": "Someone"
   },
   "remove": {
     "edge": "Remove {{name}}",
     "title": "Remove {{name}}?",
-    "body": "They leave the event now. Only a host can let them back in.",
-    "bodyReported": "They leave the event now, and the reported photo is removed. Only a host can let them back in.",
+    "body": "They leave the event now. Only an organizer can let them back in.",
+    "bodyReported": "They leave the event now, and the reported photo is removed. Only an organizer can let them back in.",
     "photos_one": "What about their photo?",
     "photos_other": "What about their {{count}} photos?",
     "otherPhotos_one": "What about their other photo?",
@@ -373,13 +373,13 @@
   },
   "room": {
     "title": "Only room for {{fits}} of {{wanted}}.",
-    "bodyGuest": "The event has {{left}} left. Send the {{fits}} smallest now, or ask {{host}} for more room.",
-    "bodyGuestNoHost": "The event has {{left}} left. Send the {{fits}} smallest now, or ask a host for more room.",
-    "bodyHost": "The event has {{left}} left. Send the {{fits}} smallest now, or make more room.",
+    "bodyParticipant": "The event has {{left}} left. Send the {{fits}} smallest now, or ask {{organizer}} for more room.",
+    "bodyParticipantNoOrganizer": "The event has {{left}} left. Send the {{fits}} smallest now, or ask an organizer for more room.",
+    "bodyOrganizer": "The event has {{left}} left. Send the {{fits}} smallest now, or make more room.",
     "noneTitle": "No room for these.",
-    "noneBodyGuest": "The event has {{left}} left. Pick smaller photos, or ask {{host}} for more room.",
-    "noneBodyGuestNoHost": "The event has {{left}} left. Pick smaller photos, or ask a host for more room.",
-    "noneBodyHost": "The event has {{left}} left. Pick smaller photos, or make more room.",
+    "noneBodyParticipant": "The event has {{left}} left. Pick smaller photos, or ask {{organizer}} for more room.",
+    "noneBodyParticipantNoOrganizer": "The event has {{left}} left. Pick smaller photos, or ask an organizer for more room.",
+    "noneBodyOrganizer": "The event has {{left}} left. Pick smaller photos, or make more room.",
     "send": "Send {{count}}",
     "pickAgain": "Pick again"
   },
@@ -404,7 +404,7 @@
     "cancel": "Cancel",
     "all": "All",
     "marked": "{{count}} marked · {{mine}} yours",
-    "markedHost": "{{count}} marked · host",
+    "markedOrganizer": "{{count}} marked · organizer",
     "saveCount": "Save {{count}}",
     "deleteCount": "Delete {{count}}",
     "deleteTitle_one": "Delete this photo for everyone?",

@@ -29,8 +29,8 @@ The cases follow the contact-sheet drawings (`design/flow-NN.html`, a local copy
 | VIEW   | Look and save                                                           | Look and save     |
 | MOD    | Report and block                                                        | Report and block  |
 | PPL    | People: the roll call                                                   | People            |
-| RUN    | Run the roll (hosts)                                                    | Run the roll      |
-| LEAVE  | Leave a roll (guests)                                                   | Leave a roll      |
+| RUN    | Run the roll (organizers)                                                    | Run the roll      |
+| LEAVE  | Leave a roll (non-organizers)                                                   | Leave a roll      |
 | YOU    | You: the lab card and account                                           | You               |
 | X      | Cross-cutting: offline, session, deep links, accessibility, performance | —                 |
 
@@ -54,13 +54,13 @@ Most of the regression suite needs rolls in states that take days to reach. Load
 
 | Roll                  | Your role         | State                        |
 | --------------------- | ----------------- | ---------------------------- |
-| QA · Upcoming (host)  | Host              | Opens in 2 days              |
-| QA · Upcoming (guest) | Adds photos       | Opens tomorrow               |
-| QA · Last day         | Host (with Leila) | Closes in 5 hours, no photos |
-| QA · View only        | View only         | Open                         |
-| QA · Closed           | Adds photos       | Closed 13 days ago           |
-| QA · Under review     | Adds photos       | Open, under review           |
-| QA · Suspended        | Adds photos       | Open, suspended              |
+| QA · Upcoming (host)  | Organizer         | Opens in 2 days              |
+| QA · Upcoming (guest) | Participant      | Opens tomorrow               |
+| QA · Last day         | Organizer (with Leila) | Closes in 5 hours, no photos |
+| QA · View only        | Viewer           | Open                         |
+| QA · Closed           | Participant      | Closed 13 days ago           |
+| QA · Under review     | Participant      | Open, under review           |
+| QA · Suspended        | Participant      | Open, suspended              |
 
 Rolls that need photos (thumbnails, saving, selection, reports on a frame) use real uploads: add them from the app with the simulator's photo library. Fixture rows have no S3 objects behind them.
 

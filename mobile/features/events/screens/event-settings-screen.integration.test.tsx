@@ -182,7 +182,7 @@ test("opens when and film slips while upcoming", async () => {
 
   await user.press(await screen.findByRole("button", { name: `When, ${formatDateTime("2026-11-07T19:00:00.000Z")}` }));
   expect(await screen.findByText("When it happens")).toBeOnTheScreen();
-  // Only the host is on the roll, so nobody else will see the move.
+  // Only the organizer is on the roll, so nobody else will see the move.
   expect(screen.queryByText(/will see the new date/)).toBeNull();
 
   await user.press(screen.getByLabelText("Dismiss"));
@@ -213,7 +213,7 @@ test("saves a new film from the slip", async () => {
   );
 });
 
-test("sends non-hosts back", async () => {
+test("sends non-organizers back", async () => {
   mockUser = { id: "user-2" };
   mockFindOne.mockResolvedValue({ data: { data: buildEvent({ creatorId: "user-1" }) } });
   mockGetParticipants.mockResolvedValue({
